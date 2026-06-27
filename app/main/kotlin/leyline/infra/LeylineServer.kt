@@ -1,12 +1,12 @@
 package leyline.infra
 
 import io.netty.bootstrap.ServerBootstrap
-import io.netty.channel.*
+import io.netty.channel.Channel
+import io.netty.channel.ChannelInitializer
+import io.netty.channel.ChannelOption
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
-import io.netty.handler.codec.protobuf.ProtobufDecoder
-import io.netty.handler.codec.protobuf.ProtobufEncoder
 import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
@@ -17,34 +17,30 @@ import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
-import leyline.config.RuntimeDecks
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.debug.DebugCollector
 import leyline.debug.DebugEventBus
 import leyline.debug.DebugSinkAdapter
-import leyline.frontdoor.FrontDoorBootstrapData
-import leyline.frontdoor.FrontDoorHandler
-import leyline.frontdoor.domain.CollationPool
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.PlayerId
-import leyline.frontdoor.repo.SqlitePlayerStore
-import leyline.frontdoor.service.CollectionService
-import leyline.frontdoor.service.CourseService
-import leyline.frontdoor.service.DeckService
-import leyline.frontdoor.service.DraftService
-import leyline.frontdoor.service.GeneratedPool
-import leyline.frontdoor.service.MatchmakingService
-import leyline.frontdoor.service.PlayerService
-import leyline.frontdoor.wire.FdResponseWriter
+import leyline.domain.CollationPool
+import leyline.domain.DeckCard
+import leyline.domain.PlayerId
+import leyline.domain.service.CollectionService
+import leyline.domain.service.CourseService
+import leyline.domain.service.DeckService
+import leyline.domain.service.DraftService
+import leyline.domain.service.GeneratedPool
+import leyline.domain.service.MatchmakingService
 import leyline.game.data.CardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
-import leyline.match.MatchHandler
-import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.ClientHeaderPrepender
-import leyline.protocol.ClientHeaderStripper
+import leyline.infra.persistence.SqlitePlayerStore
+import leyline.native.frontdoor.FrontDoorBootstrapData
+import leyline.native.frontdoor.FrontDoorHandler
+import leyline.native.frontdoor.service.PlayerService
+import leyline.native.frontdoor.wire.FdResponseWriter
+import leyline.native.matchdoor.NativeMatchDoorBootstrap
+import leyline.native.protocol.ClientFrameDecoder
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -90,8 +86,19 @@ class LeylineServer(
 
     /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
     val runtimePuzzle = AtomicReference<String?>(null)
-    val runtimeDecks = AtomicReference<RuntimeDecks?>(null)
     val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+
+    @Volatile
+    var courseServiceForControl: CourseService? = null
+        private set
+
+    @Volatile
+    var draftServiceForControl: DraftService? = null
+        private set
+
+    @Volatile
+    var matchCoordinatorForControl: AppMatchCoordinator? = null
+        private set
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -197,6 +204,8 @@ class LeylineServer(
                     }
                 },
             )
+        courseServiceForControl = courseService
+        draftServiceForControl = draftService
         draftService.discardIncompleteSessions()
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService =
@@ -216,7 +225,9 @@ class LeylineServer(
                 deckService = deckService,
                 courseService = courseService,
                 draftRepo = draftRepo,
+                nameByGrpId = cardRepo::findNameByGrpId,
             )
+        matchCoordinatorForControl = coordinator
 
         frontDoorChannel =
             bindServer(fdSsl, frontDoorPort) { ch ->
@@ -263,25 +274,18 @@ class LeylineServer(
         coordinator: AppMatchCoordinator,
     ): Channel {
         val ch =
-            bindServer(mdSsl, matchDoorPort) { ch ->
-                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
-                ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-                ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
-                ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-                ch.pipeline().addLast(
-                    "handler",
-                    MatchHandler(
-                        matchConfig = matchConfig,
-                        coordinator = coordinator,
-                        cardRepository = cardRepo,
-                        debugSink = debugSink,
-                        puzzlePath = { runtimePuzzle.get() },
-                        runtimeDecks = { runtimeDecks.get() },
-                        runtimeMatchConfigs = runtimeMatchConfigs,
-                    ),
-                )
-            }
+            NativeMatchDoorBootstrap.bind(
+                bossGroup = bossGroup,
+                workerGroup = workerGroup,
+                ssl = mdSsl,
+                port = matchDoorPort,
+                matchConfig = matchConfig,
+                coordinator = coordinator,
+                cardRepository = cardRepo,
+                debugSink = debugSink,
+                puzzlePath = { runtimePuzzle.get() },
+                runtimeMatchConfigs = runtimeMatchConfigs,
+            )
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
         return ch
     }
@@ -296,7 +300,7 @@ class LeylineServer(
 
     /**
      * Compose DeckConverter + DeckLoader + FormatService into a single validation lambda.
-     * Returns null if legal, error string if illegal. Keeps engine deps out of :frontdoor.
+     * Returns null if legal, error string if illegal. Keeps engine deps behind the native composition layer.
      */
     private fun buildDeckValidator(nameByGrpId: (Int) -> String?): (List<DeckCard>, List<DeckCard>, String) -> String? =
         { mainDeck, sideboard, formatId ->

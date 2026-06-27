@@ -1,0 +1,35 @@
+Deck
+4 Riverpyre Verge (DFT) 260
+4 Quantum Riddler (EOE) 72
+4 Shiko, Paragon of the Way (TDM) 223
+4 Ashling, Rekindled (ECL) 124
+2 Aang, Swift Savior (TLA) 204
+2 Gwen Stacy (SPM) 78
+4 Go Ninja Go (TMT) 149
+2 Ill-Timed Explosion (MKM) 207
+3 Winternight Stories (TDM) 67
+1 Abrade (VOW) 139
+1 Burst Lightning (SOA) 41
+2 Get Lost (LCI) 14
+4 Seam Rip (EOE) 34
+2 The Legend of Kuruk (TLA) 61
+4 Floodfarm Verge (DSK) 259
+2 Steam Vents (GRN) 257
+4 Sacred Foundry (GRN) 254
+3 Sunbillow Verge (DFT) 264
+4 Hallowed Fountain (RNA) 251
+1 Plains (ZNR) 380
+1 Cori Mountain Monastery (TDM) 252
+1 Elegant Parlor (MKM) 260
+1 Meticulous Archive (MKM) 264
+
+Sideboard
+2 Beza, the Bounding Spring (BLB) 2
+2 Clarion Conqueror (TDM) 5
+2 Requisition Raid (SOA) 10
+1 Pyrrhic Strike (ECL) 30
+2 Pyroclasm (DSK) 149
+1 Pinnacle Starcage (EOE) 27
+2 Soul-Guide Lantern (WOE) 251
+2 Wan Shi Tong, Librarian (TLA) 78
+1 Frostcliff Siege (TDM) 187

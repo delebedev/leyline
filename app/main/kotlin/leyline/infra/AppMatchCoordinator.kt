@@ -1,17 +1,23 @@
 package leyline.infra
 
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.DeckId
-import leyline.frontdoor.domain.DraftStatus
-import leyline.frontdoor.domain.Format
-import leyline.frontdoor.domain.PlayerId
-import leyline.frontdoor.repo.DraftSessionRepository
-import leyline.frontdoor.service.CourseService
-import leyline.frontdoor.service.DeckService
-import leyline.frontdoor.service.MatchCoordinator
-import leyline.frontdoor.wire.DeckWireBuilder
+import leyline.bridge.bootstrap.CardEntry
+import leyline.bridge.bootstrap.DeckConverter
+import leyline.domain.DeckCard
+import leyline.domain.DeckId
+import leyline.domain.DraftStatus
+import leyline.domain.Format
+import leyline.domain.PlayerId
+import leyline.domain.repo.DraftSessionRepository
+import leyline.domain.service.CourseService
+import leyline.domain.service.DeckService
+import leyline.domain.service.MatchCoordinator
+import leyline.native.frontdoor.wire.DeckWireBuilder
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -27,9 +33,11 @@ class AppMatchCoordinator(
     private val deckService: DeckService,
     private val courseService: CourseService,
     private val draftRepo: DraftSessionRepository,
+    private val nameByGrpId: (Int) -> String? = { null },
 ) : MatchCoordinator {
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
     private val opponentRotationByEvent = ConcurrentHashMap<String, AtomicInteger>()
+    private val courseByMatchId = ConcurrentHashMap<String, Pair<PlayerId, String>>()
 
     @Volatile
     override var selectedDeckId: String? = null
@@ -103,13 +111,19 @@ class AppMatchCoordinator(
         return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
     }
 
-    override fun resolveOpponentDeckJson(eventName: String): String? {
+    override fun resolveOpponentDeckJson(eventName: String): String? = resolveOpponentDeckJson(playerId, eventName)
+
+    fun resolveOpponentDeckJson(
+        playerId: PlayerId,
+        eventName: String,
+    ): String? {
         val session = draftRepo.findByPlayerAndEvent(playerId, eventName) ?: return null
         if (session.status != DraftStatus.Completed) return null
         val pod = draftRepo.findPodResults(session.id)
         if (pod.isEmpty()) return null
 
-        val counter = opponentRotationByEvent.computeIfAbsent(eventName) { AtomicInteger(0) }
+        val rotationKey = "${playerId.value}:$eventName"
+        val counter = opponentRotationByEvent.computeIfAbsent(rotationKey) { AtomicInteger(0) }
         val rotation = Math.floorMod(counter.getAndIncrement(), pod.size)
         val botDeck = pod[rotation]
         log.info(
@@ -127,10 +141,39 @@ class AppMatchCoordinator(
         return cardsToJson(mainDeck, sideboard = emptyList())
     }
 
+    fun configureCourseMatch(
+        matchId: String,
+        playerId: PlayerId,
+        eventName: String,
+    ): Pair<String, String> {
+        val course = courseService.getCourse(playerId, eventName) ?: missingCourseState("No course for $eventName")
+        val deck = course.deck ?: missingCourseState("No course deck for $eventName")
+        val seat2Json = resolveOpponentDeckJson(playerId, eventName) ?: missingCourseState("No pod opponent for $eventName")
+        courseByMatchId[matchId] = playerId to eventName
+        return DeckConverter.toDeckText(deck.mainDeck.toCardEntries(), deck.sideboard.toCardEntries(), nameByGrpId = nameByGrpId) to
+            jsonCardsToDeckText(seat2Json)
+    }
+
+    private fun missingCourseState(message: String): Nothing = throw IllegalArgumentException(message)
+
     override fun reportMatchResult(won: Boolean) {
         val event = selectedEventName ?: return
         courseService.recordMatchResult(playerId, event, won)
         log.info("Match result recorded: event={} won={}", event, won)
+    }
+
+    override fun reportMatchResult(
+        matchId: String,
+        won: Boolean,
+    ) {
+        val routed = courseByMatchId.remove(matchId)
+        if (routed == null) {
+            reportMatchResult(won)
+            return
+        }
+        val (player, event) = routed
+        courseService.recordMatchResult(player, event, won)
+        log.info("Match result recorded: matchId={} player={} event={} won={}", matchId, player.value, event, won)
     }
 
     private fun cardsToJson(
@@ -145,4 +188,25 @@ class AppMatchCoordinator(
                 put("CommandZone", DeckWireBuilder.cardsToJsonArray(commandZone))
             }
         }.toString()
+
+    private fun jsonCardsToDeckText(cardsJson: String): String {
+        val obj =
+            kotlinx.serialization.json.Json
+                .parseToJsonElement(cardsJson)
+                .jsonObject
+        val main = parseCards(obj["MainDeck"]?.jsonArray)
+        val sideboard = parseCards(obj["Sideboard"]?.jsonArray)
+        return DeckConverter.toDeckText(main.toCardEntries(), sideboard.toCardEntries(), nameByGrpId = nameByGrpId)
+    }
+
+    private fun List<DeckCard>.toCardEntries(): List<CardEntry> = map { CardEntry(it.grpId, it.quantity) }
+
+    private fun parseCards(array: kotlinx.serialization.json.JsonArray?): List<DeckCard> =
+        array.orEmpty().map { element ->
+            val obj = element.jsonObject
+            DeckCard(
+                grpId = obj["cardId"]!!.jsonPrimitive.int,
+                quantity = obj["quantity"]!!.jsonPrimitive.int,
+            )
+        }
 }

@@ -1,0 +1,1052 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Leyline Web Door",
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/gre": {
+            "get": {
+                "responses": {
+                    "101": {
+                        "description": "WebSocket upgrade"
+                    }
+                }
+            }
+        },
+        "/api/auth/me": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/request-code": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RequestLoginCodeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    }
+                }
+            }
+        },
+        "/api/auth/verify": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/VerifyLoginCodeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LoginResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    }
+                }
+            }
+        },
+        "/api/gre/start": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GreStartRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftPlayResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
+        "/api/public/gre/start": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GreStartRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftPlayResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/public/spectator/start": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicSpectatorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/public/spectate/viewers": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ViewerCountView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collection": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CollectionView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/cards/metadata": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CardMetadataView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/courses": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CourseView"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/decks": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeckView"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            },
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDeckRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeckView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/decks/{deckId}": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeckView"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            },
+            "delete": {
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    }
+                }
+            }
+        },
+        "/api/draft/start": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartDraftRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftSessionView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/draft/pick": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PickDraftRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftSessionView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/draft/status": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftSessionView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/draft/deck": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SubmitDeckRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CourseView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/draft/play": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlayDraftRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftPlayResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/draft": {
+            "delete": {
+                "responses": {
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "204": {
+                        "description": "No content"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "StartDraftRequest": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "eventName": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "playerId",
+                    "eventName"
+                ],
+                "additionalProperties": false
+            },
+            "PickDraftRequest": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "eventName": {
+                        "type": "string"
+                    },
+                    "cardId": {
+                        "type": "integer"
+                    },
+                    "packNumber": {
+                        "type": "integer"
+                    },
+                    "pickNumber": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "playerId",
+                    "eventName",
+                    "cardId",
+                    "packNumber",
+                    "pickNumber"
+                ],
+                "additionalProperties": false
+            },
+            "SubmitDeckRequest": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "eventName": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "deckId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "mainDeck": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "grpId",
+                                "quantity"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "sideboard": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "grpId",
+                                "quantity"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": [
+                    "playerId",
+                    "eventName",
+                    "mainDeck"
+                ],
+                "additionalProperties": false
+            },
+            "PlayDraftRequest": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "eventName": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "playerId",
+                    "eventName"
+                ],
+                "additionalProperties": false
+            },
+            "GreStartRequest": {
+                "type": "object",
+                "properties": {
+                    "matchId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "wireMatchId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "seat1Deck": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "seat2Deck": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "puzzle": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "spectatorMode": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "WebDeckCard": {
+                "type": "object",
+                "properties": {
+                    "grpId": {
+                        "type": "integer"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "grpId",
+                    "quantity"
+                ],
+                "additionalProperties": false
+            },
+            "DraftSessionView": {
+                "type": "object",
+                "properties": {
+                    "eventName": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "packNumber": {
+                        "type": "integer"
+                    },
+                    "pickNumber": {
+                        "type": "integer"
+                    },
+                    "draftPack": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "pickedCards": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "required": [
+                    "eventName",
+                    "status",
+                    "packNumber",
+                    "pickNumber",
+                    "draftPack",
+                    "pickedCards"
+                ],
+                "additionalProperties": false
+            },
+            "CourseView": {
+                "type": "object",
+                "properties": {
+                    "eventName": {
+                        "type": "string"
+                    },
+                    "module": {
+                        "type": "string"
+                    },
+                    "wins": {
+                        "type": "integer"
+                    },
+                    "losses": {
+                        "type": "integer"
+                    },
+                    "cardPool": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "deckId": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "eventName",
+                    "module",
+                    "wins",
+                    "losses",
+                    "cardPool"
+                ],
+                "additionalProperties": false
+            },
+            "DraftPlayResponse": {
+                "type": "object",
+                "properties": {
+                    "matchId": {
+                        "type": "string"
+                    },
+                    "wireMatchId": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "matchId",
+                    "wireMatchId"
+                ],
+                "additionalProperties": false
+            },
+            "PublicSpectatorResponse": {
+                "type": "object",
+                "properties": {
+                    "matchId": {
+                        "type": "string"
+                    },
+                    "wireMatchId": {
+                        "type": "string"
+                    },
+                    "seat1": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "seat2": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "matchId",
+                    "wireMatchId",
+                    "seat1",
+                    "seat2"
+                ],
+                "additionalProperties": false
+            },
+            "PublicSeatView": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "additionalProperties": false
+            },
+            "ViewerCountView": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "count"
+                ],
+                "additionalProperties": false
+            },
+            "CreateDeckRequest": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "format": {
+                        "type": "string"
+                    },
+                    "mainDeck": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "grpId",
+                                "quantity"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "sideboard": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "grpId",
+                                "quantity"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": [
+                    "playerId",
+                    "name",
+                    "mainDeck"
+                ],
+                "additionalProperties": false
+            },
+            "DeckView": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "format": {
+                        "type": "string"
+                    },
+                    "mainDeck": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "grpId",
+                                "quantity"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "sideboard": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "grpId",
+                                "quantity"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "playerId",
+                    "name",
+                    "format",
+                    "mainDeck",
+                    "sideboard"
+                ],
+                "additionalProperties": false
+            },
+            "CollectionView": {
+                "type": "object",
+                "properties": {
+                    "grpIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "required": [
+                    "grpIds"
+                ],
+                "additionalProperties": false
+            },
+            "AuthView": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RequestLoginCodeRequest": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "email"
+                ],
+                "additionalProperties": false
+            },
+            "VerifyLoginCodeRequest": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "email",
+                    "code"
+                ],
+                "additionalProperties": false
+            },
+            "LoginResponse": {
+                "type": "object",
+                "properties": {
+                    "playerId": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "playerId",
+                    "email"
+                ],
+                "additionalProperties": false
+            },
+            "CardMetadataView": {
+                "type": "object",
+                "properties": {
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "grpId": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                }
+                            },
+                            "required": [
+                                "grpId"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CardMetadataEntry": {
+                "type": "object",
+                "properties": {
+                    "grpId": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "grpId"
+                ],
+                "additionalProperties": false
+            }
+        }
+    }
+}

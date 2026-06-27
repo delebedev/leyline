@@ -79,4 +79,108 @@ class WeakAssertionOnlyTest : FunSpec({
         """.trimIndent()
         rule.lint(code) shouldHaveSize 1
     }
+
+    test("passes on Kotest should matcher infix") {
+        val code = """
+            class Matcher<T>
+            fun beInHandOf(player: String): Matcher<String> = Matcher()
+            infix fun <T> T.should(matcher: Matcher<T>) = Unit
+            fun Boolean.shouldBeTrue() = Unit
+            fun assertSoftly(body: () -> Unit) = body()
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("domain matcher") {
+                true.shouldBeTrue()
+                assertSoftly {
+                    "Grizzly Bears" should beInHandOf("human")
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("passes on Kotest shouldNot matcher infix") {
+        val code = """
+            class Matcher<T>
+            fun beInGraveyardOf(player: String): Matcher<String> = Matcher()
+            infix fun <T> T.shouldNot(matcher: Matcher<T>) = Unit
+            fun Boolean.shouldBeTrue() = Unit
+            fun assertSoftly(body: () -> Unit) = body()
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("negated domain matcher") {
+                true.shouldBeTrue()
+                assertSoftly {
+                    "Shock" shouldNot beInGraveyardOf("human")
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("passes on matcher-only test") {
+        val code = """
+            class Matcher<T>
+            fun beInHandOf(player: String): Matcher<String> = Matcher()
+            fun beInGraveyardOf(player: String): Matcher<String> = Matcher()
+            infix fun <T> T.should(matcher: Matcher<T>) = Unit
+            infix fun <T> T.shouldNot(matcher: Matcher<T>) = Unit
+            fun assertSoftly(body: () -> Unit) = body()
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("matcher-only") {
+                assertSoftly {
+                    "Grizzly Bears" should beInHandOf("human")
+                    "Shock" shouldNot beInGraveyardOf("human")
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("does not treat bare should as strong") {
+        val code = """
+            infix fun String.should(rule: String) = Unit
+            fun Boolean.shouldBeTrue() = Unit
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("bare should") {
+                true.shouldBeTrue()
+                "classes" should "depend on adapters"
+            }
+        """.trimIndent()
+        rule.lint(code) shouldHaveSize 1
+    }
+
+    test("ignores ArchUnit fluent builder without check") {
+        val code = """
+            class RuleBuilder {
+                fun should(): RuleBuilder = this
+                fun dependOnClassesThat(): RuleBuilder = this
+            }
+            fun noClasses(): RuleBuilder = RuleBuilder()
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("archunit builder") {
+                noClasses()
+                    .should()
+                    .dependOnClassesThat()
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("passes on ArchUnit fluent builder with check") {
+        val code = """
+            class RuleBuilder {
+                fun should(): RuleBuilder = this
+                fun dependOnClassesThat(): RuleBuilder = this
+                fun check(classes: String) = Unit
+            }
+            fun noClasses(): RuleBuilder = RuleBuilder()
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("archunit check") {
+                noClasses()
+                    .should()
+                    .dependOnClassesThat()
+                    .check("classes")
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
 })

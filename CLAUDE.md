@@ -1,6 +1,6 @@
 # leyline
 
-Local playtesting server built around a client protocol bridge and Forge (open-source rules engine). Reimplements Front Door (lobby/decks/matchmaking), Match Door (game protocol), and local account/bootstrap flows.
+Local playtesting server built around a client protocol bridge, a web head, and Forge (open-source rules engine). Provides a native-client head plus a browser-facing web head over the same domain and engine core.
 
 - **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
 - **Server mode:** `just serve` (local-only)
@@ -26,9 +26,10 @@ Local playtesting server built around a client protocol bridge and Forge (open-s
 
 ```
 app/            Composition root — LeylineMain, Netty pipeline, debug server, seed DB.
-account/        Account/bootstrap server (Ktor HTTPS) — local login, profile, doorbell. Zero forge deps.
-frontdoor/      Front Door protocol — lobby, decks, events, matchmaking, collections.
-matchdoor/      Game engine adapter — the big one. See matchdoor/CLAUDE.md.
+domain/         Domain model, services, repository ports.
+engine/         Forge bridge + GRE match-session engine. See engine/CLAUDE.md.
+native/         Native-client head; packages account/frontdoor/matchdoor. Web-excluded leaf.
+web/            Browser-facing HTTP/WebSocket head.
 ```
 
 Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `proto/`.
@@ -53,9 +54,9 @@ just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt
 
 Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
-- `just test-one <ClassName>` — single class
+- `just test-one <ClassName> [module]` — single class; defaults to `engine`, e.g. `just test-one WebRoutesTest web`
 - `just test-gate` — pre-commit (all modules + fmt)
-- `just test-integration` — risky matchdoor changes
+- `just test-integration` — risky engine changes
 - `just test-acceptance` — puzzle-backed scripted acceptance suites
 - **Scope tests to changed modules, don't run everything.**
 
@@ -66,7 +67,7 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
 ## Reference
 
-- **Architecture:** `docs/architecture.md`, `docs/forge-api-concepts.md`, `matchdoor/CLAUDE.md` (engine adapter internals).
+- **Architecture:** `docs/architecture.md`, `docs/forge-api-concepts.md`, `engine/CLAUDE.md` (engine adapter internals).
 - **Local setup notes:** `docs/local-client-setup.md`
 
 ## Documentation

@@ -26,7 +26,7 @@ Strict TLS clients validate cert chains against the OS trust store — self-sign
 
 ## Proto workflow
 
-`proto/upstream/messages.proto` → `matchdoor/src/main/proto/messages.proto` via `just sync-proto`. The upstream submodule has the raw client schema; `proto/rename-map.sed` applies field/type renames for readability. Don't edit `messages.proto` directly — edit the rename map and re-sync.
+`proto/upstream/messages.proto` → `engine/src/main/proto/messages.proto` via `just sync-proto`. The upstream submodule has the raw client schema; `proto/rename-map.sed` applies field/type renames for readability. Don't edit `messages.proto` directly — edit the rename map and re-sync.
 
 ## Individual build steps
 

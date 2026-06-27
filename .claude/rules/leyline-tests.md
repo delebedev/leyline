@@ -1,8 +1,8 @@
 ---
 paths:
-  - "matchdoor/src/test/**"
-  - "frontdoor/src/test/**"
-  - "account/src/test/**"
+  - "engine/src/test/**"
+  - "native/src/test/**"
+  - "web/src/test/**"
   - "just/test.just"
 ---
 
@@ -16,15 +16,16 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 
 | Changed | Command |
 |---|---|
-| `matchdoor/` (safe change) | `./gradlew :matchdoor:testGate` |
-| `matchdoor/` (risky: StateMapper, bridges, combat, annotations) | `./gradlew :matchdoor:testGate :matchdoor:testIntegration` |
-| `frontdoor/` | `./gradlew :frontdoor:test` |
-| `account/` | `./gradlew :account:test` |
-| Single class | `just test-one ClassName` |
-| Single class + stdout | `just test-debug ClassName` |
+| `engine/` (safe change) | `./gradlew :engine:testGate` |
+| `engine/` (risky: StateMapper, bridges, combat, annotations) | `./gradlew :engine:testGate :engine:testIntegration` |
+| `native/` | `./gradlew :native:test` |
+| `web/` | `./gradlew :web:test` |
+| Single class | `just test-one ClassName` (defaults to `engine`) |
+| Single class in another module | `just test-one ClassName web` |
+| Single class + stdout | `just test-debug ClassName` (defaults to `engine`, accepts the same optional module arg) |
 | Pre-commit (all modules + fmt) | `just test-gate` |
 
-**Test-only changes** (amended assertion, new test case — no prod code touched): `just test-one Foo` is sufficient.
+**Test-only changes** (amended assertion, new test case — no prod code touched): `just test-one Foo` is sufficient for engine. Use `just test-one Foo native` or `just test-one Foo web` for other modules.
 
 **Debugging test output:** `just test-debug` enables `-Pverbose` which passes `showStandardStreams` to Gradle. `println` from test code becomes visible. Logback root stays WARN — no engine noise.
 
@@ -34,8 +35,8 @@ Use this loop when a recent PR or `main` merge has intermittent failures:
 
 1. Review recent CI failures and reruns first. Pick likely suspects from repeated class names, failed task shape, and whether the failure was gate or integration.
 2. Refresh the worktree to latest `main`, update submodules, and run `just install-forge` if the Forge gitlink changed. Do not count setup repair as a stress pass.
-3. Local stress iterations use only `./gradlew --rerun-tasks :matchdoor:testGate :matchdoor:testIntegration`. Run 3-5 forced passes max, and stop on the first failure.
-4. After the first repro, switch to targeted repeats: `./gradlew --rerun-tasks :matchdoor:testIntegration -Pkotest.filter.specs='.*ClassName'`. If the targeted spec passes but the full graph flakes, suspect task/fork/shared-state interaction before changing game code.
+3. Local stress iterations use only `./gradlew --rerun-tasks :engine:testGate :engine:testIntegration`. Run 3-5 forced passes max, and stop on the first failure.
+4. After the first repro, switch to targeted repeats: `./gradlew --rerun-tasks :engine:testIntegration --tests "*ClassName"`. If the targeted class passes but the full graph flakes, suspect task/fork/shared-state interaction before changing game code.
 5. Fix the smallest concrete cause, then scan sibling helpers and tests for the same smell before opening the PR.
 
 When the fix touches test helpers, prefer tightening the helper contract over adding another wrapper. PR #136 is the pattern: a helper returned a generic nullable action, callers re-selected mutable zone state, and identity drift hid in the call site. Returning the concrete action type made the submitted identity explicit. After that kind of fix, look for sibling helpers with overly broad return types or optionality that lets callers reconstruct state instead of using the value already produced.
@@ -46,13 +47,13 @@ When the fix touches test helpers, prefer tightening the helper contract over ad
 
 | Module | Tag | Notes |
 |---|---|---|
-| `matchdoor` | `UnitTag` / `BoardTag` / `IntegrationTag` | Import from `leyline.{UnitTag,BoardTag,IntegrationTag}` |
-| `frontdoor` | `FdTag` | All tests are unit-level |
-| `account` | `UnitTag` | Import from `leyline.account.UnitTag` |
+| `engine` | `UnitTag` / `BoardTag` / `IntegrationTag` | Import from `leyline.{UnitTag,BoardTag,IntegrationTag}` |
+| `native` | `NativeTag` | Import from `leyline.native.NativeTag` |
+| `web` | route/auth tests use module-local tags as needed | Unit-level |
 
 `testGate` = Unit + Board. `testIntegration` = Integration only.
 
-## Setup tiers (matchdoor)
+## Setup tiers (engine)
 
 | Tier | Method | Time | Use when |
 |---|---|---|---|
@@ -88,7 +89,7 @@ class FooTest : BoardTest({
 })
 ```
 
-Existing tests using `val base = BoardTestBase()` pattern still work — migrate to BoardTest when touching the file.
+Existing tests using `val base = BoardTestBase()` pattern still work, but `BoardTestBase` is a legacy implementation helper. Do not start new files with it. Migrate touched board-tier tests to `BoardTest` unless a specific legacy setup seam blocks the conversion.
 
 ## Style
 
@@ -104,7 +105,7 @@ Existing tests using `val base = BoardTestBase()` pattern still work — migrate
 - **Category assertions mandatory** on zone transfer tests. `zt.shouldNotBeNull()` alone is lax — always check `zt.category shouldBe "..."`.
 - **Bail-out loops need terminal assertions.** Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
 - **Use helpers, not raw proto access.** Check `TestExtensions.kt` (assertions) and `ProtoDsl.kt` (proto builders — actions, mana, GRE messages, stops) before writing inline builders. If a pattern appears 2+ times and no helper exists, add one to the appropriate file.
-- **Prefer domain matchers over structural assertions** for end-state checks. `"Grizzly Bears" should beInHandOf(human)` reads like MTG and fails with a self-describing message. Matchers live alongside `TestExtensions.kt` (e.g. `ZoneMatchers.kt`). Known gap: `WeakAssertionOnly` does not yet classify `subject should matcher()` as strong, so tests whose only assertions are matcher infixes may need a baseline entry.
+- **Prefer domain matchers over structural assertions** for end-state checks. `"Grizzly Bears" should beInHandOf(human)` reads like MTG and fails with a self-describing message. Matcher-only tests are valid when the matcher message names the domain object and observed state; add matcher tests for positive, negative, and failure-message cases. Matchers live alongside `TestExtensions.kt` (e.g. `ZoneMatchers.kt`).
 - **Tests should read like specs.** Extract helpers that name the intent.
 - **No `when` with `else -> {}`** — silently ignores unknown variants. Filter by type explicitly.
 - **No tautological assertions.** `uint >= 0` is always true. Use `shouldBeGreaterThan 0` if value must be positive.

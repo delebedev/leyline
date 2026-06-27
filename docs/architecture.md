@@ -16,33 +16,34 @@ System shape: modules, services, wire, and the end-to-end flow from client conne
 Gradle multi-project layout. All Kotlin.
 
 - **`leyline`** — root project, sources in `app/`. Application entrypoint (`LeylineMain`), server wiring (`LeylineServer`), debug HTTP server, management.
-- **`account`** — HTTPS authentication backend (`AccountServer`, `TokenService`, `AccountStore`).
-- **`frontdoor`** — pre-game surface: lobby, deck, draft, matchmaking. `FrontDoorHandler` dispatches to services in `frontdoor/service/`; replies encoded by `frontdoor/wire/`.
-- **`matchdoor`** — gameplay. Four core sub-packages:
+- **`domain`** — domain model, services, and repository ports.
+- **`engine`** — Forge bridge and GRE match-session engine.
   - `bridge/` — engine integration. Blocking-bridge classes and the `PlayerController` override surface.
   - `game/` — state mapping, annotations, diffing, counters. `game/mapper/` holds per-slice mappers (objects, zones, players, actions).
   - `match/` — session state machine: `MatchSession` + per-concern handlers (combat, targeting, optional-actions, mulligan, auto-pass).
-  - `protocol/` — 6-byte wire framing and handshake.
+- **`native`** — native-client head; packages account, frontdoor, and matchdoor transport.
+- **`web`** — browser-facing HTTP/WebSocket head.
 - **`forge/`** — Card-Forge upstream as a git submodule (the Java rules engine).
 
 ```mermaid
 graph LR
     CLIENT["Client (Unity)"]
-    ACCOUNT["account<br/>AccountServer"]
-    FRONTDOOR["frontdoor<br/>FrontDoorHandler"]
-    MATCHDOOR["matchdoor<br/>MatchHandler · GameBridge · bridges"]
+    NATIVE["native<br/>account · frontdoor · matchdoor transport"]
+    WEB["web<br/>HTTP · WebSocket"]
+    ENGINE["engine<br/>MatchHandler · GameBridge · bridges"]
     APP["leyline (app)<br/>LeylineServer · DebugServer"]
     FORGE["forge (submodule)<br/>rules engine"]
 
-    CLIENT --> ACCOUNT
-    CLIENT --> FRONTDOOR
-    CLIENT --> MATCHDOOR
-    APP --> FRONTDOOR
-    APP --> MATCHDOOR
-    MATCHDOOR --> FORGE
+    CLIENT --> NATIVE
+    CLIENT --> WEB
+    APP --> NATIVE
+    APP --> WEB
+    NATIVE --> ENGINE
+    WEB --> ENGINE
+    ENGINE --> FORGE
 ```
 
-`matchdoor` is the only module that depends on `forge`; the bridge classes are the single narrow waist between Kotlin and the Java engine.
+`engine` is the only module that depends on `forge`; the bridge classes are the single narrow waist between Kotlin and the Java engine.
 
 ---
 
@@ -52,10 +53,10 @@ graph LR
 
 | Service | Default port | Protocol | Implementation |
 |---|---|---|---|
-| Front Door | 30010 | TLS + 6-byte-framed JSON | `frontdoor/FrontDoorHandler` |
-| Match Door | 30003 | TLS + 6-byte-framed protobuf | `matchdoor/.../match/MatchHandler` |
+| Native lobby | 30010 | TLS + 6-byte-framed JSON | `native/frontdoor/FrontDoorHandler` |
+| Native match | 30003 | TLS + 6-byte-framed protobuf | `native/matchdoor/NativeMatchDoorBootstrap` -> `engine/match/MatchHandler` |
 | Debug | 8090 | HTTP + SSE (JDK `HttpServer`) | `app/.../debug/DebugServer` |
-| Account | 9443 | HTTPS (Ktor) | `account/.../AccountServer` |
+| Account | 9443 | HTTPS (Ktor) | `native/account/AccountServer` |
 | Management | 8091 | HTTP | `app/.../infra/ManagementServer` |
 
 Ports are configured via `leyline.toml` or CLI flags (`--fd-port`, `--md-port`, `--debug-port`, …); the values above are defaults.
@@ -135,7 +136,7 @@ sequenceDiagram
 
 ## 6. State Mapping
 
-Engine state becomes wire state through a two-stage pipeline in `matchdoor.game`.
+Engine state becomes wire state through a two-stage pipeline in `engine.game`.
 
 **Stage 1 — capture.** `GsmSnapshot.capture(game, bridge, …)` reads `forge-game` state into an immutable value: seats, zones, objects, phase, stack, persistent annotation baseline. The only place `forge.game.Game` is read directly (alongside `BundleBuilder`'s capture call).
 

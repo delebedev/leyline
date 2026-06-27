@@ -4,7 +4,6 @@ import io.gitlab.arturbosch.detekt.api.Config
 import io.gitlab.arturbosch.detekt.test.lint
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldHaveSize
 
 class VacuousTestSkipTest : FunSpec({
 
@@ -19,7 +18,10 @@ class VacuousTestSkipTest : FunSpec({
             }
             val file = java.io.File("x")
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "VacuousTestSkip",
+            messageContains = "bails out silently",
+        )
     }
 
     test("flags file.exists().not() with labeled return") {
@@ -31,7 +33,10 @@ class VacuousTestSkipTest : FunSpec({
             }
             val file = java.io.File("x")
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "VacuousTestSkip",
+            messageContains = "bails out silently",
+        )
     }
 
     test("flags nested File(path).exists() pattern") {
@@ -42,7 +47,10 @@ class VacuousTestSkipTest : FunSpec({
                 }
             }
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "VacuousTestSkip",
+            messageContains = "bails out silently",
+        )
     }
 
     test("passes on unlabeled return") {

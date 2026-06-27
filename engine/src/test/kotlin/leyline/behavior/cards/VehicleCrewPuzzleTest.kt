@@ -1,0 +1,58 @@
+package leyline.behavior.cards
+
+import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
+import leyline.testkit.SessionTest
+
+/**
+ * Integration test for vehicle crew mechanic.
+ *
+ * Validates: crew activation, cost payment (tap creature), vehicle becomes creature, combat attack.
+ * Brute Suit (4/3 Vigilance, Crew 1) crewed by Centaur Courser (3/3) attacks for lethal.
+ *
+ * AILife set to 10 so Centaur Courser's auto-pass attacks (3 damage each) don't kill
+ * before we get to crew. After crewing, Brute Suit (4/3) finishes the job.
+ */
+class VehicleCrewPuzzleTest :
+    SessionTest({
+
+        test("crew vehicle and attack for lethal") {
+            val pzl =
+                """
+                [metadata]
+                Name:Crew and Attack
+                Goal:Win
+                Turns:4
+                Difficulty:Easy
+                Description:Crew Brute Suit with Centaur Courser, then attack for lethal.
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=10
+
+                humanbattlefield=Brute Suit|Centaur Courser
+                humanlibrary=Mountain|Mountain|Mountain|Mountain
+                aibattlefield=Coral Merfolk
+                ailibrary=Mountain|Mountain|Mountain|Mountain
+                """.trimIndent()
+
+            startPuzzleRaw(pzl, validating = true)
+
+            assertSoftly {
+                // Auto-pass should stop at Main1 when crew ability is available
+                phase() shouldBe "MAIN1"
+
+                // Activate crew ability on Brute Suit — engine auto-selects Centaur Courser
+                activateAbility("Brute Suit").shouldBeTrue()
+
+                // Pass priority until game over — auto-pass handles combat
+                passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
+
+                isGameOver().shouldBeTrue()
+                human.hasWon().shouldBeTrue()
+            }
+        }
+    })

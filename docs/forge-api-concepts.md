@@ -1,18 +1,18 @@
 ---
-summary: "Key Forge API concepts for matchdoor work: controller callbacks, SpellAbility chains, actions, costs, events, snapshots, and prompts."
+summary: "Key Forge API concepts for engine work: controller callbacks, SpellAbility chains, actions, costs, events, snapshots, and prompts."
 read_when:
-  - "modifying matchdoor bridge code that calls into Forge"
+  - "modifying engine bridge code that calls into Forge"
   - "adding or debugging a Forge PlayerController override"
   - "deciding whether to use a Forge event, snapshot diff, or prompt bridge"
   - "debugging cast, ability, cost, or targeting behaviour"
 ---
 # Forge API Concepts
 
-This is the stable map for how matchdoor uses Forge APIs. It explains the concepts that show up across many classes; per-class rationale stays in KDoc and wire details stay in protocol docs.
+This is the stable map for how engine uses Forge APIs. It explains the concepts that show up across many classes; per-class rationale stays in KDoc and wire details stay in protocol docs.
 
 ## 1. Boundary Shape
 
-`matchdoor` is an adapter around Forge's synchronous rules engine. The client protocol is asynchronous, but Forge expects blocking answers from a `PlayerController`.
+`engine` is an adapter around Forge's synchronous rules engine. The client protocol is asynchronous, but Forge expects blocking answers from a `PlayerController`.
 
 There are three main integration surfaces:
 

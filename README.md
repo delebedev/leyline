@@ -20,9 +20,10 @@ Leyline's async handler completes the future when the client responds.
 
 ```
 app/         Server startup, Netty pipeline, debug tools
-account/     Local account bootstrap + doorbell — no Forge dependency
-frontdoor/   Lobby, decks, matchmaking
-matchdoor/   Game engine adapter — the big module
+domain/      Domain model and services
+engine/      Forge bridge + GRE match-session engine
+native/      Native-client head: account, lobby, match TCP transport
+web/         Browser-facing HTTP/WebSocket head
 ```
 
 [Architecture deep-dive →](docs/architecture.md)
@@ -53,7 +54,7 @@ End-to-end client runs need local client setup. See [docs/local-client-setup.md]
 
 ```bash
 just test-gate         # lint + typecheck + all tests
-just test-one MyTest   # single test class
+just test-one MyTest   # single engine test class; add module name for others
 just puzzle file.pzl   # run a puzzle scenario
 ```
 

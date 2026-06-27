@@ -1,0 +1,243 @@
+package leyline.game.bundle
+
+import leyline.game.mapping.PromptIds
+import wotc.mtgo.gre.external.messaging.Messages.*
+
+/** Pure proto builders for CastingTimeOptionsReq prompt variants. */
+object CastingTimeOptionsBuilder {
+    data class ManaRequirementSpec(
+        val colors: List<ManaColor>,
+        val count: Int = 1,
+    )
+
+    /**
+     * Build a [ModalReq] + [CastingTimeOptionsReq] proto for a modal prompt.
+     *
+     * Per-mode `modeCost` and `excludedOptions` are populated when supplied.
+     *
+     * @param parentGrpId the abilityGrpId of the modal ability
+     * @param childGrpIds the grpIds for each modal option, in render order
+     * @param modalCosts optional per-mode `+ {cost}` parallel to childGrpIds; null = all free
+     * @param excludedGrpIds modes that exist on the card but aren't pickable now
+     * @param excludedCosts costs parallel to excludedGrpIds; same shape as modalCosts
+     * @param sourceInstanceId the instanceId for affectedId/affectorId
+     * @param grpId the grpId for the CTO entry (card grpId for spells, ability grpId for triggers)
+     * @param ctoId CTO identifier (1-2 for spell-time, 3 for triggered abilities)
+     * @param playerIdToPrompt seat number to prompt (null omits the field)
+     */
+    @Suppress("LongParameterList") // Each param maps to one explicit proto field; bundling into a struct just renames the bag.
+    fun buildModalCastingTimeOptionsReq(
+        parentGrpId: Int,
+        childGrpIds: List<Int>,
+        minSel: Int,
+        maxSel: Int,
+        sourceInstanceId: Int,
+        grpId: Int,
+        ctoId: Int = 2,
+        playerIdToPrompt: Int? = null,
+        modalCosts: List<List<Pair<ManaColor, Int>>>? = null,
+        excludedGrpIds: List<Int> = emptyList(),
+        excludedCosts: List<List<Pair<ManaColor, Int>>> = emptyList(),
+    ): CastingTimeOptionsReq {
+        val modalReq =
+            ModalReq
+                .newBuilder()
+                .setAbilityGrpId(parentGrpId)
+                .setMinSel(minSel)
+                .setMaxSel(maxSel)
+        for ((i, childGrpId) in childGrpIds.withIndex()) {
+            val opt = ModalOption.newBuilder().setGrpId(childGrpId)
+            modalCosts?.getOrNull(i)?.forEach { (color, count) ->
+                opt.addModeCost(buildManaCost(color, count))
+            }
+            modalReq.addModalOptions(opt)
+        }
+        for ((i, exGrpId) in excludedGrpIds.withIndex()) {
+            val opt = ModalOption.newBuilder().setGrpId(exGrpId)
+            excludedCosts.getOrNull(i)?.forEach { (color, count) ->
+                opt.addModeCost(buildManaCost(color, count))
+            }
+            modalReq.addExcludedOptions(opt)
+        }
+        val ctoBuilder =
+            CastingTimeOptionReq
+                .newBuilder()
+                .setCtoId(ctoId)
+                .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+                .setAffectedId(sourceInstanceId)
+                .setAffectorId(sourceInstanceId)
+                .setGrpId(grpId)
+                .setIsRequired(true)
+                .setModalReq(modalReq)
+        if (playerIdToPrompt != null) {
+            ctoBuilder.setPlayerIdToPrompt(playerIdToPrompt)
+        }
+        return CastingTimeOptionsReq
+            .newBuilder()
+            .addCastingTimeOptionReq(ctoBuilder)
+            .build()
+    }
+
+    /** Build a single-color [Cost] message for a `+ {cost}` mode entry. */
+    private fun buildManaCost(
+        color: ManaColor,
+        count: Int,
+    ): Cost =
+        Cost
+            .newBuilder()
+            .setType(CostType.Mana)
+            .setManaCost(
+                ManaCost
+                    .newBuilder()
+                    .addColor(color)
+                    .setCount(count),
+            ).build()
+
+    /**
+     * Build a [CastingTimeOptionsReq] for optional costs.
+     *
+     * `playerIdToPrompt` and `baseManaCost` (with `objectId = instanceId`) are
+     * populated on every entry including Done; some renderers require both.
+     */
+    fun buildOptionalCostCastingTimeOptionsReq(
+        instanceId: Int,
+        optionalCosts: List<Pair<CastingTimeOptionType, Int>>,
+        playerIdToPrompt: Int,
+        baseManaCost: List<Pair<ManaColor, Int>>,
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val manaRequirements =
+            baseManaCost.map { (color, count) ->
+                ManaRequirement
+                    .newBuilder()
+                    .addColor(color)
+                    .setCount(count)
+                    .setObjectId(instanceId)
+                    .build()
+            }
+        val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
+        val costCtoIds = mutableListOf<Int>()
+        for ((i, cost) in optionalCosts.withIndex()) {
+            val ctoId = i + 1
+            costCtoIds.add(ctoId)
+            ctoReqBuilder.addCastingTimeOptionReq(
+                CastingTimeOptionReq
+                    .newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(cost.first)
+                    .setAffectedId(instanceId)
+                    .setAffectorId(instanceId)
+                    .setGrpId(cost.second)
+                    .setPlayerIdToPrompt(playerIdToPrompt)
+                    .addAllManaCost(manaRequirements),
+            )
+        }
+        ctoReqBuilder.addCastingTimeOptionReq(
+            CastingTimeOptionReq
+                .newBuilder()
+                .setCtoId(0)
+                .setCastingTimeOptionType(CastingTimeOptionType.Done)
+                .setIsRequired(true)
+                .setPlayerIdToPrompt(playerIdToPrompt)
+                .addAllManaCost(manaRequirements),
+        )
+        return Pair(ctoReqBuilder.build(), costCtoIds)
+    }
+
+    fun buildManaTypeCastingTimeOptionsReq(
+        instanceId: Int,
+        grpId: Int,
+        playerIdToPrompt: Int,
+        hybridColors: List<ManaColor>,
+        manaCost: List<ManaRequirementSpec>,
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val manaRequirements = manaCost.map { it.toProto(instanceId) }
+        val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
+        val ctoIds = mutableListOf<Int>()
+        for ((index, color) in hybridColors.withIndex()) {
+            val ctoId = index + 2
+            ctoIds.add(ctoId)
+            ctoReqBuilder.addCastingTimeOptionReq(
+                CastingTimeOptionReq
+                    .newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(CastingTimeOptionType.ManaType)
+                    .setAffectedId(instanceId)
+                    .setAffectorId(instanceId)
+                    .setGrpId(grpId)
+                    .setPlayerIdToPrompt(playerIdToPrompt)
+                    .setIsRequired(true)
+                    .setSelectManaTypeReq(
+                        SelectManaTypeReq
+                            .newBuilder()
+                            .addManaColors(ManaColor.TwoGeneric)
+                            .addManaColors(color)
+                            .setSourceId(instanceId),
+                    ).addAllManaCost(manaRequirements),
+            )
+        }
+        return ctoReqBuilder.build() to ctoIds
+    }
+
+    private fun ManaRequirementSpec.toProto(objectId: Int): ManaRequirement =
+        ManaRequirement
+            .newBuilder()
+            .addAllColor(colors)
+            .setCount(count)
+            .setObjectId(objectId)
+            .build()
+
+    fun buildChooseOrCostCastingTimeOptionsReq(
+        instanceId: Int,
+        grpId: Int,
+        playerIdToPrompt: Int,
+        optionCount: Int,
+        optionPromptIds: List<Int> = emptyList(),
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val ctoId = 2
+        val selectPrompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(if (optionPromptIds.isNotEmpty()) PromptIds.CHOOSE_OR_COST else PromptIds.SELECT_N)
+                .apply {
+                    optionPromptIds.forEach { promptId ->
+                        addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("Cost")
+                                .setType(ParameterType.PromptId)
+                                .setPromptId(promptId),
+                        )
+                    }
+                }.build()
+        val selectNReq =
+            SelectNReq
+                .newBuilder()
+                .setMinSel(1)
+                .setMaxSel(1)
+                .setListType(SelectionListType.Dynamic)
+                .setIdType(IdType.PromptParameterIndex)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+                .setSourceId(instanceId)
+                .setPrompt(selectPrompt)
+                .apply {
+                    repeat(optionCount) { index -> addIds(index + 1) }
+                }.build()
+
+        val req =
+            CastingTimeOptionsReq
+                .newBuilder()
+                .addCastingTimeOptionReq(
+                    CastingTimeOptionReq
+                        .newBuilder()
+                        .setCtoId(ctoId)
+                        .setCastingTimeOptionType(CastingTimeOptionType.ChooseOrCost)
+                        .setAffectedId(instanceId)
+                        .setAffectorId(instanceId)
+                        .setGrpId(grpId)
+                        .setPlayerIdToPrompt(playerIdToPrompt)
+                        .setIsRequired(true)
+                        .setSelectNReq(selectNReq),
+                ).build()
+        return req to (1..optionCount).toList()
+    }
+}

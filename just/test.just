@@ -1,15 +1,15 @@
 # Test recipes
 # Imported by justfile — all variables available from parent.
 
-# single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
+# single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one WebRoutesTest web`)
 [group('test')]
-test-one class:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}"
+test-one class module='engine':
+    cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}"
 
-# single test class with stdout/stderr visible (e.g. `just test-debug BiteDownTest`)
+# single test class with stdout/stderr visible, engine by default (e.g. `just test-debug BiteDownTest`)
 [group('test')]
-test-debug class:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}" -Pverbose
+test-debug class module='engine':
+    cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}" -Pverbose
 
 # pre-commit gate: unit + board + fmt check + coverage (all modules)
 [group('test')]
@@ -22,20 +22,28 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew ktlintCheck detekt \
-        :matchdoor:testGate :matchdoor:jacocoTestReport \
-        :frontdoor:test :frontdoor:jacocoTestReport \
-        :account:test :account:jacocoTestReport
+    ./gradlew ktlintCheck detekt verifyWebProfilePosture :web:generateOpenApi
+    ./gradlew --rerun-tasks \
+        :domain:test \
+        :engine:testGate \
+        :native:test \
+        :web:test
+    ./gradlew \
+        :domain:jacocoTestReport \
+        :engine:jacocoTestReport \
+        :native:jacocoTestReport \
+        :web:jacocoTestReport
+    git diff --exit-code -- web/src/main/resources/openapi.json
 
-# matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
+# engine integration tests (boots engine per fork — run after risky engine changes)
 [group('test')]
 test-integration:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration :matchdoor:jacocoTestReport
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testIntegration :engine:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
 [group('test')]
 test-acceptance:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testAcceptance
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testAcceptance
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
@@ -67,7 +75,7 @@ slice-verify:
     leyline_sha=$(git rev-parse HEAD)
     forge_sha=$(git -C forge rev-parse HEAD)
     edition_hash=$(shasum forge/forge-gui/res/editions/Secrets\ of\ Strixhaven*.txt forge/forge-gui/res/editions/Special\ Guests.txt 2>/dev/null | shasum | awk '{print $1}')
-    deck_hash=$(grep -A6 'COMBAT_DECK = ' matchdoor/src/test/kotlin/leyline/session/combat/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
+    deck_hash=$(grep -A6 'COMBAT_DECK = ' engine/src/test/kotlin/leyline/session/combat/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
     jar_hash=$(shasum forge/.m2-local/forge/forge-gui/2.0.10-SNAPSHOT/forge-gui-2.0.10-SNAPSHOT.jar 2>/dev/null | awk '{print $1}' || echo "missing")
     echo "slice-verify input manifest:"
     echo "  leyline:        $leyline_sha"
@@ -76,7 +84,7 @@ slice-verify:
     echo "  COMBAT_DECK:    $deck_hash"
     echo "  forge-gui jar:  $jar_hash"
     echo
-    ./gradlew :matchdoor:testIntegrationStrict --console=plain
+    ./gradlew --rerun-tasks :engine:testIntegrationStrict --console=plain
 
 # JaCoCo coverage report (per-module, merged summary)
 [group('test')]
@@ -84,9 +92,10 @@ coverage:
     #!/usr/bin/env bash
     set +e
     cd "{{project_dir}}"
-    ./gradlew :matchdoor:testGate :matchdoor:jacocoTestReport \
-              :frontdoor:test :frontdoor:jacocoTestReport \
-              :account:test :account:jacocoTestReport; rc=$?
+    ./gradlew :domain:test :domain:jacocoTestReport \
+              :engine:testGate :engine:jacocoTestReport \
+              :native:test :native:jacocoTestReport \
+              :web:test :web:jacocoTestReport; rc=$?
     xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')
     if [ -n "$xmls" ]; then
         echo ""

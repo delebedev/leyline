@@ -4,7 +4,6 @@ import io.gitlab.arturbosch.detekt.api.Config
 import io.gitlab.arturbosch.detekt.test.lint
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldHaveSize
 
 class EmptyAssertionTest : FunSpec({
 
@@ -20,7 +19,10 @@ class EmptyAssertionTest : FunSpec({
                 }
             }
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "EmptyAssertion",
+            messageContains = "body has no should*/assert*/fail call",
+        )
     }
 
     test("flags test block with only setup calls") {
@@ -34,7 +36,10 @@ class EmptyAssertionTest : FunSpec({
                 }
             }
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "EmptyAssertion",
+            messageContains = "body has no should*/assert*/fail call",
+        )
     }
 
     test("passes when body has infix shouldBe") {
@@ -139,6 +144,9 @@ class EmptyAssertionTest : FunSpec({
                 test("empty") { }
             }
         """.trimIndent()
-        rule.lint(code) shouldHaveSize 1
+        rule.lint(code).shouldHaveSingleFinding(
+            ruleId = "EmptyAssertion",
+            messageContains = "body has no should*/assert*/fail call",
+        )
     }
 })

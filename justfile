@@ -343,6 +343,11 @@ serve: build check-java
       {{_java}} leyline.LeylineMainKt --fd-port "${LEYLINE_FD_PORT:-30010}" --md-port "${LEYLINE_MD_PORT:-30003}" --debug-port "${LEYLINE_DEBUG_PORT:-8090}" --management-port "${LEYLINE_MANAGEMENT_PORT:-8091}" --account-port "${LEYLINE_ACCOUNT_PORT:-9443}"
     fi
 
+# verify web profile excludes local client door/debug posture
+[group('serve')]
+web-profile-check:
+    cd "{{project_dir}}" && ./gradlew verifyWebProfilePosture
+
 
 # --- Packaging ---
 

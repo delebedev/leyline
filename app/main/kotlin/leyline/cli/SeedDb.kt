@@ -1,13 +1,13 @@
 package leyline.cli
 
 import leyline.LeylinePaths
-import leyline.frontdoor.domain.Deck
-import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.DeckId
-import leyline.frontdoor.domain.Format
-import leyline.frontdoor.domain.PlayerId
-import leyline.frontdoor.repo.SqlitePlayerStore
+import leyline.domain.Deck
+import leyline.domain.DeckCard
+import leyline.domain.DeckId
+import leyline.domain.Format
+import leyline.domain.PlayerId
 import leyline.game.data.ExposedCardRepository
+import leyline.infra.persistence.SqlitePlayerStore
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.util.UUID
@@ -115,7 +115,8 @@ object SeedDb {
         } else if (cardDbFile != null) {
             val cardDb = Database.connect("jdbc:sqlite:${cardDbFile.absolutePath}", "org.sqlite.JDBC")
             val cardRepo = ExposedCardRepository(cardDb)
-            seedDecks(store, cardRepo, deckFiles)
+            val flavorNameAliases = ForgeFlavorNameAliases.load(projectDir)
+            seedDecks(store, cardRepo, deckFiles, flavorNameAliases)
         } else {
             println("CardDb not available — skipping deck seeding")
         }
@@ -132,6 +133,7 @@ object SeedDb {
         store: SqlitePlayerStore,
         cardRepo: ExposedCardRepository,
         deckFiles: List<Pair<String, ParsedDeck>>,
+        flavorNameAliases: Map<String, String>,
     ) {
         data class ResolvedDeck(
             val name: String,
@@ -141,6 +143,12 @@ object SeedDb {
 
         val resolved = mutableListOf<ResolvedDeck>()
         val errors = mutableListOf<String>()
+        val cardNameResolver =
+            ImportedCardNameResolver(
+                findByName = cardRepo::findGrpIdByName,
+                findByNameAndSet = cardRepo::findGrpIdByNameAndSet,
+                flavorNameAliases = flavorNameAliases,
+            )
 
         for ((deckName, parsed) in deckFiles) {
             fun resolve(
@@ -149,13 +157,7 @@ object SeedDb {
             ): List<DeckCard> {
                 val cards = mutableListOf<DeckCard>()
                 for (entry in entries) {
-                    val grpId =
-                        if (entry.setCode != null) {
-                            cardRepo.findGrpIdByNameAndSet(entry.name, entry.setCode)
-                                ?: cardRepo.findGrpIdByName(entry.name)
-                        } else {
-                            cardRepo.findGrpIdByName(entry.name)
-                        }
+                    val grpId = cardNameResolver.resolve(entry.name, entry.setCode)
                     if (grpId != null) {
                         cards.add(DeckCard(grpId, entry.quantity))
                     } else {
