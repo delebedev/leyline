@@ -77,7 +77,7 @@ data class AiBotMatchDef(
 /**
  * Server-owned queue + event definitions for the Play blade.
  *
- * Data and lookups only — wire serialization lives in [leyline.frontdoor.wire.EventWireBuilder].
+ * Data and lookups only — wire serialization lives in the native frontdoor wire layer.
  *
  * ## How the client decides what to display
  *

@@ -40,7 +40,7 @@ class AnnotationBoundaryTest :
         val buildDir =
             sequenceOf(
                 cwd.resolve("build/classes"),
-                cwd.resolve("matchdoor/build/classes"),
+                cwd.resolve("engine/build/classes"),
             ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
 
         val classes =
@@ -54,7 +54,7 @@ class AnnotationBoundaryTest :
         val sourceRoot =
             sequenceOf(
                 cwd.resolve("src/main/kotlin"),
-                cwd.resolve("matchdoor/src/main/kotlin"),
+                cwd.resolve("engine/src/main/kotlin"),
             ).first { it.resolve("leyline").toFile().isDirectory }
 
         test("StateMapper constructs no annotations (no per-mechanic emitter functions)") {

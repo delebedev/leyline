@@ -2,11 +2,11 @@
 
 Synthetic GRE-log generator. Drives both seats of a leyline match in-process
 (`MatchSession` + `GameBridge` + Forge engine), emits Player.log-shaped output
-under `matchdoor/build/simclient/`, and tags each game `source: simclient` via
+under `engine/build/simclient/`, and tags each game `source: simclient` via
 a `<log>.meta.json` sidecar so scry-ts can ingest the result alongside other
 saved games without polluting reference data.
 
-The broad runner is a standalone Gradle JavaExec tool (`:matchdoor:simclient`),
+The broad runner is a standalone Gradle JavaExec tool (`:engine:simclient`),
 not a Kotest suite. Row timeouts, exceptions, and validation failures are
 written as stats data unless `--strict` is passed. The regular gate excludes
 the slow E2E tests.
@@ -156,17 +156,17 @@ rows that contain quarantined cards instead. `.stats.json` includes
 
 ```bash
 SIMCLIENT_DECKS=mono-r-burn SIMCLIENT_SEEDS=1..20 \
-  ./gradlew :matchdoor:simclient
-ls matchdoor/build/simclient/   # *.log + *.meta.json
+  ./gradlew :engine:simclient
+ls engine/build/simclient/   # *.log + *.meta.json
 ```
 
 Useful tool flags:
 
 ```bash
-./gradlew :matchdoor:simclient --args="--decks mono-r-burn --seeds 1..20 --resume"
-./gradlew :matchdoor:simclient --args="--decks mono-r-burn --seeds 1..100 --shard-index 0 --shard-count 4"
-./gradlew :matchdoor:simclient --args="--puzzles bolt-face.pzl --seeds 42 --strict"
-./gradlew :matchdoor:simclient --args="--decks forest-only --seeds 1 --out-dir /absolute/path/to/simclient-demo"
+./gradlew :engine:simclient --args="--decks mono-r-burn --seeds 1..20 --resume"
+./gradlew :engine:simclient --args="--decks mono-r-burn --seeds 1..100 --shard-index 0 --shard-count 4"
+./gradlew :engine:simclient --args="--puzzles bolt-face.pzl --seeds 42 --strict"
+./gradlew :engine:simclient --args="--decks forest-only --seeds 1 --out-dir /absolute/path/to/simclient-demo"
 ```
 
 Prefer absolute `--out-dir` values for one-off Gradle invocations until relative
@@ -193,8 +193,8 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 **Single E2E smoke** (fastest, ~10s, no env):
 
 ```bash
-./gradlew :matchdoor:simclientSmoke
-./gradlew :matchdoor:test --tests "leyline.tooling.simclient.SimClientE2ETest"
+./gradlew :engine:simclientSmoke
+./gradlew :engine:test --tests "leyline.tooling.simclient.SimClientE2ETest"
 ```
 
 ## Output
@@ -202,10 +202,10 @@ properties (`SIMCLIENT_OPPONENT_DECK` ↔ `-Dsimclient.opponent.deck`):
 Each game produces three per-row files plus a run summary:
 
 ```
-matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.log         # Player.log-shaped JSON blocks
-matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.meta.json   # provenance sidecar (scry-ts shape)
-matchdoor/build/simclient/<deck>[-vs-<opponent>]-s<seed>.stats.json  # per-game telemetry (see Telemetry below)
-matchdoor/build/simclient/summary.json                              # run-level class counts
+engine/build/simclient/<deck>[-vs-<opponent>]-s<seed>.log         # Player.log-shaped JSON blocks
+engine/build/simclient/<deck>[-vs-<opponent>]-s<seed>.meta.json   # provenance sidecar (scry-ts shape)
+engine/build/simclient/<deck>[-vs-<opponent>]-s<seed>.stats.json  # per-game telemetry (see Telemetry below)
+engine/build/simclient/summary.json                              # run-level class counts
 ```
 
 Sidecar shape (matches scry-ts `GameMeta`):
@@ -245,19 +245,19 @@ SIMCLIENT_DECKS="forest-only,bears" \
 SIMCLIENT_SEEDS=1..2 \
 SIMCLIENT_MAX_TURNS=8 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
-  ./gradlew :matchdoor:simRef \
-    -PsimrefArgs="--out-dir matchdoor/build/sim-ref-shadow-smoke"
+  ./gradlew :engine:simRef \
+    -PsimrefArgs="--out-dir engine/build/sim-ref-shadow-smoke"
 
 SIMCLIENT_DECKS="forest-only,bears" \
 SIMCLIENT_SEEDS=1..2 \
 SIMCLIENT_POLICY=shadow-ai \
 SIMCLIENT_MAX_TURNS=8 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
-  ./gradlew :matchdoor:simclient \
-    -PsimclientArgs="--out-dir matchdoor/build/simclient-shadow-smoke"
+  ./gradlew :engine:simclient \
+    -PsimclientArgs="--out-dir engine/build/simclient-shadow-smoke"
 
-./gradlew :matchdoor:simDiffReport \
-  -PsimDiffReportArgs="--ref-dir matchdoor/build/sim-ref-shadow-smoke --cand-dir matchdoor/build/simclient-shadow-smoke --out-dir matchdoor/build/sim-diff-shadow-smoke"
+./gradlew :engine:simDiffReport \
+  -PsimDiffReportArgs="--ref-dir engine/build/sim-ref-shadow-smoke --cand-dir engine/build/simclient-shadow-smoke --out-dir engine/build/sim-diff-shadow-smoke"
 ```
 
 Read `coverage-report.md` in this order:
@@ -301,7 +301,7 @@ Keep the loop small and evidence-driven:
    The trace should confirm the same prompt and annotation shape the SessionTest
    asserted.
 4. When a run stalls, reduce to one deck + one seed and reproduce with
-   `SIMCLIENT_DECKS=<deck> SIMCLIENT_SEEDS=<seed> ./gradlew :matchdoor:simclient`.
+   `SIMCLIENT_DECKS=<deck> SIMCLIENT_SEEDS=<seed> ./gradlew :engine:simclient`.
    Patch the smallest failing boundary: prompt response, action translator,
    event capture, or annotation emission.
 5. Add or update the focused SessionTest for the root cause before widening the
@@ -461,8 +461,8 @@ in `PlayerLogWriter.translateToScryFormat`:
 ## Adding a new built-in deck
 
 1. For fixture-only smoke tests, pick cards that have YAML fixtures in
-   `matchdoor/src/test/resources/test-cards/` — `TestCardRegistry.ensureDeckRegistered`
-   will fail loudly if a card isn't there. For `:matchdoor:simclient` deck-file
+   `engine/src/test/resources/test-cards/` — `TestCardRegistry.ensureDeckRegistered`
+   will fail loudly if a card isn't there. For `:engine:simclient` deck-file
    runs, SQLite-backed resolution handles arbitrary installed cards.
 2. Add an entry to `builtinDecks` in `src/main/kotlin/leyline/tooling/simclient/SimClientRows.kt`:
    `"my-deck" to "20 Mountain\n4 Lightning Bolt\n..."`.

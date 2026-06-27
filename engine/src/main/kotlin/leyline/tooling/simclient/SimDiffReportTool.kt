@@ -23,9 +23,9 @@ data class SimDiffReportConfig(
 ) {
     companion object {
         fun parse(args: List<String>): SimDiffReportConfig? {
-            var refDir = File("matchdoor/build/sim-ref")
-            var candDir = File("matchdoor/build/simclient")
-            var outDir = File("matchdoor/build/sim-diff-report")
+            var refDir = File("engine/build/sim-ref")
+            var candDir = File("engine/build/simclient")
+            var outDir = File("engine/build/sim-diff-report")
             var i = 0
             while (i < args.size) {
                 fun value(): String {

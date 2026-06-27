@@ -3,10 +3,8 @@ plugins {
 }
 
 rootProject.name = "leyline"
-include("account")
 include("domain")
 include("engine")
-include("frontdoor")
-include("matchdoor")
-include("webdoor")
+include("native")
+include("web")
 include("tools:detekt-rules")

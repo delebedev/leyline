@@ -1,6 +1,6 @@
 package leyline.bridge.types
 
-// Type-safe ID wrappers for the matchdoor module.
+// Type-safe ID wrappers for the engine module.
 //
 // The annotation pipeline carries these through; builders take them at the edge
 // and unwrap once when writing to proto. Data fields (amounts, deltas, counts,

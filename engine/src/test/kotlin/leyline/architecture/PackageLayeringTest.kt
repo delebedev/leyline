@@ -9,17 +9,17 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * Enforces internal package layering within the :matchdoor module.
+ * Enforces internal package layering within the :engine module.
  *
- * Cross-module boundaries (matchdoor vs frontdoor vs tooling) are enforced
+ * Cross-module boundaries (engine vs native vs tooling) are enforced
  * by Gradle — build fails on illegal imports. These rules enforce the
  * internal tier structure that Gradle can't see.
  *
  * Rules match on prefix (`leyline.bridge..`) and apply to every sub-package
- * beneath. See `matchdoor/CLAUDE.md` for the full sub-package tree.
+ * beneath. See `engine/CLAUDE.md` for the full sub-package tree.
  *
  * ```
- * Tier 0 — foundation (leaves, import nothing from matchdoor):
+ * Tier 0 — foundation (leaves, import nothing from engine):
  *   bridge         Forge adapter (forge/, handoff/, coord/, bootstrap/, types/)
  *   config         MatchConfig TOML data class
  *
@@ -45,12 +45,12 @@ class PackageLayeringTest :
 
         tags(UnitTag)
 
-        // Locate matchdoor build output — try submodule-relative first, then project-root-relative
+        // Locate engine build output — try submodule-relative first, then project-root-relative
         val cwd = Path.of("").toAbsolutePath()
         val buildDir =
             sequenceOf(
                 cwd.resolve("build/classes"),
-                cwd.resolve("matchdoor/build/classes"),
+                cwd.resolve("engine/build/classes"),
             ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
 
         val classes =
@@ -64,7 +64,7 @@ class PackageLayeringTest :
         val sourceRoot =
             sequenceOf(
                 cwd.resolve("src/main/kotlin"),
-                cwd.resolve("matchdoor/src/main/kotlin"),
+                cwd.resolve("engine/src/main/kotlin"),
             ).first { it.resolve("leyline").toFile().isDirectory }
 
         // ── Tier 0: bridge is a pure leaf ───────────────────────────
@@ -86,7 +86,7 @@ class PackageLayeringTest :
 
         // ── Tier 0: config is a pure leaf ───────────────────────────
 
-        test("config does not depend on any matchdoor package") {
+        test("config does not depend on any engine package") {
             noClasses()
                 .that()
                 .resideInAPackage("leyline.config..")
@@ -147,7 +147,7 @@ class PackageLayeringTest :
         // ── Sub-package invariants ─────────────────────────────────
         //
         // Rules below lock in the sub-package boundaries agreed in the
-        // matchdoor reorg. Each rule holds today; a failure here means
+        // engine reorg. Each rule holds today; a failure here means
         // a new import crossed a boundary that was meant to be one-way.
 
         test("bridge/types is a pure-data leaf within bridge") {

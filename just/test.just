@@ -1,7 +1,7 @@
 # Test recipes
 # Imported by justfile — all variables available from parent.
 
-# single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one DeckServiceTest frontdoor`)
+# single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one WebRoutesTest web`)
 [group('test')]
 test-one class module='engine':
     cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}"
@@ -22,24 +22,20 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew ktlintCheck detekt verifyWebProfilePosture :webdoor:generateOpenApi
+    ./gradlew ktlintCheck detekt verifyWebProfilePosture :web:generateOpenApi
     ./gradlew --rerun-tasks \
         :domain:test \
         :engine:testGate \
-        :matchdoor:testGate \
-        :frontdoor:test \
-        :account:test \
-        :webdoor:test
+        :native:test \
+        :web:test
     ./gradlew \
         :domain:jacocoTestReport \
         :engine:jacocoTestReport \
-        :matchdoor:jacocoTestReport \
-        :frontdoor:jacocoTestReport \
-        :account:jacocoTestReport \
-        :webdoor:jacocoTestReport
-    git diff --exit-code -- webdoor/src/main/resources/openapi.json
+        :native:jacocoTestReport \
+        :web:jacocoTestReport
+    git diff --exit-code -- web/src/main/resources/openapi.json
 
-# matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
+# engine integration tests (boots engine per fork — run after risky engine changes)
 [group('test')]
 test-integration:
     cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testIntegration :engine:jacocoTestReport
@@ -98,10 +94,8 @@ coverage:
     cd "{{project_dir}}"
     ./gradlew :domain:test :domain:jacocoTestReport \
               :engine:testGate :engine:jacocoTestReport \
-              :matchdoor:testGate :matchdoor:jacocoTestReport \
-              :frontdoor:test :frontdoor:jacocoTestReport \
-              :account:test :account:jacocoTestReport \
-              :webdoor:test :webdoor:jacocoTestReport; rc=$?
+              :native:test :native:jacocoTestReport \
+              :web:test :web:jacocoTestReport; rc=$?
     xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')
     if [ -n "$xmls" ]; then
         echo ""

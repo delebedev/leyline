@@ -12,7 +12,7 @@ import java.util.UUID
  * Manages BotDraft session lifecycle — start, pick, status.
  *
  * Pack-and-pass logic is delegated to a [Driver] (Forge `BoosterDraft` in production)
- * to keep Forge dependencies out of frontdoor. Each pick advances the human seat;
+ * to keep Forge dependencies out of domain. Each pick advances the human seat;
  * the driver internally drives the 7 bot seats.
  */
 class DraftService(

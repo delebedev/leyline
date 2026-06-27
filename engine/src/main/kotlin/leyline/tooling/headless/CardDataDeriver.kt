@@ -11,7 +11,7 @@ import leyline.game.data.TestCardFixtures
 /**
  * Derives [CardData] from Forge's in-memory `CardRules`, stamped with client
  * identity from a YAML fixture under
- * `matchdoor/src/test/resources/test-cards/`.
+ * `engine/src/test/resources/test-cards/`.
  *
  * Forge owns the rules data (P/T, types, subtypes, supertypes, colors, mana
  * cost). The fixture supplies the client identity (grpId, ability ids paired
@@ -38,7 +38,7 @@ object CardDataDeriver {
     ): CardData {
         val identity =
             TestCardFixtures.findFixture(cardName)?.identity
-                ?: error("No fixture for '$cardName' under matchdoor/src/test/resources/test-cards/.")
+                ?: error("No fixture for '$cardName' under engine/src/test/resources/test-cards/.")
         return fromForgeCardWithIdentity(card, identity)
     }
 

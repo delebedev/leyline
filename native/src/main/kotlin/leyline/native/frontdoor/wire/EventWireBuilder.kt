@@ -1,0 +1,354 @@
+package leyline.native.frontdoor.wire
+
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import leyline.domain.Course
+import leyline.domain.DeckCard
+import leyline.domain.service.AiBotMatchDef
+import leyline.domain.service.EventDef
+import leyline.domain.service.QueueEntry
+
+/**
+ * Translates [EventDef] / [QueueEntry] config to Arena wire JSON shapes.
+ *
+ * Three endpoints: queue config (CmdType 1910), active events (624), courses (623).
+ * Parallel to [DeckWireBuilder] / [PlayerWireBuilder].
+ */
+object EventWireBuilder {
+    private fun quickDraftPrizeIds(maxWins: Int?): Map<String, String> =
+        (0..(maxWins ?: 7)).associate { wins ->
+            wins.toString() to "00000000-0000-4000-8000-${wins.toString(16).padStart(12, '0')}"
+        }
+
+    fun toQueueConfigJson(queues: List<QueueEntry>): String =
+        buildJsonArray {
+            for (q in queues) {
+                add(
+                    buildJsonObject {
+                        put("Id", q.id)
+                        if (q.queueType != "Ranked") put("QueueType", q.queueType)
+                        put("LocTitle", q.locTitle)
+                        put("EventNameBO1", q.eventNameBO1)
+                        if (q.eventNameBO3 != null) put("EventNameBO3", q.eventNameBO3)
+                        put("DeckSizeBO1", q.deckSizeBO1)
+                        put("DeckSizeBO3", q.deckSizeBO3)
+                        put("SideBoardBO1", q.sideboardBO1)
+                        put("SideBoardBO3", q.sideboardBO3)
+                    },
+                )
+            }
+        }.toString()
+
+    fun toActiveEventsJson(
+        events: List<EventDef>,
+        aiBotMatches: List<AiBotMatchDef> = emptyList(),
+    ): String =
+        buildJsonObject {
+            putJsonArray("DynamicFilterTags") {}
+            put("CacheVersion", 2)
+            putJsonArray("Events") {
+                for (e in events) {
+                    add(buildEventJson(e))
+                }
+            }
+            putJsonArray("Challenges") {}
+            putJsonArray("AiBotMatches") {
+                for (m in aiBotMatches) {
+                    add(buildAiBotMatchJson(m))
+                }
+            }
+        }.toString()
+
+    fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String =
+        buildJsonObject {
+            putJsonArray("Courses") {
+                for ((eventName, module) in courses) {
+                    add(buildCourseJson(eventName, module))
+                }
+            }
+        }.toString()
+
+    fun toCoursesJson(courses: List<Course>): String =
+        buildJsonObject {
+            putJsonArray("Courses") {
+                for (course in courses) {
+                    add(buildCourseJson(course))
+                }
+            }
+        }.toString()
+
+    /** Merge real Course objects with default seed courses (Ladder, Play, etc.). */
+    fun toMergedCoursesJson(
+        courses: List<Course>,
+        defaults: List<Pair<String, String>>,
+    ): String =
+        buildJsonObject {
+            putJsonArray("Courses") {
+                for (course in courses) {
+                    add(buildCourseJson(course))
+                }
+                for ((eventName, module) in defaults) {
+                    add(buildCourseJson(eventName, module))
+                }
+            }
+        }.toString()
+
+    fun buildCourseJson(
+        course: Course,
+        includeDeck: Boolean = true,
+        modulePayload: String? = null,
+    ) = buildJsonObject {
+        put("CourseId", course.id.value)
+        put("InternalEventName", course.eventName)
+        put("CurrentModule", currentModuleWire(course))
+        put("ModulePayload", modulePayload.orEmpty())
+        putJsonObject("CourseDeckSummary") {
+            val s = course.deckSummary
+            put("DeckId", s?.deckId?.value ?: "00000000-0000-0000-0000-000000000000")
+            put("Name", s?.name.orEmpty())
+            putJsonArray("Attributes") {
+                if (s?.format?.isNotBlank() == true) {
+                    add(
+                        buildJsonObject {
+                            put("name", "Format")
+                            put("value", s.format)
+                        },
+                    )
+                }
+            }
+            put("DeckTileId", s?.tileId ?: 0)
+            put("DeckArtId", s?.deckArtId ?: 0)
+            putJsonObject("PreferredCosmetics") {
+                put("Avatar", "")
+                put("Sleeve", s?.preferredSleeve.orEmpty())
+                put("Pet", "")
+                put("Title", "")
+                putJsonArray("Emotes") {}
+            }
+        }
+        if (includeDeck) {
+            putJsonObject("CourseDeck") {
+                val d = course.deck
+                putJsonArray("MainDeck") {
+                    d?.mainDeck?.forEach { add(buildDeckCardJson(it)) }
+                }
+                putJsonArray("Sideboard") {
+                    d?.sideboard?.forEach { add(buildDeckCardJson(it)) }
+                }
+                putJsonArray("CommandZone") {}
+                putJsonArray("Companions") {}
+                putJsonArray("CardSkins") {}
+            }
+        }
+        // Always emit so the lobby UI's "X-Y" record badge has both halves;
+        // omitting `CurrentWins` when 0 leaves the tile reading "0-?".
+        put("CurrentWins", course.wins)
+        put("CurrentLosses", course.losses)
+        putJsonArray("CardPool") {
+            course.cardPool.forEach { add(JsonPrimitive(it)) }
+        }
+        putJsonArray("CardPoolByCollation") {
+            for (cp in course.cardPoolByCollation) {
+                add(
+                    buildJsonObject {
+                        put("CollationId", cp.collationId)
+                        putJsonArray("CardPool") {
+                            cp.cardPool.forEach { add(JsonPrimitive(it)) }
+                        }
+                    },
+                )
+            }
+        }
+        putJsonArray("CardStyles") {}
+    }
+
+    fun buildJoinResponse(course: Course): String =
+        buildJsonObject {
+            put("Course", buildCourseJson(course, includeDeck = false))
+            putStubInventoryInfo()
+        }.toString()
+
+    /**
+     * `Event_ClaimPrize` (607) response — Course + InventoryInfo with empty change-set.
+     * Real client receives reward grants here; we stub them out (no real economy).
+     */
+    fun buildClaimPrizeResponse(course: Course): String =
+        buildJsonObject {
+            put("Course", buildCourseJson(course, modulePayload = "{}"))
+            putStubInventoryInfo()
+        }.toString()
+
+    private fun currentModuleWire(course: Course): String = course.module.wireName()
+
+    fun buildMatchResultReport(course: Course): String =
+        buildJsonObject {
+            put("CurrentModule", currentModuleWire(course))
+            put("FoundMatch", true)
+            putStubInventoryInfo()
+            putJsonArray("questUpdates") {}
+            putJsonObject("rankUpdates") {}
+            putJsonObject("periodicRewardsProgress") {}
+        }.toString()
+
+    private fun JsonObjectBuilder.putStubInventoryInfo() {
+        putJsonObject("InventoryInfo") {
+            put("SeqId", 1)
+            putJsonArray("Changes") {}
+            put("Gems", 0)
+            put("Gold", 0)
+            put("TotalVaultProgress", 0)
+            put("WildCardCommons", 0)
+            put("WildCardUnCommons", 0)
+            put("WildCardRares", 0)
+            put("WildCardMythics", 0)
+            putJsonArray("Boosters") {}
+            putJsonObject("Vouchers") {}
+            putJsonObject("Cosmetics") {}
+            putJsonObject("CustomTokens") {}
+            putJsonArray("PrizeWallsUnlocked") {}
+        }
+    }
+
+    private fun buildEventJson(e: EventDef) =
+        buildJsonObject {
+            put("InternalEventName", e.internalName)
+            if (e.eventState != null) put("EventState", e.eventState)
+            put("FormatType", e.formatType)
+            put("StartTime", "2025-01-01T00:00:00Z")
+            put("LockedTime", "2099-01-01T00:00:00Z")
+            put("ClosedTime", "2099-01-01T00:00:00Z")
+            putJsonArray("Flags") { e.flags.forEach { add(JsonPrimitive(it)) } }
+            putJsonArray("EventTags") { e.eventTags.forEach { add(JsonPrimitive(it)) } }
+            putJsonObject("PastEntries") {}
+            putJsonArray("EntryFees") {
+                for (fee in e.entryFees) {
+                    add(
+                        buildJsonObject {
+                            put("CurrencyType", fee.currencyType)
+                            put("Quantity", fee.quantity)
+                            if (fee.referenceId != null) put("ReferenceId", fee.referenceId)
+                        },
+                    )
+                }
+            }
+            putJsonObject("EventUXInfo") {
+                put("PublicEventName", e.publicName)
+                put("DisplayPriority", e.displayPriority)
+                putJsonArray("DisplayPriorityMilestoneChanges") {}
+                putJsonObject("Parameters") {}
+                put("Group", "")
+                if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
+                putJsonArray("DynamicFilterTagIds") {
+                    e.dynamicFilterTagIds.forEach { add(JsonPrimitive(it)) }
+                }
+                putJsonArray("FactionSealedUXInfo") {}
+                put("DeckSelectFormat", e.deckSelectFormat)
+                val prizes = e.prizes.ifEmpty { if (e.isBotDraft) quickDraftPrizeIds(e.maxWins) else emptyMap() }
+                putJsonObject("Prizes") {
+                    prizes.forEach { (wins, prizeId) -> put(wins, prizeId) }
+                }
+                putJsonObject("EventComponentData") {
+                    putJsonObject("DescriptionText") {
+                        put("LocKey", e.descLocKey)
+                    }
+                    putJsonObject("TitleRankText") {
+                        put("LocKey", e.titleLocKey)
+                    }
+                    if (e.preconDeckIds.isNotEmpty()) {
+                        putJsonObject("InspectPreconDecksWidget") {
+                            putJsonArray("DeckIds") {
+                                e.preconDeckIds.forEach { add(JsonPrimitive(it)) }
+                            }
+                        }
+                        putJsonObject("SelectedDeckWidget") {
+                            put("DeckButtonBehavior", e.deckButtonBehavior ?: "Fixed")
+                        }
+                    } else {
+                        putJsonObject("TimerDisplay") {}
+                        putJsonObject("ResignWidget") {}
+                        putJsonObject("MainButtonWidget") {}
+                        putJsonObject("LossDetailsDisplay") {
+                            if (e.maxLosses != null) {
+                                put("Games", e.maxLosses)
+                            } else {
+                                put("LossDetailsType", "PlayUntilEventEnds")
+                            }
+                        }
+                        if (e.boosterCollationIds.isNotEmpty()) {
+                            putJsonObject("BoosterPacksDisplay") {
+                                putJsonArray("CollationIds") {
+                                    e.boosterCollationIds.forEach { add(JsonPrimitive(it)) }
+                                }
+                            }
+                        }
+                        if (e.editableDeck) {
+                            putJsonObject("SelectedDeckWidget") {
+                                put("DeckButtonBehavior", "Editable")
+                                put("ShowCopyDeckButton", true)
+                            }
+                        }
+                    }
+                }
+            }
+            put("WinCondition", e.winCondition)
+            putJsonArray("AllowedCountryCodes") {}
+            putJsonArray("ExcludedCountryCodes") {}
+        }
+
+    private fun buildAiBotMatchJson(m: AiBotMatchDef) =
+        buildJsonObject {
+            put("PublicEventName", m.publicEventName)
+            put("InternalEventName", m.internalEventName)
+            put("Format", m.format)
+            put("WinCondition", m.winCondition)
+            putJsonArray("DeckIds") {
+                m.deckIds.forEach { add(JsonPrimitive(it)) }
+            }
+            put("DisplayPriority", m.displayPriority)
+        }
+
+    private fun buildDeckCardJson(card: DeckCard) =
+        buildJsonObject {
+            put("cardId", card.grpId)
+            put("quantity", card.quantity)
+        }
+
+    private fun buildCourseJson(
+        eventName: String,
+        module: String,
+    ) = buildJsonObject {
+        put("CourseId", "00000000-0000-0000-0000-000000000000")
+        put("InternalEventName", eventName)
+        put("CurrentModule", module)
+        put("ModulePayload", "")
+        putJsonObject("CourseDeckSummary") {
+            put("DeckId", "00000000-0000-0000-0000-000000000000")
+            put("Name", "")
+            putJsonArray("Attributes") {}
+            put("DeckTileId", 0)
+            put("DeckArtId", 0)
+            putJsonObject("PreferredCosmetics") {
+                put("Avatar", "")
+                put("Sleeve", "")
+                put("Pet", "")
+                put("Title", "")
+                putJsonArray("Emotes") {}
+            }
+        }
+        putJsonObject("CourseDeck") {
+            putJsonArray("MainDeck") {}
+            putJsonArray("Sideboard") {}
+            putJsonArray("CommandZone") {}
+            putJsonArray("Companions") {}
+            putJsonArray("CardSkins") {}
+        }
+        putJsonArray("CardPool") {}
+        putJsonArray("CardPoolByCollation") {}
+        putJsonArray("CardStyles") {}
+    }
+}

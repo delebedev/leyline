@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory
  * a card by name into an [InMemoryCardRepository].
  *
  * Source of truth for grpId, ability ids, token map, linked faces is the
- * YAML fixture under `matchdoor/src/test/resources/test-cards/`. For Slim
+ * YAML fixture under `engine/src/test/resources/test-cards/`. For Slim
  * fixtures (rules absent), rules data is derived from Forge's `CardRules`.
  * For Full fixtures (tokens, Alchemy), data is self-contained in YAML.
  *
@@ -51,7 +51,7 @@ object FixtureCardLoader {
             // Forge knows the name, the card is real and a fixture is missing.
             if (forgeHas(cardName)) {
                 error(
-                    "No fixture for '$cardName' under matchdoor/src/test/resources/test-cards/. " +
+                    "No fixture for '$cardName' under engine/src/test/resources/test-cards/. " +
                         "Generate via `card-fixtures emit \"$cardName\"`.",
                 )
             }

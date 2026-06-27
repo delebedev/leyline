@@ -7,8 +7,8 @@ package leyline.domain.service
  * connects on port 30003. The client's connection sequence guarantees FD
  * writes complete before MD reads — no stronger sync than @Volatile needed.
  *
- * Interface lives in :frontdoor because it speaks FD domain vocabulary.
- * Implementation lives in app/ where both modules are visible.
+ * Interface lives in domain because both native and web match launches need it.
+ * Implementation lives in app/ where services are composed.
  */
 interface MatchCoordinator {
     // --- FD writes (lobby flow) ---

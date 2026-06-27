@@ -19,7 +19,7 @@ data class GeneratedPool(
 /**
  * Manages event course lifecycle — join, deck selection, match results, drop.
  *
- * Lives in frontdoor (not matchdoor) because courses are a lobby-layer concept:
+ * Lives in domain because courses are shared lobby-layer state:
  * the client manages them via FD CmdTypes (600/603/608/622/623) before any match
  * connection exists. Pool generation is injected as a lambda to keep Forge engine
  * dependencies out of this module — the wiring layer ([leyline.infra.LeylineServer])

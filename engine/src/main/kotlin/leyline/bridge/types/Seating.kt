@@ -7,7 +7,7 @@ package leyline.bridge.types
  *
  * Constructed once per match in `GameBridge.populateSeatMap` and exposed as
  * `gameBridge.seating`. Replaces hardcoded `seatId == 1` / `seatId == 2`
- * role gates throughout matchdoor prod.
+ * role gates throughout engine prod.
  *
  * This is a 2-player invariant; `humanSeat.opponent == familiarSeat` holds
  * by construction.

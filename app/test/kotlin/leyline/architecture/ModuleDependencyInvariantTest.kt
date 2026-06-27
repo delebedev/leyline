@@ -2,8 +2,6 @@ package leyline.architecture
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import java.nio.file.Files
@@ -20,22 +18,19 @@ class ModuleDependencyInvariantTest :
             return dependencyPattern.findAll(Files.readString(buildFile)).map { it.groupValues[1] }.toSet()
         }
 
-        test("doors share domain without depending on frontdoor") {
+        test("heads share core modules without depending on each other") {
             assertSoftly {
-                projectDependencies("frontdoor") shouldContainExactlyInAnyOrder listOf("domain")
-                projectDependencies("matchdoor") shouldContain "domain"
-                projectDependencies("matchdoor") shouldContain "engine"
-                projectDependencies("engine") shouldContain "domain"
-                projectDependencies("webdoor") shouldContain "domain"
-                projectDependencies("webdoor") shouldContain "engine"
-                projectDependencies("matchdoor") shouldNotContain "frontdoor"
-                projectDependencies("webdoor") shouldNotContain "frontdoor"
+                projectDependencies("native") shouldBe setOf("domain", "engine")
+                projectDependencies("engine") shouldBe setOf("domain")
+                projectDependencies("web") shouldBe setOf("domain", "engine")
+                projectDependencies("native") shouldNotContain "web"
+                projectDependencies("web") shouldNotContain "native"
             }
         }
 
-        test("frontdoor remains a leaf below the composition root") {
-            val modules = listOf("account", "domain", "engine", "frontdoor", "matchdoor", "webdoor")
-            val dependents = modules.filter { projectDependencies(it).contains("frontdoor") }
+        test("native remains a leaf below the composition root") {
+            val modules = listOf("domain", "engine", "native", "web")
+            val dependents = modules.filter { projectDependencies(it).contains("native") }
             dependents shouldBe emptyList()
         }
     })

@@ -164,7 +164,7 @@ import java.util.function.Predicate
  *
  * 1. **Trivial body (≤ 5 lines, direct `bridge.requestChoice` or `super` call)?**
  *    Keep it here. Update [PlayerControllerStructureTest] and the override
- *    table in `matchdoor/CLAUDE.md` in the same commit.
+ *    table in `engine/CLAUDE.md` in the same commit.
  * 2. **Fits an existing coordinator's concern?** Add a method there, delegate.
  * 3. **Shares a lifecycle pattern with other overrides** (e.g. a future dance)?
  *    Extract a shared helper before adding the override — see [OptionalActionGate].

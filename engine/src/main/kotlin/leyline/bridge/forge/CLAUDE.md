@@ -1,6 +1,6 @@
 # bridge/forge/
 
-Forge inheritance seams — the only place matchdoor extends Forge classes.
+Forge inheritance seams — the only place engine extends Forge classes.
 
 ## Before extending
 

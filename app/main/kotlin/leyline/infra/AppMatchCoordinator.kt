@@ -17,7 +17,7 @@ import leyline.domain.repo.DraftSessionRepository
 import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.MatchCoordinator
-import leyline.frontdoor.wire.DeckWireBuilder
+import leyline.native.frontdoor.wire.DeckWireBuilder
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger

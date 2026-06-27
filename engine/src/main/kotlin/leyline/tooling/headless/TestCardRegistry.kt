@@ -7,7 +7,7 @@ import leyline.game.InMemoryCardRepository
  *
  * Routes through [FixtureCardLoader]: client identity (grpId, ability ids,
  * tokens, linked faces) comes from per-card YAML fixtures under
- * `matchdoor/src/test/resources/test-cards/`; rules data (P/T, types, mana,
+ * `engine/src/test/resources/test-cards/`; rules data (P/T, types, mana,
  * etc.) is derived from Forge's `CardRules` at test startup. No SQLite needed.
  */
 object TestCardRegistry {

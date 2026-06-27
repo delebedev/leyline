@@ -55,7 +55,7 @@ Adopt callback-specific prompt interaction planners as the long-term architectur
 Planners live under:
 
 ```text
-matchdoor/src/main/kotlin/leyline/bridge/interaction/
+engine/src/main/kotlin/leyline/bridge/interaction/
 ```
 
 The package owns the decision stage between Forge callbacks and `PromptRequest` construction. It classifies the callback context into a typed plan. Coordinators and Forge override classes use that plan to build the existing `PromptRequest` and return Forge objects as they do today.

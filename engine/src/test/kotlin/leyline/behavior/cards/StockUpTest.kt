@@ -28,7 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * Stock Up is `SP$ Dig | DigNum$ 5 | ChangeNum$ 2` — look at the top 5 cards,
  * put 2 into your hand. Pre-fix `TargetingCoordinator.chooseEntities` left
  * `PromptSemantic` unset, so `PromptClassifier` fell back to `Targeting` and
- * matchdoor emitted `SelectTargetsReq` instead of `SelectNReq`. The cast
+ * engine emitted `SelectTargetsReq` instead of `SelectNReq`. The cast
  * looped 10 SelectTargetsReq with no GS updates between them, leaving the
  * game stuck.
  *

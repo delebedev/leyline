@@ -19,20 +19,20 @@ import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.AppMatchCoordinator
 import leyline.infra.persistence.SqlitePlayerStore
-import leyline.webdoor.AuthRateLimitConfig
-import leyline.webdoor.DEV_WEB_AUTH_SECRET
-import leyline.webdoor.DevEmailSender
-import leyline.webdoor.DraftPlayResponse
-import leyline.webdoor.EmbeddedWebGreEngineSession
-import leyline.webdoor.GreStartRequest
-import leyline.webdoor.InMemoryRateLimiter
-import leyline.webdoor.InProcessWebGreRelay
-import leyline.webdoor.ResendEmailSender
-import leyline.webdoor.SqliteWebAuthStore
-import leyline.webdoor.WebAuthService
-import leyline.webdoor.WebDoorServices
-import leyline.webdoor.WebMatchLauncher
-import leyline.webdoor.installWebDoor
+import leyline.web.AuthRateLimitConfig
+import leyline.web.DEV_WEB_AUTH_SECRET
+import leyline.web.DevEmailSender
+import leyline.web.DraftPlayResponse
+import leyline.web.EmbeddedWebGreEngineSession
+import leyline.web.GreStartRequest
+import leyline.web.InMemoryRateLimiter
+import leyline.web.InProcessWebGreRelay
+import leyline.web.ResendEmailSender
+import leyline.web.SqliteWebAuthStore
+import leyline.web.WebAuthService
+import leyline.web.WebMatchLauncher
+import leyline.web.WebServices
+import leyline.web.installWeb
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.util.UUID
@@ -104,7 +104,7 @@ fun main(args: Array<String>) {
             ?: DevEmailSender()
 
     val services =
-        WebDoorServices(
+        WebServices(
             draftService = draftService,
             courseService = courseService,
             deckService = deckService,
@@ -123,7 +123,7 @@ fun main(args: Array<String>) {
                 ),
         )
 
-    embeddedServer(Netty, host = "127.0.0.1", port = port) { installWebDoor(services) }.start(wait = true)
+    embeddedServer(Netty, host = "127.0.0.1", port = port) { installWeb(services) }.start(wait = true)
 }
 
 private class WebRuntimeMatchLauncher(

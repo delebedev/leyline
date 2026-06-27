@@ -25,14 +25,14 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Netty adapter for the Match Door (port 30003) — two-phase message flow.
+ * GRE match-session handler — routes parsed match-service messages into the engine.
  *
  * **Pre-mulligan:** auth, connect, room state, deal hand, and mulligan use templated
  * proto senders (fixed message shapes). **Post-mulligan:** all game actions delegate
  * to [MatchSession], which drives the engine via bridge futures. The phase boundary
  * is [MatchSession.onMulliganKeep] — after that call, this handler only dispatches.
  * Mulligan and puzzle sub-flows are extracted into [MulliganHandler] / [PuzzleHandler]
- * to keep this class a thin Netty routing layer.
+ * to keep this class a thin message-routing layer.
  */
 class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,

@@ -94,9 +94,10 @@ leyline:
   MissingAssertSoftly:
     active: true
     threshold: 3
+    excludes: ['**/native/src/test/**']
   FunSpecMissingTags:
     active: true
-    includes: ['**/matchdoor/src/test/**']
+    includes: ['**/engine/src/test/**']
   NoGameInMappers:
     active: true
   NoThreadSleepInTests:
@@ -109,7 +110,8 @@ leyline:
     active: true
   TestLayoutCheck:
     active: true
-    includes: ['**/matchdoor/src/test/**']
+    includes: ['**/engine/src/test/**']
   WeakAssertionOnly:
     active: true
     includes: ['**/test/**', '**/*Test.kt', '**/*Tests.kt']
+    excludes: ['**/native/src/test/**']

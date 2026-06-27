@@ -88,12 +88,10 @@ configurations.all {
 
 dependencies {
     detektPlugins(project(":tools:detekt-rules"))
-    implementation(project(":account"))
     implementation(project(":domain"))
     implementation(project(":engine"))
-    implementation(project(":frontdoor"))
-    implementation(project(":matchdoor"))
-    implementation(project(":webdoor"))
+    implementation(project(":native"))
+    implementation(project(":web"))
     implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
@@ -120,7 +118,7 @@ dependencies {
     webProfileRuntimeClasspath(sourceSets.main.get().output)
     webProfileRuntimeClasspath(project(":domain"))
     webProfileRuntimeClasspath(project(":engine"))
-    webProfileRuntimeClasspath(project(":webdoor"))
+    webProfileRuntimeClasspath(project(":web"))
     webProfileRuntimeClasspath(libs.kotlin.stdlib)
     webProfileRuntimeClasspath(libs.serialization.json)
     webProfileRuntimeClasspath(libs.exposed.core)
@@ -225,7 +223,7 @@ val writeWebProfileClasspath by tasks.registering(WriteClasspathTask::class) {
 
 val verifyWebProfilePosture by tasks.registering(VerifyWebProfilePostureTask::class) {
     group = "verification"
-    description = "Verify the web profile classpath excludes local Front Door and account surfaces."
+    description = "Verify the web profile classpath excludes the native client head."
     dependsOn(writeWebProfileClasspath)
     classpath.from(webProfileRuntimeClasspath)
 }

@@ -1,6 +1,6 @@
-# matchdoor tests
+# engine tests
 
-Conventions for writing tests under `matchdoor/src/test/kotlin/leyline/`. Read `matchdoor/CLAUDE.md` for the production-side architecture; this file covers the test-side decisions.
+Conventions for writing tests under `engine/src/test/kotlin/leyline/`. Read `engine/CLAUDE.md` for the production-side architecture; this file covers the test-side decisions.
 
 ## Test tier — pick the right base class
 
@@ -88,7 +88,7 @@ In every case, the selection reason names the specific hard check being skipped 
 
 ## Test-card setup
 
-Per-card YAML fixtures (`matchdoor/src/test/resources/test-cards/<card>.yaml`) drive the slim `TestCardRegistry` — the post-#47 default. Add a card by writing the fixture, not by editing a Kotlin registrar. Reach for handwritten registration only when the card needs runtime ability-id stamping that the YAML schema doesn't cover (see `MobilizeKeywordTest`'s `beforeSpec` for the escape hatch — it has to inject `(keywordRow, cleanupRow)` triples that aren't in the client card-DB shape).
+Per-card YAML fixtures (`engine/src/test/resources/test-cards/<card>.yaml`) drive the slim `TestCardRegistry` — the post-#47 default. Add a card by writing the fixture, not by editing a Kotlin registrar. Reach for handwritten registration only when the card needs runtime ability-id stamping that the YAML schema doesn't cover (see `MobilizeKeywordTest`'s `beforeSpec` for the escape hatch — it has to inject `(keywordRow, cleanupRow)` triples that aren't in the client card-DB shape).
 
 For ability-injection on an already-registered card (e.g. inject a planeswalker onto the battlefield), use `TestCardInjector.inject(b, seat, name, zone)` — it returns `Injected(card, instanceId, cardData)` with the right wiring.
 
@@ -131,8 +131,8 @@ When you do add one:
 
 ## Cross-cutting reminders
 
-- **Detekt rules are part of the gate.** `:matchdoor:detekt` runs before tests in CI and as a pre-commit hook. A test that compiles but trips a rule will block the merge.
-- **Targeted tests during iteration:** `just test-one ForetellActionTest` for one matchdoor class, `./gradlew :matchdoor:test --tests "leyline.mechanics.*.*Test"` for mechanics. `:matchdoor:testGate` (unit + board, excludes IntegrationTag) is the focused mid-iteration gate. `:matchdoor:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
+- **Detekt rules are part of the gate.** `:engine:detekt` runs before tests in CI and as a pre-commit hook. A test that compiles but trips a rule will block the merge.
+- **Targeted tests during iteration:** `just test-one ForetellActionTest` for one engine class, `./gradlew :engine:test --tests "leyline.mechanics.*.*Test"` for mechanics. `:engine:testGate` (unit + board, excludes IntegrationTag) is the focused mid-iteration gate. `:engine:test` is the full run including IntegrationTag — minutes, save for PR boundaries.
 - **Test names** are sentences, not snake_case method names. `test("Foretell offer disappears when the {2} action cost is unpayable")` reads in the failure log as the assertion intent. Avoid `test("test foretell unpayable")` and `test("foretell_unpayable")`.
 - **One puzzle, one test class** is the wrong split. One *behavior surface* per test class — tests within can share setup. `ForetellActionTest` covers the foretell hand-cast rail; it has 5 tests for 5 different conditions, all on Demon Bolt. That's correct.
 - **Comments name invariants, not the test.** `// Pre-fix: zero SelectTargetsReq emitted, cast silently drops` documents the regression the test guards against. `// This test casts Foretell` does not — the test name and body already say that.

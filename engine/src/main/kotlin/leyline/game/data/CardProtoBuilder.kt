@@ -22,7 +22,7 @@ class CardProtoBuilder(
      */
     private val roomDoorAbilityGrpIds = listOf(347, 348)
 
-    /** SubType ordinal for `Room` (matchdoor proto Messages.SubType.Room = 438). */
+    /** SubType ordinal for `Room` (engine proto Messages.SubType.Room = 438). */
     private val roomSubtype = SubType.Room.number
 
     private fun isRoomCard(subtypes: List<Int>): Boolean = subtypes.contains(roomSubtype)

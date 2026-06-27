@@ -1,7 +1,7 @@
 ---
 summary: "Invariants of the Forge bridge: two-thread ownership model, snapshot timing, counter monotonicity, and the structural workarounds required by Forge callback ordering."
 read_when:
-  - "modifying GameBridge, StateMapper, BundleBuilder, or any class in matchdoor/bridge/"
+  - "modifying GameBridge, StateMapper, BundleBuilder, or any class in engine/bridge/"
   - "debugging thread-safety, snapshot timing, or counter-desync behaviour"
   - "adding a new engine callback, prompt type, or EventBus subscriber"
 ---

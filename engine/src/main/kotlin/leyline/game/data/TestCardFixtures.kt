@@ -119,7 +119,7 @@ object TestCardFixtures {
         val candidates =
             listOf(
                 Paths.get("engine/src/test/resources/$DEFAULT_RESOURCE_DIR"),
-                Paths.get("matchdoor/src/test/resources/$DEFAULT_RESOURCE_DIR"),
+                Paths.get("engine/src/test/resources/$DEFAULT_RESOURCE_DIR"),
                 Paths.get("src/test/resources/$DEFAULT_RESOURCE_DIR"),
             )
         return candidates.firstOrNull { Files.isDirectory(it) }

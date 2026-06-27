@@ -14,7 +14,7 @@ data class SimClientConfig(
     val policy: SimClientPolicyMode = SimClientPolicyMode.Greedy,
     val maxTurns: Int = 25,
     val gameTimeoutSeconds: Long = 120,
-    val outDir: File = File("matchdoor/build/simclient"),
+    val outDir: File = File("engine/build/simclient"),
     val cardDbPath: String? = null,
     val continueOnException: Boolean = true,
     val strict: Boolean = false,
