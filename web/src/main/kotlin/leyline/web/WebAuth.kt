@@ -1,5 +1,7 @@
 package leyline.web
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -12,6 +14,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+
+private val SIX_DIGIT_CODE = Regex("^[0-9]{6}$")
 
 const val WEB_SESSION_COOKIE = "web_session"
 const val WEB_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
@@ -49,11 +53,25 @@ class ResendEmailSender(
     private val from: String,
     private val http: HttpClient = HttpClient.newHttpClient(),
 ) : EmailSender {
+    @Serializable
+    private data class Payload(
+        val from: String,
+        val to: List<String>,
+        val subject: String,
+        val text: String,
+    )
+
     override suspend fun sendLoginCode(input: LoginCodeEmail) {
         val body =
-            """
-            {"from":"${from.jsonEscape()}","to":["${input.to.jsonEscape()}"],"subject":"Your Leyline login code","text":"Your login code is ${input.code}. It expires in ${input.expiresInMinutes} minutes."}
-            """.trimIndent()
+            Json.encodeToString(
+                Payload.serializer(),
+                Payload(
+                    from = from,
+                    to = listOf(input.to),
+                    subject = "Your Leyline login code",
+                    text = "Your login code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.",
+                ),
+            )
         val request =
             HttpRequest
                 .newBuilder(URI.create("https://api.resend.com/emails"))
@@ -321,7 +339,7 @@ class WebAuthService(
     ): StartLoginResult {
         if (!allow("login:${normalizeEmail(email)}:${ip.orEmpty()}")) return StartLoginResult.RateLimited
         val normalized = normalizeEmail(email)
-        val code = fixedLoginCode?.takeIf { Regex("^[0-9]{6}$").matches(it) } ?: (random.nextInt(900_000) + 100_000).toString()
+        val code = fixedLoginCode?.takeIf { SIX_DIGIT_CODE.matches(it) } ?: (random.nextInt(900_000) + 100_000).toString()
         val now = Instant.now()
         val id = UUID.randomUUID().toString()
         val challenge =
@@ -355,7 +373,7 @@ class WebAuthService(
     ): VerifyLoginResult {
         if (!allow("verify:${normalizeEmail(email)}:${ip.orEmpty()}")) return VerifyLoginResult.RateLimited
         val normalized = normalizeEmail(email)
-        if (!Regex("^[0-9]{6}$").matches(code.trim())) return VerifyLoginResult.InvalidOrExpired
+        if (!SIX_DIGIT_CODE.matches(code.trim())) return VerifyLoginResult.InvalidOrExpired
         when (store.consumeChallenge(normalized, hashLoginCode(normalized, code.trim()), Instant.now())) {
             ChallengeConsumeResult.Accepted -> Unit
             ChallengeConsumeResult.InvalidOrExpired -> return VerifyLoginResult.InvalidOrExpired
@@ -413,5 +431,3 @@ class WebAuthService(
 }
 
 fun normalizeEmail(value: String): String = value.trim().lowercase()
-
-private fun String.jsonEscape(): String = replace("\\", "\\\\").replace("\"", "\\\"")

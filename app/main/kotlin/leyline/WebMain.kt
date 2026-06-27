@@ -147,14 +147,7 @@ private class WebRuntimeMatchLauncher(
                 spectatorMode = request.spectatorMode,
             ),
         )
-        relay.register(
-            matchId,
-            EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches),
-            ownerPlayerId = playerId,
-            publicAccess = playerId == null && request.spectatorMode == true,
-            onClose = { runtimeMatches.remove(matchId) },
-        )
-        return DraftPlayResponse(matchId, matchId)
+        return register(matchId, playerId, publicAccess = playerId == null && request.spectatorMode == true)
     }
 
     override fun launchCourseMatch(
@@ -164,29 +157,29 @@ private class WebRuntimeMatchLauncher(
         val matchId = "web-${UUID.randomUUID()}"
         val (seat1, seat2) = coordinator.configureCourseMatch(matchId, playerId, eventName)
         runtimeMatches.configure(RuntimeMatchConfig(matchId = matchId, seat1Deck = seat1, seat2Deck = seat2))
+        return register(matchId, playerId)
+    }
+
+    private fun register(
+        matchId: String,
+        playerId: PlayerId?,
+        publicAccess: Boolean = false,
+    ): DraftPlayResponse {
         relay.register(
             matchId,
             EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches),
             ownerPlayerId = playerId,
+            publicAccess = publicAccess,
             onClose = { runtimeMatches.remove(matchId) },
         )
         return DraftPlayResponse(matchId, matchId)
     }
 }
 
-private fun resolvePlayerDb(config: MatchConfig): File {
-    val path = System.getenv("LEYLINE_PLAYER_DB") ?: config.server.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
-    val file = File(path).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), path) }
-    file.parentFile?.mkdirs()
-    return file
-}
-
 private fun resolveCardDb(): File {
-    val explicit = System.getenv("LEYLINE_CARD_DB")?.takeIf { it.isNotBlank() }?.let(::File)
-    val detected = explicit ?: detectLocalCardDb()
-    requireNotNull(detected) { "Card database not found. Set LEYLINE_CARD_DB." }
-    require(detected.exists() && detected.length() > 1_000_000L) { "Card database is missing or too small: ${detected.absolutePath}" }
-    return detected
+    val path = System.getenv("LEYLINE_CARD_DB")?.takeIf { it.isNotBlank() } ?: detectArenaCardDb()
+    requireNotNull(path) { "Card database not found. Set LEYLINE_CARD_DB." }
+    return File(path).also { validateCardDbFile(it) }
 }
 
 private fun resolveCardRepository(): CardRepository =
@@ -215,18 +208,3 @@ internal fun resolveFixedLoginCode(env: Map<String, String>): String? {
     require(Regex("^[0-9]{6}$").matches(code)) { "LEYLINE_WEB_LOGIN_CODE must be a six-digit code" }
     return code
 }
-
-private fun detectLocalCardDb(): File? {
-    val raw = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads/Raw")
-    return raw
-        .listFiles()
-        ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") && it.length() > 1_000_000L }
-        ?.maxByOrNull { it.lastModified() }
-}
-
-private fun parseArgs(args: Array<String>): Map<String, String> =
-    args
-        .toList()
-        .chunked(2)
-        .filter { it.size == 2 && it[0].startsWith("--") }
-        .associate { it[0] to it[1] }
