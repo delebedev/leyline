@@ -52,12 +52,14 @@ class MulliganBridgeTest :
                 bridge.pendingPromptAfter(prompt.sequence).shouldBeNull()
             }
 
-            bridge.submitMull()
+            bridge.submitMull() shouldBe true
             engineThread.join(2_000)
 
             assertSoftly {
                 result.get() shouldBe false
                 bridge.pendingPrompt().shouldBeNull()
+                bridge.submitMull() shouldBe false
+                bridge.submitKeep() shouldBe false
             }
         }
 
@@ -74,7 +76,7 @@ class MulliganBridgeTest :
             keepReady.await(2, TimeUnit.SECONDS)
 
             pollForPrompt(bridge).shouldNotBeNull()
-            bridge.submitMull()
+            bridge.submitMull() shouldBe true
             keepThread.join(2_000)
 
             val ready = CountDownLatch(1)

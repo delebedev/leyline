@@ -87,17 +87,17 @@ class MulliganHandler(
 
         when (decision) {
             MulliganOption.AcceptHand -> {
-                bridge.submitKeep(seatId)
+                if (!bridge.submitKeep(seatId)) return
                 bridge.awaitPriority()
                 s.onMulliganKeep()
             }
             else -> {
+                if (!bridge.submitMull(seatId)) return
                 mulliganCount++
-                bridge.submitMull(seatId)
                 val deletedIds = bridge.ids.resetAll().map { it.value }
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
                 sendDealHand(ctx!!, deletedIds)
-                sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)
+                sendMulliganReq(reportedMulliganCount = mulliganCount, numCards = seat1Hand.size)
             }
         }
     }

@@ -19,6 +19,10 @@
 # Leave set for smoke/playtest robustness; unset only for fully manual prompt debugging.
 #prompt_failsafe_ms = 45000
 
+# Mulligan wait — how long the engine waits for a keep/mulligan response (ms).
+# Must exceed the client-visible mulligan timer to avoid stale dialogs.
+#mulligan_wait_ms = 45000
+
 # Player database path (relative to CWD or absolute).
 #player_db = "data/player.db"
 
@@ -34,7 +38,7 @@
 # Enabled by default for arena-driven probes — the mulligan dialog races
 # puzzle injection and gives auto-pass time to advance phases before the
 # tester can act. Comment out to exercise the mulligan flow itself.
-skip_mulligan = true
+skip_mulligan = false
 
 # Send decision timer (rope) on priority grant. Disable to suppress countdown.
 timer = false

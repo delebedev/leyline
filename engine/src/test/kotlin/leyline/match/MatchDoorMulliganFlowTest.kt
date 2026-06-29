@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -139,8 +140,9 @@ class MatchDoorMulliganFlowTest :
         fun connectPair(
             registry: MatchRegistry,
             matchId: String,
+            deckList: String = deck,
         ): Pair<EmbeddedChannel, EmbeddedChannel> {
-            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deck, seat2Deck = deck))
+            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deckList, seat2Deck = deckList))
             val local = EmbeddedChannel(handler(registry))
             val familiar = EmbeddedChannel(handler(registry))
 
@@ -204,16 +206,24 @@ class MatchDoorMulliganFlowTest :
         test("mulligan then keep re-deals through MatchHandler response path") {
             val registry = MatchRegistry()
             val matchId = "mulligan-flow-redraw"
-            val (local, familiar) = connectPair(registry, matchId)
+            val mixedDeck =
+                """
+                30 Forest
+                30 Mountain
+                """.trimIndent()
+            val (local, familiar) = connectPair(registry, matchId, deckList = mixedDeck)
 
             try {
                 familiar.writeInbound(greServiceMessage(chooseStartingPlayer(), 5))
                 greOutbound(local)
+                val session = registry.getHandler(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+                val firstHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
                 local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.Mulligan), 6))
                 val redrawPrompt = greOutbound(local)
                 val redrawTypes = redrawPrompt.map { it.type }
                 val redrawMulligan = redrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }.mulliganReq
+                val redrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
                 local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.AcceptHand), 7))
                 val postKeep = greOutbound(local).map { it.type }
@@ -222,7 +232,8 @@ class MatchDoorMulliganFlowTest :
                     redrawTypes shouldContain GREMessageType.GameStateMessage_695e
                     redrawTypes shouldContain GREMessageType.PromptReq
                     redrawTypes shouldContain GREMessageType.MulliganReq_aa0d
-                    redrawMulligan.mulliganCount shouldBe 0
+                    redrawMulligan.mulliganCount shouldBe 1
+                    redrawHand shouldNotBe firstHand
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
                 }

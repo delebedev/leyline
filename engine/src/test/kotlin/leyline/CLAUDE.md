@@ -78,6 +78,8 @@ If the helper you need doesn't exist and the predicate has appeared 3+ times acr
 
 `MatchFlowHarness(validating = true)` wraps the message sink in `ValidatingMessageSink`, which fails the test on hard client-compatible sequencing breaks. Default validation covers the stable facts: monotonic/unique gsIds, no self-referential gsIds, and AIC/AID affector consistency. Use `InvariantSelection.diagnostics()` or `InvariantSelection.only(...)` for narrower structural-shape tests such as annotation references, zone/object consistency, or annotation ordering.
 
+For puzzle-start state limits and the direct-state vs setup-action decision, read `../../../../../docs/puzzle-harness.md`.
+
 Use `InvariantSelection.protocolFactsExcept(...)` only when:
 
 1. You're driving past a known-broken invariant whose fix is tracked separately (`StockUpTest` resolution path), or
