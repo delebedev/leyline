@@ -35,6 +35,7 @@ import leyline.config.MatchConfig
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
+import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
 import leyline.tooling.headless.TestCardRegistry
 import org.apache.commons.lang3.tuple.Pair
@@ -72,15 +73,18 @@ class SimRefRunner(
     fun run() {
         config.outDir.mkdirs()
         val rows = expandSimClientRows(config)
-        require(rows.all { it is DeckSimClientRow }) { "sim-ref only supports deck rows in this slice" }
         if (rows.any { it.useCardDb } || resolvedCardDbPath != null) {
             require(resolvedCardDbPath != null) { "Card database not found; set LEYLINE_CARD_DB or --card-db for deck-file rows" }
         }
 
         println("=== sim-ref: ${rows.size} row(s) out=${config.outDir} ===")
         val summaries = mutableListOf<SimRefRowSummary>()
-        for (row in rows.filterIsInstance<DeckSimClientRow>()) {
-            val summary = runRow(row)
+        for (row in rows) {
+            val summary =
+                when (row) {
+                    is DeckSimClientRow -> runDeckRow(row)
+                    is PuzzleSimClientRow -> runPuzzleRow(row)
+                }
             summaries += summary
             println(
                 "[${row.runLabel} s=${row.seed}] ${summary.durationMs}ms turn=${summary.turn} " +
@@ -90,7 +94,7 @@ class SimRefRunner(
         File(config.outDir, "simref-summary.json").writeText(simRefSummaryJson(summaries))
     }
 
-    private fun runRow(row: DeckSimClientRow): SimRefRowSummary {
+    private fun runDeckRow(row: DeckSimClientRow): SimRefRowSummary {
         GameBootstrap.initializeCardDatabase(quiet = true)
         val useCardDb = row.useCardDb || resolvedCardDbPath != null
         if (!useCardDb) {
@@ -115,6 +119,7 @@ class SimRefRunner(
         var completionReason = "exception"
         var exceptionMessage: String? = null
         var exceptionStackTop: String? = null
+        var outcome = SimRefFinalOutcome()
         var collectedLogs = CollectedLogs(emptyMap(), emptyMap(), emptyList())
         try {
             bridge.startAiVsAi(
@@ -138,6 +143,7 @@ class SimRefRunner(
             }
             turn = game.phaseHandler.turn
             gameOver = game.isGameOver
+            outcome = finalOutcome(game)
             completionReason =
                 when {
                     gameOver -> "natural"
@@ -169,10 +175,99 @@ class SimRefRunner(
                 completionReason = completionReason,
                 exceptionMessage = exceptionMessage,
                 exceptionStackTop = exceptionStackTop,
+                outcome = outcome,
                 logs = collectedLogs,
             ),
         )
-        return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason)
+        return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason, outcome)
+    }
+
+    private fun runPuzzleRow(row: PuzzleSimClientRow): SimRefRowSummary {
+        GameBootstrap.initializeCardDatabase(quiet = true)
+        val useCardDb = row.useCardDb || resolvedCardDbPath != null
+        if (!useCardDb) TestCardRegistry.ensureRegistered()
+
+        val ledger = SimRefDecisionLedger()
+        val startedAt = System.nanoTime()
+        val logTap = GameLogCollector().apply { start() }
+        val bridge =
+            GameBridge(
+                bridgeTimeoutMs = 5_000L,
+                promptFailsafeMs = 5_000L,
+                matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
+                messageCounter = MessageCounter(),
+                cardRepository = if (useCardDb) cardRepo else TestCardRegistry.repo,
+            )
+        var turn = 0
+        var gameOver = false
+        var completionReason = "exception"
+        var exceptionMessage: String? = null
+        var exceptionStackTop: String? = null
+        var outcome = SimRefFinalOutcome()
+        var collectedLogs = CollectedLogs(emptyMap(), emptyMap(), emptyList())
+        try {
+            bridge.startPuzzle(
+                PuzzleSource.loadFromText(row.puzzleText, row.name),
+                aiControllerFactory = { game, player ->
+                    TappingPlayerControllerAi(
+                        game = game,
+                        player = player,
+                        lobbyPlayer = player.lobbyPlayer,
+                        ledger = ledger,
+                        seatOf = { bridge.seatOf(it)?.value ?: 0 },
+                    )
+                },
+            )
+            if (!useCardDb) TestCardRegistry.registerPuzzleCards(bridge.getGame() ?: error("sim-ref puzzle game missing after start"))
+            val game = checkNotNull(bridge.getGame()) { "sim-ref puzzle game missing after start" }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(config.gameTimeoutSeconds)
+            while (!game.isGameOver && game.phaseHandler.turn <= config.maxTurns && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+            }
+            turn = game.phaseHandler.turn
+            gameOver = game.isGameOver
+            outcome = finalOutcome(game)
+            completionReason =
+                when {
+                    gameOver -> "natural"
+                    System.nanoTime() >= deadline -> "wall-timeout"
+                    turn > config.maxTurns -> "max-turns"
+                    else -> "incomplete"
+                }
+        } catch (t: Throwable) {
+            exceptionMessage = "${t::class.java.name}: ${t.message.orEmpty()}".trimEnd()
+            exceptionStackTop = t.stackTrace.firstOrNull()?.toString()
+        } finally {
+            runCatching { bridge.shutdown() }
+            collectedLogs = logTap.stopAndDrain()
+        }
+        val durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+        val decisions = ledger.snapshot().filter { it.turn <= config.maxTurns }
+        File(
+            config.outDir,
+            "${row.tag}.refdecisions.json",
+        ).writeText(
+            simRefDecisionsJson(
+                row = row,
+                decisions = decisions,
+                durationMs = durationMs,
+                gameOver = gameOver,
+                turn = turn,
+                completionReason = completionReason,
+                exceptionMessage = exceptionMessage,
+                exceptionStackTop = exceptionStackTop,
+                outcome = outcome,
+                logs = collectedLogs,
+            ),
+        )
+        return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason, outcome)
+    }
+
+    private fun finalOutcome(game: Game): SimRefFinalOutcome {
+        val lifeBySeat = game.players.mapIndexed { index, player -> (index + 1).toString() to player.life }.toMap()
+        val winnerSeat = game.players.indexOfFirst { it.getOutcome()?.hasWon() == true }.takeIf { it >= 0 }?.plus(1)
+        val loserSeat = winnerSeat?.let { winner -> game.players.indices.firstOrNull { it + 1 != winner }?.plus(1) }
+        return SimRefFinalOutcome(winnerSeat, loserSeat, lifeBySeat)
     }
 }
 
@@ -675,10 +770,17 @@ private data class SimRefRowSummary(
     val gameOver: Boolean,
     val totalCallbacks: Int,
     val completionReason: String,
+    val outcome: SimRefFinalOutcome,
+)
+
+internal data class SimRefFinalOutcome(
+    val winnerSeat: Int? = null,
+    val loserSeat: Int? = null,
+    val lifeBySeat: Map<String, Int> = emptyMap(),
 )
 
 internal fun simRefDecisionsJson(
-    row: DeckSimClientRow,
+    row: SimClientRow,
     decisions: List<SimRefDecision>,
     durationMs: Long,
     gameOver: Boolean,
@@ -686,6 +788,7 @@ internal fun simRefDecisionsJson(
     completionReason: String,
     exceptionMessage: String?,
     exceptionStackTop: String?,
+    outcome: SimRefFinalOutcome,
     logs: CollectedLogs,
 ): String {
     val counts = decisions.groupingBy { it.callback }.eachCount().toSortedMap()
@@ -699,6 +802,9 @@ internal fun simRefDecisionsJson(
         append("\"durationMs\":$durationMs,")
         append("\"turn\":$turn,")
         append("\"gameOver\":$gameOver,")
+        append("\"winnerSeat\":${outcome.winnerSeat ?: "null"},")
+        append("\"loserSeat\":${outcome.loserSeat ?: "null"},")
+        append("\"finalLifeBySeat\":${mapToJson(outcome.lifeBySeat)},")
         append("\"completionReason\":${simJsonString(completionReason)},")
         append("\"exceptionMessage\":${nullableSimJsonString(exceptionMessage)},")
         append("\"exceptionStackTop\":${nullableSimJsonString(exceptionStackTop)},")
@@ -727,5 +833,7 @@ private fun simRefSummaryJson(summaries: List<SimRefRowSummary>): String =
     summaries.joinToString(",", "[", "]") { s ->
         "{\"tag\":${simJsonString(s.tag)},\"deck\":${simJsonString(s.deck)},\"seed\":${s.seed}," +
             "\"durationMs\":${s.durationMs},\"turn\":${s.turn},\"gameOver\":${s.gameOver}," +
+            "\"winnerSeat\":${s.outcome.winnerSeat ?: "null"},\"loserSeat\":${s.outcome.loserSeat ?: "null"}," +
+            "\"finalLifeBySeat\":${mapToJson(s.outcome.lifeBySeat)}," +
             "\"completionReason\":${simJsonString(s.completionReason)},\"totalCallbacks\":${s.totalCallbacks}}"
     }

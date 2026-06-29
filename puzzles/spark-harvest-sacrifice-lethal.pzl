@@ -1,0 +1,19 @@
+[metadata]
+Name:Spark Harvest Sacrifice Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Spark Harvest with the sacrifice additional cost, destroy the blocker, then attack for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+removesummoningsickness=true
+
+humanhand=Spark Harvest
+humanbattlefield=Swamp;Grizzly Bears;Ornithopter
+humanlibrary=Swamp
+aibattlefield=Centaur Courser
+ailibrary=Forest

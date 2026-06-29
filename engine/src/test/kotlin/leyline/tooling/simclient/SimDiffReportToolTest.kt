@@ -238,6 +238,7 @@ class SimDiffReportToolTest :
                     completionReason = "exception",
                     exceptionMessage = "java.lang.IllegalStateException: boom",
                     exceptionStackTop = "Example.kt:1",
+                    outcome = SimRefFinalOutcome(),
                     logs =
                         CollectedLogs(
                             warnsByLogger = mapOf("forge" to 1),

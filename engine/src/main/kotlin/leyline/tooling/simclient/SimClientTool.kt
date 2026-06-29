@@ -152,6 +152,8 @@ class SimClientRunner(
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
                     connect = { harness.connectAndKeepPuzzleText(row.puzzleText) },
+                    forgeAi = forgeAi,
+                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                 )
         }
     }

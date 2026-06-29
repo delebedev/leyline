@@ -9,6 +9,8 @@ read_when:
 
 Puzzles are the fast acceptance path for focused gameplay seams. A `.pzl` file should usually describe a small board, deterministic libraries, and one behavior under test.
 
+For puzzles that direct Forge AI can solve and the bridge must reproduce, use the scripted loop in [`ai-solved-acceptance.md`](ai-solved-acceptance.md).
+
 ## Good Direct State
 
 Direct `.pzl` placement is a good fit when current game state is enough:

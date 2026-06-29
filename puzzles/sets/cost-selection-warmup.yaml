@@ -39,6 +39,33 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
             - zone_contains: { side: opponent, zone: exile, card: Centaur Courser }
+  - id: eaten-alive-sacrifice-lethal
+    puzzle: eaten-alive-sacrifice-lethal
+    arena:
+      xfail: Sacrifice additional-cost prompt sequencing is not driven by arena-ts yet.
+    run: cast Eaten Alive by sacrificing Ornithopter, exile Centaur Courser, then attack for lethal
+    expect: Ornithopter is sacrificed, Grizzly Bears survives to attack, and the opponent loses
+    steps:
+      - expect:
+          action: { type: cast, card: Eaten Alive }
+      - cast: Eaten Alive
+      - choose: { cto_id: 1 }
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - select_cost: { zone: battlefield, cards: [Ornithopter] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Ornithopter }
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: exile, card: Centaur Courser }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Grizzly Bears] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
   - id: mandatory-cost-mardu-outrider
     puzzle: mandatory-cost-mardu-outrider
     run: cast Mardu Outrider and discard Mountain as the mandatory cost
