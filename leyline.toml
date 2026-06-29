@@ -39,9 +39,10 @@
 #die_roll_winner = 1
 
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
-# Leave disabled when exercising mulligan flow; enable only for scripted probes
-# where the opening-hand dialog would obscure the scenario under test.
-skip_mulligan = true
+# Enabled by default for arena-driven probes — the mulligan dialog races
+# puzzle injection and gives auto-pass time to advance phases before the
+# tester can act. Comment out to exercise the mulligan flow itself.
+skip_mulligan = false
 
 # Send decision timer (rope) on priority grant. Disable to suppress countdown.
 timer = false
