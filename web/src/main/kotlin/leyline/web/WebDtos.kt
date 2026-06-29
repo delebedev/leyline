@@ -139,6 +139,17 @@ data class LimitedSetArchetypeView(
 @Serializable
 data class AuthView(
     val playerId: String?,
+    val guest: Boolean = false,
+)
+
+@Serializable
+data class PuzzleSummaryView(
+    val filename: String,
+    val name: String,
+    val goal: String? = null,
+    val turns: Int? = null,
+    val difficulty: String? = null,
+    val description: String? = null,
 )
 
 @Serializable

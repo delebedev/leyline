@@ -30,6 +30,41 @@
                 }
             }
         },
+        "/api/auth/guest": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/puzzles": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PuzzleSummaryView"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/auth/request-code": {
             "post": {
                 "requestBody": {
@@ -958,8 +993,43 @@
                     "playerId": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "guest": {
+                        "type": "boolean"
                     }
                 },
+                "additionalProperties": false
+            },
+            "PuzzleSummaryView": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "goal": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "turns": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "difficulty": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "filename",
+                    "name"
+                ],
                 "additionalProperties": false
             },
             "RequestLoginCodeRequest": {

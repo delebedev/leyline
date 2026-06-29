@@ -67,6 +67,60 @@ class WebRoutesTest :
             }
         }
 
+        test("lists puzzles publicly without auth") {
+            withWeb(
+                puzzleCatalog = {
+                    listOf(
+                        PuzzleSummaryView(
+                            filename = "stock-up",
+                            name = "Stock Up",
+                            goal = "Win",
+                            turns = 4,
+                            difficulty = "Tutorial",
+                            description = "Cast Stock Up.",
+                        ),
+                    )
+                },
+            ) { client, _ ->
+                val response = client.get("/api/puzzles")
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonArray
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body.size shouldBe 1
+                    body[0].jsonObject["filename"]?.jsonPrimitive?.content shouldBe "stock-up"
+                    body[0].jsonObject["name"]?.jsonPrimitive?.content shouldBe "Stock Up"
+                }
+            }
+        }
+
+        test("mints a guest session that can start a match") {
+            withWeb { client, _ ->
+                val guest = client.post("/api/auth/guest")
+                val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val guestBody = json.parseToJsonElement(guest.bodyAsText()).jsonObject
+                val playerId = checkNotNull(guestBody["playerId"]?.jsonPrimitive?.content)
+
+                val me = client.get("/api/auth/me") { header(HttpHeaders.Cookie, cookie) }
+                val meBody = json.parseToJsonElement(me.bodyAsText()).jsonObject
+
+                val start =
+                    client.post("/api/gre/start") {
+                        header(HttpHeaders.Cookie, cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"puzzle":"stock-up"}""")
+                    }
+
+                assertSoftly {
+                    guest.status shouldBe HttpStatusCode.OK
+                    guestBody["guest"]?.jsonPrimitive?.content shouldBe "true"
+                    meBody["playerId"]?.jsonPrimitive?.content shouldBe playerId
+                    meBody["guest"]?.jsonPrimitive?.content shouldBe "true"
+                    start.status shouldBe HttpStatusCode.OK
+                }
+            }
+        }
+
         test("starts and reads draft status") {
             withWeb { client, repos ->
                 val login = client.login(repos)
@@ -361,37 +415,40 @@ class WebRoutesTest :
         }
     })
 
-private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Unit) =
-    testApplication {
-        val repos = TestRepos()
-        val services =
-            WebServices(
-                draftService = DraftService(repos.draft, StaticDraftDriver()),
-                courseService =
-                    CourseService(
-                        repos.course,
-                    ) { GeneratedPool(cards = emptyList(), byCollation = emptyList(), collationId = 0) },
-                deckService = DeckService(repos.deck),
-                collectionService = CollectionService { listOf(100, 101) },
-                cardRepository = repos.cards,
-                authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender),
-                matchLauncher =
-                    object : WebMatchLauncher {
-                        override fun launchGreMatch(
-                            playerId: PlayerId?,
-                            request: GreStartRequest,
-                        ) = DraftPlayResponse("match-1", "wire-1")
+private fun withWeb(
+    puzzleCatalog: () -> List<PuzzleSummaryView> = { emptyList() },
+    block: suspend (io.ktor.client.HttpClient, TestRepos) -> Unit,
+) = testApplication {
+    val repos = TestRepos()
+    val services =
+        WebServices(
+            puzzleCatalog = puzzleCatalog,
+            draftService = DraftService(repos.draft, StaticDraftDriver()),
+            courseService =
+                CourseService(
+                    repos.course,
+                ) { GeneratedPool(cards = emptyList(), byCollation = emptyList(), collationId = 0) },
+            deckService = DeckService(repos.deck),
+            collectionService = CollectionService { listOf(100, 101) },
+            cardRepository = repos.cards,
+            authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender),
+            matchLauncher =
+                object : WebMatchLauncher {
+                    override fun launchGreMatch(
+                        playerId: PlayerId?,
+                        request: GreStartRequest,
+                    ) = DraftPlayResponse("match-1", "wire-1")
 
-                        override fun launchCourseMatch(
-                            playerId: PlayerId,
-                            eventName: String,
-                        ) = DraftPlayResponse("match-1", "wire-1")
-                    },
-                greRelay = repos.relay,
-            )
-        application { installWeb(services) }
-        block(client, repos)
-    }
+                    override fun launchCourseMatch(
+                        playerId: PlayerId,
+                        eventName: String,
+                    ) = DraftPlayResponse("match-1", "wire-1")
+                },
+            greRelay = repos.relay,
+        )
+    application { installWeb(services) }
+    block(client, repos)
+}
 
 private class TestRepos {
     val course = MemoryCourseRepo()

@@ -40,6 +40,7 @@ import java.util.UUID
 fun main(args: Array<String>) {
     val options = parseArgs(args)
     val port = options["--web-port"]?.toIntOrNull() ?: System.getenv("LEYLINE_WEBDOOR_PORT")?.toIntOrNull() ?: 8080
+    val host = options["--web-host"] ?: System.getenv("LEYLINE_WEBDOOR_HOST")?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
     val config = MatchConfig.load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
     val cardRepo = resolveCardRepository()
     val playerDb = resolvePlayerDb(config)
@@ -123,7 +124,7 @@ fun main(args: Array<String>) {
                 ),
         )
 
-    embeddedServer(Netty, host = "127.0.0.1", port = port) { installWeb(services) }.start(wait = true)
+    embeddedServer(Netty, host = host, port = port) { installWeb(services) }.start(wait = true)
 }
 
 private class WebRuntimeMatchLauncher(

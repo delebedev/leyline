@@ -39,6 +39,7 @@ import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleCatalog
 import java.util.UUID
 
 data class WebServices(
@@ -50,7 +51,20 @@ data class WebServices(
     val matchLauncher: WebMatchLauncher,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
     val authService: WebAuthService = WebAuthService(InMemoryWebAuthStore(), DevEmailSender()),
+    val puzzleCatalog: () -> List<PuzzleSummaryView> = { defaultPuzzleCatalog() },
 )
+
+private fun defaultPuzzleCatalog(): List<PuzzleSummaryView> =
+    PuzzleCatalog.list().map {
+        PuzzleSummaryView(
+            filename = it.filename,
+            name = it.name,
+            goal = it.goal,
+            turns = it.turns,
+            difficulty = it.difficulty,
+            description = it.description,
+        )
+    }
 
 interface WebMatchLauncher {
     fun launchGreMatch(
@@ -66,7 +80,14 @@ interface WebMatchLauncher {
 
 fun Application.installWeb(services: WebServices) {
     install(ContentNegotiation) {
-        json(Json { encodeDefaults = true })
+        // Tolerate client-only view-model fields on request bodies (e.g. the SPA's
+        // GreStartConfig carries gameType, which the server infers and ignores).
+        json(
+            Json {
+                encodeDefaults = true
+                ignoreUnknownKeys = true
+            },
+        )
     }
     install(StatusPages) {
         exception<IllegalArgumentException> { call, cause ->
@@ -96,26 +117,7 @@ fun Application.installWeb(services: WebServices) {
             post("/gre/start") {
                 call.respond(services.matchLauncher.launchGreMatch(call.authenticatedPlayerId(services), call.receive()))
             }
-            post("/public/gre/start") {
-                call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
-            }
-            post("/public/spectator/start") {
-                val launched =
-                    services.matchLauncher.launchGreMatch(
-                        null,
-                        GreStartRequest(
-                            seat1Deck = "60 Plains",
-                            seat2Deck = "60 Mountain",
-                            spectatorMode = true,
-                        ),
-                    )
-                call.respond(
-                    PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView("Seat One"), PublicSeatView("Seat Two")),
-                )
-            }
-            get("/public/spectate/viewers") {
-                call.respond(ViewerCountView(1))
-            }
+            installPublicRoutes(services)
             get("/collection") {
                 val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
                 call.respond(
@@ -234,11 +236,54 @@ private fun Route.installDraftRoutes(services: WebServices) {
     }
 }
 
+private fun Route.installPublicRoutes(services: WebServices) {
+    post("/public/gre/start") {
+        call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
+    }
+    post("/public/spectator/start") {
+        val launched =
+            services.matchLauncher.launchGreMatch(
+                null,
+                GreStartRequest(
+                    seat1Deck = "60 Plains",
+                    seat2Deck = "60 Mountain",
+                    spectatorMode = true,
+                ),
+            )
+        call.respond(
+            PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView("Seat One"), PublicSeatView("Seat Two")),
+        )
+    }
+    get("/public/spectate/viewers") {
+        call.respond(ViewerCountView(1))
+    }
+    get("/puzzles") {
+        call.respond(services.puzzleCatalog())
+    }
+}
+
 private fun Route.installAuthRoutes(services: WebServices) {
     route("/auth") {
         get("/me") {
             val player = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])
-            call.respond(AuthView(playerId = player?.playerId))
+            call.respond(AuthView(playerId = player?.playerId, guest = player?.let { isGuestEmail(it.email) } ?: false))
+        }
+        post("/guest") {
+            val result =
+                services.authService.guestSession(
+                    call.request.origin.remoteHost,
+                    call.request.headers["User-Agent"],
+                )
+            call.response.cookies.append(
+                Cookie(
+                    name = WEB_SESSION_COOKIE,
+                    value = result.token,
+                    path = "/",
+                    httpOnly = true,
+                    maxAge = WEB_SESSION_MAX_AGE_SECONDS,
+                ),
+            )
+            call.respond(AuthView(playerId = result.player.playerId, guest = true))
         }
         post("/request-code") {
             val request = call.receive<RequestLoginCodeRequest>()

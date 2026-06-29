@@ -41,6 +41,8 @@ object WebOpenApi {
         buildJsonObject {
             put("/gre", buildJsonObject { put("get", operation(responses = mapOf("101" to null))) })
             put("/api/auth/me", buildJsonObject { put("get", operation(response = ref("AuthView"))) })
+            put("/api/auth/guest", buildJsonObject { put("post", operation(response = ref("AuthView"))) })
+            put("/api/puzzles", buildJsonObject { put("get", operation(response = arrayRef("PuzzleSummaryView"))) })
             put(
                 "/api/auth/request-code",
                 buildJsonObject {
@@ -275,6 +277,7 @@ object WebOpenApi {
             component("DeckView", DeckView.serializer())
             component("CollectionView", CollectionView.serializer())
             component("AuthView", AuthView.serializer())
+            component("PuzzleSummaryView", PuzzleSummaryView.serializer())
             component("RequestLoginCodeRequest", RequestLoginCodeRequest.serializer())
             component("VerifyLoginCodeRequest", VerifyLoginCodeRequest.serializer())
             component("LoginResponse", LoginResponse.serializer())
