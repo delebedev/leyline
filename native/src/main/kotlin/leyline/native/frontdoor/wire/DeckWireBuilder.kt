@@ -258,13 +258,16 @@ object DeckWireBuilder {
         }
 
     /** Parse Arena `[{cardId, quantity}]` array to [DeckCard] list. Skips malformed entries with a warning. */
-    fun parseCardList(element: JsonElement?): List<DeckCard> {
+    fun parseCardList(
+        element: JsonElement?,
+        defaultQuantity: Int? = null,
+    ): List<DeckCard> {
         if (element == null) return emptyList()
         return try {
             element.jsonArray.mapNotNull { entry ->
                 val obj = entry.jsonObject
                 val grpId = obj["cardId"]?.jsonPrimitive?.int
-                val qty = obj["quantity"]?.jsonPrimitive?.int
+                val qty = obj["quantity"]?.jsonPrimitive?.int ?: defaultQuantity
                 if (grpId == null || qty == null) {
                     log.warn("DeckWireBuilder: skipping malformed card entry: {}", entry)
                     return@mapNotNull null

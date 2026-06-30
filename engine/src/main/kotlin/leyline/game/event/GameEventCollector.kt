@@ -707,7 +707,15 @@ class GameEventCollector(
                     from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
                         GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                     to == ZoneType.Exile -> {
-                        val sourceId = exileUnderSource?.value ?: exileUnderSourceId(card)
+                        // A spell exiled by its own resolution (Flashback / Harmonize
+                        // "then exile it") reports itself as the exile source: Forge sets
+                        // exiledWith to the ChangeZone host, which is the spell card. That
+                        // is not an under-card display relationship — a card cannot be
+                        // shown tucked under itself — so drop the self-reference. A
+                        // self-exiling spell is not displayed under any card.
+                        val sourceId =
+                            (exileUnderSource?.value ?: exileUnderSourceId(card))
+                                ?.takeIf { it != card.id }
                         GameEvent.CardExiled(
                             ForgeCardId(card.id),
                             seat,

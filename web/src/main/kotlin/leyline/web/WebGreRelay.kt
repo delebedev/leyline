@@ -1,6 +1,7 @@
 package leyline.web
 
 import com.google.protobuf.InvalidProtocolBufferException
+import io.ktor.server.websocket.DefaultWebSocketServerSession
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.send
@@ -32,7 +33,7 @@ interface WebGreRelay {
     suspend fun attach(
         matchId: String,
         playerId: PlayerId?,
-        session: io.ktor.server.websocket.DefaultWebSocketServerSession,
+        session: DefaultWebSocketServerSession,
     ): Boolean
 }
 
@@ -58,7 +59,7 @@ class InProcessWebGreRelay : WebGreRelay {
     override suspend fun attach(
         matchId: String,
         playerId: PlayerId?,
-        session: io.ktor.server.websocket.DefaultWebSocketServerSession,
+        session: DefaultWebSocketServerSession,
     ): Boolean {
         val relaySession = sessions[matchId] ?: return false
         val canDrive = relaySession.canDrive(playerId)
@@ -73,7 +74,7 @@ class InProcessWebGreRelay : WebGreRelay {
     private class RelaySession {
         private val lock = Mutex()
         private val engineLock = Mutex()
-        private val browsers = mutableMapOf<io.ktor.server.websocket.DefaultWebSocketServerSession, Boolean>()
+        private val browsers = mutableMapOf<DefaultWebSocketServerSession, Boolean>()
 
         @Volatile var engine: WebGreEngineSession? = null
 
@@ -104,7 +105,7 @@ class InProcessWebGreRelay : WebGreRelay {
         fun canDrive(playerId: PlayerId?): Boolean = ownerPlayerId != null && ownerPlayerId == playerId
 
         suspend fun attach(
-            session: io.ktor.server.websocket.DefaultWebSocketServerSession,
+            session: DefaultWebSocketServerSession,
             canDrive: Boolean,
         ) {
             val accepted =
@@ -145,7 +146,18 @@ class InProcessWebGreRelay : WebGreRelay {
             val replies = engineLock.withLock { engine?.receiveFromBrowser(payload).orEmpty() }
             if (replies.isEmpty()) return
             val targets = lock.withLock { browsers.keys.toList() }
-            replies.forEach { reply -> targets.forEach { target -> target.send(Frame.Binary(fin = true, data = reply)) } }
+            broadcast(replies, targets)
+        }
+
+        private suspend fun broadcast(
+            replies: List<ByteArray>,
+            targets: List<DefaultWebSocketServerSession>,
+        ) {
+            for (reply in replies) {
+                for (target in targets) {
+                    target.send(Frame.Binary(fin = true, data = reply))
+                }
+            }
         }
     }
 }

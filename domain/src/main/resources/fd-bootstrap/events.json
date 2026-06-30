@@ -236,5 +236,152 @@
       200055,
       200055
     ]
+  },
+  {
+    "internalName": "QuickDraft_DMU_20260101",
+    "publicName": "DMU_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 58,
+    "eventState": "ForceActive",
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_FDN_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_FDN_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "DMU Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100030,
+    "boosterCollationIds": [
+      100030,
+      100030,
+      100030
+    ]
+  },
+  {
+    "internalName": "QuickDraft_MOM_20260101",
+    "publicName": "MOM_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 59,
+    "eventState": "ForceActive",
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_TDM_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_TDM_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "MOM Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100037,
+    "boosterCollationIds": [
+      100037,
+      100037,
+      100037
+    ]
+  },
+  {
+    "internalName": "QuickDraft_NEO_20260101",
+    "publicName": "NEO_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 60,
+    "eventState": "ForceActive",
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_FIN_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_FIN_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "NEO Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100027,
+    "boosterCollationIds": [
+      100027,
+      100027,
+      100027
+    ]
   }
 ]

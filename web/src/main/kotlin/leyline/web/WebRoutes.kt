@@ -1,9 +1,11 @@
 package leyline.web
 
+import io.ktor.http.ContentType
 import io.ktor.http.Cookie
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
@@ -20,6 +22,7 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.CloseReason
 import io.ktor.websocket.close
 import kotlinx.serialization.json.Json
 import leyline.domain.Course
@@ -79,6 +82,8 @@ interface WebMatchLauncher {
 }
 
 fun Application.installWeb(services: WebServices) {
+    // Immutable for the server lifetime: derived from static DTO descriptors.
+    val openApiJson = WebOpenApi.generate()
     install(ContentNegotiation) {
         // Tolerate client-only view-model fields on request bodies (e.g. the SPA's
         // GreStartConfig carries gameType, which the server infers and ignores).
@@ -97,20 +102,9 @@ fun Application.installWeb(services: WebServices) {
     }
     install(WebSockets)
     routing {
-        webSocket("/gre") {
-            val matchId = call.request.queryParameters["matchId"]?.takeIf { it.isNotBlank() }
-            if (matchId == null) {
-                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "matchId is required"))
-                return@webSocket
-            }
-            val playerId = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])?.let { PlayerId(it.playerId) }
-            val attached = services.greRelay.attach(matchId, playerId, this)
-            if (!attached) {
-                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.CANNOT_ACCEPT, "match access denied"))
-            }
-        }
+        installGreSocket(services)
         get("/openapi.json") {
-            call.respondText(WebOpenApi.generate(), contentType = io.ktor.http.ContentType.Application.Json)
+            call.respondText(openApiJson, contentType = ContentType.Application.Json)
         }
         route("/api") {
             installAuthRoutes(services)
@@ -161,6 +155,21 @@ fun Application.installWeb(services: WebServices) {
                 }
             }
             installDraftRoutes(services)
+        }
+    }
+}
+
+private fun Route.installGreSocket(services: WebServices) {
+    webSocket("/gre") {
+        val matchId = call.request.queryParameters["matchId"]?.takeIf { it.isNotBlank() }
+        if (matchId == null) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "matchId is required"))
+            return@webSocket
+        }
+        val playerId = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])?.let { PlayerId(it.playerId) }
+        val attached = services.greRelay.attach(matchId, playerId, this)
+        if (!attached) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "match access denied"))
         }
     }
 }
@@ -333,7 +342,7 @@ private fun Route.installAuthRoutes(services: WebServices) {
     }
 }
 
-private suspend fun io.ktor.server.application.ApplicationCall.respondLoginSuccess(result: VerifyLoginResult.Success) {
+private suspend fun ApplicationCall.respondLoginSuccess(result: VerifyLoginResult.Success) {
     response.cookies.append(
         Cookie(
             name = WEB_SESSION_COOKIE,
@@ -346,12 +355,10 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondLoginSucce
     respond(LoginResponse(result.player.playerId, result.player.email))
 }
 
-private object WebRoutes
-
-internal fun io.ktor.server.application.ApplicationCall.requiredQuery(name: String): String =
+internal fun ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
-private suspend fun io.ktor.server.application.ApplicationCall.authenticatedPlayerId(services: WebServices): PlayerId {
+private suspend fun ApplicationCall.authenticatedPlayerId(services: WebServices): PlayerId {
     val player =
         services.authService.validate(request.cookies[WEB_SESSION_COOKIE])
             ?: run {
@@ -361,7 +368,7 @@ private suspend fun io.ktor.server.application.ApplicationCall.authenticatedPlay
     return PlayerId(player.playerId)
 }
 
-private suspend fun io.ktor.server.application.ApplicationCall.ownedPlayerId(
+private suspend fun ApplicationCall.ownedPlayerId(
     services: WebServices,
     requested: String?,
 ): PlayerId {
@@ -387,8 +394,8 @@ private fun deckView(deck: Deck) =
         playerId = deck.playerId.value,
         name = deck.name,
         format = deck.format.name,
-        mainDeck = deck.mainDeck.map { WebDeckCard(it.grpId, it.quantity) },
-        sideboard = deck.sideboard.map { WebDeckCard(it.grpId, it.quantity) },
+        mainDeck = deck.mainDeck.toWebDeckCards(),
+        sideboard = deck.sideboard.toWebDeckCards(),
     )
 
 private fun CreateDeckRequest.toDeck(playerId: PlayerId) =
@@ -398,18 +405,22 @@ private fun CreateDeckRequest.toDeck(playerId: PlayerId) =
         name = name,
         format = Format.valueOf(format),
         tileId = mainDeck.firstOrNull()?.grpId ?: 0,
-        mainDeck = mainDeck.map { DeckCard(it.grpId, it.quantity) },
-        sideboard = sideboard.map { DeckCard(it.grpId, it.quantity) },
+        mainDeck = mainDeck.toDomainDeckCards(),
+        sideboard = sideboard.toDomainDeckCards(),
         commandZone = emptyList(),
         companions = emptyList(),
     )
 
 private fun SubmitDeckRequest.toCourseDeck(): CourseDeck {
     val id = DeckId(deckId?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString())
-    return CourseDeck(id, mainDeck.map { DeckCard(it.grpId, it.quantity) }, sideboard.map { DeckCard(it.grpId, it.quantity) })
+    return CourseDeck(id, mainDeck.toDomainDeckCards(), sideboard.toDomainDeckCards())
 }
 
 private fun SubmitDeckRequest.toCourseSummary(): CourseDeckSummary {
     val id = DeckId(deckId?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString())
     return CourseDeckSummary(id, name.ifBlank { "Draft Deck" }, mainDeck.firstOrNull()?.grpId ?: 0, "Limited")
 }
+
+private fun List<WebDeckCard>.toDomainDeckCards(): List<DeckCard> = map { DeckCard(it.grpId, it.quantity) }
+
+private fun List<DeckCard>.toWebDeckCards(): List<WebDeckCard> = map { WebDeckCard(it.grpId, it.quantity) }
