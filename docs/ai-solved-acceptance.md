@@ -124,6 +124,7 @@ Policy realization probes:
 | `heraldic-banner-lethal.pzl` | cast `Heraldic Banner`, choose Red, then attack with a 2/1 `Raging Goblin` for lethal | GRE answers the static color choice with a non-red value, `Raging Goblin` stays 1/1, and seat 1 loses |
 | `bite-down-lethal.pzl` | choose our `Grizzly Bears`, choose opposing `Grizzly Bears`, destroy the blocker, then attack for lethal | GRE submits the cast but does not realize the ordered two-target choice; seat 1 loses |
 | `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
+| `jump-start-radical-idea-bolt-lethal.pzl` | jump-start `Radical Idea` by discarding `Coral Merfolk`, draw `Lightning Bolt`, then cast it for lethal | GRE jump-starts the spell and draws `Lightning Bolt`, then advances phases instead of realizing the newly available cast; seat 1 loses |
 
 Probe design rules:
 

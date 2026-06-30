@@ -1,0 +1,19 @@
+[metadata]
+Name:Convoke Tribunal Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Convoke Conclave Tribunal with Llanowar Elves to exile the blocker, then attack with Grizzly Bears for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+removesummoningsickness=true
+
+humanhand=Conclave Tribunal
+humanbattlefield=Plains;Plains;Plains;Llanowar Elves;Grizzly Bears
+humanlibrary=Plains;Plains;Plains
+aibattlefield=Centaur Courser
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
