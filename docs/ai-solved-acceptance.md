@@ -120,6 +120,8 @@ Policy realization probes:
 |---|---|---|
 | `combat-bypass-unsummon.pzl` | cast `Unsummon` on `Runeclaw Bear`, then attack with `Grizzly Bears` for lethal | Forge-AI cast decision is realized, then GRE passes through `DeclareAttackersReq`; seat 1 loses |
 | `overload-mizzium-mortars.pzl` | choose the overload branch so `Mizzium Mortars` damages both opposing creatures | GRE realizes the ordinary targeted branch instead of the overload choice; seat 1 loses |
+| `crew-brute-suit-lethal.pzl` | crew `Brute Suit` with `Centaur Courser`, then attack with `Brute Suit` for lethal | GRE passes through main phase without realizing the crew activation, attacks with `Centaur Courser` for nonlethal damage, then seat 1 loses |
+| `heraldic-banner-lethal.pzl` | cast `Heraldic Banner`, choose Red, then attack with a 2/1 `Raging Goblin` for lethal | GRE answers the static color choice with a non-red value, `Raging Goblin` stays 1/1, and seat 1 loses |
 | `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
 
 Probe design rules:
