@@ -20,7 +20,11 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.StaticChoiceIds
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.CastRails
+import leyline.game.mapping.resolveAltGrpId
+import leyline.game.snapshot.BoundCard
 import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -146,8 +150,8 @@ class ForgeAiPolicy(
                 promptActions.filter {
                     it.actionType == actionType && it.grpId == grpId && !it.isSkippedBy(skipFingerprints)
                 }
-            return chooseCastVariant(sa, candidates.filter { it.instanceId == mappedInstanceId })
-                ?: chooseCastVariant(sa, candidates)
+            return chooseCastVariant(sa, grpId, candidates.filter { it.instanceId == mappedInstanceId })
+                ?: chooseCastVariant(sa, grpId, candidates)
         }
 
         val hostCard = sa.hostCard ?: return null
@@ -163,12 +167,32 @@ class ForgeAiPolicy(
 
     private fun chooseCastVariant(
         sa: SpellAbility,
+        grpId: Int,
         candidates: List<Action>,
     ): Action? {
-        if (candidates.isEmpty()) return null
-        if (!sa.isSpell) return candidates.firstOrNull()
-        val expectsAlternative = CastRails.all.any { it.saPredicate(sa) }
-        return candidates.firstOrNull { (it.alternativeGrpId != 0) == expectsAlternative } ?: candidates.firstOrNull()
+        val variant = expectedCastVariant(sa, grpId)
+        return chooseCastActionByVariant(candidates, variant)
+    }
+
+    private fun expectedCastVariant(
+        sa: SpellAbility,
+        grpId: Int,
+    ): ExpectedCastVariant {
+        if (!sa.isSpell) return ExpectedCastVariant.Base
+        val rails = CastRails.all.filter { it.saPredicate(sa) }
+        if (rails.isEmpty()) return ExpectedCastVariant.Base
+        val altCosts = BoundCard.bindAltCosts(harness.bridge.cardRepository.findByGrpId(grpId), harness.bridge.cardRepository)
+        val payCostPairs =
+            ActionMapper
+                .computeEffectiveCost(sa, seatPlayer)
+                ?.takeIf { !it.isNoCost }
+                ?.let { ActionMapper.forgeManaCostToPairs(it) }
+                ?: emptyList()
+        val alternativeGrpId =
+            rails.firstNotNullOfOrNull { rail ->
+                resolveAltGrpId(rail, altCosts, payCostPairs).takeIf { it > 0 }
+            }
+        return alternativeGrpId?.let(ExpectedCastVariant::Alternative) ?: ExpectedCastVariant.UnresolvedAlternative
     }
 
     /**
@@ -265,6 +289,9 @@ class ForgeAiPolicy(
                     .stack
                     .firstOrNull()
                     ?.spellAbility
+        val allowedIds = allowedStaticColorIds(req, pending?.request?.staticOptionIds.orEmpty())
+        val allowedColors = colorSetFromStaticIds(allowedIds)
+        if (allowedColors.isColorless) return null
         val colors =
             askAi("chooseColors") {
                 aiController.chooseColors(
@@ -272,10 +299,10 @@ class ForgeAiPolicy(
                     sa,
                     req.minSel.coerceAtLeast(1),
                     (if (req.maxSel > 0) req.maxSel else req.minSel).coerceAtLeast(1),
-                    ColorSet.fromMask(MagicColor.ALL_COLORS.toInt()),
+                    allowedColors,
                 )
             } ?: return null
-        val selected = colors.toClientColorIds().take(selectNCount(req))
+        val selected = colors.toStaticColorIds().filter { it in allowedIds }.take(selectNCount(req))
         return selected.takeIf { it.isNotEmpty() }
     }
 
@@ -477,13 +504,13 @@ class ForgeAiPolicy(
             else -> null
         }
 
-    private fun ColorSet.toClientColorIds(): List<Int> =
+    private fun ColorSet.toStaticColorIds(): List<Int> =
         buildList {
-            if (hasWhite()) add(ManaColor.White_afc9.number)
-            if (hasBlue()) add(ManaColor.Blue_afc9.number)
-            if (hasBlack()) add(ManaColor.Black_afc9.number)
-            if (hasRed()) add(ManaColor.Red_afc9.number)
-            if (hasGreen()) add(ManaColor.Green_afc9.number)
+            if (hasWhite()) StaticChoiceIds.colorIdForMask(MagicColor.WHITE)?.let(::add)
+            if (hasBlue()) StaticChoiceIds.colorIdForMask(MagicColor.BLUE)?.let(::add)
+            if (hasBlack()) StaticChoiceIds.colorIdForMask(MagicColor.BLACK)?.let(::add)
+            if (hasRed()) StaticChoiceIds.colorIdForMask(MagicColor.RED)?.let(::add)
+            if (hasGreen()) StaticChoiceIds.colorIdForMask(MagicColor.GREEN)?.let(::add)
         }
 
     private fun <T> askAi(
@@ -509,4 +536,59 @@ class ForgeAiPolicy(
     companion object {
         private val log = LoggerFactory.getLogger(ForgeAiPolicy::class.java)
     }
+}
+
+internal sealed interface ExpectedCastVariant {
+    data object Base : ExpectedCastVariant
+
+    data class Alternative(
+        val alternativeGrpId: Int,
+    ) : ExpectedCastVariant
+
+    data object UnresolvedAlternative : ExpectedCastVariant
+}
+
+internal fun chooseCastActionByVariant(
+    candidates: List<Action>,
+    variant: ExpectedCastVariant,
+): Action? =
+    when (variant) {
+        ExpectedCastVariant.Base -> candidates.firstOrNull { it.alternativeGrpId == 0 }
+        is ExpectedCastVariant.Alternative -> candidates.firstOrNull { it.alternativeGrpId == variant.alternativeGrpId }
+        ExpectedCastVariant.UnresolvedAlternative -> null
+    }
+
+internal fun allowedStaticColorIds(
+    req: SelectNReq,
+    promptStaticOptionIds: List<Int>,
+): List<Int> {
+    val ids =
+        req.idsList
+        .ifEmpty { promptStaticOptionIds }
+        .ifEmpty {
+            listOfNotNull(
+                StaticChoiceIds.colorIdForMask(MagicColor.WHITE),
+                StaticChoiceIds.colorIdForMask(MagicColor.BLUE),
+                StaticChoiceIds.colorIdForMask(MagicColor.BLACK),
+                StaticChoiceIds.colorIdForMask(MagicColor.RED),
+                StaticChoiceIds.colorIdForMask(MagicColor.GREEN),
+            )
+        }
+    return ids.distinct()
+}
+
+internal fun colorSetFromStaticIds(ids: List<Int>): ColorSet {
+    val mask =
+        ids.fold(0) { acc, id ->
+            acc or
+                when (id) {
+                    StaticChoiceIds.colorIdForMask(MagicColor.WHITE) -> MagicColor.WHITE.toInt()
+                    StaticChoiceIds.colorIdForMask(MagicColor.BLUE) -> MagicColor.BLUE.toInt()
+                    StaticChoiceIds.colorIdForMask(MagicColor.BLACK) -> MagicColor.BLACK.toInt()
+                    StaticChoiceIds.colorIdForMask(MagicColor.RED) -> MagicColor.RED.toInt()
+                    StaticChoiceIds.colorIdForMask(MagicColor.GREEN) -> MagicColor.GREEN.toInt()
+                    else -> 0
+                }
+        }
+    return ColorSet.fromMask(mask)
 }

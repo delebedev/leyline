@@ -110,6 +110,18 @@ Good fixes preserve this shape:
 - fallback greedy policy is used only when the Forge-AI consult is unavailable or unsafe
 - training puzzles stay discriminating, so the wrong local heuristic still fails somewhere
 
+## Policy Adapter Review Checklist
+
+When reviewing a new Forge-AI policy adapter, check that it narrows a Forge decision to the exact client-domain response instead of approximating:
+
+- **Exact action variant:** cast adapters must select the exact GRE action variant the Forge `SpellAbility` implies. For alternate costs, resolve the expected `alternativeGrpId` through `CastRails`; do not choose by boolean "has an alt cost".
+- **Bounded prompt domain:** static-list, modal, and target adapters must restrict AI choices to the options present in the current GRE prompt. If the prompt only offers two colors, the AI consult must be constrained to those colors.
+- **Stable id translation:** map Forge cards, players, modes, colors, and costs to the current prompt's ids. Avoid list positions unless the prompt contract defines positions as the id space.
+- **Fail closed:** when exact mapping is unavailable or ambiguous, return no Forge-AI decision and let the existing fallback/skip path handle it. Do not guess the first legal option.
+- **No probe-specific shortcuts:** no card-name, puzzle-name, or scenario-specific branches. A different card using the same prompt shape should benefit from the same adapter.
+- **Winner-based verification:** for lethal probes, success means the expected `winnerSeat` / `loserSeat`, not merely `gameOver=true` or `failure=natural`.
+- **Control coverage:** run the fixed red probe plus at least one nearby green control so the adapter does not regress an already-working prompt shape.
+
 ## Training Probes
 
 Use a small set of distinct failure classes to train and verify adapter fixes. A single puzzle can be solved accidentally by a local heuristic; repeated puzzles for the same prompt gap are useful regression coverage only after the root adapter is fixed.
