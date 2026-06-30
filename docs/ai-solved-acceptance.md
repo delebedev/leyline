@@ -116,13 +116,13 @@ Use a small set of distinct failure classes to train and verify adapter fixes. A
 
 Policy realization probes:
 
-| Puzzle | Direct expectation | Current GRE gap |
+| Puzzle | Direct expectation | GRE status |
 |---|---|---|
 | `combat-bypass-unsummon.pzl` | cast `Unsummon` on `Runeclaw Bear`, then attack with `Grizzly Bears` for lethal | Forge-AI cast decision is realized, then GRE passes through `DeclareAttackersReq`; seat 1 loses |
-| `overload-mizzium-mortars.pzl` | choose the overload branch so `Mizzium Mortars` damages both opposing creatures | GRE realizes the ordinary targeted branch instead of the overload choice; seat 1 loses |
+| `overload-mizzium-mortars.pzl` | choose the overload branch so `Mizzium Mortars` damages both opposing creatures | GRE realizes the overload branch, but the probe still reaches the turn cap; seat 1 loses |
 | `crew-brute-suit-lethal.pzl` | crew `Brute Suit` with `Centaur Courser`, then attack with `Brute Suit` for lethal | GRE passes through main phase without realizing the crew activation, attacks with `Centaur Courser` for nonlethal damage, then seat 1 loses |
-| `heraldic-banner-lethal.pzl` | cast `Heraldic Banner`, choose Red, then attack with a 2/1 `Raging Goblin` for lethal | GRE answers the static color choice with a non-red value, `Raging Goblin` stays 1/1, and seat 1 loses |
-| `bite-down-lethal.pzl` | choose our `Grizzly Bears`, choose opposing `Grizzly Bears`, destroy the blocker, then attack for lethal | GRE submits the cast but does not realize the ordered two-target choice; seat 1 loses |
+| `heraldic-banner-lethal.pzl` | cast `Heraldic Banner`, choose Red, then attack with a 2/1 `Raging Goblin` for lethal | GRE asks Forge AI for the static color choice and wins |
+| `bite-down-lethal.pzl` | choose our `Grizzly Bears`, choose opposing `Grizzly Bears`, destroy the blocker, then attack for lethal | GRE realizes the ordered target choice, then passes through the attack; seat 1 loses |
 | `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
 | `jump-start-radical-idea-bolt-lethal.pzl` | jump-start `Radical Idea` by discarding `Coral Merfolk`, draw `Lightning Bolt`, then cast it for lethal | GRE jump-starts the spell and draws `Lightning Bolt`, then advances phases instead of realizing the newly available cast; seat 1 loses |
 

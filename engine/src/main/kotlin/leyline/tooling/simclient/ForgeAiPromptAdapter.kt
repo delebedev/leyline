@@ -87,13 +87,18 @@ internal object ForgeAiSelectNAdapter : ForgeAiPromptAdapter {
     override fun shouldConsult(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
-    ): Boolean = context.forgeAi.canChooseSelectN(prompt.msg.selectNReq)
+    ): Boolean =
+        context.forgeAi.canChooseSelectN(prompt.msg.selectNReq) ||
+            context.forgeAi.canChooseStaticColorSelectN(prompt.msg)
 
     override fun decide(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val selected = context.forgeAi.chooseSelectN(prompt.msg.selectNReq) ?: return null
+        val selected =
+            context.forgeAi.chooseSelectN(prompt.msg.selectNReq)
+                ?: context.forgeAi.chooseStaticColorSelectN(prompt.msg)
+                ?: return null
         return SimPromptResponse(SimDecision.SelectN(selected))
     }
 }

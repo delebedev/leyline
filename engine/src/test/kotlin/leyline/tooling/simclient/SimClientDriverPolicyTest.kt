@@ -104,6 +104,7 @@ class SimClientDriverPolicyTest :
             legalAction: SelectAction = SelectAction.Select_a1ad,
             sourceId: Int = 0,
             abilityGrpId: Int = 0,
+            targetIds: List<Int> = listOf(2),
         ): GREToClientMessage =
             GREToClientMessage
                 .newBuilder()
@@ -120,12 +121,14 @@ class SimClientDriverPolicyTest :
                                 .newBuilder()
                                 .setMinTargets(min)
                                 .setMaxTargets(max)
-                                .addTargets(
-                                    ProtoTarget
-                                        .newBuilder()
-                                        .setTargetInstanceId(2)
-                                        .setLegalAction(legalAction)
-                                        .build(),
+                                .addAllTargets(
+                                    targetIds.map { targetId ->
+                                        ProtoTarget
+                                            .newBuilder()
+                                            .setTargetInstanceId(targetId)
+                                            .setLegalAction(legalAction)
+                                            .build()
+                                    },
                                 ),
                         ).build(),
                 ).build()
@@ -233,10 +236,12 @@ class SimClientDriverPolicyTest :
             groupAway.auditDigest() shouldBe "group-away::context=Scry_a0f6"
         }
 
-        test("forge-ai SelectTargets adapter only consults simple single-target prompts") {
+        test("forge-ai SelectTargets adapter consults exact target prompts") {
             val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
 
             policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2, targetIds = listOf(2, 3))) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2)) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(max = 2)) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(legalAction = SelectAction.Unselect)) shouldBe false
         }
