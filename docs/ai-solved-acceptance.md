@@ -112,23 +112,23 @@ Good fixes preserve this shape:
 
 ## Training Probes
 
-Use small families of related puzzles to train and verify adapter fixes. A single puzzle can be solved accidentally by a local heuristic; a family should force the adapter to carry the Forge-AI decision across different prompt shapes.
+Use a small set of distinct failure classes to train and verify adapter fixes. A single puzzle can be solved accidentally by a local heuristic; repeated puzzles for the same prompt gap are useful regression coverage only after the root adapter is fixed.
 
-Sacrifice-cost policy probes:
+Policy realization probes:
 
 | Puzzle | Direct expectation | Current GRE gap |
 |---|---|---|
+| `combat-bypass-unsummon.pzl` | cast `Unsummon` on `Runeclaw Bear`, then attack with `Grizzly Bears` for lethal | Forge-AI cast decision is realized, then GRE passes through `DeclareAttackersReq`; seat 1 loses |
+| `overload-mizzium-mortars.pzl` | choose the overload branch so `Mizzium Mortars` damages both opposing creatures | GRE realizes the ordinary targeted branch instead of the overload choice; seat 1 loses |
 | `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
-| `bone-splinters-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, destroy `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
-| `spark-harvest-sacrifice-lethal.pzl` | choose sacrifice additional cost, sacrifice `Ornithopter`, destroy `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
-| `rite-of-oblivion-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
 
 Probe design rules:
 
-- Keep the expendable card vanilla or triggerless unless the probe is specifically about triggered costs.
-- Make the preserved card required for lethal, so sacrificing it flips the winner.
-- Prefer different card scripts for the same adapter gap: mandatory sacrifice, alternate additional sacrifice, and noncreature permanent sacrifice.
-- Keep `Goal:Win` and `Turns:1`; use `--max-turns 2` for direct/GRE runs.
+- Prefer one clear puzzle per failure class before adding same-class variants.
+- Keep class probes discriminating: a wrong local fallback should flip `winnerSeat` / `loserSeat`.
+- Keep expendable cards vanilla or triggerless unless the probe is specifically about triggered costs.
+- Prefer `Goal:Win` and `Turns:1`; use `--max-turns 2` for one-turn direct/GRE runs.
+- Allow longer fixtures only when the mechanic needs them, such as overload probes that need combat damage after the spell turn.
 - Evaluate success by `winnerSeat=1` / `loserSeat`, not by `gameOver=true`.
 
 ## Native-Client Caveat
