@@ -21,6 +21,11 @@ const val WEB_SESSION_COOKIE = "web_session"
 const val WEB_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 const val DEV_WEB_AUTH_SECRET = "dev-web-auth-secret"
 
+/** Synthetic email domain marking anonymous guest players (no real identity). */
+const val GUEST_EMAIL_DOMAIN = "guest.local"
+
+fun isGuestEmail(email: String): Boolean = email.endsWith("@$GUEST_EMAIL_DOMAIN")
+
 private const val LOGIN_CODE_MINUTES = 10
 const val MAX_AUTH_ATTEMPTS = 5
 private const val RESEND_COOLDOWN_SECONDS = 30L
@@ -380,6 +385,38 @@ class WebAuthService(
             ChallengeConsumeResult.TooManyAttempts -> return VerifyLoginResult.TooManyAttempts
         }
         val player = store.findOrCreatePlayer(normalized)
+        val token = generateToken()
+        val now = Instant.now()
+        store.saveSession(
+            WebSession(
+                id = UUID.randomUUID().toString(),
+                playerId = player.playerId,
+                tokenHash = hashSessionToken(token),
+                createdAt = now,
+                lastSeenAt = now,
+                idleExpiresAt = now.plusSeconds(SESSION_IDLE_SECONDS),
+                absoluteExpiresAt = now.plusSeconds(SESSION_ABSOLUTE_SECONDS),
+                ipHash = ip?.let(::hashOpaque),
+                userAgent = userAgent,
+            ),
+        )
+        return VerifyLoginResult.Success(token, player)
+    }
+
+    /**
+     * Mint an anonymous guest player and session. Each call creates a fresh
+     * identity (unique synthetic email), so guests are owners of their own
+     * matches and can drive the standard authenticated GRE path without an
+     * account. Used by no-auth product surfaces (e.g. /challenges).
+     */
+
+    /** Mint a guest session, or null when rate-limited (per-IP). */
+    fun guestSession(
+        ip: String? = null,
+        userAgent: String? = null,
+    ): VerifyLoginResult.Success? {
+        if (!allow("guest:${ip.orEmpty()}")) return null
+        val player = store.findOrCreatePlayer("guest-${UUID.randomUUID()}@$GUEST_EMAIL_DOMAIN")
         val token = generateToken()
         val now = Instant.now()
         store.saveSession(

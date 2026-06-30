@@ -42,6 +42,7 @@ import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleCatalog
 import java.util.UUID
 
 data class WebServices(
@@ -53,7 +54,20 @@ data class WebServices(
     val matchLauncher: WebMatchLauncher,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
     val authService: WebAuthService = WebAuthService(InMemoryWebAuthStore(), DevEmailSender()),
+    val puzzleCatalog: () -> List<PuzzleSummaryView> = { defaultPuzzleCatalog() },
 )
+
+private fun defaultPuzzleCatalog(): List<PuzzleSummaryView> =
+    PuzzleCatalog.list().map {
+        PuzzleSummaryView(
+            filename = it.filename,
+            name = it.name,
+            goal = it.goal,
+            turns = it.turns,
+            difficulty = it.difficulty,
+            description = it.description,
+        )
+    }
 
 interface WebMatchLauncher {
     fun launchGreMatch(
@@ -68,12 +82,17 @@ interface WebMatchLauncher {
 }
 
 fun Application.installWeb(services: WebServices) {
-    // Both are immutable for the server lifetime: the OpenAPI spec is derived from
-    // static DTO descriptors and the card metadata from the read-only card DB.
+    // Immutable for the server lifetime: derived from static DTO descriptors.
     val openApiJson = WebOpenApi.generate()
-    val cardMetadata = cardMetadataView(services.cardRepository)
     install(ContentNegotiation) {
-        json(Json { encodeDefaults = true })
+        // Tolerate client-only view-model fields on request bodies (e.g. the SPA's
+        // GreStartConfig carries gameType, which the server infers and ignores).
+        json(
+            Json {
+                encodeDefaults = true
+                ignoreUnknownKeys = true
+            },
+        )
     }
     install(StatusPages) {
         exception<IllegalArgumentException> { call, cause ->
@@ -92,26 +111,7 @@ fun Application.installWeb(services: WebServices) {
             post("/gre/start") {
                 call.respond(services.matchLauncher.launchGreMatch(call.authenticatedPlayerId(services), call.receive()))
             }
-            post("/public/gre/start") {
-                call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
-            }
-            post("/public/spectator/start") {
-                val launched =
-                    services.matchLauncher.launchGreMatch(
-                        null,
-                        GreStartRequest(
-                            seat1Deck = "60 Plains",
-                            seat2Deck = "60 Mountain",
-                            spectatorMode = true,
-                        ),
-                    )
-                call.respond(
-                    PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView("Seat One"), PublicSeatView("Seat Two")),
-                )
-            }
-            get("/public/spectate/viewers") {
-                call.respond(ViewerCountView(1))
-            }
+            installPublicRoutes(services)
             get("/collection") {
                 val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
                 call.respond(
@@ -126,7 +126,7 @@ fun Application.installWeb(services: WebServices) {
             get("/sealed/sets") {
                 call.respond(listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "draft", cardCount = 0)))
             }
-            get("/cards/metadata") { call.respond(cardMetadata) }
+            installCardRoutes(services)
             route("/courses") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
@@ -158,14 +158,6 @@ fun Application.installWeb(services: WebServices) {
         }
     }
 }
-
-private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
-    CardMetadataView(
-        cardRepository
-            .findAllGrpIds()
-            .sorted()
-            .map { grpId -> CardMetadataEntry(grpId = grpId, name = cardRepository.findNameByGrpId(grpId)) },
-    )
 
 private fun Route.installGreSocket(services: WebServices) {
     webSocket("/gre") {
@@ -245,11 +237,66 @@ private fun Route.installDraftRoutes(services: WebServices) {
     }
 }
 
+private fun Route.installPublicRoutes(services: WebServices) {
+    installPublicCardRoutes(services)
+    post("/public/gre/start") {
+        call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
+    }
+    post("/public/spectator/start") {
+        val launched =
+            services.matchLauncher.launchGreMatch(
+                null,
+                GreStartRequest(
+                    seat1Deck = "60 Plains",
+                    seat2Deck = "60 Mountain",
+                    spectatorMode = true,
+                ),
+            )
+        call.respond(
+            PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView("Seat One"), PublicSeatView("Seat Two")),
+        )
+    }
+    get("/public/spectate/viewers") {
+        call.respond(ViewerCountView(1))
+    }
+    get("/puzzles") {
+        call.respond(services.puzzleCatalog())
+    }
+}
+
 private fun Route.installAuthRoutes(services: WebServices) {
     route("/auth") {
         get("/me") {
             val player = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])
-            call.respond(AuthView(playerId = player?.playerId))
+            call.respond(AuthView(playerId = player?.playerId, guest = player?.let { isGuestEmail(it.email) } ?: false))
+        }
+        post("/guest") {
+            // Reuse an existing valid session (account or guest) so a returning
+            // browser doesn't mint a fresh guest player on every page load.
+            val existing = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])
+            if (existing != null) {
+                call.respond(AuthView(playerId = existing.playerId, guest = isGuestEmail(existing.email)))
+                return@post
+            }
+            val result =
+                services.authService.guestSession(
+                    call.request.origin.remoteHost,
+                    call.request.headers["User-Agent"],
+                )
+            if (result == null) {
+                call.respond(HttpStatusCode.TooManyRequests)
+                return@post
+            }
+            call.response.cookies.append(
+                Cookie(
+                    name = WEB_SESSION_COOKIE,
+                    value = result.token,
+                    path = "/",
+                    httpOnly = true,
+                    maxAge = WEB_SESSION_MAX_AGE_SECONDS,
+                ),
+            )
+            call.respond(AuthView(playerId = result.player.playerId, guest = true))
         }
         post("/request-code") {
             val request = call.receive<RequestLoginCodeRequest>()
@@ -308,7 +355,7 @@ private suspend fun ApplicationCall.respondLoginSuccess(result: VerifyLoginResul
     respond(LoginResponse(result.player.playerId, result.player.email))
 }
 
-private fun ApplicationCall.requiredQuery(name: String): String =
+internal fun ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
 private suspend fun ApplicationCall.authenticatedPlayerId(services: WebServices): PlayerId {

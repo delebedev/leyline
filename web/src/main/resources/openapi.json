@@ -30,6 +30,41 @@
                 }
             }
         },
+        "/api/auth/guest": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/puzzles": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PuzzleSummaryView"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/auth/request-code": {
             "post": {
                 "requestBody": {
@@ -196,7 +231,7 @@
                 }
             }
         },
-        "/api/cards/metadata": {
+        "/api/public/cards/by-grpids": {
             "get": {
                 "responses": {
                     "200": {
@@ -204,10 +239,67 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/CardMetadataView"
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "$ref": "#/components/schemas/GreCardMetaDto"
+                                    }
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/cards/search": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DraftCardDto"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/cards/parse-decklist": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ParseDecklistRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ParseDecklistResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
                     }
                 }
             }
@@ -958,8 +1050,43 @@
                     "playerId": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "guest": {
+                        "type": "boolean"
                     }
                 },
+                "additionalProperties": false
+            },
+            "PuzzleSummaryView": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "goal": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "turns": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "difficulty": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "filename",
+                    "name"
+                ],
                 "additionalProperties": false
             },
             "RequestLoginCodeRequest": {
@@ -1006,32 +1133,7 @@
                 ],
                 "additionalProperties": false
             },
-            "CardMetadataView": {
-                "type": "object",
-                "properties": {
-                    "cards": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "grpId": {
-                                    "type": "integer"
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "nullable": true
-                                }
-                            },
-                            "required": [
-                                "grpId"
-                            ],
-                            "additionalProperties": false
-                        }
-                    }
-                },
-                "additionalProperties": false
-            },
-            "CardMetadataEntry": {
+            "GreCardMetaDto": {
                 "type": "object",
                 "properties": {
                     "grpId": {
@@ -1040,10 +1142,411 @@
                     "name": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "setCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "manaCost": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "power": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "toughness": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "types": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "subtypes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "required": [
                     "grpId"
+                ],
+                "additionalProperties": false
+            },
+            "DraftCardDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "grpId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "manaCost": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "typeLine": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "rarity": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "colors": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "setCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "collectorNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "score": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "additionalProperties": false
+            },
+            "ParseDecklistRequest": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "text"
+                ],
+                "additionalProperties": false
+            },
+            "ParsedCardDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "grpId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "found": {
+                        "type": "boolean"
+                    },
+                    "card": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "grpId": {
+                                "type": "integer",
+                                "nullable": true
+                            },
+                            "manaCost": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "typeLine": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "rarity": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "colors": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "setCode": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "collectorNumber": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "score": {
+                                "type": "string",
+                                "nullable": true
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "additionalProperties": false,
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "name",
+                    "quantity",
+                    "found"
+                ],
+                "additionalProperties": false
+            },
+            "ParseDecklistResponse": {
+                "type": "object",
+                "properties": {
+                    "mainboard": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "grpId": {
+                                    "type": "integer",
+                                    "nullable": true
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                },
+                                "found": {
+                                    "type": "boolean"
+                                },
+                                "card": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "grpId": {
+                                            "type": "integer",
+                                            "nullable": true
+                                        },
+                                        "manaCost": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "typeLine": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "rarity": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "colors": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "setCode": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "collectorNumber": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "score": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "required": [
+                                        "name"
+                                    ],
+                                    "additionalProperties": false,
+                                    "nullable": true
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "quantity",
+                                "found"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "sideboard": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "grpId": {
+                                    "type": "integer",
+                                    "nullable": true
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                },
+                                "found": {
+                                    "type": "boolean"
+                                },
+                                "card": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "grpId": {
+                                            "type": "integer",
+                                            "nullable": true
+                                        },
+                                        "manaCost": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "typeLine": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "rarity": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "colors": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "setCode": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "collectorNumber": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "score": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "required": [
+                                        "name"
+                                    ],
+                                    "additionalProperties": false,
+                                    "nullable": true
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "quantity",
+                                "found"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "commander": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "grpId": {
+                                    "type": "integer",
+                                    "nullable": true
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                },
+                                "found": {
+                                    "type": "boolean"
+                                },
+                                "card": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "grpId": {
+                                            "type": "integer",
+                                            "nullable": true
+                                        },
+                                        "manaCost": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "typeLine": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "rarity": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "colors": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "setCode": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "collectorNumber": {
+                                            "type": "string",
+                                            "nullable": true
+                                        },
+                                        "score": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "required": [
+                                        "name"
+                                    ],
+                                    "additionalProperties": false,
+                                    "nullable": true
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "quantity",
+                                "found"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "mainboard",
+                    "sideboard",
+                    "commander",
+                    "errors"
                 ],
                 "additionalProperties": false
             }
