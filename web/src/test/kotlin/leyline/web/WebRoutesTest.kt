@@ -126,6 +126,43 @@ class WebRoutesTest :
             }
         }
 
+        test("reuses an existing guest session instead of minting a new one") {
+            withWeb { client, _ ->
+                val first = client.post("/api/auth/guest")
+                val cookie = checkNotNull(first.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val firstId =
+                    json
+                        .parseToJsonElement(first.bodyAsText())
+                        .jsonObject["playerId"]!!
+                        .jsonPrimitive.content
+
+                val second = client.post("/api/auth/guest") { header(HttpHeaders.Cookie, cookie) }
+                val secondBody = json.parseToJsonElement(second.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    second.status shouldBe HttpStatusCode.OK
+                    secondBody["playerId"]?.jsonPrimitive?.content shouldBe firstId
+                    secondBody["guest"]?.jsonPrimitive?.content shouldBe "true"
+                    second.headers[HttpHeaders.SetCookie] shouldBe null
+                }
+            }
+        }
+
+        test("gre start tolerates unknown client fields") {
+            withWeb { client, _ ->
+                val guest = client.post("/api/auth/guest")
+                val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val start =
+                    client.post("/api/gre/start") {
+                        header(HttpHeaders.Cookie, cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"puzzle":"stock-up","gameType":"puzzle","unknownClientField":true}""")
+                    }
+
+                start.status shouldBe HttpStatusCode.OK
+            }
+        }
+
         test("starts and reads draft status") {
             withWeb { client, repos ->
                 val login = client.login(repos)
@@ -396,6 +433,19 @@ class WebRoutesTest :
                     commander["grpId"]!!.jsonPrimitive.content shouldBe "101"
                     error shouldBe "Card not found: Missing Card"
                 }
+            }
+        }
+
+        test("rejects oversized decklist") {
+            withWeb { client, _ ->
+                val huge = "a".repeat(20_001)
+                val response =
+                    client.post("/api/cards/parse-decklist") {
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"text":"$huge"}""")
+                    }
+
+                response.status shouldBe HttpStatusCode.BadRequest
             }
         }
 

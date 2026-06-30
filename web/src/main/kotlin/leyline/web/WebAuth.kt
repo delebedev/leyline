@@ -391,10 +391,13 @@ class WebAuthService(
      * matches and can drive the standard authenticated GRE path without an
      * account. Used by no-auth product surfaces (e.g. /challenges).
      */
+
+    /** Mint a guest session, or null when rate-limited (per-IP). */
     fun guestSession(
         ip: String? = null,
         userAgent: String? = null,
-    ): VerifyLoginResult.Success {
+    ): VerifyLoginResult.Success? {
+        if (!allow("guest:${ip.orEmpty()}")) return null
         val player = store.findOrCreatePlayer("guest-${UUID.randomUUID()}@$GUEST_EMAIL_DOMAIN")
         val token = generateToken()
         val now = Instant.now()

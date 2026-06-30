@@ -262,11 +262,22 @@ private fun Route.installAuthRoutes(services: WebServices) {
             call.respond(AuthView(playerId = player?.playerId, guest = player?.let { isGuestEmail(it.email) } ?: false))
         }
         post("/guest") {
+            // Reuse an existing valid session (account or guest) so a returning
+            // browser doesn't mint a fresh guest player on every page load.
+            val existing = services.authService.validate(call.request.cookies[WEB_SESSION_COOKIE])
+            if (existing != null) {
+                call.respond(AuthView(playerId = existing.playerId, guest = isGuestEmail(existing.email)))
+                return@post
+            }
             val result =
                 services.authService.guestSession(
                     call.request.origin.remoteHost,
                     call.request.headers["User-Agent"],
                 )
+            if (result == null) {
+                call.respond(HttpStatusCode.TooManyRequests)
+                return@post
+            }
             call.response.cookies.append(
                 Cookie(
                     name = WEB_SESSION_COOKIE,

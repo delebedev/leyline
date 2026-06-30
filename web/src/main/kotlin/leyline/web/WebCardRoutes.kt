@@ -36,6 +36,7 @@ internal fun Route.installCardRoutes(services: WebServices) {
         post("/parse-decklist") {
             val request = call.receive<ParseDecklistRequest>()
             require(request.text.isNotBlank()) { "empty decklist" }
+            require(request.text.length <= MAX_DECKLIST_CHARS) { "decklist too large (max $MAX_DECKLIST_CHARS chars)" }
             call.respond(parseDecklist(services.cardRepository, request.text))
         }
     }
@@ -83,6 +84,9 @@ private val SECTION_LABEL_REGEX = Regex("""^(Sideboard|Commander|Companion)\s*$"
 private val COMMENT_REGEX = Regex("""^[#;]|^//""")
 private val SET_CODE_REGEX = Regex("""\(([A-Za-z0-9]+)\)""")
 private val WUBRG = setOf("W", "U", "B", "R", "G")
+
+/** Upper bound on decklist text size — a generous Commander list is well under this. */
+private const val MAX_DECKLIST_CHARS = 20_000
 
 private fun parseDecklist(
     cardRepository: CardRepository,
