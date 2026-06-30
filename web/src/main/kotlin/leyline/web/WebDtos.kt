@@ -170,12 +170,50 @@ data class LoginResponse(
 )
 
 @Serializable
-data class CardMetadataView(
-    val cards: List<CardMetadataEntry> = emptyList(),
+data class GreCardMetaDto(
+    val grpId: Int,
+    val name: String? = null,
+    val setCode: String? = null,
+    val titleId: Int? = null,
+    val manaCost: String? = null,
+    val power: String? = null,
+    val toughness: String? = null,
+    val types: String? = null,
+    val subtypes: String? = null,
+    val imageUrl: String? = null,
 )
 
 @Serializable
-data class CardMetadataEntry(
-    val grpId: Int,
-    val name: String? = null,
+data class DraftCardDto(
+    val name: String,
+    val grpId: Int? = null,
+    val manaCost: String? = null,
+    val typeLine: String? = null,
+    val rarity: String? = null,
+    val colors: List<String> = emptyList(),
+    val setCode: String? = null,
+    val collectorNumber: String? = null,
+    val score: Double? = null,
+)
+
+@Serializable
+data class ParseDecklistRequest(
+    val text: String,
+)
+
+@Serializable
+data class ParsedCardDto(
+    val name: String,
+    val grpId: Int? = null,
+    val quantity: Int,
+    val found: Boolean,
+    val card: DraftCardDto? = null,
+)
+
+@Serializable
+data class ParseDecklistResponse(
+    val mainboard: List<ParsedCardDto>,
+    val sideboard: List<ParsedCardDto>,
+    val commander: List<ParsedCardDto>,
+    val errors: List<String>,
 )

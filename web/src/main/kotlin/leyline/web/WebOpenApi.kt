@@ -110,7 +110,31 @@ object WebOpenApi {
                 },
             )
             put("/api/collection", buildJsonObject { put("get", operation(response = ref("CollectionView"), responses = authFailures())) })
-            put("/api/cards/metadata", buildJsonObject { put("get", operation(response = ref("CardMetadataView"))) })
+            put(
+                "/api/public/cards/by-grpids",
+                buildJsonObject {
+                    put("get", operation(response = mapRef("GreCardMetaDto"), responses = mapOf("400" to null)))
+                },
+            )
+            put(
+                "/api/cards/search",
+                buildJsonObject {
+                    put("get", operation(response = arrayRef("DraftCardDto"), responses = mapOf("400" to null)))
+                },
+            )
+            put(
+                "/api/cards/parse-decklist",
+                buildJsonObject {
+                    put(
+                        "post",
+                        operation(
+                            request = ref("ParseDecklistRequest"),
+                            response = ref("ParseDecklistResponse"),
+                            responses = mapOf("400" to null),
+                        ),
+                    )
+                },
+            )
             put("/api/courses", buildJsonObject { put("get", operation(response = arrayRef("CourseView"), responses = authFailures())) })
             put(
                 "/api/decks",
@@ -259,6 +283,12 @@ object WebOpenApi {
             put("items", ref(name))
         }
 
+    private fun mapRef(name: String): JsonObject =
+        buildJsonObject {
+            put("type", "object")
+            put("additionalProperties", ref(name))
+        }
+
     private fun schemas(): JsonObject =
         buildJsonObject {
             component("StartDraftRequest", StartDraftRequest.serializer())
@@ -281,8 +311,11 @@ object WebOpenApi {
             component("RequestLoginCodeRequest", RequestLoginCodeRequest.serializer())
             component("VerifyLoginCodeRequest", VerifyLoginCodeRequest.serializer())
             component("LoginResponse", LoginResponse.serializer())
-            component("CardMetadataView", CardMetadataView.serializer())
-            component("CardMetadataEntry", CardMetadataEntry.serializer())
+            component("GreCardMetaDto", GreCardMetaDto.serializer())
+            component("DraftCardDto", DraftCardDto.serializer())
+            component("ParseDecklistRequest", ParseDecklistRequest.serializer())
+            component("ParsedCardDto", ParsedCardDto.serializer())
+            component("ParseDecklistResponse", ParseDecklistResponse.serializer())
         }
 
     private fun <T> JsonObjectBuilder.component(

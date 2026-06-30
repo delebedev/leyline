@@ -47,7 +47,12 @@ import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
 import leyline.game.InMemoryCardRepository
+import leyline.game.data.CardData
 import org.jetbrains.exposed.v1.jdbc.Database
+import wotc.mtgo.gre.external.messaging.Messages.CardColor
+import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.SubType
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -329,18 +334,67 @@ class WebRoutesTest :
             }
         }
 
-        test("serves card metadata from card repository") {
+        test("serves public card metadata by grpIds") {
             withWeb { client, _ ->
-                val response = client.get("/api/cards/metadata")
-                val cards = json.parseToJsonElement(response.bodyAsText()).jsonObject["cards"]!!.jsonArray
+                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999")
+                val cards = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
                 assertSoftly {
                     response.status shouldBe HttpStatusCode.OK
-                    cards.size shouldBe 2
-                    cards[0].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "100"
+                    cards["100"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
+                    cards["100"]!!.jsonObject["manaCost"]!!.jsonPrimitive.content shouldBe "{G}"
+                    cards["100"]!!.jsonObject["types"]!!.jsonPrimitive.content shouldBe "Creature"
+                    cards["100"]!!.jsonObject["subtypes"]!!.jsonPrimitive.content shouldBe "Elf"
+                    cards["100"]!!.jsonObject["imageUrl"]!!.jsonPrimitive.content shouldBe
+                        "https://api.scryfall.com/cards/named?exact=Alpha+Card&format=image&version=normal"
+                    cards["999"]!!.jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "999"
+                }
+            }
+        }
+
+        test("searches cards by name") {
+            withWeb { client, _ ->
+                val response = client.get("/api/cards/search?q=alpha&colors=G")
+                val cards = json.parseToJsonElement(response.bodyAsText()).jsonArray
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    cards.size shouldBe 1
                     cards[0].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
-                    cards[1].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "101"
-                    cards[1].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
+                    cards[0].jsonObject["typeLine"]!!.jsonPrimitive.content shouldBe "Creature — Elf"
+                }
+            }
+        }
+
+        test("parses decklists into sections") {
+            withWeb { client, _ ->
+                val response =
+                    client.post("/api/cards/parse-decklist") {
+                        contentType(ContentType.Application.Json)
+                        setBody(
+                            """
+                            {"text":"2 Alpha Card (TST) 1\nSideboard\n1 Missing Card\n[commander]\nBeta Card"}
+                            """.trimIndent(),
+                        )
+                    }
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+                val main = body["mainboard"]!!.jsonArray.single().jsonObject
+                val side = body["sideboard"]!!.jsonArray.single().jsonObject
+                val commander = body["commander"]!!.jsonArray.single().jsonObject
+                val error =
+                    body["errors"]!!
+                        .jsonArray
+                        .single()
+                        .jsonPrimitive
+                        .content
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    main["quantity"]!!.jsonPrimitive.content shouldBe "2"
+                    main["grpId"]!!.jsonPrimitive.content shouldBe "100"
+                    side["found"]!!.jsonPrimitive.content shouldBe "false"
+                    commander["grpId"]!!.jsonPrimitive.content shouldBe "101"
+                    error shouldBe "Card not found: Missing Card"
                 }
             }
         }
@@ -459,8 +513,36 @@ private class TestRepos {
     val relay = InProcessWebGreRelay()
     val cards =
         InMemoryCardRepository().also {
-            it.register(100, "Alpha Card")
-            it.register(101, "Beta Card")
+            it.registerData(
+                CardData(
+                    grpId = 100,
+                    titleId = 9001,
+                    power = "2",
+                    toughness = "3",
+                    colors = listOf(CardColor.Green_a3b0.number),
+                    types = listOf(CardType.Creature.number),
+                    subtypes = listOf(SubType.Elf.number),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = listOf(ManaColor.Green_afc9 to 1),
+                ),
+                "Alpha Card",
+            )
+            it.registerData(
+                CardData(
+                    grpId = 101,
+                    titleId = 9002,
+                    power = "",
+                    toughness = "",
+                    colors = listOf(CardColor.Blue_a3b0.number),
+                    types = listOf(CardType.Instant.number),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = listOf(ManaColor.Blue_afc9 to 1),
+                ),
+                "Beta Card",
+            )
         }
 }
 

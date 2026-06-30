@@ -132,7 +132,7 @@ fun Application.installWeb(services: WebServices) {
             get("/sealed/sets") {
                 call.respond(listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "draft", cardCount = 0)))
             }
-            get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
+            installCardRoutes(services)
             route("/courses") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
@@ -164,14 +164,6 @@ fun Application.installWeb(services: WebServices) {
         }
     }
 }
-
-private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
-    CardMetadataView(
-        cardRepository
-            .findAllGrpIds()
-            .sorted()
-            .map { grpId -> CardMetadataEntry(grpId = grpId, name = cardRepository.findNameByGrpId(grpId)) },
-    )
 
 private fun Route.installDraftRoutes(services: WebServices) {
     route("/draft") {
@@ -237,6 +229,7 @@ private fun Route.installDraftRoutes(services: WebServices) {
 }
 
 private fun Route.installPublicRoutes(services: WebServices) {
+    installPublicCardRoutes(services)
     post("/public/gre/start") {
         call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
     }
@@ -344,7 +337,7 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondLoginSucce
 
 private object WebRoutes
 
-private fun io.ktor.server.application.ApplicationCall.requiredQuery(name: String): String =
+internal fun io.ktor.server.application.ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
 private suspend fun io.ktor.server.application.ApplicationCall.authenticatedPlayerId(services: WebServices): PlayerId {
