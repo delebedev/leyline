@@ -14,6 +14,7 @@ import leyline.config.ServerConfig
 import leyline.game.bundle.InvariantSelection
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.BasicLandAbilities
+import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
@@ -66,7 +67,7 @@ class MatchFlowHarness(
      * conformance suite relies on. SimClient passes a SQLite-backed repo so
      * arbitrary decks work without per-card fixtures.
      */
-    private val cardRepositoryOverride: leyline.game.data.CardRepository? = null,
+    private val cardRepositoryOverride: CardRepository? = null,
 ) {
     companion object {
         fun defaultValidation(validating: Boolean): InvariantSelection =
@@ -122,42 +123,12 @@ class MatchFlowHarness(
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
     fun connectAndKeep(aiScript: List<ScriptedAction>? = null) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        val repo: leyline.game.data.CardRepository =
-            if (cardRepositoryOverride != null) {
-                ensureForgeKnowsDeck(deckList)
-                ensureForgeKnowsDeck(opponentDeckList)
-                cardRepositoryOverride
-            } else {
-                TestCardRegistry.ensureRegistered()
-                if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
-                if (opponentDeckList != null) TestCardRegistry.ensureDeckRegistered(opponentDeckList)
-                TestCardRegistry.repo
-            }
+        val repo = cardRepositoryForConstructedDecks()
 
-        bridge =
-            GameBridge(
-                bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-                promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-                matchConfig = matchConfig,
-                messageCounter = MessageCounter(),
-                cardRepository = repo,
-            )
-        bridge.priorityWaitMs = 2_000L
+        bridge = newBridge(repo)
         bridge.start(seed = seed, deckList1 = deckList, deckList2 = opponentDeckList, variant = variant)
 
-        session =
-            MatchSession(
-                connection =
-                    ConnectionState(
-                        seatId = seatId,
-                        matchId = matchId,
-                        sink = effectiveSink,
-                        registry = registry,
-                    ),
-                gameBridge = bridge,
-                paceDelayMs = 0,
-            )
-        registry.registerSession(matchId, seatId, session)
+        createAndRegisterSession()
 
         // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
         // At this point the engine is blocked at mulligan — safe to call
@@ -207,23 +178,9 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>?,
     ) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        val repo: leyline.game.data.CardRepository =
-            if (cardRepositoryOverride != null) {
-                cardRepositoryOverride
-            } else {
-                TestCardRegistry.ensureRegistered()
-                TestCardRegistry.repo
-            }
+        val repo = cardRepositoryForPuzzle()
 
-        bridge =
-            GameBridge(
-                bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-                promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-                matchConfig = matchConfig,
-                messageCounter = MessageCounter(),
-                cardRepository = repo,
-            )
-        bridge.priorityWaitMs = 2_000L
+        bridge = newBridge(repo)
         bridge.startPuzzle(puzzle)
         // Fixture path: hydrate per-card YAML identity into the in-memory repo.
         // SQLite-override path: card identity comes from the supplied repository;
@@ -239,6 +196,44 @@ class MatchFlowHarness(
             installScriptedAi(aiScript)
         }
 
+        createAndRegisterSession()
+
+        seedInitialFull()
+
+        session.onPuzzleStart()
+        drainSink()
+    }
+
+    private fun cardRepositoryForConstructedDecks(): CardRepository =
+        if (cardRepositoryOverride != null) {
+            ensureForgeKnowsDeck(deckList)
+            ensureForgeKnowsDeck(opponentDeckList)
+            cardRepositoryOverride
+        } else {
+            TestCardRegistry.ensureRegistered()
+            if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
+            if (opponentDeckList != null) TestCardRegistry.ensureDeckRegistered(opponentDeckList)
+            TestCardRegistry.repo
+        }
+
+    private fun cardRepositoryForPuzzle(): CardRepository =
+        if (cardRepositoryOverride != null) {
+            cardRepositoryOverride
+        } else {
+            TestCardRegistry.ensureRegistered()
+            TestCardRegistry.repo
+        }
+
+    private fun newBridge(repo: CardRepository): GameBridge =
+        GameBridge(
+            bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
+            promptFailsafeMs = matchConfig.server.promptFailsafeMs,
+            matchConfig = matchConfig,
+            messageCounter = MessageCounter(),
+            cardRepository = repo,
+        ).also { it.priorityWaitMs = 2_000L }
+
+    private fun createAndRegisterSession() {
         session =
             MatchSession(
                 connection =
@@ -252,11 +247,6 @@ class MatchFlowHarness(
                 paceDelayMs = 0,
             )
         registry.registerSession(matchId, seatId, session)
-
-        seedInitialFull()
-
-        session.onPuzzleStart()
-        drainSink()
     }
 
     private fun seedInitialFull() {
