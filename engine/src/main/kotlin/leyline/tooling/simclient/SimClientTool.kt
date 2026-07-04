@@ -338,7 +338,7 @@ class SimClientRunner(
         val out = Path.of(System.getProperty("user.home"), ".scry", "games")
         Files.createDirectories(out)
         var count = 0
-        config.outDir.listFiles { file -> file.extension == "log" }.orEmpty().forEach { log ->
+        config.outDir.listFiles { file -> isSimClientGameLogFile(file) }.orEmpty().forEach { log ->
             val base = log.nameWithoutExtension
             Files.copy(log.toPath(), out.resolve("$base.log"), StandardCopyOption.REPLACE_EXISTING)
             val sidecar = File(config.outDir, "$base.meta.json")
@@ -366,3 +366,5 @@ private data class TimedRunContext(
     val deckOverlay: DeckOverlayReport?,
     val opponentDeckOverlay: DeckOverlayReport?,
 )
+
+internal fun isSimClientGameLogFile(file: File): Boolean = file.extension == "log" && !file.name.endsWith(".console.log")

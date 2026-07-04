@@ -41,9 +41,9 @@ oracle-capability caveats: either reshape the fixture until direct AI chooses
 the intended line, or file a separate advisor/oracle note. Do not promote them
 as GRE policy-realization gaps.
 
-For workflow automation gaps in the direct-green/GRE-green/headless/live-proof
-path, use bead `leyline-z21i`. Keep probe-specific policy bugs under the
-policy-realization epic; keep loop/tooling friction in `leyline-z21i`.
+Keep workflow automation gaps in the direct-green/GRE-green/headless/live-proof
+path separate from probe-specific policy bugs. The former belongs in loop
+tooling; the latter belongs with the policy-realization work.
 
 ## Run Shapes
 

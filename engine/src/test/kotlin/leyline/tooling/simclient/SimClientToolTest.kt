@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
+import java.io.File
 
 class SimClientToolTest :
     FunSpec({
@@ -66,6 +67,11 @@ class SimClientToolTest :
             val config = SimClientConfig.parse(emptyList(), mapOf("SIMCLIENT_VERBOSE" to "true"))!!
 
             config.verbose shouldBe true
+        }
+
+        test("scry ingest excludes per-row console logs") {
+            isSimClientGameLogFile(File("deck-1.log")) shouldBe true
+            isSimClientGameLogFile(File("deck-1.console.log")) shouldBe false
         }
 
         test("quarantine replaces name matches with the most common basic land") {

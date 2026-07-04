@@ -11,21 +11,20 @@ AI-solved acceptance turns a rules-solvable puzzle into a scripted acceptance co
 
 Use it when direct Forge AI can find a line, but the same line needs to survive the leyline bridge, prompt adapters, and client-compatible action path.
 
-Track generic policy-realization gaps under `leyline-3exu`. The workflow can
-start from a hand-authored puzzle, a rules-engine regression, or any other
-direct-green/GRE-red mismatch; simclient scout compression is only one entry
-path.
+Track generic policy-realization gaps separately from broad scout failures. The
+workflow can start from a hand-authored puzzle, a rules-engine regression, or
+any other direct-green/GRE-red mismatch; simclient scout compression is only one
+entry path.
 
 Scout findings usually enter this workflow only after a deck/seed failure is
 compressed into a deterministic puzzle. Keep broad simclient failures in the
 stats-first loop from `docs/simclient-iteration.md` until the direct Forge-AI
 baseline is green and the GRE/headless path has a distinct mismatch.
 
-Workflow/tooling friction discovered while promoting green probes is tracked in
-bead `leyline-z21i`. That backlog covers terminal live-proof batching, suite
-discovery, result oracles, prompt handoff after activation/modal choices,
-proof-video publishing, smoke-scoped config overrides, and active-server
-checkout preflight.
+Keep workflow/tooling friction separate from probe-specific policy bugs. That
+backlog covers terminal live-proof batching, suite discovery, result oracles,
+prompt handoff after activation/modal choices, proof-video publishing,
+smoke-scoped config overrides, and active-server checkout preflight.
 
 ## Loop
 
