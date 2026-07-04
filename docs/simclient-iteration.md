@@ -17,6 +17,34 @@ Use simclient to turn vague gameplay failures into a small, repeatable loop:
 
 Prefer deck runs for discovery. Use puzzles after the failure class is concrete enough to make a small deterministic fixture.
 
+## Promotion Path
+
+Scout rows are discovery artifacts, not acceptance contracts. Keep the original
+deck, seed, and stats fingerprint intact while classifying the broad failure.
+Promote a scout finding only after it compresses to a deterministic puzzle that
+direct Forge AI can solve and the GRE/headless path cannot yet realize.
+
+When a finding reaches that shape, switch to `docs/ai-solved-acceptance.md`:
+
+- prove the puzzle directly through Forge AI
+- require a terminal oracle for lethal probes (`winnerSeat` / `loserSeat`)
+- keep the fix at the generic bridge, prompt, action, or adapter seam
+- avoid card-name, puzzle-name, or scenario-specific policy branches
+
+If direct Forge AI cannot solve the fixture, keep it in scout triage. That is
+still useful signal, but it is not a policy-realization probe yet.
+
+Direct-red does not always mean the puzzle is illegal or that GRE lacks a
+mapping. Forge AI can decline a legal line because its own candidate filters or
+ability heuristics do not value that line in the current phase. Treat those as
+oracle-capability caveats: either reshape the fixture until direct AI chooses
+the intended line, or file a separate advisor/oracle note. Do not promote them
+as GRE policy-realization gaps.
+
+For workflow automation gaps in the direct-green/GRE-green/headless/live-proof
+path, use bead `leyline-z21i`. Keep probe-specific policy bugs under the
+policy-realization epic; keep loop/tooling friction in `leyline-z21i`.
+
 ## Run Shapes
 
 Single known-bad seed:

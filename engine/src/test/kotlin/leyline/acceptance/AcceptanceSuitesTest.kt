@@ -23,6 +23,7 @@ class AcceptanceSuitesTest :
                 "modal-warmup",
                 "hybrid-mana",
                 "mechanics-protocol",
+                "ai-green-controls",
             )
                 .filter { suiteFilter == null || it in suiteFilter }
 

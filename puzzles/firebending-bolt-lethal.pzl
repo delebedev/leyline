@@ -1,0 +1,17 @@
+[metadata]
+Name:Firebending Bolt Lethal
+Goal:Win
+Turns:2
+Difficulty:Easy
+Description:Attack with Jeong Jeong, use Firebending mana to cast Lightning Bolt, and finish exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+
+humanhand=Lightning Bolt
+humanbattlefield=Jeong Jeong, the Deserter
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain

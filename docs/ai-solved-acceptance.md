@@ -11,6 +11,22 @@ AI-solved acceptance turns a rules-solvable puzzle into a scripted acceptance co
 
 Use it when direct Forge AI can find a line, but the same line needs to survive the leyline bridge, prompt adapters, and client-compatible action path.
 
+Track generic policy-realization gaps under `leyline-3exu`. The workflow can
+start from a hand-authored puzzle, a rules-engine regression, or any other
+direct-green/GRE-red mismatch; simclient scout compression is only one entry
+path.
+
+Scout findings usually enter this workflow only after a deck/seed failure is
+compressed into a deterministic puzzle. Keep broad simclient failures in the
+stats-first loop from `docs/simclient-iteration.md` until the direct Forge-AI
+baseline is green and the GRE/headless path has a distinct mismatch.
+
+Workflow/tooling friction discovered while promoting green probes is tracked in
+bead `leyline-z21i`. That backlog covers terminal live-proof batching, suite
+discovery, result oracles, prompt handoff after activation/modal choices,
+proof-video publishing, smoke-scoped config overrides, and active-server
+checkout preflight.
+
 ## Loop
 
 1. Write a focused `.pzl` with a deterministic board and one intended line.
@@ -100,6 +116,12 @@ Fix the lowest layer that owns the mismatch. Do not paper over a bridge or adapt
 ## Adapter Principle
 
 The direct Forge-AI run is the decision oracle. The GRE path should reuse the same Forge-AI choice wherever possible, then translate that choice into the client-compatible response shape.
+
+That oracle is only useful after direct Forge AI is green. Some legal puzzle
+lines are direct-red because Forge AI's candidate selection or per-ability
+heuristics decline the line before GRE is involved. In that case, do not infer a
+bridge or adapter gap from GRE failure; keep the puzzle in scout/oracle triage
+or adjust the fixture until direct AI takes the intended line.
 
 Do not replace a missing adapter with a bespoke local policy. For example, if direct AI pays a sacrifice cost by choosing a specific Forge card, the GRE `PayCostsReq` handler should consult or recover that Forge-AI cost decision and map the chosen card to a PayCosts id. A heuristic such as "sacrifice the lowest board-value permanent" can make one puzzle green while hiding the actual parity gap.
 
