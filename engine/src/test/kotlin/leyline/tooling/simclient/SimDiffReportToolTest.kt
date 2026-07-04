@@ -230,21 +230,23 @@ class SimDiffReportToolTest :
 
             val json =
                 simRefDecisionsJson(
-                    row = row,
-                    decisions = listOf(decisionRecord("chooseCounterType")),
-                    durationMs = 12,
-                    gameOver = false,
-                    turn = 8,
-                    completionReason = "exception",
-                    exceptionMessage = "java.lang.IllegalStateException: boom",
-                    exceptionStackTop = "Example.kt:1",
-                    outcome = SimRefFinalOutcome(),
-                    logs =
-                        CollectedLogs(
-                            warnsByLogger = mapOf("forge" to 1),
-                            errorsByType = mapOf("boom" to 1),
-                            errorSamples = listOf("boom"),
-                        ),
+                    SimRefDecisionReport(
+                        row = row,
+                        decisions = listOf(decisionRecord("chooseCounterType")),
+                        durationMs = 12,
+                        gameOver = false,
+                        turn = 8,
+                        completionReason = "exception",
+                        exceptionMessage = "java.lang.IllegalStateException: boom",
+                        exceptionStackTop = "Example.kt:1",
+                        outcome = SimRefFinalOutcome(),
+                        logs =
+                            CollectedLogs(
+                                warnsByLogger = mapOf("forge" to 1),
+                                errorsByType = mapOf("boom" to 1),
+                                errorSamples = listOf("boom"),
+                            ),
+                    ),
                 )
 
             assertSoftly {

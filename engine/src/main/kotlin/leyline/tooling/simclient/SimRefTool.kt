@@ -167,16 +167,18 @@ class SimRefRunner(
             "${row.tag}.refdecisions.json",
         ).writeText(
             simRefDecisionsJson(
-                row = row,
-                decisions = decisions,
-                durationMs = durationMs,
-                gameOver = gameOver,
-                turn = turn,
-                completionReason = completionReason,
-                exceptionMessage = exceptionMessage,
-                exceptionStackTop = exceptionStackTop,
-                outcome = outcome,
-                logs = collectedLogs,
+                SimRefDecisionReport(
+                    row = row,
+                    decisions = decisions,
+                    durationMs = durationMs,
+                    gameOver = gameOver,
+                    turn = turn,
+                    completionReason = completionReason,
+                    exceptionMessage = exceptionMessage,
+                    exceptionStackTop = exceptionStackTop,
+                    outcome = outcome,
+                    logs = collectedLogs,
+                ),
             ),
         )
         return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason, outcome)
@@ -248,25 +250,37 @@ class SimRefRunner(
             "${row.tag}.refdecisions.json",
         ).writeText(
             simRefDecisionsJson(
-                row = row,
-                decisions = decisions,
-                durationMs = durationMs,
-                gameOver = gameOver,
-                turn = turn,
-                completionReason = completionReason,
-                exceptionMessage = exceptionMessage,
-                exceptionStackTop = exceptionStackTop,
-                outcome = outcome,
-                logs = collectedLogs,
+                SimRefDecisionReport(
+                    row = row,
+                    decisions = decisions,
+                    durationMs = durationMs,
+                    gameOver = gameOver,
+                    turn = turn,
+                    completionReason = completionReason,
+                    exceptionMessage = exceptionMessage,
+                    exceptionStackTop = exceptionStackTop,
+                    outcome = outcome,
+                    logs = collectedLogs,
+                ),
             ),
         )
         return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason, outcome)
     }
 
     private fun finalOutcome(game: Game): SimRefFinalOutcome {
-        val lifeBySeat = game.players.mapIndexed { index, player -> (index + 1).toString() to player.life }.toMap()
-        val winnerSeat = game.players.indexOfFirst { it.getOutcome()?.hasWon() == true }.takeIf { it >= 0 }?.plus(1)
-        val loserSeat = winnerSeat?.let { winner -> game.players.indices.firstOrNull { it + 1 != winner }?.plus(1) }
+        val lifeBySeat =
+            game.players
+                .mapIndexed { index, player -> (index + 1).toString() to player.life }
+                .toMap()
+        val winnerSeat =
+            game.players
+                .indexOfFirst { it.getOutcome()?.hasWon() == true }
+                .takeIf { it >= 0 }
+                ?.plus(1)
+        val loserSeat =
+            winnerSeat
+                ?.let { winner -> game.players.indices.firstOrNull { it + 1 != winner } }
+                ?.plus(1)
         return SimRefFinalOutcome(winnerSeat, loserSeat, lifeBySeat)
     }
 }
@@ -779,42 +793,48 @@ internal data class SimRefFinalOutcome(
     val lifeBySeat: Map<String, Int> = emptyMap(),
 )
 
-internal fun simRefDecisionsJson(
-    row: SimClientRow,
-    decisions: List<SimRefDecision>,
-    durationMs: Long,
-    gameOver: Boolean,
-    turn: Int,
-    completionReason: String,
-    exceptionMessage: String?,
-    exceptionStackTop: String?,
-    outcome: SimRefFinalOutcome,
-    logs: CollectedLogs,
-): String {
-    val counts = decisions.groupingBy { it.callback }.eachCount().toSortedMap()
+internal data class SimRefDecisionReport(
+    val row: SimClientRow,
+    val decisions: List<SimRefDecision>,
+    val durationMs: Long,
+    val gameOver: Boolean,
+    val turn: Int,
+    val completionReason: String,
+    val exceptionMessage: String?,
+    val exceptionStackTop: String?,
+    val outcome: SimRefFinalOutcome,
+    val logs: CollectedLogs,
+)
+
+internal fun simRefDecisionsJson(report: SimRefDecisionReport): String {
+    val counts =
+        report.decisions
+            .groupingBy { it.callback }
+            .eachCount()
+            .toSortedMap()
     return buildString {
         append('{')
         append("\"schemaVersion\":1,")
-        append("\"deck\":${simJsonString(row.runLabel)},")
-        row.opponentRunLabel?.let { append("\"opponentDeck\":${simJsonString(it)},") }
-        append("\"seed\":${row.seed},")
+        append("\"deck\":${simJsonString(report.row.runLabel)},")
+        report.row.opponentRunLabel?.let { append("\"opponentDeck\":${simJsonString(it)},") }
+        append("\"seed\":${report.row.seed},")
         append("\"generatedAt\":${simJsonString(LocalDateTime.now().toString())},")
-        append("\"durationMs\":$durationMs,")
-        append("\"turn\":$turn,")
-        append("\"gameOver\":$gameOver,")
-        append("\"winnerSeat\":${outcome.winnerSeat ?: "null"},")
-        append("\"loserSeat\":${outcome.loserSeat ?: "null"},")
-        append("\"finalLifeBySeat\":${mapToJson(outcome.lifeBySeat)},")
-        append("\"completionReason\":${simJsonString(completionReason)},")
-        append("\"exceptionMessage\":${nullableSimJsonString(exceptionMessage)},")
-        append("\"exceptionStackTop\":${nullableSimJsonString(exceptionStackTop)},")
-        append("\"warnsByLogger\":${mapToJson(logs.warnsByLogger)},")
-        append("\"errorsByType\":${mapToJson(logs.errorsByType)},")
-        append("\"errorSamples\":${stringsToJson(logs.errorSamples)},")
+        append("\"durationMs\":${report.durationMs},")
+        append("\"turn\":${report.turn},")
+        append("\"gameOver\":${report.gameOver},")
+        append("\"winnerSeat\":${report.outcome.winnerSeat ?: "null"},")
+        append("\"loserSeat\":${report.outcome.loserSeat ?: "null"},")
+        append("\"finalLifeBySeat\":${mapToJson(report.outcome.lifeBySeat)},")
+        append("\"completionReason\":${simJsonString(report.completionReason)},")
+        append("\"exceptionMessage\":${nullableSimJsonString(report.exceptionMessage)},")
+        append("\"exceptionStackTop\":${nullableSimJsonString(report.exceptionStackTop)},")
+        append("\"warnsByLogger\":${mapToJson(report.logs.warnsByLogger)},")
+        append("\"errorsByType\":${mapToJson(report.logs.errorsByType)},")
+        append("\"errorSamples\":${stringsToJson(report.logs.errorSamples)},")
         append("\"callbackCounts\":${mapToJson(counts)},")
         append("\"decisions\":")
         append(
-            decisions.joinToString(",", "[", "]") { d ->
+            report.decisions.joinToString(",", "[", "]") { d ->
                 "{\"index\":${d.index},\"seat\":${d.seat},\"turn\":${d.turn}," +
                     "\"phase\":${simJsonString(d.phase)},\"callback\":${simJsonString(d.callback)}," +
                     "\"source\":${nullableSimJsonString(d.source)},\"api\":${nullableSimJsonString(d.api)}," +

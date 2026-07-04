@@ -24,8 +24,7 @@ class AcceptanceSuitesTest :
                 "hybrid-mana",
                 "mechanics-protocol",
                 "ai-green-controls",
-            )
-                .filter { suiteFilter == null || it in suiteFilter }
+            ).filter { suiteFilter == null || it in suiteFilter }
 
         require(suiteNames.isNotEmpty()) {
             "No acceptance suites matched acceptance.suites=${suiteFilter.orEmpty()}"
@@ -51,7 +50,8 @@ class AcceptanceSuitesTest :
     })
 
 private fun csvProperty(name: String): Set<String>? =
-    System.getProperty(name)
+    System
+        .getProperty(name)
         ?.split(',')
         ?.map { it.trim() }
         ?.filter { it.isNotEmpty() }

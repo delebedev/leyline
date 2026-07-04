@@ -91,7 +91,10 @@ class MulliganHandler(
                 bridge.awaitPriority()
                 s.onMulliganKeep()
             }
-            else -> {
+            MulliganOption.Mulligan,
+            MulliganOption.None_a2b7,
+            MulliganOption.UNRECOGNIZED,
+            -> {
                 if (!bridge.submitMull(seatId)) return
                 mulliganCount++
                 val deletedIds = bridge.ids.resetAll().map { it.value }

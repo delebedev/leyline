@@ -482,7 +482,10 @@ class MatchdoorAcceptanceExecutor(
             is PromptCondition ->
                 "${condition.label}; actual latest prompt=${latestPromptNameWithId(harness) ?: "none"}"
             is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
-            StackEmptyCondition -> "${condition.label}; actual stack size=${runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"}"
+            StackEmptyCondition ->
+                "${condition.label}; actual stack size=${
+                    runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"
+                }"
         }
 
     private fun matchesCondition(
@@ -679,14 +682,18 @@ class MatchdoorAcceptanceExecutor(
         expected: String,
     ): Boolean = actual == expected.toForgePhaseName()
 
-    private fun finalWinnerSeat(harness: MatchFlowHarness): Int? =
-        harness.allMessages
-            .asReversed()
-            .asSequence()
-            .filter { it.hasGameStateMessage() && it.gameStateMessage.hasGameInfo() }
-            .flatMap { it.gameStateMessage.gameInfo.resultsList.asReversed().asSequence() }
-            .firstOrNull { it.winningTeamId != 0 }
-            ?.winningTeamId
+    private fun finalWinnerSeat(harness: MatchFlowHarness): Int? {
+        val resultRows =
+            harness.allMessages
+                .asReversed()
+                .asSequence()
+                .filter { it.hasGameStateMessage() && it.gameStateMessage.hasGameInfo() }
+                .flatMap {
+                    val results = it.gameStateMessage.gameInfo.resultsList
+                    results.asReversed().asSequence()
+                }
+        return resultRows.firstOrNull { it.winningTeamId != 0 }?.winningTeamId
+    }
 
     private fun finalLoserSeat(harness: MatchFlowHarness): Int? = finalWinnerSeat(harness)?.let { 3 - it }
 
