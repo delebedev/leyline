@@ -66,9 +66,9 @@ class EventRegistryTest :
             publicEventName("QuickDraft_DMU_20260101") shouldBe "DMU_Quick_Draft"
             publicEventName("QuickDraft_MOM_20260101") shouldBe "MOM_Quick_Draft"
             publicEventName("QuickDraft_NEO_20260101") shouldBe "NEO_Quick_Draft"
-            titleLocKey("QuickDraft_DMU_20260101") shouldBe "Events/Event_Title_FDN_Quick_Draft"
-            titleLocKey("QuickDraft_MOM_20260101") shouldBe "Events/Event_Title_TDM_Quick_Draft"
-            titleLocKey("QuickDraft_NEO_20260101") shouldBe "Events/Event_Title_FIN_Quick_Draft"
+            titleLocKey("QuickDraft_DMU_20260101") shouldBe "Events/Event_Title_DMU_Quick_Draft"
+            titleLocKey("QuickDraft_MOM_20260101") shouldBe "Events/Event_Title_MOM_Quick_Draft"
+            titleLocKey("QuickDraft_NEO_20260101") shouldBe "Events/Event_Title_NEO_Quick_Draft"
             EventRegistry.findEvent("QuickDraft_DMU_20260101")?.collationId shouldBe 100030
             EventRegistry.findEvent("QuickDraft_MOM_20260101")?.collationId shouldBe 100037
             EventRegistry.findEvent("QuickDraft_NEO_20260101")?.collationId shouldBe 100027
