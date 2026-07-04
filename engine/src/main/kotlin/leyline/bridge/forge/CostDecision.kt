@@ -1214,9 +1214,11 @@ class CostDecision(
                         )
                     if (chosenAmount > 0) {
                         counterTable.put(null, c, chosen, chosenAmount)
-                        @Suppress("UNUSED_VALUE")
                         cMap.clear()
-                        cMap.addAll(counterTable.filterToRemove(c))
+                        val refreshedCounters = counterTable.filterToRemove(c)
+                        if (refreshedCounters.isNotEmpty()) {
+                            check(cMap.addAll(refreshedCounters))
+                        }
                     }
                     remaining -= chosenAmount
                 }
