@@ -243,6 +243,7 @@ class SimClientDriverPolicyTest :
             val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
 
             policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 0, max = 1)) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2, targetIds = listOf(2, 3))) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2)) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(max = 2)) shouldBe false

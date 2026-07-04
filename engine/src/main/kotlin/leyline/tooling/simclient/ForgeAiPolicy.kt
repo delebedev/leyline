@@ -312,9 +312,9 @@ class ForgeAiPolicy(
         if (req.targetsCount == 0) return false
         return req.targetsList.all { group ->
             val selectableCount = group.targetsList.count { it.legalAction == SelectAction.Select_a1ad }
-            group.minTargets == group.maxTargets &&
-                group.minTargets >= 0 &&
-                selectableCount >= group.minTargets
+            val exactRequired = group.minTargets == group.maxTargets && group.minTargets >= 0
+            val optionalSingle = group.minTargets == 0 && group.maxTargets == 1
+            (exactRequired || optionalSingle) && selectableCount >= group.minTargets
         }
     }
 
@@ -327,7 +327,11 @@ class ForgeAiPolicy(
                 .filter { it.legalAction == SelectAction.Select_a1ad }
                 .map { it.targetInstanceId }
                 .toSet()
-        val requiredCount = msg.selectTargetsReq.targetsList.sumOf { it.minTargets.coerceAtLeast(0) }
+        val minCount = msg.selectTargetsReq.targetsList.sumOf { it.minTargets.coerceAtLeast(0) }
+        val maxCount =
+            msg.selectTargetsReq.targetsList
+                .sumOf { group -> group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets }
+                .coerceAtLeast(minCount)
         val sa =
             harness.bridge
                 .promptBridge(seatId)
@@ -344,7 +348,7 @@ class ForgeAiPolicy(
                 sa.targets.clear()
                 sa.targets.addAll(previousTargets)
             }
-        if (chosenTargets.size != requiredCount) return null
+        if (chosenTargets.size !in minCount..maxCount) return null
         val selectedIds = chosenTargets.map { targetInstanceId(it) ?: return null }
         return selectedIds.takeIf { ids -> ids.size == ids.distinct().size && ids.all { it in selectableIds } }
     }
@@ -564,16 +568,16 @@ internal fun allowedStaticColorIds(
 ): List<Int> {
     val ids =
         req.idsList
-        .ifEmpty { promptStaticOptionIds }
-        .ifEmpty {
-            listOfNotNull(
-                StaticChoiceIds.colorIdForMask(MagicColor.WHITE),
-                StaticChoiceIds.colorIdForMask(MagicColor.BLUE),
-                StaticChoiceIds.colorIdForMask(MagicColor.BLACK),
-                StaticChoiceIds.colorIdForMask(MagicColor.RED),
-                StaticChoiceIds.colorIdForMask(MagicColor.GREEN),
-            )
-        }
+            .ifEmpty { promptStaticOptionIds }
+            .ifEmpty {
+                listOfNotNull(
+                    StaticChoiceIds.colorIdForMask(MagicColor.WHITE),
+                    StaticChoiceIds.colorIdForMask(MagicColor.BLUE),
+                    StaticChoiceIds.colorIdForMask(MagicColor.BLACK),
+                    StaticChoiceIds.colorIdForMask(MagicColor.RED),
+                    StaticChoiceIds.colorIdForMask(MagicColor.GREEN),
+                )
+            }
     return ids.distinct()
 }
 
