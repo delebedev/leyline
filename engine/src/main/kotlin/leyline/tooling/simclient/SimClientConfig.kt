@@ -26,6 +26,7 @@ data class SimClientConfig(
     val excludeCards: String = "",
     val excludeCardsFile: File? = defaultQuarantineFile(),
     val excludePolicy: SimClientExcludePolicy = SimClientExcludePolicy.ReplaceBasic,
+    val verbose: Boolean = false,
 ) {
     init {
         require(maxTurns > 0) { "--max-turns must be > 0" }
@@ -61,6 +62,7 @@ data class SimClientConfig(
                     excludeCards = envOrDefault("SIMCLIENT_EXCLUDE_CARDS").orEmpty(),
                     excludeCardsFile = envOrDefault("SIMCLIENT_EXCLUDE_CARDS_FILE")?.let(::File) ?: defaultQuarantineFile(),
                     excludePolicy = SimClientExcludePolicy.parse(envOrDefault("SIMCLIENT_EXCLUDE_POLICY") ?: "replace-basic"),
+                    verbose = envOrDefault("SIMCLIENT_VERBOSE")?.equals("true", ignoreCase = true) ?: false,
                 )
             var i = 0
             while (i < args.size) {
@@ -101,6 +103,7 @@ data class SimClientConfig(
                         "--exclude-cards-file" -> config.copy(excludeCardsFile = File(value()))
                         "--no-exclude-cards-file" -> config.copy(excludeCardsFile = null)
                         "--exclude-policy" -> config.copy(excludePolicy = SimClientExcludePolicy.parse(value()))
+                        "--verbose" -> config.copy(verbose = true)
                         "--help", "-h" -> {
                             printUsage()
                             return null
@@ -140,6 +143,7 @@ data class SimClientConfig(
                   --exclude-cards-file <path>   Quarantine file; defaults to data/simclient/quarantine.txt when present.
                   --no-exclude-cards-file       Ignore the default quarantine file.
                   --exclude-policy <policy>     replace-basic|skip-deck.
+                  --verbose                     Keep detailed console logging; default stdout is compact.
                 """.trimIndent(),
             )
         }

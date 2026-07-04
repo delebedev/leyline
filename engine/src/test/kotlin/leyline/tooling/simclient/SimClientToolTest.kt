@@ -35,6 +35,7 @@ class SimClientToolTest :
                         "/tmp/quarantine.txt",
                         "--exclude-policy",
                         "skip-deck",
+                        "--verbose",
                         "--shard-index",
                         "1",
                         "--shard-count",
@@ -55,9 +56,16 @@ class SimClientToolTest :
                 config.excludeCards shouldBe "Tinybones Joins Up,102468"
                 config.excludeCardsFile?.path shouldBe "/tmp/quarantine.txt"
                 config.excludePolicy shouldBe SimClientExcludePolicy.SkipDeck
+                config.verbose shouldBe true
                 config.shardIndex shouldBe 1
                 config.shardCount shouldBe 4
             }
+        }
+
+        test("config parser accepts verbose env") {
+            val config = SimClientConfig.parse(emptyList(), mapOf("SIMCLIENT_VERBOSE" to "true"))!!
+
+            config.verbose shouldBe true
         }
 
         test("quarantine replaces name matches with the most common basic land") {
