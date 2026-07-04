@@ -1439,7 +1439,9 @@ class GameBridge(
                 val counters = card.counters
                 if (counters.isEmpty()) continue
                 val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
-                for ((counterType, count) in counters) {
+                for (entry in counters.entrySet()) {
+                    val counterType = entry.element
+                    val count = entry.count
                     if (count <= 0) continue
                     val ann =
                         AnnotationBuilder
