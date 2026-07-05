@@ -1,4 +1,4 @@
-package leyline.mechanics
+package leyline.mechanics.altcost
 
 import forge.game.Game
 import forge.game.card.Card
