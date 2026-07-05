@@ -357,7 +357,9 @@ internal class DeferredCastCostInteractionHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("DeferredCastCostInteractionHandler: alternate cost choice response but no pending engine action (likely timeout race)")
+            log.warn(
+                "DeferredCastCostInteractionHandler: alternate cost choice response but no pending engine action (likely timeout race)",
+            )
             DevCheck.failOnAutoPass { "alternate cost choice response but no pending engine action" }
         }
     }

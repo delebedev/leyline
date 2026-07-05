@@ -503,13 +503,13 @@ class ClientGuiGame(
         // needsManualAssign case; reachable only via PlayerControllerHuman's own manual-assign
         // check firing on a case that flow doesn't replicate (e.g. no coordinator wired up).
         log.warn(
-            "assignCombatDamage (ClientGuiGame fallback): auto-assigning {} damage from {} across {} blockers by toughness, no manual allocation UI",
+            "assignCombatDamage fallback: auto-assigning {} damage from {} across {} blockers by toughness",
             damage,
             attacker.name,
             blockers.size,
         )
         DevCheck.failOnAutoPass {
-            "assignCombatDamage (ClientGuiGame fallback) auto-assigned $damage damage from ${attacker.name} across ${blockers.size} blockers"
+            "assignCombatDamage fallback auto-assigned $damage damage from ${attacker.name} across ${blockers.size} blockers"
         }
         return assignDamageByToughness(blockers, damage)
     }

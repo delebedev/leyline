@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit
 internal object PendingGate {
     const val DEFAULT_TIMEOUT_MS = 45_000L
 
+    @Suppress("LongParameterList") // cohesive single-purpose core; params are the gate contract
     fun <T, P> await(
         publish: (P?) -> Unit,
         prompt: (CompletableFuture<T>) -> P,
