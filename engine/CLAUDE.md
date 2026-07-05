@@ -18,6 +18,6 @@ protocol/    GRE handshake/proto dump helpers. TCP frame codecs live in native.p
 tooling/     Headless harnesses, simclient, test tooling.
 ```
 
-ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process.
+ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process. Concrete rules live in `PackageLayeringTest` (`engine/src/test/kotlin/leyline/architecture/`); match-handler constructor contracts are enforced alongside it in `HandlerConstructorContractTest`.
 
 Read `docs/forge-api-concepts.md` before changing Forge-facing code.

@@ -84,6 +84,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   steal lifecycle.
  * - `bridge.snapshotCrewState()` / `bridge.getOrAllocCrewEffectId()` /
  *   `bridge.releaseCrewEffects()` — vehicle crew lifecycle.
+ * - `bridge.drainEarthbendFrame()` — Earthbend layered-effect tracker, drained
+ *   once per frame by the annotation pipeline; reads pending created/destroyed
+ *   layer ids and clears them as part of the same call.
  *
  * Incidental in-stage writes:
  * - `bridge.evictAbilityRegistry(...)` — cache invalidation for zone-changed
