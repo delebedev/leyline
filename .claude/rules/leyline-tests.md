@@ -22,12 +22,17 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 | `web/` | `./gradlew :web:test` |
 | Single class | `just test-one ClassName` (defaults to `engine`) |
 | Single class in another module | `just test-one ClassName web` |
+| Several classes, one run | `just test-many "ClassA ClassB"` (space-separated, one string; defaults to `engine`) |
 | Single class + stdout | `just test-debug ClassName` (defaults to `engine`, accepts the same optional module arg) |
 | Pre-commit (all modules + fmt) | `just test-gate` |
 
 **Test-only changes** (amended assertion, new test case — no prod code touched): `just test-one Foo` is sufficient for engine. Use `just test-one Foo native` or `just test-one Foo web` for other modules.
 
 **Debugging test output:** `just test-debug` enables `-Pverbose` which passes `showStandardStreams` to Gradle. `println` from test code becomes visible. Logback root stays WARN — no engine noise.
+
+**Mechanism, and a warning about the failure mode this replaced:** `just test-one`/`test-debug`/`test-many` resolve the target class's fully-qualified name from its source file (`gradle/scripts/resolve-test-fqcn.sh`), then pass it to `--tests` with **no wildcard** (`--tests "leyline.architecture.PackageLayeringTest"`, not `--tests "*PackageLayeringTest"`). This project's Gradle 8.12 + Kotest 5.9.1 combo silently drops `--tests "*ClassName"` results for kotest specs: Kotest actually runs and passes the class's tests internally (confirmed with `KOTEST_DEBUG=TRUE`), but Gradle's own JUnit Platform bookkeeping never picks them up, so the build reported `PASS 0/0` / `No tests found for given includes` for every class, including long-existing ones. A fully-qualified `--tests` pattern is the one shape proven to work, and it still fails loud (non-zero exit) when nothing matches — verified both for a nonexistent class and for a real class whose tests are all excluded by `kotest.tags`. `test-many` gets OR semantics for free by passing `--tests` multiple times in one invocation (Gradle's native behavior), each with a resolved fully-qualified name.
+
+**Do not use `kotest.filter.specs` for more than one class.** The single-pattern form (`-Pkotest.filter.specs='*ClassName'`, leading wildcard required) works and is a valid manual escape hatch, but Kotest 5.9.1's `SystemPropertySpecFilterInterceptor` ANDs comma- or semicolon-separated patterns instead of ORing them, so a real multi-class list matches zero specs — and unlike `--tests`, it does this **silently**: `BUILD SUCCESSFUL`, `PASS 0/0`, exit code 0. This is a Kotest-version limitation, not something fixable from this repo; `just test-many` sidesteps it entirely by using repeated `--tests` flags instead.
 
 ## Stress-testing flakes
 
@@ -36,7 +41,7 @@ Use this loop when a recent PR or `main` merge has intermittent failures:
 1. Review recent CI failures and reruns first. Pick likely suspects from repeated class names, failed task shape, and whether the failure was gate or integration.
 2. Refresh the worktree to latest `main`, update submodules, and run `just install-forge` if the Forge gitlink changed. Do not count setup repair as a stress pass.
 3. Local stress iterations use only `./gradlew --rerun-tasks :engine:testGate :engine:testIntegration`. Run 3-5 forced passes max, and stop on the first failure.
-4. After the first repro, switch to targeted repeats: `./gradlew --rerun-tasks :engine:testIntegration --tests "*ClassName"`. If the targeted class passes but the full graph flakes, suspect task/fork/shared-state interaction before changing game code.
+4. After the first repro, switch to targeted repeats: `./gradlew --rerun-tasks :engine:testIntegration --tests "fully.qualified.ClassName"` (fully qualified, no wildcard — see "Running tests" above for why). If the targeted class passes but the full graph flakes, suspect task/fork/shared-state interaction before changing game code.
 5. Fix the smallest concrete cause, then scan sibling helpers and tests for the same smell before opening the PR.
 
 When the fix touches test helpers, prefer tightening the helper contract over adding another wrapper. PR #136 is the pattern: a helper returned a generic nullable action, callers re-selected mutable zone state, and identity drift hid in the call site. Returning the concrete action type made the submitted identity explicit. After that kind of fix, look for sibling helpers with overly broad return types or optionality that lets callers reconstruct state instead of using the value already produced.

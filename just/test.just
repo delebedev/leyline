@@ -2,14 +2,49 @@
 # Imported by justfile — all variables available from parent.
 
 # single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one WebRoutesTest web`)
+# Resolves the fully-qualified class name from source first: Gradle's --tests
+# glob matching (`--tests "*Class"`) silently matches zero tests for kotest
+# specs on this project's Gradle/kotest combo (the class's tests run and pass
+# inside kotest, but the result never reaches Gradle's reporting layer) — see
+# .claude/rules/leyline-tests.md "Running tests". A fully-qualified --tests
+# pattern is the one shape proven to work and to fail loud when nothing
+# matches, so resolve-test-fqcn.sh does that resolution before invoking gradle.
 [group('test')]
 test-one class module='engine':
-    cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    fqcn=$(gradle/scripts/resolve-test-fqcn.sh "{{class}}" "{{module}}" "{{project_dir}}")
+    ./gradlew :{{module}}:test --tests "$fqcn"
 
 # single test class with stdout/stderr visible, engine by default (e.g. `just test-debug BiteDownTest`)
 [group('test')]
 test-debug class module='engine':
-    cd "{{project_dir}}" && ./gradlew :{{module}}:test --tests "*{{class}}" -Pverbose
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    fqcn=$(gradle/scripts/resolve-test-fqcn.sh "{{class}}" "{{module}}" "{{project_dir}}")
+    ./gradlew :{{module}}:test --tests "$fqcn" -Pverbose
+
+# several test classes in one run, space-separated, engine by default
+# (e.g. `just test-many "PackageLayeringTest HandlerConstructorContractTest"`)
+# kotest.filter.specs comma/semicolon lists are NOT a substitute — Kotest
+# 5.9.1's SystemPropertySpecFilterInterceptor ANDs multiple patterns together
+# instead of ORing them, so a real multi-class list always matches zero specs,
+# silently (BUILD SUCCESSFUL, PASS 0/0 — no non-zero exit at all). Repeated
+# --tests flags with fully-qualified names give real OR semantics and fail
+# loud, so that's what this recipe uses.
+[group('test')]
+test-many classes module='engine':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    args=()
+    for cls in {{classes}}; do
+        fqcn=$(gradle/scripts/resolve-test-fqcn.sh "$cls" "{{module}}" "{{project_dir}}")
+        args+=(--tests "$fqcn")
+    done
+    ./gradlew :{{module}}:test "${args[@]}"
 
 # pre-commit gate: unit + board + fmt check + coverage (all modules)
 [group('test')]
