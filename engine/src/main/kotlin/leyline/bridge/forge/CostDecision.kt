@@ -25,8 +25,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.interaction.CostCardSelectionPlan
 import leyline.bridge.interaction.CostDecisionPlanner
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
 import java.util.*
 
@@ -86,10 +85,7 @@ class CostDecision(
             return CardCollection(cards)
         }
         val labels = cards.map { it.name }
-        val refs =
-            cards.mapIndexed { idx, card ->
-                PromptCandidateRefDto(idx, PromptCandidateKind.Card, card.id, card.zone?.zoneType?.name)
-            }
+        val refs = cards.toCandidateRefs()
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -1044,10 +1040,9 @@ class CostDecision(
                     val counterStr = card.counters.entrySet().joinToString(", ") { "${it.element.name}: ${it.count}" }
                     "${card.name} ($counterStr)"
                 }
-            val refs =
-                list.mapIndexed { idx, card ->
-                    PromptCandidateRefDto(idx, PromptCandidateKind.Card, card.id, card.zone?.zoneType?.name)
-                }
+            val refs = list.toCandidateRefs()
+            // Inline, not selectCards: labels need per-card counter counts; selectCards only
+            // exposes card names.
             val request =
                 PromptRequest(
                     promptType = "choose_cards",

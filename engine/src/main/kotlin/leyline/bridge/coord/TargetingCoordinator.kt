@@ -35,6 +35,7 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.bridge.types.toCandidateRefs
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
@@ -894,12 +895,7 @@ class TargetingCoordinator(
         recordExiledUnderSource: Boolean = false,
     ): CardCollection {
         try {
-            val candidateRefs =
-                filteredCards.mapIndexedNotNull { idx, card ->
-                    (card as? Card)?.let {
-                        PromptCandidateRefDto(idx, PromptCandidateKind.Card, it.id, it.zone?.zoneType?.name)
-                    }
-                }
+            val candidateRefs = buildCandidateRefs(filteredCards)
             val unfilteredRefs =
                 reveal.allHandCardIds.mapIndexed { idx, forgeCardId ->
                     PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeCardId.value)
@@ -972,14 +968,7 @@ class TargetingCoordinator(
             sa.hasParamValue("Destination", "Exile") &&
             (sa.hasParamValue("Duration", "UntilHostLeavesPlay") || sa.hasParam("IsCurse"))
 
-    private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> =
-        entities.mapIndexedNotNull { idx, entity ->
-            when (entity) {
-                is Card -> PromptCandidateRefDto(idx, PromptCandidateKind.Card, entity.id, entity.zone?.zoneType?.name)
-                is Player -> PromptCandidateRefDto(idx, PromptCandidateKind.Player, entity.id)
-                else -> null
-            }
-        }
+    private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> = entities.toCandidateRefs()
 
     private fun GameEntity.entityLabel(): String =
         when (this) {

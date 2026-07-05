@@ -24,8 +24,7 @@ import leyline.bridge.interaction.shouldRecord
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ManaCostText
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -114,18 +113,13 @@ class CostPaymentCoordinator(
             max = plan.maxSelection,
             defaultIndex = 0,
             semantic = plan.semantic,
-            candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(untappedCards)),
+            candidateRefs = plan.candidateRefsPolicy.candidateRefs(untappedCards.toCandidateRefs()),
             sourceEntityId = sa.hostCard?.id,
             sourceCardName = sa.hostCard?.name,
             waterbendManaCost = displayedCost,
             waterbendCostString = if (includeManaFields) ManaCostText.clientText(displayedCost) else null,
         )
     }
-
-    private fun buildCandidateRefs(cards: CardCollectionView): List<PromptCandidateRefDto> =
-        cards.mapIndexed { index, card ->
-            PromptCandidateRefDto(index = index, kind = PromptCandidateKind.Card, entityId = card.id, zone = card.zone?.zoneType?.name)
-        }
 
     private fun recordConvokePayments(
         sa: SpellAbility,
