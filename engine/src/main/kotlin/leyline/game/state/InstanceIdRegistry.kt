@@ -118,7 +118,4 @@ class InstanceIdRegistry(
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
     fun snapshot(): Map<InstanceId, ForgeCardId> = HashMap(instanceIdToForgeId)
-
-    /** Read-only snapshot of forgeCardId → current active instanceId. */
-    fun activeSnapshot(): Map<ForgeCardId, InstanceId> = HashMap(forgeIdToInstanceId)
 }

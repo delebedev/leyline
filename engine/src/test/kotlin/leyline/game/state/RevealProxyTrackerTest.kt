@@ -20,7 +20,6 @@ class RevealProxyTrackerTest :
             assertSoftly {
                 tracker.lookup(ForgeCardId(1)) shouldBe InstanceId(101)
                 tracker.lookup(ForgeCardId(2)) shouldBe InstanceId(102)
-                tracker.size shouldBe 2
                 tracker.isEmpty shouldBe false
             }
         }
@@ -37,7 +36,6 @@ class RevealProxyTrackerTest :
             assertSoftly {
                 tracker.drain() shouldBe listOf(InstanceId(101), InstanceId(102))
                 tracker.isEmpty shouldBe true
-                tracker.size shouldBe 0
             }
         }
 

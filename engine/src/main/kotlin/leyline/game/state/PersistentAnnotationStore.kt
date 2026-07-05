@@ -501,9 +501,6 @@ class PersistentAnnotationStore {
         active[ann.id] = ann
     }
 
-    /** All currently active persistent annotations. */
-    fun getAll(): List<AnnotationInfo> = active.values.toList()
-
     /** Forge card IDs of permanents currently under stolen control (have ControllerChanged+LayeredEffect pAnn). */
     private val activeSteals = mutableSetOf<ForgeCardId>()
 

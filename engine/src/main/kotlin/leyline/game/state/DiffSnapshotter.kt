@@ -14,9 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Thread-safe: zone map uses [ConcurrentHashMap].
  */
-class DiffSnapshotter(
-    @Suppress("UnusedPrivateProperty") private val idRegistry: InstanceIdRegistry,
-) {
+class DiffSnapshotter {
     /** Previous zone assignment per instanceId — for detecting zone transfers. */
     private val previousZones = ConcurrentHashMap<Int, Int>()
 

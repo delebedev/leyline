@@ -363,7 +363,7 @@ class GameBridge(
     val limbo = LimboTracker()
 
     /** Zone tracking + diff baseline/client-seen state tracking. */
-    val diff = DiffSnapshotter(ids)
+    val diff = DiffSnapshotter()
 
     /**
      * Bundle-sequence cursor shared by every [leyline.game.bundle.BundleBuilder] bound to this
@@ -558,12 +558,6 @@ class GameBridge(
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
     fun getInstanceIdMap(): Map<InstanceId, ForgeCardId> = ids.snapshot()
-
-    /** Read-only snapshot of forgeCardId → current active instanceId. */
-    fun getActiveInstanceIdMap(): Map<ForgeCardId, InstanceId> = ids.activeSnapshot()
-
-    /** Set of instanceIds currently retired to Limbo. */
-    fun getLimboSet(): Set<Int> = limbo.all().toSet()
 
     /** Proto zone tracking — where the protocol last placed each instanceId. */
     fun getProtoZones(): Map<Int, Int> = diff.allZones()
@@ -1243,6 +1237,7 @@ class GameBridge(
         earthbend.resetAll()
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
+        abilityLineage.resetAll()
         resetDecayedCleanupSources()
         crewEffects.clear()
         reconfigureEffects.clear()

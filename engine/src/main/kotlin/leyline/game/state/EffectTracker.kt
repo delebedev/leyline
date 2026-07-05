@@ -167,7 +167,7 @@ class EffectTracker {
      *
      * Call once during the first Full GSM build.
      */
-    fun emitInitEffects(): DiffResult {
+    private fun emitInitEffects(): DiffResult {
         val effects =
             (0 until 3).map { i ->
                 TrackedEffect(

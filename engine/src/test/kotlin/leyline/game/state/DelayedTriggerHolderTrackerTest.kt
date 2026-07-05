@@ -28,7 +28,7 @@ class DelayedTriggerHolderTrackerTest :
             batch.added.map { it.iid } shouldContainExactlyInAnyOrder listOf(119, 123)
             batch.removed.shouldBeEmpty()
             t.apply(batch)
-            t.activeSize shouldBe 2
+            t.activeIids().size shouldBe 2
         }
 
         test("unchanged holders produce empty batch — no re-emit, no deletion") {
@@ -50,7 +50,7 @@ class DelayedTriggerHolderTrackerTest :
             batch.removed shouldContainExactly listOf(119)
 
             t.apply(batch)
-            t.activeSize shouldBe 0
+            t.activeIids().size shouldBe 0
         }
 
         test("swap one holder for another — same call returns added + removed") {
@@ -62,7 +62,7 @@ class DelayedTriggerHolderTrackerTest :
             batch.removed shouldContainExactly listOf(119)
 
             t.apply(batch)
-            t.activeSize shouldBe 1
+            t.activeIids().size shouldBe 1
         }
 
         test("multi-GSM lifecycle — add, hold, hold, remove") {
@@ -88,7 +88,7 @@ class DelayedTriggerHolderTrackerTest :
             val gsm4 = t.computeBatch(emptyList())
             gsm4.removed shouldContainExactly listOf(119)
             t.apply(gsm4)
-            t.activeSize shouldBe 0
+            t.activeIids().size shouldBe 0
 
             // GSM 5 — post-cleanup, nothing happens.
             val gsm5 = t.computeBatch(emptyList())
@@ -107,7 +107,7 @@ class DelayedTriggerHolderTrackerTest :
                 first.added.map { it.iid } shouldContainExactly second.added.map { it.iid }
                 first.removed shouldContainExactly second.removed
                 // State unchanged — 119 still active.
-                t.activeSize shouldBe 1
+                t.activeIids().size shouldBe 1
             }
         }
     })
