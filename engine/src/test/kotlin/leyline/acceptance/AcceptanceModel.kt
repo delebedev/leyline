@@ -205,6 +205,18 @@ data class LifeTotalCondition(
     override val label: String = "${side.yamlName} life is $value"
 }
 
+data class WinnerCondition(
+    val side: AcceptanceSide,
+) : AcceptanceCondition {
+    override val label: String = "${side.yamlName} wins"
+}
+
+data class LoserCondition(
+    val side: AcceptanceSide,
+) : AcceptanceCondition {
+    override val label: String = "${side.yamlName} loses"
+}
+
 data class BattlefieldStatsAtLeastCondition(
     val side: AcceptanceSide,
     val card: String,

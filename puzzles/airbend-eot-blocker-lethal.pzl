@@ -1,0 +1,18 @@
+[metadata]
+Name:Airbend EOT Blocker Lethal
+Goal:Win
+Turns:2
+Difficulty:Easy
+Description:On the opponent end step, Airbend their oversized blocker, then untap and attack with Centaur Courser for exact lethal.
+
+[state]
+ActivePlayer=AI
+ActivePhase=END_OF_TURN
+HumanLife=20
+AILife=3
+
+humanhand=Airbending Lesson
+humanbattlefield=Centaur Courser;Plains;Plains;Plains
+humanlibrary=Forest;Forest;Forest;Forest
+aibattlefield=Juggernaut
+ailibrary=Mountain;Mountain;Mountain;Mountain

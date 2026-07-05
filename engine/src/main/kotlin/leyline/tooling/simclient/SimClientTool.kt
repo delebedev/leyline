@@ -25,6 +25,7 @@ fun main(args: Array<String>) {
 object SimClientMain {
     fun run(args: Array<String>): Int {
         val config = SimClientConfig.parse(args.toList(), System.getenv()) ?: return 0
+        SimClientLogging.configure(config.verbose)
         val result = SimClientRunner(config).run()
         return if (config.strict && result.hasStrictFailures) 1 else 0
     }
@@ -89,6 +90,7 @@ class SimClientRunner(
                     TimedRunContext(
                         tag = row.tag,
                         logFile = logFile,
+                        consoleLogFile = File(config.outDir, "${row.tag}.console.log"),
                         runLabel = row.runLabel,
                         opponentRunLabel = row.opponentRunLabel,
                         seed = row.seed,
@@ -152,6 +154,8 @@ class SimClientRunner(
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
                     connect = { harness.connectAndKeepPuzzleText(row.puzzleText) },
+                    forgeAi = forgeAi,
+                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                 )
         }
     }
@@ -167,25 +171,28 @@ class SimClientRunner(
         val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-${run.tag}").apply { isDaemon = true } }
         val future =
             executor.submit<GameStats> {
-                val harness = createHarness()
-                harnessRef.set(harness)
-                var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-                val writer = run.logFile.bufferedWriter()
-                try {
-                    val playerLog =
-                        PlayerLogWriter(
-                            out = writer,
-                            matchId = matchId,
-                            clock = {
-                                fakeNow = fakeNow.plusSeconds(1)
-                                fakeNow
-                            },
-                        )
-                    runGame(harness, playerLog)
-                } finally {
-                    runCatching { writer.close() }
-                    runCatching { harness.shutdown() }
+                val runBody = {
+                    val harness = createHarness()
+                    harnessRef.set(harness)
+                    var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
+                    val writer = run.logFile.bufferedWriter()
+                    try {
+                        val playerLog =
+                            PlayerLogWriter(
+                                out = writer,
+                                matchId = matchId,
+                                clock = {
+                                    fakeNow = fakeNow.plusSeconds(1)
+                                    fakeNow
+                                },
+                            )
+                        runGame(harness, playerLog)
+                    } finally {
+                        runCatching { writer.close() }
+                        runCatching { harness.shutdown() }
+                    }
                 }
+                if (config.verbose) runBody() else SimClientLogging.withRedirectedStdio(run.consoleLogFile, runBody)
             }
         val t0 = System.nanoTime()
         val stats =
@@ -331,7 +338,7 @@ class SimClientRunner(
         val out = Path.of(System.getProperty("user.home"), ".scry", "games")
         Files.createDirectories(out)
         var count = 0
-        config.outDir.listFiles { file -> file.extension == "log" }.orEmpty().forEach { log ->
+        config.outDir.listFiles { file -> isSimClientGameLogFile(file) }.orEmpty().forEach { log ->
             val base = log.nameWithoutExtension
             Files.copy(log.toPath(), out.resolve("$base.log"), StandardCopyOption.REPLACE_EXISTING)
             val sidecar = File(config.outDir, "$base.meta.json")
@@ -351,6 +358,7 @@ class SimClientRunner(
 private data class TimedRunContext(
     val tag: String,
     val logFile: File,
+    val consoleLogFile: File,
     val runLabel: String,
     val opponentRunLabel: String?,
     val seed: Long,
@@ -358,3 +366,5 @@ private data class TimedRunContext(
     val deckOverlay: DeckOverlayReport?,
     val opponentDeckOverlay: DeckOverlayReport?,
 )
+
+internal fun isSimClientGameLogFile(file: File): Boolean = file.extension == "log" && !file.name.endsWith(".console.log")

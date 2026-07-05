@@ -7,6 +7,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -27,6 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SearchReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
+import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
 import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 
@@ -104,6 +107,7 @@ class SimClientDriverPolicyTest :
             legalAction: SelectAction = SelectAction.Select_a1ad,
             sourceId: Int = 0,
             abilityGrpId: Int = 0,
+            targetIds: List<Int> = listOf(2),
         ): GREToClientMessage =
             GREToClientMessage
                 .newBuilder()
@@ -120,12 +124,14 @@ class SimClientDriverPolicyTest :
                                 .newBuilder()
                                 .setMinTargets(min)
                                 .setMaxTargets(max)
-                                .addTargets(
-                                    ProtoTarget
-                                        .newBuilder()
-                                        .setTargetInstanceId(2)
-                                        .setLegalAction(legalAction)
-                                        .build(),
+                                .addAllTargets(
+                                    targetIds.map { targetId ->
+                                        ProtoTarget
+                                            .newBuilder()
+                                            .setTargetInstanceId(targetId)
+                                            .setLegalAction(legalAction)
+                                            .build()
+                                    },
                                 ),
                         ).build(),
                 ).build()
@@ -233,12 +239,49 @@ class SimClientDriverPolicyTest :
             groupAway.auditDigest() shouldBe "group-away::context=Scry_a0f6"
         }
 
-        test("forge-ai SelectTargets adapter only consults simple single-target prompts") {
+        test("forge-ai SelectTargets adapter consults exact target prompts") {
             val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
 
             policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 0, max = 1)) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2, targetIds = listOf(2, 3))) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2)) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(max = 2)) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(legalAction = SelectAction.Unselect)) shouldBe false
+        }
+
+        test("forge-ai cast adapter requires exact alternative action") {
+            val base =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(10)
+                    .setGrpId(20)
+                    .build()
+            val overload = base.toBuilder().setAlternativeGrpId(19573).build()
+            val cleave = base.toBuilder().setAlternativeGrpId(11111).build()
+            val candidates = listOf(cleave, base, overload)
+
+            chooseCastActionByVariant(candidates, ExpectedCastVariant.Base) shouldBe base
+            chooseCastActionByVariant(candidates, ExpectedCastVariant.Alternative(19573)) shouldBe overload
+            chooseCastActionByVariant(candidates, ExpectedCastVariant.Alternative(99999)) shouldBe null
+            chooseCastActionByVariant(candidates, ExpectedCastVariant.UnresolvedAlternative) shouldBe null
+        }
+
+        test("forge-ai static color adapter constrains choices to prompt colors") {
+            val req =
+                SelectNReq
+                    .newBuilder()
+                    .setStaticList(StaticList.Colors)
+                    .setMinSel(1)
+                    .setMaxSel(1)
+                    .addAllIds(listOf(4, 5))
+                    .build()
+
+            allowedStaticColorIds(req, promptStaticOptionIds = listOf(1, 2, 3)) shouldBe listOf(4, 5)
+            colorSetFromStaticIds(allowedStaticColorIds(req, emptyList())).hasRed() shouldBe true
+            colorSetFromStaticIds(allowedStaticColorIds(req, emptyList())).hasGreen() shouldBe true
+            colorSetFromStaticIds(allowedStaticColorIds(req, emptyList())).hasWhite() shouldBe false
         }
 
         test("forge-ai CTO adapter only consults simple modal choices") {

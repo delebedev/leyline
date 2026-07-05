@@ -1,0 +1,18 @@
+[metadata]
+Name:Prowess Shock Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Shock at the opponent to trigger prowess, then attack with Monastery Swiftspear for exact lethal damage.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+removesummoningsickness=true
+
+humanbattlefield=Monastery Swiftspear;Mountain
+humanhand=Shock
+humanlibrary=Mountain
+ailibrary=Mountain

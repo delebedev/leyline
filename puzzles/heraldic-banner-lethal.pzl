@@ -1,0 +1,18 @@
+[metadata]
+Name:Heraldic Banner Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Heraldic Banner, choose Red, then attack with the boosted Raging Goblin for exact lethal damage.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+removesummoningsickness=true
+
+humanhand=Heraldic Banner
+humanbattlefield=Mountain;Mountain;Mountain;Raging Goblin
+humanlibrary=Mountain
+ailibrary=Forest

@@ -261,7 +261,7 @@ seed-db: (_require classpath) check-java
 #   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient mono-r-burn 1..20
 #   LEYLINE_CARD_DB="$HOME/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_x.mtga" just simclient "Auras,Black aggro" "1,2,3"
 #
-# Output: matchdoor/build/simclient/*.log + .meta.json (source: simclient).
+# Output: engine/build/simclient/*.log + .meta.json (source: simclient).
 # Logs are copied into ~/.scry/games/ so scry-ts (with --source simclient) can
 # read them alongside other saved games.
 [group('simclient')]
@@ -288,10 +288,10 @@ simclient decks="" seeds="":
             exit 1
         fi
     fi
-    src="matchdoor/build/simclient"
+    src="engine/build/simclient"
     # Clear prior outputs so ingest only picks up the current run.
     if [ -d "$src" ]; then trash "$src"; fi
-    ./gradlew :matchdoor:simclient --args="--ingest-scry"
+    ./gradlew :engine:simclient --args="--ingest-scry"
 
 # Run simclient against one or more `.pzl` puzzles instead of shuffled decks.
 # Same SIMCLIENT_SEEDS semantics; logs land tagged `puzzle:<basename>` so scry
@@ -325,9 +325,9 @@ simclient-puzzle puzzles seeds="42":
             exit 1
         fi
     fi
-    src="matchdoor/build/simclient"
+    src="engine/build/simclient"
     if [ -d "$src" ]; then trash "$src"; fi
-    ./gradlew :matchdoor:simclient --args="--puzzles {{puzzles}} --seeds {{seeds}} --ingest-scry"
+    ./gradlew :engine:simclient --args="--puzzles {{puzzles}} --seeds {{seeds}} --ingest-scry"
 
 # --- Serve ---
 

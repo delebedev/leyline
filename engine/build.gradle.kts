@@ -113,6 +113,8 @@ val testIntegrationStrict by tasks.registering(Test::class) {
 val testAcceptance by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "AcceptanceTag")
+    (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
+    (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
     maxParallelForks = 1
     inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
 }
@@ -128,6 +130,18 @@ val simclient by tasks.registering(JavaExec::class) {
     mainClass.set("leyline.tooling.simclient.SimClientToolKt")
     workingDir = rootProject.projectDir
     args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
+val simref by tasks.registering(JavaExec::class) {
+    group = "simclient"
+    description = "Run direct Forge AI deck/puzzle matrices"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("leyline.tooling.simclient.SimRefToolKt")
+    workingDir = rootProject.projectDir
+    args((project.findProperty("simrefArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
 }

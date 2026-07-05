@@ -1021,9 +1021,12 @@ class GameBridge(
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
-    fun submitKeep(seatId: SeatId) {
+    fun submitKeep(seatId: SeatId): Boolean {
         log.info("GameBridge: seat {} keeps hand", seatId.value)
-        if (seatId == seating.humanSeat) mulliganBridge(seatId).submitKeep()
+        if (seatId != seating.humanSeat) return false
+        val accepted = mulliganBridge(seatId).submitKeep()
+        if (!accepted) log.warn("GameBridge: ignored stale keep for seat {}", seatId.value)
+        return accepted
     }
 
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1037,14 +1040,17 @@ class GameBridge(
      * We auto-tuck first N cards (same as forge-web) to unblock the engine,
      * then wait for the next [MulliganPhase.WaitingKeep].
      */
-    fun submitMull(seatId: SeatId) {
+    fun submitMull(seatId: SeatId): Boolean {
         log.info("GameBridge: seat {} mulligans", seatId.value)
         if (seatId == seating.humanSeat) {
             // Capture current prompt sequence BEFORE submitting —
             // avoids race where we see the stale WaitingKeep from the current round.
             val bridge = mulliganBridge(seatId)
             val seqBefore = bridge.promptSequence
-            bridge.submitMull()
+            if (!bridge.submitMull()) {
+                log.warn("GameBridge: ignored stale mulligan for seat {}", seatId.value)
+                return false
+            }
             // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.
             // Wait for a NEW prompt (higher sequence) that's either WaitingTuck or WaitingKeep.
             val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
@@ -1054,7 +1060,7 @@ class GameBridge(
                     when (prompt.phase) {
                         MulliganPhase.WaitingKeep -> {
                             log.info("GameBridge: engine re-dealt hand after mulligan (no tuck)")
-                            return
+                            return true
                         }
                         MulliganPhase.WaitingTuck -> {
                             val n = prompt.cardsToTuck
@@ -1064,7 +1070,7 @@ class GameBridge(
                             // After tuck, engine continues → next WaitingKeep
                             awaitMulliganReady()
                             log.info("GameBridge: engine re-dealt hand after mulligan+tuck")
-                            return
+                            return true
                         }
                     }
                 }
@@ -1072,6 +1078,7 @@ class GameBridge(
             }
             log.warn("GameBridge: timed out waiting for engine after mull+tuck")
         }
+        return false
     }
 
     /**
@@ -1120,7 +1127,10 @@ class GameBridge(
      *
      * @param puzzle the parsed [Puzzle] object to apply
      */
-    fun startPuzzle(puzzle: Puzzle) {
+    fun startPuzzle(
+        puzzle: Puzzle,
+        aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
+    ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
 
@@ -1166,19 +1176,23 @@ class GameBridge(
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
         phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val controller =
-            BridgedPlayerController(
-                game = g,
-                player = human,
-                lobbyPlayer = human.lobbyPlayer,
-                bridge = promptBridge(SeatId(1)),
-                seating = seating,
-                actionBridge = actionBridge(SeatId(1)),
-                mulliganBridge = mulliganBridge(SeatId(1)),
-                phaseStopProfile = phaseStopProfile,
-            )
-        humanController = controller
-        human.addController(Long.MAX_VALUE - 1, human, controller, false)
+        if (aiControllerFactory == null) {
+            val controller =
+                BridgedPlayerController(
+                    game = g,
+                    player = human,
+                    lobbyPlayer = human.lobbyPlayer,
+                    bridge = promptBridge(SeatId(1)),
+                    seating = seating,
+                    actionBridge = actionBridge(SeatId(1)),
+                    mulliganBridge = mulliganBridge(SeatId(1)),
+                    phaseStopProfile = phaseStopProfile,
+                )
+            humanController = controller
+            human.addController(Long.MAX_VALUE - 1, human, controller, false)
+        } else {
+            human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
+        }
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =
@@ -1200,9 +1214,13 @@ class GameBridge(
 
         registerPlayback(g, SeatId(1), captureLocalActions = false)
 
-        log.info("GameBridge: puzzle loop started, waiting for priority")
-        awaitPriority()
-        log.info("GameBridge: puzzle engine reached priority, ready")
+        if (aiControllerFactory == null) {
+            log.info("GameBridge: puzzle loop started, waiting for priority")
+            awaitPriority()
+            log.info("GameBridge: puzzle engine reached priority, ready")
+        } else {
+            log.info("GameBridge: puzzle loop started with direct AI controller")
+        }
     }
 
     /**

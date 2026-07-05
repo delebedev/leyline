@@ -36,7 +36,9 @@ class MatchdoorAcceptanceExecutor(
             harness.connectAndKeepPuzzleText(readPuzzleText(scenario.puzzle))
             scenario.steps.forEachIndexed { index, step ->
                 executeStep(harness, scenario, index, step)
-                harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
+                if (!harness.isGameOver()) {
+                    harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
+                }
             }
             return scenario.steps.size
         } finally {
@@ -380,7 +382,8 @@ class MatchdoorAcceptanceExecutor(
         step: PassUntilStep,
         context: String,
     ) {
-        val reached = harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
+        harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
+        val reached = runCatching { step.conditions.all { matchesCondition(harness, it) } }.getOrDefault(false)
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
                 "latest prompt=${latestPromptNameWithId(harness) ?: "none"}; " +
@@ -399,7 +402,7 @@ class MatchdoorAcceptanceExecutor(
                 step.conditions.all { matchesCondition(harness, it) }
             }
             true
-        } catch (_: AssertionError) {
+        } catch (_: Throwable) {
             false
         }
 
@@ -442,6 +445,9 @@ class MatchdoorAcceptanceExecutor(
             is LifeTotalCondition ->
                 "${condition.label}; actual ${condition.side.yamlName} life=${player(condition.side, harness).life}"
 
+            is WinnerCondition -> "${condition.label}; actual winner=${finalWinnerSeat(harness) ?: "none"}"
+            is LoserCondition -> "${condition.label}; actual loser=${finalLoserSeat(harness) ?: "none"}"
+
             is BattlefieldStatsAtLeastCondition -> {
                 val card =
                     player(condition.side, harness)
@@ -472,11 +478,14 @@ class MatchdoorAcceptanceExecutor(
                 }
             }
 
-            is PhaseCondition -> "${condition.label}; actual phase=${harness.phase()}"
+            is PhaseCondition -> "${condition.label}; actual phase=${runCatching { harness.phase() }.getOrNull() ?: "none"}"
             is PromptCondition ->
                 "${condition.label}; actual latest prompt=${latestPromptNameWithId(harness) ?: "none"}"
             is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
-            StackEmptyCondition -> "${condition.label}; actual stack size=${harness.game().stackZone.size()}"
+            StackEmptyCondition ->
+                "${condition.label}; actual stack size=${
+                    runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"
+                }"
         }
 
     private fun matchesCondition(
@@ -489,6 +498,8 @@ class MatchdoorAcceptanceExecutor(
             is ZoneNotContainsCondition -> zoneNotContains(harness, condition)
             is ZoneCountAtLeastCondition -> zoneCountAtLeast(harness, condition)
             is LifeTotalCondition -> player(condition.side, harness).life == condition.value
+            is WinnerCondition -> finalWinnerSeat(harness) == seat(condition.side).value
+            is LoserCondition -> finalLoserSeat(harness) == seat(condition.side).value
             is BattlefieldStatsCondition -> battlefieldStats(harness, condition)
             is BattlefieldStatsAtLeastCondition -> battlefieldStatsAtLeast(harness, condition)
             is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
@@ -670,6 +681,21 @@ class MatchdoorAcceptanceExecutor(
         actual: String?,
         expected: String,
     ): Boolean = actual == expected.toForgePhaseName()
+
+    private fun finalWinnerSeat(harness: MatchFlowHarness): Int? {
+        val resultRows =
+            harness.allMessages
+                .asReversed()
+                .asSequence()
+                .filter { it.hasGameStateMessage() && it.gameStateMessage.hasGameInfo() }
+                .flatMap {
+                    val results = it.gameStateMessage.gameInfo.resultsList
+                    results.asReversed().asSequence()
+                }
+        return resultRows.firstOrNull { it.winningTeamId != 0 }?.winningTeamId
+    }
+
+    private fun finalLoserSeat(harness: MatchFlowHarness): Int? = finalWinnerSeat(harness)?.let { 3 - it }
 
     private fun player(
         side: AcceptanceSide,

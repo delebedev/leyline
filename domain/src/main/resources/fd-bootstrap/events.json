@@ -33,7 +33,7 @@
     "internalName": "Play_Brawl",
     "publicName": "Standard Brawl",
     "deckSelectFormat": "Brawl",
-    "displayPriority": -1,
+    "displayPriority": 61,
     "flags": [
       "IsArenaPlayModeEvent"
     ],
@@ -45,7 +45,7 @@
     "publicName": "Sealed FDN",
     "deckSelectFormat": "Sealed",
     "formatType": "Sealed",
-    "displayPriority": -1,
+    "displayPriority": 62,
     "flags": [
       "IsArenaPlayModeEvent"
     ],
@@ -65,7 +65,7 @@
     "publicName": "FDN_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 61,
+    "displayPriority": 63,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -108,7 +108,7 @@
     "publicName": "TDM_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 62,
+    "displayPriority": 64,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -151,7 +151,7 @@
     "publicName": "FIN_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 63,
+    "displayPriority": 58,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -194,7 +194,7 @@
     "publicName": "EOE_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 64,
+    "displayPriority": 59,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -242,7 +242,7 @@
     "publicName": "DMU_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 58,
+    "displayPriority": 60,
     "eventState": "ForceActive",
     "flags": [
       "IsArenaPlayModeEvent",
@@ -255,8 +255,8 @@
       "QuickDraft",
       "Limited"
     ],
-    "titleLocKey": "Events/Event_Title_FDN_Quick_Draft",
-    "descLocKey": "Events/Event_Desc_FDN_Quick_Draft",
+    "titleLocKey": "Events/Event_Title_DMU_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_DMU_Quick_Draft",
     "maxWins": 7,
     "maxLosses": 3,
     "isBotDraft": true,
@@ -291,7 +291,7 @@
     "publicName": "MOM_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 59,
+    "displayPriority": -1,
     "eventState": "ForceActive",
     "flags": [
       "IsArenaPlayModeEvent",
@@ -304,8 +304,8 @@
       "QuickDraft",
       "Limited"
     ],
-    "titleLocKey": "Events/Event_Title_TDM_Quick_Draft",
-    "descLocKey": "Events/Event_Desc_TDM_Quick_Draft",
+    "titleLocKey": "Events/Event_Title_MOM_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_MOM_Quick_Draft",
     "maxWins": 7,
     "maxLosses": 3,
     "isBotDraft": true,
@@ -340,7 +340,7 @@
     "publicName": "NEO_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 60,
+    "displayPriority": -1,
     "eventState": "ForceActive",
     "flags": [
       "IsArenaPlayModeEvent",
@@ -353,8 +353,8 @@
       "QuickDraft",
       "Limited"
     ],
-    "titleLocKey": "Events/Event_Title_FIN_Quick_Draft",
-    "descLocKey": "Events/Event_Desc_FIN_Quick_Draft",
+    "titleLocKey": "Events/Event_Title_NEO_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_NEO_Quick_Draft",
     "maxWins": 7,
     "maxLosses": 3,
     "isBotDraft": true,

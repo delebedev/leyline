@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
+import java.io.File
 
 class SimClientToolTest :
     FunSpec({
@@ -35,6 +36,7 @@ class SimClientToolTest :
                         "/tmp/quarantine.txt",
                         "--exclude-policy",
                         "skip-deck",
+                        "--verbose",
                         "--shard-index",
                         "1",
                         "--shard-count",
@@ -55,9 +57,21 @@ class SimClientToolTest :
                 config.excludeCards shouldBe "Tinybones Joins Up,102468"
                 config.excludeCardsFile?.path shouldBe "/tmp/quarantine.txt"
                 config.excludePolicy shouldBe SimClientExcludePolicy.SkipDeck
+                config.verbose shouldBe true
                 config.shardIndex shouldBe 1
                 config.shardCount shouldBe 4
             }
+        }
+
+        test("config parser accepts verbose env") {
+            val config = SimClientConfig.parse(emptyList(), mapOf("SIMCLIENT_VERBOSE" to "true"))!!
+
+            config.verbose shouldBe true
+        }
+
+        test("scry ingest excludes per-row console logs") {
+            isSimClientGameLogFile(File("deck-1.log")) shouldBe true
+            isSimClientGameLogFile(File("deck-1.console.log")) shouldBe false
         }
 
         test("quarantine replaces name matches with the most common basic land") {

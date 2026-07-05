@@ -5,6 +5,7 @@ import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
@@ -376,6 +377,13 @@ class ActionPerformer(
                 }
                 TargetingHandler.PromptResult.NONE -> {
                     if (g.stack.isEmpty) {
+                        val nextPending = seatBridge.action.getPending()
+                        if (nextPending?.state?.kind == PendingActionKind.DECLARE_ATTACKERS ||
+                            nextPending?.state?.kind == PendingActionKind.DECLARE_BLOCKERS
+                        ) {
+                            autoPassEngine.autoPassAndAdvance()
+                            return
+                        }
                         log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
                         sink.sendRealGameState(bridge)
                         if (g.isGameOver) {

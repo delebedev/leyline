@@ -3,6 +3,7 @@
 Puzzle-backed scripted acceptance tests for MatchDoor.
 
 - Scenario suites live under `puzzles/sets/*.yaml` next to their `.pzl` files.
+- For direct puzzle-state limits, read `../../../../../../docs/puzzle-harness.md`.
 - Keep `steps` backend-neutral: game intent only, no UI coordinates or client gestures.
 - This package maps scenario steps to `MatchFlowHarness`; the live-client smoke runner consumes the same YAML.
 - Run with `just test-acceptance`.

@@ -10,7 +10,9 @@ class AcceptanceSuitesTest :
         tags(AcceptanceTag, IntegrationTag)
 
         val executor = MatchdoorAcceptanceExecutor()
-        val suites =
+        val suiteFilter = csvProperty("acceptance.suites")
+        val scenarioFilter = csvProperty("acceptance.scenarios")
+        val suiteNames =
             listOf(
                 "warmup",
                 "mechanics-warmup",
@@ -21,10 +23,24 @@ class AcceptanceSuitesTest :
                 "modal-warmup",
                 "hybrid-mana",
                 "mechanics-protocol",
-            )
+                "ai-green-controls",
+            ).filter { suiteFilter == null || it in suiteFilter }
 
-        suites.forEach { suiteName ->
-            val suite = AcceptanceSuiteLoader.load(suiteName)
+        require(suiteNames.isNotEmpty()) {
+            "No acceptance suites matched acceptance.suites=${suiteFilter.orEmpty()}"
+        }
+
+        val suites =
+            suiteNames.map { suiteName ->
+                val suite = AcceptanceSuiteLoader.load(suiteName)
+                suite.copy(scenarios = suite.scenarios.filter { scenarioFilter == null || it.id in scenarioFilter })
+            }
+
+        require(suites.any { it.scenarios.isNotEmpty() }) {
+            "No acceptance scenarios matched acceptance.scenarios=${scenarioFilter.orEmpty()}"
+        }
+
+        suites.forEach { suite ->
             suite.scenarios.forEach { scenario ->
                 test("${suite.name} — ${scenario.id}") {
                     executor.runScenario(scenario) shouldBe scenario.steps.size
@@ -32,3 +48,12 @@ class AcceptanceSuitesTest :
             }
         }
     })
+
+private fun csvProperty(name: String): Set<String>? =
+    System
+        .getProperty(name)
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?.toSet()
+        ?.takeIf { it.isNotEmpty() }
