@@ -12,11 +12,12 @@ internal object PendingGate {
         prompt: (CompletableFuture<T>) -> P,
         signal: () -> Unit,
         timeoutMs: () -> Long?,
-        defaultOnTimeout: T,
+        defaultOnTimeout: () -> T,
         log: Logger,
         logContext: String,
         subject: String?,
         timeoutDetail: String,
+        onClear: () -> Unit = {},
     ): T {
         val future = CompletableFuture<T>()
         publish(prompt(future))
@@ -26,9 +27,10 @@ internal object PendingGate {
             future.get(timeoutMs() ?: DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (e: Exception) {
             log.warn("{}: timeout/error for {} — {}", logContext, subject, timeoutDetail, e)
-            defaultOnTimeout
+            defaultOnTimeout()
         } finally {
             publish(null)
+            onClear()
         }
     }
 }
