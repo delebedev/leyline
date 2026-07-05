@@ -1041,7 +1041,7 @@ class CostDecision(
         while (c > 0) {
             val labels =
                 list.map { card ->
-                    val counterStr = card.counters.entries.joinToString(", ") { "${it.key.name}: ${it.value}" }
+                    val counterStr = card.counters.entrySet().joinToString(", ") { "${it.element.name}: ${it.count}" }
                     "${card.name} ($counterStr)"
                 }
             val refs =
@@ -1073,10 +1073,10 @@ class CostDecision(
                     cost.counter
                 } else {
                     val cmap = counterTable.filterToRemove(card)
-                    if (cmap.size == 1) {
-                        cmap.keys.first()
+                    if (cmap.elementSet().size == 1) {
+                        cmap.elementSet().first()
                     } else {
-                        val counterTypes = Lists.newArrayList(cmap.keys)
+                        val counterTypes = Lists.newArrayList(cmap.elementSet())
                         controller.chooseCounterType(
                             counterTypes,
                             ability,
@@ -1184,25 +1184,25 @@ class CostDecision(
             counterTable.put(null, c, cType, cntToRemove)
         } else {
             val cMap = counterTable.filterToRemove(c)
-            for (ct in ImmutableList.copyOf(cMap.keys)) {
-                if (!c.canRemoveCounters(ct)) cMap.remove(ct)
+            for (ct in ImmutableList.copyOf(cMap.elementSet())) {
+                if (!c.canRemoveCounters(ct)) cMap.remove(ct, cMap.count(ct))
             }
             if (cMap.isEmpty()) return counterTable
-            if (cMap.size == 1) {
-                counterTable.put(null, c, cMap.entries.first().key, cntToRemove)
+            if (cMap.elementSet().size == 1) {
+                counterTable.put(null, c, cMap.entrySet().first().element, cntToRemove)
             } else {
                 var remaining = cntToRemove
                 while (remaining > 0) {
                     val pc = c.controller.controller
                     val chosen =
                         pc.chooseCounterType(
-                            Lists.newArrayList(cMap.keys),
+                            Lists.newArrayList(cMap.elementSet()),
                             ability,
                             Localizer.getInstance().getMessage("lblSelectCountersTypeToRemove"),
                             null,
                         ) ?: break
-                    val max = remaining.coerceAtMost(cMap[chosen] ?: 0)
-                    val totalRemaining = cMap.values.sum()
+                    val max = remaining.coerceAtMost(cMap.count(chosen))
+                    val totalRemaining = cMap.entrySet().sumOf { it.count }
                     val min = 1.coerceAtLeast(max - totalRemaining)
                     val chosenAmount =
                         pc.chooseNumber(
@@ -1214,8 +1214,11 @@ class CostDecision(
                         )
                     if (chosenAmount > 0) {
                         counterTable.put(null, c, chosen, chosenAmount)
-                        @Suppress("UNUSED_VALUE")
-                        cMap.putAll(counterTable.filterToRemove(c))
+                        cMap.clear()
+                        val refreshedCounters = counterTable.filterToRemove(c)
+                        if (refreshedCounters.isNotEmpty()) {
+                            check(cMap.addAll(refreshedCounters))
+                        }
                     }
                     remaining -= chosenAmount
                 }
