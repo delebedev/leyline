@@ -24,6 +24,7 @@ test-gate: docs-lint
     fi
     ./gradlew ktlintCheck detekt verifyWebProfilePosture :web:generateOpenApi
     ./gradlew --rerun-tasks \
+        :test \
         :domain:test \
         :engine:testGate \
         :native:test \
@@ -44,6 +45,11 @@ test-integration:
 [group('test')]
 test-acceptance:
     cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testAcceptance
+
+# sim-client E2E suite — synthetic GRE log generation, drives full games (slow)
+[group('test')]
+test-simclient:
+    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testSimClient
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
@@ -92,7 +98,8 @@ coverage:
     #!/usr/bin/env bash
     set +e
     cd "{{project_dir}}"
-    ./gradlew :domain:test :domain:jacocoTestReport \
+    ./gradlew :test :jacocoTestReport \
+              :domain:test :domain:jacocoTestReport \
               :engine:testGate :engine:jacocoTestReport \
               :native:test :native:jacocoTestReport \
               :web:test :web:jacocoTestReport; rc=$?

@@ -119,6 +119,12 @@ val testAcceptance by tasks.registering(Test::class) {
     inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
 }
 
+val testSimClient by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "SimClientTag")
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
+}
+
 testIntegration.configure { mustRunAfter(testGate) }
 testIntegrationStrict.configure { mustRunAfter(testGate) }
 
