@@ -13,6 +13,10 @@ import leyline.game.data.TestCardFixtures
  * identity from a YAML fixture under
  * `engine/src/test/resources/test-cards/`.
  *
+ * Deliberately in the main source set (unlike its `leyline.tooling.headless`
+ * siblings in `src/harness/`): it backs [FixtureCardLoader], which the auto
+ * card mode consumes in production.
+ *
  * Forge owns the rules data (P/T, types, subtypes, supertypes, colors, mana
  * cost). The fixture supplies the client identity (grpId, ability ids paired
  * with category/baseId, token map, linked faces). [FixtureCardLoader] is the
