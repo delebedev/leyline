@@ -229,7 +229,12 @@ object ActionMapper {
             }
             val sa = chooseCastAbility(forgeCard, player) ?: continue
             val noLegalTargets = hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)
-            val canPay = canPayManaCost(sa, player)
+            val canPay =
+                if (usesPaymentSourceReducer(sa)) {
+                    canPayWithPaymentSourceReducer(sa, player)
+                } else {
+                    canPayManaCost(sa, player)
+                }
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
             val preferAltCostFirst = getAllCastableAbilities(forgeCard, player).any { it.isCastFaceDown }
@@ -1373,6 +1378,22 @@ object ActionMapper {
     private fun usesPaymentSourceReducer(sa: SpellAbility): Boolean {
         val host = sa.hostCard ?: return false
         return host.hasKeyword(Keyword.CONVOKE) || host.hasKeyword(Keyword.IMPROVISE)
+    }
+
+    private fun canPayWithPaymentSourceReducer(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean {
+        val host = sa.hostCard ?: return false
+        val usesConvoke = host.hasKeyword(Keyword.CONVOKE)
+        val usesImprovise = host.hasKeyword(Keyword.IMPROVISE)
+        if (!usesConvoke && !usesImprovise) return false
+        return ActionManaCosts.canPayWithPaymentSourceReducer(
+            sa,
+            player,
+            artifacts = usesImprovise,
+            creatures = usesConvoke,
+        )
     }
 
     private fun addManaCostFromCardData(

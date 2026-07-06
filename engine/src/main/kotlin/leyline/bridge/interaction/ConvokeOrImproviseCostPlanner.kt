@@ -59,11 +59,11 @@ object ConvokeOrImproviseCostPlanner {
             artifacts ->
                 ConvokeOrImproviseCostPlan(
                     keyword = "improvise",
-                    semantic = PromptSemantic.Generic,
+                    semantic = PromptSemantic.ImproviseCost,
                     maxSelection = maxSelection,
-                    candidateRefsPolicy = CandidateRefsPolicy.None,
-                    manaFieldsPolicy = CostManaFieldsPolicy.None,
-                    convokePaymentRecordPolicy = ConvokePaymentRecordPolicy.None,
+                    candidateRefsPolicy = CandidateRefsPolicy.Selectable,
+                    manaFieldsPolicy = CostManaFieldsPolicy.IncludeNativePaymentCost,
+                    convokePaymentRecordPolicy = ConvokePaymentRecordPolicy.Record,
                 )
 
             else ->

@@ -44,6 +44,7 @@ object RequestBuilder {
         val includeSourceAbilityOnCost: Boolean,
     ) {
         Convoke(KeywordAbilityIds.CONVOKE, KeywordAbilityIds.CONVOKE_PAYMENT, false),
+        Improvise(KeywordAbilityIds.IMPROVISE, KeywordAbilityIds.IMPROVISE, false),
         Waterbend(KeywordAbilityIds.WATERBEND, WATERBEND_PAYMENT_ABILITY_GRP_ID, true),
     }
 
@@ -670,6 +671,11 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Convoke)
+
+    fun buildImproviseCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Improvise)
 
     private fun buildManaSourceCostPayCostsReq(
         prompt: InteractivePromptBridge.PendingPrompt,

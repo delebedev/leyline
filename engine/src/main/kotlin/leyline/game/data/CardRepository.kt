@@ -210,6 +210,7 @@ object KeywordAbilityIds {
     const val CONVOKE = 52
     const val HASTE = 9
     const val PROWESS = 137
+    const val IMPROVISE = 157
     const val TRAINING = 220
     const val ENLIST = 261
     const val STATION = 373

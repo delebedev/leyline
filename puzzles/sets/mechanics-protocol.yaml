@@ -499,6 +499,21 @@ scenarios:
             - annotation_seen: AbilityWordActive
             - zone_contains: { side: ours, zone: battlefield, card: Conclave Tribunal }
             - stack_empty: true
+  - id: improvise-ironheart-clever-champion
+    puzzle: improvise-ironheart-clever-champion
+    run: cast Ironheart and pay Improvise with an artifact reducer
+    expect: Improvise emits PayCostsReq payment actions, taps the selected artifact, and resolves the spell
+    steps:
+      - cast: "Ironheart, Clever Champion"
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Ornithopter] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: ManaPaid
+            - zone_contains: { side: ours, zone: battlefield, card: "Ironheart, Clever Champion" }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment

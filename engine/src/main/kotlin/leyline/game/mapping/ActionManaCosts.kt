@@ -42,6 +42,35 @@ internal object ActionManaCosts {
             false
         }
 
+    fun canPayWithPaymentSourceReducer(
+        sa: SpellAbility,
+        player: Player,
+        artifacts: Boolean,
+        creatures: Boolean,
+    ): Boolean {
+        val cost = sa.payCosts?.totalMana?.takeUnless { it.isNoCost } ?: return false
+        val sourceColors = availableManaSourceColors(player).toMutableList()
+        val battlefield = player.getZone(ForgeZoneType.Battlefield).cards
+        val reducerCount =
+            battlefield.count { card ->
+                !card.isTapped &&
+                    ((artifacts && card.isArtifact) || (creatures && card.isCreature))
+            }
+
+        fun canPayColor(color: ManaColor): Boolean {
+            val index = sourceColors.indexOfFirst { ManaColor.Generic in it || color in it }
+            if (index < 0) return false
+            sourceColors.removeAt(index)
+            return true
+        }
+
+        for (shard in cost) {
+            val color = ManaColorMapping.fromShard(shard) ?: continue
+            if (color != ManaColor.Generic && !canPayColor(color)) return false
+        }
+        return cost.genericCost <= sourceColors.size + reducerCount
+    }
+
     @Suppress("CyclomaticComplexMethod")
     private fun canPayOrTwoGenericManaCost(
         sa: SpellAbility,

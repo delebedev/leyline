@@ -1,0 +1,11 @@
+name: "Decoy Ploy"
+grpId: 104989
+titleId: 1117499
+abilities:
+  - id: 206161
+    textId: 1117502
+    category: 4
+    modalChildren:
+      - 206159
+      - 206160
+expansionCode: "MSH"

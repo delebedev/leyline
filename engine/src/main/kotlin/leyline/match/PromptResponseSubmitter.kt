@@ -111,7 +111,9 @@ internal class PromptResponseSubmitter(
 
     companion object {
         fun isManaSourcePaymentSemantic(semantic: PromptSemantic): Boolean =
-            semantic == PromptSemantic.WaterbendCost || semantic == PromptSemantic.ConvokeCost
+            semantic == PromptSemantic.WaterbendCost ||
+                semantic == PromptSemantic.ConvokeCost ||
+                semantic == PromptSemantic.ImproviseCost
 
         fun mapSelectNIdsToPromptIndices(
             selectedIds: List<Int>,
