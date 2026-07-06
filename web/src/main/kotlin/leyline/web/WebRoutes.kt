@@ -128,7 +128,7 @@ fun Application.installWeb(services: WebServices) {
                     ),
                 )
             }
-            get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
+            installCardRoutes(services)
             route("/courses") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
@@ -162,6 +162,20 @@ fun Application.installWeb(services: WebServices) {
     }
 }
 
+private fun Route.installCardRoutes(services: WebServices) {
+    get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
+    get("/public/cards/by-grpids") {
+        val grpIds =
+            call.request.queryParameters["ids"]
+                .orEmpty()
+                .split(",")
+                .mapNotNull { it.trim().toIntOrNull() }
+                .distinct()
+                .take(MAX_CARDS_BY_GRPIDS)
+        call.respond(cardsByGrpIdsView(services.cardRepository, grpIds))
+    }
+}
+
 private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
     CardMetadataView(
         cardRepository
@@ -169,6 +183,23 @@ private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
             .sorted()
             .map { grpId -> CardMetadataEntry(grpId = grpId, name = cardRepository.findNameByGrpId(grpId)) },
     )
+
+/** Cap the `ids` query list so an unbounded CSV can't force a huge repository scan. */
+private const val MAX_CARDS_BY_GRPIDS = 500
+
+private fun cardsByGrpIdsView(
+    cardRepository: CardRepository,
+    grpIds: List<Int>,
+): Map<String, CardByGrpIdView> =
+    grpIds.associate { grpId ->
+        val data = cardRepository.findByGrpId(grpId)
+        grpId.toString() to
+            CardByGrpIdView(
+                name = cardRepository.findNameByGrpId(grpId),
+                power = data?.power?.takeIf { it.isNotBlank() },
+                toughness = data?.toughness?.takeIf { it.isNotBlank() },
+            )
+    }
 
 private fun Route.installDraftRoutes(services: WebServices) {
     route("/draft") {

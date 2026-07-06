@@ -27,6 +27,7 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -288,6 +289,34 @@ class WebRoutesTest :
                     cards[0].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
                     cards[1].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "101"
                     cards[1].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
+                }
+            }
+        }
+
+        test("serves cards by grpids, including nulls for unknown ids") {
+            withWeb { client, _ ->
+                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999,notanumber")
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body.keys shouldBe setOf("100", "101", "999")
+                    body["100"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
+                    body["101"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
+                    body["999"]!!.jsonObject["name"] shouldBe JsonNull
+                }
+            }
+        }
+
+        test("caps an unbounded ids list on the by-grpids route") {
+            withWeb { client, _ ->
+                val ids = (1..600).joinToString(",")
+                val response = client.get("/api/public/cards/by-grpids?ids=$ids")
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body.keys.size shouldBe 500
                 }
             }
         }

@@ -107,6 +107,21 @@ object WebOpenApi {
                     put("get", operation(response = ref("ViewerCountView")))
                 },
             )
+            put(
+                "/api/public/cards/by-grpids",
+                buildJsonObject {
+                    put(
+                        "get",
+                        operation(
+                            response =
+                                buildJsonObject {
+                                    put("type", "object")
+                                    put("additionalProperties", ref("CardByGrpIdView"))
+                                },
+                        ),
+                    )
+                },
+            )
             put("/api/collection", buildJsonObject { put("get", operation(response = ref("CollectionView"), responses = authFailures())) })
             put("/api/cards/metadata", buildJsonObject { put("get", operation(response = ref("CardMetadataView"))) })
             put("/api/courses", buildJsonObject { put("get", operation(response = arrayRef("CourseView"), responses = authFailures())) })
@@ -312,6 +327,7 @@ object WebOpenApi {
             component("LoginResponse", LoginResponse.serializer())
             component("CardMetadataView", CardMetadataView.serializer())
             component("CardMetadataEntry", CardMetadataEntry.serializer())
+            component("CardByGrpIdView", CardByGrpIdView.serializer())
         }
 
     private fun <T> JsonObjectBuilder.component(

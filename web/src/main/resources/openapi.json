@@ -174,6 +174,25 @@
                 }
             }
         },
+        "/api/public/cards/by-grpids": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "$ref": "#/components/schemas/CardByGrpIdView"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/collection": {
             "get": {
                 "responses": {
@@ -1261,6 +1280,24 @@
                 "required": [
                     "grpId"
                 ],
+                "additionalProperties": false
+            },
+            "CardByGrpIdView": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "power": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "toughness": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
                 "additionalProperties": false
             }
         }

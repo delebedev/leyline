@@ -168,3 +168,10 @@ data class CardMetadataEntry(
     val grpId: Int,
     val name: String? = null,
 )
+
+@Serializable
+data class CardByGrpIdView(
+    val name: String? = null,
+    val power: String? = null,
+    val toughness: String? = null,
+)
