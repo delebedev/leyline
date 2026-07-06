@@ -75,7 +75,9 @@ class TeamworkLifecycleTest :
 
             assertSoftly {
                 payCostMessage.prompt.promptId shouldBe PromptIds.TEAMWORK_TAP_COST
-                payCostMessage.prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe spellIid
+                payCostMessage.prompt.parametersList
+                    .first { it.parameterName == "CardId" }
+                    .numberValue shouldBe spellIid
                 payCosts.hasPaymentActions() shouldBe true
                 payCosts.effectCostReq.effectCostType shouldBe EffectCostType.Select_a59c
                 selection.minSel shouldBe 2
@@ -104,7 +106,11 @@ class TeamworkLifecycleTest :
 
             assertSoftly {
                 annotations.single().detailInt("additionalCostGrpId") shouldBe teamworkAbilityGrpId
-                human.getZone(ZoneType.Battlefield).cards.first { it.name == "Coral Merfolk" }.isTapped shouldBe true
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Coral Merfolk" }
+                    .isTapped shouldBe true
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Timeline Inquiry"
             }
         }

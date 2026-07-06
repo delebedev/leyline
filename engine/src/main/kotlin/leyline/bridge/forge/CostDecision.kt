@@ -133,6 +133,34 @@ class CostDecision(
         discardType: String,
     ): Int = if (ability.isJumpstart && discardType == "Card") 1 else cost.getAbilityAmount(ability)
 
+    private fun selectTotalPowerTapCost(
+        cost: CostTapType,
+        typeList: CardCollectionView,
+        totalPower: Int,
+    ): PaymentDecision? {
+        val plan =
+            if (cost is CostTeamwork) {
+                CostDecisionPlanner
+                    .teamworkPlan(
+                        totalPower = totalPower,
+                        powers = typeList.map { (it.netPower ?: 0).coerceAtLeast(0) },
+                    ).toCardSelectionPlan()
+            } else {
+                CostCardSelectionPlan(PromptSemantic.Generic)
+            }
+        val selected =
+            selectCardsWithPlan(
+                Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
+                typeList,
+                1,
+                typeList.size,
+                cancelAllowed = false,
+                plan = plan,
+            ) ?: return null
+        if (CardLists.getTotalPower(selected, ability) < totalPower) return null
+        return PaymentDecision.card(selected)
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
@@ -337,7 +365,7 @@ class CostDecision(
         val c = cost.getAbilityAmount(ability)
         if (saList.size < c) return null
         val exiled = mutableListOf<SpellAbility>()
-        for (i in 0 until c) {
+        repeat(c) {
             val o =
                 controller.gui.oneOrNone(
                     Localizer.getInstance().getMessage("lblExileFromStack"),
@@ -1366,27 +1394,7 @@ class CostDecision(
         }
 
         if (totalPower) {
-            val i = totalP.toInt()
-            val plan =
-                if (cost is CostTeamwork) {
-                    CostDecisionPlanner.teamworkPlan(
-                        totalPower = i,
-                        powers = typeList.map { (it.netPower ?: 0).coerceAtLeast(0) },
-                    ).toCardSelectionPlan()
-                } else {
-                    CostCardSelectionPlan(PromptSemantic.Generic)
-                }
-            val selected =
-                selectCardsWithPlan(
-                    Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
-                    typeList,
-                    1,
-                    typeList.size,
-                    cancelAllowed = false,
-                    plan = plan,
-                ) ?: return null
-            if (CardLists.getTotalPower(selected, ability) < i) return null
-            return PaymentDecision.card(selected)
+            return selectTotalPowerTapCost(cost, typeList, totalP.toInt())
         }
 
         if (c != null && c > typeList.size) {
@@ -1524,7 +1532,7 @@ class CostDecision(
             if (typeList.size < c) return null
             val chosen = CardCollection()
             val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
-            for (i in 0 until c) {
+            repeat(c) {
                 val cv =
                     controller.gui.oneOrNone(
                         Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
@@ -1540,7 +1548,7 @@ class CostDecision(
         if (list.size < c) return null
         val chosen = CardCollection()
         val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(list)
-        for (i in 0 until c) {
+        repeat(c) {
             val cv =
                 controller.gui.oneOrNone(
                     Localizer.getInstance().getMessage("lblFromZonePutToLibrary", cost.from.translatedName),
