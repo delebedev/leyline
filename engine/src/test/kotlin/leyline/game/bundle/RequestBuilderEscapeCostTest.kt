@@ -247,6 +247,58 @@ class RequestBuilderEscapeCostTest :
             }
         }
 
+        test("buildTeamworkCostPayCostsReq emits weighted power cost envelope") {
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val sourceForgeId = 450
+            val candidateForgeIds = listOf(451, 452, 453)
+            val sourceIid = b.getOrAllocInstanceId(ForgeCardId(sourceForgeId)).value
+            val candidateIids = candidateForgeIds.map { b.getOrAllocInstanceId(ForgeCardId(it)).value }
+
+            val request =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Tap creatures with total power 2 or greater",
+                    options = candidateForgeIds.map { "Creature$it" },
+                    min = 1,
+                    max = candidateForgeIds.size,
+                    semantic = PromptSemantic.TeamworkCost,
+                    candidateRefs =
+                        candidateForgeIds.mapIndexed { idx, forgeId ->
+                            PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)
+                        },
+                    costSelectionWeights = listOf(3, 2, 1),
+                    minSelectionWeight = 2,
+                    sourceEntityId = sourceForgeId,
+                )
+            val pending =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "test-teamwork",
+                    request = request,
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val (req, prompt) = RequestBuilder.buildTeamworkCostPayCostsReq(pending, b)
+
+            assertSoftly {
+                req.hasPaymentActions() shouldBe true
+                req.effectCostReq.effectCostType shouldBe EffectCostType.Select_a59c
+                val sel = req.effectCostReq.costSelection
+                sel.minSel shouldBe 2
+                sel.maxSel shouldBe Int.MAX_VALUE
+                sel.context shouldBe SelectionContext.NonManaPayment
+                sel.optionContext shouldBe OptionContext.Payment
+                sel.listType shouldBe SelectionListType.Dynamic
+                sel.idType shouldBe IdType.InstanceId_ab2c
+                sel.validationType shouldBe SelectionValidationType.NonRepeatable
+                sel.minWeight shouldBe Int.MIN_VALUE
+                sel.maxWeight shouldBe Int.MAX_VALUE
+                sel.idsList.toList() shouldBe candidateIids
+                sel.weightsList.toList() shouldBe listOf(3, 2, 1)
+                prompt.promptId shouldBe PromptIds.TEAMWORK_TAP_COST
+                prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe sourceIid
+            }
+        }
+
         test("buildConvokeCostPayCostsReq emits creature MakePayment actions") {
             lateinit var source: Card
             lateinit var blueCreature: Card

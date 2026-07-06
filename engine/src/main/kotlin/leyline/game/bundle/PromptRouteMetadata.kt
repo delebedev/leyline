@@ -49,6 +49,7 @@ object PromptSemanticRouteMetadata {
             PromptSemantic.SelectNCostExileFromGrave,
             PromptSemantic.SelectNCostCollectEvidence,
             PromptSemantic.EnlistCost,
+            PromptSemantic.TeamworkCost,
             PromptSemantic.StationTapCost,
             PromptSemantic.ReturnUnblockedAttackerCost,
             PromptSemantic.ConvokeCost,

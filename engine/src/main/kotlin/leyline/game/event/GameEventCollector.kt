@@ -613,10 +613,13 @@ class GameEventCollector(
                 0
             }
         val additionalCost =
-            if (topSa.isOptionalCostPaid(OptionalCost.Generic) && grpId != 0) {
-                bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND) ?: 0
-            } else {
-                0
+            when {
+                grpId == 0 -> 0
+                topSa.isOptionalCostPaid(OptionalCost.Teamwork) ->
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TEAMWORK) ?: 0
+                topSa.isOptionalCostPaid(OptionalCost.Generic) ->
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND) ?: 0
+                else -> 0
             }
         val x = topSa.xManaCostPaid ?: 0
         return CastingTimeOptionState(kickerAbilityGrpId = kicker, additionalCostGrpId = additionalCost, chosenX = x)

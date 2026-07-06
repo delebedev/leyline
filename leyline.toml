@@ -41,7 +41,7 @@
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
 # Leave disabled when exercising mulligan flow; enable only for scripted probes
 # where the opening-hand dialog would obscure the scenario under test.
-skip_mulligan = false
+skip_mulligan = true
 
 # Send decision timer (rope) on priority grant. Disable to suppress countdown.
 timer = false
