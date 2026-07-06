@@ -40,7 +40,7 @@ class SealedPoolGenerator(
 
         val supplier = UnOpenedProduct(boosterTemplate)
         val grpIds = mutableListOf<Int>()
-        var unmapped = 0
+        val unmapped = mutableListOf<String>()
 
         repeat(6) {
             val pack = supplier.get()
@@ -49,17 +49,20 @@ class SealedPoolGenerator(
                 if (grpId != null) {
                     grpIds.add(grpId)
                 } else {
-                    unmapped++
-                    log.warn("Sealed pool: no grpId for '{}' ({})", card.name, effectiveSet)
+                    unmapped.add(card.name)
                 }
             }
         }
 
+        if (unmapped.isNotEmpty()) {
+            log.error("Sealed pool: no grpId for {} ({})", unmapped, effectiveSet)
+            throw UnmappedCardNamesException(unmapped)
+        }
+
         log.info(
-            "Sealed pool generated: set={} cards={} unmapped={}",
+            "Sealed pool generated: set={} cards={}",
             effectiveSet,
             grpIds.size,
-            unmapped,
         )
 
         // Use a fixed collation ID for FDN — protocol uses per-set collation IDs
