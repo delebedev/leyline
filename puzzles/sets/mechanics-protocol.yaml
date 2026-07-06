@@ -337,6 +337,18 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Shock }
             - opponent_life: 18
             - stack_empty: true
+  - id: harmonize-winternight-stories
+    puzzle: harmonize-winternight-stories
+    run: cast Winternight Stories from graveyard with Harmonize
+    expect: Harmonize cast leaves the graveyard path and emits CastingTimeOption
+    steps:
+      - expect:
+          action: { type: cast, card: Winternight Stories, zone: graveyard, alt_cost: harmonize }
+      - cast: { card: Winternight Stories, zone: graveyard, alt_cost: harmonize }
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_not_contains: { side: ours, zone: graveyard, card: Winternight Stories }
   - id: training-hopeful-initiate
     puzzle: training-hopeful-initiate
     run: attack with Hopeful Initiate and Grizzly Bears

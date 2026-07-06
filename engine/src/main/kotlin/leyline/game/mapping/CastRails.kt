@@ -57,6 +57,7 @@ enum class AltCostKind(
     CLEAVE(KeywordAbilityIds.CLEAVE),
     OVERLOAD(KeywordAbilityIds.OVERLOAD),
     SPECTACLE(KeywordAbilityIds.SPECTACLE),
+    HARMONIZE(KeywordAbilityIds.HARMONIZE),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
     DISGUISE(KeywordAbilityIds.DISGUISE),
@@ -265,6 +266,14 @@ object CastRails {
             FromGraveyard(
                 kind = AltCostKind.JUMP_START,
                 saPredicate = { it.isJumpstart },
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
+            ),
+            FromGraveyard(
+                kind = AltCostKind.HARMONIZE,
+                saPredicate = { it.alternativeCost?.name == "Harmonize" },
+                abilityGrpIdMode = AbilityGrpIdMode.None,
                 echoAlternativeOnMana = true,
                 emitAlternativeSourceZcid = true,
                 omitGrpIdAndFacetId = false,

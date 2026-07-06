@@ -343,6 +343,7 @@ enum class AcceptanceAltCost(
     Overload("overload"),
     Spectacle("spectacle"),
     Escape("escape"),
+    Harmonize("harmonize"),
     Foretell("foretell"),
     Impending("impending"),
     JumpStart("jump_start"),

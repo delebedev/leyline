@@ -46,6 +46,12 @@ class CastRailsTest :
                 abilityGrpId = 7101,
                 manaCost = listOf(ManaColor.Generic to 2, ManaColor.Blue_afc9 to 1),
             )
+        val harmonizeRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.HARMONIZE,
+                abilityGrpId = 7301,
+                manaCost = listOf(ManaColor.Generic to 4, ManaColor.Blue_afc9 to 1),
+            )
         val disturbRow =
             AltCostBinding(
                 keywordBaseId = KeywordAbilityIds.DISTURB,
@@ -94,6 +100,7 @@ class CastRailsTest :
                 foretellRow,
                 escapeRow,
                 flashbackRow,
+                harmonizeRow,
                 disturbRow,
                 plotRow,
                 cleaveRow,
@@ -116,17 +123,19 @@ class CastRailsTest :
             resolveAltGrpId(foretellExile, altCosts, payAction) shouldBe foretellRow.abilityGrpId
         }
 
-        test("Flashback / Disturb / Escape graveyard rails are cost-agnostic per current behavior") {
+        test("Flashback / Disturb / Escape / Harmonize graveyard rails are cost-agnostic per current behavior") {
             val flashback = CastRails.fromGraveyard.first { it.kind == AltCostKind.FLASHBACK }
             val disturb = CastRails.fromGraveyard.first { it.kind == AltCostKind.DISTURB }
             val escape = CastRails.fromGraveyard.first { it.kind == AltCostKind.ESCAPE }
             val jumpStart = CastRails.fromGraveyard.first { it.kind == AltCostKind.JUMP_START }
+            val harmonize = CastRails.fromGraveyard.first { it.kind == AltCostKind.HARMONIZE }
             // Empty payCostPairs still resolves — graveyard rails default to cost-agnostic.
             assertSoftly {
                 resolveAltGrpId(flashback, altCosts, payCostPairs = emptyList()) shouldBe flashbackRow.abilityGrpId
                 resolveAltGrpId(disturb, altCosts, payCostPairs = emptyList()) shouldBe disturbRow.abilityGrpId
                 resolveAltGrpId(escape, altCosts, payCostPairs = emptyList()) shouldBe escapeRow.abilityGrpId
                 resolveAltGrpId(jumpStart, altCosts, payCostPairs = emptyList()) shouldBe jumpStartRow.abilityGrpId
+                resolveAltGrpId(harmonize, altCosts, payCostPairs = emptyList()) shouldBe harmonizeRow.abilityGrpId
             }
         }
 
@@ -213,7 +222,7 @@ class CastRailsTest :
                 CastRails.fromExile.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.PARADIGM, AltCostKind.AIRBEND)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START)
+                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START, AltCostKind.HARMONIZE)
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
                     listOf(
                         AltCostKind.WARP,

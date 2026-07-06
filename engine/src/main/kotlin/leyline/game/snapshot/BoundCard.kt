@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    card's grpId — `EFFECT` engine pieces (grpId=0) and unbound tokens.
  *  - [altCosts] enumerates the alt-cost ability rows the card carries
  *    (Plot, Foretell, Disturb, Escape, Jump-start, Mutate, Impending,
- *    Cleave, Overload, Spectacle, Warp, Sneak, Madness, Flashback, Mobilize). Drives
+ *    Cleave, Overload, Spectacle, Harmonize, Warp, Sneak, Madness, Flashback, Mobilize). Drives
  *    [leyline.game.mapping.ActionMapper]'s
  *    cast-from-non-hand-zone and hand-alt-cost rails.
  *  - [mobilizeCleanup] is the per-card hidden triggered-ability grpId — the
@@ -72,7 +72,7 @@ data class BoundCard(
          * BaseId chain roots that identify alt-cost ability rows on a card.
          * Each appears as the `BaseId` of at most one ability row per printing
          * (Warp/Sneak/Plot/Foretell/Disturb/Escape/Jump-start/Mutate/
-         * Impending/Cleave/Overload/Spectacle/Madness/Flashback/Mobilize).
+         * Impending/Cleave/Overload/Spectacle/Harmonize/Madness/Flashback/Mobilize).
          */
         private val ALT_COST_BASE_IDS: Set<Int> =
             setOf(
@@ -87,6 +87,7 @@ data class BoundCard(
                 KeywordAbilityIds.CLEAVE,
                 KeywordAbilityIds.OVERLOAD,
                 KeywordAbilityIds.SPECTACLE,
+                KeywordAbilityIds.HARMONIZE,
                 KeywordAbilityIds.PLOT,
                 KeywordAbilityIds.MOBILIZE,
                 KeywordAbilityIds.WARP,

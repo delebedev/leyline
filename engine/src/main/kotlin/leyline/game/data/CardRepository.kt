@@ -237,6 +237,7 @@ object KeywordAbilityIds {
     const val CLEAVE = 221
     const val DISGUISE = 307
     const val IMPENDING = 352
+    const val HARMONIZE = 362
     const val PLOT = 328
     const val BACKUP = 287
     const val MOBILIZE = 363
@@ -266,6 +267,7 @@ object KeywordAbilityIds {
             "SNEAK" -> SNEAK
             "OVERLOAD" -> OVERLOAD
             "SPECTACLE" -> SPECTACLE
+            "HARMONIZE" -> HARMONIZE
             "JUMPSTART", "JUMP_START", "JUMP-START" -> JUMP_START
             "FLASHBACK" -> FLASHBACK
             "MADNESS" -> MADNESS
