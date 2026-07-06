@@ -316,6 +316,27 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
             - opponent_life: 20
             - stack_empty: true
+  - id: spectacle-spawn-of-mayhem
+    puzzle: spectacle-spawn-of-mayhem
+    run: cast Shock, then cast Spawn of Mayhem with Spectacle
+    expect: opponent lost life gates the spectacle cast and Spawn of Mayhem resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Shock }
+      - cast: Shock
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          action: { type: cast, card: Spawn of Mayhem, alt_cost: spectacle }
+      - cast: { card: Spawn of Mayhem, alt_cost: spectacle }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_contains: { side: ours, zone: battlefield, card: Spawn of Mayhem }
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - opponent_life: 18
+            - stack_empty: true
   - id: training-hopeful-initiate
     puzzle: training-hopeful-initiate
     run: attack with Hopeful Initiate and Grizzly Bears

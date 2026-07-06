@@ -171,6 +171,35 @@ class AltCostOfferTest :
                     },
                 ),
                 AltCostOfferRow(
+                    mechanic = "Spectacle",
+                    sourceCard = "Spawn of Mayhem",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.SPECTACLE,
+                    seedForgeSurfaces = { _, human, ai ->
+                        ai.setLifeLostThisTurn(1)
+                        repeat(4) { addCard("Swamp", human, ZoneType.Battlefield) }
+                        addCard("Spawn of Mayhem", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, ai ->
+                        ai.setLifeLostThisTurn(1)
+                        repeat(4) { addCard("Swamp", human, ZoneType.Battlefield) }
+                        addCard("Spawn of Mayhem", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Spectacle },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val spectacleOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 1
+                            spectacleOffer should beAltCostOffer(keywordAbilityGrpId)
+                            spectacleOffer!!.grpId shouldBe sourceGrpId
+                            spectacleOffer.facetId shouldBe sourceIid
+                            spectacleOffer.abilityGrpId shouldBe 0
+                            spectacleOffer should haveManaCost(generic = 1, black = 2)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
                     mechanic = "Flashback",
                     sourceCard = "Think Twice",
                     sourceZone = ZoneType.Graveyard,

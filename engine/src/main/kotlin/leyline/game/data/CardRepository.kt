@@ -227,6 +227,7 @@ object KeywordAbilityIds {
     const val MADNESS = 36
     const val OVERLOAD = 97
     const val JUMP_START = 170
+    const val SPECTACLE = 174
     const val MENTOR = 171
     const val ESCAPE = 199
     const val MUTATE = 203
@@ -264,6 +265,7 @@ object KeywordAbilityIds {
             "WARP" -> WARP
             "SNEAK" -> SNEAK
             "OVERLOAD" -> OVERLOAD
+            "SPECTACLE" -> SPECTACLE
             "JUMPSTART", "JUMP_START", "JUMP-START" -> JUMP_START
             "FLASHBACK" -> FLASHBACK
             "MADNESS" -> MADNESS

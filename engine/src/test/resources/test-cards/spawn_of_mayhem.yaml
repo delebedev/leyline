@@ -1,0 +1,19 @@
+name: "Spawn of Mayhem"
+grpId: 69213
+titleId: 279716
+abilities:
+  - id: 122031
+    textId: 279717
+    category: 8
+    baseId: 174
+    mana: "o1oBoB"
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 122032
+    textId: 938269
+    category: 2
+expansionCode: "RNA"

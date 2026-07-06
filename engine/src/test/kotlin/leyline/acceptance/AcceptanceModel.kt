@@ -341,6 +341,7 @@ enum class AcceptanceAltCost(
     Cleave("cleave"),
     Disguise("disguise"),
     Overload("overload"),
+    Spectacle("spectacle"),
     Escape("escape"),
     Foretell("foretell"),
     Impending("impending"),

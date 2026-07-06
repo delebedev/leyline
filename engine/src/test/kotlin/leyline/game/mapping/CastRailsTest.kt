@@ -70,6 +70,12 @@ class CastRailsTest :
                 abilityGrpId = 6201,
                 manaCost = listOf(ManaColor.Generic to 3, ManaColor.Red_afc9 to 3),
             )
+        val spectacleRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.SPECTACLE,
+                abilityGrpId = 6401,
+                manaCost = listOf(ManaColor.Generic to 1, ManaColor.Black_afc9 to 2),
+            )
         val jumpStartRow =
             AltCostBinding(
                 keywordBaseId = KeywordAbilityIds.JUMP_START,
@@ -83,7 +89,19 @@ class CastRailsTest :
                 manaCost = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2),
             )
         val altCosts =
-            listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow, cleaveRow, overloadRow, jumpStartRow, impendingRow)
+            listOf(
+                warpRow,
+                foretellRow,
+                escapeRow,
+                flashbackRow,
+                disturbRow,
+                plotRow,
+                cleaveRow,
+                overloadRow,
+                spectacleRow,
+                jumpStartRow,
+                impendingRow,
+            )
 
         test("Plot exile rail returns universal-149 regardless of altCosts contents") {
             val plotExile = CastRails.fromExile.first { it.kind == AltCostKind.PLOT }
@@ -170,6 +188,16 @@ class CastRailsTest :
             }
         }
 
+        test("Spectacle hand rail is cost-agnostic") {
+            val spectacleHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.SPECTACLE }
+            val matching = listOf(ManaColor.Generic to 1, ManaColor.Black_afc9 to 2)
+            val reduced = listOf(ManaColor.Black_afc9 to 2)
+            assertSoftly {
+                resolveAltGrpId(spectacleHand, altCosts, matching) shouldBe spectacleRow.abilityGrpId
+                resolveAltGrpId(spectacleHand, altCosts, reduced) shouldBe spectacleRow.abilityGrpId
+            }
+        }
+
         test("Impending hand rail is cost-agnostic") {
             val impendingHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.IMPENDING }
             val matching = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2)
@@ -196,6 +224,7 @@ class CastRailsTest :
                         AltCostKind.DISGUISE,
                         AltCostKind.CLEAVE,
                         AltCostKind.OVERLOAD,
+                        AltCostKind.SPECTACLE,
                         AltCostKind.IMPENDING,
                     )
             }
