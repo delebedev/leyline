@@ -63,7 +63,7 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 ## Debugging
 
 - **Logs:** `logs/leyline.log` (read this, don't pipe server output)
-- **Debug endpoints:** `:8090` — local inspection and puzzle control. See `DebugServer.kt` KDoc.
+- **Debug endpoints:** `:8090` — local inspection and puzzle control. Loopback-only by default; set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose on all interfaces. See `DebugServer.kt` KDoc.
 
 ## Reference
 
