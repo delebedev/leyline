@@ -94,26 +94,50 @@ class SimRefRunner(
         File(config.outDir, "simref-summary.json").writeText(simRefSummaryJson(summaries))
     }
 
-    private fun runDeckRow(row: DeckSimClientRow): SimRefRowSummary {
+    private fun runDeckRow(row: DeckSimClientRow): SimRefRowSummary =
+        runRow(
+            row,
+            prepare = { useCardDb ->
+                if (!useCardDb) {
+                    TestCardRegistry.ensureDeckRegistered(row.deckList)
+                    row.opponentDeckList?.let(TestCardRegistry::ensureDeckRegistered)
+                }
+            },
+        ) { bridge, ledger, _ ->
+            bridge.startAiVsAi(
+                seed = row.seed,
+                deckList1 = row.deckList,
+                deckList2 = row.opponentDeckList ?: row.deckList,
+                aiControllerFactory = tappingAiFactory(bridge, ledger),
+            )
+            checkNotNull(bridge.getGame()) { "sim-ref game missing after start" }
+        }
+
+    private fun runPuzzleRow(row: PuzzleSimClientRow): SimRefRowSummary =
+        runRow(row) { bridge, ledger, useCardDb ->
+            bridge.startPuzzle(
+                PuzzleSource.loadFromText(row.puzzleText, row.name),
+                aiControllerFactory = tappingAiFactory(bridge, ledger),
+            )
+            val game = checkNotNull(bridge.getGame()) { "sim-ref puzzle game missing after start" }
+            if (!useCardDb) TestCardRegistry.registerPuzzleCards(game)
+            game
+        }
+
+    private fun runRow(
+        row: SimClientRow,
+        prepare: (Boolean) -> Unit = {},
+        start: (GameBridge, SimRefDecisionLedger, Boolean) -> Game,
+    ): SimRefRowSummary {
         GameBootstrap.initializeCardDatabase(quiet = true)
         val useCardDb = row.useCardDb || resolvedCardDbPath != null
-        if (!useCardDb) {
-            TestCardRegistry.ensureRegistered()
-            TestCardRegistry.ensureDeckRegistered(row.deckList)
-            row.opponentDeckList?.let(TestCardRegistry::ensureDeckRegistered)
-        }
+        if (!useCardDb) TestCardRegistry.ensureRegistered()
+        prepare(useCardDb)
 
         val ledger = SimRefDecisionLedger()
         val startedAt = System.nanoTime()
         val logTap = GameLogCollector().apply { start() }
-        val bridge =
-            GameBridge(
-                bridgeTimeoutMs = 5_000L,
-                promptFailsafeMs = 5_000L,
-                matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
-                messageCounter = MessageCounter(),
-                cardRepository = if (useCardDb) cardRepo else TestCardRegistry.repo,
-            )
+        val bridge = createBridge(useCardDb)
         var turn = 0
         var gameOver = false
         var completionReason = "exception"
@@ -122,21 +146,7 @@ class SimRefRunner(
         var outcome = SimRefFinalOutcome()
         var collectedLogs = CollectedLogs(emptyMap(), emptyMap(), emptyList())
         try {
-            bridge.startAiVsAi(
-                seed = row.seed,
-                deckList1 = row.deckList,
-                deckList2 = row.opponentDeckList ?: row.deckList,
-                aiControllerFactory = { game, player ->
-                    TappingPlayerControllerAi(
-                        game = game,
-                        player = player,
-                        lobbyPlayer = player.lobbyPlayer,
-                        ledger = ledger,
-                        seatOf = { bridge.seatOf(it)?.value ?: 0 },
-                    )
-                },
-            )
-            val game = checkNotNull(bridge.getGame()) { "sim-ref game missing after start" }
+            val game = start(bridge, ledger, useCardDb)
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(config.gameTimeoutSeconds)
             while (!game.isGameOver && game.phaseHandler.turn <= config.maxTurns && System.nanoTime() < deadline) {
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
@@ -184,88 +194,28 @@ class SimRefRunner(
         return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason, outcome)
     }
 
-    private fun runPuzzleRow(row: PuzzleSimClientRow): SimRefRowSummary {
-        GameBootstrap.initializeCardDatabase(quiet = true)
-        val useCardDb = row.useCardDb || resolvedCardDbPath != null
-        if (!useCardDb) TestCardRegistry.ensureRegistered()
-
-        val ledger = SimRefDecisionLedger()
-        val startedAt = System.nanoTime()
-        val logTap = GameLogCollector().apply { start() }
-        val bridge =
-            GameBridge(
-                bridgeTimeoutMs = 5_000L,
-                promptFailsafeMs = 5_000L,
-                matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
-                messageCounter = MessageCounter(),
-                cardRepository = if (useCardDb) cardRepo else TestCardRegistry.repo,
-            )
-        var turn = 0
-        var gameOver = false
-        var completionReason = "exception"
-        var exceptionMessage: String? = null
-        var exceptionStackTop: String? = null
-        var outcome = SimRefFinalOutcome()
-        var collectedLogs = CollectedLogs(emptyMap(), emptyMap(), emptyList())
-        try {
-            bridge.startPuzzle(
-                PuzzleSource.loadFromText(row.puzzleText, row.name),
-                aiControllerFactory = { game, player ->
-                    TappingPlayerControllerAi(
-                        game = game,
-                        player = player,
-                        lobbyPlayer = player.lobbyPlayer,
-                        ledger = ledger,
-                        seatOf = { bridge.seatOf(it)?.value ?: 0 },
-                    )
-                },
-            )
-            if (!useCardDb) TestCardRegistry.registerPuzzleCards(bridge.getGame() ?: error("sim-ref puzzle game missing after start"))
-            val game = checkNotNull(bridge.getGame()) { "sim-ref puzzle game missing after start" }
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(config.gameTimeoutSeconds)
-            while (!game.isGameOver && game.phaseHandler.turn <= config.maxTurns && System.nanoTime() < deadline) {
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
-            }
-            turn = game.phaseHandler.turn
-            gameOver = game.isGameOver
-            outcome = finalOutcome(game)
-            completionReason =
-                when {
-                    gameOver -> "natural"
-                    System.nanoTime() >= deadline -> "wall-timeout"
-                    turn > config.maxTurns -> "max-turns"
-                    else -> "incomplete"
-                }
-        } catch (t: Throwable) {
-            exceptionMessage = "${t::class.java.name}: ${t.message.orEmpty()}".trimEnd()
-            exceptionStackTop = t.stackTrace.firstOrNull()?.toString()
-        } finally {
-            runCatching { bridge.shutdown() }
-            collectedLogs = logTap.stopAndDrain()
-        }
-        val durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-        val decisions = ledger.snapshot().filter { it.turn <= config.maxTurns }
-        File(
-            config.outDir,
-            "${row.tag}.refdecisions.json",
-        ).writeText(
-            simRefDecisionsJson(
-                SimRefDecisionReport(
-                    row = row,
-                    decisions = decisions,
-                    durationMs = durationMs,
-                    gameOver = gameOver,
-                    turn = turn,
-                    completionReason = completionReason,
-                    exceptionMessage = exceptionMessage,
-                    exceptionStackTop = exceptionStackTop,
-                    outcome = outcome,
-                    logs = collectedLogs,
-                ),
-            ),
+    private fun createBridge(useCardDb: Boolean): GameBridge =
+        GameBridge(
+            bridgeTimeoutMs = 5_000L,
+            promptFailsafeMs = 5_000L,
+            matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
+            messageCounter = MessageCounter(),
+            cardRepository = if (useCardDb) cardRepo else TestCardRegistry.repo,
         )
-        return SimRefRowSummary(row.tag, row.runLabel, row.seed, durationMs, turn, gameOver, decisions.size, completionReason, outcome)
-    }
+
+    private fun tappingAiFactory(
+        bridge: GameBridge,
+        ledger: SimRefDecisionLedger,
+    ): (Game, Player) -> PlayerControllerAi =
+        { game, player ->
+            TappingPlayerControllerAi(
+                game = game,
+                player = player,
+                lobbyPlayer = player.lobbyPlayer,
+                ledger = ledger,
+                seatOf = { bridge.seatOf(it)?.value ?: 0 },
+            )
+        }
 
     private fun finalOutcome(game: Game): SimRefFinalOutcome {
         val lifeBySeat =
