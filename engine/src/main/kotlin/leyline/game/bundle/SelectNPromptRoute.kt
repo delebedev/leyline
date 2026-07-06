@@ -94,6 +94,7 @@ internal enum class PayCostsRouteKind {
     CollectEvidence,
     StationTapCost,
     EnlistCost,
+    TeamworkCost,
     ConvokeCost,
     WaterbendCost,
 }
@@ -119,6 +120,7 @@ internal data class PayCostsPromptRoute(
             PayCostsRouteKind.CollectEvidence -> CollectEvidencePayCostsBuilder.build(prompt, bridge)
             PayCostsRouteKind.StationTapCost -> RequestBuilder.buildStationTapCostPayCostsReq(prompt, bridge)
             PayCostsRouteKind.EnlistCost -> RequestBuilder.buildEnlistCostPayCostsReq(prompt, bridge)
+            PayCostsRouteKind.TeamworkCost -> RequestBuilder.buildTeamworkCostPayCostsReq(prompt, bridge)
             PayCostsRouteKind.ConvokeCost -> RequestBuilder.buildConvokeCostPayCostsReq(prompt, bridge)
             PayCostsRouteKind.WaterbendCost -> RequestBuilder.buildWaterbendCostPayCostsReq(prompt, bridge)
         }
@@ -290,6 +292,11 @@ internal object SelectNPromptRoutes {
                 semantic = PromptSemantic.EnlistCost,
                 kind = PayCostsRouteKind.EnlistCost,
                 templateLabel = "enlist",
+            ),
+            PayCostsPromptRoute(
+                semantic = PromptSemantic.TeamworkCost,
+                kind = PayCostsRouteKind.TeamworkCost,
+                templateLabel = "teamwork",
             ),
         ).associateBy { it.semantic }
 

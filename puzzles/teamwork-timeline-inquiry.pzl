@@ -1,0 +1,17 @@
+[metadata]
+Name:Teamwork - Timeline Inquiry
+Goal:Cast Timeline Inquiry using Teamwork.
+Turns:3
+Difficulty:Easy
+Description:Choose the Teamwork additional cost, tap Coral Merfolk for total power, and resolve Timeline Inquiry.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Timeline Inquiry
+humanbattlefield=Island;Island;Island;Island;Coral Merfolk;Grizzly Bears
+humanlibrary=Island;Island;Island;Island
+ailibrary=Mountain;Mountain;Mountain

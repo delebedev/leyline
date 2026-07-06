@@ -151,8 +151,10 @@ internal class DeferredCastCostInteractionHandler(
                         else -> CastingTimeOptionType.AdditionalCost
                     }
                 val abilityGrpId =
-                    if (cost.type == forge.game.spellability.OptionalCost.Bargain) {
-                        findKeywordSlot(card, "Bargain", keywordCount)
+                    if (cost.type == forge.game.spellability.OptionalCost.Bargain ||
+                        cost.type == forge.game.spellability.OptionalCost.Teamwork
+                    ) {
+                        findKeywordSlot(card, cost.type.name, keywordCount)
                             ?.let { cardData?.abilityIds?.getOrNull(it)?.first }
                             ?: 0
                     } else {

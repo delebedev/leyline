@@ -1367,13 +1367,23 @@ class CostDecision(
 
         if (totalPower) {
             val i = totalP.toInt()
+            val plan =
+                if (cost is CostTeamwork) {
+                    CostDecisionPlanner.teamworkPlan(
+                        totalPower = i,
+                        powers = typeList.map { (it.netPower ?: 0).coerceAtLeast(0) },
+                    ).toCardSelectionPlan()
+                } else {
+                    CostCardSelectionPlan(PromptSemantic.Generic)
+                }
             val selected =
-                selectCards(
+                selectCardsWithPlan(
                     Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
                     typeList,
                     1,
                     typeList.size,
                     cancelAllowed = false,
+                    plan = plan,
                 ) ?: return null
             if (CardLists.getTotalPower(selected, ability) < i) return null
             return PaymentDecision.card(selected)

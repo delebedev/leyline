@@ -214,6 +214,7 @@ object KeywordAbilityIds {
     const val ENLIST = 261
     const val STATION = 373
     const val FIREBENDING = 379
+    const val TEAMWORK = 412
     const val WATERBEND = 8100003
     const val RECONFIGURE_UNATTACH = 244
 
