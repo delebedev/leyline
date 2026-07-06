@@ -187,6 +187,36 @@ object WebOpenApi {
                 },
             )
             put("/api/draft", buildJsonObject { put("delete", operation(responses = authFailures() + mapOf("204" to null))) })
+            put("/api/sealed/sets", buildJsonObject { put("get", operation(response = arrayRef("LimitedSetView"))) })
+            put(
+                "/api/sealed/start",
+                buildJsonObject {
+                    put("post", operation(request = ref("StartDraftRequest"), response = ref("CourseView"), responses = authFailures()))
+                },
+            )
+            put(
+                "/api/sealed/deck",
+                buildJsonObject {
+                    put(
+                        "post",
+                        operation(
+                            request = ref("SubmitDeckRequest"),
+                            response = ref("CourseView"),
+                            responses = authFailures() + mapOf("400" to null),
+                        ),
+                    )
+                },
+            )
+            put(
+                "/api/sealed/play",
+                buildJsonObject {
+                    put(
+                        "post",
+                        operation(request = ref("PlayDraftRequest"), response = ref("DraftPlayResponse"), responses = authFailures()),
+                    )
+                },
+            )
+            put("/api/sealed", buildJsonObject { put("delete", operation(responses = authFailures() + mapOf("204" to null))) })
         }
 
     private fun authFailures(): Map<String, JsonElement?> = mapOf("401" to null, "403" to null)
@@ -274,6 +304,8 @@ object WebOpenApi {
             component("CreateDeckRequest", CreateDeckRequest.serializer())
             component("DeckView", DeckView.serializer())
             component("CollectionView", CollectionView.serializer())
+            component("LimitedSetView", LimitedSetView.serializer())
+            component("LimitedSetArchetypeView", LimitedSetArchetypeView.serializer())
             component("AuthView", AuthView.serializer())
             component("RequestLoginCodeRequest", RequestLoginCodeRequest.serializer())
             component("VerifyLoginCodeRequest", VerifyLoginCodeRequest.serializer())

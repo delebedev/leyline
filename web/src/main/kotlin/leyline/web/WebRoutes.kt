@@ -50,6 +50,7 @@ data class WebServices(
     val matchLauncher: WebMatchLauncher,
     val authService: WebAuthService,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
+    val sealedSets: () -> List<LimitedSetView> = { emptyList() },
 )
 
 interface WebMatchLauncher {
@@ -127,9 +128,6 @@ fun Application.installWeb(services: WebServices) {
                     ),
                 )
             }
-            get("/sealed/sets") {
-                call.respond(listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "draft", cardCount = 0)))
-            }
             get("/cards/metadata") { call.respond(cardMetadataView(services.cardRepository)) }
             route("/courses") {
                 get {
@@ -159,6 +157,7 @@ fun Application.installWeb(services: WebServices) {
                 }
             }
             installDraftRoutes(services)
+            installSealedRoutes(services)
         }
     }
 }
@@ -228,6 +227,51 @@ private fun Route.installDraftRoutes(services: WebServices) {
             val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
             services.draftService.drop(playerId, eventName)
+            services.courseService.drop(playerId, eventName)
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+}
+
+/**
+ * Sealed's course-lifecycle shape mirrors draft's (start/deck/play/drop) minus
+ * pack picking — [CourseService.join] already generates and persists the pool
+ * for a sealed eventName, so start is a thin wrapper around it. Status reads
+ * go through the existing `/api/courses` list rather than a duplicate route,
+ * since sealed courses (unlike draft sessions) live in [CourseService] alone.
+ */
+private fun Route.installSealedRoutes(services: WebServices) {
+    route("/sealed") {
+        get("/sets") {
+            call.respond(services.sealedSets())
+        }
+        post("/start") {
+            val request = call.receive<StartDraftRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            require(EventRegistry.isSealed(request.eventName)) { "${request.eventName} is not a sealed event" }
+            call.respond(courseView(services.courseService.join(playerId, request.eventName)))
+        }
+        post("/deck") {
+            val request = call.receive<SubmitDeckRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
+            val course =
+                services.courseService.setDeck(
+                    playerId,
+                    request.eventName,
+                    request.toCourseDeck(),
+                    request.toCourseSummary(),
+                )
+            call.respond(courseView(course))
+        }
+        post("/play") {
+            val request = call.receive<PlayDraftRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            call.respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
+        }
+        delete {
+            val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
+            val eventName = call.requiredQuery("eventName")
             services.courseService.drop(playerId, eventName)
             call.respond(HttpStatusCode.NoContent)
         }

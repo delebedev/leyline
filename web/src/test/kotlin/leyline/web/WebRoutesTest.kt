@@ -30,6 +30,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.domain.CollationPool
 import leyline.domain.Course
 import leyline.domain.CourseId
 import leyline.domain.Deck
@@ -310,6 +311,77 @@ class WebRoutesTest :
             }
         }
 
+        test("starts sealed course with generated pool") {
+            withWeb { client, repos ->
+                val login = client.login(repos)
+                val response =
+                    client.post("/api/sealed/start") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                    }
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body["module"]!!.jsonPrimitive.content shouldBe "DeckSelect"
+                    body["cardPool"]!!.jsonArray.size shouldBe 2
+                }
+            }
+        }
+
+        test("rejects sealed start for a non-sealed event") {
+            withWeb { client, repos ->
+                val login = client.login(repos)
+                val response =
+                    client.post("/api/sealed/start") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
+                    }
+
+                response.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("submits sealed deck, plays, and drops the course") {
+            withWeb { client, repos ->
+                val login = client.login(repos)
+                client.post("/api/sealed/start") {
+                    header(HttpHeaders.Cookie, login.cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                }
+                val deckResponse =
+                    client.post("/api/sealed/deck") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody(
+                            """
+                            {"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307","name":"Sealed Deck",
+                            "mainDeck":[{"grpId":100,"quantity":40}]}
+                            """.trimIndent(),
+                        )
+                    }
+                val playResponse =
+                    client.post("/api/sealed/play") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                    }
+                val dropResponse =
+                    client.delete("/api/sealed?playerId=${login.playerId}&eventName=Sealed_FDN_20260307") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                    }
+
+                assertSoftly {
+                    deckResponse.status shouldBe HttpStatusCode.OK
+                    playResponse.status shouldBe HttpStatusCode.OK
+                    dropResponse.status shouldBe HttpStatusCode.NoContent
+                }
+            }
+        }
+
         test("auth creates and revokes opaque web session") {
             withWeb { client, repos ->
                 val request =
@@ -370,7 +442,13 @@ private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Uni
                 courseService =
                     CourseService(
                         repos.course,
-                    ) { GeneratedPool(cards = emptyList(), byCollation = emptyList(), collationId = 0) },
+                    ) {
+                        GeneratedPool(
+                            cards = listOf(100, 101),
+                            byCollation = listOf(CollationPool(0, listOf(100, 101))),
+                            collationId = 0,
+                        )
+                    },
                 deckService = DeckService(repos.deck),
                 collectionService = CollectionService { listOf(100, 101) },
                 cardRepository = repos.cards,
@@ -388,6 +466,7 @@ private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Uni
                         ) = DraftPlayResponse("match-1", "wire-1")
                     },
                 greRelay = repos.relay,
+                sealedSets = { listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "core", cardCount = 281)) },
             )
         application { installWeb(services) }
         block(client, repos)

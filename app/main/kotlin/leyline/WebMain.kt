@@ -27,6 +27,7 @@ import leyline.web.EmbeddedWebGreEngineSession
 import leyline.web.GreStartRequest
 import leyline.web.InMemoryRateLimiter
 import leyline.web.InProcessWebGreRelay
+import leyline.web.LimitedSetView
 import leyline.web.ResendEmailSender
 import leyline.web.SqliteWebAuthStore
 import leyline.web.WebAuthService
@@ -121,6 +122,11 @@ fun main(args: Array<String>) {
                     rateLimitConfig = AuthRateLimitConfig.fromEnv(),
                     fixedLoginCode = resolveFixedLoginCode(System.getenv()),
                 ),
+            sealedSets = {
+                SealedPoolGenerator.supportedSets().map {
+                    LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)
+                }
+            },
         )
 
     embeddedServer(Netty, host = "127.0.0.1", port = port) { installWeb(services) }.start(wait = true)

@@ -148,7 +148,11 @@ class AppMatchCoordinator(
     ): Pair<String, String> {
         val course = courseService.getCourse(playerId, eventName) ?: missingCourseState("No course for $eventName")
         val deck = course.deck ?: missingCourseState("No course deck for $eventName")
-        val seat2Json = resolveOpponentDeckJson(playerId, eventName) ?: missingCourseState("No pod opponent for $eventName")
+        // Draft events have a pod of bot decks from the draft; sealed events don't
+        // (no bots were seated to draft alongside the player), so mirror the
+        // player's own deck as the opponent — same fallback the native Match Door
+        // uses in MatchHandler.resolveSeat2Deck when no pod is available.
+        val seat2Json = resolveOpponentDeckJson(playerId, eventName) ?: cardsToJson(deck.mainDeck, deck.sideboard)
         courseByMatchId[matchId] = playerId to eventName
         return DeckConverter.toDeckText(deck.mainDeck.toCardEntries(), deck.sideboard.toCardEntries(), nameByGrpId = nameByGrpId) to
             jsonCardsToDeckText(seat2Json)

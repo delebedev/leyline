@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
@@ -13,7 +14,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import leyline.FdTag
 import leyline.domain.CollationPool
 import leyline.domain.Course
+import leyline.domain.CourseDeck
 import leyline.domain.CourseId
+import leyline.domain.CourseModule
 import leyline.domain.Deck
 import leyline.domain.DeckCard
 import leyline.domain.DeckId
@@ -116,13 +119,14 @@ class AppMatchCoordinatorTest :
             draftRepo: FakeDraftRepo = FakeDraftRepo(),
             courseRepo: FakeCourseRepo = FakeCourseRepo(),
             deckRepo: FakeDeckRepo = FakeDeckRepo(),
+            nameByGrpId: (Int) -> String? = { null },
         ): AppMatchCoordinator {
             val deckService = DeckService(deckRepo)
             val courseService =
                 CourseService(courseRepo) {
                     GeneratedPool(emptyList(), listOf(CollationPool(0, emptyList())), 0)
                 }
-            return AppMatchCoordinator(playerId, deckService, courseService, draftRepo)
+            return AppMatchCoordinator(playerId, deckService, courseService, draftRepo, nameByGrpId)
         }
 
         fun deck(
@@ -308,5 +312,46 @@ class AppMatchCoordinatorTest :
             val secondMain = Json.parseToJsonElement(coord.resolveOpponentDeckJson(event)!!).jsonObject["MainDeck"]!!.jsonArray
             secondMain.size shouldBe 1
             secondMain[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 701
+        }
+
+        test("configureCourseMatch mirrors seat1 as the opponent when no draft pod exists") {
+            val courseRepo = FakeCourseRepo()
+            val sealedEvent = "Sealed_FDN_20260307"
+            courseRepo.save(
+                Course(
+                    id = CourseId("c1"),
+                    playerId = playerId,
+                    eventName = sealedEvent,
+                    module = CourseModule.CreateMatch,
+                    deck = CourseDeck(DeckId("d1"), listOf(DeckCard(101, 23)), emptyList()),
+                ),
+            )
+
+            val (seat1Deck, seat2Deck) = coordinator(courseRepo = courseRepo).configureCourseMatch("match-1", playerId, sealedEvent)
+
+            seat1Deck shouldBe seat2Deck
+        }
+
+        test("configureCourseMatch uses the draft pod as opponent when one exists") {
+            val draftRepo = FakeDraftRepo()
+            val courseRepo = FakeCourseRepo()
+            val sessionId = DraftSessionId("d1")
+            draftRepo.save(DraftSession(id = sessionId, playerId = playerId, eventName = event, status = DraftStatus.Completed))
+            draftRepo.savePodResults(sessionId, listOf(listOf(101)) + List(6) { listOf(900 + it) })
+            courseRepo.save(
+                Course(
+                    id = CourseId("c1"),
+                    playerId = playerId,
+                    eventName = event,
+                    module = CourseModule.CreateMatch,
+                    deck = CourseDeck(DeckId("d1"), listOf(DeckCard(200, 40)), emptyList()),
+                ),
+            )
+
+            val names = mapOf(101 to "Pod Card", 200 to "Seat One Card")
+            val (seat1Deck, seat2Deck) =
+                coordinator(draftRepo, courseRepo, nameByGrpId = names::get).configureCourseMatch("match-1", playerId, event)
+
+            seat1Deck shouldNotBe seat2Deck
         }
     })

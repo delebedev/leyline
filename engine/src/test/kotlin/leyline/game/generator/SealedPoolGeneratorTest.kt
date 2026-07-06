@@ -36,4 +36,12 @@ class SealedPoolGeneratorTest :
             val generator = SealedPoolGenerator(AlwaysMissingSealedCardRepository())
             shouldThrow<UnmappedCardNamesException> { generator.generate("FDN") }
         }
+
+        test("supportedSets enumerates the known Arena collation sets with real edition names") {
+            val sets = SealedPoolGenerator.supportedSets()
+
+            val fdn = sets.first { it.code == "FDN" }
+            fdn.name shouldBe "Foundations"
+            sets.size shouldBe 16
+        }
     })

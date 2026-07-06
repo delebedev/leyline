@@ -488,6 +488,139 @@
                     }
                 }
             }
+        },
+        "/api/sealed/sets": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/LimitedSetView"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/sealed/start": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartDraftRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CourseView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/sealed/deck": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SubmitDeckRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CourseView"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/sealed/play": {
+            "post": {
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlayDraftRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DraftPlayResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/sealed": {
+            "delete": {
+                "responses": {
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "204": {
+                        "description": "No content"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -949,6 +1082,89 @@
                 },
                 "required": [
                     "grpIds"
+                ],
+                "additionalProperties": false
+            },
+            "LimitedSetView": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "date": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "cardCount": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "mechanics": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "archetypes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "pair": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "strategy": {
+                                    "type": "string",
+                                    "nullable": true
+                                }
+                            },
+                            "required": [
+                                "pair",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "code",
+                    "name"
+                ],
+                "additionalProperties": false
+            },
+            "LimitedSetArchetypeView": {
+                "type": "object",
+                "properties": {
+                    "pair": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "strategy": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "pair",
+                    "name"
                 ],
                 "additionalProperties": false
             },
