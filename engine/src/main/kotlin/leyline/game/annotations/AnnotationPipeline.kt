@@ -65,6 +65,19 @@ object AnnotationPipeline {
      * descriptive: it records the canonical contribution order the call sites
      * already follow. The boundary fitness function asserts over this list; a new
      * contributor must be both registered here and invoked at a call site.
+     *
+     * **Placement for a new mechanic's annotation emission:**
+     * - Persistent lifecycle annotation (dedup/expire tracked across GSMs) →
+     *   a [leyline.game.state.PersistentAnnotationKind] row in
+     *   [leyline.game.state.PersistentAnnotationKinds.all].
+     * - Transient annotation tied to a zone-transfer, combat, or phase spine
+     *   event → emit inline at that event's existing call site (see
+     *   [assembleTransferAndCombatAnnotations]).
+     * - Mechanic-scoped transient annotation independent of spine ordering →
+     *   an [AnnotationContributor] entry here.
+     * - Effect-id-lifecycle annotation (boost/keyword-style continuous effect)
+     *   → the [EffectTracker] diff channel (`bridge.effects` in `StateMapper`),
+     *   not this registry.
      */
     val contributors: List<AnnotationContributor> =
         listOf(

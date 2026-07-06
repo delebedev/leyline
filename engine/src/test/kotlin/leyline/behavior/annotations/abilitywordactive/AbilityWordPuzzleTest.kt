@@ -52,7 +52,7 @@ class AbilityWordPuzzleTest :
             // not re-emitted on subsequent Diffs (protocol spec). Assert on the
             // store directly — this is a computation test, not wire shape.
             val awAnns =
-                b.annotations.getAll().filter {
+                b.annotations.snapshot().values.filter {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             assertSoftly {
@@ -75,7 +75,7 @@ class AbilityWordPuzzleTest :
 
             // Initial value from the store (baseline) — value=5.
             val aw1 =
-                b.annotations.getAll().first {
+                b.annotations.snapshot().values.first {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             aw1.detailInt("value") shouldBe 5
@@ -89,7 +89,7 @@ class AbilityWordPuzzleTest :
 
             // Post-action store — value should be 6.
             val aw2 =
-                b.annotations.getAll().first {
+                b.annotations.snapshot().values.first {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             aw2.detailInt("value") shouldBe 6

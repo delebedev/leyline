@@ -1107,11 +1107,13 @@ class BundleBuilder(
 
     /**
      * PayCosts bundle: GameState + PayCostsReq.
-     * Tells the client to show its native mana payment UI.
+     * Tells the client to show its native cost-selection UI (mana source
+     * payment, sacrifice, exile-from-graveyard additional costs, convoke).
      *
-     * Currently unused — mana payment auto-resolves via the engine's AI
-     * mana solver + checkPendingPrompt(). Wire this in when implementing
-     * interactive mana payment in the compatibility flow.
+     * Merges any [promptPersistentAnnotations] not already present in the
+     * frame diff's GSM, so the prompt carries pAnns the client needs to
+     * render the candidates (e.g. convoke tap counts) even when the diff
+     * itself wouldn't have emitted them this tick.
      *
      * The client responds with PerformActionResp (already handled).
      */

@@ -37,7 +37,4 @@ class TokenIdentityRegistry {
     fun clear() {
         grpIds.clear()
     }
-
-    /** Number of tracked tokens (test visibility). */
-    fun size(): Int = grpIds.size
 }

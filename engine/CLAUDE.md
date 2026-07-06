@@ -15,9 +15,13 @@ game/        Engine state -> GRE protobuf mapping, annotations, data, generators
 infra/       Message sinks and output plumbing.
 match/       MatchHandler, MatchSession, FamiliarSession, combat/targeting/mulligan/puzzle handlers.
 protocol/    GRE handshake/proto dump helpers. TCP frame codecs live in native.protocol.
-tooling/     Headless harnesses, simclient, test tooling.
 ```
 
-ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process.
+`leyline.tooling` (headless match harness, simclient) lives in the separate `harness`
+source set (`src/harness/kotlin/`, not `src/main/`) so none of it ships in the engine
+jar. It compiles against main's classes and is on the classpath for engine tests and
+the `simclient`/`simref` JavaExec tasks.
+
+ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process. Concrete rules live in `PackageLayeringTest` (`engine/src/test/kotlin/leyline/architecture/`); match-handler constructor contracts are enforced alongside it in `HandlerConstructorContractTest`.
 
 Read `docs/forge-api-concepts.md` before changing Forge-facing code.

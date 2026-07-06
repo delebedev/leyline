@@ -128,7 +128,7 @@ internal class DeferredCastCostInteractionHandler(
         if (optionalCosts.isEmpty() && keywordCostEntries.isEmpty()) return false
 
         log.info(
-            "TargetingHandler: card '{}' has {} optional costs and {} keyword costs — sending prompt",
+            "DeferredCastCostInteractionHandler: card '{}' has {} optional costs and {} keyword costs — sending prompt",
             card.name,
             optionalCosts.size,
             keywordCostEntries.size,
@@ -262,7 +262,7 @@ internal class DeferredCastCostInteractionHandler(
         val acceptedIndices = if (isOptionalCostPick) listOf(chosenCtoId - 1) else emptyList()
 
         log.info(
-            "TargetingHandler: optional cost response ctoId={} accepted={} indices={} keywordPick={}",
+            "DeferredCastCostInteractionHandler: optional cost response ctoId={} accepted={} indices={} keywordPick={}",
             chosenCtoId,
             accepted,
             acceptedIndices,
@@ -275,7 +275,7 @@ internal class DeferredCastCostInteractionHandler(
         if (pending.keywordCostsByCtoId.isNotEmpty()) {
             val decisions = pending.keywordCostsByCtoId.entries.associate { (ctoId, kwName) -> kwName to (chosenCtoId == ctoId) }
             seatBridge.prompt.journal.record(PromptSideEffect.KeywordCostStash(decisions))
-            log.info("TargetingHandler: keyword cost decisions stashed: {}", decisions)
+            log.info("DeferredCastCostInteractionHandler: keyword cost decisions stashed: {}", decisions)
         }
 
         val pendingAction = seatBridge.action.getPending()
@@ -284,7 +284,7 @@ internal class DeferredCastCostInteractionHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: optional cost response but no pending engine action (likely timeout race)")
+            log.warn("DeferredCastCostInteractionHandler: optional cost response but no pending engine action (likely timeout race)")
             DevCheck.failOnAutoPass { "optional cost response but no pending engine action" }
         }
     }
@@ -322,7 +322,7 @@ internal class DeferredCastCostInteractionHandler(
         val choices = promptChoices.reorderHybridChoices(pending.promptColors, pending.paymentColors)
         val seatBridge = bridge.seat(counters.seatId)
         seatBridge.prompt.journal.record(PromptSideEffect.HybridManaStash(choices))
-        log.info("TargetingHandler: hybrid mana type choices stashed: prompt={} payment={}", promptChoices, choices)
+        log.info("DeferredCastCostInteractionHandler: hybrid mana type choices stashed: prompt={} payment={}", promptChoices, choices)
 
         if (checkOptionalCosts(pending.clientAction, pending.pendingActionId, pending.castAbilityIndex, preserveHybridStash = true)) {
             Tap.outboundTemplate("Cast deferred — optional cost prompt sent after hybrid mana type")
@@ -335,7 +335,7 @@ internal class DeferredCastCostInteractionHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: hybrid mana response but no pending engine action (likely timeout race)")
+            log.warn("DeferredCastCostInteractionHandler: hybrid mana response but no pending engine action (likely timeout race)")
             DevCheck.failOnAutoPass { "hybrid mana response but no pending engine action" }
         }
     }
@@ -357,7 +357,9 @@ internal class DeferredCastCostInteractionHandler(
             bridge.awaitPriority()
             autoPass()
         } else {
-            log.warn("TargetingHandler: alternate cost choice response but no pending engine action (likely timeout race)")
+            log.warn(
+                "DeferredCastCostInteractionHandler: alternate cost choice response but no pending engine action (likely timeout race)",
+            )
             DevCheck.failOnAutoPass { "alternate cost choice response but no pending engine action" }
         }
     }

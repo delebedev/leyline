@@ -89,9 +89,9 @@ class EffectTrackerTest :
             result.created[0].syntheticId shouldNotBe result.created[1].syntheticId
         }
 
-        test("emitInitEffects returns 3 Created+Destroyed pairs with IDs 7002-7004") {
+        test("emitInitEffectsOnce returns 3 Created+Destroyed pairs with IDs 7002-7004") {
             val tracker = EffectTracker()
-            val result = tracker.emitInitEffects()
+            val result = tracker.emitInitEffectsOnce()
 
             assertSoftly {
                 result.created.size shouldBe 3

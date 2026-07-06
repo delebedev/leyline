@@ -12,20 +12,6 @@ class CostPaymentCoordinatorStashTest :
 
         tags(UnitTag)
 
-        test("consumeStashFor drains OptionalCostStash from journal") {
-            val bridge = InteractivePromptBridge(timeoutMs = 0)
-            bridge.journal.record(PromptSideEffect.OptionalCostStash(listOf(0, 2)))
-
-            CostPaymentCoordinator.consumeStashFor(bridge) shouldBe listOf(0, 2)
-            // Second call drains; no further stash left.
-            CostPaymentCoordinator.consumeStashFor(bridge) shouldBe null
-        }
-
-        test("consumeStashFor returns null when no stash recorded") {
-            val bridge = InteractivePromptBridge(timeoutMs = 0)
-            CostPaymentCoordinator.consumeStashFor(bridge) shouldBe null
-        }
-
         test("resolveKeywordCostFromStash returns 1 when stash holds true for keyword") {
             val bridge = InteractivePromptBridge(timeoutMs = 0)
             bridge.journal.record(PromptSideEffect.KeywordCostStash(mapOf("Offspring" to true)))

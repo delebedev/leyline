@@ -6,13 +6,11 @@ import forge.game.card.Card
 import forge.game.card.CardCollectionView
 import forge.game.combat.Combat
 import forge.game.combat.CombatUtil
-import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
-import leyline.DevCheck
 import leyline.bridge.PlayableActionQuery
 import leyline.bridge.findCard
-import leyline.bridge.handoff.DamageAssignmentPrompt
+import leyline.bridge.handoff.DamageAssignmentGate
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PendingActionKind
@@ -25,9 +23,6 @@ import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 import kotlin.collections.iterator
 
 /**
@@ -51,6 +46,7 @@ class PriorityLoopCoordinator(
     private val spellExecutor: SpellExecutor,
 ) {
     private val log = LoggerFactory.getLogger(PriorityLoopCoordinator::class.java)
+    private val damageAssignmentGate = DamageAssignmentGate(owner, actionBridge)
     private var pendingAttackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap()
 
     private var lastSeenTurn: Int = -1
@@ -223,48 +219,12 @@ class PriorityLoopCoordinator(
         damageDealt: Int,
         defender: GameEntity?,
         fallback: () -> MutableMap<Card?, Int>?,
-    ): MutableMap<Card?, Int>? {
-        // Clear stale cache entries from a previous damage step.
-        owner.damageAssignCache.clear()
-
-        log.info(
-            "assignCombatDamage: prompting for {} (id={}, damage={}, blockers={})",
-            attacker.name,
-            attacker.id,
-            damageDealt,
-            blockers.size,
+    ): MutableMap<Card?, Int>? =
+        damageAssignmentGate.await(
+            attacker = attacker,
+            blockers = blockers,
+            damageDealt = damageDealt,
+            defender = defender,
+            fallback = fallback,
         )
-
-        // Block the engine thread on a dedicated future. The auto-pass loop detects
-        // this via CombatHandler.checkPendingDamageAssignment and sends AssignDamageReq.
-        // CombatHandler.onAssignDamage completes the future.
-        val future = CompletableFuture<MutableMap<Card?, Int>>()
-        owner.pendingDamageAssignment =
-            DamageAssignmentPrompt(
-                attacker = attacker,
-                blockers = blockers,
-                damageDealt = damageDealt,
-                defender = defender,
-                hasDeathtouch = attacker.hasKeyword(Keyword.DEATHTOUCH),
-                hasTrample = attacker.hasKeyword(Keyword.TRAMPLE),
-                future = future,
-            )
-        actionBridge.prioritySignal?.signal()
-
-        return try {
-            val timeoutMs = actionBridge.getTimeoutMs() ?: GameActionBridge.DEFAULT_TIMEOUT_MS
-            future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (_: TimeoutException) {
-            log.warn("assignCombatDamage: timed out, auto-assigning for {}", attacker.name)
-            DevCheck.failOnAutoPass { "assignCombatDamage timed out for ${attacker.name}" }
-            fallback()
-        } catch (ex: Exception) {
-            log.warn("assignCombatDamage: error {}, auto-assigning", ex.message)
-            DevCheck.failOnAutoPass { "assignCombatDamage error: ${ex.message}" }
-            fallback()
-        } finally {
-            owner.pendingDamageAssignment = null
-            owner.damageAssignCache.clear()
-        }
-    }
 }

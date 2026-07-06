@@ -501,7 +501,6 @@ class PlayerController(
         if (sa?.api == ApiType.Endure) {
             val hostCard = cardToShow ?: sa.hostCard
             return optionalActionGate.await(
-                wrapper = null,
                 hostCard = hostCard,
                 defaultOnTimeout = true,
                 logContext = "confirmAction:Endure",
@@ -526,7 +525,6 @@ class PlayerController(
         // (GRE type 45). Auto-accept on timeout is safe: the ability resolves normally.
         val accepted =
             optionalActionGate.await(
-                wrapper = wrapper,
                 hostCard = wrapper.hostCard,
                 defaultOnTimeout = true,
                 logContext = "confirmTrigger",
@@ -658,7 +656,6 @@ class PlayerController(
         if (replacementEffect.hasParam("CommanderMoveReplacement")) {
             val hostCard = (affected as? Card) ?: replacementEffect.hostCard
             return optionalActionGate.await(
-                wrapper = null,
                 hostCard = hostCard,
                 forceSnapshotBeforePrompt = true,
                 defaultOnTimeout = true,

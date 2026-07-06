@@ -138,8 +138,8 @@ interface ActionReceiver {
  * those separately via [GameOps]. Read-only sessions ([FamiliarSession])
  * do not, and the type system enforces the asymmetry.
  *
- * [HandlerConstructorContractTest] pins each narrow handler contract
- * at compile time.
+ * [HandlerConstructorContractTest] pins each concrete handler's
+ * primary-constructor parameter types to this narrow-interface contract.
  */
 interface SessionOps :
     GreMessageSink,

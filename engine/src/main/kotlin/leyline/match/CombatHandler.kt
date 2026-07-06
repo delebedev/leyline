@@ -71,6 +71,30 @@ open class CombatHandler(
         pendingBlockersSent = false
     }
 
+    /**
+     * True if a Submit (finalize) message carries a stale gsId — the client may
+     * send on either channel (race), and the echo-back advances the counter, so
+     * a Submit from the slower channel arrives with an outdated gsId. Shared by
+     * [onDeclareAttackers] and [onDeclareBlockers]; see ActionPerformer.perform
+     * for the rationale.
+     */
+    private fun isStaleSubmit(
+        greMsg: ClientToGREMessage,
+        label: String,
+    ): Boolean {
+        val clientGsId = greMsg.gameStateId
+        if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
+            log.debug(
+                "CombatHandler: stale {} gsId={} (lastPrompt={}), ignoring",
+                label,
+                clientGsId,
+                counters.counter.lastPromptGsId(),
+            )
+            return true
+        }
+        return false
+    }
+
     private fun defaultAttackRecipient(): DamageRecipient =
         DamageRecipient
             .newBuilder()
@@ -133,17 +157,7 @@ open class CombatHandler(
         // iterative DeclareAttackersResp always carries fresh data.
         // Compare against lastPromptGsId — see ActionPerformer.perform for the
         // rationale; this branch shares the predicate.
-        if (isSubmit) {
-            val clientGsId = greMsg.gameStateId
-            if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
-                log.debug(
-                    "CombatHandler: stale SubmitAttackersReq gsId={} (lastPrompt={}), ignoring",
-                    clientGsId,
-                    counters.counter.lastPromptGsId(),
-                )
-                return
-            }
-        }
+        if (isSubmit && isStaleSubmit(greMsg, "SubmitAttackersReq")) return
 
         if (!isSubmit) {
             // Iterative update: DeclareAttackersResp — update tracked selection
@@ -342,17 +356,7 @@ open class CombatHandler(
         val isSubmit = greMsg.type == ClientMessageType.SubmitBlockersReq
 
         // Reject stale Submit — same pattern as attackers (see onDeclareAttackers).
-        if (isSubmit) {
-            val clientGsId = greMsg.gameStateId
-            if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
-                log.debug(
-                    "CombatHandler: stale SubmitBlockersReq gsId={} (lastPrompt={}), ignoring",
-                    clientGsId,
-                    counters.counter.lastPromptGsId(),
-                )
-                return
-            }
-        }
+        if (isSubmit && isStaleSubmit(greMsg, "SubmitBlockersReq")) return
 
         if (!isSubmit) {
             // DeclareBlockersResp is diff-style: each entry carries only the

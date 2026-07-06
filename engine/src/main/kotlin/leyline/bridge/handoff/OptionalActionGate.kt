@@ -1,7 +1,6 @@
 package leyline.bridge.handoff
 
 import forge.game.card.Card
-import forge.game.trigger.WrappedAbility
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
@@ -71,7 +70,6 @@ class OptionalActionGate(
      * client responds or the action timeout elapses, and return the accept/decline
      * decision. On timeout, returns [defaultOnTimeout] and logs a warning.
      *
-     * @param wrapper the wrapping Forge ability (null for non-trigger prompts)
      * @param hostCard the card the prompt is about (null when unknown)
      * @param forceSnapshotBeforePrompt when true, the session layer emits a full
      *   GSM before the prompt — needed for mid-resolution prompts where the
@@ -81,7 +79,6 @@ class OptionalActionGate(
      * @param logContext human-readable tag for timeout log lines (e.g. the override name)
      */
     fun await(
-        wrapper: WrappedAbility? = null,
         hostCard: Card?,
         forceSnapshotBeforePrompt: Boolean = false,
         defaultOnTimeout: Boolean,
@@ -94,7 +91,6 @@ class OptionalActionGate(
             publish = { owner.pendingOptionalAction = it },
             prompt = { future ->
                 OptionalActionPrompt(
-                    wrapper = wrapper,
                     hostCard = hostCard,
                     future = future,
                     forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
@@ -104,7 +100,7 @@ class OptionalActionGate(
             },
             signal = { actionBridge?.prioritySignal?.signal() },
             timeoutMs = { actionBridge?.getTimeoutMs() },
-            defaultOnTimeout = defaultOnTimeout,
+            defaultOnTimeout = { defaultOnTimeout },
             log = log,
             logContext = logContext,
             subject = hostCard?.name,

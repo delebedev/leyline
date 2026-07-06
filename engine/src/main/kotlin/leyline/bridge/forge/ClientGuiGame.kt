@@ -26,6 +26,7 @@ import forge.player.PlayerZoneUpdates
 import forge.trackable.TrackableCollection
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
+import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.types.PromptCandidateKind
@@ -498,8 +499,25 @@ class ClientGuiGame(
         overrideOrder: Boolean,
         maySkip: Boolean,
     ): Map<CardView, Int> {
-        // Simplified: assign all damage to first blocker (or defender)
-        // TODO: proper damage assignment UI
+        // Shadowed by PlayerController.assignCombatDamage's AssignDamageReq flow for the
+        // needsManualAssign case; reachable only via PlayerControllerHuman's own manual-assign
+        // check firing on a case that flow doesn't replicate (e.g. no coordinator wired up).
+        log.warn(
+            "assignCombatDamage fallback: auto-assigning {} damage from {} across {} blockers by toughness",
+            damage,
+            attacker.name,
+            blockers.size,
+        )
+        DevCheck.failOnAutoPass {
+            "assignCombatDamage fallback auto-assigned $damage damage from ${attacker.name} across ${blockers.size} blockers"
+        }
+        return assignDamageByToughness(blockers, damage)
+    }
+
+    private fun assignDamageByToughness(
+        blockers: List<CardView>,
+        damage: Int,
+    ): Map<CardView, Int> {
         if (blockers.isEmpty()) return emptyMap()
         val result = mutableMapOf<CardView, Int>()
         var remaining = damage
@@ -526,8 +544,18 @@ class ClientGuiGame(
         atLeastOne: Boolean,
         amountLabel: String,
     ): Map<Any, Int> {
-        // Simplified: distribute evenly
+        // Simplified: distribute evenly, no manual allocation UI.
         if (target.isEmpty()) return emptyMap()
+        log.warn(
+            "assignGenericAmount: auto-distributing {} {} evenly across {} entities for {}, no manual allocation UI",
+            amount,
+            amountLabel,
+            target.size,
+            effectSource.name,
+        )
+        DevCheck.failOnAutoPass {
+            "assignGenericAmount auto-distributed $amount $amountLabel across ${target.size} entities for ${effectSource.name}"
+        }
         val perTarget = amount / target.size
         val remainder = amount % target.size
         var i = 0
@@ -606,7 +634,8 @@ class ClientGuiGame(
         toBottom: Boolean,
         toAnywhere: Boolean,
     ): MutableList<CardView> {
-        // Return manipulable cards as-is (no reordering in web yet)
+        // Return manipulable cards as-is: no reordering UI yet.
+        log.warn("manipulateCardList: returning '{}' cards unchanged, no reordering UI", title)
         return manipulable.toMutableList()
     }
 

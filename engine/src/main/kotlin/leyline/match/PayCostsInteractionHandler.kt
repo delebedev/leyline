@@ -74,7 +74,7 @@ internal class PayCostsInteractionHandler(
         if (newSelectedIds.isNotEmpty()) {
             val convokeSelections = recordConvokeSelections(pendingPrompt, newSelectedIds)
             log.info(
-                "TargetingHandler: {} MakePayment ids={} accumulated={}",
+                "PayCostsInteractionHandler: {} MakePayment ids={} accumulated={}",
                 manaSourceLabel(pendingPrompt.request.semantic),
                 newSelectedIds,
                 selectedSet,
@@ -105,7 +105,7 @@ internal class PayCostsInteractionHandler(
         convokePaymentSelections.remove(pendingPrompt.promptId)
         if (ids.isEmpty()) return false
         log.info(
-            "TargetingHandler: CancelActionReq — completing {} payment ids={}",
+            "PayCostsInteractionHandler: CancelActionReq — completing {} payment ids={}",
             manaSourceLabel(pendingPrompt.request.semantic),
             ids,
         )
@@ -138,7 +138,7 @@ internal class PayCostsInteractionHandler(
     ) {
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
         log.info(
-            "TargetingHandler: {} payment ids={} indices={}",
+            "PayCostsInteractionHandler: {} payment ids={} indices={}",
             manaSourceLabel(pendingPrompt.request.semantic),
             selectedIds,
             selectedIndices,

@@ -3,7 +3,6 @@ package leyline.bridge.handoff
 import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
-import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import java.util.concurrent.CompletableFuture
 
@@ -14,12 +13,10 @@ data class DamageAssignmentPrompt(
     val defender: GameEntity?,
     val hasDeathtouch: Boolean,
     val hasTrample: Boolean,
-    val future: CompletableFuture<MutableMap<Card?, Int>>,
+    val future: CompletableFuture<MutableMap<Card?, Int>?>,
 )
 
 data class OptionalActionPrompt(
-    /** Retained for leyline-x25: targeting order fix needs ability details. Null for non-trigger prompts. */
-    val wrapper: WrappedAbility?,
     val hostCard: Card?,
     val future: CompletableFuture<Boolean>,
     /** Force a full state snapshot before emitting mid-resolution prompts such as Madness. */

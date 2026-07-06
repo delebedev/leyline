@@ -16,7 +16,6 @@ import leyline.bridge.types.InstanceId
 class RevealProxyTracker {
     private val proxies: MutableMap<ForgeCardId, InstanceId> = LinkedHashMap()
 
-    val size: Int get() = proxies.size
     val isEmpty: Boolean get() = proxies.isEmpty()
 
     fun lookup(forgeCardId: ForgeCardId): InstanceId? = proxies[forgeCardId]
