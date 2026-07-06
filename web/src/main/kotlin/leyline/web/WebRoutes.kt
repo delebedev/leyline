@@ -48,8 +48,8 @@ data class WebServices(
     val collectionService: CollectionService,
     val cardRepository: CardRepository,
     val matchLauncher: WebMatchLauncher,
+    val authService: WebAuthService,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
-    val authService: WebAuthService = WebAuthService(InMemoryWebAuthStore(), DevEmailSender()),
 )
 
 interface WebMatchLauncher {

@@ -348,12 +348,12 @@ class WebRoutesTest :
             val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
             val sender = DevEmailSender()
             val store = SqliteWebAuthStore(db).also { it.createTables() }
-            val service = WebAuthService(store, sender)
+            val service = WebAuthService(store, sender, DEV_WEB_AUTH_SECRET)
 
             service.requestCode("player@example.test") shouldBe StartLoginResult.Sent
             val code = checkNotNull(sender.latestCode("player@example.test"))
             val verified = service.verify("player@example.test", code) as VerifyLoginResult.Success
-            val reloadedService = WebAuthService(SqliteWebAuthStore(db), sender)
+            val reloadedService = WebAuthService(SqliteWebAuthStore(db), sender, DEV_WEB_AUTH_SECRET)
 
             reloadedService.validate(verified.token)?.playerId shouldBe verified.player.playerId
             reloadedService.logout(verified.token)
@@ -374,7 +374,7 @@ private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Uni
                 deckService = DeckService(repos.deck),
                 collectionService = CollectionService { listOf(100, 101) },
                 cardRepository = repos.cards,
-                authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender),
+                authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender, DEV_WEB_AUTH_SECRET),
                 matchLauncher =
                     object : WebMatchLauncher {
                         override fun launchGreMatch(
