@@ -171,6 +171,33 @@ class AltCostOfferTest :
                     },
                 ),
                 AltCostOfferRow(
+                    mechanic = "Evoke",
+                    sourceCard = "Mulldrifter",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.EVOKE,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Mulldrifter", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Mulldrifter", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Evoke },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val evokeOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 0
+                            evokeOffer should beAltCostOffer(keywordAbilityGrpId)
+                            evokeOffer!!.grpId shouldBe sourceGrpId
+                            evokeOffer.facetId shouldBe sourceIid
+                            evokeOffer.abilityGrpId shouldBe 0
+                            evokeOffer should haveManaCost(generic = 2, blue = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
                     mechanic = "Emerge",
                     sourceCard = "Wretched Gryff",
                     sourceZone = ZoneType.Hand,

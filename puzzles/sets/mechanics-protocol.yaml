@@ -529,6 +529,18 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Wretched Gryff }
             - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
             - stack_empty: true
+  - id: evoke-mulldrifter
+    puzzle: evoke-mulldrifter
+    run: cast Mulldrifter with Evoke and let the self-sacrifice trigger resolve
+    expect: Evoke exposes an alt-cost cast and moves Mulldrifter to the graveyard after entering
+    steps:
+      - cast: { card: Mulldrifter, alt_cost: evoke }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment
