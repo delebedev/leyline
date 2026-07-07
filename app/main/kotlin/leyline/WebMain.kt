@@ -41,7 +41,14 @@ import java.util.UUID
 fun main(args: Array<String>) {
     val options = parseArgs(args)
     val port = options["--web-port"]?.toIntOrNull() ?: System.getenv("LEYLINE_WEBDOOR_PORT")?.toIntOrNull() ?: 8080
-    val config = MatchConfig.load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
+    // Browser clients animate on their own; server-side pacing between engine
+    // steps only delays frame delivery, so the web profile runs the engine
+    // at full speed unless LEYLINE_AI_SPEED asks for pacing.
+    val aiSpeed = System.getenv("LEYLINE_AI_SPEED")?.toDoubleOrNull() ?: 0.0
+    val config =
+        MatchConfig
+            .load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
+            .let { it.copy(ai = it.ai.copy(speed = aiSpeed)) }
     val cardRepo = resolveCardRepository()
     val playerDb = resolvePlayerDb(config)
     val playerDatabase = Database.connect("jdbc:sqlite:${playerDb.absolutePath}", "org.sqlite.JDBC")

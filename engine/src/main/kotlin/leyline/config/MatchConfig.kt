@@ -90,6 +90,13 @@ data class MatchConfig(
      */
     val aiDelayMultiplier: Double get() = if (ai.speed == 0.0) 0.0 else 1.0 / ai.speed
 
+    /**
+     * Session pacing delay derived from [AiConfig.speed], applied between
+     * auto-pass and combat steps so clients can animate. speed=0 disables
+     * pacing entirely.
+     */
+    val paceDelayMs: Long get() = (200L * aiDelayMultiplier).toLong()
+
     /** One-line summary for startup log. */
     fun summary(): String =
         buildString {

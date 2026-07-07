@@ -306,7 +306,7 @@ class MatchHandler(
                 recorder = rec,
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
-        val s = MatchSession(connection = connection, gameBridge = bridge)
+        val s = MatchSession(connection = connection, gameBridge = bridge, paceDelayMs = matchConfig.paceDelayMs)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)

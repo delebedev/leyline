@@ -168,18 +168,38 @@ class WebRoutesTest :
             }
         }
 
-        test("public GRE WebSocket attachments are read-only") {
+        test("public GRE WebSocket attachments forward the handshake but stay read-only for game messages") {
             withWeb { client, repos ->
                 repos.relay.register("public", ownerPlayerId = PlayerId("owner"), publicAccess = true) { onFrame, _ ->
                     StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7), onFrame = onFrame)
                 }
                 val wsClient = client.config { install(WebSockets) }
 
-                wsClient.webSocket("/gre?matchId=public") {
-                    send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
+                val auth =
+                    ClientToMatchServiceMessage
+                        .newBuilder()
+                        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.AuthenticateRequest_f487)
+                        .build()
+                        .toByteArray()
+                val gameMessage =
+                    ClientToMatchServiceMessage
+                        .newBuilder()
+                        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToGremessage)
+                        .build()
+                        .toByteArray()
 
+                wsClient.webSocket("/gre?matchId=public") {
+                    // The connect handshake must reach the engine — without it the
+                    // spectator stream never starts.
+                    send(Frame.Binary(fin = true, data = auth))
+                    val frame = incoming.receive() as Frame.Binary
+                    frame.readBytes().contentEquals(byteArrayOf(9, 8, 7)) shouldBe true
+                    repos.enginePayloads.size shouldBe 1
+
+                    // Game messages from a viewer are dropped at the relay.
+                    send(Frame.Binary(fin = true, data = gameMessage))
                     withTimeoutOrNull(100) { incoming.receive() } shouldBe null
-                    repos.enginePayloads shouldBe emptyList()
+                    repos.enginePayloads.size shouldBe 1
                 }
             }
         }

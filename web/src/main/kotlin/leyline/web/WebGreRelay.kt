@@ -27,6 +27,7 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.match.MatchHandler
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.ConcurrentHashMap
 
@@ -169,7 +170,13 @@ class InProcessWebGreRelay : WebGreRelay {
             try {
                 for (frame in session.incoming) {
                     when (frame) {
-                        is Frame.Binary -> if (canDrive) dispatchToEngine(frame.readBytes())
+                        // Read-only viewers still need Auth + Connect to reach the
+                        // engine — the connect handshake is what makes it emit the
+                        // spectator bundle. Only drivers get game messages through.
+                        is Frame.Binary -> {
+                            val payload = frame.readBytes()
+                            if (canDrive || isHandshake(payload)) dispatchToEngine(payload)
+                        }
                         is Frame.Close -> break
                         is Frame.Text -> Unit
                         is Frame.Ping -> Unit
@@ -179,6 +186,17 @@ class InProcessWebGreRelay : WebGreRelay {
             } finally {
                 lock.withLock { browsers.remove(session) }
             }
+        }
+
+        private fun isHandshake(payload: ByteArray): Boolean {
+            val type =
+                try {
+                    ClientToMatchServiceMessage.parseFrom(payload).clientToMatchServiceMessageType
+                } catch (_: InvalidProtocolBufferException) {
+                    return false
+                }
+            return type == ClientToMatchServiceMessageType.AuthenticateRequest_f487 ||
+                type == ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487
         }
 
         suspend fun closeIfIdle(): Boolean {
