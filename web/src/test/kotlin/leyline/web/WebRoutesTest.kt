@@ -27,6 +27,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -226,6 +227,9 @@ class WebRoutesTest :
                     incoming.receive()
                 }
 
+                // Idle close waits out the reconnect grace before tearing down.
+                val deadline = System.currentTimeMillis() + 5_000
+                while (!closed.get() && System.currentTimeMillis() < deadline) delay(20)
                 assertSoftly {
                     closed.get() shouldBe true
                     cleanupCount shouldBe 1
@@ -636,7 +640,7 @@ private class TestRepos {
     val deck = MemoryDeckRepo()
     val emailSender = DevEmailSender()
     val enginePayloads = mutableListOf<ByteArray>()
-    val relay = InProcessWebGreRelay()
+    val relay = InProcessWebGreRelay(idleCloseGraceMs = 50)
     val cards =
         InMemoryCardRepository().also {
             it.register(100, "Alpha Card")

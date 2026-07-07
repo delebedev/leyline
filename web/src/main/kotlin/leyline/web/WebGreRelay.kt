@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -67,7 +68,15 @@ interface WebGreEngineSession {
     fun close()
 }
 
-class InProcessWebGreRelay : WebGreRelay {
+class InProcessWebGreRelay(
+    /**
+     * How long a match engine survives with no attached browsers. A page
+     * reload or transient socket drop detaches for a moment — closing the
+     * engine immediately would destroy the match before the browser can
+     * re-attach and resync.
+     */
+    private val idleCloseGraceMs: Long = 60_000L,
+) : WebGreRelay {
     private val sessions = ConcurrentHashMap<String, RelaySession>()
 
     override fun register(
@@ -89,9 +98,7 @@ class InProcessWebGreRelay : WebGreRelay {
         val canDrive = relaySession.canDrive(playerId)
         if (!relaySession.canAttach(playerId)) return false
         relaySession.attach(session, canDrive)
-        if (relaySession.closeIfIdle()) {
-            sessions.remove(matchId, relaySession)
-        }
+        relaySession.scheduleIdleClose(idleCloseGraceMs) { sessions.remove(matchId, relaySession) }
         return true
     }
 
@@ -197,6 +204,17 @@ class InProcessWebGreRelay : WebGreRelay {
                 }
             return type == ClientToMatchServiceMessageType.AuthenticateRequest_f487 ||
                 type == ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487
+        }
+
+        /** After [graceMs] with no attached browsers, close the engine and run [onRemoved]. */
+        fun scheduleIdleClose(
+            graceMs: Long,
+            onRemoved: () -> Unit,
+        ) {
+            scope.launch {
+                if (graceMs > 0) delay(graceMs)
+                if (closeIfIdle()) onRemoved()
+            }
         }
 
         suspend fun closeIfIdle(): Boolean {
