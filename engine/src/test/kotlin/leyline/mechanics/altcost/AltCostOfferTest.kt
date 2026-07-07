@@ -198,6 +198,33 @@ class AltCostOfferTest :
                     },
                 ),
                 AltCostOfferRow(
+                    mechanic = "Dash",
+                    sourceCard = "Zurgo Bellstriker",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.DASH,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
+                        addCard("Zurgo Bellstriker", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
+                        addCard("Zurgo Bellstriker", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Dash },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val dashOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 1
+                            dashOffer should beAltCostOffer(keywordAbilityGrpId)
+                            dashOffer!!.grpId shouldBe sourceGrpId
+                            dashOffer.facetId shouldBe sourceIid
+                            dashOffer.abilityGrpId shouldBe 0
+                            dashOffer should haveManaCost(generic = 1, red = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
                     mechanic = "Emerge",
                     sourceCard = "Wretched Gryff",
                     sourceZone = ZoneType.Hand,

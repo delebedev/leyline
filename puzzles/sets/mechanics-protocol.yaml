@@ -541,6 +541,22 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
             - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
             - stack_empty: true
+  - id: dash-zurgo-bellstriker
+    puzzle: dash-zurgo-bellstriker
+    run: cast Zurgo Bellstriker with Dash and pass until it returns to hand
+    expect: Dash exposes an alt-cost cast and returns Zurgo Bellstriker at the next end step
+    steps:
+      - cast: { card: Zurgo Bellstriker, alt_cost: dash }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Zurgo Bellstriker }
+      - pass_until:
+          zone_contains: { side: ours, zone: hand, card: Zurgo Bellstriker }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Zurgo Bellstriker }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Zurgo Bellstriker }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment

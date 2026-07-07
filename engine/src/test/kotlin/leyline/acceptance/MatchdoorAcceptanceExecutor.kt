@@ -584,6 +584,7 @@ class MatchdoorAcceptanceExecutor(
                 AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
                 AcceptanceAltCost.Spectacle -> KeywordAbilityIds.SPECTACLE
                 AcceptanceAltCost.Evoke -> KeywordAbilityIds.EVOKE
+                AcceptanceAltCost.Dash -> KeywordAbilityIds.DASH
                 AcceptanceAltCost.Emerge -> KeywordAbilityIds.EMERGE
                 AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
                 AcceptanceAltCost.Harmonize -> KeywordAbilityIds.HARMONIZE
@@ -608,6 +609,7 @@ class MatchdoorAcceptanceExecutor(
             AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
             AcceptanceAltCost.Spectacle -> KeywordAbilityIds.SPECTACLE
             AcceptanceAltCost.Evoke -> KeywordAbilityIds.EVOKE
+            AcceptanceAltCost.Dash -> KeywordAbilityIds.DASH
             AcceptanceAltCost.Emerge -> KeywordAbilityIds.EMERGE
             AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
             AcceptanceAltCost.Harmonize -> KeywordAbilityIds.HARMONIZE
