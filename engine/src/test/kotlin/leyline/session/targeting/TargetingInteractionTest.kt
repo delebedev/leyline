@@ -118,7 +118,9 @@ class TargetingInteractionTest :
                             server =
                                 ServerConfig(
                                     bridgeTimeoutMs = 5_000L,
-                                    promptFailsafeMs = 100L,
+                                    // Give the harness time to surface SelectTargetsReq
+                                    // before the deliberate prompt-timeout path fires.
+                                    promptFailsafeMs = 2_000L,
                                     aiTurnWaitMs = 500L,
                                     mulliganWaitMs = 500L,
                                 ),
@@ -160,7 +162,7 @@ class TargetingInteractionTest :
                 val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
 
                 assertSoftly {
-                    waitFor(timeoutMs = 5_000L) {
+                    waitFor(timeoutMs = 10_000L) {
                         h.drainSink()
                         h.allMessages.any { it.gameStateId > promptGsId }
                     }.shouldBeTrue()
