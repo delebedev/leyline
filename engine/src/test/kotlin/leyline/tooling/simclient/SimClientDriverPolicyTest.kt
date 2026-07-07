@@ -291,6 +291,53 @@ class SimClientDriverPolicyTest :
             policy.canChooseCastingTimeOptions(ctoPrompt()) shouldBe false
         }
 
+        fun payCostsPrompt(
+            minSel: Int = 1,
+            maxSel: Int = 1,
+            ids: List<Int> = listOf(201, 202),
+        ): GREToClientMessage =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.PayCostsReq_695e)
+                .setPayCostsReq(
+                    PayCostsReq
+                        .newBuilder()
+                        .setEffectCostReq(
+                            EffectCostReq
+                                .newBuilder()
+                                .setEffectCostType(EffectCostType.Select_a59c)
+                                .setCostSelection(
+                                    SelectNReq
+                                        .newBuilder()
+                                        .setMinSel(minSel)
+                                        .setMaxSel(maxSel)
+                                        .addAllIds(ids),
+                                ),
+                        ),
+                ).build()
+
+        test("forge-ai PayCosts adapter fails closed without a pending sacrifice cost prompt") {
+            val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
+
+            policy.canChooseSacrificeCostPayment(payCostsPrompt(ids = emptyList())) shouldBe false
+            policy.canChooseSacrificeCostPayment(ctoPrompt()) shouldBe false
+            // Well-shaped cost selection but no live game or pending prompt —
+            // both the consult gate and the decision must fail closed.
+            policy.canChooseSacrificeCostPayment(payCostsPrompt()) shouldBe false
+            policy.chooseSacrificeCostPayment(payCostsPrompt()) shouldBe null
+        }
+
+        test("forge-ai PayCosts adapter validates AI sacrifice ids against the selection") {
+            val selection = payCostsPrompt().payCostsReq.effectCostReq.costSelection
+
+            sacrificeCostSelectionIds(listOf(202), selection) shouldBe listOf(202)
+            sacrificeCostSelectionIds(listOf(999), selection) shouldBe null
+            sacrificeCostSelectionIds(listOf(201, 202), selection) shouldBe null
+            sacrificeCostSelectionIds(listOf(202, 202), selection) shouldBe null
+            sacrificeCostSelectionIds(emptyList(), selection) shouldBe null
+            sacrificeCostSelectionIds(listOf(0), selection) shouldBe null
+        }
+
         test("greedy PayCosts policy selects minimum required cost ids") {
             val harness = MatchFlowHarness()
             val msg =

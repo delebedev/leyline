@@ -322,6 +322,7 @@ internal class ForgeAiPromptPolicy(
             ForgeAiSearchAdapter,
             ForgeAiGroupAdapter,
             ForgeAiCastingTimeOptionsAdapter,
+            ForgeAiPayCostsAdapter,
         ).associateBy { it.promptType }
 
     fun telemetry(): SimPromptPolicyTelemetry =

@@ -1,0 +1,18 @@
+[metadata]
+Name:Sacrifice Cost Confirm
+Goal:Activate Evolving Wilds and surface its sacrifice cost confirm prompt.
+Turns:3
+Difficulty:Easy
+Description:Paying a sacrifice-self activation cost asks for confirmation. This catches unsafe generic confirm autoresolution during cost payment.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Forest
+humanbattlefield=Evolving Wilds;Forest
+humanlibrary=Forest;Forest;Forest
+aibattlefield=Grizzly Bears;Serra Angel
+ailibrary=Mountain;Mountain;Mountain

@@ -100,7 +100,7 @@ class CostDecision(
                 minSelectionWeight = minSelectionWeight,
                 sourceEntityId = source.id.takeIf { it > 0 },
             )
-        val indices = bridge.requestChoice(request)
+        val indices = bridge.requestChoice(request, targetingSa = ability)
         if (indices.isEmpty() && cancelAllowed) return null
         val selected = CardCollection()
         for (idx in indices) {
