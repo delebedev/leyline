@@ -98,6 +98,15 @@ class BoastLifecycleTest :
 
                 latestBoastOffer(usherIid).shouldBeFalse()
             }
+
+            passUntilTurn(3, maxPasses = 80)
+            val nextTurnAttackStart = messageSnapshot()
+            passUntil(maxPasses = 30) {
+                turn() >= 3 && messagesSince(nextTurnAttackStart).any { it.hasDeclareAttackersReq() }
+            }.shouldBeTrue()
+            declareAttackers(listOf(usherIid))
+            passUntil(maxPasses = 8) { latestBoastOffer(usherIid) }
+            latestBoastOffer(usherIid).shouldBeTrue()
         }
     })
 
