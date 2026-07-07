@@ -72,7 +72,7 @@ data class BoundCard(
          * BaseId chain roots that identify alt-cost ability rows on a card.
          * Each appears as the `BaseId` of at most one ability row per printing
          * (Warp/Sneak/Plot/Foretell/Disturb/Escape/Jump-start/Mutate/
-         * Impending/Cleave/Evoke/Dash/Overload/Emerge/Spectacle/Harmonize/Madness/Flashback/Mobilize).
+         * Impending/Cleave/Evoke/Blitz/Dash/Overload/Emerge/Spectacle/Harmonize/Madness/Flashback/Mobilize).
          */
         private val ALT_COST_BASE_IDS: Set<Int> =
             setOf(
@@ -86,6 +86,7 @@ data class BoundCard(
                 KeywordAbilityIds.IMPENDING,
                 KeywordAbilityIds.CLEAVE,
                 KeywordAbilityIds.EVOKE,
+                KeywordAbilityIds.BLITZ,
                 KeywordAbilityIds.DASH,
                 KeywordAbilityIds.OVERLOAD,
                 KeywordAbilityIds.EMERGE,

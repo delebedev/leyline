@@ -56,6 +56,7 @@ enum class AltCostKind(
     IMPENDING(KeywordAbilityIds.IMPENDING),
     CLEAVE(KeywordAbilityIds.CLEAVE),
     EVOKE(KeywordAbilityIds.EVOKE),
+    BLITZ(KeywordAbilityIds.BLITZ),
     DASH(KeywordAbilityIds.DASH),
     OVERLOAD(KeywordAbilityIds.OVERLOAD),
     EMERGE(KeywordAbilityIds.EMERGE),
@@ -335,6 +336,11 @@ object CastRails {
             HandWithAltCost(
                 kind = AltCostKind.EVOKE,
                 saPredicate = { it.alternativeCost == AlternativeCost.Evoke },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.BLITZ,
+                saPredicate = { it.alternativeCost == AlternativeCost.Blitz },
                 lookupMode = LookupMode.CostAgnostic,
             ),
             HandWithAltCost(

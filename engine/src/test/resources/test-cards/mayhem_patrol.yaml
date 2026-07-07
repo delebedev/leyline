@@ -1,0 +1,24 @@
+name: "Mayhem Patrol"
+grpId: 80265
+titleId: 567376
+abilities:
+  - id: 142
+    textId: 102
+    category: 3
+  - id: 149456
+    textId: 567373
+    category: 3
+    baseId: 240
+    mana: "o1oR"
+  - id: 149457
+    textId: 567377
+    category: 2
+expansionCode: "SNC"
+colors:
+  - 4
+types:
+  - 2
+subtypes:
+  - 124
+  - 77
+manaCost: "o1oR"

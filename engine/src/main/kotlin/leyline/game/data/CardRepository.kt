@@ -238,6 +238,7 @@ object KeywordAbilityIds {
     const val DECAYED = 214
     const val DISTURB = 215
     const val CLEAVE = 221
+    const val BLITZ = 240
     const val DASH = 274
     const val DISGUISE = 307
     const val IMPENDING = 352

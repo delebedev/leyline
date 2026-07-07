@@ -343,6 +343,7 @@ enum class AcceptanceAltCost(
     Overload("overload"),
     Spectacle("spectacle"),
     Evoke("evoke"),
+    Blitz("blitz"),
     Dash("dash"),
     Emerge("emerge"),
     Escape("escape"),

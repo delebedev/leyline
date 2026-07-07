@@ -557,6 +557,23 @@ scenarios:
             - zone_not_contains: { side: ours, zone: battlefield, card: Zurgo Bellstriker }
             - zone_not_contains: { side: ours, zone: graveyard, card: Zurgo Bellstriker }
             - stack_empty: true
+  - id: blitz-mayhem-patrol
+    puzzle: blitz-mayhem-patrol
+    run: cast Mayhem Patrol with Blitz and pass until it sacrifices itself
+    expect: Blitz exposes an alt-cost cast, sacrifices the creature at end step, and draws a card
+    steps:
+      - cast: { card: Mayhem Patrol, alt_cost: blitz }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Mayhem Patrol }
+            - zone_contains: { side: ours, zone: hand, card: Mountain }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment
