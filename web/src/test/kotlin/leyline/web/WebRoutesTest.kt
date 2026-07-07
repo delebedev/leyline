@@ -3,6 +3,8 @@ package leyline.web
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
@@ -31,6 +33,9 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.config.MatchConfig
+import leyline.config.RuntimeMatchConfig
+import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.CollationPool
 import leyline.domain.Course
 import leyline.domain.CourseId
@@ -48,8 +53,16 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
+import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import org.jetbrains.exposed.v1.jdbc.Database
+import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -138,11 +151,9 @@ class WebRoutesTest :
         test("relays GRE WebSocket frames through engine session") {
             withWeb { client, repos ->
                 val login = client.login(repos)
-                repos.relay.register(
-                    "m1",
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)),
-                    ownerPlayerId = PlayerId(login.playerId),
-                )
+                repos.relay.register("m1", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7), onFrame = onFrame)
+                }
                 val wsClient = client.config { install(WebSockets) }
                 wsClient.webSocket({
                     url.takeFrom("/gre?matchId=m1")
@@ -159,12 +170,9 @@ class WebRoutesTest :
 
         test("public GRE WebSocket attachments are read-only") {
             withWeb { client, repos ->
-                repos.relay.register(
-                    "public",
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7)),
-                    ownerPlayerId = PlayerId("owner"),
-                    publicAccess = true,
-                )
+                repos.relay.register("public", ownerPlayerId = PlayerId("owner"), publicAccess = true) { onFrame, _ ->
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7), onFrame = onFrame)
+                }
                 val wsClient = client.config { install(WebSockets) }
 
                 wsClient.webSocket("/gre?matchId=public") {
@@ -183,10 +191,11 @@ class WebRoutesTest :
                 var cleanupCount = 0
                 repos.relay.register(
                     "close-me",
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(1), closed = closed),
                     ownerPlayerId = PlayerId(login.playerId),
                     onClose = { cleanupCount++ },
-                )
+                ) { onFrame, _ ->
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(1), onFrame = onFrame, closed = closed)
+                }
                 val wsClient = client.config { install(WebSockets) }
 
                 wsClient.webSocket({
@@ -207,8 +216,10 @@ class WebRoutesTest :
         test("GRE relay serializes engine access per match") {
             withWeb { client, repos ->
                 val login = client.login(repos)
-                val engine = ConcurrentProbeGreEngineSession()
-                repos.relay.register("serialized", engine, ownerPlayerId = PlayerId(login.playerId))
+                lateinit var engine: ConcurrentProbeGreEngineSession
+                repos.relay.register("serialized", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
+                    ConcurrentProbeGreEngineSession(onFrame).also { engine = it }
+                }
                 val wsClient = client.config { install(WebSockets) }
                 val attached = AtomicInteger(0)
                 val bothAttached = CompletableDeferred<Unit>()
@@ -231,13 +242,73 @@ class WebRoutesTest :
             }
         }
 
+        test("GRE relay streams engine frames as they're produced, not batched until the call returns") {
+            withWeb { client, repos ->
+                val login = client.login(repos)
+                repos.relay.register("streamed", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
+                    SlowMultiStepGreEngineSession(onFrame, stepDelayMs = 400)
+                }
+                val wsClient = client.config { install(WebSockets) }
+
+                wsClient.webSocket({
+                    url.takeFrom("/gre?matchId=streamed")
+                    header(HttpHeaders.Cookie, login.cookie)
+                }) {
+                    val start = System.currentTimeMillis()
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1)))
+
+                    // The engine's first frame lands well before its second (400ms later) —
+                    // if the relay batched until receiveFromBrowser returned, both would only
+                    // become visible together, after the full ~800ms round trip.
+                    val firstFrame = withTimeoutOrNull(200) { (incoming.receive() as Frame.Binary).readBytes() }
+                    val elapsedAtFirst = System.currentTimeMillis() - start
+                    val secondFrame = withTimeoutOrNull(600) { (incoming.receive() as Frame.Binary).readBytes() }
+                    val elapsedAtSecond = System.currentTimeMillis() - start
+
+                    assertSoftly {
+                        firstFrame shouldBe byteArrayOf(1)
+                        secondFrame shouldBe byteArrayOf(2)
+                        // First frame observed well before the engine call (2x 400ms) completes.
+                        elapsedAtFirst shouldBeLessThan 400
+                        elapsedAtSecond shouldBeGreaterThanOrEqual 400
+                    }
+                }
+            }
+        }
+
+        test("engine crash disconnects attached browsers instead of hanging silently") {
+            withWeb { client, repos ->
+                val login = client.login(repos)
+                val matchId = "crash-me"
+                val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
+                repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
+                    EmbeddedWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
+                }
+                val wsClient = client.config { install(WebSockets) }
+
+                wsClient.webSocket({
+                    url.takeFrom("/gre?matchId=$matchId")
+                    header(HttpHeaders.Cookie, login.cookie)
+                }) {
+                    send(Frame.Binary(fin = true, data = authRequestBytes("web-player")))
+                    // Connect references a puzzle file that doesn't exist — PuzzleHandler
+                    // throws, MatchHandler.exceptionCaught tears the match down internally.
+                    // Without the onClosed wiring the browser would just hang here forever.
+                    send(Frame.Binary(fin = true, data = connectRequestBytes(matchId, seatId = 1)))
+
+                    shouldThrow<ClosedReceiveChannelException> {
+                        while (true) incoming.receive()
+                    }
+                }
+            }
+        }
+
         test("GRE WebSocket rejects private match without owner session") {
             withWeb { client, repos ->
-                repos.relay.register(
-                    "private",
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf()),
-                    ownerPlayerId = PlayerId("owner"),
-                )
+                repos.relay.register("private", ownerPlayerId = PlayerId("owner")) { onFrame, _ ->
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(), onFrame = onFrame)
+                }
                 val wsClient = client.config { install(WebSockets) }
 
                 wsClient.webSocket("/gre?matchId=private") {
@@ -249,11 +320,9 @@ class WebRoutesTest :
         test("GRE WebSocket accepts private match owner session") {
             withWeb { client, repos ->
                 val login = client.login(repos)
-                repos.relay.register(
-                    "private",
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(4, 5, 6)),
-                    ownerPlayerId = PlayerId(login.playerId),
-                )
+                repos.relay.register("private", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
+                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(4, 5, 6), onFrame = onFrame)
+                }
                 val wsClient = client.config { install(WebSockets) }
 
                 wsClient.webSocket({
@@ -501,6 +570,46 @@ private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Uni
         block(client, repos)
     }
 
+private fun authRequestBytes(clientId: String): ByteArray =
+    ClientToMatchServiceMessage
+        .newBuilder()
+        .setRequestId(1)
+        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.AuthenticateRequest_f487)
+        .setPayload(
+            AuthenticateRequest
+                .newBuilder()
+                .setClientId(clientId)
+                .setPlayerName(clientId)
+                .build()
+                .toByteString(),
+        ).build()
+        .toByteArray()
+
+private fun connectRequestBytes(
+    matchId: String,
+    seatId: Int,
+): ByteArray =
+    ClientToMatchServiceMessage
+        .newBuilder()
+        .setRequestId(2)
+        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487)
+        .setPayload(
+            ClientToMatchDoorConnectRequest
+                .newBuilder()
+                .setMatchId(matchId)
+                .setClientToGreMessageBytes(
+                    ClientToGREMessage
+                        .newBuilder()
+                        .setSystemSeatId(seatId)
+                        .setType(ClientMessageType.ConnectReq_097b)
+                        .setConnectReq(ConnectReq.newBuilder())
+                        .build()
+                        .toByteString(),
+                ).build()
+                .toByteString(),
+        ).build()
+        .toByteArray()
+
 private class TestRepos {
     val course = MemoryCourseRepo()
     val draft = MemoryDraftRepo()
@@ -565,14 +674,29 @@ private suspend fun io.ktor.client.HttpClient.roundTrip(
     }
 }
 
+/** Emits two frames [stepDelayMs] apart from within one [receiveFromBrowser] call. */
+private class SlowMultiStepGreEngineSession(
+    private val onFrame: (ByteArray) -> Unit,
+    private val stepDelayMs: Long,
+) : WebGreEngineSession {
+    override fun receiveFromBrowser(payload: ByteArray) {
+        onFrame(byteArrayOf(1))
+        LockSupport.parkNanos(stepDelayMs * 1_000_000)
+        onFrame(byteArrayOf(2))
+    }
+
+    override fun close() = Unit
+}
+
 private class StaticGreEngineSession(
     private val received: MutableList<ByteArray>,
     private val reply: ByteArray,
+    private val onFrame: (ByteArray) -> Unit,
     private val closed: AtomicBoolean = AtomicBoolean(false),
 ) : WebGreEngineSession {
-    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+    override fun receiveFromBrowser(payload: ByteArray) {
         received += payload
-        return listOf(reply)
+        onFrame(reply)
     }
 
     override fun close() {
@@ -580,18 +704,20 @@ private class StaticGreEngineSession(
     }
 }
 
-private class ConcurrentProbeGreEngineSession : WebGreEngineSession {
+private class ConcurrentProbeGreEngineSession(
+    private val onFrame: (ByteArray) -> Unit,
+) : WebGreEngineSession {
     val receivedCount = AtomicInteger(0)
     val maxConcurrent = AtomicInteger(0)
     private val active = AtomicInteger(0)
 
-    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+    override fun receiveFromBrowser(payload: ByteArray) {
         val nowActive = active.incrementAndGet()
         maxConcurrent.updateAndGet { current -> maxOf(current, nowActive) }
         try {
             LockSupport.parkNanos(50_000_000)
             receivedCount.incrementAndGet()
-            return listOf(payload)
+            onFrame(payload)
         } finally {
             active.decrementAndGet()
         }
