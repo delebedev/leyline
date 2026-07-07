@@ -156,7 +156,7 @@ Policy realization probes:
 | `crew-brute-suit-lethal.pzl` | crew `Brute Suit` with `Centaur Courser`, then attack with `Brute Suit` for lethal | GRE passes through main phase without realizing the crew activation, attacks with `Centaur Courser` for nonlethal damage, then seat 1 loses |
 | `heraldic-banner-lethal.pzl` | cast `Heraldic Banner`, choose Red, then attack with a 2/1 `Raging Goblin` for lethal | GRE asks Forge AI for the static color choice and wins |
 | `bite-down-lethal.pzl` | choose our `Grizzly Bears`, choose opposing `Grizzly Bears`, destroy the blocker, then attack for lethal | GRE realizes the ordered target choice, then passes through the attack; seat 1 loses |
-| `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | `PayCostsReq` greedily selects `Grizzly Bears`; seat 1 loses |
+| `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | GRE consults the Forge-AI cost decision for `PayCostsReq`, sacrifices `Ornithopter`, and wins |
 | `jump-start-radical-idea-bolt-lethal.pzl` | jump-start `Radical Idea` by discarding `Coral Merfolk`, draw `Lightning Bolt`, then cast it for lethal | GRE jump-starts the spell and draws `Lightning Bolt`, then advances phases instead of realizing the newly available cast; seat 1 loses |
 
 Probe design rules:
