@@ -83,6 +83,7 @@ class BoastLifecycleTest :
                 exhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe USHER_BOAST_ABILITY_GRP_ID
                 exhausted.detailInt(DetailKeys.USES_REMAINING) shouldBe 0
                 exhausted.detailInt(DetailKeys.UNIQUE_ABILITY_ID) shouldBe BOAST_EXHAUSTED_UNIQUE_ABILITY_ID
+                exhausted.affectorId shouldBe usherIid
 
                 tokenObject shouldNotBe null
                 tokenObject!!.type shouldBe GameObjectType.Token
