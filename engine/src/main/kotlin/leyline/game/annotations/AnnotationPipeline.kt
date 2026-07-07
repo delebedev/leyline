@@ -587,6 +587,48 @@ object AnnotationPipeline {
         return copy(destroyed = this.destroyed + destroyed)
     }
 
+    private fun stackInstanceForEvent(
+        ctx: AnnotationContext,
+        castStackIidsByCard: Map<ForgeCardId, InstanceId>,
+        ev: GameEvent.SpellCast,
+    ): InstanceId? =
+        if (ev.isAbility && ev.abilityForgeId != 0) {
+            InstanceId(ctx.stackAbilityIid(ev.abilityForgeId, ev.cardId))
+        } else {
+            castStackIidsByCard[ev.cardId]
+        }
+
+    private fun tokenAffector(
+        ctx: AnnotationContext,
+        ev: GameEvent.TokenCreated,
+    ): InstanceId? =
+        tokenAffectorFromEventSource(ctx, ev)
+            ?: tokenAffectorFromLiveToken(ctx, ev)
+
+    private fun tokenAffectorFromEventSource(
+        ctx: AnnotationContext,
+        ev: GameEvent.TokenCreated,
+    ): InstanceId? =
+        ev.sourceCardId?.let { sourceId ->
+            ctx.events
+                .filterIsInstance<GameEvent.SpellCast>()
+                .lastOrNull { cast -> cast.cardId == sourceId && cast.isAbility && cast.abilityForgeId != 0 }
+                ?.let { cast -> InstanceId(ctx.stackAbilityIid(cast.abilityForgeId, cast.cardId)) }
+        }
+
+    private fun tokenAffectorFromLiveToken(
+        ctx: AnnotationContext,
+        ev: GameEvent.TokenCreated,
+    ): InstanceId? =
+        ctx.bridge.findCard(ev.cardId)?.tokenSpawningAbility?.let { ability ->
+            val host = ability.hostCard
+            if (ability.isAbility && host != null && ability.id != 0) {
+                InstanceId(ctx.stackAbilityIid(ability.id, ForgeCardId(host.id)))
+            } else {
+                null
+            }
+        }
+
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
     @Suppress("LongParameterList", "LongMethod")
     internal fun computeRemainingAnnotations(
@@ -649,7 +691,8 @@ object AnnotationPipeline {
                 },
                 counterAffectorResolver = { eventIndex, ev -> ctx.counterAffectorFor(eventIndex, ev) },
                 playerCounterAffectorResolver = { eventIndex, ev -> ctx.playerCounterAffectorFor(eventIndex, ev) },
-                stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
+                tokenAffectorResolver = { ev -> tokenAffector(ctx, ev) },
+                stackInstanceResolver = { ev -> stackInstanceForEvent(ctx, castStackIidsByCard, ev) },
                 castSpellTransferCardIds = castSpellTransferCardIds,
                 convokePaymentsBySource = convokePaymentsBySource,
             )

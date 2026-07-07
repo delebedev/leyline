@@ -9,6 +9,7 @@ import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.data.CardRepository
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -438,6 +439,18 @@ object SnapshotCapture {
                 instanceId = instanceId,
                 tokenRegistry = bridge.tokenRegistry,
             )
+        val tokenAbility = card.tokenSpawningAbility
+        val tokenSourceCard = tokenAbility?.hostCard?.takeIf { card.isToken && tokenAbility.isAbility }
+        val tokenSourceCardGrpId =
+            tokenSourceCard?.let { source ->
+                val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(source.id)).value
+                bridge.resolveGrpId(source, sourceIid)
+            } ?: 0
+        val tokenParentAbilityInstanceId =
+            tokenAbility
+                ?.takeIf { card.isToken && it.isAbility && it.id != 0 }
+                ?.let { bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(it.id)).value }
+                ?: 0
 
         val ownerSeat = bridge.seatOf(card.owner) ?: SeatId(1)
         val controllerSeat = bridge.seatOf(card.controller) ?: ownerSeat
@@ -490,6 +503,8 @@ object SnapshotCapture {
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
             isToken = card.isToken,
             isCopyToken = card.isToken && card.copiedPermanent != null,
+            tokenSourceCardGrpId = tokenSourceCardGrpId,
+            tokenParentAbilityInstanceId = tokenParentAbilityInstanceId,
             attachedToInstanceId = attachedToInstanceId,
             preparedCopySourceInstanceId = preparedCopySourceInstanceId,
             liveCardTypeNumbers = liveTypeNumbers,

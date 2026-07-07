@@ -71,6 +71,25 @@ scenarios:
           all:
             - annotation_seen: AbilityExhausted
             - stack_empty: true
+  - id: boast-usher-of-the-fallen
+    puzzle: boast-usher-of-the-fallen
+    run: attack with Usher of the Fallen, then activate Boast
+    expect: the Boast activation resolves, creates a Human Warrior token, and emits AbilityExhausted
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 30
+      - attack_all: {}
+      - expect:
+          action: { type: activate, card: Usher of the Fallen }
+      - activate: Usher of the Fallen
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: AbilityExhausted
+            - annotation_seen: TokenCreated
+            - zone_contains: { side: ours, zone: battlefield, card: Human Warrior Token }
+            - stack_empty: true
   - id: extinction-event-parity-choice
     puzzle: extinction-event-choice
     run: cast Extinction Event and choose even

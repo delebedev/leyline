@@ -146,14 +146,12 @@ internal fun buildAbilityExhaustedAnnotations(
                 getNonManaActivatedAbilities(card, player)
         exhaustedAbilities(abilities).mapNotNull { ability ->
             val abilityGrpId = registry.forSpellAbility(ability.id).takeIf { it != 0 } ?: return@mapNotNull null
-            val usesRemaining =
-                (StaticAbilityAdditionalActivations.getLimit(card, ability, player) - ability.activationsThisGame)
-                    .coerceAtLeast(0)
+            val usesRemaining = remainingUses(card, ability, player)
             AnnotationBuilder.abilityExhausted(
                 instanceId = frameIds.cardIid(bound.forgeCardId),
                 abilityGrpId = GrpId(abilityGrpId),
                 usesRemaining = usesRemaining,
-                uniqueAbilityId = uniqueAbilityIdFor(bound.data, abilityGrpId),
+                uniqueAbilityId = uniqueAbilityIdFor(bound.data, abilityGrpId, ability),
             )
         }
     }
@@ -161,16 +159,36 @@ internal fun buildAbilityExhaustedAnnotations(
 private fun exhaustedAbilities(abilities: List<SpellAbility>): List<SpellAbility> =
     abilities
         .distinctBy { it.id }
-        .filter { it.isExhaust && it.activationsThisGame > 0 }
+        .filter { ability ->
+            when {
+                ability.isBoast -> ability.activationsThisTurn > 0
+                ability.isExhaust -> ability.activationsThisGame > 0
+                else -> false
+            }
+        }
+
+private fun remainingUses(
+    card: forge.game.card.Card,
+    ability: SpellAbility,
+    player: forge.game.player.Player,
+): Int {
+    val used = if (ability.isBoast) ability.activationsThisTurn else ability.activationsThisGame
+    return (StaticAbilityAdditionalActivations.getLimit(card, ability, player) - used).coerceAtLeast(0)
+}
 
 private fun uniqueAbilityIdFor(
     cardData: CardData?,
     abilityGrpId: Int,
-): Int =
-    cardData
+    ability: SpellAbility,
+): Int {
+    if (ability.isBoast) return BOAST_EXHAUSTED_UNIQUE_ABILITY_ID
+    return cardData
         ?.abilityIds
         .orEmpty()
         .indexOfFirst { (grpId, _) -> grpId == abilityGrpId }
         .takeIf { it >= 0 }
         ?.let { INITIAL_UNIQUE_ABILITY_ID + it }
         ?: INITIAL_UNIQUE_ABILITY_ID
+}
+
+private const val BOAST_EXHAUSTED_UNIQUE_ABILITY_ID = 374

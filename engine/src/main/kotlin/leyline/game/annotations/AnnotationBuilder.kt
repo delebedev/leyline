@@ -592,10 +592,14 @@ object AnnotationBuilder {
 
     /** Token was created. client type 35 (TokenCreated).
      *  [instanceId] = the new token's instanceId in the game state. */
-    fun tokenCreated(instanceId: InstanceId): AnnotationInfo =
+    fun tokenCreated(
+        instanceId: InstanceId,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.TokenCreated)
+            .apply { affectorId?.let { setAffectorId(it.value) } }
             .addAffectedIds(instanceId.value)
             .build()
 

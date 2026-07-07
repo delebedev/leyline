@@ -92,6 +92,7 @@ object MechanicAnnotations {
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         counterAffectorResolver: (Int, GameEvent.CountersChanged) -> InstanceId? = { _, _ -> null },
         playerCounterAffectorResolver: (Int, GameEvent.PlayerCountersChanged) -> InstanceId? = { _, _ -> null },
+        tokenAffectorResolver: (GameEvent.TokenCreated) -> InstanceId? = { null },
         stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
         castSpellTransferCardIds: Set<ForgeCardId> = emptySet(),
         convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
@@ -172,7 +173,7 @@ object MechanicAnnotations {
                 }
                 is GameEvent.TokenCreated -> {
                     val instanceId = idResolver(ev.cardId)
-                    annotations.add(AnnotationBuilder.tokenCreated(instanceId))
+                    annotations.add(AnnotationBuilder.tokenCreated(instanceId, affectorId = tokenAffectorResolver(ev)))
                     log.debug("mechanic: tokenCreated iid={}", instanceId.value)
                 }
                 is GameEvent.TokenDestroyed -> {
