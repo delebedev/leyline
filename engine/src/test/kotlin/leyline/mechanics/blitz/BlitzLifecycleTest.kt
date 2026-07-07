@@ -5,8 +5,13 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
+import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class BlitzLifecycleTest :
     SessionTest({
@@ -30,8 +35,18 @@ class BlitzLifecycleTest :
             val patrolGrpId = harness.bridge.cardRepository.findGrpIdByName("Mayhem Patrol")!!
             val blitzAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(patrolGrpId, KeywordAbilityIds.BLITZ)!!
 
+            val snap = messageSnapshot()
             castSpellByName("Mayhem Patrol", alternativeGrpId = blitzAbilityGrpId).shouldBeTrue()
             passUntil(maxPasses = 20) { game().stack.isEmpty }.shouldBeTrue()
+
+            val cto =
+                messagesSince(snap)
+                    .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                    .first { it.detailInt("alternateCostGrpId") == blitzAbilityGrpId }
+            assertSoftly {
+                cto.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
+                cto.detailInt("castAbilityGrpId") shouldBe blitzAbilityGrpId
+            }
 
             human.hasCard("Mayhem Patrol", ZoneType.Battlefield).shouldBeTrue()
             val returnedAndDrew = { human.hasCard("Mayhem Patrol", ZoneType.Graveyard) && human.hasCard("Mountain", ZoneType.Hand) }

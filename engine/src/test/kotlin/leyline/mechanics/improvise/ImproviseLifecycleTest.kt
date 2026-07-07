@@ -2,6 +2,7 @@ package leyline.mechanics.improvise
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -15,6 +16,8 @@ import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 
 class ImproviseLifecycleTest :
     SessionTest({
@@ -56,6 +59,18 @@ class ImproviseLifecycleTest :
             initialPayCosts.paymentActions.actionsList
                 .map { it.instanceId }
                 .toSet() shouldBe artifactIids.toSet()
+            initialPayCosts.paymentActions.actionsList.forEach { action ->
+                val mana =
+                    action.manaPaymentOptionsList
+                        .single()
+                        .manaList
+                        .single()
+                assertSoftly {
+                    mana.color shouldBe ManaColor.Colorless_afc9
+                    mana.abilityGrpId shouldBe KeywordAbilityIds.IMPROVISE
+                    mana.specsList.map { it.type } shouldContainAll listOf(ManaSpecType.ManaSubstitution)
+                }
+            }
 
             val paymentSnap = messageSnapshot()
             artifactIids.forEach { respondToMakePayment(it) }
@@ -73,7 +88,7 @@ class ImproviseLifecycleTest :
             assertSoftly {
                 tappedIds shouldContainAll artifactIids
                 paidByImprovise.map { it.affectorId }.toSet() shouldBe artifactIids.toSet()
-                messagesSince(paymentSnap).persistentAnnotationsOfType(AnnotationType.CastingTimeOption).isEmpty() shouldBe true
+                messagesSince(paymentSnap).persistentAnnotationsOfType(AnnotationType.CastingTimeOption).shouldBeEmpty()
             }
         }
     })

@@ -11,6 +11,10 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
+import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -43,6 +47,7 @@ class RetraceLifecycleTest :
                 .firstOrNull { it.isOptionalCostPaid(OptionalCost.Retrace) }
                 .shouldNotBeNull()
 
+            val snap = messageSnapshot()
             castSpellByName("Waves of Aggression", zone = ZoneType.Graveyard, alternativeGrpId = retraceAbilityGrpId).shouldBeTrue()
 
             val discardReq = lastSelectNReq()
@@ -63,6 +68,12 @@ class RetraceLifecycleTest :
             assertSoftly {
                 graveyardNames shouldContain "Waves of Aggression"
                 graveyardNames shouldContain "Plains"
+                val cto =
+                    messagesSince(snap)
+                        .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                        .first { it.detailInt("alternateCostGrpId") == retraceAbilityGrpId }
+                cto.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
+                cto.detailInt("castAbilityGrpId") shouldBe retraceAbilityGrpId
             }
         }
     })

@@ -27,6 +27,35 @@ import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
 class ConvokeLifecycleTest :
     SessionTest({
+        test("Convoke creature can satisfy colored mana for action affordability") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Conclave Tribunal
+                humanbattlefield=Forest;Forest;Forest;Savannah Lions
+                humanlibrary=Plains;Plains;Plains
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Convoke colored affordability",
+                validating = true,
+            )
+
+            val tribunalHandIid = human.hand.iid("Conclave Tribunal")
+            val actions =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq
+
+            assertSoftly {
+                actions.actionsList.any { it.actionType == ActionType.Cast && it.instanceId == tribunalHandIid } shouldBe true
+                actions.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == tribunalHandIid } shouldBe false
+            }
+        }
+
         test("Conclave Tribunal accepts native Convoke MakePayment responses") {
             startPuzzle(
                 """

@@ -2,7 +2,7 @@ package leyline.mechanics.harmonize
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.getAllCastableAbilities
@@ -29,7 +29,7 @@ class HarmonizeActionTest :
 
             val harmonizeAbilities = getAllCastableAbilities(card, human).filter { it.alternativeCost?.name == "Harmonize" }
 
-            harmonizeAbilities.shouldNotBeEmpty()
+            harmonizeAbilities shouldHaveSize 1
         }
 
         test("ActionMapper offers canonical Harmonize alt-cost Cast from graveyard") {

@@ -821,7 +821,7 @@ object RequestBuilder {
         kind: ManaSourcePaymentKind,
         convokeShard: ManaCostShard?,
     ): ManaColor {
-        if (kind == ManaSourcePaymentKind.Waterbend) return ManaColor.Colorless_afc9
+        if (kind == ManaSourcePaymentKind.Waterbend || kind == ManaSourcePaymentKind.Improvise) return ManaColor.Colorless_afc9
         convokeShard?.let { return ManaColorMapping.paymentWireColor(it) }
         val colorsNeeded = prompt.request.waterbendManaCost.toMap()
         return when {

@@ -268,27 +268,36 @@ object KeywordAbilityIds {
      * resolve to the same integer. Returns null when the keyword isn't
      * mapped yet.
      */
-    fun fromForgeAltCostName(name: String): Int? =
-        when (name.uppercase()) {
-            "WARP" -> WARP
-            "SNEAK" -> SNEAK
-            "OVERLOAD" -> OVERLOAD
-            "SPECTACLE" -> SPECTACLE
-            "SURGE" -> SURGE
-            "HARMONIZE" -> HARMONIZE
-            "JUMPSTART", "JUMP_START", "JUMP-START" -> JUMP_START
-            "FLASHBACK" -> FLASHBACK
-            "MADNESS" -> MADNESS
-            "PLOT", "PLOTTED" -> PLOT
-            "FORETELL", "FORETOLD" -> FORETELL
-            "DISTURB" -> DISTURB
-            "ESCAPE" -> ESCAPE
-            "MUTATE" -> MUTATE
-            "CLEAVE" -> CLEAVE
-            "IMPENDING" -> IMPENDING
-            "MOBILIZE" -> MOBILIZE
-            "DISGUISE" -> DISGUISE
-            "PARADIGM" -> PARADIGM
-            else -> null
-        }
+    private val FORGE_ALT_COST_KEYWORD_IDS =
+        mapOf(
+            "WARP" to WARP,
+            "SNEAK" to SNEAK,
+            "OVERLOAD" to OVERLOAD,
+            "EVOKE" to EVOKE,
+            "BLITZ" to BLITZ,
+            "DASH" to DASH,
+            "EMERGE" to EMERGE,
+            "SPECTACLE" to SPECTACLE,
+            "SURGE" to SURGE,
+            "HARMONIZE" to HARMONIZE,
+            "JUMPSTART" to JUMP_START,
+            "JUMP_START" to JUMP_START,
+            "JUMP-START" to JUMP_START,
+            "FLASHBACK" to FLASHBACK,
+            "MADNESS" to MADNESS,
+            "PLOT" to PLOT,
+            "PLOTTED" to PLOT,
+            "FORETELL" to FORETELL,
+            "FORETOLD" to FORETELL,
+            "DISTURB" to DISTURB,
+            "ESCAPE" to ESCAPE,
+            "MUTATE" to MUTATE,
+            "CLEAVE" to CLEAVE,
+            "IMPENDING" to IMPENDING,
+            "MOBILIZE" to MOBILIZE,
+            "DISGUISE" to DISGUISE,
+            "PARADIGM" to PARADIGM,
+        )
+
+    fun fromForgeAltCostName(name: String): Int? = FORGE_ALT_COST_KEYWORD_IDS[name.uppercase()]
 }

@@ -332,14 +332,14 @@ internal class PayCostsInteractionHandler(
         }
 
     private fun paymentKeywordGrpId(semantic: PromptSemantic): Int =
-        when (semantic) {
-            PromptSemantic.ImproviseCost -> KeywordAbilityIds.IMPROVISE
+        when {
+            semantic == PromptSemantic.ImproviseCost -> KeywordAbilityIds.IMPROVISE
             else -> KeywordAbilityIds.CONVOKE
         }
 
     private fun paymentAbilityGrpId(semantic: PromptSemantic): Int =
-        when (semantic) {
-            PromptSemantic.ImproviseCost -> KeywordAbilityIds.IMPROVISE
+        when {
+            semantic == PromptSemantic.ImproviseCost -> KeywordAbilityIds.IMPROVISE
             else -> KeywordAbilityIds.CONVOKE_PAYMENT
         }
 

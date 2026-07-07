@@ -48,19 +48,27 @@ internal object ActionManaCosts {
         artifacts: Boolean,
         creatures: Boolean,
     ): Boolean {
-        val cost = sa.payCosts?.totalMana?.takeUnless { it.isNoCost } ?: return false
+        val cost = computeEffectiveCost(sa, player) ?: return false
         val sourceColors = availableManaSourceColors(player).toMutableList()
-        val battlefield = player.getZone(ForgeZoneType.Battlefield).cards
-        val reducerCount =
-            battlefield.count { card ->
-                !card.isTapped &&
-                    ((artifacts && card.isArtifact) || (creatures && card.isCreature))
-            }
+        val reducerColors =
+            player
+                .getZone(ForgeZoneType.Battlefield)
+                .cards
+                .mapNotNull { card ->
+                    val eligible = !card.isTapped && ((artifacts && card.isArtifact) || (creatures && card.isCreature))
+                    if (eligible) card.color.toProtoManaColors() else null
+                }.toMutableList()
 
         fun canPayColor(color: ManaColor): Boolean {
             val index = sourceColors.indexOfFirst { ManaColor.Generic in it || color in it }
-            if (index < 0) return false
-            sourceColors.removeAt(index)
+            if (index >= 0) {
+                sourceColors.removeAt(index)
+                return true
+            }
+            if (!creatures) return false
+            val convokeIndex = reducerColors.indexOfFirst { color in it }
+            if (convokeIndex < 0) return false
+            reducerColors.removeAt(convokeIndex)
             return true
         }
 
@@ -68,8 +76,17 @@ internal object ActionManaCosts {
             val color = ManaColorMapping.fromShard(shard) ?: continue
             if (color != ManaColor.Generic && !canPayColor(color)) return false
         }
-        return cost.genericCost <= sourceColors.size + reducerCount
+        return cost.genericCost <= sourceColors.size + reducerColors.size
     }
+
+    private fun forge.card.ColorSet.toProtoManaColors(): Set<ManaColor> =
+        buildSet {
+            if (hasWhite()) add(ManaColor.White_afc9)
+            if (hasBlue()) add(ManaColor.Blue_afc9)
+            if (hasBlack()) add(ManaColor.Black_afc9)
+            if (hasRed()) add(ManaColor.Red_afc9)
+            if (hasGreen()) add(ManaColor.Green_afc9)
+        }
 
     fun canPayManaCostPairsWithGenericReduction(
         cost: List<Pair<ManaColor, Int>>,

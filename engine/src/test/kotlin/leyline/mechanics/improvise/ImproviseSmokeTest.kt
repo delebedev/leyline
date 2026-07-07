@@ -1,7 +1,7 @@
 package leyline.mechanics.improvise
 
 import forge.game.zone.ZoneType
-import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import leyline.bridge.getAllCastableAbilities
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -18,6 +18,6 @@ class ImproviseSmokeTest :
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Ironheart, Clever Champion" }
 
-            getAllCastableAbilities(card, human).shouldNotBeEmpty()
+            getAllCastableAbilities(card, human) shouldHaveSize 1
         }
     })

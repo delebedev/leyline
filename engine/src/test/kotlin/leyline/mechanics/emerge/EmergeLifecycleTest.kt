@@ -8,6 +8,10 @@ import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.detailInt
+import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class EmergeLifecycleTest :
     SessionTest({
@@ -32,6 +36,7 @@ class EmergeLifecycleTest :
             val emergeAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(gryffGrpId, KeywordAbilityIds.EMERGE)!!
             val corpseIid = human.battlefield.iid("Walking Corpse")
 
+            val snap = messageSnapshot()
             val payCosts =
                 after {
                     castSpellByName(
@@ -55,6 +60,12 @@ class EmergeLifecycleTest :
                     .cards
                     .any { it.name == "Wretched Gryff" }
                     .shouldBeTrue()
+                val cto =
+                    messagesSince(snap)
+                        .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                        .first { it.detailInt("alternateCostGrpId") == emergeAbilityGrpId }
+                cto.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
+                cto.detailInt("castAbilityGrpId") shouldBe emergeAbilityGrpId
             }
         }
     })
