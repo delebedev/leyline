@@ -232,6 +232,7 @@ object KeywordAbilityIds {
     const val EMERGE = 147
     const val JUMP_START = 170
     const val SPECTACLE = 174
+    const val SURGE = 356
     const val MENTOR = 171
     const val ESCAPE = 199
     const val MUTATE = 203
@@ -273,6 +274,7 @@ object KeywordAbilityIds {
             "SNEAK" -> SNEAK
             "OVERLOAD" -> OVERLOAD
             "SPECTACLE" -> SPECTACLE
+            "SURGE" -> SURGE
             "HARMONIZE" -> HARMONIZE
             "JUMPSTART", "JUMP_START", "JUMP-START" -> JUMP_START
             "FLASHBACK" -> FLASHBACK

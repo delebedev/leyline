@@ -1,0 +1,16 @@
+name: "Octopus"
+grpId: 95318
+titleId: 6515
+abilities: []
+isToken: true
+isPrimaryCard: false
+power: "8"
+toughness: "8"
+colors:
+  - 2
+types:
+  - 2
+subtypes:
+  - 220
+supertypes: []
+manaCost: ""

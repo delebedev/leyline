@@ -587,6 +587,21 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Waves of Aggression }
             - zone_contains: { side: ours, zone: graveyard, card: Plains }
             - stack_empty: true
+  - id: surge-crush-of-tentacles
+    puzzle: surge-crush-of-tentacles
+    run: cast Shock, then cast Crush of Tentacles for Surge
+    expect: Surge exposes a hand alternate-cost cast after another spell this turn and resolves for its surge cost
+    steps:
+      - cast: Shock
+      - target: opponent
+      - pass_until: { stack_empty: true, max_passes: 10 }
+      - cast: { card: Crush of Tentacles, alt_cost: surge }
+      - pass_until: { stack_empty: true, max_passes: 30 }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Crush of Tentacles }
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment

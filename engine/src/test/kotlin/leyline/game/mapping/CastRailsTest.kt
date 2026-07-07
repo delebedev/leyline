@@ -82,6 +82,12 @@ class CastRailsTest :
                 abilityGrpId = 6401,
                 manaCost = listOf(ManaColor.Generic to 1, ManaColor.Black_afc9 to 2),
             )
+        val surgeRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.SURGE,
+                abilityGrpId = 6501,
+                manaCost = listOf(ManaColor.Generic to 3, ManaColor.Blue_afc9 to 2),
+            )
         val jumpStartRow =
             AltCostBinding(
                 keywordBaseId = KeywordAbilityIds.JUMP_START,
@@ -106,6 +112,7 @@ class CastRailsTest :
                 cleaveRow,
                 overloadRow,
                 spectacleRow,
+                surgeRow,
                 jumpStartRow,
                 impendingRow,
             )
@@ -207,6 +214,16 @@ class CastRailsTest :
             }
         }
 
+        test("Surge hand rail is cost-agnostic") {
+            val surgeHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.SURGE }
+            val matching = listOf(ManaColor.Generic to 3, ManaColor.Blue_afc9 to 2)
+            val reduced = listOf(ManaColor.Generic to 2, ManaColor.Blue_afc9 to 2)
+            assertSoftly {
+                resolveAltGrpId(surgeHand, altCosts, matching) shouldBe surgeRow.abilityGrpId
+                resolveAltGrpId(surgeHand, altCosts, reduced) shouldBe surgeRow.abilityGrpId
+            }
+        }
+
         test("Impending hand rail is cost-agnostic") {
             val impendingHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.IMPENDING }
             val matching = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2)
@@ -222,7 +239,14 @@ class CastRailsTest :
                 CastRails.fromExile.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.PARADIGM, AltCostKind.AIRBEND)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START, AltCostKind.HARMONIZE)
+                    listOf(
+                        AltCostKind.FLASHBACK,
+                        AltCostKind.DISTURB,
+                        AltCostKind.ESCAPE,
+                        AltCostKind.JUMP_START,
+                        AltCostKind.RETRACE,
+                        AltCostKind.HARMONIZE,
+                    )
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
                     listOf(
                         AltCostKind.WARP,
@@ -233,7 +257,12 @@ class CastRailsTest :
                         AltCostKind.DISGUISE,
                         AltCostKind.CLEAVE,
                         AltCostKind.OVERLOAD,
+                        AltCostKind.EVOKE,
+                        AltCostKind.BLITZ,
+                        AltCostKind.DASH,
+                        AltCostKind.EMERGE,
                         AltCostKind.SPECTACLE,
+                        AltCostKind.SURGE,
                         AltCostKind.IMPENDING,
                     )
             }
