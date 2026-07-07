@@ -105,7 +105,7 @@ class PuzzleHandler(
         session.onPuzzleStart()
     }
 
-    /** Load puzzle: prefer config file path, fall back to matchId convention. */
+    /** Load puzzle: configured value as a path or bare name, else matchId convention. */
     private fun loadPuzzleForMatch(matchId: String): Puzzle {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
         GameBootstrap.initializeLocalization()
@@ -113,13 +113,16 @@ class PuzzleHandler(
         val configuredPuzzle = puzzlePath(matchId)
         if (configuredPuzzle != null) {
             val file = File(configuredPuzzle).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), configuredPuzzle) }
-            require(file.exists()) { "Puzzle file not found: ${file.absolutePath}" }
-            return PuzzleSource.loadFromFile(file.absolutePath)
+            if (file.exists()) return PuzzleSource.loadFromFile(file.absolutePath)
+            return loadFromPuzzlesDir(configuredPuzzle)
         }
 
-        val puzzleName = matchId.removePrefix("puzzle-")
-        val leylineDir = findLeylineDir()
-        val puzzlesDir = File(leylineDir, "puzzles")
+        return loadFromPuzzlesDir(matchId.removePrefix("puzzle-"))
+    }
+
+    /** Resolve a bare puzzle name against the standard puzzles directory. */
+    private fun loadFromPuzzlesDir(puzzleName: String): Puzzle {
+        val puzzlesDir = File(findLeylineDir(), "puzzles")
         val pzlFile = File(puzzlesDir, "$puzzleName.pzl")
         if (pzlFile.exists()) {
             return PuzzleSource.loadFromFile(pzlFile.absolutePath)

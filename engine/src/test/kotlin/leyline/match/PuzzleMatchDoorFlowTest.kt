@@ -194,6 +194,38 @@ class PuzzleMatchDoorFlowTest :
             }
         }
 
+        test("a bare puzzle name in the runtime match config resolves against the puzzles directory") {
+            val registry = MatchRegistry()
+            val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+            val matchId = "web-puzzle-name-1"
+
+            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "warmup-land-permanent"))
+            val handler =
+                MatchHandler(
+                    registry = registry,
+                    matchConfig = MatchConfig(),
+                    cardRepository = TestCardRegistry.repo,
+                    runtimeMatchConfigs = runtimeMatchConfigs,
+                )
+            val channel = EmbeddedChannel(handler)
+
+            channel.writeInbound(auth("web-player", 1))
+            greOutbound(channel)
+
+            channel.writeInbound(connect(matchId, seatId = 1, requestId = 2))
+            val connectTypes = greOutbound(channel).map { it.type }
+
+            assertSoftly {
+                channel.isActive shouldBe true
+                connectTypes.take(3) shouldBe
+                    listOf(
+                        GREMessageType.ConnectResp_695e,
+                        GREMessageType.GameStateMessage_695e,
+                        GREMessageType.ActionsAvailableReq_695e,
+                    )
+            }
+        }
+
         test(
             "a second Auth+Connect handshake on the same web-shaped channel (reconnect) " +
                 "resyncs instead of silently killing the shared engine",
