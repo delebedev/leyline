@@ -592,6 +592,7 @@ class MatchdoorAcceptanceExecutor(
                 AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
                 AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
                 AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
+                AcceptanceAltCost.Retrace -> KeywordAbilityIds.RETRACE
                 AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
                 AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
                 AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
@@ -618,6 +619,7 @@ class MatchdoorAcceptanceExecutor(
             AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
             AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
             AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
+            AcceptanceAltCost.Retrace -> KeywordAbilityIds.RETRACE
             AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
             AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
             AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST

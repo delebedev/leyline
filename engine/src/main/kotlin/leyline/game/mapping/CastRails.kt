@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import forge.game.spellability.AlternativeCost
+import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.game.data.KeywordAbilityIds
@@ -49,6 +50,7 @@ enum class AltCostKind(
     PLOT(KeywordAbilityIds.PLOT),
     FORETELL(KeywordAbilityIds.FORETELL),
     FLASHBACK(KeywordAbilityIds.FLASHBACK),
+    RETRACE(KeywordAbilityIds.RETRACE),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
     MUTATE(KeywordAbilityIds.MUTATE),
@@ -270,6 +272,14 @@ object CastRails {
             FromGraveyard(
                 kind = AltCostKind.JUMP_START,
                 saPredicate = { it.isJumpstart },
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
+            ),
+            FromGraveyard(
+                kind = AltCostKind.RETRACE,
+                saPredicate = { it.isOptionalCostPaid(OptionalCost.Retrace) },
+                abilityGrpIdMode = AbilityGrpIdMode.None,
                 echoAlternativeOnMana = true,
                 emitAlternativeSourceZcid = true,
                 omitGrpIdAndFacetId = false,

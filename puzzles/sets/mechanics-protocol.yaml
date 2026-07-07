@@ -574,6 +574,19 @@ scenarios:
           all:
             - zone_not_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
             - stack_empty: true
+  - id: retrace-waves-of-aggression
+    puzzle: retrace-waves-of-aggression
+    run: cast Waves of Aggression from graveyard with Retrace and auto-pay the only land discard
+    expect: Retrace exposes a graveyard cast and pays the land-discard additional cost
+    steps:
+      - cast: { card: Waves of Aggression, zone: graveyard, alt_cost: retrace }
+      - select_cost: { zone: hand, cards: [Plains] }
+      - pass_until: { stack_empty: true, max_passes: 30 }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Waves of Aggression }
+            - zone_contains: { side: ours, zone: graveyard, card: Plains }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment

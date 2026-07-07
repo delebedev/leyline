@@ -226,6 +226,7 @@ object KeywordAbilityIds {
     const val KICKER = 34
     const val FLASHBACK = 35
     const val MADNESS = 36
+    const val RETRACE = 82
     const val EVOKE = 75
     const val OVERLOAD = 97
     const val EMERGE = 147

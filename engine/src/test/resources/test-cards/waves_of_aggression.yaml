@@ -1,0 +1,17 @@
+name: "Waves of Aggression"
+grpId: 100675
+titleId: 14337
+abilities:
+  - id: 82
+    textId: 123
+    category: 3
+  - id: 1499
+    textId: 4894
+    category: 4
+expansionCode: "PZA"
+colors:
+  - 1
+  - 4
+types:
+  - 10
+manaCost: "o3oR/WoR/W"

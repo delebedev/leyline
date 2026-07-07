@@ -351,6 +351,7 @@ enum class AcceptanceAltCost(
     Foretell("foretell"),
     Impending("impending"),
     JumpStart("jump_start"),
+    Retrace("retrace"),
     Plot("plot"),
     Warp("warp"),
     Enlist("enlist"),
