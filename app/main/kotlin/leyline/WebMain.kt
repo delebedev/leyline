@@ -151,11 +151,14 @@ private class WebRuntimeMatchLauncher(
         request: GreStartRequest,
     ): DraftPlayResponse {
         val matchId = request.matchId?.takeIf { it.isNotBlank() } ?: "web-${UUID.randomUUID()}"
+        // Watch requests may arrive without decklists; an AI-vs-AI match still
+        // needs two decks, so blank spectator seats fall back to defaults.
+        val spectator = request.spectatorMode == true
         runtimeMatches.configure(
             RuntimeMatchConfig(
                 matchId = matchId,
-                seat1Deck = request.seat1Deck,
-                seat2Deck = request.seat2Deck,
+                seat1Deck = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator },
+                seat2Deck = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator },
                 puzzle = request.puzzle,
                 spectatorMode = request.spectatorMode,
             ),
