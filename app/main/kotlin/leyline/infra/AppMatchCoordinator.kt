@@ -1,5 +1,6 @@
 package leyline.infra
 
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -17,7 +18,6 @@ import leyline.domain.repo.DraftSessionRepository
 import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.MatchCoordinator
-import leyline.native.frontdoor.wire.DeckWireBuilder
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -186,12 +186,26 @@ class AppMatchCoordinator(
         commandZone: List<DeckCard> = emptyList(),
     ): String =
         buildJsonObject {
-            put("MainDeck", DeckWireBuilder.cardsToJsonArray(mainDeck))
-            put("Sideboard", DeckWireBuilder.cardsToJsonArray(sideboard))
+            put("MainDeck", cardsToJsonArray(mainDeck))
+            put("Sideboard", cardsToJsonArray(sideboard))
             if (commandZone.isNotEmpty()) {
-                put("CommandZone", DeckWireBuilder.cardsToJsonArray(commandZone))
+                put("CommandZone", cardsToJsonArray(commandZone))
             }
         }.toString()
+
+    // Local {cardId, quantity} array builder — this class must stay loadable
+    // on classpaths that exclude the native client head.
+    private fun cardsToJsonArray(cards: List<DeckCard>) =
+        buildJsonArray {
+            for (c in cards) {
+                add(
+                    buildJsonObject {
+                        put("cardId", c.grpId)
+                        put("quantity", c.quantity)
+                    },
+                )
+            }
+        }
 
     private fun jsonCardsToDeckText(cardsJson: String): String {
         val obj =

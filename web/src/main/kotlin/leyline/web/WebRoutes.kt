@@ -6,6 +6,7 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.origin
 import io.ktor.server.plugins.statuspages.StatusPages
@@ -74,6 +75,15 @@ fun Application.installWeb(services: WebServices) {
             call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
         }
         exception<UnauthorizedPlayer> { _, _ -> }
+        exception<Throwable> { call, cause ->
+            call.application.log.error(
+                "Unhandled error on {} {}",
+                call.request.local.method.value,
+                call.request.local.uri,
+                cause,
+            )
+            call.respond(HttpStatusCode.InternalServerError, "Internal error")
+        }
     }
     install(WebSockets)
     routing {
