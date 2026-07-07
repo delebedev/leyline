@@ -165,7 +165,8 @@ class ActionPerformer(
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.
-                val skipOptionalCostPrompt = action.alternativeGrpId == KeywordAbilityIds.JUMP_START
+                val skipOptionalCostPrompt =
+                    action.alternativeGrpId == KeywordAbilityIds.JUMP_START || action.alternativeGrpId == KeywordAbilityIds.RETRACE
                 if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(action, pending.actionId, castAbilityIndex)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp

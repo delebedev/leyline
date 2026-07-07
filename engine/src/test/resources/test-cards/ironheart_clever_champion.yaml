@@ -1,0 +1,14 @@
+name: "Ironheart, Clever Champion"
+grpId: 104954
+titleId: 1117365
+abilities:
+  - id: 157
+    textId: 122
+    category: 3
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 206119
+    textId: 1117367
+    category: 3
+expansionCode: "MSH"

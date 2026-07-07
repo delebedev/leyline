@@ -1,0 +1,17 @@
+[metadata]
+Name:Surge - Crush of Tentacles
+Goal:Cast Shock, then cast Crush of Tentacles for its surge cost.
+Turns:4
+Difficulty:Easy
+Description:Crush of Tentacles exposes a surge cast action after another spell was cast this turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Shock;Crush of Tentacles
+humanbattlefield=Mountain;Island;Island;Island;Island;Island
+humanlibrary=Island;Island;Island
+ailibrary=Island;Island;Island

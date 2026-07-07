@@ -1,0 +1,17 @@
+[metadata]
+Name:Dash - Zurgo Bellstriker
+Goal:Cast Zurgo Bellstriker for dash and let it return at end step.
+Turns:4
+Difficulty:Easy
+Description:Zurgo Bellstriker exposes a dash cast action, resolves, then returns to hand at the next end step.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Zurgo Bellstriker
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Island;Island;Island

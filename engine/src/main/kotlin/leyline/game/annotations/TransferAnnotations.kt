@@ -29,6 +29,8 @@ object TransferAnnotations {
     data class ConvokePaymentRecord(
         val paymentForgeCardId: ForgeCardId,
         val color: Int,
+        val substitutionGrpId: Int = KeywordAbilityIds.CONVOKE,
+        val paymentAbilityGrpId: Int = KeywordAbilityIds.CONVOKE_PAYMENT,
     )
 
     /**
@@ -369,14 +371,14 @@ object TransferAnnotations {
             ),
         )
         annotations.add(AnnotationBuilder.tappedUntappedPermanent(paymentSourceIid, paymentAbilityIid))
-        annotations.add(AnnotationBuilder.resolutionStart(paymentAbilityIid, GrpId(KeywordAbilityIds.CONVOKE_PAYMENT)))
+        annotations.add(AnnotationBuilder.resolutionStart(paymentAbilityIid, GrpId(payment.paymentAbilityGrpId)))
         annotations.add(
             AnnotationBuilder.manaPaid(
                 spellInstanceId = spellIid,
                 landInstanceId = paymentSourceIid,
                 manaId = null,
                 color = payment.color,
-                substitutionGrpId = GrpId(KeywordAbilityIds.CONVOKE),
+                substitutionGrpId = GrpId(payment.substitutionGrpId),
             ),
         )
         annotations.add(AnnotationBuilder.abilityInstanceDeleted(paymentAbilityIid, paymentSourceIid))
@@ -385,7 +387,7 @@ object TransferAnnotations {
                 instanceId = paymentAbilityIid,
                 seatId = actingSeat,
                 actionType = ActionType.MakePayment,
-                abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE_PAYMENT),
+                abilityGrpId = GrpId(payment.paymentAbilityGrpId),
             ),
         )
     }

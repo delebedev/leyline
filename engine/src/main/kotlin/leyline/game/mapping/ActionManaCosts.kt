@@ -42,6 +42,79 @@ internal object ActionManaCosts {
             false
         }
 
+    fun canPayWithPaymentSourceReducer(
+        sa: SpellAbility,
+        player: Player,
+        artifacts: Boolean,
+        creatures: Boolean,
+    ): Boolean {
+        val cost = computeEffectiveCost(sa, player) ?: return false
+        val sourceColors = availableManaSourceColors(player).toMutableList()
+        val reducerColors =
+            player
+                .getZone(ForgeZoneType.Battlefield)
+                .cards
+                .mapNotNull { card ->
+                    val eligible = !card.isTapped && ((artifacts && card.isArtifact) || (creatures && card.isCreature))
+                    if (eligible) card.color.toProtoManaColors() else null
+                }.toMutableList()
+
+        fun canPayColor(color: ManaColor): Boolean {
+            val index = sourceColors.indexOfFirst { ManaColor.Generic in it || color in it }
+            if (index >= 0) {
+                sourceColors.removeAt(index)
+                return true
+            }
+            if (!creatures) return false
+            val convokeIndex = reducerColors.indexOfFirst { color in it }
+            if (convokeIndex < 0) return false
+            reducerColors.removeAt(convokeIndex)
+            return true
+        }
+
+        for (shard in cost) {
+            val color = ManaColorMapping.fromShard(shard) ?: continue
+            if (color != ManaColor.Generic && !canPayColor(color)) return false
+        }
+        return cost.genericCost <= sourceColors.size + reducerColors.size
+    }
+
+    private fun forge.card.ColorSet.toProtoManaColors(): Set<ManaColor> =
+        buildSet {
+            if (hasWhite()) add(ManaColor.White_afc9)
+            if (hasBlue()) add(ManaColor.Blue_afc9)
+            if (hasBlack()) add(ManaColor.Black_afc9)
+            if (hasRed()) add(ManaColor.Red_afc9)
+            if (hasGreen()) add(ManaColor.Green_afc9)
+        }
+
+    fun canPayManaCostPairsWithGenericReduction(
+        cost: List<Pair<ManaColor, Int>>,
+        player: Player,
+        genericReduction: Int,
+    ): Boolean {
+        val sourceColors = availableManaSourceColors(player).toMutableList()
+
+        fun canPayColor(color: ManaColor): Boolean {
+            val index = sourceColors.indexOfFirst { ManaColor.Generic in it || color in it }
+            if (index < 0) return false
+            sourceColors.removeAt(index)
+            return true
+        }
+
+        var genericCost = 0
+        for ((color, count) in cost) {
+            if (color == ManaColor.Generic) {
+                genericCost += count
+            } else {
+                repeat(count) {
+                    if (!canPayColor(color)) return false
+                }
+            }
+        }
+        return (genericCost - genericReduction).coerceAtLeast(0) <= sourceColors.size
+    }
+
     @Suppress("CyclomaticComplexMethod")
     private fun canPayOrTwoGenericManaCost(
         sa: SpellAbility,

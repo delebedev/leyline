@@ -46,6 +46,12 @@ class CastRailsTest :
                 abilityGrpId = 7101,
                 manaCost = listOf(ManaColor.Generic to 2, ManaColor.Blue_afc9 to 1),
             )
+        val harmonizeRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.HARMONIZE,
+                abilityGrpId = 7301,
+                manaCost = listOf(ManaColor.Generic to 4, ManaColor.Blue_afc9 to 1),
+            )
         val disturbRow =
             AltCostBinding(
                 keywordBaseId = KeywordAbilityIds.DISTURB,
@@ -70,6 +76,18 @@ class CastRailsTest :
                 abilityGrpId = 6201,
                 manaCost = listOf(ManaColor.Generic to 3, ManaColor.Red_afc9 to 3),
             )
+        val spectacleRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.SPECTACLE,
+                abilityGrpId = 6401,
+                manaCost = listOf(ManaColor.Generic to 1, ManaColor.Black_afc9 to 2),
+            )
+        val surgeRow =
+            AltCostBinding(
+                keywordBaseId = KeywordAbilityIds.SURGE,
+                abilityGrpId = 6501,
+                manaCost = listOf(ManaColor.Generic to 3, ManaColor.Blue_afc9 to 2),
+            )
         val jumpStartRow =
             AltCostBinding(
                 keywordBaseId = KeywordAbilityIds.JUMP_START,
@@ -83,7 +101,21 @@ class CastRailsTest :
                 manaCost = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2),
             )
         val altCosts =
-            listOf(warpRow, foretellRow, escapeRow, flashbackRow, disturbRow, plotRow, cleaveRow, overloadRow, jumpStartRow, impendingRow)
+            listOf(
+                warpRow,
+                foretellRow,
+                escapeRow,
+                flashbackRow,
+                harmonizeRow,
+                disturbRow,
+                plotRow,
+                cleaveRow,
+                overloadRow,
+                spectacleRow,
+                surgeRow,
+                jumpStartRow,
+                impendingRow,
+            )
 
         test("Plot exile rail returns universal-149 regardless of altCosts contents") {
             val plotExile = CastRails.fromExile.first { it.kind == AltCostKind.PLOT }
@@ -98,17 +130,19 @@ class CastRailsTest :
             resolveAltGrpId(foretellExile, altCosts, payAction) shouldBe foretellRow.abilityGrpId
         }
 
-        test("Flashback / Disturb / Escape graveyard rails are cost-agnostic per current behavior") {
+        test("Flashback / Disturb / Escape / Harmonize graveyard rails are cost-agnostic per current behavior") {
             val flashback = CastRails.fromGraveyard.first { it.kind == AltCostKind.FLASHBACK }
             val disturb = CastRails.fromGraveyard.first { it.kind == AltCostKind.DISTURB }
             val escape = CastRails.fromGraveyard.first { it.kind == AltCostKind.ESCAPE }
             val jumpStart = CastRails.fromGraveyard.first { it.kind == AltCostKind.JUMP_START }
+            val harmonize = CastRails.fromGraveyard.first { it.kind == AltCostKind.HARMONIZE }
             // Empty payCostPairs still resolves — graveyard rails default to cost-agnostic.
             assertSoftly {
                 resolveAltGrpId(flashback, altCosts, payCostPairs = emptyList()) shouldBe flashbackRow.abilityGrpId
                 resolveAltGrpId(disturb, altCosts, payCostPairs = emptyList()) shouldBe disturbRow.abilityGrpId
                 resolveAltGrpId(escape, altCosts, payCostPairs = emptyList()) shouldBe escapeRow.abilityGrpId
                 resolveAltGrpId(jumpStart, altCosts, payCostPairs = emptyList()) shouldBe jumpStartRow.abilityGrpId
+                resolveAltGrpId(harmonize, altCosts, payCostPairs = emptyList()) shouldBe harmonizeRow.abilityGrpId
             }
         }
 
@@ -170,6 +204,26 @@ class CastRailsTest :
             }
         }
 
+        test("Spectacle hand rail is cost-agnostic") {
+            val spectacleHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.SPECTACLE }
+            val matching = listOf(ManaColor.Generic to 1, ManaColor.Black_afc9 to 2)
+            val reduced = listOf(ManaColor.Black_afc9 to 2)
+            assertSoftly {
+                resolveAltGrpId(spectacleHand, altCosts, matching) shouldBe spectacleRow.abilityGrpId
+                resolveAltGrpId(spectacleHand, altCosts, reduced) shouldBe spectacleRow.abilityGrpId
+            }
+        }
+
+        test("Surge hand rail is cost-agnostic") {
+            val surgeHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.SURGE }
+            val matching = listOf(ManaColor.Generic to 3, ManaColor.Blue_afc9 to 2)
+            val reduced = listOf(ManaColor.Generic to 2, ManaColor.Blue_afc9 to 2)
+            assertSoftly {
+                resolveAltGrpId(surgeHand, altCosts, matching) shouldBe surgeRow.abilityGrpId
+                resolveAltGrpId(surgeHand, altCosts, reduced) shouldBe surgeRow.abilityGrpId
+            }
+        }
+
         test("Impending hand rail is cost-agnostic") {
             val impendingHand = CastRails.handWithAltCost.first { it.kind == AltCostKind.IMPENDING }
             val matching = listOf(ManaColor.Generic to 2, ManaColor.White_afc9 to 2)
@@ -185,7 +239,14 @@ class CastRailsTest :
                 CastRails.fromExile.map { it.kind } shouldContainExactly
                     listOf(AltCostKind.PLOT, AltCostKind.FORETELL, AltCostKind.PARADIGM, AltCostKind.AIRBEND)
                 CastRails.fromGraveyard.map { it.kind } shouldContainExactly
-                    listOf(AltCostKind.FLASHBACK, AltCostKind.DISTURB, AltCostKind.ESCAPE, AltCostKind.JUMP_START)
+                    listOf(
+                        AltCostKind.FLASHBACK,
+                        AltCostKind.DISTURB,
+                        AltCostKind.ESCAPE,
+                        AltCostKind.JUMP_START,
+                        AltCostKind.RETRACE,
+                        AltCostKind.HARMONIZE,
+                    )
                 CastRails.handWithAltCost.map { it.kind } shouldContainExactly
                     listOf(
                         AltCostKind.WARP,
@@ -196,6 +257,12 @@ class CastRailsTest :
                         AltCostKind.DISGUISE,
                         AltCostKind.CLEAVE,
                         AltCostKind.OVERLOAD,
+                        AltCostKind.EVOKE,
+                        AltCostKind.BLITZ,
+                        AltCostKind.DASH,
+                        AltCostKind.EMERGE,
+                        AltCostKind.SPECTACLE,
+                        AltCostKind.SURGE,
                         AltCostKind.IMPENDING,
                     )
             }

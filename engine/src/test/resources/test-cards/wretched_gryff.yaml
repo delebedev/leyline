@@ -1,0 +1,24 @@
+name: "Wretched Gryff"
+grpId: 86609
+titleId: 50292
+abilities:
+  - id: 64586
+    textId: 50293
+    category: 8
+    baseId: 147
+    mana: "o5oU"
+  - id: 103049
+    textId: 321750
+    category: 2
+  - id: 8
+    textId: 46
+    category: 3
+expansionCode: "SIR"
+colors:
+  - 2
+types:
+  - 2
+subtypes:
+  - 133
+  - 157
+manaCost: "o7"

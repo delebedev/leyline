@@ -1,0 +1,8 @@
+name: "Thirst for Knowledge"
+grpId: 104973
+titleId: 12561
+abilities:
+  - id: 4966
+    textId: 12563
+    category: 4
+expansionCode: "MSH"

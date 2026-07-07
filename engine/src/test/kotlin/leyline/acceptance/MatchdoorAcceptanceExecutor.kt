@@ -7,7 +7,6 @@ import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -577,40 +576,14 @@ class MatchdoorAcceptanceExecutor(
                     ?.let { harness.game().findById(it.value) }
                     ?.let { harness.bridge.resolveGrpId(it, action.instanceId) }
                 ?: return false
-        val keywordId =
-            when (altCost) {
-                AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
-                AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
-                AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
-                AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
-                AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
-                AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
-                AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
-                AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
-                AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
-                AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
-                AcceptanceAltCost.Airbend -> KeywordAbilityIds.AIRBEND
-            }
+        val keywordId = altCost.keywordAbilityId
         val abilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
         return action.alternativeGrpId == keywordId ||
             action.abilityGrpId == keywordId ||
             (abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId))
     }
 
-    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int =
-        when (altCost) {
-            AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
-            AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
-            AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
-            AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
-            AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
-            AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
-            AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
-            AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
-            AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
-            AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
-            AcceptanceAltCost.Airbend -> KeywordAbilityIds.AIRBEND
-        }
+    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int = altCost.keywordAbilityId
 
     private fun zoneContains(
         harness: MatchFlowHarness,

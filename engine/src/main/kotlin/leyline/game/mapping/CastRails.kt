@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import forge.game.spellability.AlternativeCost
+import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.game.data.KeywordAbilityIds
@@ -49,13 +50,21 @@ enum class AltCostKind(
     PLOT(KeywordAbilityIds.PLOT),
     FORETELL(KeywordAbilityIds.FORETELL),
     FLASHBACK(KeywordAbilityIds.FLASHBACK),
+    RETRACE(KeywordAbilityIds.RETRACE),
     DISTURB(KeywordAbilityIds.DISTURB),
     ESCAPE(KeywordAbilityIds.ESCAPE),
     MUTATE(KeywordAbilityIds.MUTATE),
     JUMP_START(KeywordAbilityIds.JUMP_START),
     IMPENDING(KeywordAbilityIds.IMPENDING),
     CLEAVE(KeywordAbilityIds.CLEAVE),
+    EVOKE(KeywordAbilityIds.EVOKE),
+    BLITZ(KeywordAbilityIds.BLITZ),
+    DASH(KeywordAbilityIds.DASH),
     OVERLOAD(KeywordAbilityIds.OVERLOAD),
+    EMERGE(KeywordAbilityIds.EMERGE),
+    SPECTACLE(KeywordAbilityIds.SPECTACLE),
+    SURGE(KeywordAbilityIds.SURGE),
+    HARMONIZE(KeywordAbilityIds.HARMONIZE),
     WARP(KeywordAbilityIds.WARP),
     SNEAK(KeywordAbilityIds.SNEAK),
     DISGUISE(KeywordAbilityIds.DISGUISE),
@@ -268,6 +277,22 @@ object CastRails {
                 emitAlternativeSourceZcid = true,
                 omitGrpIdAndFacetId = false,
             ),
+            FromGraveyard(
+                kind = AltCostKind.RETRACE,
+                saPredicate = { it.isOptionalCostPaid(OptionalCost.Retrace) },
+                abilityGrpIdMode = AbilityGrpIdMode.None,
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
+            ),
+            FromGraveyard(
+                kind = AltCostKind.HARMONIZE,
+                saPredicate = { it.alternativeCost?.name == "Harmonize" },
+                abilityGrpIdMode = AbilityGrpIdMode.None,
+                echoAlternativeOnMana = true,
+                emitAlternativeSourceZcid = true,
+                omitGrpIdAndFacetId = false,
+            ),
         )
 
     val handWithAltCost: List<HandWithAltCost> =
@@ -317,6 +342,36 @@ object CastRails {
             HandWithAltCost(
                 kind = AltCostKind.OVERLOAD,
                 saPredicate = { it.alternativeCost == AlternativeCost.Overload },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.EVOKE,
+                saPredicate = { it.alternativeCost == AlternativeCost.Evoke },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.BLITZ,
+                saPredicate = { it.alternativeCost == AlternativeCost.Blitz },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.DASH,
+                saPredicate = { it.alternativeCost == AlternativeCost.Dash },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.EMERGE,
+                saPredicate = { it.alternativeCost == AlternativeCost.Emerge },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.SPECTACLE,
+                saPredicate = { it.alternativeCost == AlternativeCost.Spectacle },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            HandWithAltCost(
+                kind = AltCostKind.SURGE,
+                saPredicate = { it.alternativeCost == AlternativeCost.Surge },
                 lookupMode = LookupMode.CostAgnostic,
             ),
             HandWithAltCost(

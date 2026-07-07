@@ -41,11 +41,11 @@ class ConvokeOrImproviseCostPlannerTest :
 
             assertSoftly(plan) {
                 keyword shouldBe "improvise"
-                semantic shouldBe PromptSemantic.Generic
+                semantic shouldBe PromptSemantic.ImproviseCost
                 maxSelection shouldBe 2
-                candidateRefsPolicy shouldBe CandidateRefsPolicy.None
-                manaFieldsPolicy shouldBe CostManaFieldsPolicy.None
-                convokePaymentRecordPolicy shouldBe ConvokePaymentRecordPolicy.None
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                manaFieldsPolicy shouldBe CostManaFieldsPolicy.IncludeNativePaymentCost
+                convokePaymentRecordPolicy shouldBe ConvokePaymentRecordPolicy.Record
             }
         }
 

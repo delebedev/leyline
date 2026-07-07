@@ -1,0 +1,13 @@
+name: "Winternight Stories"
+grpId: 95585
+titleId: 926865
+abilities:
+  - id: 61199
+    textId: 47106
+    category: 4
+  - id: 188765
+    textId: 926866
+    category: 8
+    baseId: 362
+    mana: "o4oU"
+expansionCode: "TDM"

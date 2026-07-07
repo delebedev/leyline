@@ -509,6 +509,9 @@ enum class PromptSemantic {
     /** Convoke's tap-creature cost payment. */
     ConvokeCost,
 
+    /** Improvise's tap-artifact cost payment. */
+    ImproviseCost,
+
     /** Waterbend's tap artifact/creature cost payment. */
     WaterbendCost,
 

@@ -171,6 +171,145 @@ class AltCostOfferTest :
                     },
                 ),
                 AltCostOfferRow(
+                    mechanic = "Evoke",
+                    sourceCard = "Mulldrifter",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.EVOKE,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Mulldrifter", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Mulldrifter", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Evoke },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val evokeOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 0
+                            evokeOffer should beAltCostOffer(keywordAbilityGrpId)
+                            evokeOffer!!.grpId shouldBe sourceGrpId
+                            evokeOffer.facetId shouldBe sourceIid
+                            evokeOffer.abilityGrpId shouldBe 0
+                            evokeOffer should haveManaCost(generic = 2, blue = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
+                    mechanic = "Dash",
+                    sourceCard = "Zurgo Bellstriker",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.DASH,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
+                        addCard("Zurgo Bellstriker", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
+                        addCard("Zurgo Bellstriker", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Dash },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val dashOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 1
+                            dashOffer should beAltCostOffer(keywordAbilityGrpId)
+                            dashOffer!!.grpId shouldBe sourceGrpId
+                            dashOffer.facetId shouldBe sourceIid
+                            dashOffer.abilityGrpId shouldBe 0
+                            dashOffer should haveManaCost(generic = 1, red = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
+                    mechanic = "Blitz",
+                    sourceCard = "Mayhem Patrol",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.BLITZ,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
+                        addCard("Mayhem Patrol", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
+                        addCard("Mayhem Patrol", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Blitz },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val blitzOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 1
+                            blitzOffer should beAltCostOffer(keywordAbilityGrpId)
+                            blitzOffer!!.grpId shouldBe sourceGrpId
+                            blitzOffer.facetId shouldBe sourceIid
+                            blitzOffer.abilityGrpId shouldBe 0
+                            blitzOffer should haveManaCost(generic = 1, red = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
+                    mechanic = "Emerge",
+                    sourceCard = "Wretched Gryff",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.EMERGE,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(4) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Walking Corpse", human, ZoneType.Battlefield)
+                        addCard("Wretched Gryff", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(4) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Walking Corpse", human, ZoneType.Battlefield)
+                        addCard("Wretched Gryff", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Emerge },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val emergeOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 0
+                            emergeOffer should beAltCostOffer(keywordAbilityGrpId)
+                            emergeOffer!!.grpId shouldBe sourceGrpId
+                            emergeOffer.facetId shouldBe sourceIid
+                            emergeOffer.abilityGrpId shouldBe 0
+                            emergeOffer should haveManaCost(generic = 5, blue = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
+                    mechanic = "Spectacle",
+                    sourceCard = "Spawn of Mayhem",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.SPECTACLE,
+                    seedForgeSurfaces = { _, human, ai ->
+                        ai.setLifeLostThisTurn(1)
+                        repeat(4) { addCard("Swamp", human, ZoneType.Battlefield) }
+                        addCard("Spawn of Mayhem", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, ai ->
+                        ai.setLifeLostThisTurn(1)
+                        repeat(4) { addCard("Swamp", human, ZoneType.Battlefield) }
+                        addCard("Spawn of Mayhem", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Spectacle },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val spectacleOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 1
+                            spectacleOffer should beAltCostOffer(keywordAbilityGrpId)
+                            spectacleOffer!!.grpId shouldBe sourceGrpId
+                            spectacleOffer.facetId shouldBe sourceIid
+                            spectacleOffer.abilityGrpId shouldBe 0
+                            spectacleOffer should haveManaCost(generic = 1, black = 2)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
                     mechanic = "Flashback",
                     sourceCard = "Think Twice",
                     sourceZone = ZoneType.Graveyard,

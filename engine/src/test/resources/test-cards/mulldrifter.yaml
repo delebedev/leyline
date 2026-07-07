@@ -1,0 +1,23 @@
+name: "Mulldrifter"
+grpId: 79273
+titleId: 2129
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 2197
+    textId: 826448
+    category: 2
+  - id: 2198
+    textId: 2131
+    category: 8
+    baseId: 75
+    mana: "o2oU"
+expansionCode: "J21"
+colors:
+  - 2
+types:
+  - 2
+subtypes:
+  - 25
+manaCost: "o4oU"

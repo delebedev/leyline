@@ -1,5 +1,7 @@
 package leyline.acceptance
 
+import leyline.game.data.KeywordAbilityIds
+
 data class AcceptanceSuite(
     val name: String,
     val description: String?,
@@ -337,18 +339,27 @@ enum class AcceptanceManaTypeChoice(
 
 enum class AcceptanceAltCost(
     val yamlName: String,
+    val keywordAbilityId: Int,
 ) {
-    Cleave("cleave"),
-    Disguise("disguise"),
-    Overload("overload"),
-    Escape("escape"),
-    Foretell("foretell"),
-    Impending("impending"),
-    JumpStart("jump_start"),
-    Plot("plot"),
-    Warp("warp"),
-    Enlist("enlist"),
-    Airbend("airbend"),
+    Cleave("cleave", KeywordAbilityIds.CLEAVE),
+    Disguise("disguise", KeywordAbilityIds.DISGUISE),
+    Overload("overload", KeywordAbilityIds.OVERLOAD),
+    Spectacle("spectacle", KeywordAbilityIds.SPECTACLE),
+    Surge("surge", KeywordAbilityIds.SURGE),
+    Evoke("evoke", KeywordAbilityIds.EVOKE),
+    Blitz("blitz", KeywordAbilityIds.BLITZ),
+    Dash("dash", KeywordAbilityIds.DASH),
+    Emerge("emerge", KeywordAbilityIds.EMERGE),
+    Escape("escape", KeywordAbilityIds.ESCAPE),
+    Harmonize("harmonize", KeywordAbilityIds.HARMONIZE),
+    Foretell("foretell", KeywordAbilityIds.FORETELL),
+    Impending("impending", KeywordAbilityIds.IMPENDING),
+    JumpStart("jump_start", KeywordAbilityIds.JUMP_START),
+    Retrace("retrace", KeywordAbilityIds.RETRACE),
+    Plot("plot", KeywordAbilityIds.PLOT),
+    Warp("warp", KeywordAbilityIds.WARP),
+    Enlist("enlist", KeywordAbilityIds.ENLIST),
+    Airbend("airbend", KeywordAbilityIds.AIRBEND),
     ;
 
     companion object {
