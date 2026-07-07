@@ -310,10 +310,7 @@ class ForgeAiPolicy(
         return selected.takeIf { it.isNotEmpty() }
     }
 
-    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean {
-        if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return false
-        return msg.payCostsReq.effectCostReq.costSelection.idsCount > 0
-    }
+    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean = sacrificeCostContext(msg) != null
 
     /**
      * Recover the Forge-AI cost decision for a sacrifice cost-payment prompt.
@@ -322,9 +319,25 @@ class ForgeAiPolicy(
      * prompt's candidate instance ids. Fails closed (null) when the prompt is
      * not a sacrifice cost selection or the AI choice does not map onto the
      * offered candidates.
+     *
+     * Assumes the pending prompt corresponds to the SA's first [CostSacrifice]
+     * part; an SA with several sacrifice parts would need prompt/part
+     * correlation. Candidate-id validation keeps a mismatched decision from
+     * being submitted — it degrades to greedy instead.
      */
     fun chooseSacrificeCostPayment(msg: GREToClientMessage): List<Int>? {
-        if (!canChooseSacrificeCostPayment(msg)) return null
+        val (sa, costPart) = sacrificeCostContext(msg) ?: return null
+        val decision =
+            askAi("sacrificeCostDecision") {
+                costPart.accept(AiCostDecision(seatPlayer, sa, false))
+            } ?: return null
+        val chosenIds = decision.cards.map { instanceIdForCard(it) }
+        return sacrificeCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+    }
+
+    private fun sacrificeCostContext(msg: GREToClientMessage): Pair<SpellAbility, CostSacrifice>? {
+        if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
+        if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
         val bridge = runCatching { harness.bridge }.getOrNull() ?: return null
         val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
         if (pending.request.semantic != PromptSemantic.SelectNCostSacrifice) return null
@@ -334,12 +347,7 @@ class ForgeAiPolicy(
                 ?.costParts
                 ?.filterIsInstance<CostSacrifice>()
                 ?.firstOrNull() ?: return null
-        val decision =
-            askAi("sacrificeCostDecision") {
-                costPart.accept(AiCostDecision(seatPlayer, sa, false))
-            } ?: return null
-        val chosenIds = decision.cards.map { instanceIdForCard(it) }
-        return sacrificeCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+        return sa to costPart
     }
 
     fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
@@ -553,6 +561,8 @@ class ForgeAiPolicy(
             if (hasGreen()) StaticChoiceIds.colorIdForMask(MagicColor.GREEN)?.let(::add)
         }
 
+    private var askAiDepth = 0
+
     private fun <T> askAi(
         label: String,
         block: () -> T,
@@ -561,15 +571,18 @@ class ForgeAiPolicy(
         // so Forge's Player.runWithController (which layers at getNextTimestamp())
         // never out-ranks it. Layer the AI controller at Long.MAX_VALUE instead so
         // Forge-AI internals that cast player.getController() see PlayerControllerAi.
+        // The fixed slot is shared, so nested consults only add/remove at depth 0.
         var result: T? = null
         var threw: Throwable? = null
-        seatPlayer.addController(Long.MAX_VALUE, seatPlayer, aiController, false)
+        if (askAiDepth == 0) seatPlayer.addController(Long.MAX_VALUE, seatPlayer, aiController, false)
+        askAiDepth += 1
         try {
             result = block()
         } catch (t: Throwable) {
             threw = t
         } finally {
-            seatPlayer.removeController(Long.MAX_VALUE, false)
+            askAiDepth -= 1
+            if (askAiDepth == 0) seatPlayer.removeController(Long.MAX_VALUE, false)
         }
         val failure = threw
         if (failure != null) {

@@ -316,13 +316,14 @@ class SimClientDriverPolicyTest :
                         ),
                 ).build()
 
-        test("forge-ai PayCosts adapter consults only effect cost selections") {
+        test("forge-ai PayCosts adapter fails closed without a pending sacrifice cost prompt") {
             val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
 
-            policy.canChooseSacrificeCostPayment(payCostsPrompt()) shouldBe true
             policy.canChooseSacrificeCostPayment(payCostsPrompt(ids = emptyList())) shouldBe false
             policy.canChooseSacrificeCostPayment(ctoPrompt()) shouldBe false
-            // No live game or pending prompt — the consult must fail closed.
+            // Well-shaped cost selection but no live game or pending prompt —
+            // both the consult gate and the decision must fail closed.
+            policy.canChooseSacrificeCostPayment(payCostsPrompt()) shouldBe false
             policy.chooseSacrificeCostPayment(payCostsPrompt()) shouldBe null
         }
 
