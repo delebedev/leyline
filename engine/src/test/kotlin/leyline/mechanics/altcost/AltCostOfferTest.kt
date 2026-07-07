@@ -171,6 +171,35 @@ class AltCostOfferTest :
                     },
                 ),
                 AltCostOfferRow(
+                    mechanic = "Emerge",
+                    sourceCard = "Wretched Gryff",
+                    sourceZone = ZoneType.Hand,
+                    keywordId = KeywordAbilityIds.EMERGE,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(4) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Walking Corpse", human, ZoneType.Battlefield)
+                        addCard("Wretched Gryff", human, ZoneType.Hand)
+                    },
+                    seedOffer = { _, human, _ ->
+                        repeat(4) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Walking Corpse", human, ZoneType.Battlefield)
+                        addCard("Wretched Gryff", human, ZoneType.Hand)
+                    },
+                    forgeSurfaces = { it.alternativeCost == AlternativeCost.Emerge },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
+                        val emergeOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            plainOffers shouldHaveSize 0
+                            emergeOffer should beAltCostOffer(keywordAbilityGrpId)
+                            emergeOffer!!.grpId shouldBe sourceGrpId
+                            emergeOffer.facetId shouldBe sourceIid
+                            emergeOffer.abilityGrpId shouldBe 0
+                            emergeOffer should haveManaCost(generic = 5, blue = 1)
+                        }
+                    },
+                ),
+                AltCostOfferRow(
                     mechanic = "Spectacle",
                     sourceCard = "Spawn of Mayhem",
                     sourceZone = ZoneType.Hand,

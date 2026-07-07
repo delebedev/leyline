@@ -71,6 +71,33 @@ internal object ActionManaCosts {
         return cost.genericCost <= sourceColors.size + reducerCount
     }
 
+    fun canPayManaCostPairsWithGenericReduction(
+        cost: List<Pair<ManaColor, Int>>,
+        player: Player,
+        genericReduction: Int,
+    ): Boolean {
+        val sourceColors = availableManaSourceColors(player).toMutableList()
+
+        fun canPayColor(color: ManaColor): Boolean {
+            val index = sourceColors.indexOfFirst { ManaColor.Generic in it || color in it }
+            if (index < 0) return false
+            sourceColors.removeAt(index)
+            return true
+        }
+
+        var genericCost = 0
+        for ((color, count) in cost) {
+            if (color == ManaColor.Generic) {
+                genericCost += count
+            } else {
+                repeat(count) {
+                    if (!canPayColor(color)) return false
+                }
+            }
+        }
+        return (genericCost - genericReduction).coerceAtLeast(0) <= sourceColors.size
+    }
+
     @Suppress("CyclomaticComplexMethod")
     private fun canPayOrTwoGenericManaCost(
         sa: SpellAbility,

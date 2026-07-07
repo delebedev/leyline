@@ -182,7 +182,9 @@ internal class PayCostsInteractionHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIds: List<Int>,
     ): List<ConvokePaymentSelection> {
-        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost && pendingPrompt.request.semantic != PromptSemantic.ImproviseCost) {
+        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost &&
+            pendingPrompt.request.semantic != PromptSemantic.ImproviseCost
+        ) {
             return emptyList()
         }
         val existing = convokePaymentSelections[pendingPrompt.promptId].orEmpty()
@@ -196,7 +198,11 @@ internal class PayCostsInteractionHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selections: List<ConvokePaymentSelection>,
     ) {
-        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost && pendingPrompt.request.semantic != PromptSemantic.ImproviseCost) return
+        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost &&
+            pendingPrompt.request.semantic != PromptSemantic.ImproviseCost
+        ) {
+            return
+        }
         if (selections.isEmpty()) return
         val source =
             pendingPrompt.request.sourceEntityId ?: ctx.game.stack

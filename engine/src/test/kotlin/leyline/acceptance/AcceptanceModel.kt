@@ -342,6 +342,7 @@ enum class AcceptanceAltCost(
     Disguise("disguise"),
     Overload("overload"),
     Spectacle("spectacle"),
+    Emerge("emerge"),
     Escape("escape"),
     Harmonize("harmonize"),
     Foretell("foretell"),

@@ -514,6 +514,21 @@ scenarios:
             - annotation_seen: ManaPaid
             - zone_contains: { side: ours, zone: battlefield, card: "Ironheart, Clever Champion" }
             - stack_empty: true
+  - id: emerge-wretched-gryff
+    puzzle: emerge-wretched-gryff
+    run: cast Wretched Gryff with Emerge by sacrificing Walking Corpse
+    expect: Emerge exposes an alt-cost cast, prompts for sacrifice-as-cost, and resolves the spell
+    steps:
+      - cast: { card: Wretched Gryff, alt_cost: emerge }
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Walking Corpse] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Wretched Gryff }
+            - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
+            - stack_empty: true
   - id: teamwork-timeline-inquiry
     puzzle: teamwork-timeline-inquiry
     run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment

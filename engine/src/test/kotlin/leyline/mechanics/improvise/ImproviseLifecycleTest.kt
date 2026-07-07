@@ -53,7 +53,9 @@ class ImproviseLifecycleTest :
             castAction should haveManaCost(generic = 4, blue = 1)
 
             val initialPayCosts = after { castSpellByName("Ironheart, Clever Champion").shouldBeTrue() }.expectOnePayCostsReq()
-            initialPayCosts.paymentActions.actionsList.map { it.instanceId }.toSet() shouldBe artifactIids.toSet()
+            initialPayCosts.paymentActions.actionsList
+                .map { it.instanceId }
+                .toSet() shouldBe artifactIids.toSet()
 
             val paymentSnap = messageSnapshot()
             artifactIids.forEach { respondToMakePayment(it) }

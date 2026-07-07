@@ -227,6 +227,7 @@ object KeywordAbilityIds {
     const val FLASHBACK = 35
     const val MADNESS = 36
     const val OVERLOAD = 97
+    const val EMERGE = 147
     const val JUMP_START = 170
     const val SPECTACLE = 174
     const val MENTOR = 171

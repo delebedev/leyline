@@ -1323,13 +1323,12 @@ object ActionMapper {
         for (sa in castable) {
             val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
             if (rail.kind == AltCostKind.MUTATE && hasUnmetTargeting(sa)) continue
-            val canPay = canPayManaCost(sa, player)
+            val effectiveCost = computeEffectiveCostForOffer(rail, sa, player, altCosts)
+            val payCostPairs = effectiveCost.first
+            val alternativeGrpId = effectiveCost.second
+            if (rail.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
+            val canPay = if (rail.kind == AltCostKind.EMERGE) canPayEmerge(payCostPairs, player) else canPayManaCost(sa, player)
             if (!canPay) continue
-
-            val effectiveCost = computeEffectiveCost(sa, player)
-            val payCostPairs: List<Pair<ManaColor, Int>> =
-                effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-            val alternativeGrpId = resolveAltGrpId(rail, altCosts, payCostPairs)
             if (alternativeGrpId <= 0) continue
             if (!emitted.add(alternativeGrpId to payCostPairs)) continue
 
@@ -1343,11 +1342,43 @@ object ActionMapper {
                     .setAlternativeGrpId(alternativeGrpId)
                     .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
 
-            if (effectiveCost != null && !effectiveCost.isNoCost) {
-                addManaCostFromForge(effectiveCost, actionBuilder, alternativeGrpId)
+            if (payCostPairs.isNotEmpty()) {
+                payCostPairs.forEach { (color, count) ->
+                    actionBuilder.addManaCost(
+                        ManaRequirement
+                            .newBuilder()
+                            .addColor(color)
+                            .setCount(count)
+                            .setAbilityGrpId(alternativeGrpId),
+                    )
+                }
             }
             builder.addActions(actionBuilder)
         }
+    }
+
+    private fun computeEffectiveCostForOffer(
+        rail: HandWithAltCost,
+        sa: SpellAbility,
+        player: Player,
+        altCosts: List<AltCostBinding>,
+    ): Pair<List<Pair<ManaColor, Int>>, Int> {
+        if (rail.kind == AltCostKind.EMERGE) {
+            val alternativeGrpId = resolveAltGrpId(rail, altCosts, emptyList())
+            val payCostPairs = altCosts.firstOrNull { it.abilityGrpId == alternativeGrpId }?.manaCost.orEmpty()
+            return payCostPairs to alternativeGrpId
+        }
+        val effectiveCost = computeEffectiveCost(sa, player)
+        val payCostPairs = effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
+        return payCostPairs to resolveAltGrpId(rail, altCosts, payCostPairs)
+    }
+
+    private fun canPayEmerge(
+        cost: List<Pair<ManaColor, Int>>,
+        player: Player,
+    ): Boolean {
+        val maxReduction = player.getCardsIn(ForgeZoneType.Battlefield).filter { it.isCreature }.maxOfOrNull { it.getCMC() } ?: return false
+        return ActionManaCosts.canPayManaCostPairsWithGenericReduction(cost, player, maxReduction)
     }
 
     internal fun passOnlyActions(): ActionsAvailableReq =
