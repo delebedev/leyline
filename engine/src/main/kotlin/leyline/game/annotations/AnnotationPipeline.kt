@@ -602,27 +602,9 @@ object AnnotationPipeline {
         ctx: AnnotationContext,
         ev: GameEvent.TokenCreated,
     ): InstanceId? =
-        tokenAffectorFromEventSource(ctx, ev)
-            ?: tokenAffectorFromLiveToken(ctx, ev)
-
-    private fun tokenAffectorFromEventSource(
-        ctx: AnnotationContext,
-        ev: GameEvent.TokenCreated,
-    ): InstanceId? =
-        ev.sourceCardId?.let { sourceId ->
-            ctx.events
-                .filterIsInstance<GameEvent.SpellCast>()
-                .lastOrNull { cast -> cast.cardId == sourceId && cast.isAbility && cast.abilityForgeId != 0 }
-                ?.let { cast -> InstanceId(ctx.stackAbilityIid(cast.abilityForgeId, cast.cardId)) }
-        }
-
-    private fun tokenAffectorFromLiveToken(
-        ctx: AnnotationContext,
-        ev: GameEvent.TokenCreated,
-    ): InstanceId? =
         ctx.bridge.findCard(ev.cardId)?.tokenSpawningAbility?.let { ability ->
-            val host = ability.hostCard
-            if (ability.isAbility && host != null && ability.id != 0) {
+            val host = ability.hostCard ?: return@let null
+            if (ability.isAbility && ability.id != 0) {
                 InstanceId(ctx.stackAbilityIid(ability.id, ForgeCardId(host.id)))
             } else {
                 null
