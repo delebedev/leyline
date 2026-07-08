@@ -42,6 +42,6 @@ class SealedPoolGeneratorTest :
 
             val fdn = sets.first { it.code == "FDN" }
             fdn.name shouldBe "Foundations"
-            sets.size shouldBe 16
+            sets.size shouldBe 17
         }
     })
