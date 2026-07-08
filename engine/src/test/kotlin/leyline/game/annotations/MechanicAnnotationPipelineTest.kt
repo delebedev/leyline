@@ -186,13 +186,20 @@ class MechanicAnnotationPipelineTest :
         test("tokenCreatedAnnotation") {
             val events =
                 listOf(
-                    GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1)),
+                    GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1), sourceCardId = ForgeCardId(42)),
                 )
-            val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
+            val annotations =
+                MechanicAnnotations
+                    .mechanicAnnotations(
+                        events,
+                        idResolver = ::testResolver,
+                        tokenAffectorResolver = { ev -> ev.sourceCardId?.let { InstanceId(2042) } },
+                    ).transient
 
             assertSoftly {
                 annotations.size shouldBe 1
                 annotations[0].typeList shouldContain AnnotationType.TokenCreated
+                annotations[0].affectorId shouldBe 2042
                 annotations[0].affectedIdsList shouldContain 1099
             }
         }

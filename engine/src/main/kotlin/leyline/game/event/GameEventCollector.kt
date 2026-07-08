@@ -986,9 +986,28 @@ class GameEventCollector(
     override fun visit(ev: GameEventTokenCreated) {
         for (card in ev.tokens()) {
             val seat = seatOf(card.controller) ?: continue
-            val sourceId = card.tokenSpawningAbility?.hostCard?.id
-            frame.add(GameEvent.TokenCreated(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
-            log.debug("event: TokenCreated card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
+            val sourceAbility = card.tokenSpawningAbility?.rootAbility
+            val sourceId = sourceAbility?.hostCard?.id
+            val sourceAbilityId =
+                sourceAbility
+                    ?.takeIf { it.isAbility && !it.isSpell }
+                    ?.id
+                    ?: 0
+            frame.add(
+                GameEvent.TokenCreated(
+                    ForgeCardId(card.id),
+                    seat,
+                    sourceId?.let { ForgeCardId(it) },
+                    sourceAbilityId,
+                ),
+            )
+            log.debug(
+                "event: TokenCreated card={} seat={} source={} sourceAbilityId={}",
+                card.name,
+                seat,
+                sourceId?.let { ForgeCardId(it) },
+                sourceAbilityId,
+            )
         }
     }
 
