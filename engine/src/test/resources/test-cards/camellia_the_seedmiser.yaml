@@ -4,14 +4,16 @@ titleId: 811709
 abilities:
   - id: 142
     textId: 102
-    category: 2
+    category: 3
   - id: 174108
     textId: 811710
-    category: 2
+    category: 3
   - id: 174109
     textId: 811711
-    category: 1
+    category: 2
   - id: 174110
     textId: 811712
     category: 1
 expansionCode: "BLB"
+tokens:
+  "174109": 91863

@@ -141,4 +141,4 @@ scenarios:
       - expect:
           all:
             - zone_contains: { side: ours, zone: graveyard, card: Gingerbrute }
-            - battlefield_stats_at_least: { side: ours, card: Honored Dreyleader, power: 2, toughness: 2 }
+            - battlefield_stats_at_least: { side: ours, card: Honored Dreyleader, power: 3, toughness: 3 }
