@@ -628,6 +628,15 @@ object AnnotationPipeline {
                 .filter { it.category == TransferCategory.CastSpell }
                 .mapNotNull { transfer -> transfer.forgeCardId?.let { it to InstanceId(transfer.newId) } }
                 .toMap()
+        val resolvingStackIidsByCard =
+            transferResult.transfers
+                .asSequence()
+                .filter { it.category == TransferCategory.Resolve }
+                .mapNotNull { transfer ->
+                    val forgeCardId = transfer.forgeCardId ?: return@mapNotNull null
+                    val resolvingId = if (transfer.origId != transfer.newId) transfer.origId else transfer.newId
+                    forgeCardId to InstanceId(resolvingId)
+                }.toMap()
         val castSpellTransferCardIds = castStackIidsByCard.keys
         val mechanicResult =
             MechanicAnnotations.mechanicAnnotations(
@@ -649,6 +658,16 @@ object AnnotationPipeline {
                 },
                 counterAffectorResolver = { eventIndex, ev -> ctx.counterAffectorFor(eventIndex, ev) },
                 playerCounterAffectorResolver = { eventIndex, ev -> ctx.playerCounterAffectorFor(eventIndex, ev) },
+                tokenAffectorResolver = { ev ->
+                    tokenCreatedAffectorId(
+                        ev,
+                        resolvingStackIidsByCard,
+                        stackAbilityIid = { abilityForgeId, sourceCardId ->
+                            InstanceId(ctx.stackAbilityIid(abilityForgeId, sourceCardId))
+                        },
+                        cardIid = { sourceCardId -> frameIds.cardIid(sourceCardId) },
+                    )
+                },
                 stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
                 castSpellTransferCardIds = castSpellTransferCardIds,
                 convokePaymentsBySource = convokePaymentsBySource,
@@ -802,5 +821,19 @@ object AnnotationPipeline {
             nextAnnotationId = annId,
             consumedTargetSpecs = pendingTargetSpecs,
         )
+    }
+
+    internal fun tokenCreatedAffectorId(
+        event: GameEvent.TokenCreated,
+        resolvingStackIidsByCard: Map<ForgeCardId, InstanceId>,
+        stackAbilityIid: (Int, ForgeCardId) -> InstanceId,
+        cardIid: (ForgeCardId) -> InstanceId,
+    ): InstanceId? {
+        val sourceCardId = event.sourceCardId ?: return null
+        return if (event.sourceAbilityForgeId != 0) {
+            stackAbilityIid(event.sourceAbilityForgeId, sourceCardId)
+        } else {
+            resolvingStackIidsByCard[sourceCardId] ?: cardIid(sourceCardId)
+        }
     }
 }

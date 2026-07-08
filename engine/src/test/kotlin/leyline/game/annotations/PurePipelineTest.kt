@@ -81,6 +81,49 @@ class PurePipelineTest :
                 .also { b -> objectInstanceIds.forEach { b.addObjectInstanceIds(it) } }
                 .build()
 
+        test("tokenCreated affector uses resolving spell stack iid") {
+            val event =
+                GameEvent.TokenCreated(
+                    cardId = ForgeCardId(99),
+                    seatId = SeatId(1),
+                    sourceCardId = ForgeCardId(42),
+                )
+
+            val affector =
+                AnnotationPipeline.tokenCreatedAffectorId(
+                    event,
+                    resolvingStackIidsByCard = mapOf(ForgeCardId(42) to InstanceId(404)),
+                    stackAbilityIid = { _, _ -> error("spell source should not use ability iid") },
+                    cardIid = { InstanceId(1042) },
+                )
+
+            affector shouldBe InstanceId(404)
+        }
+
+        test("tokenCreated affector uses source ability stack iid") {
+            val event =
+                GameEvent.TokenCreated(
+                    cardId = ForgeCardId(99),
+                    seatId = SeatId(1),
+                    sourceCardId = ForgeCardId(42),
+                    sourceAbilityForgeId = 7,
+                )
+
+            val affector =
+                AnnotationPipeline.tokenCreatedAffectorId(
+                    event,
+                    resolvingStackIidsByCard = mapOf(ForgeCardId(42) to InstanceId(404)),
+                    stackAbilityIid = { abilityForgeId, sourceCardId ->
+                        abilityForgeId shouldBe 7
+                        sourceCardId shouldBe ForgeCardId(42)
+                        InstanceId(421)
+                    },
+                    cardIid = { error("ability source should not use card iid") },
+                )
+
+            affector shouldBe InstanceId(421)
+        }
+
         // -----------------------------------------------------------------------
         // Test 1: hand-to-battlefield — PlayLand
         // -----------------------------------------------------------------------

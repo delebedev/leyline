@@ -305,11 +305,14 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A token was created.
-     *  Wired from GameEventTokenCreated (enriched with List<Card> tokens). */
+     *  Wired from GameEventTokenCreated (enriched with List<Card> tokens).
+     *  [sourceCardId] is the host card of the spell or ability that created it.
+     *  [sourceAbilityForgeId] is non-zero when the source is a stack ability. */
     data class TokenCreated(
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val sourceCardId: ForgeCardId? = null,
+        val sourceAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A token was destroyed (left the battlefield).
