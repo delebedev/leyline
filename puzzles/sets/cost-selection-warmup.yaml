@@ -114,3 +114,31 @@ scenarios:
           all:
             - zone_count_at_least: { side: ours, zone: exile, count: 5 }
             - zone_count_at_least: { side: ours, zone: hand, count: 2 }
+  - id: forage-camellia-exile
+    puzzle: forage-camellia-exile
+    run: activate Camellia by exiling three graveyard cards
+    expect: three graveyard cards are exiled and Honored Dreyleader gets a counter
+    steps:
+      - expect:
+          action: { type: activate, card: "Camellia, the Seedmiser" }
+      - activate: "Camellia, the Seedmiser"
+      - select_cost: { zone: graveyard, cards: [Grizzly Bears, Walking Corpse, Llanowar Elves] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: exile, count: 3 }
+            - battlefield_stats_at_least: { side: ours, card: Honored Dreyleader, power: 2, toughness: 2 }
+  - id: forage-camellia-food
+    puzzle: forage-camellia-food
+    run: activate Camellia by sacrificing Gingerbrute as Food
+    expect: Gingerbrute is sacrificed and Honored Dreyleader gets a counter
+    steps:
+      - expect:
+          action: { type: activate, card: "Camellia, the Seedmiser" }
+      - activate: "Camellia, the Seedmiser"
+      - select_cost: { zone: battlefield, cards: [Gingerbrute] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Gingerbrute }
+            - battlefield_stats_at_least: { side: ours, card: Honored Dreyleader, power: 2, toughness: 2 }

@@ -1,0 +1,17 @@
+[metadata]
+Name:Forage Camellia Food
+Goal:PlaySpecifiedPermanent
+Turns:3
+Difficulty:Easy
+Description:Activate Camellia by sacrificing Gingerbrute as Food, putting a counter on another Squirrel.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Forest
+humanbattlefield=Camellia, the Seedmiser;Honored Dreyleader;Gingerbrute;Forest;Swamp
+humanlibrary=Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain
