@@ -40,7 +40,7 @@ class SealedPoolGenerator(
 
         val supplier = UnOpenedProduct(boosterTemplate)
         val grpIds = mutableListOf<Int>()
-        var unmapped = 0
+        val unmapped = mutableListOf<String>()
 
         repeat(6) {
             val pack = supplier.get()
@@ -49,17 +49,20 @@ class SealedPoolGenerator(
                 if (grpId != null) {
                     grpIds.add(grpId)
                 } else {
-                    unmapped++
-                    log.warn("Sealed pool: no grpId for '{}' ({})", card.name, effectiveSet)
+                    unmapped.add(card.name)
                 }
             }
         }
 
+        if (unmapped.isNotEmpty()) {
+            log.error("Sealed pool: no grpId for {} ({})", unmapped, effectiveSet)
+            throw UnmappedCardNamesException(unmapped)
+        }
+
         log.info(
-            "Sealed pool generated: set={} cards={} unmapped={}",
+            "Sealed pool generated: set={} cards={}",
             effectiveSet,
             grpIds.size,
-            unmapped,
         )
 
         // Use a fixed collation ID for FDN — protocol uses per-set collation IDs
@@ -73,6 +76,14 @@ class SealedPoolGenerator(
         log.warn("No booster template for '{}', falling back to FDN", setCode)
         return "FDN"
     }
+
+    /** A set the sealed pool generator can build a pool for, with real Forge edition metadata. */
+    data class SupportedSealedSet(
+        val code: String,
+        val name: String,
+        val type: String,
+        val cardCount: Int?,
+    )
 
     companion object {
         // Known Arena collation IDs for sets
@@ -96,5 +107,24 @@ class SealedPoolGenerator(
                 "DFT" to 100052,
                 "ECL" to 100058,
             )
+
+        /**
+         * Sets with a known Arena collation ID — the sealed pool generator's supported
+         * set list. Name/type/cardCount come straight from Forge's already-loaded
+         * edition metadata rather than a second hand-maintained list.
+         */
+        fun supportedSets(): List<SupportedSealedSet> {
+            GameBootstrap.initializeCardDatabase()
+            val editions = FModel.getMagicDb().getEditions()
+            return COLLATION_IDS.keys.map { code ->
+                val edition = editions.get(code)
+                SupportedSealedSet(
+                    code = code,
+                    name = edition?.name ?: code,
+                    type = edition?.type?.name?.lowercase() ?: "unknown",
+                    cardCount = edition?.cards?.size,
+                )
+            }
+        }
     }
 }

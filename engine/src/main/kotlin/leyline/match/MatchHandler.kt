@@ -242,8 +242,37 @@ class MatchHandler(
         processGREMessage(ctx, greMsg)
     }
 
-    private fun requireHandshaking(): MatchHandlerState.Handshaking =
-        handshaking ?: error("Expected handshaking state but connection is already established")
+    /**
+     * Return the current handshake, or re-open one on top of an already-[Connected]
+     * state.
+     *
+     * A single [MatchHandler] instance can outlive more than one physical connection
+     * attempt — the web relay attaches a fresh browser socket to the same engine
+     * instance on every reconnect (page reload, retried websocket, duplicate
+     * attach), unlike the native transport where every TCP connection gets its own
+     * handler. Without this, a second Auth+Connect handshake on an already-Connected
+     * handler used to `error()`, which [exceptionCaught] swallows into a silent
+     * match teardown — the client gets no reply and no further game state, ever.
+     * Re-opening the handshake (seeded with the frozen identity so an incoming
+     * request that omits matchId/seatId still resolves correctly) lets the normal
+     * connect flow run again and resend a full resync bundle instead.
+     */
+    private fun requireHandshaking(): MatchHandlerState.Handshaking {
+        handshaking?.let { return it }
+        val prior = connected ?: error("Expected handshaking state but connection is already established")
+        log.info("Match Door: reconnect on already-established matchId={} seatId={}, resyncing", prior.matchId, prior.seatId)
+        (prior.session as? MatchSession)?.close()
+        val reopened =
+            MatchHandlerState.Handshaking().also {
+                it.matchId = prior.matchId
+                it.clientId = prior.clientId
+                it.seatId = prior.seatId
+                it.isFamiliar = prior.isFamiliar
+                it.nettyCtx = prior.nettyCtx
+            }
+        state = reopened
+        return reopened
+    }
 
     /**
      * Freeze the accrued handshake identity and bind the session — Handshaking → Connected.
@@ -277,7 +306,7 @@ class MatchHandler(
                 recorder = rec,
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
-        val s = MatchSession(connection = connection, gameBridge = bridge)
+        val s = MatchSession(connection = connection, gameBridge = bridge, paceDelayMs = matchConfig.paceDelayMs)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerHandler(matchId, SeatId(seatId), this)

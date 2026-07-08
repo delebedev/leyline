@@ -46,6 +46,9 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Server-to-server GRE match control is mounted by [GreMatchControlApi].
  * Web-client draft/course control is mounted by [DraftControlApi].
+ *
+ * Binds loopback-only by default. Set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose
+ * the panel on all interfaces (control-token behavior is unchanged either way).
  */
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
@@ -73,7 +76,7 @@ class DebugServer(
 
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun start() {
-        val srv = HttpServer.create(InetSocketAddress(port), 0)
+        val srv = HttpServer.create(InetSocketAddress(resolveBindAddress(), port), 0)
 
         mapOf(
             "/" to ::serveHtml,
@@ -144,6 +147,9 @@ class DebugServer(
         server?.stop(0)
         server = null
     }
+
+    /** Loopback by default; `LEYLINE_DEBUG_BIND=0.0.0.0` opts into binding all interfaces. */
+    private fun resolveBindAddress(): String = System.getenv("LEYLINE_DEBUG_BIND")?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
 
     /** Register a POST-only endpoint with standard error handling. */
     private fun HttpServer.postContext(

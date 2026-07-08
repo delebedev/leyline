@@ -2,6 +2,7 @@ package leyline.game.generator
 
 import forge.gamemodes.limited.DraftPickStrategy
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -11,7 +12,15 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.AutoMappingCardRepository
+import leyline.game.data.CardRepository
 import java.util.concurrent.atomic.AtomicInteger
+
+/** Wraps a real repository but reports every name lookup as unmapped, to exercise miss-handling. */
+private class AlwaysMissingCardRepository(
+    delegate: CardRepository = AutoMappingCardRepository(),
+) : CardRepository by delegate {
+    override fun findGrpIdByName(name: String): Int? = null
+}
 
 class ForgeBoosterDraftDriverTest :
     FunSpec({
@@ -102,6 +111,11 @@ class ForgeBoosterDraftDriverTest :
             }
 
             driver.complete("session-3")
+        }
+
+        test("start throws when pack card names have no grpId mapping") {
+            val driver = ForgeBoosterDraftDriver(AlwaysMissingCardRepository())
+            shouldThrow<UnmappedCardNamesException> { driver.start("session-missing", "FDN") }
         }
 
         test("unknown set falls back to FDN") {
