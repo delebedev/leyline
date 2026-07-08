@@ -439,8 +439,9 @@ object SnapshotCapture {
                 instanceId = instanceId,
                 tokenRegistry = bridge.tokenRegistry,
             )
+        val isEngineToken = card.isToken && preparedRole !is PreparedRole.Copy
         val tokenAbility = card.tokenSpawningAbility
-        val tokenSourceCard = tokenAbility?.hostCard?.takeIf { card.isToken && tokenAbility.isAbility }
+        val tokenSourceCard = tokenAbility?.hostCard?.takeIf { isEngineToken && tokenAbility.isAbility }
         val tokenSourceCardGrpId =
             tokenSourceCard?.let { source ->
                 val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(source.id)).value
@@ -449,6 +450,7 @@ object SnapshotCapture {
         val tokenParentAbilityInstanceId =
             tokenAbility
                 ?.takeIf { card.isToken && it.isAbility && it.id != 0 }
+                ?.takeIf { isEngineToken }
                 ?.let { bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(it.id)).value }
                 ?: 0
 
