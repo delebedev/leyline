@@ -70,21 +70,7 @@ fun Application.installWeb(services: WebServices) {
     install(ContentNegotiation) {
         json(Json { encodeDefaults = true })
     }
-    install(StatusPages) {
-        exception<IllegalArgumentException> { call, cause ->
-            call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
-        }
-        exception<UnauthorizedPlayer> { _, _ -> }
-        exception<Throwable> { call, cause ->
-            call.application.log.error(
-                "Unhandled error on {} {}",
-                call.request.local.method.value,
-                call.request.local.uri,
-                cause,
-            )
-            call.respond(HttpStatusCode.InternalServerError, "Internal error")
-        }
-    }
+    installErrorHandling()
     install(WebSockets)
     routing {
         webSocket("/gre") {
@@ -168,6 +154,24 @@ fun Application.installWeb(services: WebServices) {
             }
             installDraftRoutes(services)
             installSealedRoutes(services)
+        }
+    }
+}
+
+private fun Application.installErrorHandling() {
+    install(StatusPages) {
+        exception<IllegalArgumentException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
+        }
+        exception<UnauthorizedPlayer> { _, _ -> }
+        exception<Throwable> { call, cause ->
+            call.application.log.error(
+                "Unhandled error on {} {}",
+                call.request.local.method.value,
+                call.request.local.uri,
+                cause,
+            )
+            call.respond(HttpStatusCode.InternalServerError, "Internal error")
         }
     }
 }
