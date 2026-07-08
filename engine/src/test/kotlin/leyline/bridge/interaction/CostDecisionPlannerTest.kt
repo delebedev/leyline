@@ -52,6 +52,16 @@ class CostDecisionPlannerTest :
                 .semantic shouldBe PromptSemantic.EnlistCost
         }
 
+        test("teamwork materializes weighted tap cost semantic") {
+            val plan = CostDecisionPlanner.teamworkPlan(totalPower = 2, powers = listOf(3, -1, 1)).toCardSelectionPlan()
+
+            assertSoftly(plan) {
+                semantic shouldBe PromptSemantic.TeamworkCost
+                costSelectionWeights shouldBe listOf(3, 0, 1)
+                minSelectionWeight shouldBe 2
+            }
+        }
+
         test("sacrifice plans semantic intent before card selection policy") {
             val intent = CostDecisionPlanner.sacrificePlan(requiredCount = 2, differentNames = true)
 

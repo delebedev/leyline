@@ -49,6 +49,18 @@ data class EnlistCostPlan(
     fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.EnlistCost)
 }
 
+data class TeamworkCostPlan(
+    val totalPower: Int,
+    val powers: List<Int>,
+) {
+    fun toCardSelectionPlan(): CostCardSelectionPlan =
+        CostCardSelectionPlan(
+            semantic = PromptSemantic.TeamworkCost,
+            costSelectionWeights = powers.map { it.coerceAtLeast(0) },
+            minSelectionWeight = totalPower,
+        )
+}
+
 data class ReturnCostPlan(
     val requiredCount: Int,
     val type: String,
@@ -100,6 +112,11 @@ object CostDecisionPlanner {
     ): TapTypeCostPlan = TapTypeCostPlan(minSelection, maxSelection, isStation)
 
     fun enlistPlan(requiredCount: Int): EnlistCostPlan = EnlistCostPlan(requiredCount)
+
+    fun teamworkPlan(
+        totalPower: Int,
+        powers: List<Int>,
+    ): TeamworkCostPlan = TeamworkCostPlan(totalPower, powers)
 
     fun returnCostPlan(
         requiredCount: Int,

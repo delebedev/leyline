@@ -6,13 +6,10 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
-import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
@@ -25,15 +22,13 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTestBase
 import leyline.testkit.TestCardRegistry
-import leyline.testkit.beAltCostOffer
-import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
- * Disturb graveyard-cast-with-alternate-cost path.
+ * Disturb graveyard-cast-with-alternate-cost path — zone guard and DFC
+ * back-face state-mapping.
  *
  * Disturb is a graveyard alt-cast keyword for double-faced cards. Forge
  * registers the SA via `K:Disturb:<cost>` (CardFactoryUtil:2790-2814) with
@@ -41,16 +36,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  * back-face cast SA, so casting it transforms the card to back face and
  * resolves the back-face spell.
  *
- * Bridge wiring (mirrors Foretell exile-cast minus face-down stuff):
- *  - `KEYWORD_BASE_IDS["DISTURB"] = 215` resolves Galedrifter's per-card
- *    disturb ability id (145202 in Arena DB).
- *  - `addZoneCastActionsFromSnap`'s Disturb rail sets the back-face grpId,
- *    source graveyard iid, and Disturb ability id on the offer.
- *  - `ActionPerformer.resolveAltCostAbilityIndex` matches
- *    `info.baseId == KEYWORD_BASE_IDS["DISTURB"]` → `AlternativeCost.Disturb`.
- *  - `TransferAnnotations` wires `altCostAbilityGrpId` into both UserActionTaken
- *    (`abilityGrpId` + `alternativeGrpId`) and the persistent CastingTimeOption
- *    (`type=13`, `alternateCostGrpId`). Same path Flashback rides.
+ * The Forge-surfaces and ActionMapper-offers-Cast happy-path tests for
+ * Disturb live in `leyline.mechanics.AltCostOfferTest` alongside the other
+ * alt-cost keywords. This file keeps the zone guard and the DisturbBack
+ * synthetic-object lifecycle tests, which don't fit that shared shape.
  *
  * Card: Galedrifter (front, Creature 3/2 Flying, ManaCost {3}{U}, K:Disturb:4 U).
  * Back face: Waildrifter (Creature 2/2 Flying Spirit, exile-instead-of-graveyard).
@@ -63,71 +52,6 @@ class DisturbActionTest :
         val base = BoardTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
-
-        test("Forge surfaces the Disturb alt-cost SA on a graveyard card (AlternativeCost.Disturb)") {
-            val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Galedrifter", human, ZoneType.Graveyard)
-                }
-            val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Galedrifter" }
-
-            val disturbSa =
-                getAllCastableAbilities(card, human)
-                    .firstOrNull { it.alternativeCost == AlternativeCost.Disturb }
-            disturbSa shouldNotBe null
-        }
-
-        test("ActionMapper.buildFromSnapshot offers Cast for disturb card in graveyard when {4}{U} payable") {
-            val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Galedrifter", human, ZoneType.Graveyard)
-                }
-
-            val galedrifterGrpId = b.cardRepository.findGrpIdByName("Galedrifter")!!
-            val disturbAbilityGrpId =
-                b.cardRepository.findKeywordAbilityGrpId(galedrifterGrpId, KeywordAbilityIds.DISTURB)!!
-            val waildrifterGrpId = b.cardRepository.findGrpIdByNameAnyFace("Waildrifter")!!
-            val galedrifterFid =
-                ForgeCardId(
-                    game.humanPlayer
-                        .getZone(ZoneType.Graveyard)
-                        .cards
-                        .first { it.name == "Galedrifter" }
-                        .id,
-                )
-            val galedrifterIid = b.getOrAllocInstanceId(galedrifterFid).value
-            val disturbBackIid = b.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(galedrifterFid)).value
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val castOffers =
-                fromSnap.actionsList.filter {
-                    it.actionType == ActionType.Cast && it.instanceId == galedrifterIid
-                }
-            castOffers.shouldNotBeEmpty()
-            val disturbOffer = castOffers.firstOrNull { it.alternativeGrpId == disturbAbilityGrpId }
-            assertSoftly {
-                disturbOffer should beAltCostOffer(disturbAbilityGrpId)
-                disturbOffer!!.grpId shouldBe waildrifterGrpId
-                disturbOffer.facetId shouldBe disturbBackIid
-                disturbOffer.alternativeSourceZcid shouldBe galedrifterIid
-                disturbOffer.abilityGrpId shouldBe disturbAbilityGrpId
-                disturbOffer.alternativeGrpId shouldBe disturbAbilityGrpId
-                disturbOffer should haveManaCost(generic = 4, blue = 1)
-            }
-        }
 
         test("disturb card only in hand → no graveyard-cast offer (zone guard)") {
             // Disturb is graveyard-only. A disturb card in hand should not surface

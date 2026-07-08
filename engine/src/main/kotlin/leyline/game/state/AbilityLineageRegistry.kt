@@ -21,4 +21,9 @@ class AbilityLineageRegistry {
     fun find(abilityIid: Int): AbilityWireIdentity? = byAbilityIid[abilityIid]
 
     fun consume(abilityIid: Int): AbilityWireIdentity? = byAbilityIid.remove(abilityIid)
+
+    /** Full reset — clear all tracked identities. Used on puzzle hot-swap. */
+    fun resetAll() {
+        byAbilityIid.clear()
+    }
 }

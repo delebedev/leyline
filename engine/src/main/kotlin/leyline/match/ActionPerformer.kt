@@ -5,6 +5,7 @@ import leyline.bridge.findCard
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
@@ -164,7 +165,8 @@ class ActionPerformer(
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
                 // If found, sends CastingTimeOptionsReq to client and returns without
                 // submitting to engine. onCastingTimeOptions resumes the cast.
-                val skipOptionalCostPrompt = action.alternativeGrpId == KeywordAbilityIds.JUMP_START
+                val skipOptionalCostPrompt =
+                    action.alternativeGrpId == KeywordAbilityIds.JUMP_START || action.alternativeGrpId == KeywordAbilityIds.RETRACE
                 if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(action, pending.actionId, castAbilityIndex)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
@@ -376,6 +378,13 @@ class ActionPerformer(
                 }
                 TargetingHandler.PromptResult.NONE -> {
                     if (g.stack.isEmpty) {
+                        val nextPending = seatBridge.action.getPending()
+                        if (nextPending?.state?.kind == PendingActionKind.DECLARE_ATTACKERS ||
+                            nextPending?.state?.kind == PendingActionKind.DECLARE_BLOCKERS
+                        ) {
+                            autoPassEngine.autoPassAndAdvance()
+                            return
+                        }
                         log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
                         sink.sendRealGameState(bridge)
                         if (g.isGameOver) {

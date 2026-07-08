@@ -14,6 +14,7 @@ import forge.game.cost.*
 import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
+import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
@@ -25,8 +26,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.interaction.CostCardSelectionPlan
 import leyline.bridge.interaction.CostDecisionPlanner
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
 import java.util.*
 
@@ -86,10 +86,7 @@ class CostDecision(
             return CardCollection(cards)
         }
         val labels = cards.map { it.name }
-        val refs =
-            cards.mapIndexed { idx, card ->
-                PromptCandidateRefDto(idx, PromptCandidateKind.Card, card.id, card.zone?.zoneType?.name)
-            }
+        val refs = cards.toCandidateRefs()
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -104,7 +101,7 @@ class CostDecision(
                 minSelectionWeight = minSelectionWeight,
                 sourceEntityId = source.id.takeIf { it > 0 },
             )
-        val indices = bridge.requestChoice(request)
+        val indices = bridge.requestChoice(request, targetingSa = ability)
         if (indices.isEmpty() && cancelAllowed) return null
         val selected = CardCollection()
         for (idx in indices) {
@@ -135,7 +132,42 @@ class CostDecision(
     private fun discardAmount(
         cost: CostDiscard,
         discardType: String,
-    ): Int = if (ability.isJumpstart && discardType == "Card") 1 else cost.getAbilityAmount(ability)
+    ): Int =
+        if ((ability.isJumpstart && discardType == "Card") ||
+            (ability.isOptionalCostPaid(OptionalCost.Retrace) && discardType == "Land")
+        ) {
+            1
+        } else {
+            cost.getAbilityAmount(ability)
+        }
+
+    private fun selectTotalPowerTapCost(
+        cost: CostTapType,
+        typeList: CardCollectionView,
+        totalPower: Int,
+    ): PaymentDecision? {
+        val plan =
+            if (cost is CostTeamwork) {
+                CostDecisionPlanner
+                    .teamworkPlan(
+                        totalPower = totalPower,
+                        powers = typeList.map { (it.netPower ?: 0).coerceAtLeast(0) },
+                    ).toCardSelectionPlan()
+            } else {
+                CostCardSelectionPlan(PromptSemantic.Generic)
+            }
+        val selected =
+            selectCardsWithPlan(
+                Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
+                typeList,
+                1,
+                typeList.size,
+                cancelAllowed = false,
+                plan = plan,
+            ) ?: return null
+        if (CardLists.getTotalPower(selected, ability) < totalPower) return null
+        return PaymentDecision.card(selected)
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
@@ -341,7 +373,7 @@ class CostDecision(
         val c = cost.getAbilityAmount(ability)
         if (saList.size < c) return null
         val exiled = mutableListOf<SpellAbility>()
-        for (i in 0 until c) {
+        repeat(c) {
             val o =
                 controller.gui.oneOrNone(
                     Localizer.getInstance().getMessage("lblExileFromStack"),
@@ -1041,13 +1073,12 @@ class CostDecision(
         while (c > 0) {
             val labels =
                 list.map { card ->
-                    val counterStr = card.counters.entries.joinToString(", ") { "${it.key.name}: ${it.value}" }
+                    val counterStr = card.counters.entrySet().joinToString(", ") { "${it.element.name}: ${it.count}" }
                     "${card.name} ($counterStr)"
                 }
-            val refs =
-                list.mapIndexed { idx, card ->
-                    PromptCandidateRefDto(idx, PromptCandidateKind.Card, card.id, card.zone?.zoneType?.name)
-                }
+            val refs = list.toCandidateRefs()
+            // Inline, not selectCards: labels need per-card counter counts; selectCards only
+            // exposes card names.
             val request =
                 PromptRequest(
                     promptType = "choose_cards",
@@ -1073,10 +1104,10 @@ class CostDecision(
                     cost.counter
                 } else {
                     val cmap = counterTable.filterToRemove(card)
-                    if (cmap.size == 1) {
-                        cmap.keys.first()
+                    if (cmap.elementSet().size == 1) {
+                        cmap.elementSet().first()
                     } else {
-                        val counterTypes = Lists.newArrayList(cmap.keys)
+                        val counterTypes = Lists.newArrayList(cmap.elementSet())
                         controller.chooseCounterType(
                             counterTypes,
                             ability,
@@ -1184,25 +1215,25 @@ class CostDecision(
             counterTable.put(null, c, cType, cntToRemove)
         } else {
             val cMap = counterTable.filterToRemove(c)
-            for (ct in ImmutableList.copyOf(cMap.keys)) {
-                if (!c.canRemoveCounters(ct)) cMap.remove(ct)
+            for (ct in ImmutableList.copyOf(cMap.elementSet())) {
+                if (!c.canRemoveCounters(ct)) cMap.remove(ct, cMap.count(ct))
             }
             if (cMap.isEmpty()) return counterTable
-            if (cMap.size == 1) {
-                counterTable.put(null, c, cMap.entries.first().key, cntToRemove)
+            if (cMap.elementSet().size == 1) {
+                counterTable.put(null, c, cMap.entrySet().first().element, cntToRemove)
             } else {
                 var remaining = cntToRemove
                 while (remaining > 0) {
                     val pc = c.controller.controller
                     val chosen =
                         pc.chooseCounterType(
-                            Lists.newArrayList(cMap.keys),
+                            Lists.newArrayList(cMap.elementSet()),
                             ability,
                             Localizer.getInstance().getMessage("lblSelectCountersTypeToRemove"),
                             null,
                         ) ?: break
-                    val max = remaining.coerceAtMost(cMap[chosen] ?: 0)
-                    val totalRemaining = cMap.values.sum()
+                    val max = remaining.coerceAtMost(cMap.count(chosen))
+                    val totalRemaining = cMap.entrySet().sumOf { it.count }
                     val min = 1.coerceAtLeast(max - totalRemaining)
                     val chosenAmount =
                         pc.chooseNumber(
@@ -1214,8 +1245,11 @@ class CostDecision(
                         )
                     if (chosenAmount > 0) {
                         counterTable.put(null, c, chosen, chosenAmount)
-                        @Suppress("UNUSED_VALUE")
-                        cMap.putAll(counterTable.filterToRemove(c))
+                        cMap.clear()
+                        val refreshedCounters = counterTable.filterToRemove(c)
+                        if (refreshedCounters.isNotEmpty()) {
+                            check(cMap.addAll(refreshedCounters))
+                        }
                     }
                     remaining -= chosenAmount
                 }
@@ -1368,17 +1402,7 @@ class CostDecision(
         }
 
         if (totalPower) {
-            val i = totalP.toInt()
-            val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
-                    typeList,
-                    1,
-                    typeList.size,
-                    cancelAllowed = false,
-                ) ?: return null
-            if (CardLists.getTotalPower(selected, ability) < i) return null
-            return PaymentDecision.card(selected)
+            return selectTotalPowerTapCost(cost, typeList, totalP.toInt())
         }
 
         if (c != null && c > typeList.size) {
@@ -1516,7 +1540,7 @@ class CostDecision(
             if (typeList.size < c) return null
             val chosen = CardCollection()
             val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
-            for (i in 0 until c) {
+            repeat(c) {
                 val cv =
                     controller.gui.oneOrNone(
                         Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
@@ -1532,7 +1556,7 @@ class CostDecision(
         if (list.size < c) return null
         val chosen = CardCollection()
         val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(list)
-        for (i in 0 until c) {
+        repeat(c) {
             val cv =
                 controller.gui.oneOrNone(
                     Localizer.getInstance().getMessage("lblFromZonePutToLibrary", cost.from.translatedName),

@@ -40,7 +40,7 @@ class NumericInputGate(
             },
             signal = { actionBridge?.prioritySignal?.signal() },
             timeoutMs = { actionBridge?.getTimeoutMs() },
-            defaultOnTimeout = defaultOnTimeout,
+            defaultOnTimeout = { defaultOnTimeout },
             log = log,
             logContext = logContext,
             subject = sourceCard?.name,

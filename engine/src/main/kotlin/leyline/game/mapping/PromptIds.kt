@@ -117,6 +117,9 @@ object PromptIds {
     /** Station activation cost — "Tap a creature to add charge counters equal to its power." */
     const val STATION_TAP_COST = 14726
 
+    /** Teamwork additional cost — "Tap creatures with total power N or greater." */
+    const val TEAMWORK_TAP_COST = 8924
+
     /** Frantic Scapegoat trigger — "Suspect one of those creatures?" */
     const val SUSPECT_ONE_OF_THOSE_CREATURES = 12761
 

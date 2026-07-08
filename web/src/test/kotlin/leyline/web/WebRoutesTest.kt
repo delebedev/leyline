@@ -6,8 +6,11 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -56,14 +59,19 @@ import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
+import leyline.game.data.CardData
 import org.jetbrains.exposed.v1.jdbc.Database
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
+import wotc.mtgo.gre.external.messaging.Messages.CardColor
+import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.SubType
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -74,7 +82,7 @@ class WebRoutesTest :
         val json = Json { ignoreUnknownKeys = true }
 
         test("serves checked-in OpenAPI contract") {
-            withWeb { client, _ ->
+            withWeb(json) {
                 val response = client.get("/openapi.json")
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
@@ -83,19 +91,101 @@ class WebRoutesTest :
             }
         }
 
-        test("starts and reads draft status") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+        test("lists puzzles publicly without auth") {
+            withWeb(
+                json,
+                puzzleCatalog = {
+                    listOf(
+                        PuzzleSummaryView(
+                            filename = "stock-up",
+                            name = "Stock Up",
+                            goal = "Win",
+                            turns = 4,
+                            difficulty = "Tutorial",
+                            description = "Cast Stock Up.",
+                        ),
+                    )
+                },
+            ) {
+                val response = client.get("/api/puzzles")
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonArray
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body.size shouldBe 1
+                    body[0].jsonObject["filename"]?.jsonPrimitive?.content shouldBe "stock-up"
+                    body[0].jsonObject["name"]?.jsonPrimitive?.content shouldBe "Stock Up"
+                }
+            }
+        }
+
+        test("mints a guest session that can start a match") {
+            withWeb(json) {
+                val guest = client.post("/api/auth/guest")
+                val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val guestBody = json.parseToJsonElement(guest.bodyAsText()).jsonObject
+                val playerId = checkNotNull(guestBody["playerId"]?.jsonPrimitive?.content)
+
+                val me = client.get("/api/auth/me") { auth(cookie) }
+                val meBody = json.parseToJsonElement(me.bodyAsText()).jsonObject
+
                 val start =
-                    client.post("/api/draft/start") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
+                    client.post("/api/gre/start") {
+                        auth(cookie)
+                        jsonBody("""{"puzzle":"stock-up"}""")
                     }
-                val status =
-                    client.get("/api/draft/status?playerId=${login.playerId}&eventName=QuickDraft_FDN_20260223") {
-                        header(HttpHeaders.Cookie, login.cookie)
+
+                assertSoftly {
+                    guest.status shouldBe HttpStatusCode.OK
+                    guestBody["guest"]?.jsonPrimitive?.content shouldBe "true"
+                    meBody["playerId"]?.jsonPrimitive?.content shouldBe playerId
+                    meBody["guest"]?.jsonPrimitive?.content shouldBe "true"
+                    start.status shouldBe HttpStatusCode.OK
+                }
+            }
+        }
+
+        test("reuses an existing guest session instead of minting a new one") {
+            withWeb(json) {
+                val first = client.post("/api/auth/guest")
+                val cookie = checkNotNull(first.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val firstId =
+                    json
+                        .parseToJsonElement(first.bodyAsText())
+                        .jsonObject["playerId"]!!
+                        .jsonPrimitive.content
+
+                val second = client.post("/api/auth/guest") { auth(cookie) }
+                val secondBody = json.parseToJsonElement(second.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    second.status shouldBe HttpStatusCode.OK
+                    secondBody["playerId"]?.jsonPrimitive?.content shouldBe firstId
+                    secondBody["guest"]?.jsonPrimitive?.content shouldBe "true"
+                    second.headers[HttpHeaders.SetCookie] shouldBe null
+                }
+            }
+        }
+
+        test("gre start tolerates unknown client fields") {
+            withWeb(json) {
+                val guest = client.post("/api/auth/guest")
+                val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val start =
+                    client.post("/api/gre/start") {
+                        auth(cookie)
+                        jsonBody("""{"puzzle":"stock-up","gameType":"puzzle","unknownClientField":true}""")
                     }
+
+                start.status shouldBe HttpStatusCode.OK
+            }
+        }
+
+        test("starts and reads draft status") {
+            withWeb(json) {
+                val login = login()
+                val start = startDraft(login)
+                val status = draftStatus(login)
 
                 assertSoftly {
                     start.status shouldBe HttpStatusCode.OK
@@ -109,20 +199,15 @@ class WebRoutesTest :
         }
 
         test("rejects undersized draft deck") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
-                client.post("/api/draft/start") {
-                    header(HttpHeaders.Cookie, login.cookie)
-                    contentType(ContentType.Application.Json)
-                    setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
-                }
+            withWeb(json) {
+                val login = login()
+                startDraft(login)
                 val response =
                     client.post("/api/draft/deck") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody(
+                        auth(login)
+                        jsonBody(
                             """
-                            {"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223","mainDeck":[{"grpId":100,"quantity":1}]}
+                            {"playerId":"${login.playerId}","eventName":"$TEST_EVENT","mainDeck":[{"grpId":100,"quantity":1}]}
                             """.trimIndent(),
                         )
                     }
@@ -132,34 +217,25 @@ class WebRoutesTest :
         }
 
         test("drops draft and course") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
-                client.post("/api/draft/start") {
-                    header(HttpHeaders.Cookie, login.cookie)
-                    contentType(ContentType.Application.Json)
-                    setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
-                }
-                val response =
-                    client.delete("/api/draft?playerId=${login.playerId}&eventName=QuickDraft_FDN_20260223") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                    }
+            withWeb(json) {
+                val login = login()
+                startDraft(login)
+                val response = dropDraft(login)
 
                 response.status shouldBe HttpStatusCode.NoContent
-                repos.draft.findByPlayerAndEvent(PlayerId(login.playerId), "QuickDraft_FDN_20260223") shouldBe null
+                repos.draft.findByPlayerAndEvent(PlayerId(login.playerId), TEST_EVENT) shouldBe null
             }
         }
 
         test("relays GRE WebSocket frames through engine session") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
-                repos.relay.register("m1", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7), onFrame = onFrame)
-                }
-                val wsClient = client.config { install(WebSockets) }
-                wsClient.webSocket({
-                    url.takeFrom("/gre?matchId=m1")
-                    header(HttpHeaders.Cookie, login.cookie)
-                }) {
+            withWeb(json) {
+                val login = login()
+                repos.registerGre(
+                    "m1",
+                    reply = byteArrayOf(9, 8, 7),
+                    ownerPlayerId = PlayerId(login.playerId),
+                )
+                greSocket(login, "m1") {
                     send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
                     val frame = incoming.receive() as Frame.Binary
 
@@ -170,11 +246,13 @@ class WebRoutesTest :
         }
 
         test("public GRE WebSocket attachments forward the handshake but stay read-only for game messages") {
-            withWeb { client, repos ->
-                repos.relay.register("public", ownerPlayerId = PlayerId("owner"), publicAccess = true) { onFrame, _ ->
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(9, 8, 7), onFrame = onFrame)
-                }
-                val wsClient = client.config { install(WebSockets) }
+            withWeb(json) {
+                repos.registerGre(
+                    "public",
+                    reply = byteArrayOf(9, 8, 7),
+                    ownerPlayerId = PlayerId("owner"),
+                    publicAccess = true,
+                )
 
                 val auth =
                     ClientToMatchServiceMessage
@@ -189,7 +267,7 @@ class WebRoutesTest :
                         .build()
                         .toByteArray()
 
-                wsClient.webSocket("/gre?matchId=public") {
+                publicGreSocket("public") {
                     // The connect handshake must reach the engine — without it the
                     // spectator stream never starts.
                     send(Frame.Binary(fin = true, data = auth))
@@ -206,23 +284,19 @@ class WebRoutesTest :
         }
 
         test("GRE relay closes idle sessions") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 val closed = AtomicBoolean(false)
                 var cleanupCount = 0
-                repos.relay.register(
+                repos.registerGre(
                     "close-me",
+                    reply = byteArrayOf(1),
                     ownerPlayerId = PlayerId(login.playerId),
+                    closed = closed,
                     onClose = { cleanupCount++ },
-                ) { onFrame, _ ->
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(1), onFrame = onFrame, closed = closed)
-                }
-                val wsClient = client.config { install(WebSockets) }
+                )
 
-                wsClient.webSocket({
-                    url.takeFrom("/gre?matchId=close-me")
-                    header(HttpHeaders.Cookie, login.cookie)
-                }) {
+                greSocket(login, "close-me") {
                     send(Frame.Binary(fin = true, data = byteArrayOf(1)))
                     incoming.receive()
                 }
@@ -238,13 +312,12 @@ class WebRoutesTest :
         }
 
         test("GRE relay serializes engine access per match") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 lateinit var engine: ConcurrentProbeGreEngineSession
                 repos.relay.register("serialized", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
                     ConcurrentProbeGreEngineSession(onFrame).also { engine = it }
                 }
-                val wsClient = client.config { install(WebSockets) }
                 val attached = AtomicInteger(0)
                 val bothAttached = CompletableDeferred<Unit>()
                 val replies = AtomicInteger(0)
@@ -267,17 +340,13 @@ class WebRoutesTest :
         }
 
         test("GRE relay streams engine frames as they're produced, not batched until the call returns") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 repos.relay.register("streamed", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
                     SlowMultiStepGreEngineSession(onFrame, stepDelayMs = 400)
                 }
-                val wsClient = client.config { install(WebSockets) }
 
-                wsClient.webSocket({
-                    url.takeFrom("/gre?matchId=streamed")
-                    header(HttpHeaders.Cookie, login.cookie)
-                }) {
+                greSocket(login, "streamed") {
                     val start = System.currentTimeMillis()
                     send(Frame.Binary(fin = true, data = byteArrayOf(1)))
 
@@ -301,20 +370,16 @@ class WebRoutesTest :
         }
 
         test("engine crash disconnects attached browsers instead of hanging silently") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 val matchId = "crash-me"
                 val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
                 runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
                 repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
                     EmbeddedWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
                 }
-                val wsClient = client.config { install(WebSockets) }
 
-                wsClient.webSocket({
-                    url.takeFrom("/gre?matchId=$matchId")
-                    header(HttpHeaders.Cookie, login.cookie)
-                }) {
+                greSocket(login, matchId) {
                     send(Frame.Binary(fin = true, data = authRequestBytes("web-player")))
                     // Connect references a puzzle file that doesn't exist — PuzzleHandler
                     // throws, MatchHandler.exceptionCaught tears the match down internally.
@@ -329,30 +394,29 @@ class WebRoutesTest :
         }
 
         test("GRE WebSocket rejects private match without owner session") {
-            withWeb { client, repos ->
-                repos.relay.register("private", ownerPlayerId = PlayerId("owner")) { onFrame, _ ->
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(), onFrame = onFrame)
-                }
-                val wsClient = client.config { install(WebSockets) }
+            withWeb(json) {
+                repos.registerGre(
+                    "private",
+                    reply = byteArrayOf(),
+                    ownerPlayerId = PlayerId("owner"),
+                )
 
-                wsClient.webSocket("/gre?matchId=private") {
+                publicGreSocket("private") {
                     shouldThrow<ClosedReceiveChannelException> { incoming.receive() }
                 }
             }
         }
 
         test("GRE WebSocket accepts private match owner session") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
-                repos.relay.register("private", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
-                    StaticGreEngineSession(repos.enginePayloads, reply = byteArrayOf(4, 5, 6), onFrame = onFrame)
-                }
-                val wsClient = client.config { install(WebSockets) }
+            withWeb(json) {
+                val login = login()
+                repos.registerGre(
+                    "private",
+                    reply = byteArrayOf(4, 5, 6),
+                    ownerPlayerId = PlayerId(login.playerId),
+                )
 
-                wsClient.webSocket({
-                    url.takeFrom("/gre?matchId=private")
-                    header(HttpHeaders.Cookie, login.cookie)
-                }) {
+                greSocket(login, "private") {
                     send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
                     val frame = incoming.receive() as Frame.Binary
 
@@ -362,32 +426,34 @@ class WebRoutesTest :
         }
 
         test("owned routes reject mismatched player id") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
-                val response = client.get("/api/collection?playerId=other") { header(HttpHeaders.Cookie, login.cookie) }
+            withWeb(json) {
+                val login = login()
+                val response = client.get("/api/collection?playerId=other") { auth(login) }
 
                 response.status shouldBe HttpStatusCode.Forbidden
             }
         }
 
-        test("serves card metadata from card repository") {
-            withWeb { client, _ ->
-                val response = client.get("/api/cards/metadata")
-                val cards = json.parseToJsonElement(response.bodyAsText()).jsonObject["cards"]!!.jsonArray
+        test("serves public card metadata by grpIds") {
+            withWeb(json) {
+                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999")
+                val cards = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
                 assertSoftly {
                     response.status shouldBe HttpStatusCode.OK
-                    cards.size shouldBe 2
-                    cards[0].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "100"
-                    cards[0].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
-                    cards[1].jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "101"
-                    cards[1].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
+                    cards["100"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
+                    cards["100"]!!.jsonObject["manaCost"]!!.jsonPrimitive.content shouldBe "{G}"
+                    cards["100"]!!.jsonObject["types"]!!.jsonPrimitive.content shouldBe "Creature"
+                    cards["100"]!!.jsonObject["subtypes"]!!.jsonPrimitive.content shouldBe "Elf"
+                    cards["100"]!!.jsonObject["imageUrl"]!!.jsonPrimitive.content shouldBe
+                        "https://api.scryfall.com/cards/named?exact=Alpha+Card&format=image&version=normal"
+                    cards["999"]!!.jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "999"
                 }
             }
         }
 
         test("serves cards by grpids, including nulls for unknown ids") {
-            withWeb { client, _ ->
+            withWeb(json) {
                 val response = client.get("/api/public/cards/by-grpids?ids=100,101,999,notanumber")
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
@@ -402,7 +468,7 @@ class WebRoutesTest :
         }
 
         test("caps an unbounded ids list on the by-grpids route") {
-            withWeb { client, _ ->
+            withWeb(json) {
                 val ids = (1..600).joinToString(",")
                 val response = client.get("/api/public/cards/by-grpids?ids=$ids")
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -414,8 +480,66 @@ class WebRoutesTest :
             }
         }
 
+        test("searches cards by name") {
+            withWeb(json) {
+                val response = client.get("/api/cards/search?q=alpha&colors=G")
+                val cards = json.parseToJsonElement(response.bodyAsText()).jsonArray
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    cards.size shouldBe 1
+                    cards[0].jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
+                    cards[0].jsonObject["typeLine"]!!.jsonPrimitive.content shouldBe "Creature — Elf"
+                }
+            }
+        }
+
+        test("parses decklists into sections") {
+            withWeb(json) {
+                val response =
+                    client.post("/api/cards/parse-decklist") {
+                        jsonBody("""{"text":"2 Alpha Card (TST) 1\nSideboard\n1 Missing Card\n[commander]\nBeta Card"}""")
+                    }
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body["mainboard"]!!
+                        .jsonArray
+                        .single()
+                        .jsonObject["grpId"]!!
+                        .jsonPrimitive.content shouldBe "100"
+                    body["sideboard"]!!
+                        .jsonArray
+                        .single()
+                        .jsonObject["found"]!!
+                        .jsonPrimitive.content shouldBe "false"
+                    body["commander"]!!
+                        .jsonArray
+                        .single()
+                        .jsonObject["grpId"]!!
+                        .jsonPrimitive.content shouldBe "101"
+                    body["errors"]!!
+                        .jsonArray
+                        .single()
+                        .jsonPrimitive.content shouldBe "Card not found: Missing Card"
+                }
+            }
+        }
+
+        test("rejects oversized decklist") {
+            withWeb(json) {
+                val response =
+                    client.post("/api/cards/parse-decklist") {
+                        jsonBody("""{"text":"${"a".repeat(20_001)}"}""")
+                    }
+
+                response.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
         test("serves limited set list") {
-            withWeb { client, _ ->
+            withWeb(json) {
                 val response = client.get("/api/sealed/sets")
                 val sets = json.parseToJsonElement(response.bodyAsText()).jsonArray
 
@@ -434,8 +558,8 @@ class WebRoutesTest :
         }
 
         test("starts sealed course with generated pool") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 val response =
                     client.post("/api/sealed/start") {
                         header(HttpHeaders.Cookie, login.cookie)
@@ -453,8 +577,8 @@ class WebRoutesTest :
         }
 
         test("rejects sealed start for a non-sealed event") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 val response =
                     client.post("/api/sealed/start") {
                         header(HttpHeaders.Cookie, login.cookie)
@@ -467,8 +591,8 @@ class WebRoutesTest :
         }
 
         test("submits sealed deck, plays, and drops the course") {
-            withWeb { client, repos ->
-                val login = client.login(repos)
+            withWeb(json) {
+                val login = login()
                 client.post("/api/sealed/start") {
                     header(HttpHeaders.Cookie, login.cookie)
                     contentType(ContentType.Application.Json)
@@ -505,22 +629,20 @@ class WebRoutesTest :
         }
 
         test("auth creates and revokes opaque web session") {
-            withWeb { client, repos ->
+            withWeb(json) {
                 val request =
                     client.post("/api/auth/request-code") {
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"email":"Player@Example.test"}""")
+                        jsonBody("""{"email":"Player@Example.test"}""")
                     }
                 val code = checkNotNull(repos.emailSender.latestCode("player@example.test"))
                 val verify =
                     client.post("/api/auth/verify") {
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"email":"player@example.test","code":"$code"}""")
+                        jsonBody("""{"email":"player@example.test","code":"$code"}""")
                     }
                 val cookie = checkNotNull(verify.headers[HttpHeaders.SetCookie]).substringBefore(";")
-                val me = client.get("/api/auth/me") { header(HttpHeaders.Cookie, cookie) }
-                val logout = client.post("/api/auth/logout") { header(HttpHeaders.Cookie, cookie) }
-                val afterLogout = client.get("/api/auth/me") { header(HttpHeaders.Cookie, cookie) }
+                val me = client.get("/api/auth/me") { auth(cookie) }
+                val logout = client.post("/api/auth/logout") { auth(cookie) }
+                val afterLogout = client.get("/api/auth/me") { auth(cookie) }
 
                 assertSoftly {
                     request.status shouldBe HttpStatusCode.NoContent
@@ -555,11 +677,19 @@ class WebRoutesTest :
         }
     })
 
-private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Unit) =
+private const val TEST_EMAIL = "player@example.test"
+private const val TEST_EVENT = "QuickDraft_FDN_20260223"
+
+private fun withWeb(
+    json: Json,
+    puzzleCatalog: () -> List<PuzzleSummaryView> = { emptyList() },
+    block: suspend WebFixture.() -> Unit,
+) {
     testApplication {
         val repos = TestRepos()
         val services =
             WebServices(
+                puzzleCatalog = puzzleCatalog,
                 draftService = DraftService(repos.draft, StaticDraftDriver()),
                 courseService =
                     CourseService(
@@ -591,8 +721,50 @@ private fun withWeb(block: suspend (io.ktor.client.HttpClient, TestRepos) -> Uni
                 sealedSets = { listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "core", cardCount = 281)) },
             )
         application { installWeb(services) }
-        block(client, repos)
+        block(WebFixture(client, client.config { install(WebSockets) }, repos, json))
     }
+}
+
+private class WebFixture(
+    val client: HttpClient,
+    val wsClient: HttpClient,
+    val repos: TestRepos,
+    val json: Json,
+) {
+    suspend fun login(email: String = TEST_EMAIL) = client.login(repos, json, email)
+
+    suspend fun startDraft(login: TestLogin) =
+        client.post("/api/draft/start") {
+            auth(login)
+            jsonBody("""{"playerId":"${login.playerId}","eventName":"$TEST_EVENT"}""")
+        }
+
+    suspend fun draftStatus(login: TestLogin) =
+        client.get("/api/draft/status?playerId=${login.playerId}&eventName=$TEST_EVENT") {
+            auth(login)
+        }
+
+    suspend fun dropDraft(login: TestLogin) =
+        client.delete("/api/draft?playerId=${login.playerId}&eventName=$TEST_EVENT") {
+            auth(login)
+        }
+
+    suspend fun greSocket(
+        login: TestLogin,
+        matchId: String,
+        block: suspend DefaultClientWebSocketSession.() -> Unit,
+    ) = wsClient.webSocket({
+        url.takeFrom("/gre?matchId=$matchId")
+        auth(login)
+    }, block)
+
+    suspend fun publicGreSocket(
+        matchId: String,
+        block: suspend DefaultClientWebSocketSession.() -> Unit,
+    ) = wsClient.webSocket({
+        url.takeFrom("/gre?matchId=$matchId")
+    }, block)
+}
 
 private fun authRequestBytes(clientId: String): ByteArray =
     ClientToMatchServiceMessage
@@ -643,9 +815,53 @@ private class TestRepos {
     val relay = InProcessWebGreRelay(idleCloseGraceMs = 50)
     val cards =
         InMemoryCardRepository().also {
-            it.register(100, "Alpha Card")
-            it.register(101, "Beta Card")
+            it.registerData(
+                CardData(
+                    grpId = 100,
+                    titleId = 9001,
+                    power = "2",
+                    toughness = "3",
+                    colors = listOf(CardColor.Green_a3b0.number),
+                    types = listOf(CardType.Creature.number),
+                    subtypes = listOf(SubType.Elf.number),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = listOf(ManaColor.Green_afc9 to 1),
+                ),
+                "Alpha Card",
+            )
+            it.registerData(
+                CardData(
+                    grpId = 101,
+                    titleId = 9002,
+                    power = "",
+                    toughness = "",
+                    colors = listOf(CardColor.Blue_a3b0.number),
+                    types = listOf(CardType.Instant.number),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = listOf(ManaColor.Blue_afc9 to 1),
+                ),
+                "Beta Card",
+            )
         }
+
+    fun registerGre(
+        matchId: String,
+        reply: ByteArray,
+        ownerPlayerId: PlayerId,
+        publicAccess: Boolean = false,
+        closed: AtomicBoolean = AtomicBoolean(false),
+        onClose: () -> Unit = {},
+    ) {
+        relay.register(
+            matchId,
+            ownerPlayerId = ownerPlayerId,
+            publicAccess = publicAccess,
+            onClose = onClose,
+        ) { onFrame, _ -> StaticGreEngineSession(enginePayloads, reply, onFrame, closed) }
+    }
 }
 
 private data class TestLogin(
@@ -653,27 +869,41 @@ private data class TestLogin(
     val playerId: String,
 )
 
-private suspend fun io.ktor.client.HttpClient.login(repos: TestRepos): TestLogin {
+private suspend fun HttpClient.login(
+    repos: TestRepos,
+    json: Json,
+    email: String,
+): TestLogin {
     post("/api/auth/request-code") {
-        contentType(ContentType.Application.Json)
-        setBody("""{"email":"player@example.test"}""")
+        jsonBody("""{"email":"$email"}""")
     }
-    val code = checkNotNull(repos.emailSender.latestCode("player@example.test"))
+    val normalizedEmail = email.lowercase()
+    val code = checkNotNull(repos.emailSender.latestCode(normalizedEmail))
     val verify =
         post("/api/auth/verify") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"email":"player@example.test","code":"$code"}""")
+            jsonBody("""{"email":"$normalizedEmail","code":"$code"}""")
         }
     val cookie = checkNotNull(verify.headers[HttpHeaders.SetCookie]).substringBefore(";")
     val playerId =
-        Json
+        json
             .parseToJsonElement(verify.bodyAsText())
             .jsonObject["playerId"]!!
             .jsonPrimitive.content
     return TestLogin(cookie, playerId)
 }
 
-private suspend fun io.ktor.client.HttpClient.roundTrip(
+private fun HttpRequestBuilder.auth(login: TestLogin) = auth(login.cookie)
+
+private fun HttpRequestBuilder.auth(cookie: String) {
+    header(HttpHeaders.Cookie, cookie)
+}
+
+private fun HttpRequestBuilder.jsonBody(body: String) {
+    contentType(ContentType.Application.Json)
+    setBody(body)
+}
+
+private suspend fun HttpClient.roundTrip(
     login: TestLogin,
     matchId: String,
     payload: ByteArray,
@@ -684,7 +914,7 @@ private suspend fun io.ktor.client.HttpClient.roundTrip(
 ) {
     webSocket({
         url.takeFrom("/gre?matchId=$matchId")
-        header(HttpHeaders.Cookie, login.cookie)
+        auth(login)
     }) {
         if (attached.incrementAndGet() == 2) bothAttached.complete(Unit)
         bothAttached.await()

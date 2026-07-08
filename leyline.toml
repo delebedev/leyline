@@ -19,6 +19,14 @@
 # Leave set for smoke/playtest robustness; unset only for fully manual prompt debugging.
 #prompt_failsafe_ms = 45000
 
+# AI turn wait — how long the engine waits for the AI's turn to return priority
+# before giving up and suppressing action prompts (ms).
+#ai_turn_wait_ms = 30000
+
+# Mulligan wait — how long the engine waits for a keep/mulligan response (ms).
+# Must exceed the client-visible mulligan timer to avoid stale dialogs.
+#mulligan_wait_ms = 45000
+
 # Player database path (relative to CWD or absolute).
 #player_db = "data/player.db"
 
@@ -31,9 +39,8 @@
 #die_roll_winner = 1
 
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
-# Enabled by default for arena-driven probes — the mulligan dialog races
-# puzzle injection and gives auto-pass time to advance phases before the
-# tester can act. Comment out to exercise the mulligan flow itself.
+# Leave disabled when exercising mulligan flow; enable only for scripted probes
+# where the opening-hand dialog would obscure the scenario under test.
 skip_mulligan = true
 
 # Send decision timer (rope) on priority grant. Disable to suppress countdown.
@@ -43,6 +50,9 @@ timer = false
 # In spectator_mode, "random" picks a random pair for both AI seats.
 # Omit for mirror match (same as seat 1).
 #ai_deck = "Green stompy"
+
+# Run both game seats under Forge AI; attach the client as a read-only viewer.
+#spectator_mode = false
 
 [ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.

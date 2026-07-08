@@ -1,0 +1,17 @@
+[metadata]
+Name:Enlist Faithbonder Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Attack with Benalish Faithbonder and enlist Centaur Courser for lethal damage.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+removesummoningsickness=true
+
+humanbattlefield=Benalish Faithbonder;Centaur Courser
+humanlibrary=Plains
+ailibrary=Mountain

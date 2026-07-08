@@ -46,9 +46,6 @@ class DelayedTriggerHolderTracker {
         for (h in batch.added) active[h.iid] = h
     }
 
-    /** Live set size — diagnostic / test hook. */
-    val activeSize: Int get() = active.size
-
     /** Iids of all currently-alive holders. Used by [leyline.game.mapping.StateMapper]
      *  to keep them listed in the Limbo zone every GSM (the gameObject is cached
      *  client-side after first emission, but the zone listing is rebuilt each

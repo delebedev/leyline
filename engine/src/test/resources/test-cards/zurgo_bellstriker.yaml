@@ -1,0 +1,21 @@
+name: "Zurgo Bellstriker"
+grpId: 94397
+titleId: 47372
+abilities:
+  - id: 22655
+    textId: 46760
+    category: 3
+    baseId: 274
+    mana: "o1oR"
+  - id: 93405
+    textId: 91668
+    category: 3
+expansionCode: "PIO"
+colors:
+  - 4
+types:
+  - 2
+subtypes:
+  - 221
+  - 77
+manaCost: "oR"

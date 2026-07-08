@@ -33,7 +33,7 @@
     "internalName": "Play_Brawl",
     "publicName": "Standard Brawl",
     "deckSelectFormat": "Brawl",
-    "displayPriority": -1,
+    "displayPriority": 61,
     "flags": [
       "IsArenaPlayModeEvent"
     ],
@@ -45,7 +45,7 @@
     "publicName": "Sealed FDN",
     "deckSelectFormat": "Sealed",
     "formatType": "Sealed",
-    "displayPriority": -1,
+    "displayPriority": 62,
     "flags": [
       "IsArenaPlayModeEvent"
     ],
@@ -65,7 +65,7 @@
     "publicName": "FDN_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 61,
+    "displayPriority": 63,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -108,7 +108,7 @@
     "publicName": "TDM_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 62,
+    "displayPriority": 64,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -151,7 +151,7 @@
     "publicName": "FIN_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 63,
+    "displayPriority": 58,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -194,7 +194,7 @@
     "publicName": "EOE_Quick_Draft",
     "deckSelectFormat": "Draft",
     "formatType": "Draft",
-    "displayPriority": 64,
+    "displayPriority": 59,
     "flags": [
       "IsArenaPlayModeEvent",
       "UpdateQuests",
@@ -235,6 +235,153 @@
       200055,
       200055,
       200055
+    ]
+  },
+  {
+    "internalName": "QuickDraft_DMU_20260101",
+    "publicName": "DMU_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 60,
+    "eventState": "ForceActive",
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_DMU_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_DMU_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "DMU Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100030,
+    "boosterCollationIds": [
+      100030,
+      100030,
+      100030
+    ]
+  },
+  {
+    "internalName": "QuickDraft_MOM_20260101",
+    "publicName": "MOM_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": -1,
+    "eventState": "ForceActive",
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_MOM_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_MOM_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "MOM Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100037,
+    "boosterCollationIds": [
+      100037,
+      100037,
+      100037
+    ]
+  },
+  {
+    "internalName": "QuickDraft_NEO_20260101",
+    "publicName": "NEO_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": -1,
+    "eventState": "ForceActive",
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_NEO_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_NEO_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      },
+      {
+        "currencyType": "CustomToken",
+        "quantity": 1,
+        "referenceId": "QuickDraftToken"
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "NEO Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100027,
+    "boosterCollationIds": [
+      100027,
+      100027,
+      100027
     ]
   }
 ]

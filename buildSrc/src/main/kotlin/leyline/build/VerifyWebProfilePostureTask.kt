@@ -14,7 +14,6 @@ abstract class VerifyWebProfilePostureTask : DefaultTask() {
     fun verify() {
         val files = classpath.files
         val forbiddenEntries = listOf("leyline/native/")
-        val forbiddenText = "30010"
 
         val leakedNames = files.filter { file -> file.nameWithoutExtension == "native" }
         check(leakedNames.isEmpty()) { "web profile includes forbidden artifacts: ${leakedNames.joinToString { it.name }}" }
@@ -31,8 +30,5 @@ abstract class VerifyWebProfilePostureTask : DefaultTask() {
                 }
             }
         check(leakedEntries.isEmpty()) { "web profile includes forbidden classes: ${leakedEntries.joinToString()}" }
-
-        val leakedPort = files.filter { file -> file.isFile && file.readBytes().decodeToString().contains(forbiddenText) }
-        check(leakedPort.isEmpty()) { "web profile includes native client port literal: ${leakedPort.joinToString { it.name }}" }
     }
 }

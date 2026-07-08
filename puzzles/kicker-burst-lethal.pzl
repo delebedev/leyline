@@ -1,0 +1,17 @@
+[metadata]
+Name:Kicker Burst Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Kick Burst Lightning to deal exactly lethal damage.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Burst Lightning
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain
+ailibrary=Mountain

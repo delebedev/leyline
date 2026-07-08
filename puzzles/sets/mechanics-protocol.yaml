@@ -316,6 +316,39 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
             - opponent_life: 20
             - stack_empty: true
+  - id: spectacle-spawn-of-mayhem
+    puzzle: spectacle-spawn-of-mayhem
+    run: cast Shock, then cast Spawn of Mayhem with Spectacle
+    expect: opponent lost life gates the spectacle cast and Spawn of Mayhem resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Shock }
+      - cast: Shock
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          action: { type: cast, card: Spawn of Mayhem, alt_cost: spectacle }
+      - cast: { card: Spawn of Mayhem, alt_cost: spectacle }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_contains: { side: ours, zone: battlefield, card: Spawn of Mayhem }
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - opponent_life: 18
+            - stack_empty: true
+  - id: harmonize-winternight-stories
+    puzzle: harmonize-winternight-stories
+    run: cast Winternight Stories from graveyard with Harmonize
+    expect: Harmonize cast leaves the graveyard path and emits CastingTimeOption
+    steps:
+      - expect:
+          action: { type: cast, card: Winternight Stories, zone: graveyard, alt_cost: harmonize }
+      - cast: { card: Winternight Stories, zone: graveyard, alt_cost: harmonize }
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_not_contains: { side: ours, zone: graveyard, card: Winternight Stories }
   - id: training-hopeful-initiate
     puzzle: training-hopeful-initiate
     run: attack with Hopeful Initiate and Grizzly Bears
@@ -465,6 +498,128 @@ scenarios:
             - annotation_seen: ManaPaid
             - annotation_seen: AbilityWordActive
             - zone_contains: { side: ours, zone: battlefield, card: Conclave Tribunal }
+            - stack_empty: true
+  - id: improvise-ironheart-clever-champion
+    puzzle: improvise-ironheart-clever-champion
+    run: cast Ironheart and pay Improvise with an artifact reducer
+    expect: Improvise emits PayCostsReq payment actions, taps the selected artifact, and resolves the spell
+    steps:
+      - cast: "Ironheart, Clever Champion"
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Ornithopter] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: ManaPaid
+            - zone_contains: { side: ours, zone: battlefield, card: "Ironheart, Clever Champion" }
+            - stack_empty: true
+  - id: emerge-wretched-gryff
+    puzzle: emerge-wretched-gryff
+    run: cast Wretched Gryff with Emerge by sacrificing Walking Corpse
+    expect: Emerge exposes an alt-cost cast, prompts for sacrifice-as-cost, and resolves the spell
+    steps:
+      - cast: { card: Wretched Gryff, alt_cost: emerge }
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: battlefield, cards: [Walking Corpse] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Wretched Gryff }
+            - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
+            - stack_empty: true
+  - id: evoke-mulldrifter
+    puzzle: evoke-mulldrifter
+    run: cast Mulldrifter with Evoke and let the self-sacrifice trigger resolve
+    expect: Evoke exposes an alt-cost cast and moves Mulldrifter to the graveyard after entering
+    steps:
+      - cast: { card: Mulldrifter, alt_cost: evoke }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
+            - stack_empty: true
+  - id: dash-zurgo-bellstriker
+    puzzle: dash-zurgo-bellstriker
+    run: cast Zurgo Bellstriker with Dash and pass until it returns to hand
+    expect: Dash exposes an alt-cost cast and returns Zurgo Bellstriker at the next end step
+    steps:
+      - cast: { card: Zurgo Bellstriker, alt_cost: dash }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Zurgo Bellstriker }
+      - pass_until:
+          zone_contains: { side: ours, zone: hand, card: Zurgo Bellstriker }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Zurgo Bellstriker }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Zurgo Bellstriker }
+            - stack_empty: true
+  - id: blitz-mayhem-patrol
+    puzzle: blitz-mayhem-patrol
+    run: cast Mayhem Patrol with Blitz and pass until it sacrifices itself
+    expect: Blitz exposes an alt-cost cast, sacrifices the creature at end step, and draws a card
+    steps:
+      - cast: { card: Mayhem Patrol, alt_cost: blitz }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Mayhem Patrol }
+            - zone_contains: { side: ours, zone: hand, card: Mountain }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
+            - stack_empty: true
+  - id: retrace-waves-of-aggression
+    puzzle: retrace-waves-of-aggression
+    run: cast Waves of Aggression from graveyard with Retrace and auto-pay the only land discard
+    expect: Retrace exposes a graveyard cast and pays the land-discard additional cost
+    steps:
+      - cast: { card: Waves of Aggression, zone: graveyard, alt_cost: retrace }
+      - select_cost: { zone: hand, cards: [Plains] }
+      - pass_until: { stack_empty: true, max_passes: 30 }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Waves of Aggression }
+            - zone_contains: { side: ours, zone: graveyard, card: Plains }
+            - stack_empty: true
+  - id: surge-crush-of-tentacles
+    puzzle: surge-crush-of-tentacles
+    run: cast Shock, then cast Crush of Tentacles for Surge
+    expect: Surge exposes a hand alternate-cost cast after another spell this turn and resolves for its surge cost
+    steps:
+      - cast: Shock
+      - target: opponent
+      - pass_until: { stack_empty: true, max_passes: 10 }
+      - cast: { card: Crush of Tentacles, alt_cost: surge }
+      - pass_until: { stack_empty: true, max_passes: 30 }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Crush of Tentacles }
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - stack_empty: true
+  - id: teamwork-timeline-inquiry
+    puzzle: teamwork-timeline-inquiry
+    run: cast Timeline Inquiry, choose Teamwork, and tap Coral Merfolk for the power payment
+    expect: Teamwork emits the Teamwork PayCostsReq, records the accepted casting option, and resolves the spell
+    steps:
+      - expect:
+          action: { type: cast, card: Timeline Inquiry }
+      - cast: Timeline Inquiry
+      - choose: { optional_cost: additional_cost, label: Teamwork }
+      - expect:
+          prompt: { type: PayCostsReq, prompt_id: 8924 }
+      - select_cost: { zone: battlefield, cards: [Coral Merfolk] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: CastingTimeOption
+            - zone_contains: { side: ours, zone: graveyard, card: Timeline Inquiry }
+            - zone_count_at_least: { side: ours, zone: hand, count: 3 }
             - stack_empty: true
   - id: investigate-novice-inspector
     puzzle: novice-inspector-investigate

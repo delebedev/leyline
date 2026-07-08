@@ -29,7 +29,7 @@ internal class PromptResponseSubmitter(
 
         recordChoiceResults(pendingPrompt, selectedIds)
 
-        log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
+        log.info("PromptResponseSubmitter: SelectNResp indices={}", selectedIndices)
         submit(pendingPrompt, selectedIndices, autoPass)
     }
 
@@ -41,7 +41,7 @@ internal class PromptResponseSubmitter(
         val orderedIds = greMsg.orderResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(orderedIds, pendingPrompt)
 
-        log.info("TargetingHandler: OrderResp ids={} indices={}", orderedIds, selectedIndices)
+        log.info("PromptResponseSubmitter: OrderResp ids={} indices={}", orderedIds, selectedIndices)
         submit(pendingPrompt, selectedIndices, autoPass)
     }
 
@@ -57,7 +57,7 @@ internal class PromptResponseSubmitter(
             clearManaSourcePayment(pendingPrompt.promptId)
         }
 
-        log.info("TargetingHandler: EffectCostResp indices={}", selectedIndices)
+        log.info("PromptResponseSubmitter: EffectCostResp indices={}", selectedIndices)
         submit(pendingPrompt, selectedIndices, autoPass)
     }
 
@@ -68,7 +68,7 @@ internal class PromptResponseSubmitter(
                 .prompt
                 .getPendingPrompt()
         if (pendingPrompt == null) {
-            log.warn("TargetingHandler: {} but no pending prompt (likely timeout race)", label)
+            log.warn("PromptResponseSubmitter: {} but no pending prompt (likely timeout race)", label)
             DevCheck.failOnAutoPass { "$label but no pending prompt" }
         }
         return pendingPrompt
@@ -111,7 +111,9 @@ internal class PromptResponseSubmitter(
 
     companion object {
         fun isManaSourcePaymentSemantic(semantic: PromptSemantic): Boolean =
-            semantic == PromptSemantic.WaterbendCost || semantic == PromptSemantic.ConvokeCost
+            semantic == PromptSemantic.WaterbendCost ||
+                semantic == PromptSemantic.ConvokeCost ||
+                semantic == PromptSemantic.ImproviseCost
 
         fun mapSelectNIdsToPromptIndices(
             selectedIds: List<Int>,

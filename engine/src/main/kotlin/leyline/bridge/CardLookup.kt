@@ -102,7 +102,7 @@ fun getAllCastableAbilities(
         expanded.addAll(other)
 
         for (optional in GameActionUtil.getOptionalCostValues(sa)) {
-            if (optional.type != OptionalCost.Jumpstart) continue
+            if (optional.type != OptionalCost.Jumpstart && optional.type != OptionalCost.Retrace) continue
             val optionalSa = GameActionUtil.addOptionalCosts(sa, listOf(optional))
             optionalSa.setActivatingPlayer(player)
             expanded.add(optionalSa)

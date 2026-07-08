@@ -1,0 +1,20 @@
+name: "Crush of Tentacles"
+grpId: 94279
+titleId: 48991
+abilities:
+  - id: 62498
+    textId: 48992
+    category: 8
+    baseId: 356
+    mana: "o3oUoU"
+  - id: 102636
+    textId: 672211
+    category: 4
+expansionCode: "PIO"
+colors:
+  - 2
+types:
+  - 10
+manaCost: "o4oUoU"
+tokens:
+  "102636": 95318

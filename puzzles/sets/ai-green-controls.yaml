@@ -1,0 +1,70 @@
+name: ai-green-controls
+description: Direct Forge-AI and GRE-green terminal controls promoted into headless acceptance.
+scenarios:
+  - id: firebending-bolt-lethal
+    puzzle: firebending-bolt-lethal
+    run: attack with Jeong Jeong, spend Firebending mana on Lightning Bolt, and win
+    expect: Firebending combat mana carries through the cast path and the opponent loses
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - resolve_stack: {}
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+  - id: airbend-eot-blocker-lethal
+    puzzle: airbend-eot-blocker-lethal
+    run: cast Airbending Lesson on the opponent end step, remove the blocker, and win in combat
+    expect: the end-step instant path resolves before our lethal attack
+    steps:
+      - expect:
+          action: { type: cast, card: Airbending Lesson }
+      - cast: Airbending Lesson
+      - target: { side: opponent, zone: battlefield, card: Juggernaut }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Juggernaut }
+            - zone_contains: { side: ours, zone: graveyard, card: Airbending Lesson }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Centaur Courser] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+  - id: channel-twinshot-lethal
+    puzzle: channel-twinshot-lethal
+    run: channel Twinshot Sniper at opponent for lethal
+    expect: hand-zone activation targets the opponent and wins the game
+    steps:
+      - expect:
+          action: { type: activate, card: Twinshot Sniper }
+      - activate: { card: Twinshot Sniper, zone: hand }
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+  - id: kicker-burst-lethal
+    puzzle: kicker-burst-lethal
+    run: kick Burst Lightning and target the opponent for lethal
+    expect: the kicked spell targets the opponent and wins the game
+    steps:
+      - expect:
+          action: { type: cast, card: Burst Lightning }
+      - cast: Burst Lightning
+      - choose: { optional_cost: kicker }
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8

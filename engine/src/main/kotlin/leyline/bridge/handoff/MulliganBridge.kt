@@ -183,14 +183,14 @@ class MulliganBridge(
         }
     }
 
-    fun submitKeep() {
+    fun submitKeep(): Boolean {
         val future = synchronized(this) { (state as? MulliganState.WaitingKeep)?.future }
-        future?.complete(true)
+        return future?.complete(true) == true
     }
 
-    fun submitMull() {
+    fun submitMull(): Boolean {
         val future = synchronized(this) { (state as? MulliganState.WaitingKeep)?.future }
-        future?.complete(false)
+        return future?.complete(false) == true
     }
 
     fun submitTuck(cards: List<Card>) {

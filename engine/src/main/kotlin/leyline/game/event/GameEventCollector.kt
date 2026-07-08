@@ -326,6 +326,7 @@ class GameEventCollector(
         when {
             saAltCost != null -> KeywordAbilityIds.fromForgeAltCostName(saAltCost.name)
             topSa?.isJumpstart == true -> KeywordAbilityIds.JUMP_START
+            topSa?.isOptionalCostPaid(OptionalCost.Retrace) == true -> KeywordAbilityIds.RETRACE
             topSa?.hasParam("PrecostDesc") == true && topSa.getParam("PrecostDesc") == "Cleave" -> KeywordAbilityIds.CLEAVE
             else -> null
         }
@@ -613,10 +614,13 @@ class GameEventCollector(
                 0
             }
         val additionalCost =
-            if (topSa.isOptionalCostPaid(OptionalCost.Generic) && grpId != 0) {
-                bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND) ?: 0
-            } else {
-                0
+            when {
+                grpId == 0 -> 0
+                topSa.isOptionalCostPaid(OptionalCost.Teamwork) ->
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TEAMWORK) ?: 0
+                topSa.isOptionalCostPaid(OptionalCost.Generic) ->
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND) ?: 0
+                else -> 0
             }
         val x = topSa.xManaCostPaid ?: 0
         return CastingTimeOptionState(kickerAbilityGrpId = kicker, additionalCostGrpId = additionalCost, chosenX = x)
@@ -707,7 +711,15 @@ class GameEventCollector(
                     from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
                         GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                     to == ZoneType.Exile -> {
-                        val sourceId = exileUnderSource?.value ?: exileUnderSourceId(card)
+                        // A spell exiled by its own resolution (Flashback / Harmonize
+                        // "then exile it") reports itself as the exile source: Forge sets
+                        // exiledWith to the ChangeZone host, which is the spell card. That
+                        // is not an under-card display relationship — a card cannot be
+                        // shown tucked under itself — so drop the self-reference. A
+                        // self-exiling spell is not displayed under any card.
+                        val sourceId =
+                            (exileUnderSource?.value ?: exileUnderSourceId(card))
+                                ?.takeIf { it != card.id }
                         GameEvent.CardExiled(
                             ForgeCardId(card.id),
                             seat,

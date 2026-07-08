@@ -494,6 +494,9 @@ enum class PromptSemantic {
     /** Enlist's optional attack cost: a PayCostsReq, not target selection. */
     EnlistCost,
 
+    /** Teamwork's spell-time creature tap payment after accepting the CTO branch. */
+    TeamworkCost,
+
     /**
      * Station's tap-a-creature activation cost. Routes to the Station-specific
      * `PayCostsReq` promptId while keeping the normal non-mana payment envelope.
@@ -505,6 +508,9 @@ enum class PromptSemantic {
 
     /** Convoke's tap-creature cost payment. */
     ConvokeCost,
+
+    /** Improvise's tap-artifact cost payment. */
+    ImproviseCost,
 
     /** Waterbend's tap artifact/creature cost payment. */
     WaterbendCost,

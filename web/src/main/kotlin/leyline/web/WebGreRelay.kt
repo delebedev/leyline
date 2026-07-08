@@ -27,10 +27,13 @@ import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.match.MatchHandler
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.ConcurrentHashMap
+
+private val relayLog = LoggerFactory.getLogger("leyline.web.WebGreRelay")
 
 interface WebGreRelay {
     /**
@@ -290,6 +293,13 @@ class EmbeddedWebGreEngineSession(
         channel.writeInbound(inbound)
         channel.runPendingTasks()
         channel.runScheduledPendingTasks()
+        // EmbeddedChannel stores handler exceptions instead of propagating them;
+        // surface them so engine failures (e.g. puzzle setup) aren't silently dropped.
+        try {
+            channel.checkException()
+        } catch (e: Throwable) {
+            relayLog.error("Embedded GRE engine error while handling client message", e)
+        }
     }
 
     override fun close() {

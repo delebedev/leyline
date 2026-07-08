@@ -1,0 +1,12 @@
+name: "Timeline Inquiry"
+grpId: 105651
+titleId: 1122361
+abilities:
+  - id: 206066
+    textId: 1117192
+    category: 3
+    baseId: 412
+  - id: 207410
+    textId: 1122363
+    category: 4
+expansionCode: "MSC"

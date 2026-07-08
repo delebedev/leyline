@@ -1,7 +1,6 @@
 package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
@@ -24,7 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MulliganHandler(
     private val matchConfig: MatchConfig,
     private val registry: MatchRegistry,
-    private val sessionProvider: () -> MatchSession?,
+    private val sessionProvider: () -> GameOps?,
     private val ctxProvider: () -> ChannelHandlerContext?,
     private val matchIdProvider: () -> String,
     private val seatIdProvider: () -> SeatId,
@@ -87,17 +86,20 @@ class MulliganHandler(
 
         when (decision) {
             MulliganOption.AcceptHand -> {
-                bridge.submitKeep(seatId)
+                if (!bridge.submitKeep(seatId)) return
                 bridge.awaitPriority()
                 s.onMulliganKeep()
             }
-            else -> {
+            MulliganOption.Mulligan,
+            MulliganOption.None_a2b7,
+            MulliganOption.UNRECOGNIZED,
+            -> {
+                if (!bridge.submitMull(seatId)) return
                 mulliganCount++
-                bridge.submitMull(seatId)
                 val deletedIds = bridge.ids.resetAll().map { it.value }
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
                 sendDealHand(ctx!!, deletedIds)
-                sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)
+                sendMulliganReq(reportedMulliganCount = mulliganCount, numCards = seat1Hand.size)
             }
         }
     }
@@ -204,32 +206,6 @@ class MulliganHandler(
         s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("DealHand+MulliganReq seat=${seatId.value}")
         ProtoDump.dump(msg, "DealHand+MullReq-seat${seatId.value}")
-        ctx.writeAndFlush(msg)
-    }
-
-    /** GroupReq bundle for London mulligan tuck. */
-    @Suppress("unused") // Will be wired when we send GroupReq to client instead of auto-tucking
-    private fun sendGroupReq(ctx: ChannelHandlerContext) {
-        val s = session ?: return
-        val bridge = s.gameBridge
-        val gsId = s.counter.nextGsId()
-        val handCards = bridge.getHandCards(seatId)
-        val handInstanceIds = handCards.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
-        val tuckCount = bridge.getTuckCount()
-        val (msg, nextMsgId) =
-            HandshakeMessages.groupReqBundle(
-                s.counter.currentMsgId(),
-                gsId,
-                seatId,
-                mulliganCount,
-                handInstanceIds,
-                tuckCount,
-                bridge,
-            )
-        s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        Tap.outboundTemplate("GroupReq seat=${seatId.value} tuck=$tuckCount")
-        ProtoDump.dump(msg, "GroupReq-seat${seatId.value}")
         ctx.writeAndFlush(msg)
     }
 }

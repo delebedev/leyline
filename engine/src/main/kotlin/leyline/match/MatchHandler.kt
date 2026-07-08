@@ -120,7 +120,7 @@ class MatchHandler(
         MulliganHandler(
             matchConfig,
             registry,
-            sessionProvider = { session as? MatchSession },
+            sessionProvider = { session as? GameOps },
             ctxProvider = { nettyCtx },
             matchIdProvider = { matchId },
             seatIdProvider = { SeatId(seatId) },

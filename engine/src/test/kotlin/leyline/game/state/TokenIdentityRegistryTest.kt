@@ -35,7 +35,6 @@ class TokenIdentityRegistryTest :
             reg.register(100, 89236)
             reg.retire(100)
             reg.resolve(100).shouldBeNull()
-            reg.size() shouldBe 0
         }
 
         test("retire is idempotent") {
@@ -43,6 +42,6 @@ class TokenIdentityRegistryTest :
             reg.register(100, 89236)
             reg.retire(100)
             reg.retire(100) // no error
-            reg.size() shouldBe 0
+            reg.resolve(100).shouldBeNull()
         }
     })

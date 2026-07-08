@@ -1,0 +1,17 @@
+[metadata]
+Name:Discover Appraiser Bolt Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Geological Appraiser, discover Lightning Bolt, and target opponent for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Geological Appraiser
+humanbattlefield=Mountain;Mountain;Mountain;Mountain
+humanlibrary=Lightning Bolt;Mountain;Mountain;Mountain
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

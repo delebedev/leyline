@@ -424,19 +424,86 @@ class BundleBuilder(
         allLegalAttackerIds: List<Int>,
         selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
         selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+    ): BundleResult =
+        combatEchoBundle(game, counter, allLegalAttackerIds, GREMessageType.DeclareAttackersReq_695e) {
+            val req =
+                RequestBuilder.buildDeclareAttackersReq(
+                    SeatId(seatId),
+                    bridge,
+                    committedAttackerIds = selectedAttackerIds.toSet(),
+                    committedAttackAlternatives = selectedAttackAlternatives,
+                    committedDamageRecipients = selectedDamageRecipients,
+                )
+            val configureRequest: (GREToClientMessage.Builder) -> Unit = {
+                it.declareAttackersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+            }
+            configureRequest
+        }
+
+    /**
+     * Declare-attackers bundle: Diff (DeclareAttack step) + DeclareAttackersReq (prompt id=6).
+     */
+    fun declareAttackersBundle(
+        game: Game,
+        counter: MessageCounter,
+        prebuiltReq: DeclareAttackersReq? = null,
+    ): BundleResult {
+        val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+        val gs = diff.result.gsm
+        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
+        return promptRequestBundle(diff, counter, gs, GREMessageType.DeclareAttackersReq_695e) {
+            it.declareAttackersReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+        }
+    }
+
+    /**
+     * Echo-back for iterative blocker toggle: thin Diff GSM with provisional
+     * blocker state on toggled creatures + fresh DeclareBlockersReq.
+     *
+     * Same pattern as [echoAttackersBundle] — engine's combat object doesn't
+     * track provisional blocker selections during iterative declaration.
+     */
+    fun echoBlockersBundle(
+        game: Game,
+        counter: MessageCounter,
+        blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
+    ): BundleResult =
+        combatEchoBundle(game, counter, blockAssignments.keys, GREMessageType.DeclareBlockersReq_695e) {
+            // Re-prompt with assigned blockers' attackerInstanceIds cleared
+            val req =
+                RequestBuilder.buildDeclareBlockersReq(
+                    game,
+                    SeatId(seatId),
+                    bridge,
+                    blockerAssignments = blockAssignments,
+                )
+            val configureRequest: (GREToClientMessage.Builder) -> Unit = {
+                it.declareBlockersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+            }
+            configureRequest
+        }
+
+    private fun combatEchoBundle(
+        game: Game,
+        counter: MessageCounter,
+        includedInstanceIds: Collection<Int>,
+        requestType: GREMessageType,
+        buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
     ): BundleResult {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        // Build provisional creature objects for ALL legal attackers.
         // Echo objects carry no combat state; selection lives in the re-prompt.
         val objects = mutableListOf<GameObjectInfo>()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             val fid = ForgeCardId(card.id)
             val iid = bridge.getOrAllocInstanceId(fid).value
-            if (iid !in allLegalAttackerIds) continue
+            if (iid !in includedInstanceIds) continue
             val cardSnap = snap.objects[fid] ?: continue
 
             objects.add(
@@ -470,104 +537,8 @@ class BundleBuilder(
                 it.gameStateMessage = gsmBuilder.build()
             }
 
-        val req =
-            RequestBuilder.buildDeclareAttackersReq(
-                SeatId(seatId),
-                bridge,
-                committedAttackerIds = selectedAttackerIds.toSet(),
-                committedAttackAlternatives = selectedAttackAlternatives,
-                committedDamageRecipients = selectedDamageRecipients,
-            )
-        val msg2 =
-            makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
-                it.declareAttackersReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-            }
-
-        return BundleResult(listOf(msg1, msg2))
-    }
-
-    /**
-     * Declare-attackers bundle: Diff (DeclareAttack step) + DeclareAttackersReq (prompt id=6).
-     */
-    fun declareAttackersBundle(
-        game: Game,
-        counter: MessageCounter,
-        prebuiltReq: DeclareAttackersReq? = null,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val gs = diff.result.gsm
-        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
-        return promptRequestBundle(diff, counter, gs, GREMessageType.DeclareAttackersReq_695e) {
-            it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-        }
-    }
-
-    /**
-     * Echo-back for iterative blocker toggle: thin Diff GSM with provisional
-     * blocker state on toggled creatures + fresh DeclareBlockersReq.
-     *
-     * Same pattern as [echoAttackersBundle] — engine's combat object doesn't
-     * track provisional blocker selections during iterative declaration.
-     */
-    fun echoBlockersBundle(
-        game: Game,
-        counter: MessageCounter,
-        blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
-    ): BundleResult {
-        val nextGs = counter.nextGsId()
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
-        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
-
-        // Build provisional creature objects for assigned blockers.
-        // Echo objects carry NO combat state — only base card fields.
-        val objects = mutableListOf<GameObjectInfo>()
-        val blockerSet = blockAssignments.keys
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (!card.isCreature) continue
-            val fid = ForgeCardId(card.id)
-            val iid = bridge.getOrAllocInstanceId(fid).value
-            if (iid !in blockerSet) continue
-            val cardSnap = snap.objects[fid] ?: continue
-
-            objects.add(
-                ObjectMapper.buildProvisionalCombatObject(
-                    cardSnap,
-                    iid,
-                    ZoneIds.BATTLEFIELD,
-                    ownerSeatId = seatId,
-                    cardProto = bridge.cardProto,
-                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
-                ),
-            )
-        }
-
-        // Cumulative turn-level actions — same pattern as attacker echo.
-        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-
-        val gsmBuilder =
-            GameStateMessage
-                .newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(nextGs)
-                .addAllGameObjects(objects)
-                .setPrevGameStateId(nextGs - 1)
-                .setUpdate(GameStateUpdate.SendAndRecord)
-        embedActions(gsmBuilder, actions, seatId, pending = false)
-
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gsmBuilder.build()
-            }
-
-        // Re-prompt with assigned blockers' attackerInstanceIds cleared
-        val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(seatId), bridge, blockerAssignments = blockAssignments)
-        val msg2 =
-            makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
-                it.declareBlockersReq = req
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
-            }
+        val configureRequest = buildRequestConfig()
+        val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
 
         return BundleResult(listOf(msg1, msg2))
     }
@@ -1136,11 +1107,13 @@ class BundleBuilder(
 
     /**
      * PayCosts bundle: GameState + PayCostsReq.
-     * Tells the client to show its native mana payment UI.
+     * Tells the client to show its native cost-selection UI (mana source
+     * payment, sacrifice, exile-from-graveyard additional costs, convoke).
      *
-     * Currently unused — mana payment auto-resolves via the engine's AI
-     * mana solver + checkPendingPrompt(). Wire this in when implementing
-     * interactive mana payment in the compatibility flow.
+     * Merges any [promptPersistentAnnotations] not already present in the
+     * frame diff's GSM, so the prompt carries pAnns the client needs to
+     * render the candidates (e.g. convoke tap counts) even when the diff
+     * itself wouldn't have emitted them this tick.
      *
      * The client responds with PerformActionResp (already handled).
      */

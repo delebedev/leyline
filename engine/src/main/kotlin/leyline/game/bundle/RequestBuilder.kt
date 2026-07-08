@@ -44,6 +44,7 @@ object RequestBuilder {
         val includeSourceAbilityOnCost: Boolean,
     ) {
         Convoke(KeywordAbilityIds.CONVOKE, KeywordAbilityIds.CONVOKE_PAYMENT, false),
+        Improvise(KeywordAbilityIds.IMPROVISE, KeywordAbilityIds.IMPROVISE, false),
         Waterbend(KeywordAbilityIds.WATERBEND, WATERBEND_PAYMENT_ABILITY_GRP_ID, true),
     }
 
@@ -612,6 +613,55 @@ object RequestBuilder {
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildSelectCostPayCostsReq(prompt, bridge, PromptIds.ENLIST_TAP_COST)
 
+    fun buildTeamworkCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> {
+        val sourceInstanceId =
+            prompt.request.sourceEntityId?.let {
+                bridge.getOrAllocInstanceId(ForgeCardId(it)).value
+            } ?: 0
+        val threshold =
+            requireNotNull(prompt.request.minSelectionWeight) {
+                "Teamwork cost requires a minimum total power"
+            }
+        val weights = prompt.request.costSelectionWeights.map { it.coerceAtLeast(0) }
+        require(weights.size == prompt.request.candidateRefs.size) {
+            "Teamwork cost weights must match candidate count"
+        }
+        val selection =
+            SelectNReq
+                .newBuilder()
+                .setMinSel(threshold)
+                .setMaxSel(Int.MAX_VALUE)
+                .setContext(SelectionContext.NonManaPayment)
+                .setOptionContext(OptionContext.Payment)
+                .setListType(SelectionListType.Dynamic)
+                .setIdType(IdType.InstanceId_ab2c)
+                .setValidationType(SelectionValidationType.NonRepeatable)
+                .setMinWeight(Int.MIN_VALUE)
+                .setMaxWeight(Int.MAX_VALUE)
+
+        for ((idx, ref) in prompt.request.candidateRefs.withIndex()) {
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+            selection.addIds(instanceId)
+            selection.addWeights(weights.getOrElse(idx) { 1 })
+        }
+
+        val req =
+            PayCostsReq
+                .newBuilder()
+                .setPaymentActions(ActionsAvailableReq.newBuilder().build())
+                .setEffectCostReq(
+                    EffectCostReq
+                        .newBuilder()
+                        .setEffectCostType(EffectCostType.Select_a59c)
+                        .setCostSelection(selection),
+                ).build()
+
+        return req to promptWithCardId(PromptIds.TEAMWORK_TAP_COST, sourceInstanceId)
+    }
+
     fun buildWaterbendCostPayCostsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
@@ -621,6 +671,11 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Convoke)
+
+    fun buildImproviseCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Improvise)
 
     private fun buildManaSourceCostPayCostsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -766,7 +821,7 @@ object RequestBuilder {
         kind: ManaSourcePaymentKind,
         convokeShard: ManaCostShard?,
     ): ManaColor {
-        if (kind == ManaSourcePaymentKind.Waterbend) return ManaColor.Colorless_afc9
+        if (kind == ManaSourcePaymentKind.Waterbend || kind == ManaSourcePaymentKind.Improvise) return ManaColor.Colorless_afc9
         convokeShard?.let { return ManaColorMapping.paymentWireColor(it) }
         val colorsNeeded = prompt.request.waterbendManaCost.toMap()
         return when {

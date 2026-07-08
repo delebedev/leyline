@@ -1,0 +1,16 @@
+[metadata]
+Name:Spectacle - Spawn of Mayhem
+Goal:Deal damage, then cast Spawn of Mayhem for its spectacle cost.
+Turns:3
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Shock;Spawn of Mayhem
+humanbattlefield=Mountain;Swamp;Swamp;Swamp
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain

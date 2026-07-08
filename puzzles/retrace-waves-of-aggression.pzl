@@ -1,0 +1,18 @@
+[metadata]
+Name:Retrace - Waves of Aggression
+Goal:Cast Waves of Aggression from graveyard by discarding a land.
+Turns:4
+Difficulty:Easy
+Description:Waves of Aggression exposes a retrace cast action from graveyard and prompts for a land discard cost.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humangraveyard=Waves of Aggression
+humanhand=Plains;Coral Merfolk
+humanbattlefield=Plains;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains
+ailibrary=Island;Island;Island

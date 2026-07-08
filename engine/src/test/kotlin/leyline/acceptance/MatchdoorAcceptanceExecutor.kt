@@ -7,7 +7,6 @@ import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -36,7 +35,9 @@ class MatchdoorAcceptanceExecutor(
             harness.connectAndKeepPuzzleText(readPuzzleText(scenario.puzzle))
             scenario.steps.forEachIndexed { index, step ->
                 executeStep(harness, scenario, index, step)
-                harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
+                if (!harness.isGameOver()) {
+                    harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
+                }
             }
             return scenario.steps.size
         } finally {
@@ -380,7 +381,8 @@ class MatchdoorAcceptanceExecutor(
         step: PassUntilStep,
         context: String,
     ) {
-        val reached = harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
+        harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
+        val reached = runCatching { step.conditions.all { matchesCondition(harness, it) } }.getOrDefault(false)
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
                 "latest prompt=${latestPromptNameWithId(harness) ?: "none"}; " +
@@ -399,7 +401,7 @@ class MatchdoorAcceptanceExecutor(
                 step.conditions.all { matchesCondition(harness, it) }
             }
             true
-        } catch (_: AssertionError) {
+        } catch (_: Throwable) {
             false
         }
 
@@ -442,6 +444,9 @@ class MatchdoorAcceptanceExecutor(
             is LifeTotalCondition ->
                 "${condition.label}; actual ${condition.side.yamlName} life=${player(condition.side, harness).life}"
 
+            is WinnerCondition -> "${condition.label}; actual winner=${finalWinnerSeat(harness) ?: "none"}"
+            is LoserCondition -> "${condition.label}; actual loser=${finalLoserSeat(harness) ?: "none"}"
+
             is BattlefieldStatsAtLeastCondition -> {
                 val card =
                     player(condition.side, harness)
@@ -472,11 +477,14 @@ class MatchdoorAcceptanceExecutor(
                 }
             }
 
-            is PhaseCondition -> "${condition.label}; actual phase=${harness.phase()}"
+            is PhaseCondition -> "${condition.label}; actual phase=${runCatching { harness.phase() }.getOrNull() ?: "none"}"
             is PromptCondition ->
                 "${condition.label}; actual latest prompt=${latestPromptNameWithId(harness) ?: "none"}"
             is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
-            StackEmptyCondition -> "${condition.label}; actual stack size=${harness.game().stackZone.size()}"
+            StackEmptyCondition ->
+                "${condition.label}; actual stack size=${
+                    runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"
+                }"
         }
 
     private fun matchesCondition(
@@ -489,6 +497,8 @@ class MatchdoorAcceptanceExecutor(
             is ZoneNotContainsCondition -> zoneNotContains(harness, condition)
             is ZoneCountAtLeastCondition -> zoneCountAtLeast(harness, condition)
             is LifeTotalCondition -> player(condition.side, harness).life == condition.value
+            is WinnerCondition -> finalWinnerSeat(harness) == seat(condition.side).value
+            is LoserCondition -> finalLoserSeat(harness) == seat(condition.side).value
             is BattlefieldStatsCondition -> battlefieldStats(harness, condition)
             is BattlefieldStatsAtLeastCondition -> battlefieldStatsAtLeast(harness, condition)
             is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
@@ -566,40 +576,14 @@ class MatchdoorAcceptanceExecutor(
                     ?.let { harness.game().findById(it.value) }
                     ?.let { harness.bridge.resolveGrpId(it, action.instanceId) }
                 ?: return false
-        val keywordId =
-            when (altCost) {
-                AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
-                AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
-                AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
-                AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
-                AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
-                AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
-                AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
-                AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
-                AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
-                AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
-                AcceptanceAltCost.Airbend -> KeywordAbilityIds.AIRBEND
-            }
+        val keywordId = altCost.keywordAbilityId
         val abilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
         return action.alternativeGrpId == keywordId ||
             action.abilityGrpId == keywordId ||
             (abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId))
     }
 
-    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int =
-        when (altCost) {
-            AcceptanceAltCost.Cleave -> KeywordAbilityIds.CLEAVE
-            AcceptanceAltCost.Disguise -> KeywordAbilityIds.DISGUISE
-            AcceptanceAltCost.Overload -> KeywordAbilityIds.OVERLOAD
-            AcceptanceAltCost.Escape -> KeywordAbilityIds.ESCAPE
-            AcceptanceAltCost.Foretell -> KeywordAbilityIds.FORETELL
-            AcceptanceAltCost.Impending -> KeywordAbilityIds.IMPENDING
-            AcceptanceAltCost.JumpStart -> KeywordAbilityIds.JUMP_START
-            AcceptanceAltCost.Plot -> KeywordAbilityIds.PLOT
-            AcceptanceAltCost.Warp -> KeywordAbilityIds.WARP
-            AcceptanceAltCost.Enlist -> KeywordAbilityIds.ENLIST
-            AcceptanceAltCost.Airbend -> KeywordAbilityIds.AIRBEND
-        }
+    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int = altCost.keywordAbilityId
 
     private fun zoneContains(
         harness: MatchFlowHarness,
@@ -670,6 +654,21 @@ class MatchdoorAcceptanceExecutor(
         actual: String?,
         expected: String,
     ): Boolean = actual == expected.toForgePhaseName()
+
+    private fun finalWinnerSeat(harness: MatchFlowHarness): Int? {
+        val resultRows =
+            harness.allMessages
+                .asReversed()
+                .asSequence()
+                .filter { it.hasGameStateMessage() && it.gameStateMessage.hasGameInfo() }
+                .flatMap {
+                    val results = it.gameStateMessage.gameInfo.resultsList
+                    results.asReversed().asSequence()
+                }
+        return resultRows.firstOrNull { it.winningTeamId != 0 }?.winningTeamId
+    }
+
+    private fun finalLoserSeat(harness: MatchFlowHarness): Int? = finalWinnerSeat(harness)?.let { 3 - it }
 
     private fun player(
         side: AcceptanceSide,

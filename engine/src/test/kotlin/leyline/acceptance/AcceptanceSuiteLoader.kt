@@ -300,6 +300,8 @@ object AcceptanceSuiteLoader {
             "battlefield_stats_at_least" -> parseBattlefieldStatsAtLeast(value, "$context.battlefield_stats_at_least")
             "opponent_life" -> LifeTotalCondition(AcceptanceSide.Opponent, value.asInt("$context.opponent_life"))
             "our_life" -> LifeTotalCondition(AcceptanceSide.Ours, value.asInt("$context.our_life"))
+            "winner" -> WinnerCondition(AcceptanceSide.parse(value.asString("$context.winner")))
+            "loser" -> LoserCondition(AcceptanceSide.parse(value.asString("$context.loser")))
             "phase" -> PhaseCondition(value.asString("$context.phase"))
             "prompt" -> parsePrompt(value, "$context.prompt")
             "annotation_seen" -> AnnotationSeenCondition(value.asString("$context.annotation_seen"))

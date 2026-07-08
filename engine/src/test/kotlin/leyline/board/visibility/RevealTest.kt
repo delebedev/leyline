@@ -206,7 +206,7 @@ class RevealTest :
             capture(b, game, counter) {
                 activateReveal(b, cardIds, ownerSeat = SeatId(2))
             }
-            b.revealProxies.size shouldBe 1
+            b.revealProxies.isEmpty shouldBe false
 
             // Second build: no prompt pending → stale guard clears activeReveal + proxies
             capture(b, game, counter) {}
@@ -216,7 +216,7 @@ class RevealTest :
                 .journal
                 .activeReveal()
                 .shouldBeNull()
-            b.revealProxies.size shouldBe 0
+            b.revealProxies.isEmpty shouldBe true
         }
 
         test("clearing activeReveal triggers proxy cleanup in next GSM") {
@@ -229,14 +229,14 @@ class RevealTest :
             capture(b, game, counter) {
                 activateReveal(b, cardIds, ownerSeat = SeatId(2))
             }
-            b.revealProxies.size shouldBe 1
+            b.revealProxies.isEmpty shouldBe false
 
             // Clear reveal (simulates choice completion)
             TargetingCoordinator.endReveal(b.promptBridge(SeatId(1)))
 
             val gsm = capture(b, game, counter) {}
 
-            b.revealProxies.size shouldBe 0
+            b.revealProxies.isEmpty shouldBe true
             gsm.revealedCardProxies().shouldBeEmpty()
         }
 

@@ -1,5 +1,6 @@
 package leyline.web
 
+import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
@@ -161,9 +162,9 @@ class SqliteWebAuthStore(
         transaction(database) {
             val session = Sessions.selectAll().where { Sessions.tokenHash eq tokenHash }.firstOrNull() ?: return@transaction null
             if (session[Sessions.revokedAt] != null) return@transaction null
-            if (Instant.parse(session[Sessions.idleExpiresAt]).isBefore(now)) return@transaction null
-            if (Instant.parse(session[Sessions.absoluteExpiresAt]).isBefore(now)) return@transaction null
-            val absoluteExpiry = Instant.parse(session[Sessions.absoluteExpiresAt])
+            val idleExpiry = session.instant(Sessions.idleExpiresAt)
+            val absoluteExpiry = session.instant(Sessions.absoluteExpiresAt)
+            if (idleExpiry.isBefore(now) || absoluteExpiry.isBefore(now)) return@transaction null
             Sessions.update({ Sessions.id eq session[Sessions.id] }) {
                 it[lastSeenAt] = now.toString()
                 it[idleExpiresAt] = minOf(now.plusSeconds(SESSION_IDLE_SECONDS), absoluteExpiry).toString()
@@ -185,6 +186,8 @@ class SqliteWebAuthStore(
     }
 
     private fun ResultRow.toWebPlayer() = WebPlayer(this[Players.playerId], this[Players.email])
+
+    private fun ResultRow.instant(column: Column<String>): Instant = Instant.parse(this[column])
 
     private fun cleanupExpiredAuthData(now: Instant) {
         val nowText = now.toString()

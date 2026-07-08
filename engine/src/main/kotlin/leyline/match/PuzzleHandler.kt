@@ -105,32 +105,34 @@ class PuzzleHandler(
         session.onPuzzleStart()
     }
 
-    /** Load puzzle: configured value as a path or bare name, else matchId convention. */
+    /**
+     * Load puzzle: prefer the configured path/name, else the matchId convention.
+     * The configured value may be an absolute path, a cwd-relative path, or a bare
+     * puzzle name (e.g. `stock-up`) — bare names resolve to `puzzles/<name>.pzl`.
+     */
     private fun loadPuzzleForMatch(matchId: String): Puzzle {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
         GameBootstrap.initializeLocalization()
 
-        val configuredPuzzle = puzzlePath(matchId)
-        if (configuredPuzzle != null) {
-            val file = File(configuredPuzzle).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), configuredPuzzle) }
-            if (file.exists()) return PuzzleSource.loadFromFile(file.absolutePath)
-            return loadFromPuzzlesDir(configuredPuzzle)
-        }
-
-        return loadFromPuzzlesDir(matchId.removePrefix("puzzle-"))
+        val name = puzzlePath(matchId) ?: matchId.removePrefix("puzzle-")
+        val file =
+            resolvePuzzleFile(name)
+                ?: error("Puzzle not found: $name (looked in ${File(findLeylineDir(), "puzzles").absolutePath})")
+        return PuzzleSource.loadFromFile(file.absolutePath)
     }
 
-    /** Resolve a bare puzzle name against the standard puzzles directory. */
-    private fun loadFromPuzzlesDir(puzzleName: String): Puzzle {
+    /** First existing candidate: as-given, with `.pzl`, then under `puzzles/`. */
+    private fun resolvePuzzleFile(name: String): File? {
+        val cwd = File(System.getProperty("user.dir"))
         val puzzlesDir = File(findLeylineDir(), "puzzles")
-        val pzlFile = File(puzzlesDir, "$puzzleName.pzl")
-        if (pzlFile.exists()) {
-            return PuzzleSource.loadFromFile(pzlFile.absolutePath)
-        }
-        val pzlFile2 = File(puzzlesDir, puzzleName)
-        if (pzlFile2.exists()) {
-            return PuzzleSource.loadFromFile(pzlFile2.absolutePath)
-        }
-        error("Puzzle not found: $puzzleName (looked in ${puzzlesDir.absolutePath})")
+        val withPzl = if (name.endsWith(".pzl")) name else "$name.pzl"
+
+        fun atCwd(n: String) = File(n).let { if (it.isAbsolute) it else File(cwd, n) }
+        return listOf(
+            atCwd(name),
+            atCwd(withPzl),
+            File(puzzlesDir, name),
+            File(puzzlesDir, withPzl),
+        ).firstOrNull { it.isFile }
     }
 }

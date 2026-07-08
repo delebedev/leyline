@@ -41,6 +41,8 @@ object WebOpenApi {
         buildJsonObject {
             put("/gre", buildJsonObject { put("get", operation(responses = mapOf("101" to null))) })
             put("/api/auth/me", buildJsonObject { put("get", operation(response = ref("AuthView"))) })
+            put("/api/auth/guest", buildJsonObject { put("post", operation(response = ref("AuthView"))) })
+            put("/api/puzzles", buildJsonObject { put("get", operation(response = arrayRef("PuzzleSummaryView"))) })
             put(
                 "/api/auth/request-code",
                 buildJsonObject {
@@ -107,23 +109,38 @@ object WebOpenApi {
                     put("get", operation(response = ref("ViewerCountView")))
                 },
             )
+            put("/api/collection", buildJsonObject { put("get", operation(response = ref("CollectionView"), responses = authFailures())) })
             put(
                 "/api/public/cards/by-grpids",
                 buildJsonObject {
+                    put("get", operation(response = mapRef("GreCardMetaDto"), responses = mapOf("400" to null)))
+                },
+            )
+            put(
+                "/api/cards/metadata",
+                buildJsonObject {
+                    put("get", operation(response = ref("CardMetadataView")))
+                },
+            )
+            put(
+                "/api/cards/search",
+                buildJsonObject {
+                    put("get", operation(response = arrayRef("DraftCardDto"), responses = mapOf("400" to null)))
+                },
+            )
+            put(
+                "/api/cards/parse-decklist",
+                buildJsonObject {
                     put(
-                        "get",
+                        "post",
                         operation(
-                            response =
-                                buildJsonObject {
-                                    put("type", "object")
-                                    put("additionalProperties", ref("CardByGrpIdView"))
-                                },
+                            request = ref("ParseDecklistRequest"),
+                            response = ref("ParseDecklistResponse"),
+                            responses = mapOf("400" to null),
                         ),
                     )
                 },
             )
-            put("/api/collection", buildJsonObject { put("get", operation(response = ref("CollectionView"), responses = authFailures())) })
-            put("/api/cards/metadata", buildJsonObject { put("get", operation(response = ref("CardMetadataView"))) })
             put("/api/courses", buildJsonObject { put("get", operation(response = arrayRef("CourseView"), responses = authFailures())) })
             put(
                 "/api/decks",
@@ -302,6 +319,12 @@ object WebOpenApi {
             put("items", ref(name))
         }
 
+    private fun mapRef(name: String): JsonObject =
+        buildJsonObject {
+            put("type", "object")
+            put("additionalProperties", ref(name))
+        }
+
     private fun schemas(): JsonObject =
         buildJsonObject {
             component("StartDraftRequest", StartDraftRequest.serializer())
@@ -322,12 +345,17 @@ object WebOpenApi {
             component("LimitedSetView", LimitedSetView.serializer())
             component("LimitedSetArchetypeView", LimitedSetArchetypeView.serializer())
             component("AuthView", AuthView.serializer())
+            component("PuzzleSummaryView", PuzzleSummaryView.serializer())
             component("RequestLoginCodeRequest", RequestLoginCodeRequest.serializer())
             component("VerifyLoginCodeRequest", VerifyLoginCodeRequest.serializer())
             component("LoginResponse", LoginResponse.serializer())
             component("CardMetadataView", CardMetadataView.serializer())
             component("CardMetadataEntry", CardMetadataEntry.serializer())
-            component("CardByGrpIdView", CardByGrpIdView.serializer())
+            component("GreCardMetaDto", GreCardMetaDto.serializer())
+            component("DraftCardDto", DraftCardDto.serializer())
+            component("ParseDecklistRequest", ParseDecklistRequest.serializer())
+            component("ParsedCardDto", ParsedCardDto.serializer())
+            component("ParseDecklistResponse", ParseDecklistResponse.serializer())
         }
 
     private fun <T> JsonObjectBuilder.component(

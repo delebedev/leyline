@@ -15,6 +15,10 @@ import org.slf4j.LoggerFactory
  * (rules data). The single entry point test setup paths use to register
  * a card by name into an [InMemoryCardRepository].
  *
+ * Deliberately in the main source set (unlike its `leyline.tooling.headless`
+ * siblings in `src/harness/`): the auto card mode consumes it in production
+ * via [leyline.game.data.AutoMappingCardRepository].
+ *
  * Source of truth for grpId, ability ids, token map, linked faces is the
  * YAML fixture under `engine/src/test/resources/test-cards/`. For Slim
  * fixtures (rules absent), rules data is derived from Forge's `CardRules`.

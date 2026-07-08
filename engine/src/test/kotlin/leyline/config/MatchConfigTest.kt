@@ -22,6 +22,10 @@ class MatchConfigTest :
             ServerConfig(promptFailsafeMs = null).promptFailsafeMs.shouldBeNull()
         }
 
+        test("mulligan wait defaults long enough for local play") {
+            MatchConfig().server.mulliganWaitMs shouldBe 45_000L
+        }
+
         test("bridge timeout must be positive when configured") {
             shouldThrow<IllegalArgumentException> {
                 MatchConfig(server = ServerConfig(bridgeTimeoutMs = 0)).validate()
@@ -52,6 +56,12 @@ class MatchConfigTest :
         test("prompt failsafe must be positive when configured") {
             shouldThrow<IllegalArgumentException> {
                 MatchConfig(server = ServerConfig(promptFailsafeMs = 0)).validate()
+            }
+        }
+
+        test("mulligan wait must be positive") {
+            shouldThrow<IllegalArgumentException> {
+                MatchConfig(server = ServerConfig(mulliganWaitMs = 0)).validate()
             }
         }
     })

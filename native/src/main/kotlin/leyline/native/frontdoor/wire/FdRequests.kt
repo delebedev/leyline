@@ -1,7 +1,6 @@
 package leyline.native.frontdoor.wire
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -144,8 +143,8 @@ object FdRequests {
                 deckArtId = summary?.get("DeckArtId")?.jsonPrimitive?.int,
                 deckFormat = format,
                 preferredSleeve = preferredSleeve,
-                mainDeck = parseDeckCards(mainElement),
-                sideboard = parseDeckCards(sideElement),
+                mainDeck = DeckWireBuilder.parseCardList(mainElement, defaultQuantity = 1),
+                sideboard = DeckWireBuilder.parseCardList(sideElement, defaultQuantity = 1),
             )
         }
 
@@ -179,21 +178,6 @@ object FdRequests {
             val pickNumber = pickInfo["PickNumber"]?.jsonPrimitive?.int ?: return@parse null
             DraftPick(eventName, cardId, packNumber, pickNumber)
         }
-
-    private fun parseDeckCards(element: JsonElement?): List<DeckCard> {
-        if (element == null) return emptyList()
-        return try {
-            element.jsonArray.map { card ->
-                val obj = card.jsonObject
-                DeckCard(
-                    grpId = obj["cardId"]?.jsonPrimitive?.int ?: 0,
-                    quantity = obj["quantity"]?.jsonPrimitive?.int ?: 1,
-                )
-            }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
 
     private inline fun <T> parse(
         json: String?,

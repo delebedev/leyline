@@ -55,6 +55,7 @@ just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt
 Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
 - `just test-one <ClassName> [module]` — single class; defaults to `engine`, e.g. `just test-one WebRoutesTest web`
+- `just test-many "<ClassA> <ClassB>" [module]` — several classes in one run (space-separated, one string)
 - `just test-gate` — pre-commit (all modules + fmt)
 - `just test-integration` — risky engine changes
 - `just test-acceptance` — puzzle-backed scripted acceptance suites
@@ -80,9 +81,12 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 ## Puzzles
 
 Primary acceptance tool. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics.
+Read `docs/puzzle-harness.md` before starting fixtures from exile, face-down state, prepared/plotted/foretold/adventured state, or any other history-sensitive state.
+Read `docs/ai-solved-acceptance.md` when converting a direct Forge-AI puzzle solution into scripted acceptance YAML.
 
 - `just puzzle <file>` — set puzzle via debug API (hot-swaps if in match, queues for next local AI match)
 - `just puzzle-check <file>` — mandatory before commit (missing grpId = NPE)
+- `./gradlew :engine:testAcceptance -PacceptanceSuites=<suite> -PacceptanceScenarios=<scenario>` — run one acceptance YAML scenario
 - `POST :8090/api/puzzle?file=<name>` — runtime API (GET returns current, POST with no params clears)
 
 ## Proto

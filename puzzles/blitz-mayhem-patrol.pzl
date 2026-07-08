@@ -1,0 +1,17 @@
+[metadata]
+Name:Blitz - Mayhem Patrol
+Goal:Cast Mayhem Patrol for blitz and let it sacrifice itself at end step.
+Turns:4
+Difficulty:Easy
+Description:Mayhem Patrol exposes a blitz cast action, resolves, then sacrifices itself and draws at the next end step.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Mayhem Patrol
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Island;Island;Island

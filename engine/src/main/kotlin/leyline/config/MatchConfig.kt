@@ -81,6 +81,9 @@ data class MatchConfig(
                 "server.prompt_failsafe_ms must be positive when set, got $it"
             }
         }
+        require(server.mulliganWaitMs > 0) {
+            "server.mulligan_wait_ms must be positive, got ${server.mulliganWaitMs}"
+        }
     }
 
     /**
@@ -109,6 +112,7 @@ data class MatchConfig(
             append(" bridgeTimeout=${server.bridgeTimeoutMs?.let { "${it}ms" } ?: "none"}")
             append(" draftPicker=${draft.picker}")
             append(" promptFailsafe=${server.promptFailsafeMs?.let { "${it}ms" } ?: "none"}")
+            append(" mulliganWait=${server.mulliganWaitMs}ms")
             if (dev.strict || dev.strictPass) {
                 append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
             }
@@ -151,7 +155,7 @@ data class ServerConfig(
     val aiTurnWaitMs: Long = 30_000L,
     /** How long the engine waits for a mulligan decision from the client. */
     @SerialName("mulligan_wait_ms")
-    val mulliganWaitMs: Long = 10_000L,
+    val mulliganWaitMs: Long = 45_000L,
     /** Player database path (absolute, or relative to CWD). */
     @SerialName("player_db")
     val playerDb: String = "",

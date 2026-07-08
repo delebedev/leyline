@@ -47,6 +47,33 @@ class EventRegistryTest :
             bots shouldHaveAtLeastSize 2
         }
 
+        test("active events include configured quick draft sets") {
+            val result = EventWireBuilder.toActiveEventsJson(EventRegistry.activeEvents, EventRegistry.aiBotMatches)
+            val events = json.parseToJsonElement(result).jsonObject["Events"]!!.jsonArray
+
+            fun event(name: String) = events.first { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == name }.jsonObject
+
+            fun publicEventName(name: String) = event(name)["EventUXInfo"]!!.jsonObject["PublicEventName"]!!.jsonPrimitive.content
+
+            fun titleLocKey(name: String) =
+                event(name)
+                    .jsonObject["EventUXInfo"]!!
+                    .jsonObject["EventComponentData"]!!
+                    .jsonObject["TitleRankText"]!!
+                    .jsonObject["LocKey"]!!
+                    .jsonPrimitive.content
+
+            publicEventName("QuickDraft_DMU_20260101") shouldBe "DMU_Quick_Draft"
+            publicEventName("QuickDraft_MOM_20260101") shouldBe "MOM_Quick_Draft"
+            publicEventName("QuickDraft_NEO_20260101") shouldBe "NEO_Quick_Draft"
+            titleLocKey("QuickDraft_DMU_20260101") shouldBe "Events/Event_Title_DMU_Quick_Draft"
+            titleLocKey("QuickDraft_MOM_20260101") shouldBe "Events/Event_Title_MOM_Quick_Draft"
+            titleLocKey("QuickDraft_NEO_20260101") shouldBe "Events/Event_Title_NEO_Quick_Draft"
+            EventRegistry.findEvent("QuickDraft_DMU_20260101")?.collationId shouldBe 100030
+            EventRegistry.findEvent("QuickDraft_MOM_20260101")?.collationId shouldBe 100037
+            EventRegistry.findEvent("QuickDraft_NEO_20260101")?.collationId shouldBe 100027
+        }
+
         test("every event has non-null Group in EventUXInfo") {
             val result = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
             val events = json.parseToJsonElement(result).jsonObject["Events"]!!.jsonArray

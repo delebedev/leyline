@@ -1,0 +1,17 @@
+[metadata]
+Name:Escape Glimpse Bolt Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Escape Glimpse of Freedom, draw Lightning Bolt, then cast Bolt for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humangraveyard=Glimpse of Freedom;Counterspell;Llanowar Elves;Giant Growth;Grizzly Bears;Doom Blade
+humanbattlefield=Island;Island;Island;Mountain
+humanlibrary=Lightning Bolt;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

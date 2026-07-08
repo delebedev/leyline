@@ -57,6 +57,7 @@ object PuzzleSource {
         var goal: String? = null
         var turns: Int? = null
         var difficulty: String? = null
+        var description: String? = null
         for (line in meta) {
             val parts = line.split(":", limit = 2)
             if (parts.size < 2) continue
@@ -65,6 +66,7 @@ object PuzzleSource {
                 "goal" -> goal = parts[1].trim()
                 "turns" -> turns = parts[1].trim().toIntOrNull()
                 "difficulty" -> difficulty = parts[1].trim().ifBlank { null }
+                "description" -> description = parts[1].trim().ifBlank { null }
             }
         }
         return PuzzleMetadata(
@@ -72,6 +74,7 @@ object PuzzleSource {
             goal = goal,
             turns = turns,
             difficulty = difficulty,
+            description = description,
         )
     }
 
@@ -80,5 +83,6 @@ object PuzzleSource {
         val goal: String?,
         val turns: Int?,
         val difficulty: String?,
+        val description: String? = null,
     )
 }
