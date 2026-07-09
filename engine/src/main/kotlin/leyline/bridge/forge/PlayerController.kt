@@ -165,16 +165,16 @@ import java.util.function.Predicate
  * method we previously inherited:
  *
  * 1. **Trivial body (≤ 5 lines, direct `bridge.requestChoice` or `super` call)?**
- *    Keep it here. Update [PlayerControllerStructureTest] and the override
- *    table in `engine/CLAUDE.md` in the same commit.
+ *    Keep it here. Update [PlayerControllerStructureTest]'s pinned override
+ *    count in the same commit.
  * 2. **Fits an existing coordinator's concern?** Add a method there, delegate.
  * 3. **Shares a lifecycle pattern with other overrides** (e.g. a future dance)?
  *    Extract a shared helper before adding the override — see [OptionalActionGate].
  * 4. **New concern that does not fit any existing coordinator?** Propose a new
  *    coordinator; justify it against the anti-patterns above.
  *
- * The structure test is the guardrail: it fails when the override count drifts,
- * forcing the table and the class to stay in sync.
+ * The structure test is the guardrail: it fails when the override count drifts
+ * from its pinned value, forcing this class and the test to stay in sync.
  *
  * ## Threading
  *

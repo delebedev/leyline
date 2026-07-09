@@ -1,0 +1,11 @@
+name: "Starfield Mystic"
+grpId: 93549
+titleId: 351730
+abilities:
+  - id: 62067
+    textId: 48012
+    category: 3
+  - id: 133466
+    textId: 939783
+    category: 2
+expansionCode: "J25"
