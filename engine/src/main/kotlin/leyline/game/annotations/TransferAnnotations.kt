@@ -284,15 +284,9 @@ object TransferAnnotations {
      *   (TARGETS_CONFIRMED), separate from the announce GSM (CAST_TARGETED)
      *   which carries only OIC + ZT + persistent.
      *
-     * Ability gameObjects (triggered OR activated) are skipped — they ride
-     * separate paths. Triggers go through [MechanicAnnotations]
-     * (TriggeringObject + AbilityInstance lifecycle); activated abilities
-     * don't currently emit a per-payment block from this function (pre-uh9
-     * they got nothing here either, since they have no Hand→Stack zone
-     * change). If activated-ability mana brackets need to be emitted in
-     * the future, factor a separate event handler — don't reuse this one,
-     * because the cast-action UAT keyed on the spell card's iid would land
-     * against a battlefield-resident card and confuse the classifier.
+     * Triggered Ability gameObjects are skipped — they ride separate paths.
+     * Player-activated Ability gameObjects use the same per-payment mana
+     * bracket, then emit an Activate UserActionTaken keyed on the stack ability.
      */
     internal fun castSpellEventAnnotations(
         ev: GameEvent.SpellCast,
@@ -301,6 +295,9 @@ object TransferAnnotations {
         stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
         convokePayments: List<ConvokePaymentRecord> = emptyList(),
     ): List<AnnotationInfo> {
+        if (ev.isAbility && !ev.isTrigger) {
+            return activatedAbilityEventAnnotations(ev, idResolver, manaAbilityGrpIdResolver, stackInstanceResolver)
+        }
         if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
         val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
@@ -351,6 +348,47 @@ object TransferAnnotations {
                 actionType = castActionType,
                 abilityGrpId = castAbilityGrpId,
                 alternativeGrpId = altCostGrpId,
+            ),
+        )
+        return annotations
+    }
+
+    private fun activatedAbilityEventAnnotations(
+        ev: GameEvent.SpellCast,
+        idResolver: (ForgeCardId) -> InstanceId,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
+    ): List<AnnotationInfo> {
+        val annotations = mutableListOf<AnnotationInfo>()
+        val abilityIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
+        for ((i, mp) in ev.manaPayments.withIndex()) {
+            val landIid = idResolver(mp.sourceCardId)
+            val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
+            emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
+            annotations.add(
+                AnnotationBuilder.userActionTaken(
+                    instanceId = manaAbilityIid,
+                    seatId = ev.seatId,
+                    actionType = ActionType.ActivateMana,
+                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId),
+                ),
+            )
+            annotations.add(
+                AnnotationBuilder.manaPaid(
+                    spellInstanceId = abilityIid,
+                    landInstanceId = landIid,
+                    manaId = i + MANA_ID_BASE,
+                    color = mp.color,
+                ),
+            )
+            annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
+        }
+        annotations.add(
+            AnnotationBuilder.userActionTaken(
+                instanceId = abilityIid,
+                seatId = ev.seatId,
+                actionType = ActionType.Activate_add3,
+                abilityGrpId = GrpId(ev.abilityGrpId),
             ),
         )
         return annotations

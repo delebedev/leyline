@@ -56,6 +56,10 @@ data class CardSnapshot(
     val isToken: Boolean = false,
     /** True when this is a copy token (Forge copiedPermanent != null). */
     val isCopyToken: Boolean = false,
+    /** Source-card grpId for tokens created by a stack ability. */
+    val tokenSourceCardGrpId: Int = 0,
+    /** Stack ability iid that created this token. */
+    val tokenParentAbilityInstanceId: Int = 0,
     /**
      * Pre-resolved client instanceId of the Aura/Equipment carrier permanent
      * this card is attached to, populated at snapshot time. Null when not

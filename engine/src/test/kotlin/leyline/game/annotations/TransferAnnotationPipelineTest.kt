@@ -209,13 +209,10 @@ class TransferAnnotationPipelineTest :
 
         // --- castSpellEventAnnotations: ability gating ---
 
-        test("castSpellEventAnnotations skips activated abilities") {
-            // Activated abilities (e.g. Goblin Fireslinger's tap-to-ping) hit the
-            // same Forge GameEventSpellAbilityCast path as real spells, but the
-            // source card stays on the battlefield — emitting a `Cast` UAT
-            // against its battlefield iid would mis-classify the interaction.
-            // The gate is `isAbility`, which Forge's StackItemView sets true
-            // for both triggered and activated abilities.
+        test("castSpellEventAnnotations emits activated ability payment bracket") {
+            // Activated abilities hit the same Forge GameEventSpellAbilityCast path
+            // as real spells, but their action UAT must be Activate and keyed to
+            // the stack ability iid, not a Cast against the source permanent.
             val ev =
                 leyline.game.event.GameEvent.SpellCast(
                     cardId = leyline.bridge.types.ForgeCardId(42),
@@ -229,14 +226,30 @@ class TransferAnnotationPipelineTest :
                         ),
                     isAbility = true,
                     isTrigger = false,
+                    abilityForgeId = 7,
+                    abilityGrpId = 139868,
                 )
             val annotations =
                 TransferAnnotations.castSpellEventAnnotations(
                     ev,
                     idResolver = { leyline.bridge.types.InstanceId(it.value) },
                     manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                    stackInstanceResolver = { leyline.bridge.types.InstanceId(99) },
                 )
-            annotations.shouldBeEmpty()
+            val types = annotations.flatMap { it.typeList }
+
+            assertSoftly {
+                types shouldContain AnnotationType.AbilityInstanceCreated
+                types shouldContain AnnotationType.UserActionTaken
+                types shouldContain AnnotationType.ManaPaid
+                annotations.last().detailInt(DetailKeys.ACTION_TYPE) shouldBe ActionType.Activate_add3.number
+                annotations.last().detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe 139868
+                annotations
+                    .filter { AnnotationType.ManaPaid in it.typeList }
+                    .single()
+                    .affectedIdsList
+                    .single() shouldBe 99
+            }
         }
 
         test("castSpellEventAnnotations skips triggered abilities") {

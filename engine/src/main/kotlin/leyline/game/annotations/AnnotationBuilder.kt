@@ -892,6 +892,7 @@ object AnnotationBuilder {
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.AbilityExhausted)
+            .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
             .addDetails(int32Detail(DetailKeys.USES_REMAINING, usesRemaining))

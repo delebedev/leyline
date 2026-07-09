@@ -587,6 +587,30 @@ object AnnotationPipeline {
         return copy(destroyed = this.destroyed + destroyed)
     }
 
+    private fun stackInstanceForEvent(
+        ctx: AnnotationContext,
+        castStackIidsByCard: Map<ForgeCardId, InstanceId>,
+        ev: GameEvent.SpellCast,
+    ): InstanceId? =
+        if (ev.isAbility && ev.abilityForgeId != 0) {
+            InstanceId(ctx.stackAbilityIid(ev.abilityForgeId, ev.cardId))
+        } else {
+            castStackIidsByCard[ev.cardId]
+        }
+
+    private fun tokenAffectorFromTokenState(
+        ctx: AnnotationContext,
+        ev: GameEvent.TokenCreated,
+    ): InstanceId? =
+        ctx.bridge.findCard(ev.cardId)?.tokenSpawningAbility?.let { ability ->
+            val host = ability.hostCard ?: return@let null
+            if (ability.isAbility && ability.id != 0) {
+                InstanceId(ctx.stackAbilityIid(ability.id, ForgeCardId(host.id)))
+            } else {
+                null
+            }
+        }
+
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
     @Suppress("LongParameterList", "LongMethod")
     internal fun computeRemainingAnnotations(
@@ -666,9 +690,9 @@ object AnnotationPipeline {
                             InstanceId(ctx.stackAbilityIid(abilityForgeId, sourceCardId))
                         },
                         cardIid = { sourceCardId -> frameIds.cardIid(sourceCardId) },
-                    )
+                    ) ?: tokenAffectorFromTokenState(ctx, ev)
                 },
-                stackInstanceResolver = { ev -> castStackIidsByCard[ev.cardId] },
+                stackInstanceResolver = { ev -> stackInstanceForEvent(ctx, castStackIidsByCard, ev) },
                 castSpellTransferCardIds = castSpellTransferCardIds,
                 convokePaymentsBySource = convokePaymentsBySource,
             )

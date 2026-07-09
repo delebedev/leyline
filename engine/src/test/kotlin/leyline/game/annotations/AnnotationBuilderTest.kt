@@ -822,6 +822,7 @@ class AnnotationBuilderTest :
                 )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.AbilityExhausted
+                ann.affectorId shouldBe 294
                 ann.affectedIdsList shouldContain 294
                 ann.detailInt("AbilityGrpId") shouldBe 137955
                 ann.detailInt("UsesRemaining") shouldBe 0

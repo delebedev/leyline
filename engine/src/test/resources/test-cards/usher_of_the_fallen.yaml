@@ -1,0 +1,12 @@
+name: "Usher of the Fallen"
+grpId: 75072
+titleId: 477087
+abilities:
+  - id: 139868
+    textId: 477089
+    category: 1
+    baseId: 209
+    mana: "o1oW"
+expansionCode: "KHM"
+tokens:
+  "139868": 75364

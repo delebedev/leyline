@@ -1,0 +1,16 @@
+name: "Human Warrior"
+grpId: 75364
+titleId: 261538
+abilities: []
+isToken: true
+isPrimaryCard: false
+power: "1"
+toughness: "1"
+colors: []
+types:
+  - 2
+subtypes:
+  - 39
+  - 77
+supertypes: []
+manaCost: ""
