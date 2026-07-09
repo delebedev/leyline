@@ -1078,11 +1078,15 @@ class MatchFlowHarness(
         }
     }
 
-    internal fun drainSink() {
+    private fun collectSinkMessages() {
         allMessages.addAll(sink.messages)
         allRawMessages.addAll(sink.rawMessages)
         accumulator.processAll(sink.messages)
         sink.clear()
+    }
+
+    internal fun drainSink() {
+        collectSinkMessages()
 
         // Auto-respond to engine-initiated prompts so the engine can continue.
         // Loops because chained prompts (e.g. Wildborn Preserver: optional
@@ -1123,10 +1127,7 @@ class MatchFlowHarness(
         session.onOptionalActionResp(greMsg)
 
         // Drain follow-up messages without recursing
-        allMessages.addAll(sink.messages)
-        allRawMessages.addAll(sink.rawMessages)
-        accumulator.processAll(sink.messages)
-        sink.clear()
+        collectSinkMessages()
         return true
     }
 
@@ -1165,10 +1166,7 @@ class MatchFlowHarness(
                 ).build()
         session.onNumericInputResp(greMsg)
 
-        allMessages.addAll(sink.messages)
-        allRawMessages.addAll(sink.rawMessages)
-        accumulator.processAll(sink.messages)
-        sink.clear()
+        collectSinkMessages()
         return true
     }
 
@@ -1198,10 +1196,7 @@ class MatchFlowHarness(
                         .setNumericInputValue(value),
                 ).build()
         session.onNumericInputResp(greMsg)
-        allMessages.addAll(sink.messages)
-        allRawMessages.addAll(sink.rawMessages)
-        accumulator.processAll(sink.messages)
-        sink.clear()
+        collectSinkMessages()
     }
 
     /**
@@ -1222,9 +1217,6 @@ class MatchFlowHarness(
                         .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
                 ).build()
         session.onOptionalActionResp(greMsg)
-        allMessages.addAll(sink.messages)
-        allRawMessages.addAll(sink.rawMessages)
-        accumulator.processAll(sink.messages)
-        sink.clear()
+        collectSinkMessages()
     }
 }
