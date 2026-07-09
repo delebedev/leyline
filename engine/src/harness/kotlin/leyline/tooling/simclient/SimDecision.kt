@@ -60,6 +60,12 @@ internal sealed interface SimDecision {
         override val kind: String = "group-away"
     }
 
+    data class OptionalAction(
+        val accept: Boolean,
+    ) : SimDecision {
+        override val kind: String = "optional-action"
+    }
+
     data class OptionalCost(
         val ctoId: Int,
     ) : SimDecision {
@@ -148,6 +154,7 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.GroupTop -> "group-top:${instanceIds.joinToString("+")}"
         is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
+        is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
         is SimDecision.OptionalCost -> "optional-cost:$ctoId"
         is SimDecision.ModalChoice -> "modal-choice:${selectedGrpIds.sorted().joinToString("+")}"
         is SimDecision.ManaTypeChoices -> "mana-type:${choicesByCtoId.joinToString("+") { (ctoId, color) -> "$ctoId=$color" }}"
@@ -229,6 +236,7 @@ internal class SimDecisionSubmitter(
                         harness.respondToScry(decision.awayInstanceIds, decision.allInstanceIds)
                     }
                 }
+            is SimDecision.OptionalAction -> submitted { harness.respondToOptionalAction(decision.accept) }
             is SimDecision.OptionalCost -> {
                 runCatching { harness.respondToOptionalCost(decision.ctoId) }
                     .onFailure {

@@ -2,12 +2,9 @@ package leyline.tooling.headless
 
 /** Controls whether [MatchFlowHarness] consumes engine prompts automatically. */
 enum class HeadlessResponseMode {
-    /** Preserve legacy test convenience: auto-answer simple engine prompts during drain. */
+    /** Auto-answer simple engine prompts during drain, so tests need not respond to each one. */
     AutoForTests,
 
-    /** Surface prompts to the caller first so policy/telemetry can own responses. */
+    /** Surface prompts to the caller so policy and telemetry own every response. */
     PolicyVisible,
-
-    /** Never auto-answer prompts; caller must respond explicitly. */
-    Manual,
 }
