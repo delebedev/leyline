@@ -382,7 +382,7 @@ class WebRoutesTest :
                 val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
                 runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
                 repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
-                    EmbeddedWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
+                    DirectWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
                 }
 
                 greSocket(login, matchId) {
@@ -466,7 +466,7 @@ class WebRoutesTest :
             val framesB = CopyOnWriteArrayList<ByteArray>()
             val closedA = AtomicBoolean(false)
             val engineA =
-                EmbeddedWebGreEngineSession(
+                DirectWebGreEngineSession(
                     MatchConfig(),
                     MatchCoordinator.NOOP,
                     cards,
@@ -475,7 +475,7 @@ class WebRoutesTest :
                     { closedA.set(true) },
                 )
             val engineB =
-                EmbeddedWebGreEngineSession(
+                DirectWebGreEngineSession(
                     MatchConfig(),
                     MatchCoordinator.NOOP,
                     cards,
@@ -485,7 +485,7 @@ class WebRoutesTest :
 
             try {
                 fun connect(
-                    engine: EmbeddedWebGreEngineSession,
+                    engine: DirectWebGreEngineSession,
                     matchId: String,
                 ) {
                     engine.receiveFromBrowser(authRequestBytes("web-player"))

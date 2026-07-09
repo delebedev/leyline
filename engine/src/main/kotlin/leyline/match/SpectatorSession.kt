@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -96,12 +95,6 @@ class SpectatorSession(
         sendBundledGRE(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
     }
-
-    override fun traceEvent(
-        type: MatchEventType,
-        game: Game,
-        detail: String,
-    ) {}
 
     override fun paceDelay(multiplier: Int) {}
 }

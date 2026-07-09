@@ -54,7 +54,7 @@ graph LR
 | Service | Default port | Protocol | Implementation |
 |---|---|---|---|
 | Native lobby | 30010 | TLS + 6-byte-framed JSON | `native/frontdoor/FrontDoorHandler` |
-| Native match | 30003 | TLS + 6-byte-framed protobuf | `native/matchdoor/NativeMatchDoorBootstrap` -> `engine/match/MatchHandler` |
+| Native match | 30003 | TLS + 6-byte-framed protobuf | `native/matchdoor/NativeMatchDoorBootstrap` -> `engine/match/MatchConnection` |
 | Debug | 8090 | HTTP + SSE (JDK `HttpServer`) | `app/.../debug/DebugServer` |
 | Account | 9443 | HTTPS (Ktor) | `native/account/AccountServer` |
 | Management | 8091 | HTTP | `app/.../infra/ManagementServer` |
@@ -80,7 +80,7 @@ The debug server binds loopback-only by default; set `LEYLINE_DEBUG_BIND=0.0.0.0
 └─────────────────────────────────────────┘
 ```
 
-**Inbound (C→S).** `ClientToGREMessage` carrying `PerformActionResp`, `ConnectReq`, `SetSettingsReq`, etc. Decoded by `FrameCodec`, dispatched by `MatchHandler`.
+**Inbound (C→S).** `ClientToGREMessage` carrying `PerformActionResp`, `ConnectReq`, `SetSettingsReq`, etc. Decoded by `FrameCodec`, then passed to the transport-neutral `MatchConnection`.
 
 **Outbound (S→C).** `GREToClientMessage` wrapped in `MatchServiceToClientMessage`. Assembled by `BundleBuilder` for gameplay and by `MatchHandler` for connect / timer responses.
 
@@ -104,7 +104,7 @@ The bridges are transport-agnostic by design: the same classes are driven by `Ma
 sequenceDiagram
     participant C as Client
     participant FD as FrontDoorHandler
-    participant MH as MatchHandler
+    participant MC as MatchConnection
     participant GB as GameBridge
     participant ENG as Engine
 
@@ -112,28 +112,28 @@ sequenceDiagram
     FD-->>C: auth handshake (replay)
     FD-->>C: MatchCreated (connect to :30003)
 
-    C->>MH: TLS connect :30003
-    MH-->>C: ConnectResp
+    C->>MC: TLS connect :30003
+    MC-->>C: ConnectResp
 
     Note over GB,ENG: GameBridge created,<br/>engine loop thread starts
 
-    MH-->>C: GameStateMessage (opening state)
-    MH-->>C: MulliganReq
+    MC-->>C: GameStateMessage (opening state)
+    MC-->>C: MulliganReq
 
-    C->>MH: MulliganResp (keep)
+    C->>MC: MulliganResp (keep)
     GB->>ENG: MulliganBridge.complete
 
     loop Priority loop
         ENG->>GB: chooseSpellAbilityToPlay
-        GB->>MH: ActionsAvailableReq + GameStateMessage
-        C->>MH: PerformActionResp
-        MH->>GB: submitAction
+        GB->>MC: ActionsAvailableReq + GameStateMessage
+        C->>MC: PerformActionResp
+        MC->>GB: submitAction
         GB->>ENG: future.complete
     end
 
     Note over ENG: game over
-    MH-->>C: GameStateMessage (result)
-    MH-->>C: IntermissionReq
+    MC-->>C: GameStateMessage (result)
+    MC-->>C: IntermissionReq
 ```
 
 ---

@@ -38,7 +38,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ActionPerformer(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val tracer: SessionTracer,
+    private val recorder: MatchRecorder? = null,
+    @Suppress("UnusedParameter") tracer: Any? = null,
     private val bundles: BundleBuilderHolder,
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
@@ -114,7 +115,7 @@ class ActionPerformer(
         }
 
         Tap.inboundAction(action)
-        tracer.recorder?.recordClientAction(greMsg)
+        recorder?.recordClientAction(greMsg)
 
         // ActivateMana excluded: mana abilities don't use the stack (MTG 605.3),
         // so they don't reach handlePostCastPrompt or the post-stack-resolution check.
@@ -136,7 +137,6 @@ class ActionPerformer(
             } else {
                 ""
             }
-        tracer.traceEvent(MatchEventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
 
         when (action.actionType) {
             ActionType.Pass -> {

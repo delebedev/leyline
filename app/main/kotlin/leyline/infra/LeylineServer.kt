@@ -62,7 +62,7 @@ class LeylineServer(
     val matchConfig: MatchConfig = MatchConfig(),
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
-    /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
+    /** Card data repository — passed to MatchConnection for grpId↔name lookups. */
     private val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,

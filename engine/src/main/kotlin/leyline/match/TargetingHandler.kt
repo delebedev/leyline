@@ -28,7 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class TargetingHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val tracer: SessionTracer,
+    @Suppress("UnusedParameter") tracer: Any? = null,
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
@@ -374,11 +374,6 @@ class TargetingHandler(
                             req.defaultIndex,
                         )
                     }
-                    tracer.traceEvent(
-                        MatchEventType.AUTO_PASS,
-                        game,
-                        "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
-                    )
                     seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
                     bridge.awaitPriority()
                     PromptResult.AUTO_RESOLVED
@@ -414,7 +409,6 @@ class TargetingHandler(
 
             is ClassifiedPrompt.ModalChoice -> {
                 val prefix = if (context == PromptDispatchContext.POST_CAST) "post-cast modal" else "modal"
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, "$prefix: ${pendingPrompt.request.message}")
                 sendCastingTimeOptionsReq(classified.pendingPrompt)
                 true
             }
@@ -427,18 +421,12 @@ class TargetingHandler(
                     } else {
                         "select_n($semantic) candidates=${pendingPrompt.request.candidateRefs.size}"
                     }
-                tracer.traceEvent(
-                    MatchEventType.TARGET_PROMPT,
-                    ctx.game,
-                    label,
-                )
                 sendSelectNPrompt(classified.pendingPrompt)
                 true
             }
 
             is ClassifiedPrompt.Targeting -> {
                 val prefix = if (context == PromptDispatchContext.POST_CAST) "cast-target targets" else "targets"
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, "$prefix=${pendingPrompt.request.candidateRefs.size}")
                 sendSelectTargetsReq(classified.pendingPrompt)
                 true
             }
@@ -450,13 +438,11 @@ class TargetingHandler(
                     } else {
                         "search: ${pendingPrompt.request.message}"
                     }
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, label)
                 sendSearchReq(classified.pendingPrompt)
                 true
             }
 
             is ClassifiedPrompt.Order -> {
-                tracer.traceEvent(MatchEventType.TARGET_PROMPT, ctx.game, "order: ${pendingPrompt.request.message}")
                 sendOrderReq(classified.pendingPrompt)
                 true
             }
@@ -906,7 +892,6 @@ class TargetingHandler(
         val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
         val msgCount = result.messages.size
         log.info("TargetingHandler: sending GroupReq for {} messages={}", contextLabel, msgCount)
-        tracer.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq messages=$msgCount")
 
         Tap.outboundTemplate("GroupReq($contextLabel) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)

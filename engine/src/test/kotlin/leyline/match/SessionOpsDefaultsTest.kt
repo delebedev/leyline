@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
@@ -34,12 +33,6 @@ class SessionOpsDefaultsTest :
                 override fun sendBundle(result: BundleBuilder.BundleResult) {}
 
                 override fun sendGameOver(reason: ResultReason) {}
-
-                override fun traceEvent(
-                    type: MatchEventType,
-                    game: Game,
-                    detail: String,
-                ) {}
 
                 override fun paceDelay(multiplier: Int) {}
             }

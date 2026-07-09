@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import forge.game.player.GameLossReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
@@ -97,7 +96,6 @@ class MatchSession(
         CombatHandler(
             sink = this,
             counters = this,
-            tracer = this,
             bundles = this,
             pacing = this,
             ctx = ctx,
@@ -106,7 +104,6 @@ class MatchSession(
         TargetingHandler(
             sink = this,
             counters = this,
-            tracer = this,
             bundles = this,
             ctx = ctx,
         )
@@ -126,7 +123,6 @@ class MatchSession(
         AutoPassEngine(
             sink = this,
             counters = this,
-            tracer = this,
             bundles = this,
             pacing = this,
             combatHandler = combatHandler,
@@ -140,7 +136,7 @@ class MatchSession(
         ActionPerformer(
             sink = this,
             counters = this,
-            tracer = this,
+            recorder = recorder,
             bundles = this,
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,
@@ -164,8 +160,6 @@ class MatchSession(
             log.info("MatchSession: waiting for engine to reach priority after keep")
 
             bridge.awaitPriority()
-
-            traceEvent(MatchEventType.GAME_START, ctx.game, "post-mulligan, entering Main1")
 
             // Drain AI action diffs queued during awaitPriority.
             // These have gsIds allocated by the engine thread via the shared counter
@@ -229,7 +223,7 @@ class MatchSession(
             // to the new session. Without this, MatchHandler keeps a stale reference
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
-            registry.getHandler(matchId, seatId)?.session = replacement
+            registry.getConnection(matchId, seatId)?.session = replacement
             close()
             replacement to deletedIds
         }
@@ -247,8 +241,6 @@ class MatchSession(
             }
 
             log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
-
-            traceEvent(MatchEventType.GAME_START, ctx.game, "puzzle-start")
 
             // Seed state snapshot for subsequent diff computation.
             // The puzzle initial bundle already sent the Full GSM, so the cursor
@@ -748,13 +740,6 @@ class MatchSession(
             }
         peer.sink.send(mirrored)
     }
-
-    /** No-op — priority trace events are inspected via separate prompt-analysis tooling. */
-    override fun traceEvent(
-        type: MatchEventType,
-        game: Game,
-        detail: String,
-    ) {}
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */
     override fun paceDelay(multiplier: Int) {

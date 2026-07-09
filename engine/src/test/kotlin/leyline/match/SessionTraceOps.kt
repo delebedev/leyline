@@ -1,12 +1,10 @@
 package leyline.match
 
-import forge.game.Game
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.match.GameOps
-import leyline.match.MatchEventType
 import leyline.match.SessionContext
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -33,7 +31,6 @@ class SessionTraceOps(
     val sentGRE = mutableListOf<List<GREToClientMessage>>()
     val sentRealGameState = mutableListOf<GameBridge>()
     val sentGameOver = mutableListOf<ResultReason>()
-    val tracedEvents = mutableListOf<Triple<MatchEventType, String, String>>()
     val paceDelays = mutableListOf<Int>()
 
     val sendRealGameStateCount: Int get() = sentRealGameState.size
@@ -58,21 +55,7 @@ class SessionTraceOps(
         sentGameOver.add(reason)
     }
 
-    override fun traceEvent(
-        type: MatchEventType,
-        game: Game,
-        detail: String,
-    ) {
-        tracedEvents.add(Triple(type, game.phaseHandler.phase?.name ?: "?", detail))
-    }
-
     override fun paceDelay(multiplier: Int) {
         paceDelays.add(multiplier)
     }
-
-    /** True if any traced event has the given type. */
-    fun hasTrace(type: MatchEventType): Boolean = tracedEvents.any { it.first == type }
-
-    /** True if any traced event detail contains the substring. */
-    fun hasTraceContaining(detail: String): Boolean = tracedEvents.any { it.third.contains(detail) }
 }

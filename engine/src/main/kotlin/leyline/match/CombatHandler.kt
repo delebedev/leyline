@@ -27,7 +27,7 @@ import kotlin.collections.iterator
 open class CombatHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val tracer: SessionTracer,
+    @Suppress("UnusedParameter") tracer: Any? = null,
     private val bundles: BundleBuilderHolder,
     private val pacing: Pacing,
     protected val ctx: SessionContext,
@@ -447,12 +447,10 @@ open class CombatHandler(
                     }
                     val req = bundles.bundleBuilder.buildDeclareAttackersReq()
                     if (req.attackersCount > 0) {
-                        tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                         sendDeclareAttackersReq(req)
                         return Signal.STOP
                     }
                 } else if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    tracer.traceEvent(MatchEventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
                     pacing.paceDelay(2)
                     return Signal.SEND_STATE
                 }
@@ -475,7 +473,6 @@ open class CombatHandler(
                     if (pending?.state?.kind != PendingActionKind.DECLARE_BLOCKERS) {
                         return Signal.CONTINUE
                     }
-                    tracer.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     val skipBlockers = sendDeclareBlockersReq()
                     if (skipBlockers) {
                         // Zero legal blockers — submit empty declaration and advance
@@ -489,19 +486,16 @@ open class CombatHandler(
                     }
                     return Signal.STOP
                 } else if (isHumanTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    tracer.traceEvent(MatchEventType.SEND_STATE, game, "AI blocking result")
                     pacing.paceDelay(2)
                     return Signal.SEND_STATE
                 }
             }
             PhaseType.COMBAT_DAMAGE -> {
-                tracer.traceEvent(MatchEventType.SEND_STATE, game, "combat damage")
                 pacing.paceDelay(2)
                 return Signal.SEND_STATE
             }
             PhaseType.COMBAT_END -> {
                 // Same: combat may be cleared by the time we check
-                tracer.traceEvent(MatchEventType.SEND_STATE, game, "combat end")
                 return Signal.SEND_STATE
             }
             PhaseType.UNTAP,

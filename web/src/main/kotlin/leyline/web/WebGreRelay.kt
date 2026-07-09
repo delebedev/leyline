@@ -7,10 +7,6 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.send
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelOutboundHandlerAdapter
-import io.netty.channel.ChannelPromise
-import io.netty.channel.embedded.EmbeddedChannel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +22,8 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
-import leyline.match.MatchHandler
+import leyline.infra.MatchOutput
+import leyline.match.MatchConnection
 import leyline.match.MatchRegistry
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
@@ -251,7 +248,7 @@ class InProcessWebGreRelay(
     }
 }
 
-class EmbeddedWebGreEngineSession(
+class DirectWebGreEngineSession(
     matchConfig: MatchConfig,
     coordinator: MatchCoordinator,
     cardRepository: CardRepository,
@@ -259,30 +256,25 @@ class EmbeddedWebGreEngineSession(
     onFrame: (ByteArray) -> Unit,
     onClosed: () -> Unit = {},
 ) : WebGreEngineSession {
-    private val channel =
-        EmbeddedChannel(
-            OutboundFrameForwarder(onFrame),
-            MatchHandler(
-                registry = MatchRegistry(),
-                matchConfig = matchConfig,
-                coordinator = coordinator,
-                cardRepository = cardRepository,
-                runtimeMatchConfigs = runtimeMatchConfigs,
-            ),
+    private val connection =
+        MatchConnection(
+            registry = MatchRegistry(),
+            output =
+                object : MatchOutput {
+                    override fun send(message: MatchServiceToClientMessage) {
+                        onFrame(message.toByteArray())
+                    }
+
+                    override fun close() = onClosed()
+                },
+            matchConfig = matchConfig,
+            coordinator = coordinator,
+            cardRepository = cardRepository,
+            runtimeMatchConfigs = runtimeMatchConfigs,
         )
 
-    /**
-     * Set before a deliberate [close] (idle cleanup, engine replacement) so the
-     * [ChannelFuture][io.netty.channel.ChannelFuture] listener below can tell
-     * that apart from the channel closing itself out from under us — e.g.
-     * [leyline.match.MatchHandler.exceptionCaught] tearing the match down
-     * after an internal crash. Only the latter should trigger [onClosed].
-     */
-    @Volatile private var closedExplicitly = false
-
     init {
-        channel.pipeline().fireChannelActive()
-        channel.closeFuture().addListener { if (!closedExplicitly) onClosed() }
+        connection.opened()
     }
 
     override fun receiveFromBrowser(payload: ByteArray) {
@@ -292,41 +284,13 @@ class EmbeddedWebGreEngineSession(
             } catch (_: InvalidProtocolBufferException) {
                 return
             }
-        channel.writeInbound(inbound)
-        channel.runPendingTasks()
-        channel.runScheduledPendingTasks()
-        // EmbeddedChannel stores handler exceptions instead of propagating them;
-        // surface them so engine failures (e.g. puzzle setup) aren't silently dropped.
-        try {
-            channel.checkException()
-        } catch (e: Throwable) {
-            relayLog.error("Embedded GRE engine error while handling client message", e)
+        runCatching { connection.receive(inbound) }.onFailure { error ->
+            relayLog.error("GRE engine error while handling client message", error)
+            connection.failed(error)
         }
     }
 
     override fun close() {
-        closedExplicitly = true
-        channel.close()
-    }
-}
-
-/**
- * Forwards each [MatchServiceToClientMessage] the engine writes straight to
- * [onFrame] instead of letting it sit in the [EmbeddedChannel]'s default
- * outbound queue — the queue is only ever drained by an explicit
- * `readOutbound()` call, so without this a message written from a
- * background engine thread (AI-turn playback, auto-advance) between browser
- * requests would sit unread until the next one arrived, or forever.
- */
-private class OutboundFrameForwarder(
-    private val onFrame: (ByteArray) -> Unit,
-) : ChannelOutboundHandlerAdapter() {
-    override fun write(
-        ctx: ChannelHandlerContext,
-        msg: Any,
-        promise: ChannelPromise,
-    ) {
-        if (msg is MatchServiceToClientMessage) onFrame(msg.toByteArray())
-        promise.setSuccess()
+        connection.disconnected()
     }
 }

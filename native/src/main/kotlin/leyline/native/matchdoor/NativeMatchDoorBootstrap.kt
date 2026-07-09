@@ -13,8 +13,8 @@ import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
+import leyline.match.MatchConnection
 import leyline.match.MatchDebugSink
-import leyline.match.MatchHandler
 import leyline.match.MatchRegistry
 import leyline.native.protocol.ClientFrameDecoder
 import leyline.native.protocol.ClientHeaderPrepender
@@ -50,14 +50,19 @@ object NativeMatchDoorBootstrap {
                         ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
                         ch.pipeline().addLast(
                             "handler",
-                            MatchHandler(
-                                registry = registry,
-                                matchConfig = matchConfig,
-                                coordinator = coordinator,
-                                cardRepository = cardRepository,
-                                debugSink = debugSink,
-                                puzzlePath = puzzlePath,
-                                runtimeMatchConfigs = runtimeMatchConfigs,
+                            NativeMatchConnectionHandler(
+                                { output ->
+                                    MatchConnection(
+                                        registry = registry,
+                                        output = output,
+                                        matchConfig = matchConfig,
+                                        coordinator = coordinator,
+                                        cardRepository = cardRepository,
+                                        debugSink = debugSink,
+                                        puzzlePath = puzzlePath,
+                                        runtimeMatchConfigs = runtimeMatchConfigs,
+                                    )
+                                },
                             ),
                         )
                     }

@@ -192,7 +192,7 @@ class MatchDoorMulliganFlowTest :
                     mulliganPrompt shouldContain GREMessageType.MulliganReq_aa0d
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
-                    (registry.getHandler(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession)
+                    (registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession)
                         .gameBridge
                         .getGame()
                         ?.isGameOver shouldBe false
@@ -216,7 +216,7 @@ class MatchDoorMulliganFlowTest :
             try {
                 familiar.writeInbound(greServiceMessage(chooseStartingPlayer(), 5))
                 greOutbound(local)
-                val session = registry.getHandler(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+                val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
                 val firstHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
                 local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.Mulligan), 6))

@@ -13,7 +13,6 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
-import leyline.match.MatchEventType
 import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
@@ -102,7 +101,6 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTraceContaining("opponentTurn") shouldBe true
             }
         }
 
@@ -189,8 +187,6 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
-                ops.hasTraceContaining("fullControl") shouldBe true
             }
         }
 
@@ -220,8 +216,6 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTraceContaining("fullControl") shouldBe true
-                ops.hasTraceContaining("opponentTurn") shouldBe true
             }
         }
 
@@ -252,7 +246,6 @@ class AutoPassEngineTest :
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>()
                 (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.ClientAutoPass
-                ops.hasTrace(MatchEventType.AUTO_PASS) shouldBe true
             }
         }
 
@@ -285,7 +278,6 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
             }
         }
 
@@ -341,7 +333,6 @@ class AutoPassEngineTest :
             decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             val grant = decision as PriorityDecision.Grant
             grant.phase shouldBe "MAIN1"
-            ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
         }
 
         // --- checkHumanActions: decision log ---
@@ -419,7 +410,6 @@ class AutoPassEngineTest :
             assertSoftly {
                 ops.sendGameOverCount shouldBe 1
                 ops.sendRealGameStateCount shouldBe 0
-                ops.hasTrace(MatchEventType.GAME_OVER) shouldBe true
             }
         }
 
@@ -474,7 +464,6 @@ class AutoPassEngineTest :
             engine.autoPassAndAdvance()
 
             ops.sendRealGameStateCount shouldBe 1
-            ops.hasTraceContaining("fullControl") shouldBe true
         }
 
         // --- autoPassAndAdvance: combat signal tests ---
