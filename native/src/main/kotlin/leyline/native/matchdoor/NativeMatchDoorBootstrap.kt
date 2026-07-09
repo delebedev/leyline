@@ -15,6 +15,7 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.match.MatchDebugSink
 import leyline.match.MatchHandler
+import leyline.match.MatchRegistry
 import leyline.native.protocol.ClientFrameDecoder
 import leyline.native.protocol.ClientHeaderPrepender
 import leyline.native.protocol.ClientHeaderStripper
@@ -33,8 +34,9 @@ object NativeMatchDoorBootstrap {
         debugSink: MatchDebugSink,
         puzzlePath: () -> String?,
         runtimeMatchConfigs: RuntimeMatchConfigRegistry,
-    ): Channel =
-        ServerBootstrap()
+    ): Channel {
+        val registry = MatchRegistry()
+        return ServerBootstrap()
             .group(bossGroup, workerGroup)
             .channel(NioServerSocketChannel::class.java)
             .childHandler(
@@ -49,6 +51,7 @@ object NativeMatchDoorBootstrap {
                         ch.pipeline().addLast(
                             "handler",
                             MatchHandler(
+                                registry = registry,
                                 matchConfig = matchConfig,
                                 coordinator = coordinator,
                                 cardRepository = cardRepository,
@@ -62,4 +65,5 @@ object NativeMatchDoorBootstrap {
             ).bind(port)
             .sync()
             .channel()
+    }
 }

@@ -27,6 +27,7 @@ import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.match.MatchHandler
+import leyline.match.MatchRegistry
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
@@ -262,6 +263,7 @@ class EmbeddedWebGreEngineSession(
         EmbeddedChannel(
             OutboundFrameForwarder(onFrame),
             MatchHandler(
+                registry = MatchRegistry(),
                 matchConfig = matchConfig,
                 coordinator = coordinator,
                 cardRepository = cardRepository,

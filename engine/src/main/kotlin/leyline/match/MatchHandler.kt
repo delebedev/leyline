@@ -35,7 +35,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * to keep this class a thin message-routing layer.
  */
 class MatchHandler(
-    private val registry: MatchRegistry = defaultRegistry,
+    private val registry: MatchRegistry,
     private val matchConfig: MatchConfig = MatchConfig(),
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
@@ -151,7 +151,6 @@ class MatchHandler(
         )
 
     companion object {
-        val defaultRegistry = MatchRegistry()
         private val lenientJson =
             Json {
                 ignoreUnknownKeys = true
