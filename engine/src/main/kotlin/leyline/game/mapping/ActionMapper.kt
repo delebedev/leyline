@@ -944,7 +944,7 @@ object ActionMapper {
     ): Pair<List<IndexedCastAction>, List<IndexedCastAction>> {
         val cardData = cardDataLookup(GrpId(grpId))
         if (!checkLegality) {
-            return listOf(IndexedCastAction(0, buildFallbackCastAction(instanceId, grpId, cardData))) to emptyList()
+            return listOf(IndexedCastAction(0, buildNaiveCastAction(card, player, instanceId, grpId, cardData))) to emptyList()
         }
 
         val actions = mutableListOf<IndexedCastAction>()
@@ -1124,6 +1124,45 @@ object ActionMapper {
                     abilityRegistryLookup,
                 )
             if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
+        }
+        return actionBuilder.build()
+    }
+
+    /**
+     * Naive-mode Cast action for a hand card. Naive frames embed the human's
+     * potential casts during the AI's turn without legality/timing checks, so
+     * the SA is read straight off the card state (bypassing the
+     * canPlay/canCastTiming filter in [getAllCastableAbilities]). When a primary
+     * cast SA is present its effective cost is emitted — keeping static cost
+     * reductions (Affinity, graveyard-count reducers) visible in the embedded
+     * action — otherwise the printed [CardData] cost is the fallback.
+     */
+    private fun buildNaiveCastAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        grpId: Int,
+        cardData: CardData?,
+    ): Action {
+        val sa = card.spells?.firstOrNull { it.isSpell && !it.isAdventure } ?: return buildFallbackCastAction(instanceId, grpId, cardData)
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.Cast)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+        // Convoke/Improvise reduce at payment, not as a displayed static cost —
+        // mirror buildFromSnapshot and keep the printed cost for those.
+        val printedCostAdded = usesPaymentSourceReducer(sa) && addManaCostFromCardData(cardData, actionBuilder)
+        if (!printedCostAdded) {
+            val effectiveCost = computeEffectiveCost(sa, player)
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder)
+            } else if (!addManaCostFromCardData(cardData, actionBuilder)) {
+                return buildFallbackCastAction(instanceId, grpId, cardData)
+            }
         }
         return actionBuilder.build()
     }
