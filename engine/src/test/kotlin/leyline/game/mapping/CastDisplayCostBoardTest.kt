@@ -1,12 +1,15 @@
 package leyline.game.mapping
 
+import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
+import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.SnapshotCapture
@@ -156,6 +159,27 @@ class CastDisplayCostBoardTest :
             val casts = actions + inactive
             casts.size shouldBe 1
             casts.single() should haveManaCost(generic = 1, green = 1)
+        }
+
+        test("best-effort affordability includes Emerge and restores payment state") {
+            val (_, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Wretched Gryff", human, ZoneType.Hand)
+                    base.addCard("Walking Corpse", human)
+                    repeat(4) { base.addCard("Island", human) }
+                }
+            val gryff = game.humanPlayerCard("Wretched Gryff")
+            val corpse = game.humanPlayerCard("Walking Corpse")
+            val human = gryff.controller
+            val emerge =
+                getAllCastableAbilities(gryff, human)
+                    .single { it.alternativeCost == AlternativeCost.Emerge }
+
+            assertSoftly {
+                ActionManaCosts.canPayManaCost(emerge, human) shouldBe true
+                emerge.sacrificedAsEmerge shouldBe null
+                corpse.isUsedToPay shouldBe false
+            }
         }
 
         test("naive and snapshot builders agree on displayed cost for every hand card") {

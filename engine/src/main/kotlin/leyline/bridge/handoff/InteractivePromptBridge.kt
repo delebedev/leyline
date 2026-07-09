@@ -23,6 +23,12 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+internal class StrictPromptRefusalException(
+    message: String,
+) : IllegalStateException(message)
+
+private fun refuseStrictPrompt(message: String): Nothing = throw StrictPromptRefusalException(message)
+
 /**
  * Thread-safe bridge between the blocking engine thread and async Netty handlers.
  *
@@ -310,7 +316,9 @@ class InteractivePromptBridge(
         val scope = NonInteractiveScope.active
         if (scope != null) {
             if (strict) {
-                error("[strict] Prompt [${request.promptType}] \"${request.message}\" requested inside non-interactive scope $scope")
+                refuseStrictPrompt(
+                    "[strict] Prompt [${request.promptType}] \"${request.message}\" requested inside non-interactive scope $scope",
+                )
             }
             val fallback = listOf(request.defaultIndex)
             log.warn(
@@ -327,7 +335,9 @@ class InteractivePromptBridge(
         if (!isGameLoopThread()) {
             if (strict) {
                 val thread = Thread.currentThread().name
-                error("[strict] Prompt [${request.promptType}] \"${request.message}\" requested from non-game thread $thread")
+                refuseStrictPrompt(
+                    "[strict] Prompt [${request.promptType}] \"${request.message}\" requested from non-game thread $thread",
+                )
             }
             val fallback = listOf(request.defaultIndex)
             log.warn(
@@ -352,7 +362,9 @@ class InteractivePromptBridge(
 
         if (!pending.compareAndSet(null, prompt)) {
             if (strict) {
-                error("[strict] Prompt [${request.promptType}] \"${request.message}\" requested while another prompt is pending")
+                refuseStrictPrompt(
+                    "[strict] Prompt [${request.promptType}] \"${request.message}\" requested while another prompt is pending",
+                )
             }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptCallStatus.ALREADY_PENDING, fallback, 0)

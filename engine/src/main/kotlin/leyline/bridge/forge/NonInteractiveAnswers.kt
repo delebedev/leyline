@@ -5,6 +5,7 @@ import forge.card.mana.ManaCostShard
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.spellability.SpellAbility
 import leyline.bridge.NonInteractiveScope.Policy
 import leyline.bridge.coord.ConvokeShardAssigner
 
@@ -16,11 +17,9 @@ import leyline.bridge.coord.ConvokeShardAssigner
  * state-derived modifications only. BEST_EFFORT answers the maximum legal
  * reduction so payability probes see the best case the board allows.
  *
- * Sacrifice-backed reductions (Offering, Emerge) are answered empty under
- * both policies by [PlayerController.choosePermanentsToSacrifice]: Forge
- * applies the sacrifice bookkeeping (`setUsedToPay`, `setSacrificedAsOffering`)
- * even during test calculations, so a non-empty answer would leak payment
- * state out of a probe.
+ * BEST_EFFORT chooses the largest deterministic sacrifice reduction for
+ * Offering and Emerge. The caller restores Forge's temporary payment state
+ * after the probe.
  */
 internal object NonInteractiveAnswers {
     fun cardsForConvokeOrImprovise(
@@ -52,6 +51,25 @@ internal object NonInteractiveAnswers {
             Policy.QUIET -> CardCollection()
             Policy.BEST_EFFORT -> CardCollection(grave.take(genericAmount))
         }
+
+    fun permanentsToSacrifice(
+        policy: Policy,
+        sa: SpellAbility?,
+        validTargets: CardCollectionView,
+    ): CardCollectionView {
+        if (policy == Policy.QUIET || sa == null) return CardCollection()
+        val reductionValue: (Card) -> Int =
+            when {
+                sa.isEmerge -> { card -> card.getCMC() }
+                sa.isOffering -> { card -> card.manaCost?.cmc ?: 0 }
+                else -> return CardCollection()
+            }
+        val choice =
+            validTargets
+                .minWithOrNull(compareByDescending(reductionValue).thenBy { it.id })
+                ?: return CardCollection()
+        return CardCollection(choice)
+    }
 
     fun numberForCostReduction(
         policy: Policy,

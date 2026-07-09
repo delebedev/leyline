@@ -53,7 +53,7 @@ class InteractivePromptBridgeTest :
         test("strict bridge throws on a prompt inside a non-interactive scope") {
             val bridge = InteractivePromptBridge(timeoutMs = null, strict = true)
 
-            shouldThrow<IllegalStateException> {
+            shouldThrow<StrictPromptRefusalException> {
                 NonInteractiveScope.bestEffort {
                     bridge.requestChoice(
                         PromptRequest(promptType = "choose_one", message = "?", options = listOf("a")),
@@ -69,7 +69,7 @@ class InteractivePromptBridgeTest :
             field.isAccessible = true
             field.set(bridge, diagnosticThread)
 
-            shouldThrow<IllegalStateException> {
+            shouldThrow<StrictPromptRefusalException> {
                 bridge.requestChoice(
                     PromptRequest(promptType = "choose_one", message = "?", options = listOf("a")),
                 )

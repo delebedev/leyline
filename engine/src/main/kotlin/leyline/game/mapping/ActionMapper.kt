@@ -1222,11 +1222,7 @@ object ActionMapper {
             sa.setActivatingPlayer(player)
             val canPay =
                 if (checkLegality) {
-                    try {
-                        sa.canPlay() && canPayManaCost(sa, player)
-                    } catch (_: Exception) {
-                        false
-                    }
+                    canPlayAndPayManaCost(sa, player)
                 } else {
                     true
                 }
@@ -1304,12 +1300,7 @@ object ActionMapper {
 
         if (checkLegality) {
             omenSa.setActivatingPlayer(player)
-            val canCast =
-                try {
-                    omenSa.canPlay() && canPayManaCost(omenSa, player)
-                } catch (_: Exception) {
-                    false
-                }
+            val canCast = canPlayAndPayManaCost(omenSa, player)
             if (!canCast) return null
         }
 

@@ -382,13 +382,13 @@ class PlayerController(
         validTargets: CardCollectionView,
         message: String?,
     ): CardCollectionView {
-        // Optional sacrifice reductions (Offering, Emerge) choose nothing under
-        // either non-interactive policy — Forge applies the sacrifice
-        // bookkeeping (setUsedToPay, setSacrificedAsOffering) even during test
-        // calculations, so a non-empty answer would leak payment state out of
-        // a probe. Mandatory sacrifices fall through so the refusal surfaces
-        // at the bridge.
-        if (min == 0 && NonInteractiveScope.active != null) return CardCollection()
+        // Optional sacrifice reductions answer from the active policy.
+        // Mandatory sacrifices fall through so the refusal surfaces at the bridge.
+        if (min == 0) {
+            NonInteractiveScope.active?.let { policy ->
+                return NonInteractiveAnswers.permanentsToSacrifice(policy, sa, validTargets)
+            }
+        }
         return targetingCoordinator.choosePermanentsToSacrifice(sa, min, max, validTargets, message)
     }
 
