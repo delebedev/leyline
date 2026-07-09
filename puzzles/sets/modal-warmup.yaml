@@ -53,6 +53,21 @@ scenarios:
       - resolve_stack: {}
       - expect:
           zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+  - id: tiered-thunder-magic
+    puzzle: tiered-thunder-magic
+    run: cast Thunder Magic choosing the middle paid Tiered option
+    expect: Grizzly Bears takes 4 damage and dies
+    steps:
+      - expect:
+          action: { type: cast, card: Thunder Magic }
+      - cast: Thunder Magic
+      - modal_choice: { index: 1 }
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Thunder Magic }
   - id: patchwork-banner-static-choice
     puzzle: patchwork-banner-static-choice
     run: cast Patchwork Banner and choose Goblin
