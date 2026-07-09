@@ -19,7 +19,7 @@ class PlayerControllerStructureTest :
 
         tags(UnitTag)
 
-        // The current set of 47 PCHuman overrides. Alphabetical for review stability.
+        // The current set of 52 PCHuman overrides. Alphabetical for review stability.
         val expectedOverrides =
             setOf(
                 "announceRequirements",
@@ -31,6 +31,7 @@ class PlayerControllerStructureTest :
                 "chooseCardsForConvokeOrImprovise",
                 "chooseCardsForCost",
                 "chooseCardsForEffect",
+                "chooseCardsToDelve",
                 "chooseCardsToDiscardFrom",
                 "chooseCardsToDiscardToMaximumHandSize",
                 "chooseCardsToDiscardUnlessType",
@@ -40,11 +41,14 @@ class PlayerControllerStructureTest :
                 "chooseEntitiesForEffect",
                 "chooseModeForAbility",
                 "chooseNumber",
+                "chooseNumberForCostReduction",
                 "chooseNumberForKeywordCost",
                 "chooseOptionalCosts",
                 "choosePermanentsToDestroy",
                 "choosePermanentsToSacrifice",
+                "choosePlayerToAssistPayment",
                 "chooseSingleEntityForEffect",
+                "chooseSingleStaticAbility",
                 "chooseSomeType",
                 "chooseSpellAbilityToPlay",
                 "chooseStartingPlayer",
@@ -57,6 +61,7 @@ class PlayerControllerStructureTest :
                 "declareBlockers",
                 "enlistAttackers",
                 "getCostDecisionMaker",
+                "helpPayForAssistSpell",
                 "isAI",
                 "mulliganKeepHand",
                 "orderMoveToZoneList",
@@ -71,8 +76,8 @@ class PlayerControllerStructureTest :
                 "willPutCardOnTop",
             )
 
-        test("override count is pinned at 47") {
-            expectedOverrides.size shouldBe 47
+        test("override count is pinned at 52") {
+            expectedOverrides.size shouldBe 52
         }
 
         test("PlayerController declares exactly the expected overrides") {

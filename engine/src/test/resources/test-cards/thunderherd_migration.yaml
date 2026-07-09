@@ -1,0 +1,11 @@
+name: "Thunderherd Migration"
+grpId: 66915
+titleId: 181914
+abilities:
+  - id: 117133
+    textId: 239088
+    category: 5
+  - id: 62342
+    textId: 487899
+    category: 4
+expansionCode: "RIX"

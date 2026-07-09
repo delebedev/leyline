@@ -6,17 +6,14 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ManaCostText
-import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.PayCostsPromptRoute
 import leyline.game.bundle.SelectNPromptRoutes
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -125,7 +122,6 @@ internal class PayCostsInteractionHandler(
                 counters.counter,
                 req,
                 prompt,
-                convokeCountPersistentAnnotations(pendingPrompt),
             )
         Tap.outboundTemplate("PayCostsReq(${route.templateLabel}) seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
@@ -295,25 +291,6 @@ internal class PayCostsInteractionHandler(
             .assign(listOf(color), ManaColorMapping.paymentShardCounts(cost)) { it }
             .firstOrNull()
             ?.second
-
-    private fun convokeCountPersistentAnnotations(pendingPrompt: InteractivePromptBridge.PendingPrompt): List<AnnotationInfo> {
-        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost) return emptyList()
-        return ctx.bridge
-            .seat(counters.seatId)
-            .prompt
-            .journal
-            .activeConvokePayments()
-            .mapNotNull { (sourceForgeCardId, payments) ->
-                if (payments.isEmpty()) return@mapNotNull null
-                val sourceIid = ctx.bridge.getOrAllocInstanceId(sourceForgeCardId)
-                AnnotationBuilder.abilityWordActive(
-                    instanceId = sourceIid,
-                    abilityWordName = "ConvokeCount",
-                    value = payments.size,
-                    abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE),
-                )
-            }
-    }
 
     private fun mapSelectedInstanceIdsToPromptIndices(
         selectedInstanceIds: List<Int>,
