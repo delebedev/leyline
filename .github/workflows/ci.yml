@@ -119,6 +119,9 @@ jobs:
       - name: Test (integration)
         run: just test-integration
 
+      - name: Test (simclient)
+        run: just test-simclient
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

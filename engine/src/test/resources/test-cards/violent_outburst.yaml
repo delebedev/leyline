@@ -1,0 +1,11 @@
+name: "Violent Outburst"
+grpId: 93304
+titleId: 8848
+abilities:
+  - id: 86
+    textId: 27
+    category: 2
+  - id: 3227
+    textId: 8849
+    category: 4
+expansionCode: "J25"

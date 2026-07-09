@@ -68,6 +68,7 @@ class MatchFlowHarness(
      * arbitrary decks work without per-card fixtures.
      */
     private val cardRepositoryOverride: CardRepository? = null,
+    val responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
 ) {
     companion object {
         fun defaultValidation(validating: Boolean): InvariantSelection =
@@ -371,6 +372,12 @@ class MatchFlowHarness(
     /** Pass priority — sends a real Pass action through MatchSession. */
     fun passPriority() {
         session.onPerformAction(submitWithGsId(performAction { actionType = ActionType.Pass }))
+        drainSink()
+    }
+
+    /** Submit an offered action without rebuilding or dropping action fields. */
+    fun submitAction(action: Action) {
+        session.onPerformAction(submitWithGsId(performAction(action)))
         drainSink()
     }
 
@@ -1087,6 +1094,8 @@ class MatchFlowHarness(
 
     internal fun drainSink() {
         collectSinkMessages()
+
+        if (responseMode != HeadlessResponseMode.AutoForTests) return
 
         // Auto-respond to engine-initiated prompts so the engine can continue.
         // Loops because chained prompts (e.g. Wildborn Preserver: optional

@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.SimClientTag
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.nio.file.Files
 import java.time.LocalDateTime
@@ -40,6 +41,7 @@ class SimClientNumericInputTest :
                 MatchFlowHarness(
                     seed = 42L,
                     deckList = deck,
+                    responseMode = HeadlessResponseMode.PolicyVisible,
                 )
             val tempLog = Files.createTempFile("simclient-numeric-", ".log").toFile()
             var fakeNow = LocalDateTime.of(2026, 5, 2, 12, 0, 0)
