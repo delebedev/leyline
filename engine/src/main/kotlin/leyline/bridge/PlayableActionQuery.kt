@@ -26,9 +26,19 @@ object PlayableActionQuery {
             landAbility.activatingPlayer = player
             if (player.canPlayLand(card, false, landAbility)) return true
         }
+        for (card in handCards) {
+            val landAbility = buildMdfcBackLandAbility(card) ?: continue
+            landAbility.activatingPlayer = player
+            if (landAbility.canPlay()) return true
+        }
         val nonLands = CardLists.filter(handCards, CardPredicates.NON_LANDS)
         for (card in nonLands) {
             if (chooseCastAbility(card, player) != null) return true
+        }
+        for (card in handCards) {
+            val backSpell = pickMdfcBackSpellAbility(card) ?: continue
+            backSpell.setActivatingPlayer(player)
+            if (getAllCastableAbilities(card, player).any { it === backSpell }) return true
         }
         for (card in player.getZone(ZoneType.Battlefield).cards) {
             for (sa in getNonManaActivatedAbilities(card, player)) {

@@ -12,9 +12,11 @@ import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
+import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.pickMdfcBackSpellAbility
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
@@ -329,6 +331,23 @@ object ActionMapper {
             }
 
             addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder)
+        }
+
+        // --- Hand: modal DFC back-face actions (spell and land faces) ---
+        for (fid in hand) {
+            val cardSnap = snap.objects[fid] ?: continue
+            val player = bridge.getPlayer(SeatId(seatId)) ?: continue
+            val forgeCard = bridge.findCard(fid) ?: continue
+            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            addMdfcFaceActions(
+                card = forgeCard,
+                player = player,
+                instanceId = instanceId,
+                parentGrpId = cardSnap.grpId,
+                cardRepository = bridge.cardRepository,
+                builder = builder,
+                checkLegality = true,
+            )
         }
 
         // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
@@ -839,6 +858,18 @@ object ActionMapper {
             }
         }
 
+        for (card in handCards) {
+            addMdfcFaceActions(
+                card = card,
+                player = player,
+                instanceId = idResolver(ForgeCardId(card.id)).value,
+                parentGrpId = grpIdResolver(card).value,
+                cardRepository = cardRepository,
+                builder = builder,
+                checkLegality = checkLegality,
+            )
+        }
+
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
@@ -922,6 +953,7 @@ object ActionMapper {
         if (castable.isEmpty()) return emptyList<IndexedCastAction>() to emptyList()
 
         for ((abilityIndex, sa) in castable.withIndex()) {
+            if (sa.isLandAbility || isMdfcBackSpell(sa)) continue
             if (sa.isAdventure) continue
             if (CastRails.handWithAltCost.any { it.saPredicate(sa) }) continue
             if (hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)) {
@@ -947,6 +979,101 @@ object ActionMapper {
         }
         return actions to inactive
     }
+
+    private fun isMdfcBackSpell(sa: SpellAbility): Boolean = sa.hostCard?.isModal == true && sa.cardStateName == CardStateName.Backside
+
+    private fun addMdfcFaceActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        parentGrpId: Int,
+        cardRepository: CardRepository?,
+        builder: ActionsAvailableReq.Builder,
+        checkLegality: Boolean,
+    ) {
+        if (!card.isModal || !card.hasState(CardStateName.Backside)) return
+
+        val backSpell = pickMdfcBackSpellAbility(card)
+        if (backSpell != null) {
+            val action = buildMdfcSpellAction(backSpell, player, instanceId, parentGrpId, cardRepository)
+            if (action != null) {
+                if (!checkLegality || canPlayAndPayManaCost(backSpell, player)) {
+                    builder.addActions(action)
+                } else if (canPlay(backSpell)) {
+                    builder.addInactiveActions(action)
+                }
+            }
+        }
+
+        val landAbility = buildMdfcBackLandAbility(card)
+        if (landAbility != null) {
+            landAbility.activatingPlayer = player
+            val canPlay = checkLegality && canPlay(landAbility)
+            val action =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.PlayMdfc)
+                    .setInstanceId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.PlayMdfc))
+            if (canPlay) {
+                builder.addActions(action)
+            } else if (checkLegality) {
+                builder.addInactiveActions(action)
+            }
+        }
+    }
+
+    private fun buildMdfcSpellAction(
+        sa: SpellAbility,
+        player: Player,
+        instanceId: Int,
+        parentGrpId: Int,
+        cardRepository: CardRepository?,
+    ): Action? {
+        if (hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)) return null
+        sa.setActivatingPlayer(player)
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.CastMdfc)
+                .setInstanceId(instanceId)
+                .setSourceId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastMdfc))
+        val abilityGrpId = resolveMdfcBackAbilityGrpId(sa, parentGrpId, cardRepository)
+        if (abilityGrpId != 0) {
+            actionBuilder.setAbilityGrpId(abilityGrpId)
+        }
+        val manaCost = computeEffectiveCost(sa, player)?.takeIf { !it.isNoCost } ?: sa.payCosts?.totalMana?.takeIf { !it.isNoCost }
+        if (manaCost != null) {
+            addManaCostFromForge(manaCost, actionBuilder, abilityGrpId.takeIf { it != 0 })
+        }
+        return actionBuilder.build()
+    }
+
+    private fun resolveMdfcBackAbilityGrpId(
+        sa: SpellAbility,
+        parentGrpId: Int,
+        cardRepository: CardRepository?,
+    ): Int {
+        if (cardRepository == null) return 0
+        val backName = sa.cardState?.name
+        val backGrpId =
+            backName?.let(cardRepository::findGrpIdByNameAnyFace)
+                ?: cardRepository.findLinkedFaces(parentGrpId).firstOrNull { it != parentGrpId }
+                ?: return 0
+        return cardRepository
+            .findByGrpId(backGrpId)
+            ?.abilityIds
+            ?.firstOrNull()
+            ?.first ?: 0
+    }
+
+    private fun canPlay(sa: SpellAbility): Boolean =
+        try {
+            sa.canPlay()
+        } catch (_: Exception) {
+            false
+        }
 
     @Suppress("LongParameterList")
     private fun buildCastAction(
@@ -1465,8 +1592,8 @@ object ActionMapper {
      * Strip an Action down to the minimal format used inside GSM embedded actions.
      *
      * GSM actions carry fewer fields than ActionsAvailableReq actions:
-     * - Cast/CastAdventure: instanceId + manaCost + cast-variant identity fields
-     * - Play: instanceId
+     * - Cast/CastAdventure/CastMdfc: instanceId + manaCost + cast-variant identity fields
+     * - Play/PlayMdfc: instanceId
      * - ActivateMana: instanceId + abilityGrpId
      * - Activate: instanceId + abilityGrpId + manaCost
      * - Pass/FloatMana: empty
@@ -1476,14 +1603,17 @@ object ActionMapper {
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     fun stripActionForGsm(action: Action): Action {
         val b = Action.newBuilder().setActionType(action.actionType)
-        if (action.actionType == ActionType.Cast || action.actionType == ActionType.CastAdventure) {
+        if (action.actionType == ActionType.Cast ||
+            action.actionType == ActionType.CastAdventure ||
+            action.actionType == ActionType.CastMdfc
+        ) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
             if (action.sourceId != 0) b.setSourceId(action.sourceId)
             if (action.alternativeGrpId != 0) b.setAlternativeGrpId(action.alternativeGrpId)
             if (action.alternativeSourceZcid != 0) b.setAlternativeSourceZcid(action.alternativeSourceZcid)
             b.addAllManaCost(action.manaCostList)
-        } else if (action.actionType == ActionType.Play_add3) {
+        } else if (action.actionType == ActionType.Play_add3 || action.actionType == ActionType.PlayMdfc) {
             b.setInstanceId(action.instanceId)
         } else if (action.actionType == ActionType.ActivateMana || action.actionType == ActionType.Activate_add3) {
             b.setInstanceId(action.instanceId)

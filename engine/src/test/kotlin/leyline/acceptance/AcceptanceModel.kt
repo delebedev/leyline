@@ -111,12 +111,24 @@ data class PlayLandStep(
     override val label: String = "play_land $card"
 }
 
+data class PlayMdfcStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "play_mdfc $card"
+}
+
 data class CastStep(
     val card: String,
     val zone: AcceptanceZone = AcceptanceZone.Hand,
     val altCost: AcceptanceAltCost? = null,
 ) : AcceptanceStep {
     override val label: String = "cast $card"
+}
+
+data class CastMdfcStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "cast_mdfc $card"
 }
 
 data class SelectCostStep(
@@ -264,7 +276,9 @@ enum class AcceptanceActionType(
     val yamlName: String,
 ) {
     PlayLand("play_land"),
+    PlayMdfc("play_mdfc"),
     Cast("cast"),
+    CastMdfc("cast_mdfc"),
     Activate("activate"),
     ;
 

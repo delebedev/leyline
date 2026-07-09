@@ -6,6 +6,7 @@ import forge.game.GameEntity
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.LandAbility
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
@@ -125,27 +126,56 @@ fun getAllCastableAbilities(
     // can propagate into the host card's intrinsic SA list), in which case
     // the SA appears once via `baseAbilities` and once via the keyword scan.
     // Without the `!in expanded` filter the cast offer surfaces twice.
-    val keywordHandSAs =
-        card.spellAbilities.filter {
-            (it.isPlotting || it.isForetelling || it.isCastFaceDown) &&
-                expanded.none { existing -> existing === it }
-        }
-    expanded.addAll(keywordHandSAs)
+    appendKeywordHandSAs(card, expanded)
+    appendMdfcBackFaceSAs(card, player, expanded)
 
     // Room door-unlock SAs aren't in card.getSpells() — Forge stores them on
     // Card.unlockAbilities[CardStateName] keyed by LeftSplit / RightSplit. Append
     // each locked door's unlock SA so CastLeftRoom / CastRightRoom share the
     // same index space as the regular cast pathway. From hand both doors are
     // locked; from battlefield only the side(s) not yet unlocked surface here.
-    if (card.isRoom) {
-        for (lockedState in card.lockedRooms) {
-            val unlockSa = card.getUnlockAbility(lockedState) ?: continue
-            unlockSa.setActivatingPlayer(player)
-            expanded.add(unlockSa)
-        }
-    }
+    appendRoomDoorSAs(card, player, expanded)
 
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
+}
+
+private fun appendKeywordHandSAs(
+    card: Card,
+    expanded: MutableList<SpellAbility>,
+) {
+    val keywordHandSAs =
+        card.spellAbilities.filter {
+            (it.isPlotting || it.isForetelling || it.isCastFaceDown) &&
+                expanded.none { existing -> existing === it }
+        }
+    expanded.addAll(keywordHandSAs)
+}
+
+private fun appendMdfcBackFaceSAs(
+    card: Card,
+    player: Player,
+    expanded: MutableList<SpellAbility>,
+) {
+    if (!card.isModal || !card.hasState(forge.card.CardStateName.Backside)) return
+    for (sa in card.getState(forge.card.CardStateName.Backside).spellAbilities) {
+        if ((sa.isSpell || sa.isLandAbility) && expanded.none { existing -> existing === sa }) {
+            sa.setActivatingPlayer(player)
+            expanded.add(sa)
+        }
+    }
+}
+
+private fun appendRoomDoorSAs(
+    card: Card,
+    player: Player,
+    expanded: MutableList<SpellAbility>,
+) {
+    if (!card.isRoom) return
+    for (lockedState in card.lockedRooms) {
+        val unlockSa = card.getUnlockAbility(lockedState) ?: continue
+        unlockSa.setActivatingPlayer(player)
+        expanded.add(unlockSa)
+    }
 }
 
 /**
@@ -168,6 +198,21 @@ fun pickRoomDoorSa(
     val splitSa = card.getSpells()?.firstOrNull { it.cardStateName == state }
     if (splitSa != null) return splitSa
     return card.getUnlockAbility(state)
+}
+
+fun pickMdfcBackSpellAbility(card: Card): SpellAbility? {
+    if (!card.isModal || !card.hasState(forge.card.CardStateName.Backside)) return null
+    return card
+        .getState(forge.card.CardStateName.Backside)
+        .spellAbilities
+        .firstOrNull { it.isSpell && !it.isLandAbility }
+}
+
+fun buildMdfcBackLandAbility(card: Card): LandAbility? {
+    if (!card.isModal || !card.hasState(forge.card.CardStateName.Backside)) return null
+    val backState = card.getState(forge.card.CardStateName.Backside)
+    if (!backState.type.isLand) return null
+    return LandAbility(card, backState)
 }
 
 fun chooseCastAbility(

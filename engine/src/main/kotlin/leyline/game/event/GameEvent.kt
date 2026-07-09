@@ -78,6 +78,7 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val colorOrdinals: List<Int> = emptyList(),
+        val isMdfc: Boolean = false,
     ) : GameEvent
 
     /** One mana globe spent to pay for a spell. */
@@ -100,6 +101,7 @@ sealed interface GameEvent {
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
         val isOmen: Boolean = false,
+        val isMdfc: Boolean = false,
         val altCostAbilityGrpId: Int = 0,
         /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
         val castAbilityGrpId: Int = altCostAbilityGrpId,

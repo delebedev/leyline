@@ -45,6 +45,7 @@ class MatchdoorAcceptanceExecutor(
         }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun executeStep(
         harness: MatchFlowHarness,
         scenario: AcceptanceScenario,
@@ -72,7 +73,9 @@ class MatchdoorAcceptanceExecutor(
             is AttackStep -> attack(harness, step, context)
             is TurnFaceUpStep -> turnFaceUp(harness, step, context)
             is PlayLandStep -> requireAction(context) { harness.playLand(step.card) }
+            is PlayMdfcStep -> submitNamedAction(harness, ActionType.PlayMdfc, step.card, context)
             is CastStep -> cast(harness, step, context)
+            is CastMdfcStep -> submitNamedAction(harness, ActionType.CastMdfc, step.card, context)
             ResolveStackStep -> resolveStack(harness, context)
             AttackAllStep -> {
                 harness.declareAllAttackers()
@@ -93,6 +96,26 @@ class MatchdoorAcceptanceExecutor(
                     actionMatchesZone(harness, action, step.zone) &&
                     actionMatchesAltCost(harness, action, step.altCost)
             } ?: error("$context no cast action for ${step.card} in ${step.zone.yamlName}")
+        submitAction(harness, action)
+    }
+
+    private fun submitNamedAction(
+        harness: MatchFlowHarness,
+        actionType: ActionType,
+        card: String,
+        context: String,
+    ) {
+        val candidates =
+            harness.accumulator.actions
+                ?.actionsList
+                .orEmpty()
+                .filter { it.actionType == actionType }
+        val action =
+            candidates.firstOrNull { actionCardName(harness, it).equals(card, ignoreCase = true) }
+                ?: candidates
+                    .singleOrNull()
+                    ?.takeIf { actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc) }
+                ?: error("$context no named ${actionType.name} action for $card")
         submitAction(harness, action)
     }
 
@@ -532,14 +555,26 @@ class MatchdoorAcceptanceExecutor(
         val expectedType =
             when (condition.type) {
                 AcceptanceActionType.PlayLand -> ActionType.Play_add3
+                AcceptanceActionType.PlayMdfc -> ActionType.PlayMdfc
                 AcceptanceActionType.Cast -> ActionType.Cast
+                AcceptanceActionType.CastMdfc -> ActionType.CastMdfc
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
             }
-        return harness.accumulator.actions?.actionsList.orEmpty().any { action ->
-            action.actionType == expectedType &&
-                actionCardName(harness, action).equals(condition.card, ignoreCase = true) &&
-                (condition.altCost == null || actionMatchesAltCost(harness, action, condition.altCost))
-        }
+        val candidates =
+            harness.accumulator.actions
+                ?.actionsList
+                .orEmpty()
+                .filter { it.actionType == expectedType }
+        val namedMatch =
+            candidates.any { action ->
+                action.actionType == expectedType &&
+                    actionCardName(harness, action).equals(condition.card, ignoreCase = true) &&
+                    (condition.altCost == null || actionMatchesAltCost(harness, action, condition.altCost))
+            }
+        if (namedMatch) return true
+        return condition.type in listOf(AcceptanceActionType.PlayMdfc, AcceptanceActionType.CastMdfc) &&
+            condition.altCost == null &&
+            candidates.size == 1
     }
 
     private fun actionCardName(
@@ -548,8 +583,20 @@ class MatchdoorAcceptanceExecutor(
     ): String? {
         val grpName = harness.bridge.cardRepository.findNameByGrpId(action.grpId)
         if (grpName != null) return grpName
+        val objectGrpName =
+            harness.accumulator.objects[action.instanceId]
+                ?.grpId
+                ?.let(harness.bridge.cardRepository::findNameByGrpId)
+        if (objectGrpName != null) return objectGrpName
+        val sourceGrpName =
+            harness.accumulator.objects[action.sourceId]
+                ?.grpId
+                ?.let(harness.bridge.cardRepository::findNameByGrpId)
+        if (sourceGrpName != null) return sourceGrpName
         val forgeCardId = harness.bridge.getForgeCardId(InstanceId(action.instanceId))
         if (forgeCardId != null) return harness.game().findById(forgeCardId.value)?.name
+        val sourceForgeCardId = harness.bridge.getForgeCardId(InstanceId(action.sourceId))
+        if (sourceForgeCardId != null) return harness.game().findById(sourceForgeCardId.value)?.name
         return null
     }
 
@@ -673,11 +720,19 @@ class MatchdoorAcceptanceExecutor(
     private fun player(
         side: AcceptanceSide,
         harness: MatchFlowHarness,
-    ): Player =
-        when (side) {
+    ): Player {
+        val bridgePlayer =
+            when (side) {
+                AcceptanceSide.Ours -> harness.bridge.getPlayer(OUR_SEAT)
+                AcceptanceSide.Opponent -> harness.bridge.getPlayer(OPPONENT_SEAT)
+            }
+        if (bridgePlayer != null) return bridgePlayer
+        return when (side) {
             AcceptanceSide.Ours -> harness.bridge.getPlayer(OUR_SEAT)
             AcceptanceSide.Opponent -> harness.bridge.getPlayer(OPPONENT_SEAT)
-        } ?: error("missing ${side.yamlName} player")
+        } ?: harness.game().registeredPlayers.getOrNull(seat(side).value - 1)
+            ?: error("missing ${side.yamlName} player")
+    }
 
     private fun seat(side: AcceptanceSide): SeatId =
         when (side) {

@@ -1,0 +1,10 @@
+name: "Silundi Vision"
+grpId: 94303
+titleId: 437222
+abilities:
+  - id: 138414
+    textId: 437224
+    category: 4
+expansionCode: "PIO"
+linkedFaces:
+  - 94304

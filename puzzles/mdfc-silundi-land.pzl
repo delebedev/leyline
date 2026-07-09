@@ -1,0 +1,16 @@
+[metadata]
+Name:MDFC Silundi land face
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Play Silundi Vision as its land face.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Silundi Vision
+humanlibrary=Island;Island;Island
+ailibrary=Forest;Forest;Forest
