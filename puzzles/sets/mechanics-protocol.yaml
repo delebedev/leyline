@@ -838,6 +838,24 @@ scenarios:
       - resolve_stack: {}
       - expect:
           annotation_seen: TokenCreated
+  - id: mentor-sunhome-stalwart
+    puzzle: mentor-sunhome-stalwart
+    run: attack with Sunhome Stalwart and two smaller creatures, then target Enduring Bondwarden with Mentor
+    expect: Enduring Bondwarden receives a +1/+1 counter from the Mentor trigger
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Enduring Bondwarden }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats_at_least: { side: ours, card: Enduring Bondwarden, power: 1, toughness: 2 }
+            - stack_empty: true
   - id: enlist-demo
     puzzle: enlist-demo
     run: attack with Benalish Faithbonder using Enlist and tap Centaur Courser
