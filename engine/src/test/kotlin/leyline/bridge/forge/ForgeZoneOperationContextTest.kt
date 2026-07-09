@@ -21,12 +21,16 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
 import forge.game.event.GameEvent as ForgeGameEvent
 
 /** Executable contract for the Forge zone-operation facts consumed by Leyline. */
 class ForgeZoneOperationContextTest :
     BoardTest({
-        test("zone change event keeps only card and zone views") {
+        test("caused zone change freezes serializable source and ability identity") {
             val (_, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Goblin Fireslinger", human)
@@ -48,13 +52,35 @@ class ForgeZoneOperationContextTest :
             game.action.moveToGraveyard(moved, cause)
 
             val event = probe.zoneChanges().single()
+            val causeView = event.cause()!!
             assertSoftly {
                 event.card().id shouldBe moved.id
                 event.from().zoneType() shouldBe ZoneType.Battlefield
                 event.to().zoneType() shouldBe ZoneType.Graveyard
                 GameEventCardChangeZone::class.java.recordComponents.map { it.name } shouldContainExactly
-                    listOf("card", "from", "to")
+                    listOf("card", "from", "to", "cause")
+                causeView.sourceCardId() shouldBe source.id
+                causeView.abilityId() shouldBe cause.id
+                causeView.rootAbilityId() shouldBe cause.rootAbility.id
+                causeView.api() shouldBe cause.api
+                causeView.costPayment() shouldBe false
+                roundTrip(event).cause() shouldBe causeView
             }
+        }
+
+        test("causeless zone change preserves explicit unknown context") {
+            val (_, game, _) =
+                startWithBoard { _, human, _ -> addCard("Grizzly Bears", human) }
+            val probe = game.subscribeProbe()
+            val moved =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+
+            game.action.moveToGraveyard(moved, null)
+
+            probe.zoneChanges().single().cause() shouldBe null
         }
 
         test("destroy and sacrifice facts precede their zone moves") {
@@ -125,6 +151,21 @@ class ForgeZoneOperationContextTest :
             assertSoftly {
                 probe.paymentAtZoneChange?.cost() shouldBe costPart
                 probe.paymentAtZoneChange?.payment()?.ability shouldBe cause
+                probe
+                    .zoneChanges()
+                    .single()
+                    .cause()
+                    ?.sourceCardId() shouldBe source.id
+                probe
+                    .zoneChanges()
+                    .single()
+                    .cause()
+                    ?.abilityId() shouldBe cause.id
+                probe
+                    .zoneChanges()
+                    .single()
+                    .cause()
+                    ?.costPayment() shouldBe true
             }
         }
 
@@ -181,6 +222,11 @@ class ForgeZoneOperationContextTest :
             game.stack.resolveStack()
             probe.resolveEventsFor(spell) shouldContainExactly
                 listOf(GameEventSpellResolved::class.java, GameEventCardChangeZone::class.java)
+            probe
+                .zoneChanges()
+                .single { it.card().id == spell.id }
+                .cause()
+                ?.abilityId() shouldBe ability.id
         }
 
         test("permanent stack move precedes its resolution fact") {
@@ -204,6 +250,15 @@ class ForgeZoneOperationContextTest :
     })
 
 private fun Game.subscribeProbe(): ZoneEventProbe = ZoneEventProbe(this).also(::subscribeToEvents)
+
+private fun roundTrip(event: GameEventCardChangeZone): GameEventCardChangeZone {
+    val bytes =
+        ByteArrayOutputStream().use { bytes ->
+            ObjectOutputStream(bytes).use { it.writeObject(event) }
+            bytes.toByteArray()
+        }
+    return ObjectInputStream(ByteArrayInputStream(bytes)).use { it.readObject() as GameEventCardChangeZone }
+}
 
 private fun Game.lastStateParams(): MutableMap<AbilityKey, Any> =
     AbilityKey.newMap<Any>().also {
