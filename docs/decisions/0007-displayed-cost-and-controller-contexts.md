@@ -104,10 +104,10 @@ what produced the current guards.
 
 ### 2. Controller contexts are explicit
 
-Introduce **non-interactive controller scopes**, layered for the duration of a
-computation via `Player.addController` / `removeController`, above the bridge
-controller. Each scope names a policy that answers every payment callback without
-prompting:
+Introduce **non-interactive controller scopes**: a thread-scoped answer policy,
+entered for the duration of a computation, consulted by the bridge controller's
+payment callbacks before any prompt machinery. Each scope names a policy that
+answers every payment callback without prompting:
 
 - **Quiet** — every payment choice answers "nothing chosen": no cards to delve,
   no permanents tapped, nothing sacrificed. Consumer: displayed cost. Under this
@@ -118,8 +118,16 @@ prompting:
   advisor.
 
 The policy is chosen by the caller, because only the caller knows why it is
-asking. Neither policy consults the player, and neither depends on which thread
-it runs on.
+asking. Neither policy consults the player, and both work on any thread — the
+scope travels with the thread running the computation.
+
+A `Player.addController(Long.MAX_VALUE)` layer was considered and rejected:
+Forge's controller stack is keyed by timestamp, so a same-slot layer silently
+evicts whatever else occupies it (the simclient harness already layers its
+advisor controller there), and a policy controller that extends an AI
+controller would answer *every* callback — turning "refuse, not guess" into
+silent guessing for callbacks no policy enumerates. With a scoped policy, an
+unenumerated callback falls through to the prompt bridge, which refuses.
 
 Then the load-bearing rule:
 

@@ -6,6 +6,7 @@ import forge.game.cost.CostAdjustment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.NonInteractiveScope
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ManaColorMapping
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -27,7 +28,12 @@ internal object ActionManaCosts {
         player: Player,
     ): Boolean =
         try {
-            ComputerUtilMana.canPayManaCost(sa, player, 0, false) || canPayOrTwoGenericManaCost(sa, player)
+            // Forge's payment probe re-runs cost adjustment, which consults
+            // the controller for payment-time reductions (Delve, Convoke,
+            // Waterbend). Payability wants the best case the board allows,
+            // answered deterministically — never a prompt.
+            NonInteractiveScope.bestEffort { ComputerUtilMana.canPayManaCost(sa, player, 0, false) } ||
+                canPayOrTwoGenericManaCost(sa, player)
         } catch (_: Exception) {
             canPayOrTwoGenericManaCost(sa, player)
         }
@@ -216,12 +222,19 @@ internal object ActionManaCosts {
                 hostCard.zone?.zoneType == ForgeZoneType.Command
         if (seededCastFrom) hostCard?.setCastFrom(hostCard.zone)
         try {
-            val adjusted = CostAdjustment.adjust(baseCost, sa, false)
-            val manaCost = adjusted.totalMana ?: return null
-            if (manaCost.isNoCost) return null
-            val beingPaid = ManaCostBeingPaid(manaCost)
-            CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
-            return beingPaid.toManaCost()
+            // Quiet scope: cost adjustment consults the controller for
+            // payment-time reductions (Delve, Convoke, Waterbend, Offering).
+            // The effective cost is the cost after state-derived
+            // modifications only — payment choices belong to the payment
+            // prompt, so every one answers "nothing chosen" here.
+            return NonInteractiveScope.quiet {
+                val adjusted = CostAdjustment.adjust(baseCost, sa, false)
+                val manaCost = adjusted.totalMana ?: return@quiet null
+                if (manaCost.isNoCost) return@quiet null
+                val beingPaid = ManaCostBeingPaid(manaCost)
+                CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
+                beingPaid.toManaCost()
+            }
         } finally {
             if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
             if (originalActivator == null) sa.setActivatingPlayer(null)

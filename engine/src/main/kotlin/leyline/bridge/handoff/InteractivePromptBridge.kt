@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.spellability.SpellAbility
 import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
+import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference
 class InteractivePromptBridge(
     private val timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
     private val prioritySignal: PrioritySignal? = null,
+    private val strict: Boolean = DevCheck.strict,
 ) {
     /**
      * Forge-id → leyline iid lookup. Set by [leyline.game.state.GameBridge]
@@ -159,7 +161,7 @@ class InteractivePromptBridge(
     // a trace it's impossible to tell WHAT prompted and WHETHER it timed out.
     // Tests inspect `history` to diagnose unexpected blocking calls.
 
-    enum class PromptCallStatus { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING, NON_GAME_THREAD }
+    enum class PromptCallStatus { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING, NON_GAME_THREAD, NON_INTERACTIVE_SCOPE }
 
     data class PromptRecord(
         val promptType: String,
@@ -221,6 +223,7 @@ class InteractivePromptBridge(
             PromptCallStatus.ERROR,
             PromptCallStatus.ALREADY_PENDING,
             PromptCallStatus.NON_GAME_THREAD,
+            PromptCallStatus.NON_INTERACTIVE_SCOPE,
             -> log.warn(msg)
         }
     }
@@ -300,7 +303,32 @@ class InteractivePromptBridge(
         request: PromptRequest,
         targetingSa: SpellAbility? = null,
     ): List<Int> {
+        // A callback reached outside a real prompt window must refuse, not
+        // guess: each fallback below manufactures an answer indistinguishable
+        // from a real choice. Strict mode surfaces the bug on the first
+        // occurrence; production degrades loudly.
+        val scope = NonInteractiveScope.active
+        if (scope != null) {
+            if (strict) {
+                error("[strict] Prompt [${request.promptType}] \"${request.message}\" requested inside non-interactive scope $scope")
+            }
+            val fallback = listOf(request.defaultIndex)
+            log.warn(
+                "Prompt [{}] \"{}\" requested inside non-interactive scope {}, using default {}",
+                request.promptType,
+                request.message,
+                scope,
+                fallback,
+            )
+            record(request, PromptCallStatus.NON_INTERACTIVE_SCOPE, fallback, 0)
+            return fallback
+        }
+
         if (!isGameLoopThread()) {
+            if (strict) {
+                val thread = Thread.currentThread().name
+                error("[strict] Prompt [${request.promptType}] \"${request.message}\" requested from non-game thread $thread")
+            }
             val fallback = listOf(request.defaultIndex)
             log.warn(
                 "Prompt [{}] \"{}\" requested from non-game thread {}, using default {}",
@@ -323,6 +351,9 @@ class InteractivePromptBridge(
         val prompt = PendingPrompt(promptId, request, future, targetingSa)
 
         if (!pending.compareAndSet(null, prompt)) {
+            if (strict) {
+                error("[strict] Prompt [${request.promptType}] \"${request.message}\" requested while another prompt is pending")
+            }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptCallStatus.ALREADY_PENDING, fallback, 0)
             return fallback
