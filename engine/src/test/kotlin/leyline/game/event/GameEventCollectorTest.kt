@@ -1,5 +1,6 @@
 package leyline.game.event
 
+import forge.game.ability.AbilityKey
 import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
@@ -10,6 +11,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -329,6 +331,67 @@ class GameEventCollectorTest :
                 zc.size shouldBe 1
                 zc[0].from shouldBe Zone.Graveyard
                 zc[0].to shouldBe Zone.Library
+            }
+        }
+
+        test("every Forge zone event contributes one ordered ZoneMove with frozen cause") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base.addCard("Goblin Fireslinger", human, ZoneType.Battlefield)
+                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val moved =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val cause = source.spellAbilities.first().also { it.activatingPlayer = game.humanPlayer }
+
+            game.action.moveToStack(moved, cause)
+            game.action.exile(moved, cause, AbilityKey.newMap())
+
+            val moves = collector.closeFrame().zoneMoves
+            assertSoftly {
+                moves.map { it.order } shouldContainExactly listOf(0, 1)
+                moves.map { it.cardId } shouldContainExactly listOf(ForgeCardId(moved.id), ForgeCardId(moved.id))
+                moves.map { it.from } shouldContainExactly listOf(Zone.Hand, Zone.Stack)
+                moves.map { it.to } shouldContainExactly listOf(Zone.Stack, Zone.Exile)
+                moves.map { it.cause?.sourceCardId } shouldContainExactly
+                    listOf(ForgeCardId(source.id), ForgeCardId(source.id))
+                moves.map { it.cause?.abilityForgeId } shouldContainExactly listOf(cause.id, cause.id)
+            }
+        }
+
+        test("legacy three-argument Forge zone event records an unknown-cause ZoneMove") {
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ -> base.addCard("Grizzly Bears", human, ZoneType.Battlefield) }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+
+            game.fireEvent(
+                GameEventCardChangeZone(
+                    card,
+                    game.humanPlayer.getZone(ZoneType.Battlefield),
+                    game.humanPlayer.getZone(ZoneType.Graveyard),
+                ),
+            )
+
+            val move = collector.closeFrame().zoneMoves.single()
+            assertSoftly {
+                move.cardId shouldBe ForgeCardId(card.id)
+                move.cause shouldBe null
             }
         }
 

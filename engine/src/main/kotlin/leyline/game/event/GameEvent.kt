@@ -244,12 +244,16 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val sourceCardId: ForgeCardId? = null,
+        val sourceAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */
     data class CardSacrificed(
         val cardId: ForgeCardId,
         val seatId: SeatId,
+        val sourceCardId: ForgeCardId? = null,
+        val sourceAbilityForgeId: Int = 0,
+        val costPayment: Boolean = false,
     ) : GameEvent
 
     /** A permanent was bounced (BF→Hand or BF→Library). */

@@ -93,6 +93,7 @@ import java.util.concurrent.ConcurrentHashMap
 /** Immutable per-frame snapshot of game events in firing order. */
 class FrameEventLog(
     val events: List<GameEvent>,
+    val zoneMoves: List<ZoneMove> = emptyList(),
 ) {
     companion object {
         val EMPTY = FrameEventLog(emptyList())
@@ -111,6 +112,10 @@ class GameEventCollector(
     @Suppress("DoubleMutabilityForCollection")
     @Volatile
     private var frame: MutableList<GameEvent> = mutableListOf()
+
+    @Suppress("DoubleMutabilityForCollection")
+    @Volatile
+    private var zoneMoves: MutableList<ZoneMove> = mutableListOf()
 
     /**
      * Stack AbilityInstance context keyed by Forge SpellAbility id. Cast events
@@ -147,9 +152,11 @@ class GameEventCollector(
      * in the GATHER phase. A second call returns an empty log.
      */
     fun closeFrame(): FrameEventLog {
-        val out = frame
+        val outEvents = frame
+        val outMoves = zoneMoves
         frame = mutableListOf()
-        return FrameEventLog(out)
+        zoneMoves = mutableListOf()
+        return FrameEventLog(outEvents, outMoves)
     }
 
     /** Peek at the current open frame without closing it (for tests). */
@@ -245,7 +252,7 @@ class GameEventCollector(
         // not expose either flag.
         val isTrigger = ev.si()?.isTrigger ?: false
         val isAbility = ev.si()?.isAbility ?: false
-        val spellAbilityId = ev.sa()?.id ?: 0
+        val spellAbilityId = ev.cause()?.abilityId() ?: ev.sa()?.id ?: 0
         val paradigmCopyStackIid = paradigmCopyStackIid(isParadigmCopyCast, spellAbilityId, ForgeCardId(card.id))
         // The SA's Forge id is needed for both triggered and activated abilities;
         // both surface through the AbilityInstance lifecycle path keyed on it.
@@ -640,7 +647,7 @@ class GameEventCollector(
     override fun visit(ev: GameEventSpellResolved) {
         val spell = ev.spell()
         val card = spell.hostCard ?: return
-        val saId = spell.id
+        val saId = ev.cause()?.abilityId() ?: spell.id
         val context = pendingStackAbilities.consume(saId)
         val isTrigger = context?.kind == PendingStackAbilityKind.Trigger
         val isAbility = context?.kind == PendingStackAbilityKind.Activation
@@ -692,7 +699,26 @@ class GameEventCollector(
     override fun visit(ev: GameEventCardChangeZone) {
         val card = ev.card()
         val from = ev.from()?.zoneType
-        val to = ev.to()?.zoneType ?: return
+        val to = ev.to()?.zoneType
+        zoneMoves.add(
+            ZoneMove(
+                order = zoneMoves.size,
+                cardId = ForgeCardId(card.id),
+                from = from?.let(Zone::fromForge) ?: Zone.Other,
+                to = to?.let(Zone::fromForge) ?: Zone.Other,
+                cause =
+                    ev.cause()?.let { cause ->
+                        ZoneMoveCause(
+                            sourceCardId = cause.sourceCardId().takeIf { it != 0 }?.let(::ForgeCardId),
+                            abilityForgeId = cause.abilityId(),
+                            rootAbilityForgeId = cause.rootAbilityId(),
+                            api = cause.api()?.name,
+                            costPayment = cause.costPayment(),
+                        )
+                    },
+            ),
+        )
+        if (to == null) return
         val seat = seatOf(card.controller)
         val exileUnderSource = consumeExileUnderSource(card.id)
 
@@ -734,14 +760,7 @@ class GameEventCollector(
                     from == ZoneType.Hand && to == ZoneType.Graveyard ->
                         GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                     from == ZoneType.Library && to == ZoneType.Graveyard -> {
-                        val sourceId =
-                            bridge
-                                .getGame()
-                                ?.stack
-                                ?.peek()
-                                ?.spellAbility
-                                ?.hostCard
-                                ?.id
+                        val sourceId = ev.cause()?.sourceCardId()?.takeIf { it != 0 }
                         GameEvent.CardMilled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) })
                     }
                     from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
@@ -865,15 +884,32 @@ class GameEventCollector(
     override fun visit(ev: GameEventCardSacrificed) {
         val card = ev.card()
         val seat = seatOf(card.controller) ?: return
-        frame.add(GameEvent.CardSacrificed(ForgeCardId(card.id), seat))
+        val cause = ev.cause()
+        frame.add(
+            GameEvent.CardSacrificed(
+                cardId = ForgeCardId(card.id),
+                seatId = seat,
+                sourceCardId = cause?.sourceCardId()?.takeIf { it != 0 }?.let(::ForgeCardId),
+                sourceAbilityForgeId = cause?.abilityId() ?: 0,
+                costPayment = cause?.costPayment() ?: false,
+            ),
+        )
         log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
     }
 
     override fun visit(ev: GameEventCardDestroyed) {
         val card = ev.card() ?: return
         val seat = seatOf(card.controller) ?: return
-        val sourceId = ev.activator()?.id
-        frame.add(GameEvent.CardDestroyed(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+        val cause = ev.cause()
+        val sourceId = cause?.sourceCardId()?.takeIf { it != 0 } ?: ev.activator()?.id
+        frame.add(
+            GameEvent.CardDestroyed(
+                cardId = ForgeCardId(card.id),
+                seatId = seat,
+                sourceCardId = sourceId?.let(::ForgeCardId),
+                sourceAbilityForgeId = cause?.abilityId() ?: 0,
+            ),
+        )
         log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
     }
 
