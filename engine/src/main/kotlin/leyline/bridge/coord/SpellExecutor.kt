@@ -7,6 +7,7 @@ import forge.game.cost.CostPayment
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
+import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.findCard
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.getAllCastableAbilities
@@ -150,8 +151,12 @@ class SpellExecutor(
     /** Build the [LandAbility] for a land-drop action. */
     fun playLand(cardId: ForgeCardId): List<SpellAbility>? {
         val card = findCard(game, cardId) ?: return null
-        if (!card.isLand) return null
-        val landAbility = LandAbility(card, card.currentState)
+        val landAbility =
+            if (card.isLand) {
+                LandAbility(card, card.currentState)
+            } else {
+                buildMdfcBackLandAbility(card) ?: return null
+            }
         landAbility.activatingPlayer = player
         return listOf(landAbility)
     }

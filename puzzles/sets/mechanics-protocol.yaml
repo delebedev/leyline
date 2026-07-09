@@ -1,6 +1,44 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: mdfc-silundi-front-spell
+    puzzle: mdfc-silundi-front-spell
+    run: cast Silundi Vision as its front spell face
+    expect: Silundi Vision resolves from stack to graveyard through the normal Cast path
+    steps:
+      - expect:
+          action: { type: cast, card: Silundi Vision }
+      - cast: Silundi Vision
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Silundi Vision }
+            - stack_empty: true
+  - id: mdfc-silundi-land
+    puzzle: mdfc-silundi-land
+    run: play Silundi Vision as its land face
+    expect: Silundi Isle moves from hand to battlefield through PlayMdfc
+    steps:
+      - expect:
+          action: { type: play_mdfc, card: Silundi Vision }
+      - play_mdfc: Silundi Vision
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Silundi Isle }
+            - zone_not_contains: { side: ours, zone: hand, card: Silundi Vision }
+  - id: mdfc-esika-back-spell
+    puzzle: mdfc-esika-back-spell
+    run: cast Esika as The Prismatic Bridge
+    expect: The Prismatic Bridge resolves to the battlefield through CastMdfc
+    steps:
+      - expect:
+          action: { type: cast_mdfc, card: Esika, God of the Tree }
+      - cast_mdfc: Esika, God of the Tree
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: The Prismatic Bridge }
+            - stack_empty: true
   - id: snow-mana-ascendant-spirit
     puzzle: snow-mana-ascendant-spirit
     run: activate Ascendant Spirit using snow mana

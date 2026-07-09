@@ -57,6 +57,23 @@ class TransferAnnotationPipelineTest :
             annotations[2].detailInt("actionType") shouldBe 3
         }
 
+        test("mdfc land play emits PlayMdfc UAT") {
+            val transfer =
+                AppliedTransfer(
+                    origId = 100,
+                    newId = 200,
+                    category = TransferCategory.PlayLand,
+                    srcZoneId = ZoneIds.P1_HAND,
+                    destZoneId = ZoneIds.BATTLEFIELD,
+                    grpId = 12345,
+                    ownerSeatId = 1,
+                    isMdfcLandPlay = true,
+                )
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
+
+            annotations[2].detailInt("actionType") shouldBe ActionType.PlayMdfc.number
+        }
+
         test("playLandHasCorrectIds") {
             val transfer =
                 AppliedTransfer(
@@ -345,6 +362,28 @@ class TransferAnnotationPipelineTest :
                 annotations.size shouldBe 1
                 annotations[0].typeList shouldContain AnnotationType.UserActionTaken
                 annotations[0].detailInt("actionType") shouldBe wotc.mtgo.gre.external.messaging.Messages.ActionType.CastOmen.number
+                annotations[0].detailInt("abilityGrpId") shouldBe 0
+            }
+        }
+
+        test("castSpellEventAnnotations emits CastMdfc UAT for MDFC face casts") {
+            val ev =
+                leyline.game.event.GameEvent.SpellCast(
+                    cardId = leyline.bridge.types.ForgeCardId(100),
+                    seatId = 1.sid,
+                    isMdfc = true,
+                )
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    ev,
+                    idResolver = { leyline.bridge.types.InstanceId(it.value) },
+                    manaAbilityGrpIdResolver = { leyline.bridge.types.GrpId(0) },
+                )
+
+            assertSoftly {
+                annotations.size shouldBe 1
+                annotations[0].typeList shouldContain AnnotationType.UserActionTaken
+                annotations[0].detailInt("actionType") shouldBe ActionType.CastMdfc.number
                 annotations[0].detailInt("abilityGrpId") shouldBe 0
             }
         }

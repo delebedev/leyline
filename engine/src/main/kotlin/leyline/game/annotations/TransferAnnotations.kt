@@ -59,7 +59,8 @@ object TransferAnnotations {
             TransferCategory.PlayLand -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = ActionType.Play_add3))
+                val actionType = if (transfer.isMdfcLandPlay) ActionType.PlayMdfc else ActionType.Play_add3
+                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = actionType))
             }
             TransferCategory.CastSpell -> {
                 // Cast-time content split: OIC + ZT ride the announcement frame
@@ -333,6 +334,7 @@ object TransferAnnotations {
         }
         val castActionType =
             when {
+                ev.isMdfc -> ActionType.CastMdfc
                 ev.isOmen -> ActionType.CastOmen
                 ev.isAdventure -> ActionType.CastAdventure
                 else -> ActionType.Cast

@@ -78,6 +78,7 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val colorOrdinals: List<Int> = emptyList(),
+        val isMdfc: Boolean = false,
     ) : GameEvent
 
     /** One mana globe spent to pay for a spell. */
@@ -100,6 +101,7 @@ sealed interface GameEvent {
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
         val isOmen: Boolean = false,
+        val isMdfc: Boolean = false,
         val altCostAbilityGrpId: Int = 0,
         /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
         val castAbilityGrpId: Int = altCostAbilityGrpId,
@@ -305,11 +307,14 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A token was created.
-     *  Wired from GameEventTokenCreated (enriched with List<Card> tokens). */
+     *  Wired from GameEventTokenCreated (enriched with List<Card> tokens).
+     *  [sourceCardId] is the host card of the spell or ability that created it.
+     *  [sourceAbilityForgeId] is non-zero when the source is a stack ability. */
     data class TokenCreated(
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val sourceCardId: ForgeCardId? = null,
+        val sourceAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A token was destroyed (left the battlefield).

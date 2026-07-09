@@ -72,6 +72,7 @@ dependencies {
     testImplementation(libs.kotest.datatest)
     testImplementation(libs.archunit)
     testImplementation(libs.kotlin.reflect)
+    testImplementation(harness.output)
 }
 
 val syncProto by tasks.registering(SyncProtoTask::class) {

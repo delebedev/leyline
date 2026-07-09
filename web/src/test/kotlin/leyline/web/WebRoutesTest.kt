@@ -3,6 +3,8 @@ package leyline.web
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -28,11 +30,17 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.config.MatchConfig
+import leyline.config.RuntimeMatchConfig
+import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.CollationPool
 import leyline.domain.Course
 import leyline.domain.CourseId
 import leyline.domain.Deck
@@ -49,11 +57,19 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
+import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardData
 import org.jetbrains.exposed.v1.jdbc.Database
+import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import java.nio.file.Files
@@ -229,7 +245,7 @@ class WebRoutesTest :
             }
         }
 
-        test("public GRE WebSocket attachments are read-only") {
+        test("public GRE WebSocket attachments forward the handshake but stay read-only for game messages") {
             withWeb(json) {
                 repos.registerGre(
                     "public",
@@ -238,11 +254,31 @@ class WebRoutesTest :
                     publicAccess = true,
                 )
 
-                publicGreSocket("public") {
-                    send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
+                val auth =
+                    ClientToMatchServiceMessage
+                        .newBuilder()
+                        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.AuthenticateRequest_f487)
+                        .build()
+                        .toByteArray()
+                val gameMessage =
+                    ClientToMatchServiceMessage
+                        .newBuilder()
+                        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToGremessage)
+                        .build()
+                        .toByteArray()
 
+                publicGreSocket("public") {
+                    // The connect handshake must reach the engine — without it the
+                    // spectator stream never starts.
+                    send(Frame.Binary(fin = true, data = auth))
+                    val frame = incoming.receive() as Frame.Binary
+                    frame.readBytes().contentEquals(byteArrayOf(9, 8, 7)) shouldBe true
+                    repos.enginePayloads.size shouldBe 1
+
+                    // Game messages from a viewer are dropped at the relay.
+                    send(Frame.Binary(fin = true, data = gameMessage))
                     withTimeoutOrNull(100) { incoming.receive() } shouldBe null
-                    repos.enginePayloads shouldBe emptyList()
+                    repos.enginePayloads.size shouldBe 1
                 }
             }
         }
@@ -265,6 +301,9 @@ class WebRoutesTest :
                     incoming.receive()
                 }
 
+                // Idle close waits out the reconnect grace before tearing down.
+                val deadline = System.currentTimeMillis() + 5_000
+                while (!closed.get() && System.currentTimeMillis() < deadline) delay(20)
                 assertSoftly {
                     closed.get() shouldBe true
                     cleanupCount shouldBe 1
@@ -275,8 +314,10 @@ class WebRoutesTest :
         test("GRE relay serializes engine access per match") {
             withWeb(json) {
                 val login = login()
-                val engine = ConcurrentProbeGreEngineSession()
-                repos.relay.register("serialized", engine, ownerPlayerId = PlayerId(login.playerId))
+                lateinit var engine: ConcurrentProbeGreEngineSession
+                repos.relay.register("serialized", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
+                    ConcurrentProbeGreEngineSession(onFrame).also { engine = it }
+                }
                 val attached = AtomicInteger(0)
                 val bothAttached = CompletableDeferred<Unit>()
                 val replies = AtomicInteger(0)
@@ -294,6 +335,60 @@ class WebRoutesTest :
                 assertSoftly {
                     engine.receivedCount.get() shouldBe 2
                     engine.maxConcurrent.get() shouldBe 1
+                }
+            }
+        }
+
+        test("GRE relay streams engine frames as they're produced, not batched until the call returns") {
+            withWeb(json) {
+                val login = login()
+                repos.relay.register("streamed", ownerPlayerId = PlayerId(login.playerId)) { onFrame, _ ->
+                    SlowMultiStepGreEngineSession(onFrame, stepDelayMs = 400)
+                }
+
+                greSocket(login, "streamed") {
+                    val start = System.currentTimeMillis()
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1)))
+
+                    // The engine's first frame lands well before its second (400ms later) —
+                    // if the relay batched until receiveFromBrowser returned, both would only
+                    // become visible together, after the full ~800ms round trip.
+                    val firstFrame = withTimeoutOrNull(200) { (incoming.receive() as Frame.Binary).readBytes() }
+                    val elapsedAtFirst = System.currentTimeMillis() - start
+                    val secondFrame = withTimeoutOrNull(600) { (incoming.receive() as Frame.Binary).readBytes() }
+                    val elapsedAtSecond = System.currentTimeMillis() - start
+
+                    assertSoftly {
+                        firstFrame shouldBe byteArrayOf(1)
+                        secondFrame shouldBe byteArrayOf(2)
+                        // First frame observed well before the engine call (2x 400ms) completes.
+                        elapsedAtFirst shouldBeLessThan 400
+                        elapsedAtSecond shouldBeGreaterThanOrEqual 400
+                    }
+                }
+            }
+        }
+
+        test("engine crash disconnects attached browsers instead of hanging silently") {
+            withWeb(json) {
+                val login = login()
+                val matchId = "crash-me"
+                val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
+                repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
+                    EmbeddedWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
+                }
+
+                greSocket(login, matchId) {
+                    send(Frame.Binary(fin = true, data = authRequestBytes("web-player")))
+                    // Connect references a puzzle file that doesn't exist — PuzzleHandler
+                    // throws, MatchHandler.exceptionCaught tears the match down internally.
+                    // Without the onClosed wiring the browser would just hang here forever.
+                    send(Frame.Binary(fin = true, data = connectRequestBytes(matchId, seatId = 1)))
+
+                    shouldThrow<ClosedReceiveChannelException> {
+                        while (true) incoming.receive()
+                    }
                 }
             }
         }
@@ -353,6 +448,34 @@ class WebRoutesTest :
                     cards["100"]!!.jsonObject["imageUrl"]!!.jsonPrimitive.content shouldBe
                         "https://api.scryfall.com/cards/named?exact=Alpha+Card&format=image&version=normal"
                     cards["999"]!!.jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "999"
+                }
+            }
+        }
+
+        test("serves cards by grpids, including nulls for unknown ids") {
+            withWeb(json) {
+                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999,notanumber")
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body.keys shouldBe setOf("100", "101", "999")
+                    body["100"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
+                    body["101"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
+                    body["999"]!!.jsonObject["name"] shouldBe JsonNull
+                }
+            }
+        }
+
+        test("caps an unbounded ids list on the by-grpids route") {
+            withWeb(json) {
+                val ids = (1..600).joinToString(",")
+                val response = client.get("/api/public/cards/by-grpids?ids=$ids")
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body.keys.size shouldBe 500
                 }
             }
         }
@@ -434,6 +557,77 @@ class WebRoutesTest :
             }
         }
 
+        test("starts sealed course with generated pool") {
+            withWeb(json) {
+                val login = login()
+                val response =
+                    client.post("/api/sealed/start") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                    }
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.OK
+                    body["module"]!!.jsonPrimitive.content shouldBe "DeckSelect"
+                    body["cardPool"]!!.jsonArray.size shouldBe 2
+                }
+            }
+        }
+
+        test("rejects sealed start for a non-sealed event") {
+            withWeb(json) {
+                val login = login()
+                val response =
+                    client.post("/api/sealed/start") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
+                    }
+
+                response.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("submits sealed deck, plays, and drops the course") {
+            withWeb(json) {
+                val login = login()
+                client.post("/api/sealed/start") {
+                    header(HttpHeaders.Cookie, login.cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                }
+                val deckResponse =
+                    client.post("/api/sealed/deck") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody(
+                            """
+                            {"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307","name":"Sealed Deck",
+                            "mainDeck":[{"grpId":100,"quantity":40}]}
+                            """.trimIndent(),
+                        )
+                    }
+                val playResponse =
+                    client.post("/api/sealed/play") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                    }
+                val dropResponse =
+                    client.delete("/api/sealed?playerId=${login.playerId}&eventName=Sealed_FDN_20260307") {
+                        header(HttpHeaders.Cookie, login.cookie)
+                    }
+
+                assertSoftly {
+                    deckResponse.status shouldBe HttpStatusCode.OK
+                    playResponse.status shouldBe HttpStatusCode.OK
+                    dropResponse.status shouldBe HttpStatusCode.NoContent
+                }
+            }
+        }
+
         test("auth creates and revokes opaque web session") {
             withWeb(json) {
                 val request =
@@ -470,12 +664,12 @@ class WebRoutesTest :
             val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
             val sender = DevEmailSender()
             val store = SqliteWebAuthStore(db).also { it.createTables() }
-            val service = WebAuthService(store, sender)
+            val service = WebAuthService(store, sender, DEV_WEB_AUTH_SECRET)
 
             service.requestCode("player@example.test") shouldBe StartLoginResult.Sent
             val code = checkNotNull(sender.latestCode("player@example.test"))
             val verified = service.verify("player@example.test", code) as VerifyLoginResult.Success
-            val reloadedService = WebAuthService(SqliteWebAuthStore(db), sender)
+            val reloadedService = WebAuthService(SqliteWebAuthStore(db), sender, DEV_WEB_AUTH_SECRET)
 
             reloadedService.validate(verified.token)?.playerId shouldBe verified.player.playerId
             reloadedService.logout(verified.token)
@@ -500,11 +694,17 @@ private fun withWeb(
                 courseService =
                     CourseService(
                         repos.course,
-                    ) { GeneratedPool(cards = emptyList(), byCollation = emptyList(), collationId = 0) },
+                    ) {
+                        GeneratedPool(
+                            cards = listOf(100, 101),
+                            byCollation = listOf(CollationPool(0, listOf(100, 101))),
+                            collationId = 0,
+                        )
+                    },
                 deckService = DeckService(repos.deck),
                 collectionService = CollectionService { listOf(100, 101) },
                 cardRepository = repos.cards,
-                authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender),
+                authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender, DEV_WEB_AUTH_SECRET),
                 matchLauncher =
                     object : WebMatchLauncher {
                         override fun launchGreMatch(
@@ -518,6 +718,7 @@ private fun withWeb(
                         ) = DraftPlayResponse("match-1", "wire-1")
                     },
                 greRelay = repos.relay,
+                sealedSets = { listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "core", cardCount = 281)) },
             )
         application { installWeb(services) }
         block(WebFixture(client, client.config { install(WebSockets) }, repos, json))
@@ -565,13 +766,53 @@ private class WebFixture(
     }, block)
 }
 
+private fun authRequestBytes(clientId: String): ByteArray =
+    ClientToMatchServiceMessage
+        .newBuilder()
+        .setRequestId(1)
+        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.AuthenticateRequest_f487)
+        .setPayload(
+            AuthenticateRequest
+                .newBuilder()
+                .setClientId(clientId)
+                .setPlayerName(clientId)
+                .build()
+                .toByteString(),
+        ).build()
+        .toByteArray()
+
+private fun connectRequestBytes(
+    matchId: String,
+    seatId: Int,
+): ByteArray =
+    ClientToMatchServiceMessage
+        .newBuilder()
+        .setRequestId(2)
+        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487)
+        .setPayload(
+            ClientToMatchDoorConnectRequest
+                .newBuilder()
+                .setMatchId(matchId)
+                .setClientToGreMessageBytes(
+                    ClientToGREMessage
+                        .newBuilder()
+                        .setSystemSeatId(seatId)
+                        .setType(ClientMessageType.ConnectReq_097b)
+                        .setConnectReq(ConnectReq.newBuilder())
+                        .build()
+                        .toByteString(),
+                ).build()
+                .toByteString(),
+        ).build()
+        .toByteArray()
+
 private class TestRepos {
     val course = MemoryCourseRepo()
     val draft = MemoryDraftRepo()
     val deck = MemoryDeckRepo()
     val emailSender = DevEmailSender()
     val enginePayloads = mutableListOf<ByteArray>()
-    val relay = InProcessWebGreRelay()
+    val relay = InProcessWebGreRelay(idleCloseGraceMs = 50)
     val cards =
         InMemoryCardRepository().also {
             it.registerData(
@@ -616,11 +857,10 @@ private class TestRepos {
     ) {
         relay.register(
             matchId,
-            StaticGreEngineSession(enginePayloads, reply, closed),
             ownerPlayerId = ownerPlayerId,
             publicAccess = publicAccess,
             onClose = onClose,
-        )
+        ) { onFrame, _ -> StaticGreEngineSession(enginePayloads, reply, onFrame, closed) }
     }
 }
 
@@ -688,14 +928,29 @@ private suspend fun HttpClient.roundTrip(
     }
 }
 
+/** Emits two frames [stepDelayMs] apart from within one [receiveFromBrowser] call. */
+private class SlowMultiStepGreEngineSession(
+    private val onFrame: (ByteArray) -> Unit,
+    private val stepDelayMs: Long,
+) : WebGreEngineSession {
+    override fun receiveFromBrowser(payload: ByteArray) {
+        onFrame(byteArrayOf(1))
+        LockSupport.parkNanos(stepDelayMs * 1_000_000)
+        onFrame(byteArrayOf(2))
+    }
+
+    override fun close() = Unit
+}
+
 private class StaticGreEngineSession(
     private val received: MutableList<ByteArray>,
     private val reply: ByteArray,
+    private val onFrame: (ByteArray) -> Unit,
     private val closed: AtomicBoolean = AtomicBoolean(false),
 ) : WebGreEngineSession {
-    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+    override fun receiveFromBrowser(payload: ByteArray) {
         received += payload
-        return listOf(reply)
+        onFrame(reply)
     }
 
     override fun close() {
@@ -703,18 +958,20 @@ private class StaticGreEngineSession(
     }
 }
 
-private class ConcurrentProbeGreEngineSession : WebGreEngineSession {
+private class ConcurrentProbeGreEngineSession(
+    private val onFrame: (ByteArray) -> Unit,
+) : WebGreEngineSession {
     val receivedCount = AtomicInteger(0)
     val maxConcurrent = AtomicInteger(0)
     private val active = AtomicInteger(0)
 
-    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+    override fun receiveFromBrowser(payload: ByteArray) {
         val nowActive = active.incrementAndGet()
         maxConcurrent.updateAndGet { current -> maxOf(current, nowActive) }
         try {
             LockSupport.parkNanos(50_000_000)
             receivedCount.incrementAndGet()
-            return listOf(payload)
+            onFrame(payload)
         } finally {
             active.decrementAndGet()
         }

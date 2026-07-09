@@ -591,7 +591,8 @@ object AnnotationBuilder {
     // -- Group B annotation builders --
 
     /** Token was created. client type 35 (TokenCreated).
-     *  [instanceId] = the new token's instanceId in the game state. */
+     *  [instanceId] = the new token's instanceId in the game state.
+     *  [affectorId] = the resolving spell or stack ability that created it. */
     fun tokenCreated(
         instanceId: InstanceId,
         affectorId: InstanceId? = null,

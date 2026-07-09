@@ -2,10 +2,23 @@ package leyline.web
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.ktor.server.websocket.DefaultWebSocketServerSession
+import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
+import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.send
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.ChannelOutboundHandlerAdapter
+import io.netty.channel.ChannelPromise
 import io.netty.channel.embedded.EmbeddedChannel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import leyline.config.MatchConfig
@@ -16,18 +29,26 @@ import leyline.game.data.CardRepository
 import leyline.match.MatchHandler
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.ConcurrentHashMap
 
 private val relayLog = LoggerFactory.getLogger("leyline.web.WebGreRelay")
 
 interface WebGreRelay {
+    /**
+     * Register (or replace) the engine driving [matchId]. [engineFactory] is
+     * called with a frame sink and a close signal instead of receiving a
+     * pre-built [WebGreEngineSession] — the relay owns both so it can stream
+     * frames to attached browsers as the engine writes them, not only after
+     * a browser-driven call returns.
+     */
     fun register(
         matchId: String,
-        engine: WebGreEngineSession,
         ownerPlayerId: PlayerId? = null,
         publicAccess: Boolean = false,
         onClose: () -> Unit = {},
+        engineFactory: (onFrame: (ByteArray) -> Unit, onClosed: () -> Unit) -> WebGreEngineSession,
     )
 
     suspend fun attach(
@@ -38,22 +59,37 @@ interface WebGreRelay {
 }
 
 interface WebGreEngineSession {
-    fun receiveFromBrowser(payload: ByteArray): List<ByteArray>
+    /**
+     * Feed one inbound browser frame to the engine. Outbound frames the
+     * engine produces while processing this — on the caller's thread or on a
+     * background engine thread (AI-turn playback, auto-advance) — are pushed
+     * to the `onFrame` sink supplied at construction as they're written, not
+     * collected and returned once this call unblocks.
+     */
+    fun receiveFromBrowser(payload: ByteArray)
 
     fun close()
 }
 
-class InProcessWebGreRelay : WebGreRelay {
+class InProcessWebGreRelay(
+    /**
+     * How long a match engine survives with no attached browsers. A page
+     * reload or transient socket drop detaches for a moment — closing the
+     * engine immediately would destroy the match before the browser can
+     * re-attach and resync.
+     */
+    private val idleCloseGraceMs: Long = 60_000L,
+) : WebGreRelay {
     private val sessions = ConcurrentHashMap<String, RelaySession>()
 
     override fun register(
         matchId: String,
-        engine: WebGreEngineSession,
         ownerPlayerId: PlayerId?,
         publicAccess: Boolean,
         onClose: () -> Unit,
+        engineFactory: (onFrame: (ByteArray) -> Unit, onClosed: () -> Unit) -> WebGreEngineSession,
     ) {
-        sessions.computeIfAbsent(matchId) { RelaySession() }.configure(engine, ownerPlayerId, publicAccess, onClose)
+        sessions.computeIfAbsent(matchId) { RelaySession() }.configure(engineFactory, ownerPlayerId, publicAccess, onClose)
     }
 
     override suspend fun attach(
@@ -65,16 +101,31 @@ class InProcessWebGreRelay : WebGreRelay {
         val canDrive = relaySession.canDrive(playerId)
         if (!relaySession.canAttach(playerId)) return false
         relaySession.attach(session, canDrive)
-        if (relaySession.closeIfIdle()) {
-            sessions.remove(matchId, relaySession)
-        }
+        relaySession.scheduleIdleClose(idleCloseGraceMs) { sessions.remove(matchId, relaySession) }
         return true
     }
 
-    private class RelaySession {
+    /**
+     * One match's relay state: attached browsers, the live engine, and the
+     * streaming pump between them.
+     *
+     * The pump is a single long-lived coroutine draining [outbound] — a
+     * frame the engine hands to its sink (from any thread) lands in this
+     * channel and reaches attached browsers on the pump's own schedule,
+     * independent of whatever browser-driven call is currently blocked
+     * inside [WebGreEngineSession.receiveFromBrowser]. That decoupling is
+     * the whole point: a multi-second engine call (AI turn, puzzle
+     * auto-pass) no longer holds every frame it produces hostage until it
+     * returns.
+     */
+    private class RelaySession(
+        dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    ) {
         private val lock = Mutex()
         private val engineLock = Mutex()
         private val browsers = mutableMapOf<DefaultWebSocketServerSession, Boolean>()
+        private val outbound = Channel<ByteArray>(Channel.UNLIMITED)
+        private val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
         @Volatile var engine: WebGreEngineSession? = null
 
@@ -86,14 +137,27 @@ class InProcessWebGreRelay : WebGreRelay {
 
         @Volatile private var onClose: () -> Unit = {}
 
+        init {
+            scope.launch {
+                for (frame in outbound) {
+                    val targets = lock.withLock { browsers.keys.toList() }
+                    targets.forEach { target -> runCatching { target.send(Frame.Binary(fin = true, data = frame)) } }
+                }
+            }
+        }
+
         fun configure(
-            engine: WebGreEngineSession,
+            engineFactory: (onFrame: (ByteArray) -> Unit, onClosed: () -> Unit) -> WebGreEngineSession,
             ownerPlayerId: PlayerId?,
             publicAccess: Boolean,
             onClose: () -> Unit,
         ) {
             this.engine?.close()
-            this.engine = engine
+            this.engine =
+                engineFactory(
+                    { bytes -> outbound.trySend(bytes) },
+                    { scope.launch { disconnectBrowsers() } },
+                )
             this.ownerPlayerId = ownerPlayerId
             this.publicAccess = publicAccess
             this.onClose = onClose
@@ -116,7 +180,13 @@ class InProcessWebGreRelay : WebGreRelay {
             try {
                 for (frame in session.incoming) {
                     when (frame) {
-                        is Frame.Binary -> if (canDrive) dispatchToEngine(frame.readBytes())
+                        // Read-only viewers still need Auth + Connect to reach the
+                        // engine — the connect handshake is what makes it emit the
+                        // spectator bundle. Only drivers get game messages through.
+                        is Frame.Binary -> {
+                            val payload = frame.readBytes()
+                            if (canDrive || isHandshake(payload)) dispatchToEngine(payload)
+                        }
                         is Frame.Close -> break
                         is Frame.Text -> Unit
                         is Frame.Ping -> Unit
@@ -125,6 +195,28 @@ class InProcessWebGreRelay : WebGreRelay {
                 }
             } finally {
                 lock.withLock { browsers.remove(session) }
+            }
+        }
+
+        private fun isHandshake(payload: ByteArray): Boolean {
+            val type =
+                try {
+                    ClientToMatchServiceMessage.parseFrom(payload).clientToMatchServiceMessageType
+                } catch (_: InvalidProtocolBufferException) {
+                    return false
+                }
+            return type == ClientToMatchServiceMessageType.AuthenticateRequest_f487 ||
+                type == ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487
+        }
+
+        /** After [graceMs] with no attached browsers, close the engine and run [onRemoved]. */
+        fun scheduleIdleClose(
+            graceMs: Long,
+            onRemoved: () -> Unit,
+        ) {
+            scope.launch {
+                if (graceMs > 0) delay(graceMs)
+                if (closeIfIdle()) onRemoved()
             }
         }
 
@@ -139,25 +231,21 @@ class InProcessWebGreRelay : WebGreRelay {
                 }
             engineToClose.close()
             onClose()
+            scope.cancel()
+            outbound.close()
             return true
         }
 
-        private suspend fun dispatchToEngine(payload: ByteArray) {
-            val replies = engineLock.withLock { engine?.receiveFromBrowser(payload).orEmpty() }
-            if (replies.isEmpty()) return
+        /** Notify attached browsers that the engine is gone — e.g. it crashed mid-match. */
+        private suspend fun disconnectBrowsers() {
             val targets = lock.withLock { browsers.keys.toList() }
-            broadcast(replies, targets)
+            targets.forEach { target ->
+                runCatching { target.close(CloseReason(CloseReason.Codes.INTERNAL_ERROR, "match engine closed")) }
+            }
         }
 
-        private suspend fun broadcast(
-            replies: List<ByteArray>,
-            targets: List<DefaultWebSocketServerSession>,
-        ) {
-            for (reply in replies) {
-                for (target in targets) {
-                    target.send(Frame.Binary(fin = true, data = reply))
-                }
-            }
+        private suspend fun dispatchToEngine(payload: ByteArray) {
+            engineLock.withLock { engine?.receiveFromBrowser(payload) }
         }
     }
 }
@@ -167,9 +255,12 @@ class EmbeddedWebGreEngineSession(
     coordinator: MatchCoordinator,
     cardRepository: CardRepository,
     runtimeMatchConfigs: RuntimeMatchConfigRegistry,
+    onFrame: (ByteArray) -> Unit,
+    onClosed: () -> Unit = {},
 ) : WebGreEngineSession {
     private val channel =
         EmbeddedChannel(
+            OutboundFrameForwarder(onFrame),
             MatchHandler(
                 matchConfig = matchConfig,
                 coordinator = coordinator,
@@ -178,16 +269,26 @@ class EmbeddedWebGreEngineSession(
             ),
         )
 
+    /**
+     * Set before a deliberate [close] (idle cleanup, engine replacement) so the
+     * [ChannelFuture][io.netty.channel.ChannelFuture] listener below can tell
+     * that apart from the channel closing itself out from under us — e.g.
+     * [leyline.match.MatchHandler.exceptionCaught] tearing the match down
+     * after an internal crash. Only the latter should trigger [onClosed].
+     */
+    @Volatile private var closedExplicitly = false
+
     init {
         channel.pipeline().fireChannelActive()
+        channel.closeFuture().addListener { if (!closedExplicitly) onClosed() }
     }
 
-    override fun receiveFromBrowser(payload: ByteArray): List<ByteArray> {
+    override fun receiveFromBrowser(payload: ByteArray) {
         val inbound =
             try {
                 ClientToMatchServiceMessage.parseFrom(payload)
             } catch (_: InvalidProtocolBufferException) {
-                return emptyList()
+                return
             }
         channel.writeInbound(inbound)
         channel.runPendingTasks()
@@ -199,16 +300,31 @@ class EmbeddedWebGreEngineSession(
         } catch (e: Throwable) {
             relayLog.error("Embedded GRE engine error while handling client message", e)
         }
-
-        val replies = mutableListOf<ByteArray>()
-        while (true) {
-            val outbound = channel.readOutbound<MatchServiceToClientMessage>() ?: break
-            replies += outbound.toByteArray()
-        }
-        return replies
     }
 
     override fun close() {
+        closedExplicitly = true
         channel.close()
+    }
+}
+
+/**
+ * Forwards each [MatchServiceToClientMessage] the engine writes straight to
+ * [onFrame] instead of letting it sit in the [EmbeddedChannel]'s default
+ * outbound queue — the queue is only ever drained by an explicit
+ * `readOutbound()` call, so without this a message written from a
+ * background engine thread (AI-turn playback, auto-advance) between browser
+ * requests would sit unread until the next one arrived, or forever.
+ */
+private class OutboundFrameForwarder(
+    private val onFrame: (ByteArray) -> Unit,
+) : ChannelOutboundHandlerAdapter() {
+    override fun write(
+        ctx: ChannelHandlerContext,
+        msg: Any,
+        promise: ChannelPromise,
+    ) {
+        if (msg is MatchServiceToClientMessage) onFrame(msg.toByteArray())
+        promise.setSuccess()
     }
 }

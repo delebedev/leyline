@@ -20,6 +20,9 @@ import java.nio.charset.StandardCharsets
 
 internal fun Route.installCardRoutes(services: WebServices) {
     route("/cards") {
+        get("/metadata") {
+            call.respond(cardMetadataView(services.cardRepository))
+        }
         get("/search") {
             val query = call.requiredQuery("q")
             require(query.length >= 2) { "query too short (min 2 chars)" }
@@ -49,11 +52,27 @@ internal fun Route.installPublicCardRoutes(services: WebServices) {
     }
 }
 
+private fun cardMetadataView(cardRepository: CardRepository): CardMetadataView =
+    CardMetadataView(
+        cardRepository
+            .findAllGrpIds()
+            .sorted()
+            .map { grpId -> CardMetadataEntry(grpId = grpId, name = cardRepository.findNameByGrpId(grpId)) },
+    )
+
+/** Cap the `ids` query list so an unbounded CSV can't force a huge repository scan. */
+private const val MAX_CARDS_BY_GRPIDS = 500
+
 private fun cardMetadataByGrpIds(
     cardRepository: CardRepository,
     rawIds: String?,
 ): Map<Int, GreCardMetaDto> {
-    val ids = rawIds?.split(',')?.mapNotNull { it.trim().toIntOrNull() }?.distinct()
+    val ids =
+        rawIds
+            ?.split(',')
+            ?.mapNotNull { it.trim().toIntOrNull() }
+            ?.distinct()
+            ?.take(MAX_CARDS_BY_GRPIDS)
     require(!ids.isNullOrEmpty()) { "ids is required" }
     return ids.associateWith { grpId -> cardRepository.cardMeta(grpId) }
 }

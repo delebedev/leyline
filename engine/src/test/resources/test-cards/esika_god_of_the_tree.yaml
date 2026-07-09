@@ -1,0 +1,16 @@
+name: "Esika, God of the Tree"
+grpId: 75212
+titleId: 477554
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 1055
+    textId: 227440
+    category: 1
+  - id: 140040
+    textId: 477556
+    category: 3
+expansionCode: "KHM"
+linkedFaces:
+  - 75213

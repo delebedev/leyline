@@ -1,0 +1,13 @@
+name: "Thunder Magic"
+grpId: 96031
+titleId: 928285
+abilities:
+  - id: 189322
+    textId: 928296
+    category: 4
+    baseId: 365
+    modalChildren:
+      - 189319
+      - 189320
+      - 189321
+expansionCode: "FIN"

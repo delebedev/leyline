@@ -173,8 +173,9 @@ object MechanicAnnotations {
                 }
                 is GameEvent.TokenCreated -> {
                     val instanceId = idResolver(ev.cardId)
-                    annotations.add(AnnotationBuilder.tokenCreated(instanceId, affectorId = tokenAffectorResolver(ev)))
-                    log.debug("mechanic: tokenCreated iid={}", instanceId.value)
+                    val affectorId = tokenAffectorResolver(ev)
+                    annotations.add(AnnotationBuilder.tokenCreated(instanceId, affectorId))
+                    log.debug("mechanic: tokenCreated iid={} affector={}", instanceId.value, affectorId?.value)
                 }
                 is GameEvent.TokenDestroyed -> {
                     val instanceId = idResolver(ev.cardId)

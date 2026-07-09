@@ -1192,7 +1192,7 @@ class PlayerController(
     }
 
     /**
-     * For an SP$ Charm SA (Charm or Spree), compute possible/excluded mappings
+     * For an SP$ Charm SA (Charm, Spree, Tiered), compute possible/excluded mappings
      * into the unfiltered Choices list plus per-mode costs parsed from Forge's
      * `ModeCost$` SVar. Returns `(null, null, null, null)` when:
      *   - the SA has no `getAdditionalAbilityList("Choices")` (not a Charm)
@@ -1233,7 +1233,7 @@ class PlayerController(
     }
 
     /**
-     * Parse Forge's `ModeCost$` text (e.g. `"1 U"`, `"3"`, `"2 R"`) into
+     * Parse Forge's `ModeCost$` text (e.g. `"0"`, `"3"`, `"2 R"`) into
      * (ManaColor, count) pairs. Tokenizer differs from card-DB OldSchoolManaText
      * (whitespace vs. `o` prefix) but the single-symbol vocabulary is shared via
      * [manaTokenToPair]. Empty/null returns empty list (Charm-style cost-free mode).
@@ -1242,6 +1242,10 @@ class PlayerController(
         if (text.isNullOrBlank()) return emptyList()
         val counts = mutableMapOf<ManaColor, Int>()
         for (token in text.trim().split(Regex("\\s+"))) {
+            if (token == "0") {
+                counts[ManaColor.Generic] = 0
+                continue
+            }
             val pair = manaTokenToPair(token) ?: continue
             counts.merge(pair.first, pair.second, Int::plus)
         }

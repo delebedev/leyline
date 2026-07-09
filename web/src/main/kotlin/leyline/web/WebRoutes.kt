@@ -8,6 +8,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.origin
 import io.ktor.server.plugins.statuspages.StatusPages
@@ -52,8 +53,9 @@ data class WebServices(
     val collectionService: CollectionService,
     val cardRepository: CardRepository,
     val matchLauncher: WebMatchLauncher,
+    val authService: WebAuthService,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
-    val authService: WebAuthService = WebAuthService(InMemoryWebAuthStore(), DevEmailSender()),
+    val sealedSets: () -> List<LimitedSetView> = { emptyList() },
     val puzzleCatalog: () -> List<PuzzleSummaryView> = { defaultPuzzleCatalog() },
 )
 
@@ -94,12 +96,7 @@ fun Application.installWeb(services: WebServices) {
             },
         )
     }
-    install(StatusPages) {
-        exception<IllegalArgumentException> { call, cause ->
-            call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
-        }
-        exception<UnauthorizedPlayer> { _, _ -> }
-    }
+    installErrorHandling()
     install(WebSockets)
     routing {
         installGreSocket(services)
@@ -122,9 +119,6 @@ fun Application.installWeb(services: WebServices) {
                             .sorted(),
                     ),
                 )
-            }
-            get("/sealed/sets") {
-                call.respond(listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "draft", cardCount = 0)))
             }
             installCardRoutes(services)
             route("/courses") {
@@ -155,6 +149,25 @@ fun Application.installWeb(services: WebServices) {
                 }
             }
             installDraftRoutes(services)
+            installSealedRoutes(services)
+        }
+    }
+}
+
+private fun Application.installErrorHandling() {
+    install(StatusPages) {
+        exception<IllegalArgumentException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
+        }
+        exception<UnauthorizedPlayer> { _, _ -> }
+        exception<Throwable> { call, cause ->
+            call.application.log.error(
+                "Unhandled error on {} {}",
+                call.request.local.method.value,
+                call.request.local.uri,
+                cause,
+            )
+            call.respond(HttpStatusCode.InternalServerError, "Internal error")
         }
     }
 }
@@ -231,6 +244,51 @@ private fun Route.installDraftRoutes(services: WebServices) {
             val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
             services.draftService.drop(playerId, eventName)
+            services.courseService.drop(playerId, eventName)
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+}
+
+/**
+ * Sealed's course-lifecycle shape mirrors draft's (start/deck/play/drop) minus
+ * pack picking — [CourseService.join] already generates and persists the pool
+ * for a sealed eventName, so start is a thin wrapper around it. Status reads
+ * go through the existing `/api/courses` list rather than a duplicate route,
+ * since sealed courses (unlike draft sessions) live in [CourseService] alone.
+ */
+private fun Route.installSealedRoutes(services: WebServices) {
+    route("/sealed") {
+        get("/sets") {
+            call.respond(services.sealedSets())
+        }
+        post("/start") {
+            val request = call.receive<StartDraftRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            require(EventRegistry.isSealed(request.eventName)) { "${request.eventName} is not a sealed event" }
+            call.respond(courseView(services.courseService.join(playerId, request.eventName)))
+        }
+        post("/deck") {
+            val request = call.receive<SubmitDeckRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
+            val course =
+                services.courseService.setDeck(
+                    playerId,
+                    request.eventName,
+                    request.toCourseDeck(),
+                    request.toCourseSummary(),
+                )
+            call.respond(courseView(course))
+        }
+        post("/play") {
+            val request = call.receive<PlayDraftRequest>()
+            val playerId = call.ownedPlayerId(services, request.playerId)
+            call.respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
+        }
+        delete {
+            val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
+            val eventName = call.requiredQuery("eventName")
             services.courseService.drop(playerId, eventName)
             call.respond(HttpStatusCode.NoContent)
         }
