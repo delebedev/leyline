@@ -8,6 +8,7 @@ import leyline.game.data.BasicLandAbilities
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
+import leyline.game.event.ZoneMove
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.Foretell
@@ -89,6 +90,12 @@ data class StackAbilityDisappearance(
     val hasFizzled: Boolean,
 )
 
+data class SnapshotTransferFallback(
+    val forgeCardId: ForgeCardId?,
+    val srcZoneId: Int,
+    val destZoneId: Int,
+)
+
 /**
  * Result of zone-transfer detection.
  *
@@ -116,6 +123,8 @@ data class TransferResult(
      * Empty when no zone transfers occurred.
      */
     val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
+    /** Degraded transfers with no matching ordered Forge zone operation. */
+    val snapshotFallbacks: List<SnapshotTransferFallback> = emptyList(),
 )
 
 internal data class ZoneTransferContext(
@@ -133,6 +142,8 @@ internal data class ZoneTransferContext(
     /** True when a Forge card with this id exists. */
     val forgeCardKnown: (ForgeCardId) -> Boolean = { true },
     val paradigmSourceIidLookup: (ForgeCardId) -> Int? = { null },
+    val zoneMoves: List<ZoneMove> = emptyList(),
+    val useEventLedger: Boolean = false,
 )
 
 /**
@@ -159,6 +170,8 @@ object ZoneTransferDetector {
         zones: List<ZoneInfo>,
         bridge: GameBridge,
         events: List<GameEvent>,
+        zoneMoves: List<ZoneMove> = emptyList(),
+        useEventLedger: Boolean = false,
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
         bridge.recordPendingSpellCasts(events)
@@ -221,6 +234,8 @@ object ZoneTransferDetector {
                             bridge.getGame()?.let { findCard(it, fid) } != null
                         },
                         paradigmSourceIidLookup = { fid -> bridge.paradigmSourceStackIidFor(fid) },
+                        zoneMoves = zoneMoves,
+                        useEventLedger = useEventLedger,
                     ),
             )
         result.transfers
@@ -267,11 +282,13 @@ object ZoneTransferDetector {
         val pendingSpellResolutionLookup = context.pendingSpellResolutionLookup
         val forgeCardKnown = context.forgeCardKnown
         val paradigmSourceIidLookup = context.paradigmSourceIidLookup
+        val ledgerIntents = ZoneMoveLedger.fold(context.zoneMoves, events)
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
         val transfers = mutableListOf<AppliedTransfer>()
         val retiredIds = mutableListOf<Int>()
         val zoneRecordings = mutableListOf<Pair<Int, Int>>()
+        val snapshotFallbacks = mutableListOf<SnapshotTransferFallback>()
 
         for (i in patchedObjects.indices) {
             val obj = patchedObjects[i]
@@ -313,10 +330,27 @@ object ZoneTransferDetector {
                         when {
                             pendingResolution?.hasFizzled == true -> TransferCategory.Countered
                             pendingResolution != null -> TransferCategory.Resolve
-                            else -> categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
+                            else ->
+                                categoryForTransfer(
+                                    obj,
+                                    prevZone,
+                                    obj.zoneId,
+                                    forgeCardId,
+                                    events,
+                                    ledgerIntents,
+                                    context.useEventLedger,
+                                )
                         }
                     } else {
-                        categoryForTransfer(obj, prevZone, obj.zoneId, forgeCardId, events)
+                        categoryForTransfer(
+                            obj,
+                            prevZone,
+                            obj.zoneId,
+                            forgeCardId,
+                            events,
+                            ledgerIntents,
+                            context.useEventLedger,
+                        )
                     }
                 // Foretell override: a Hand→Exile transfer where the destination card
                 // is foretold (Card.foretold==true && Card.isInZone(Exile)) is the
@@ -331,6 +365,17 @@ object ZoneTransferDetector {
                     } else {
                         baseCategory
                     }
+                if (forgeCardId == null || ledgerIntents.none { it.matches(forgeCardId, prevZone, obj.zoneId) }) {
+                    snapshotFallbacks.add(SnapshotTransferFallback(forgeCardId, prevZone, obj.zoneId))
+                    if (context.useEventLedger) {
+                        log.warn(
+                            "snapshot transfer fallback card={} {}->{}",
+                            forgeCardId,
+                            prevZone,
+                            obj.zoneId,
+                        )
+                    }
+                }
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
                 val handoff =
@@ -491,6 +536,8 @@ object ZoneTransferDetector {
         // GameObjectInfo for the main loop to inspect.
         detectZoneOnlyTransfers(
             events,
+            ledgerIntents,
+            context.useEventLedger,
             previousZones,
             gameObjectIds,
             patchedZones,
@@ -569,6 +616,7 @@ object ZoneTransferDetector {
             zoneRecordings,
             stackAbilityAppearances = appearances,
             stackAbilityDisappearances = disappearances,
+            snapshotFallbacks = snapshotFallbacks,
         )
     }
 
@@ -818,11 +866,28 @@ object ZoneTransferDetector {
         destZone: Int,
         forgeCardId: ForgeCardId?,
         events: List<GameEvent>,
+        ledgerIntents: List<ZoneMoveIntent> = emptyList(),
+        useEventLedger: Boolean = false,
     ): TransferCategory {
         if (srcZone == ZoneIds.STACK && destZone == ZoneIds.EXILE && isParadigmStackSpell(obj, forgeCardId, events)) {
             return TransferCategory.Exile
         }
-        return eventOrInferredCategory(forgeCardId, events, obj, srcZone, destZone)
+        val legacy = eventOrInferredCategory(forgeCardId, events, obj, srcZone, destZone)
+        val eventFirst =
+            forgeCardId?.let { cardId ->
+                ledgerIntents.firstOrNull { it.matches(cardId, srcZone, destZone) }?.category
+            }
+        if (eventFirst != null && eventFirst != legacy) {
+            log.debug(
+                "zone ledger shadow mismatch card={} {}->{} eventFirst={} legacy={}",
+                forgeCardId,
+                srcZone,
+                destZone,
+                eventFirst,
+                legacy,
+            )
+        }
+        return if (useEventLedger && eventFirst != null) eventFirst else legacy
     }
 
     private fun isParadigmStackSpell(
@@ -960,6 +1025,8 @@ object ZoneTransferDetector {
     @Suppress("LongParameterList")
     private fun detectZoneOnlyTransfers(
         events: List<GameEvent>,
+        ledgerIntents: List<ZoneMoveIntent>,
+        useEventLedger: Boolean,
         previousZones: Map<Int, Int>,
         gameObjectIds: Set<Int>,
         patchedZones: MutableList<ZoneInfo>,
@@ -1033,7 +1100,16 @@ object ZoneTransferDetector {
                 )
                 continue
             }
-            val category = categoryForTransfer(GameObjectInfo.getDefaultInstance(), prevZone, destZone, forgeCardId, events)
+            val category =
+                categoryForTransfer(
+                    GameObjectInfo.getDefaultInstance(),
+                    prevZone,
+                    destZone,
+                    forgeCardId,
+                    events,
+                    ledgerIntents,
+                    useEventLedger,
+                )
             val spellCastEvent =
                 if (category == TransferCategory.CastSpell) {
                     events
