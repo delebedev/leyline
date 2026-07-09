@@ -106,6 +106,23 @@ class ForgeZoneOperationContextTest :
             game.action.destroy(destroyed, cause, false, AbilityKey.newMap())
             probe.operationEventsFor(destroyed) shouldContainExactly
                 listOf(GameEventCardDestroyed::class.java, GameEventCardChangeZone::class.java)
+            assertSoftly {
+                probe
+                    .destroyed()
+                    .single()
+                    .card()
+                    .id shouldBe destroyed.id
+                probe
+                    .destroyed()
+                    .single()
+                    .cause()
+                    ?.sourceCardId() shouldBe source.id
+                probe
+                    .destroyed()
+                    .single()
+                    .cause()
+                    ?.abilityId() shouldBe cause.id
+            }
 
             probe.clear()
             val sacrificed =
@@ -117,6 +134,18 @@ class ForgeZoneOperationContextTest :
             game.action.sacrifice(CardCollection(sacrificed), cause, true, game.lastStateParams())
             probe.operationEventsFor(sacrificed) shouldContainExactly
                 listOf(GameEventCardSacrificed::class.java, GameEventCardChangeZone::class.java)
+            assertSoftly {
+                probe
+                    .sacrificed()
+                    .single()
+                    .cause()
+                    ?.sourceCardId() shouldBe source.id
+                probe
+                    .sacrificed()
+                    .single()
+                    .cause()
+                    ?.costPayment() shouldBe false
+            }
         }
 
         test("cost payment context is live while the zone event fires") {
@@ -163,6 +192,11 @@ class ForgeZoneOperationContextTest :
                     ?.abilityId() shouldBe cause.id
                 probe
                     .zoneChanges()
+                    .single()
+                    .cause()
+                    ?.costPayment() shouldBe true
+                probe
+                    .sacrificed()
                     .single()
                     .cause()
                     ?.costPayment() shouldBe true
@@ -217,11 +251,21 @@ class ForgeZoneOperationContextTest :
             game.putSpellOnStack(spell, ability)
             probe.castEventsFor(spell) shouldContainExactly
                 listOf(GameEventCardChangeZone::class.java, GameEventSpellAbilityCast::class.java)
+            probe
+                .casts()
+                .single()
+                .cause()
+                ?.abilityId() shouldBe ability.id
 
             probe.clear()
             game.stack.resolveStack()
             probe.resolveEventsFor(spell) shouldContainExactly
                 listOf(GameEventSpellResolved::class.java, GameEventCardChangeZone::class.java)
+            probe
+                .resolved()
+                .single()
+                .cause()
+                ?.abilityId() shouldBe ability.id
             probe
                 .zoneChanges()
                 .single { it.card().id == spell.id }
@@ -246,6 +290,11 @@ class ForgeZoneOperationContextTest :
 
             probe.resolveEventsFor(spell) shouldContainExactly
                 listOf(GameEventCardChangeZone::class.java, GameEventSpellResolved::class.java)
+            probe
+                .resolved()
+                .single()
+                .cause()
+                ?.abilityId() shouldBe ability.id
         }
     })
 
@@ -294,6 +343,14 @@ private class ZoneEventProbe(
     }
 
     fun zoneChanges(): List<GameEventCardChangeZone> = events.filterIsInstance<GameEventCardChangeZone>()
+
+    fun destroyed(): List<GameEventCardDestroyed> = events.filterIsInstance<GameEventCardDestroyed>()
+
+    fun sacrificed(): List<GameEventCardSacrificed> = events.filterIsInstance<GameEventCardSacrificed>()
+
+    fun casts(): List<GameEventSpellAbilityCast> = events.filterIsInstance<GameEventSpellAbilityCast>()
+
+    fun resolved(): List<GameEventSpellResolved> = events.filterIsInstance<GameEventSpellResolved>()
 
     fun operationEventsFor(card: Card): List<Class<out ForgeGameEvent>> =
         events
