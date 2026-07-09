@@ -130,15 +130,15 @@ scenarios:
             - battlefield_stats_at_least: { side: ours, card: Honored Dreyleader, power: 2, toughness: 2 }
   - id: forage-camellia-food
     puzzle: forage-camellia-food
-    run: activate Camellia by sacrificing Gingerbrute as Food
-    expect: Gingerbrute is sacrificed and Honored Dreyleader gets a counter
+    run: activate Camellia by sacrificing Golden Egg as Food
+    expect: Golden Egg is sacrificed and Honored Dreyleader gets a counter
     steps:
       - expect:
           action: { type: activate, card: "Camellia, the Seedmiser" }
       - activate: "Camellia, the Seedmiser"
-      - select_cost: { zone: battlefield, cards: [Gingerbrute] }
+      - select_cost: { zone: battlefield, cards: [Golden Egg] }
       - resolve_stack: {}
       - expect:
           all:
-            - zone_contains: { side: ours, zone: graveyard, card: Gingerbrute }
+            - zone_contains: { side: ours, zone: graveyard, card: Golden Egg }
             - battlefield_stats_at_least: { side: ours, card: Honored Dreyleader, power: 3, toughness: 3 }
