@@ -167,13 +167,15 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventLandPlayed) {
         val seat = seatOf(ev.player()) ?: return
+        val land = ev.land()
+        val liveLand = bridge.findCard(ForgeCardId(land.id))
         val colorOrdinals =
-            bridge
-                .findCard(ForgeCardId(ev.land().id))
+            liveLand
                 ?.let(::computeColorOrdinals)
                 ?: emptyList()
-        frame.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
-        log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
+        val isMdfc = liveLand?.isModal == true && liveLand.currentStateName == CardStateName.Backside
+        frame.add(GameEvent.LandPlayed(ForgeCardId(land.id), seat, colorOrdinals, isMdfc = isMdfc))
+        log.debug("event: LandPlayed card={} seat={} colors={} mdfc={}", land.name, seat, colorOrdinals, isMdfc)
     }
 
     @Suppress("CyclomaticComplexMethod", "LongMethod")
@@ -199,6 +201,7 @@ class GameEventCollector(
                 realCard.isAdventureCard &&
                 realCard.currentStateName == CardStateName.Secondary
         val isOmen = topSa?.isOmen == true
+        val isMdfc = topSa?.hostCard?.isModal == true && topSa.cardStateName == CardStateName.Backside
         // Alt-cost detection. Most keywords surface as a Forge AlternativeCost;
         // Cleave is script-level (`PrecostDesc$ Cleave`) on a non-basic spell SA.
         // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
@@ -287,6 +290,7 @@ class GameEventCollector(
                 manaPayments = payments,
                 isAdventure = isAdventure,
                 isOmen = isOmen,
+                isMdfc = isMdfc,
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 castAbilityGrpId = castAbilityGrpId,
                 stackInstanceId = paradigmCopyStackIid,
