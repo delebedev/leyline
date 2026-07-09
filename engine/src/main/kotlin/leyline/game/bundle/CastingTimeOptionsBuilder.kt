@@ -45,17 +45,18 @@ object CastingTimeOptionsBuilder {
                 .setAbilityGrpId(parentGrpId)
                 .setMinSel(minSel)
                 .setMaxSel(maxSel)
+        var modeCostId = 1
         for ((i, childGrpId) in childGrpIds.withIndex()) {
             val opt = ModalOption.newBuilder().setGrpId(childGrpId)
             modalCosts?.getOrNull(i)?.forEach { (color, count) ->
-                opt.addModeCost(buildManaCost(color, count))
+                opt.addModeCost(buildManaCost(color, count, modeCostId++))
             }
             modalReq.addModalOptions(opt)
         }
         for ((i, exGrpId) in excludedGrpIds.withIndex()) {
             val opt = ModalOption.newBuilder().setGrpId(exGrpId)
             excludedCosts.getOrNull(i)?.forEach { (color, count) ->
-                opt.addModeCost(buildManaCost(color, count))
+                opt.addModeCost(buildManaCost(color, count, modeCostId++))
             }
             modalReq.addExcludedOptions(opt)
         }
@@ -82,9 +83,11 @@ object CastingTimeOptionsBuilder {
     private fun buildManaCost(
         color: ManaColor,
         count: Int,
+        id: Int,
     ): Cost =
         Cost
             .newBuilder()
+            .setId(id)
             .setType(CostType.Mana)
             .setManaCost(
                 ManaCost

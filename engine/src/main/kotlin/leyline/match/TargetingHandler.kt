@@ -682,7 +682,7 @@ class TargetingHandler(
         }
 
         // Resolve per-mode grpIds. When the bridge supplies full-list indices
-        // (Spree path, and any Charm cast where Forge filtered at least one
+        // (Spree/Tiered paths, and any Charm cast where Forge filtered at least one
         // mode), translate via card-DB childGrpIds — keeps the modal ordering
         // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
         // (legacy Charm-with-all-modes-legal path).
@@ -704,7 +704,7 @@ class TargetingHandler(
         } else {
             // Silent fallback: bridge populated full-list indices but they fell
             // outside card-DB childGrpIds (Forge SVar count vs. card-DB
-            // modalChildIds count drift). Spree-style picked-mode mapping will
+            // modalChildIds count drift). Modal-cost picked-mode mapping will
             // regress here. Loud in tests, soft in prod.
             if (possibleFullIndices != null) {
                 DevCheck.fail {
@@ -731,7 +731,7 @@ class TargetingHandler(
                 sourceInstanceId = sourceInstanceId,
                 grpId = ctoGrpId,
                 ctoId = ctoId,
-                playerIdToPrompt = if (isTriggered) counters.seatId.value else null,
+                playerIdToPrompt = counters.seatId.value,
             )
 
         // Save pending state for response mapping. Store the *effective* child
