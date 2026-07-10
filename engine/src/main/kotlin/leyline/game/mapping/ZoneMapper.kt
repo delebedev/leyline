@@ -450,6 +450,26 @@ object ZoneMapper {
             .setVisibility(visibility)
             .build()
 
+    /**
+     * Forge stores cards in arrival order. Public discard zones are projected
+     * newest-first for the client while all engine-side ordering stays intact.
+     */
+    internal fun clientOrderedZone(zone: ZoneInfo): ZoneInfo {
+        if (zone.zoneId !in clientNewestFirstZoneIds) return zone
+        return zone
+            .toBuilder()
+            .clearObjectInstanceIds()
+            .addAllObjectInstanceIds(zone.objectInstanceIdsList.reversed())
+            .build()
+    }
+
+    private val clientNewestFirstZoneIds =
+        setOf(
+            ZoneIds.EXILE,
+            ZoneIds.P1_GRAVEYARD,
+            ZoneIds.P2_GRAVEYARD,
+        )
+
     /** Private zone with viewers=[ownerSeatId] (hand, sideboard). */
     internal fun makePrivateZone(
         zoneId: Int,
