@@ -38,9 +38,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ActionPerformer(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    recorder: MatchRecorder? = null,
-    tracer: SessionOps? = null,
-    private val matchRecorder: MatchRecorder? = recorder ?: tracer?.recorder,
+    private val matchRecorder: MatchRecorder? = null,
     private val bundles: BundleBuilderHolder,
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,

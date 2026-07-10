@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory
 class AutoPassEngine(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    @Suppress("UnusedPrivateProperty") tracer: SessionOps? = null,
     private val bundles: BundleBuilderHolder,
     private val pacing: Pacing,
     private val combatHandler: CombatHandler,

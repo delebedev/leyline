@@ -136,7 +136,7 @@ class MatchSession(
         ActionPerformer(
             sink = this,
             counters = this,
-            recorder = recorder,
+            matchRecorder = recorder,
             bundles = this,
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,

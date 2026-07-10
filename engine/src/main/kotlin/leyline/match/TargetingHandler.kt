@@ -28,7 +28,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class TargetingHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    @Suppress("UnusedPrivateProperty") tracer: SessionOps? = null,
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
