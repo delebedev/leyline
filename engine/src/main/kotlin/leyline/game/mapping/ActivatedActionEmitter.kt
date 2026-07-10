@@ -131,6 +131,7 @@ internal object ActivatedActionEmitter {
     ): List<Action> {
         val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
+        val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
         return getPlayableManaAbilities(card, card.controller).mapNotNull { sa ->
             val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
             val colors = producedManaColors(sa)
@@ -145,7 +146,8 @@ internal object ActivatedActionEmitter {
                     .setFacetId(instanceId)
                     .setIsBatchable(true)
             if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            uniqueAbilityIdFor(cardData, abilityGrpId)?.let(actionBuilder::setUniqueAbilityId)
+            uniqueAbilityIdFor(cardData, abilityGrpId, fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId)
+                ?.let(actionBuilder::setUniqueAbilityId)
 
             for ((idx, manaColor) in colors.withIndex()) {
                 val manaInfo =
@@ -204,6 +206,7 @@ internal object ActivatedActionEmitter {
     ): List<Action> {
         val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
+        val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
         return card.manaAbilities.mapNotNull { sa ->
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
@@ -218,7 +221,8 @@ internal object ActivatedActionEmitter {
             actionBuilder
                 .apply {
                     if (abilityGrpId != 0) setAbilityGrpId(abilityGrpId)
-                    uniqueAbilityIdFor(cardData, abilityGrpId)?.let(::setUniqueAbilityId)
+                    uniqueAbilityIdFor(cardData, abilityGrpId, fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId)
+                        ?.let(::setUniqueAbilityId)
                 }
             sa.payCosts
                 ?.totalMana
@@ -233,13 +237,16 @@ internal object ActivatedActionEmitter {
     fun uniqueAbilityIdFor(
         cardData: CardData?,
         abilityGrpId: Int,
+        fallbackWhenUnmapped: Boolean = false,
     ): Int? {
         if (abilityGrpId == 0) return null
-        val index =
-            cardData?.abilityIds?.indexOfFirst { (grpId, _) ->
-                grpId == abilityGrpId
-            } ?: -1
-        return if (index >= 0) INITIAL_UNIQUE_ABILITY_ID + index else INITIAL_UNIQUE_ABILITY_ID
+        if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
+        val index = cardData.abilityIds.indexOfFirst { (grpId, _) -> grpId == abilityGrpId }
+        return when {
+            index >= 0 -> INITIAL_UNIQUE_ABILITY_ID + index
+            fallbackWhenUnmapped -> INITIAL_UNIQUE_ABILITY_ID
+            else -> null
+        }
     }
 
     fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {

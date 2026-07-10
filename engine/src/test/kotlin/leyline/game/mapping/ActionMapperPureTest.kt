@@ -9,6 +9,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.bridge.types.GrpId
+import leyline.game.data.CardData
 import leyline.game.snapshot.GrpIdResolver
 import leyline.testkit.BoardTestBase
 import leyline.testkit.haveManaCost
@@ -132,6 +133,27 @@ class ActionMapperPureTest :
             val activateMana = actions.actionsList.first { it.actionType == ActionType.ActivateMana }
             activateMana.abilityGrpId shouldBe 1002
             activateMana.uniqueAbilityId shouldBe 50
+        }
+
+        test("unmatched ability ids only use the unique-id fallback when requested") {
+            val cardData =
+                CardData(
+                    grpId = 1,
+                    titleId = 1,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = listOf(99 to 1),
+                    manaCost = emptyList(),
+                )
+
+            assertSoftly {
+                ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId = 100) shouldBe null
+                ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId = 100, fallbackWhenUnmapped = true) shouldBe 50
+            }
         }
 
         // -----------------------------------------------------------------------
