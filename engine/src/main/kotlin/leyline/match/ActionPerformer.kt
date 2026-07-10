@@ -40,7 +40,7 @@ class ActionPerformer(
     private val counters: SessionCounters,
     recorder: MatchRecorder? = null,
     tracer: SessionOps? = null,
-    private val recorder: MatchRecorder? = recorder ?: tracer?.recorder,
+    private val matchRecorder: MatchRecorder? = recorder ?: tracer?.recorder,
     private val bundles: BundleBuilderHolder,
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
@@ -116,7 +116,7 @@ class ActionPerformer(
         }
 
         Tap.inboundAction(action)
-        recorder?.recordClientAction(greMsg)
+        matchRecorder?.recordClientAction(greMsg)
 
         // ActivateMana excluded: mana abilities don't use the stack (MTG 605.3),
         // so they don't reach handlePostCastPrompt or the post-stack-resolution check.
