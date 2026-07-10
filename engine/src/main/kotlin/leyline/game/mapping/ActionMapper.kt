@@ -137,6 +137,27 @@ object ActionMapper {
                         { c, d -> bridge.abilityRegistryFor(c, d) },
                     ),
                 )
+            } else if (card.tapped && card.hasManaAbilities) {
+                val forgeCard = bridge.findCard(fid) ?: continue
+                val boundData = snap.boundCards[fid]?.data
+                builder.addAllActions(
+                    ActivatedActionEmitter.buildActivateManaAction(
+                        forgeCard,
+                        instanceId,
+                        grpId,
+                        { boundData },
+                        { c, d -> bridge.abilityRegistryFor(c, d) },
+                    ),
+                )
+                builder.addAllInactiveActions(
+                    ActivatedActionEmitter.buildInactiveActivateManaActions(
+                        forgeCard,
+                        instanceId,
+                        grpId,
+                        { boundData },
+                        { c, d -> bridge.abilityRegistryFor(c, d) },
+                    ),
+                )
             }
 
             if (card.hasNonManaActivatedAbilities) {
