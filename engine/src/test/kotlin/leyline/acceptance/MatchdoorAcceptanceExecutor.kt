@@ -554,7 +554,8 @@ class MatchdoorAcceptanceExecutor(
             .filter { it.hasGameStateMessage() && it.gameStateMessage.hasTurnInfo() }
             .any { message ->
                 val gsm = message.gameStateMessage
-                gsm.turnInfo.phase.name.toForgePhaseName() == expectedPhase &&
+                gsm.turnInfo.phase.name
+                    .toForgePhaseName() == expectedPhase &&
                     (gsm.annotationsList + gsm.persistentAnnotationsList).any { expected in it.typeList }
             }
     }
