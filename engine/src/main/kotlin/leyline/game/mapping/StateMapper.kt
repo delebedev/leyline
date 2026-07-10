@@ -328,7 +328,6 @@ object StateMapper {
                 bridge,
                 eventsMutable,
                 zoneMoves = events.zoneMoves,
-                useEventLedger = true,
             )
         recordParadigmSourceStackIids(transferResult, bridge)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer

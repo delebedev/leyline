@@ -50,10 +50,9 @@ import java.util.concurrent.ConcurrentHashMap
  * ## Event ordering
  *
  * Events fire in Forge engine execution order, which may differ from the
- * annotation ordering the client expects. The downstream annotation pipeline
- * ([leyline.game.annotations.TransferCategoryResolver.categoryFromEvents]) re-prioritizes: specific events
- * (LandPlayed, CardSacrificed) take precedence over generic ZoneChanged when
- * both fire for the same card in the same GSM.
+ * annotation ordering the client expects. [leyline.game.annotations.ZoneMoveLedger]
+ * folds ordered moves with specific lifecycle events; specific operations such
+ * as land play and sacrifice take precedence over the generic zone outcome.
  *
  * ## Cross-class flag consumption
  *
@@ -308,6 +307,7 @@ class GameEventCollector(
                 additionalCostGrpId = castingTimeOptionState.additionalCostGrpId,
                 chosenX = castingTimeOptionState.chosenX,
                 rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,
+                stackAbilityForgeId = ev.cause()?.stackAbilityId() ?: 0,
             ),
         )
         log.debug(
@@ -681,6 +681,7 @@ class GameEventCollector(
                 isParadigmCopy = !isTrigger && !isAbility && paradigmCopyStackIid != 0,
                 stackInstanceId = paradigmCopyStackIid,
                 rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,
+                stackAbilityForgeId = ev.cause()?.stackAbilityId() ?: 0,
             ),
         )
         log.debug(
@@ -712,6 +713,7 @@ class GameEventCollector(
                             rootAbilityForgeId = cause.rootAbilityId(),
                             api = cause.api()?.name,
                             costPayment = cause.costPayment(),
+                            stackAbilityForgeId = cause.stackAbilityId(),
                         )
                     },
             ),
@@ -1010,8 +1012,8 @@ class GameEventCollector(
     }
 
     // Per-card surveil event — fired from Player.surveil() in our Forge fork
-    // for each card moved to graveyard. Allows TransferCategoryResolver.categoryFromEvents
-    // to distinguish surveil (Library→GY) from mill (Library→GY).
+    // for each card moved to graveyard. Lets ZoneMoveLedger distinguish
+    // surveil (Library→GY) from mill (Library→GY).
     override fun visit(ev: GameEventCardSurveiled) {
         val seat = seatOf(ev.card().controller) ?: return
         val sourceId = ev.causeCard()?.id

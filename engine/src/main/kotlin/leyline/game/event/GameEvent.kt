@@ -148,6 +148,8 @@ sealed interface GameEvent {
         val chosenX: Int = 0,
         /** Root Forge SpellAbility id for joining child operations to this stack item. */
         val rootAbilityForgeId: Int = 0,
+        /** Wrapped/effected Forge ability id for exact operation-to-stack joins. */
+        val stackAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.
@@ -181,6 +183,8 @@ sealed interface GameEvent {
         val stackInstanceId: Int = 0,
         /** Root Forge SpellAbility id for joining child operations to this stack item. */
         val rootAbilityForgeId: Int = 0,
+        /** Wrapped/effected Forge ability id for exact operation-to-stack joins. */
+        val stackAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */
@@ -232,8 +236,8 @@ sealed interface GameEvent {
     ) : GameEvent
 
     // -- Group A: zone-transition disambiguation --
-    // These replace generic ZoneChanged for specific zone pairs, enabling
-    // direct category mapping without the TransferCategoryResolver zone-pair fallback.
+    // These refine generic zone outcomes with operation-specific facts for
+    // ZoneMoveLedger and the missing-move fallback.
 
     /** A legendary permanent was put into graveyard by the legend rule SBA.
      *  More specific than [CardDestroyed] — produces `SBA_LegendRule` category. */
@@ -434,8 +438,7 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A permanent's controller changed (steal effect or revert).
-     *  Fires both on steal (Claim the Firstborn) and on revert (end of turn).
-     *  [sourceCardId] resolved later from events list (TransferCategoryResolver.affectorSourceFromEvents pattern). */
+     *  Fires both on steal (Claim the Firstborn) and on revert (end of turn). */
     data class ControllerChanged(
         val cardId: ForgeCardId,
         val oldControllerSeatId: SeatId,

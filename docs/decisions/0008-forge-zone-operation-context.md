@@ -89,7 +89,8 @@ public record GameEventZoneChangeCause(
     int abilityId,
     int rootAbilityId,
     ApiType api,
-    boolean costPayment
+    boolean costPayment,
+    int stackAbilityId
 ) implements Serializable {}
 ```
 
@@ -102,6 +103,10 @@ Field rules:
   engine abilities have no API.
 - `costPayment`: true when the move fires with a live payment entry whose
   payment names the effective or root SA.
+- `stackAbilityId`: wrapped effect id for a `WrappedAbility`, otherwise
+  `params[AbilityKey.StackSa]` when that ability and the effective cause share
+  a source card; `0` otherwise. This joins wrapper and cleanup operations to
+  the exact stack lifecycle without card-wide guessing.
 
 Effective-SA precedence is deterministic:
 
@@ -134,8 +139,11 @@ serialization contract test must include `GameEventZoneChangeCause`.
 
 Adding a record component changes Java serialized form. Forge event producers
 and consumers therefore roll out atomically in the same build. The retained
-three-argument constructor provides source compatibility, not old-stream binary
-compatibility. Consumers must accept `cause = null` so development-mode,
+legacy constructors provide source compatibility, not old-stream binary
+compatibility. `GameEventCardDestroyed` intentionally changes `card()` and
+`activator()` from mutable `Card` references to immutable `CardView` values and
+is therefore source-incompatible for callers assigning those accessors to
+`Card`. Consumers must accept `cause = null` so development-mode,
 synthetic, and transitional emitters degrade explicitly.
 
 ## Leyline Migration Map
@@ -143,10 +151,10 @@ synthetic, and transitional emitters degrade explicitly.
 | Current inference | Source after migration | Fallback retained? |
 |---|---|---|
 | `GameEventCollector` live-stack peek for mill source | `cause.sourceCardId` and `cause.api` | only for events with null context |
-| Prompt-journal correlation for searched-to-hand | `cause.api`, root id, and Library→Hand pair | temporary shadow comparison only |
+| Prompt-journal correlation for searched-to-hand | `cause.api`, root id, and Library→Hand pair | removed |
 | Zone-pair branches for discard, draw, mill, bounce, exile, cast, resolve, and counter | ordered move + cause API + specific lifecycle event | named snapshot fallback only |
-| Adjacent-event priority table in `TransferCategoryResolver` | pure ordered fold over `ZoneMove` plus specific events | removed after shadow parity |
-| Destroy/sacrifice affector recovery | `cause.sourceCardId`, exact/root ability ids | null-context fallback |
+| Adjacent-event priority table in `TransferCategoryResolver` | pure ordered fold over `ZoneMove` plus specific events | missing-move fallback only |
+| Destroy/sacrifice affector recovery | `cause.sourceCardId`, exact/root/stack ability ids | null-context fallback |
 | Live-stack/ability lookup during transfer planning | frozen exact/root ability ids through `AbilityRegistry` | no normal-path lookup |
 | Omen and Paradigm collapsed-flow reconstruction | two or more ordered ledger moves sharing root/source identity | snapshot expansion only when a move event is absent |
 | Final snapshot as intermediate-zone evidence | event ledger | snapshot remains final-state projection only |
@@ -163,10 +171,11 @@ Snapshot-only transfer inference remains for:
 - `ceaseToExist` and other Forge paths proven not to emit a zone-change event;
 - synthetic tests or development helpers using the three-argument event
   constructor;
-- temporarily mixed event producers during migration.
+- synthetic helpers that intentionally omit cause context.
 
 Every transfer plan records its origin as `EVENT` or `SNAPSHOT_FALLBACK` in
-Leyline-internal data. A fallback increments a counter and logs one structured
+Leyline-internal data. `TransferResult.snapshotFallbacks.size` is the per-frame
+fallback counter; each fallback also logs one structured
 diagnostic with Forge card id and source/destination zones. Shadow tests assert
 the fallback count for their fixture. Normal gameplay tests require zero
 fallbacks unless the fixture names an accepted missing-event path.
@@ -193,8 +202,9 @@ snapshot state.
 
 The event ledger is the normal transfer-category and affector source. Snapshot
 inference remains an explicit, logged fallback for synthetic or missing-event
-paths. Search-to-hand prompt correlation has been removed. The legacy
-`TransferCategoryResolver` remains only behind that fallback boundary.
+paths. Search-to-hand prompt correlation and the migration switch have been
+removed. `TransferCategoryResolver` is invoked only when no authoritative move
+intent matches the snapshot transfer.
 
 ## Alternatives Considered
 

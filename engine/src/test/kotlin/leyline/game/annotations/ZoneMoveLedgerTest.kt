@@ -164,7 +164,7 @@ class ZoneMoveLedgerTest :
         }
 
         cases.forEach { case ->
-            test("event-first transfer output matches legacy output for ${case.name}") {
+            test("plans ${case.name} from the authoritative event ledger") {
                 val zoneMove = move(cardId, case.from, case.to, case.api)
                 val previousZone = case.from.protocolZoneId()
                 val destinationZone = case.to.protocolZoneId()
@@ -191,7 +191,7 @@ class ZoneMoveLedgerTest :
                             .build(),
                     )
 
-                fun result(useEventLedger: Boolean) =
+                fun result() =
                     ZoneTransferDetector.detectZoneTransfers(
                         gameObjects = listOf(obj),
                         zones = zones,
@@ -204,14 +204,13 @@ class ZoneMoveLedgerTest :
                                 idLookup = { InstanceId(it.value + 1000) },
                                 grpIdResolver = { GrpId(12345) },
                                 zoneMoves = listOf(zoneMove),
-                                useEventLedger = useEventLedger,
                             ),
                     )
 
-                val eventFirst = result(useEventLedger = true)
+                val eventFirst = result()
                 assertSoftly {
-                    eventFirst shouldBe result(useEventLedger = false)
-                    eventFirst shouldBe result(useEventLedger = true)
+                    eventFirst shouldBe result()
+                    eventFirst.transfers.single().category shouldBe case.expected
                     eventFirst.snapshotFallbacks.shouldBeEmpty()
                 }
             }
@@ -241,6 +240,21 @@ class ZoneMoveLedgerTest :
                 listOf(TransferCategory.CastSpell, TransferCategory.Exile)
         }
 
+        test("does not bleed a destroy event into a later move of the same card") {
+            val moves =
+                listOf(
+                    move(cardId, Zone.Battlefield, Zone.Graveyard, order = 0),
+                    move(cardId, Zone.Graveyard, Zone.Battlefield, order = 1),
+                )
+
+            val intents = ZoneMoveLedger.fold(moves, listOf(GameEvent.CardDestroyed(cardId, seat)))
+
+            intents.map { it.category } shouldContainExactly
+                listOf(TransferCategory.Destroy, TransferCategory.Return)
+            intents.map { it.origin } shouldContainExactly
+                listOf(TransferPlanOrigin.Event, TransferPlanOrigin.SnapshotFallback)
+        }
+
         test("uses frozen cause identity as the transfer source") {
             val sourceId = ForgeCardId(7)
             val intent =
@@ -252,7 +266,7 @@ class ZoneMoveLedgerTest :
                                 cardId = cardId,
                                 from = Zone.Library,
                                 to = Zone.Graveyard,
-                                cause = ZoneMoveCause(sourceId, 91, 90, "Mill", false),
+                                cause = ZoneMoveCause(sourceId, 91, 90, "Mill", false, stackAbilityForgeId = 92),
                             ),
                         ),
                         emptyList(),
@@ -262,6 +276,7 @@ class ZoneMoveLedgerTest :
                 intent.sourceCardId shouldBe sourceId
                 intent.sourceAbilityForgeId shouldBe 91
                 intent.rootAbilityForgeId shouldBe 90
+                intent.stackAbilityForgeId shouldBe 92
             }
         }
     })

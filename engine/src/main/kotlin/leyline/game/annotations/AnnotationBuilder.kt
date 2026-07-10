@@ -41,7 +41,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  * fields (amounts, deltas, counts, enum ordinals) stay [Int].
  *
  * @see ZoneTransferDetector for zone transfer detection
- * @see TransferCategoryResolver for event-to-category resolution
+ * @see ZoneMoveLedger for event-to-category resolution
  * @see TransferAnnotations for transfer-stage annotation generation
  * @see CombatAnnotations for combat-stage annotations
  * @see MechanicAnnotations for mechanic and effect annotations

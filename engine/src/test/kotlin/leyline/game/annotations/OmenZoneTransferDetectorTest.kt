@@ -96,7 +96,6 @@ class OmenZoneTransferDetectorTest :
                                     ZoneMove(0, ForgeCardId(42), Zone.Hand, Zone.Stack, null),
                                     ZoneMove(1, ForgeCardId(42), Zone.Stack, Zone.Library, null),
                                 ),
-                            useEventLedger = true,
                         ),
                 )
 
@@ -182,7 +181,6 @@ class OmenZoneTransferDetectorTest :
                                     ZoneMove(0, ForgeCardId(42), Zone.Hand, Zone.Stack, null),
                                     ZoneMove(1, ForgeCardId(42), Zone.Stack, Zone.Exile, null),
                                 ),
-                            useEventLedger = true,
                         ),
                 )
 

@@ -9,6 +9,7 @@ data class ZoneMoveCause(
     val rootAbilityForgeId: Int,
     val api: String?,
     val costPayment: Boolean,
+    val stackAbilityForgeId: Int = 0,
 )
 
 /** One actual Forge zone operation, ordered within its frame. */
