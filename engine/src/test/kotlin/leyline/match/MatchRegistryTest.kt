@@ -253,7 +253,6 @@ class MatchRegistryTest :
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
 
             registry.registerSession("m1", SeatId(1), session)
-            registry.registerHandler("m1", SeatId(1), handler)
 
             registry.teardownMatch("m1", MatchTeardownReason.Disconnect)
 
@@ -261,7 +260,7 @@ class MatchRegistryTest :
                 match.state shouldBe MatchState.FINISHED
                 registry.getMatch("m1").shouldBeNull()
                 registry.getPeer("m1", SeatId(2)).shouldBeNull()
-                registry.getHandler("m1", SeatId(1)).shouldBeNull()
+                registry.getConnection("m1", SeatId(1)).shouldBeNull()
             }
         }
 
@@ -284,17 +283,18 @@ class MatchRegistryTest :
                 )
 
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+            val channel = EmbeddedChannel(handler)
             handler.session = session
             registry.registerSession(matchId, SeatId(1), session)
-            registry.registerHandler(matchId, SeatId(1), handler)
+            registry.registerConnection(matchId, SeatId(1), handler.connection)
 
-            EmbeddedChannel(handler).close()
+            channel.close()
 
             assertSoftly {
                 match.state shouldBe MatchState.FINISHED
                 handler.session.shouldBeNull()
                 registry.getMatch(matchId).shouldBeNull()
-                registry.getHandler(matchId, SeatId(1)).shouldBeNull()
+                registry.getConnection(matchId, SeatId(1)).shouldBeNull()
                 registry.activeSession().shouldBeNull()
             }
 

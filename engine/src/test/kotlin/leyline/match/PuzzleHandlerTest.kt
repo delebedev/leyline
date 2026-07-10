@@ -16,6 +16,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.infra.ListMessageSink
+import leyline.infra.MatchOutput
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -46,6 +47,17 @@ class PuzzleHandlerTest :
             val channel = EmbeddedChannel(probe)
             return channel to (channel.pipeline().context(probe) as ChannelHandlerContext)
         }
+
+        fun output(ctx: ChannelHandlerContext) =
+            object : MatchOutput {
+                override fun send(message: MatchServiceToClientMessage) {
+                    ctx.writeAndFlush(message)
+                }
+
+                override fun close() {
+                    ctx.close()
+                }
+            }
 
         fun tempPuzzleFile(name: String): File =
             File.createTempFile("leyline-$name-", ".pzl").apply {
@@ -93,7 +105,7 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(ctx, session, "puzzle-bolt-face", 1)
+                handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-bolt-face", 1)
                 val gre = outbound(channel).flatMap(::greMessages)
 
                 assertSoftly {
@@ -135,7 +147,7 @@ class PuzzleHandlerTest :
                         paceDelayMs = 0,
                     )
                 val (channel1, ctx1) = channelCtx()
-                handler.sendPuzzleInitialBundle(ctx1, session1, "puzzle-lands-only", 1)
+                handler.sendPuzzleInitialBundle(output(ctx1), session1, "puzzle-lands-only", 1)
 
                 val sink2 = ListMessageSink()
                 val second = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
@@ -152,7 +164,7 @@ class PuzzleHandlerTest :
                         paceDelayMs = 0,
                     )
                 val (channel2, ctx2) = channelCtx()
-                handler.sendPuzzleInitialBundle(ctx2, session2, "puzzle-lands-only", 1)
+                handler.sendPuzzleInitialBundle(output(ctx2), session2, "puzzle-lands-only", 1)
 
                 assertSoftly {
                     first shouldBeSameInstanceAs second
@@ -217,7 +229,7 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(ctx, session, "puzzle-cli-puzzle", 1)
+                handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-cli-puzzle", 1)
 
                 val gre = outbound(channel).flatMap(::greMessages)
 
@@ -265,7 +277,7 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(ctx, session, "web-gre-puzzle", 1)
+                handler.sendPuzzleInitialBundle(output(ctx), session, "web-gre-puzzle", 1)
 
                 val gre = outbound(channel).flatMap(::greMessages)
 

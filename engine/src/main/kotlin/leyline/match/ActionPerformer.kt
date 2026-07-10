@@ -38,7 +38,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ActionPerformer(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val tracer: SessionTracer,
+    private val matchRecorder: MatchRecorder? = null,
     private val bundles: BundleBuilderHolder,
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
@@ -114,7 +114,7 @@ class ActionPerformer(
         }
 
         Tap.inboundAction(action)
-        tracer.recorder?.recordClientAction(greMsg)
+        matchRecorder?.recordClientAction(greMsg)
 
         // ActivateMana excluded: mana abilities don't use the stack (MTG 605.3),
         // so they don't reach handlePostCastPrompt or the post-stack-resolution check.
@@ -129,15 +129,6 @@ class ActionPerformer(
                 action.actionType == ActionType.SpecialTurnFaceUp_add3
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
-        val actionName = action.actionType.name.removeSuffix("_add3")
-        val cardName =
-            if (action.instanceId != 0) {
-                bridge.cardRepository.findNameByGrpId(action.grpId)?.let { " ($it)" } ?: ""
-            } else {
-                ""
-            }
-        tracer.traceEvent(MatchEventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
-
         when (action.actionType) {
             ActionType.Pass -> {
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)

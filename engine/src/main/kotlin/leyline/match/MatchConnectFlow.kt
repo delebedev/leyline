@@ -1,14 +1,20 @@
 package leyline.match
 
-import io.netty.channel.ChannelHandlerContext
 import leyline.config.MatchConfig
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
+import leyline.infra.MatchOutput
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+
+internal data class ConnectAttempt(
+    val matchId: String,
+    val seatId: Int,
+    val familiar: Boolean,
+)
 
 @Suppress("LongParameterList")
 internal class MatchConnectFlow(
@@ -17,54 +23,52 @@ internal class MatchConnectFlow(
     private val coordinator: MatchCoordinator?,
     private val cardRepository: CardRepository,
     private val puzzleHandler: PuzzleHandler,
-    private val matchId: () -> String,
-    private val seatId: () -> Int,
-    private val isFamiliar: () -> Boolean,
-    private val createMatchSession: (ChannelHandlerContext, GameBridge) -> MatchSession,
-    private val createFamiliarSession: (ChannelHandlerContext, MessageCounter) -> FamiliarSession,
-    private val createSpectatorSession: (ChannelHandlerContext, GameBridge) -> SpectatorSession,
-    private val sendRoomState: (ChannelHandlerContext) -> Unit,
-    private val sendInitialBundle: (ChannelHandlerContext) -> Unit,
+    private val output: MatchOutput,
+    private val createMatchSession: (GameBridge) -> MatchSession,
+    private val createFamiliarSession: (MessageCounter) -> FamiliarSession,
+    private val createSpectatorSession: (GameBridge) -> SpectatorSession,
+    private val sendRoomState: () -> Unit,
+    private val sendInitialBundle: () -> Unit,
     private val resolveSeatDecks: () -> Pair<String, String>,
     private val resolveGameVariant: () -> String?,
     private val isSpectatorMode: () -> Boolean,
-    private val onLocalPlayerConnected: (ChannelHandlerContext, GameBridge) -> Unit,
+    private val onLocalPlayerConnected: (GameBridge) -> Unit,
 ) {
-    private val log = LoggerFactory.getLogger(MatchHandler::class.java)
+    private val log = LoggerFactory.getLogger(MatchConnectFlow::class.java)
 
-    fun onConnect(ctx: ChannelHandlerContext) {
+    fun onConnect(attempt: ConnectAttempt) {
         val eventName = coordinator?.selectedEventName
         if (eventName != null) log.info("Match Door: event={}", eventName)
 
         // Evict stale bridges from previous matches and reset debug collectors.
-        val evicted = registry.evictStale(matchId())
+        val evicted = registry.evictStale(attempt.matchId)
         if (evicted.isNotEmpty()) {
             log.info("Match Door: evicted {} stale match(es)", evicted.size)
         }
 
-        if (puzzleHandler.isPuzzleMatch(matchId())) {
-            connectPuzzle(ctx)
+        if (puzzleHandler.isPuzzleMatch(attempt.matchId)) {
+            connectPuzzle(attempt)
         } else {
-            connectConstructed(ctx)
+            connectConstructed(attempt)
         }
     }
 
-    private fun connectPuzzle(ctx: ChannelHandlerContext) {
-        sendRoomState(ctx)
-        if (isFamiliar()) {
-            log.info("Match Door: puzzle mode, familiar (seat {}) connected — no-op", seatId())
+    private fun connectPuzzle(attempt: ConnectAttempt) {
+        sendRoomState()
+        if (attempt.familiar) {
+            log.info("Match Door: puzzle mode, familiar (seat {}) connected — no-op", attempt.seatId)
             return
         }
-        val bridge = puzzleHandler.getOrCreatePuzzleBridge(matchId())
-        val ms = createMatchSession(ctx, bridge)
-        puzzleHandler.sendPuzzleInitialBundle(ctx, ms, matchId(), seatId())
+        val bridge = puzzleHandler.getOrCreatePuzzleBridge(attempt.matchId)
+        val ms = createMatchSession(bridge)
+        puzzleHandler.sendPuzzleInitialBundle(output, ms, attempt.matchId, attempt.seatId)
     }
 
-    private fun connectConstructed(ctx: ChannelHandlerContext) {
+    private fun connectConstructed(attempt: ConnectAttempt) {
         // Constructed mode: normal local player + built-in AI flow.
         val gameVariant = resolveGameVariant()
         val match =
-            registry.getOrCreateMatch(matchId()) {
+            registry.getOrCreateMatch(attempt.matchId) {
                 val bridge =
                     GameBridge(
                         bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
@@ -73,7 +77,7 @@ internal class MatchConnectFlow(
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
-                Match(matchId(), bridge).also { newMatch ->
+                Match(attempt.matchId, bridge).also { newMatch ->
                     if (!isSpectatorMode()) {
                         val decks = resolveSeatDecks()
                         newMatch.start(
@@ -87,38 +91,37 @@ internal class MatchConnectFlow(
             }
         val bridge = match.bridge
         if (isSpectatorMode()) {
-            connectSpectator(ctx, match, gameVariant)
-        } else if (isFamiliar()) {
-            createFamiliarSession(ctx, bridge.messageCounter)
-            sendRoomState(ctx)
-            sendInitialBundle(ctx)
+            connectSpectator(attempt, match, gameVariant)
+        } else if (attempt.familiar) {
+            createFamiliarSession(bridge.messageCounter)
+            sendRoomState()
+            sendInitialBundle()
         } else {
-            onLocalPlayerConnected(ctx, bridge)
+            onLocalPlayerConnected(bridge)
         }
     }
 
     private fun connectSpectator(
-        ctx: ChannelHandlerContext,
+        attempt: ConnectAttempt,
         match: Match,
         gameVariant: String?,
     ) {
-        if (isFamiliar()) {
-            sendRoomState(ctx)
+        if (attempt.familiar) {
+            sendRoomState()
             log.info("Match Door: spectator familiar connected, room-state-only no-op")
             return
         }
-        val spectator = createSpectatorSession(ctx, match.bridge)
-        sendRoomState(ctx)
+        val spectator = createSpectatorSession(match.bridge)
+        sendRoomState()
         if (match.state == MatchState.WAITING) {
-            if (!startSpectatorMatch(ctx, match, gameVariant)) return
+            if (!startSpectatorMatch(match, gameVariant)) return
         } else {
-            sendInitialBundle(ctx)
+            sendInitialBundle()
         }
         spectator.startPump()
     }
 
     private fun startSpectatorMatch(
-        ctx: ChannelHandlerContext,
         match: Match,
         gameVariant: String?,
     ): Boolean {
@@ -141,11 +144,10 @@ internal class MatchConnectFlow(
         if (!readyForInitialBundle.await(10, TimeUnit.SECONDS)) {
             log.warn("Match Door: spectator game did not reach initial bundle barrier")
             initialBundleSent.countDown()
-            ctx.close()
             return false
         }
         try {
-            sendInitialBundle(ctx)
+            sendInitialBundle()
         } finally {
             initialBundleSent.countDown()
         }

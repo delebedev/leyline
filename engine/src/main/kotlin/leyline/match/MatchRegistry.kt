@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Manages shared matches and peer sessions across connections.
- * Replaces MatchHandler.Companion static maps.
+ * Replaces process-wide match state.
  *
  * Production: singleton instance. Tests: fresh per test.
  */
@@ -20,8 +20,8 @@ class MatchRegistry {
     /** matchId -> (seatId -> SessionOps). For cross-connection signaling. */
     private val sessions = ConcurrentHashMap<String, ConcurrentHashMap<Int, SessionOps>>()
 
-    /** matchId -> (seatId -> MatchHandler). For pre-mulligan cross-connection messaging. */
-    private val handlers = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchHandler>>()
+    /** matchId -> (seatId -> MatchConnection). For pre-mulligan cross-connection messaging. */
+    private val connections = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchConnection>>()
 
     fun getOrCreateMatch(
         matchId: String,
@@ -63,18 +63,18 @@ class MatchRegistry {
         return evicted
     }
 
-    fun registerHandler(
+    fun registerConnection(
         matchId: String,
         seatId: SeatId,
-        handler: MatchHandler,
+        connection: MatchConnection,
     ) {
-        handlers.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = handler
+        connections.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = connection
     }
 
-    fun getHandler(
+    fun getConnection(
         matchId: String,
         seatId: SeatId,
-    ): MatchHandler? = handlers[matchId]?.get(seatId.value)
+    ): MatchConnection? = connections[matchId]?.get(seatId.value)
 
     fun removeMatch(matchId: String): Match? = matches.remove(matchId)
 
@@ -89,14 +89,14 @@ class MatchRegistry {
 
         recorder?.shutdown()
 
-        val matchHandlers = handlers.remove(matchId)?.values.orEmpty()
+        val matchConnections = connections.remove(matchId)?.values.orEmpty()
         val removedSessions = sessions.remove(matchId)?.values.orEmpty()
         val sessionsRemoved = removedSessions.size
         val match = matches.remove(matchId)
 
         removedSessions.filterIsInstance<MatchSession>().forEach { it.close() }
         removedSessions.filterIsInstance<SpectatorSession>().forEach { it.close() }
-        matchHandlers.forEach { it.detachAfterTeardown() }
+        matchConnections.forEach { it.detachAfterTeardown() }
 
         if (match != null) {
             match.close()
@@ -105,12 +105,12 @@ class MatchRegistry {
         }
 
         log.info(
-            "MatchRegistry: teardown complete matchId={} seatId={} reason={} sessionsRemoved={} handlersRemoved={} matchClosed={}",
+            "MatchRegistry: teardown complete matchId={} seatId={} reason={} sessionsRemoved={} connectionsRemoved={} matchClosed={}",
             matchId,
             seatId,
             reason,
             sessionsRemoved,
-            matchHandlers.size,
+            matchConnections.size,
             match != null || fallbackBridge != null,
         )
     }
