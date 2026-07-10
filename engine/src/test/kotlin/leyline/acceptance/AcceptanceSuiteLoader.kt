@@ -308,6 +308,7 @@ object AcceptanceSuiteLoader {
             "phase" -> PhaseCondition(value.asString("$context.phase"))
             "prompt" -> parsePrompt(value, "$context.prompt")
             "annotation_seen" -> AnnotationSeenCondition(value.asString("$context.annotation_seen"))
+            "annotation_seen_in_phase" -> parseAnnotationSeenInPhase(value, "$context.annotation_seen_in_phase")
             "stack_empty" -> {
                 require(value.asBoolean("$context.stack_empty")) { "$context.stack_empty only supports true" }
                 StackEmptyCondition
@@ -403,6 +404,17 @@ object AcceptanceSuiteLoader {
                 )
             }
         }
+
+    private fun parseAnnotationSeenInPhase(
+        raw: Any?,
+        context: String,
+    ): AnnotationSeenInPhaseCondition {
+        val map = raw.asMap(context)
+        return AnnotationSeenInPhaseCondition(
+            type = map.requiredString("type", context),
+            phase = map.requiredString("phase", context),
+        )
+    }
 }
 
 private fun Any?.asMap(context: String): Map<String, Any?> {
