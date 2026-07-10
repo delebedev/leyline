@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory
  * Every method emits one or more [PromptRequest]s via [InteractivePromptBridge]
  * and translates the client response back into Forge types. A few methods also
  * record typed [PromptSideEffect]s on the bridge's [leyline.bridge.handoff.PromptJournal]
- * ([PromptSideEffect.LegendVictim], [PromptSideEffect.SearchedToHand],
+ * ([PromptSideEffect.LegendVictim],
  * [PromptSideEffect.RevealStarted]/[PromptSideEffect.RevealEnded]) that downstream
  * classes (`GameEventCollector`, `StateMapper`, `TargetingHandler`) consume.
  *
@@ -125,12 +125,6 @@ class TargetingCoordinator(
             } else {
                 if (isOptional) null else optionList.getFirst()
             }
-
-        // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
-        if (plan.isSearch && chosen is Card) {
-            TargetingCoordinator.recordSearchedToHand(bridge, ForgeCardId(chosen.id))
-            log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
-        }
 
         recordLearnRevealIfNeeded(plan.isLearn, chosen)
 
@@ -983,13 +977,6 @@ class TargetingCoordinator(
             cardId: ForgeCardId,
         ) {
             prompt.journal.record(PromptSideEffect.LegendVictim(cardId))
-        }
-
-        fun recordSearchedToHand(
-            prompt: InteractivePromptBridge,
-            cardId: ForgeCardId,
-        ) {
-            prompt.journal.record(PromptSideEffect.SearchedToHand(cardId))
         }
 
         fun startReveal(

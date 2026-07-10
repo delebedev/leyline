@@ -19,7 +19,7 @@ Gradle multi-project layout. All Kotlin.
 - **`domain`** — domain model, services, and repository ports.
 - **`engine`** — Forge bridge and GRE match-session engine.
   - `bridge/` — engine integration. Blocking-bridge classes and the `PlayerController` override surface.
-  - `game/` — state mapping, annotations, diffing, counters. `game/mapper/` holds per-slice mappers (objects, zones, players, actions).
+  - `game/` — state mapping, annotations, diffing, counters. Ordered Forge zone moves flow through `FrameEventLog` and `ZoneMoveLedger`; snapshots supply final projected state. `game/mapper/` holds per-slice mappers (objects, zones, players, actions).
   - `match/` — session state machine: `MatchSession` + per-concern handlers (combat, targeting, optional-actions, mulligan, auto-pass).
 - **`native`** — native-client head; packages account, frontdoor, and matchdoor transport.
 - **`web`** — browser-facing HTTP/WebSocket head.

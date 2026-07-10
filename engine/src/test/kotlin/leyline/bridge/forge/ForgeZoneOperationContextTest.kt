@@ -259,18 +259,20 @@ class ForgeZoneOperationContextTest :
 
             probe.clear()
             game.stack.resolveStack()
-            probe.resolveEventsFor(spell) shouldContainExactly
-                listOf(GameEventSpellResolved::class.java, GameEventCardChangeZone::class.java)
-            probe
-                .resolved()
-                .single()
-                .cause()
-                ?.abilityId() shouldBe ability.id
-            probe
-                .zoneChanges()
-                .single { it.card().id == spell.id }
-                .cause()
-                ?.abilityId() shouldBe ability.id
+            assertSoftly {
+                probe.resolveEventsFor(spell) shouldContainExactly
+                    listOf(GameEventSpellResolved::class.java, GameEventCardChangeZone::class.java)
+                probe
+                    .resolved()
+                    .single()
+                    .cause()
+                    ?.abilityId() shouldBe ability.id
+                probe
+                    .zoneChanges()
+                    .single { it.card().id == spell.id }
+                    .cause()
+                    ?.abilityId() shouldBe ability.id
+            }
         }
 
         test("permanent stack move precedes its resolution fact") {

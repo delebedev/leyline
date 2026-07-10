@@ -303,7 +303,7 @@ object ZoneTransferDetector {
                         ?: spellCastCardIdFor(obj.grpId, events, grpIdResolver)
                         ?: spellResolvedCardIdFor(obj.grpId, events, grpIdResolver)
                         ?: paradigmCopyCardIdFor(obj.instanceId, events)
-                if (isCollapsedParadigmOriginal(obj, prevZone, forgeCardId, events)) {
+                if (isCollapsedParadigmOriginal(obj, prevZone, forgeCardId, ledgerIntents)) {
                     val collapsedForgeCardId = forgeCardId ?: continue
                     addCollapsedParadigmOriginalTransfers(
                         obj = obj,
@@ -365,7 +365,13 @@ object ZoneTransferDetector {
                     } else {
                         baseCategory
                     }
-                if (forgeCardId == null || ledgerIntents.none { it.matches(forgeCardId, prevZone, obj.zoneId) }) {
+                val ledgerIntent =
+                    forgeCardId?.let { id ->
+                        ledgerIntents.firstOrNull {
+                            it.origin == TransferPlanOrigin.Event && it.matches(id, prevZone, obj.zoneId)
+                        }
+                    }
+                if (ledgerIntent == null) {
                     snapshotFallbacks.add(SnapshotTransferFallback(forgeCardId, prevZone, obj.zoneId))
                     if (context.useEventLedger) {
                         log.warn(
@@ -394,7 +400,41 @@ object ZoneTransferDetector {
                 // — see [FrameIdResolver.triggerStackAbilityForgeId]. Falls back to
                 // source-card-keyed when no in-window SpellCast carries the SA id.
                 val affectorId =
-                    if (forgeCardId != null && events.isNotEmpty()) {
+                    if (ledgerIntent?.sourceCardId != null) {
+                        val sourceCardId = ledgerIntent.sourceCardId
+                        val intentAbilityIds =
+                            setOf(ledgerIntent.sourceAbilityForgeId, ledgerIntent.rootAbilityForgeId) - 0
+                        val lifecycleAbilities =
+                            events.mapNotNull { event ->
+                                when (event) {
+                                    is GameEvent.SpellCast ->
+                                        event
+                                            .takeIf {
+                                                event.cardId == sourceCardId && (event.isAbility || event.isTrigger)
+                                            }?.let { it.abilityForgeId to it.rootAbilityForgeId }
+
+                                    is GameEvent.SpellResolved ->
+                                        event
+                                            .takeIf {
+                                                event.cardId == sourceCardId && (event.isAbility || event.isTrigger)
+                                            }?.let { it.abilityForgeId to it.rootAbilityForgeId }
+
+                                    else -> null
+                                }
+                            }
+                        val stackAbilityForgeId =
+                            lifecycleAbilities
+                                .firstOrNull { (abilityId, rootId) ->
+                                    intentAbilityIds.any { it == abilityId || it == rootId }
+                                }?.first ?: lifecycleAbilities.distinctBy { it.first }.singleOrNull()?.first
+                        val sourceIdentity =
+                            if (stackAbilityForgeId != null) {
+                                FrameIdResolver.triggerStackAbilityForgeId(stackAbilityForgeId)
+                            } else {
+                                sourceCardId
+                            }
+                        idLookup(sourceIdentity).value
+                    } else if (forgeCardId != null && events.isNotEmpty()) {
                         val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
                         if (sourceCardId != null) {
                             val abilityForgeId =
@@ -520,7 +560,7 @@ object ZoneTransferDetector {
         // the card still on BF so the main diff loop skips it, but the client
         // protocol requires the two zone-hop annotations.
         detectExileReturnRoundTrips(
-            events,
+            context.zoneMoves,
             transfers,
             patchedObjects,
             patchedZones,
@@ -875,7 +915,9 @@ object ZoneTransferDetector {
         val legacy = eventOrInferredCategory(forgeCardId, events, obj, srcZone, destZone)
         val eventFirst =
             forgeCardId?.let { cardId ->
-                ledgerIntents.firstOrNull { it.matches(cardId, srcZone, destZone) }?.category
+                ledgerIntents
+                    .firstOrNull { it.origin == TransferPlanOrigin.Event && it.matches(cardId, srcZone, destZone) }
+                    ?.category
             }
         if (eventFirst != null && eventFirst != legacy) {
             log.debug(
@@ -947,12 +989,13 @@ object ZoneTransferDetector {
         obj: GameObjectInfo,
         prevZone: Int,
         forgeCardId: ForgeCardId?,
-        events: List<GameEvent>,
+        ledgerIntents: List<ZoneMoveIntent>,
     ): Boolean {
         val handToExile = (prevZone == ZoneIds.P1_HAND || prevZone == ZoneIds.P2_HAND) && obj.zoneId == ZoneIds.EXILE
         if (!handToExile || forgeCardId == null || !obj.hasParadigmAbility()) return false
-        return events.any { it is GameEvent.SpellCast && it.cardId == forgeCardId && !it.isAbility && !it.isTrigger } &&
-            events.any { it is GameEvent.SpellResolved && it.cardId == forgeCardId && !it.hasFizzled && !it.isParadigmCopy }
+        val cardMoves = ledgerIntents.filter { it.move.cardId == forgeCardId }
+        return cardMoves.any { it.move.from == Zone.Hand && it.move.to == Zone.Stack && it.category == TransferCategory.CastSpell } &&
+            cardMoves.any { it.move.from == Zone.Stack && it.move.to == Zone.Exile && it.category == TransferCategory.Exile }
     }
 
     @Suppress("LongParameterList")
@@ -1022,7 +1065,7 @@ object ZoneTransferDetector {
         zoneRecordings.add(exileId to ZoneIds.EXILE)
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongMethod", "LongParameterList")
     private fun detectZoneOnlyTransfers(
         events: List<GameEvent>,
         ledgerIntents: List<ZoneMoveIntent>,
@@ -1050,11 +1093,9 @@ object ZoneTransferDetector {
 
             val forgeCardId = forgeIdLookup(InstanceId(iid)) ?: continue
             val ownerSeatId = ownerSeatIdForZone(destZone) ?: ownerSeatIdForZone(prevZone) ?: 0
-            if (isCollapsedOmenTransfer(events, forgeCardId, prevZone, destZone)) {
-                // Compatibility fallback: Forge can collapse a local Omen cast
-                // into a final hidden Hand->Library snapshot. Reconstruct the
-                // client lifecycle well enough to avoid a stale hand object; a
-                // full Omen implementation should emit from real stack frames.
+            if (isOrderedOmenTransfer(ledgerIntents, forgeCardId, prevZone, destZone)) {
+                // The final hidden snapshot collapses Hand->Stack->Library.
+                // Ordered Forge moves remain authoritative for both legs.
                 val castHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), ZoneIds.STACK)
                 val resolveHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
                 val handId = castHandoff.realloc.old.value
@@ -1157,8 +1198,8 @@ object ZoneTransferDetector {
         transfers: List<AppliedTransfer>,
     ): Boolean = iid !in gameObjectIds && destZone != ZoneIds.LIMBO && transfers.none { it.origId == iid || it.newId == iid }
 
-    private fun isCollapsedOmenTransfer(
-        events: List<GameEvent>,
+    private fun isOrderedOmenTransfer(
+        ledgerIntents: List<ZoneMoveIntent>,
         forgeCardId: ForgeCardId,
         prevZone: Int,
         destZone: Int,
@@ -1167,21 +1208,9 @@ object ZoneTransferDetector {
             (prevZone == ZoneIds.P1_HAND || prevZone == ZoneIds.P2_HAND) &&
                 (destZone == ZoneIds.P1_LIBRARY || destZone == ZoneIds.P2_LIBRARY)
         if (!handToLibrary) return false
-        val omenCast =
-            events.any {
-                it is GameEvent.SpellCast &&
-                    it.cardId == forgeCardId &&
-                    it.isOmen &&
-                    !it.isAbility &&
-                    !it.isTrigger
-            }
-        val resolved =
-            events.any {
-                it is GameEvent.SpellResolved &&
-                    it.cardId == forgeCardId &&
-                    !it.hasFizzled
-            }
-        return omenCast && resolved
+        val cardMoves = ledgerIntents.filter { it.move.cardId == forgeCardId }
+        return cardMoves.any { it.move.from == Zone.Hand && it.move.to == Zone.Stack && it.category == TransferCategory.CastSpell } &&
+            cardMoves.any { it.move.from == Zone.Stack && it.move.to == Zone.Library && it.category == TransferCategory.Resolve }
     }
 
     private fun ownerSeatIdForZone(zoneId: Int): Int? =
@@ -1406,7 +1435,7 @@ object ZoneTransferDetector {
      */
     @Suppress("LongParameterList")
     private fun detectExileReturnRoundTrips(
-        events: List<GameEvent>,
+        zoneMoves: List<ZoneMove>,
         transfers: MutableList<AppliedTransfer>,
         patchedObjects: MutableList<GameObjectInfo>,
         patchedZones: MutableList<ZoneInfo>,
@@ -1418,20 +1447,17 @@ object ZoneTransferDetector {
         // one resolve (delayed-trigger + chapter interactions), we only synthesize
         // once — the later pairs would try to retire already-retired iids.
         val exiled =
-            events
-                .filterIsInstance<GameEvent.CardExiled>()
-                .filter { it.fromBattlefield }
+            zoneMoves
+                .filter { it.from == Zone.Battlefield && it.to == Zone.Exile }
                 .distinctBy { it.cardId }
         if (exiled.isEmpty()) return
 
         for (ev in exiled) {
-            // Match a subsequent Exile→BF ZoneChanged for the same Forge card.
+            // Match a subsequent Exile→BF move for the same Forge card.
             val returned =
-                events
-                    .filterIsInstance<GameEvent.ZoneChanged>()
-                    .any {
-                        it.cardId == ev.cardId && it.from == Zone.Exile && it.to == Zone.Battlefield
-                    }
+                zoneMoves.any {
+                    it.cardId == ev.cardId && it.order > ev.order && it.from == Zone.Exile && it.to == Zone.Battlefield
+                }
             if (!returned) continue
 
             val currentIid = idLookup(ev.cardId).value

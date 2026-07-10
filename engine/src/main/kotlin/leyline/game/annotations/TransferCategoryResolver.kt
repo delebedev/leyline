@@ -109,9 +109,6 @@ internal object CategoryRules {
             CategoryRule(90, TransferCategory.Mill) { events, fid ->
                 events.any { it is GameEvent.CardMilled && it.cardId == fid }
             },
-            CategoryRule(90, TransferCategory.Put) { events, fid ->
-                events.any { it is GameEvent.CardSearchedToHand && it.cardId == fid }
-            },
             CategoryRule(90, TransferCategory.Countered) { events, fid ->
                 events.any { it is GameEvent.SpellCountered && it.cardId == fid } ||
                     events.any { it is GameEvent.SpellResolved && it.cardId == fid && it.hasFizzled }
@@ -178,11 +175,10 @@ internal object CategoryRules {
 }
 
 /**
- * Resolves [TransferCategory] and transfer affectors from a list of [GameEvent]s.
+ * Fallback resolver for frames without authoritative ordered zone-move context.
  *
- * Bridges Forge's event model to the client's annotation categories. Picks the
- * highest-priority matching rule from [CategoryRules.all] — adding a new
- * category is one row in that table.
+ * Normal production transfers use [ZoneMoveLedger]. This table remains for
+ * synthetic fixtures and known missing-event paths only.
  *
  * @see AnnotationBuilder for annotation construction
  * @see ZoneTransferDetector for zone transfer detection (the primary caller)
@@ -191,7 +187,7 @@ internal object CategoryRules {
  */
 object TransferCategoryResolver {
     /**
-     * Resolve the annotation category for a zone transfer from the frame's events.
+     * Resolve the fallback annotation category from the frame's summary events.
      *
      * Returns null when no rule matches — caller should fall back to
      * [ZoneTransferDetector.inferCategory].
@@ -202,10 +198,9 @@ object TransferCategoryResolver {
     ): TransferCategory? = CategoryRules.all.firstOrNull { it.match(events, forgeCardId) }?.category
 
     /**
-     * Extract the source Forge card ID for the ability that caused a zone transfer.
+     * Extract a fallback source Forge card ID from summary events.
      *
-     * Used to resolve the affectorId on annotations. Currently only CardSurveiled
-     * carries source info; extend for other mechanics as needed.
+     * Ordered move context supplies this in the normal path.
      *
      * @return Forge card ID of the causing ability's host card, or null if unknown.
      */

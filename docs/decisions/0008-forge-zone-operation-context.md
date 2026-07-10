@@ -9,7 +9,7 @@ read_when:
 
 ## Status
 
-Proposed; payload contract locked for implementation review.
+Accepted and implemented.
 
 ## Context
 
@@ -183,6 +183,18 @@ zone pair, but it must not invent an affector or intermediate move.
 - New mechanics extend engine facts or the pure fold instead of adding a live
   correlation branch.
 - Missing events become measurable and testable.
+
+## Implementation
+
+Forge now emits immutable cause identity on ordered zone changes and the cast,
+resolve, sacrifice, and destroy lifecycle events. Leyline stores those moves in
+`FrameEventLog`, then folds them through `ZoneMoveLedger` before mapping final
+snapshot state.
+
+The event ledger is the normal transfer-category and affector source. Snapshot
+inference remains an explicit, logged fallback for synthetic or missing-event
+paths. Search-to-hand prompt correlation has been removed. The legacy
+`TransferCategoryResolver` remains only behind that fallback boundary.
 
 ## Alternatives Considered
 

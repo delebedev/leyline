@@ -146,6 +146,8 @@ sealed interface GameEvent {
         /** Non-zero when the cast chose an X value. Drives the persistent
          *  CastingTimeOption type=ChooseX_a7b4 annotation with this value. */
         val chosenX: Int = 0,
+        /** Root Forge SpellAbility id for joining child operations to this stack item. */
+        val rootAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.
@@ -177,6 +179,8 @@ sealed interface GameEvent {
         val isParadigmCopy: Boolean = false,
         /** Stack iid allocated when the Paradigm copy was cast. */
         val stackInstanceId: Int = 0,
+        /** Root Forge SpellAbility id for joining child operations to this stack item. */
+        val rootAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */
@@ -283,14 +287,6 @@ sealed interface GameEvent {
     data class CardMilled(
         val cardId: ForgeCardId,
         val seatId: SeatId,
-        val sourceCardId: ForgeCardId? = null,
-    ) : GameEvent
-
-    /** A card was moved Library→Hand via a search effect (tutor, ChangeZone).
-     *  Produces [leyline.game.annotations.TransferCategory.Put] instead of [leyline.game.annotations.TransferCategory.Draw].
-     *  [sourceCardId] = host card of the search ability (for affectorId). */
-    data class CardSearchedToHand(
-        val cardId: ForgeCardId,
         val sourceCardId: ForgeCardId? = null,
     ) : GameEvent
 

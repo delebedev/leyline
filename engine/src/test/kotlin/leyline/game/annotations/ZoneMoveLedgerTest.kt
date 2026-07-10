@@ -1,5 +1,6 @@
 package leyline.game.annotations
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -111,6 +112,7 @@ class ZoneMoveLedgerTest :
                     Zone.Graveyard,
                     Zone.Battlefield,
                     TransferCategory.Return,
+                    api = "ChangeZone",
                     events = listOf(GameEvent.ZoneChanged(cardId, Zone.Graveyard, Zone.Battlefield)),
                 ),
                 Case(
@@ -118,6 +120,7 @@ class ZoneMoveLedgerTest :
                     Zone.Library,
                     Zone.Battlefield,
                     TransferCategory.Search,
+                    api = "ChangeZone",
                     events = listOf(GameEvent.ZoneChanged(cardId, Zone.Library, Zone.Battlefield)),
                 ),
                 Case(
@@ -140,6 +143,7 @@ class ZoneMoveLedgerTest :
                     Zone.Sideboard,
                     Zone.Hand,
                     TransferCategory.Put,
+                    api = "ChangeZone",
                     events = listOf(GameEvent.ZoneChanged(cardId, Zone.Sideboard, Zone.Hand)),
                 ),
                 Case(
@@ -205,9 +209,11 @@ class ZoneMoveLedgerTest :
                     )
 
                 val eventFirst = result(useEventLedger = true)
-                eventFirst shouldBe result(useEventLedger = false)
-                eventFirst shouldBe result(useEventLedger = true)
-                eventFirst.snapshotFallbacks.shouldBeEmpty()
+                assertSoftly {
+                    eventFirst shouldBe result(useEventLedger = false)
+                    eventFirst shouldBe result(useEventLedger = true)
+                    eventFirst.snapshotFallbacks.shouldBeEmpty()
+                }
             }
         }
 
@@ -252,8 +258,11 @@ class ZoneMoveLedgerTest :
                         emptyList(),
                     ).single()
 
-            intent.sourceCardId shouldBe sourceId
-            intent.sourceAbilityForgeId shouldBe 91
+            assertSoftly {
+                intent.sourceCardId shouldBe sourceId
+                intent.sourceAbilityForgeId shouldBe 91
+                intent.rootAbilityForgeId shouldBe 90
+            }
         }
     })
 

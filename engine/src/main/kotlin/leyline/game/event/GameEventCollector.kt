@@ -61,10 +61,6 @@ import java.util.concurrent.ConcurrentHashMap
  * [PlayerController][leyline.bridge.forge.PlayerController] on the
  * [InteractivePromptBridge][leyline.bridge.handoff.InteractivePromptBridge]:
  *
- * - [isSearchedToHand]: drains `SearchedToHand` effects from the prompt journal → emits
- *   [GameEvent.CardSearchedToHand] instead of generic ZoneChanged for
- *   Library→Hand tutors. Written by `TargetingCoordinator.recordSearchedToHand`.
- *
  * - [isLegendRuleVictim]: drains `LegendVictim` effects from the prompt journal → emits
  *   [GameEvent.LegendRuleDeath] instead of generic ZoneChanged for
  *   BF→GY legend rule deaths. Written by `TargetingCoordinator.recordLegendVictim`.
@@ -311,6 +307,7 @@ class GameEventCollector(
                 kickerAbilityGrpId = castingTimeOptionState.kickerAbilityGrpId,
                 additionalCostGrpId = castingTimeOptionState.additionalCostGrpId,
                 chosenX = castingTimeOptionState.chosenX,
+                rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,
             ),
         )
         log.debug(
@@ -683,6 +680,7 @@ class GameEventCollector(
                 abilityGrpId = if (isTrigger || isAbility) abilityGrpId else 0,
                 isParadigmCopy = !isTrigger && !isAbility && paradigmCopyStackIid != 0,
                 stackInstanceId = paradigmCopyStackIid,
+                rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,
             ),
         )
         log.debug(
@@ -763,8 +761,6 @@ class GameEventCollector(
                         val sourceId = ev.cause()?.sourceCardId()?.takeIf { it != 0 }
                         GameEvent.CardMilled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) })
                     }
-                    from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
-                        GameEvent.CardSearchedToHand(ForgeCardId(card.id))
                     else -> GameEvent.ZoneChanged(ForgeCardId(card.id), Zone.fromForge(from), Zone.fromForge(to))
                 }
             } else {
@@ -1101,18 +1097,6 @@ class GameEventCollector(
     private fun seatOf(player: PlayerView?): SeatId? {
         if (player == null) return null
         return bridge.seatOf(player)
-    }
-
-    /**
-     * Check if a card was chosen via a search effect (ChangeZone tutor) and is moving
-     * Library→Hand. Drains from the prompt journal so it doesn't fire again for subsequent zone events.
-     */
-    private fun isSearchedToHand(forgeCardId: Int): Boolean {
-        val id = ForgeCardId(forgeCardId)
-        for (seat in bridge.allSeatIds()) {
-            if (bridge.promptBridge(SeatId(seat)).journal.consumeSearched(id)) return true
-        }
-        return false
     }
 
     private fun consumeExileUnderSource(forgeCardId: Int): ForgeCardId? {

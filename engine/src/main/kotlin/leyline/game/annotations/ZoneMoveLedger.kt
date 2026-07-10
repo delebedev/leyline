@@ -16,6 +16,7 @@ data class ZoneMoveIntent(
     val category: TransferCategory,
     val sourceCardId: ForgeCardId?,
     val sourceAbilityForgeId: Int,
+    val rootAbilityForgeId: Int = 0,
     val origin: TransferPlanOrigin = TransferPlanOrigin.Event,
 ) {
     fun matches(
@@ -35,14 +36,18 @@ object ZoneMoveLedger {
         events: List<GameEvent>,
     ): List<ZoneMoveIntent> =
         moves.sortedBy { it.order }.map { move ->
+            val eventBacked = move.cause != null || hasSpecificOperationEvent(move.cardId, events)
             ZoneMoveIntent(
                 move = move,
                 category = category(move, events),
                 sourceCardId = move.cause?.sourceCardId ?: sourceFromSpecificEvent(move.cardId, events),
                 sourceAbilityForgeId = move.cause?.abilityForgeId ?: 0,
+                rootAbilityForgeId = move.cause?.rootAbilityForgeId ?: 0,
+                origin = if (eventBacked) TransferPlanOrigin.Event else TransferPlanOrigin.SnapshotFallback,
             )
         }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun category(
         move: ZoneMove,
         events: List<GameEvent>,
@@ -58,14 +63,18 @@ object ZoneMoveLedger {
             move.from == Zone.Stack && resolved != null -> TransferCategory.Resolve
             events.any { it is GameEvent.LegendRuleDeath && it.cardId == cardId } -> TransferCategory.SbaLegendRule
             events.any { it is GameEvent.CardSurveiled && it.cardId == cardId } -> TransferCategory.Surveil
+            events.any { it is GameEvent.CardDiscarded && it.cardId == cardId } -> TransferCategory.Discard
+            events.any { it is GameEvent.CardMilled && it.cardId == cardId } -> TransferCategory.Mill
+            events.any { it is GameEvent.CardBounced && it.cardId == cardId } -> TransferCategory.Bounce
+            events.any { it is GameEvent.CardExiled && it.cardId == cardId } -> TransferCategory.Exile
             events.any { it is GameEvent.CardSacrificed && it.cardId == cardId } -> TransferCategory.Sacrifice
             events.any { it is GameEvent.CardDestroyed && it.cardId == cardId } -> TransferCategory.Destroy
-            events.any { it is GameEvent.CardSearchedToHand && it.cardId == cardId } -> TransferCategory.Put
             move.cause?.api == "Discard" -> TransferCategory.Discard
             move.cause?.api == "Mill" -> TransferCategory.Mill
             move.cause?.api == "Surveil" -> TransferCategory.Surveil
             move.cause?.api == "Draw" -> TransferCategory.Draw
             move.cause?.api == "Counter" -> TransferCategory.Countered
+            move.cause?.api == "ChangeZone" && move.from == Zone.Library && move.to == Zone.Hand -> TransferCategory.Put
             move.from == Zone.Battlefield && move.to in setOf(Zone.Hand, Zone.Library) -> TransferCategory.Bounce
             move.from == Zone.Library && move.to == Zone.Hand -> TransferCategory.Draw
             move.from == Zone.Library && move.to == Zone.Battlefield -> TransferCategory.Search
@@ -92,6 +101,27 @@ object ZoneMoveLedger {
                 is GameEvent.CardMilled -> event.sourceCardId.takeIf { event.cardId == cardId }
                 is GameEvent.CardSurveiled -> event.sourceCardId.takeIf { event.cardId == cardId }
                 else -> null
+            }
+        }
+
+    private fun hasSpecificOperationEvent(
+        cardId: ForgeCardId,
+        events: List<GameEvent>,
+    ): Boolean =
+        events.any { event ->
+            when (event) {
+                is GameEvent.LandPlayed -> event.cardId == cardId
+                is GameEvent.SpellCast -> event.cardId == cardId
+                is GameEvent.SpellResolved -> event.cardId == cardId
+                is GameEvent.LegendRuleDeath -> event.cardId == cardId
+                is GameEvent.CardSurveiled -> event.cardId == cardId
+                is GameEvent.CardDiscarded -> event.cardId == cardId
+                is GameEvent.CardMilled -> event.cardId == cardId
+                is GameEvent.CardBounced -> event.cardId == cardId
+                is GameEvent.CardExiled -> event.cardId == cardId
+                is GameEvent.CardSacrificed -> event.cardId == cardId
+                is GameEvent.CardDestroyed -> event.cardId == cardId
+                else -> false
             }
         }
 }

@@ -383,7 +383,7 @@ class GameBridge(
         (
             prev: GsmSnapshot?,
             cur: GsmSnapshot,
-            events: List<GameEvent>,
+            events: FrameEventLog,
             gameStateId: Int,
             diff: GameStateMessage,
         ) -> Unit

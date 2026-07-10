@@ -14,13 +14,6 @@ class PromptJournalTest :
 
         tags(UnitTag)
 
-        test("consumeSearched removes matching entry and returns true exactly once") {
-            val j = PromptJournal()
-            j.record(PromptSideEffect.SearchedToHand(ForgeCardId(42)))
-            j.consumeSearched(ForgeCardId(42)) shouldBe true
-            j.consumeSearched(ForgeCardId(42)) shouldBe false
-        }
-
         test("consumeLegendVictim is independent per id") {
             val j = PromptJournal()
             j.record(PromptSideEffect.LegendVictim(ForgeCardId(1)))
