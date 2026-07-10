@@ -46,6 +46,7 @@ object AcceptanceSuiteLoader {
         )
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun parseStep(
         index: Int,
         raw: Any?,
@@ -74,7 +75,9 @@ object AcceptanceSuiteLoader {
             "attack" -> parseAttack(value, "$context.attack")
             "turn_face_up" -> TurnFaceUpStep(value.asString("$context.turn_face_up"))
             "play_land" -> PlayLandStep(value.asString("$context.play_land"))
+            "play_mdfc" -> PlayMdfcStep(value.asString("$context.play_mdfc"))
             "cast" -> parseCast(value, "$context.cast")
+            "cast_mdfc" -> CastMdfcStep(value.asString("$context.cast_mdfc"))
             "resolve_stack" -> ResolveStackStep
             "attack_all" -> AttackAllStep
             else -> error("unknown step key: $key at $context")

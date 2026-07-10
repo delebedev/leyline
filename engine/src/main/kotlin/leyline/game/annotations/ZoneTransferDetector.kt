@@ -41,6 +41,8 @@ data class AppliedTransfer(
     val affectorId: Int = 0,
     /** client ManaColor ordinals for land color production (W=1, U=2, B=3, R=4, G=5). */
     val colorOrdinals: List<Int> = emptyList(),
+    /** True when this PlayLand transfer came from a modal DFC land face. */
+    val isMdfcLandPlay: Boolean = false,
     /** Resolved mana payments for CastSpell (one per land tapped). */
     val manaPayments: List<ManaPaymentRecord> = emptyList(),
     /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
@@ -379,6 +381,13 @@ object ZoneTransferDetector {
                     } else {
                         emptyList()
                     }
+                val isMdfcLandPlay =
+                    category == TransferCategory.PlayLand &&
+                        forgeCardId != null &&
+                        events
+                            .filterIsInstance<GameEvent.LandPlayed>()
+                            .firstOrNull { it.cardId == forgeCardId }
+                            ?.isMdfc == true
 
                 // Extract mana payment info + adventure flag + alt-cost info from
                 // SpellCast events.
@@ -429,6 +438,7 @@ object ZoneTransferDetector {
                         ownerSeatId = obj.ownerSeatId,
                         affectorId = transferAffectorId,
                         colorOrdinals = colorOrdinals,
+                        isMdfcLandPlay = isMdfcLandPlay,
                         manaPayments = manaPayments,
                         isAdventureCast = isAdventureCast,
                         altCostAbilityGrpId = altCostAbilityGrpId,

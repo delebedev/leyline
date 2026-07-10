@@ -81,6 +81,8 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondGroup(prompt.msg))
             GREMessageType.CastingTimeOptionsReq_695e ->
                 SimPromptResponse(respondCastingTimeOptions(prompt.msg))
+            GREMessageType.OptionalActionMessage_695e ->
+                SimPromptResponse(respondOptionalAction())
             GREMessageType.NumericInputReq_695e ->
                 SimPromptResponse(respondNumericInput(prompt.msg))
             GREMessageType.AssignDamageReq_695e ->
@@ -273,6 +275,9 @@ internal open class GreedyPromptPolicy(
         }
     }
 
+    /** Greedy: accept the offer. Declining strands chained prompts the offer gates. */
+    private fun respondOptionalAction(): SimDecision = SimDecision.OptionalAction(accept = true)
+
     private fun respondNumericInput(msg: GREToClientMessage): SimDecision {
         val req = msg.numericInputReq
         val choice =
@@ -322,6 +327,7 @@ internal class ForgeAiPromptPolicy(
             ForgeAiSearchAdapter,
             ForgeAiGroupAdapter,
             ForgeAiCastingTimeOptionsAdapter,
+            ForgeAiPayCostsAdapter,
         ).associateBy { it.promptType }
 
     fun telemetry(): SimPromptPolicyTelemetry =

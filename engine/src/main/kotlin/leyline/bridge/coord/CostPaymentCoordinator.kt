@@ -25,6 +25,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ManaCostText
 import leyline.bridge.types.toCandidateRefs
+import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -92,7 +93,7 @@ class CostPaymentCoordinator(
                     .assign(selectedCards, ConvokeShardAssigner.costCounts(manaCost)) { it.color }
                     .toMap()
             }
-        if (plan.convokePaymentRecordPolicy.shouldRecord) recordConvokePayments(sa, result)
+        if (plan.convokePaymentRecordPolicy.shouldRecord) recordConvokePayments(sa, result, artifacts)
         return result
     }
 
@@ -124,6 +125,7 @@ class CostPaymentCoordinator(
     private fun recordConvokePayments(
         sa: SpellAbility,
         payments: Map<Card, ManaCostShard>,
+        improvise: Boolean,
     ) {
         val source = sa.hostCard ?: return
         if (payments.isEmpty()) return
@@ -135,6 +137,8 @@ class CostPaymentCoordinator(
                         PromptSideEffect.ConvokePayment(
                             paymentForgeCardId = ForgeCardId(card.id),
                             color = ManaColorMapping.paymentWireColor(shard).number,
+                            substitutionGrpId = if (improvise) KeywordAbilityIds.IMPROVISE else KeywordAbilityIds.CONVOKE,
+                            paymentAbilityGrpId = if (improvise) KeywordAbilityIds.IMPROVISE else KeywordAbilityIds.CONVOKE_PAYMENT,
                         )
                     },
             ),

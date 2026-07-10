@@ -1,0 +1,15 @@
+name: "Hidden Courtyard"
+grpId: 87440
+titleId: 738077
+abilities:
+  - id: 180111
+    textId: 894988
+    category: 3
+  - id: 1001
+    textId: 227607
+    category: 1
+  - id: 169776
+    textId: 967565
+    category: 1
+    mana: "o4oW"
+expansionCode: "LCI"

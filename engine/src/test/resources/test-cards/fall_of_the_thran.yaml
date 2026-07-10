@@ -1,0 +1,17 @@
+name: "Fall of the Thran"
+grpId: 67140
+titleId: 227019
+abilities:
+  - id: 118852
+    textId: 227021
+    category: 2
+    baseId: 166
+  - id: 103194
+    textId: 229312
+    category: 2
+    baseId: 166
+  - id: 119075
+    textId: 229313
+    category: 2
+    baseId: 166
+expansionCode: "DAR"

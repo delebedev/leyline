@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    card's grpId — `EFFECT` engine pieces (grpId=0) and unbound tokens.
  *  - [altCosts] enumerates the alt-cost ability rows the card carries
  *    (Plot, Foretell, Disturb, Escape, Jump-start, Mutate, Impending,
- *    Cleave, Overload, Warp, Sneak, Madness, Flashback, Mobilize). Drives
+ *    Cleave, Overload, Spectacle, Harmonize, Warp, Sneak, Madness, Flashback, Mobilize). Drives
  *    [leyline.game.mapping.ActionMapper]'s
  *    cast-from-non-hand-zone and hand-alt-cost rails.
  *  - [mobilizeCleanup] is the per-card hidden triggered-ability grpId — the
@@ -72,11 +72,12 @@ data class BoundCard(
          * BaseId chain roots that identify alt-cost ability rows on a card.
          * Each appears as the `BaseId` of at most one ability row per printing
          * (Warp/Sneak/Plot/Foretell/Disturb/Escape/Jump-start/Mutate/
-         * Impending/Cleave/Overload/Madness/Flashback/Mobilize).
+         * Impending/Cleave/Evoke/Blitz/Dash/Overload/Emerge/Spectacle/Surge/Harmonize/Madness/Flashback/Retrace/Mobilize).
          */
         private val ALT_COST_BASE_IDS: Set<Int> =
             setOf(
                 KeywordAbilityIds.FLASHBACK,
+                KeywordAbilityIds.RETRACE,
                 KeywordAbilityIds.MADNESS,
                 KeywordAbilityIds.ESCAPE,
                 KeywordAbilityIds.MUTATE,
@@ -85,7 +86,14 @@ data class BoundCard(
                 KeywordAbilityIds.JUMP_START,
                 KeywordAbilityIds.IMPENDING,
                 KeywordAbilityIds.CLEAVE,
+                KeywordAbilityIds.EVOKE,
+                KeywordAbilityIds.BLITZ,
+                KeywordAbilityIds.DASH,
                 KeywordAbilityIds.OVERLOAD,
+                KeywordAbilityIds.EMERGE,
+                KeywordAbilityIds.SPECTACLE,
+                KeywordAbilityIds.SURGE,
+                KeywordAbilityIds.HARMONIZE,
                 KeywordAbilityIds.PLOT,
                 KeywordAbilityIds.MOBILIZE,
                 KeywordAbilityIds.WARP,

@@ -80,6 +80,8 @@ sealed interface PromptSideEffect {
         val paymentForgeCardId: ForgeCardId,
         /** Client ManaColor enum number used by the ManaPaid annotation. */
         val color: Int,
+        val substitutionGrpId: Int = leyline.game.data.KeywordAbilityIds.CONVOKE,
+        val paymentAbilityGrpId: Int = leyline.game.data.KeywordAbilityIds.CONVOKE_PAYMENT,
     )
 
     /** Completed SelectN choice. Consumer emits ChoiceResult transient annotation. */

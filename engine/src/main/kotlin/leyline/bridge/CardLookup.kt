@@ -6,6 +6,7 @@ import forge.game.GameEntity
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.LandAbility
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
@@ -58,10 +59,15 @@ internal fun resolveAttackDefender(
  * All castable spell abilities for a card, including alternative costs
  * (Overload, Flashback, Escape, etc.). Stable ordering: base ability first,
  * then alt costs in engine order.
+ *
+ * [checkTiming] false skips the legality/timing filter — for embedded action
+ * lists built while another player holds the turn, where the same ability
+ * selection must yield the same displayed cost as the checked path.
  */
 fun getAllCastableAbilities(
     card: Card,
     player: Player,
+    checkTiming: Boolean = true,
 ): List<SpellAbility> {
     // Foretold cards in exile are face-down — card.getSpells() reads from the
     // current state (face-down) which has no spells. Reach into the original
@@ -102,7 +108,7 @@ fun getAllCastableAbilities(
         expanded.addAll(other)
 
         for (optional in GameActionUtil.getOptionalCostValues(sa)) {
-            if (optional.type != OptionalCost.Jumpstart) continue
+            if (optional.type != OptionalCost.Jumpstart && optional.type != OptionalCost.Retrace) continue
             val optionalSa = GameActionUtil.addOptionalCosts(sa, listOf(optional))
             optionalSa.setActivatingPlayer(player)
             expanded.add(optionalSa)
@@ -125,27 +131,57 @@ fun getAllCastableAbilities(
     // can propagate into the host card's intrinsic SA list), in which case
     // the SA appears once via `baseAbilities` and once via the keyword scan.
     // Without the `!in expanded` filter the cast offer surfaces twice.
-    val keywordHandSAs =
-        card.spellAbilities.filter {
-            (it.isPlotting || it.isForetelling || it.isCastFaceDown) &&
-                expanded.none { existing -> existing === it }
-        }
-    expanded.addAll(keywordHandSAs)
+    appendKeywordHandSAs(card, expanded)
+    appendMdfcBackFaceSAs(card, player, expanded)
 
     // Room door-unlock SAs aren't in card.getSpells() — Forge stores them on
     // Card.unlockAbilities[CardStateName] keyed by LeftSplit / RightSplit. Append
     // each locked door's unlock SA so CastLeftRoom / CastRightRoom share the
     // same index space as the regular cast pathway. From hand both doors are
     // locked; from battlefield only the side(s) not yet unlocked surface here.
-    if (card.isRoom) {
-        for (lockedState in card.lockedRooms) {
-            val unlockSa = card.getUnlockAbility(lockedState) ?: continue
-            unlockSa.setActivatingPlayer(player)
-            expanded.add(unlockSa)
+    appendRoomDoorSAs(card, player, expanded)
+
+    if (!checkTiming) return expanded
+    return expanded.filter { it.canPlay() && it.canCastTiming(player) }
+}
+
+private fun appendKeywordHandSAs(
+    card: Card,
+    expanded: MutableList<SpellAbility>,
+) {
+    val keywordHandSAs =
+        card.spellAbilities.filter {
+            (it.isPlotting || it.isForetelling || it.isCastFaceDown) &&
+                expanded.none { existing -> existing === it }
+        }
+    expanded.addAll(keywordHandSAs)
+}
+
+private fun appendMdfcBackFaceSAs(
+    card: Card,
+    player: Player,
+    expanded: MutableList<SpellAbility>,
+) {
+    if (!card.isModal || !card.hasState(forge.card.CardStateName.Backside)) return
+    for (sa in card.getState(forge.card.CardStateName.Backside).spellAbilities) {
+        if ((sa.isSpell || sa.isLandAbility) && expanded.none { existing -> existing === sa }) {
+            sa.setActivatingPlayer(player)
+            expanded.add(sa)
         }
     }
+}
 
-    return expanded.filter { it.canPlay() && it.canCastTiming(player) }
+private fun appendRoomDoorSAs(
+    card: Card,
+    player: Player,
+    expanded: MutableList<SpellAbility>,
+) {
+    if (!card.isRoom) return
+    for (lockedState in card.lockedRooms) {
+        val unlockSa = card.getUnlockAbility(lockedState) ?: continue
+        unlockSa.setActivatingPlayer(player)
+        expanded.add(unlockSa)
+    }
 }
 
 /**
@@ -170,11 +206,27 @@ fun pickRoomDoorSa(
     return card.getUnlockAbility(state)
 }
 
+fun pickMdfcBackSpellAbility(card: Card): SpellAbility? {
+    if (!card.isModal || !card.hasState(forge.card.CardStateName.Backside)) return null
+    return card
+        .getState(forge.card.CardStateName.Backside)
+        .spellAbilities
+        .firstOrNull { it.isSpell && !it.isLandAbility }
+}
+
+fun buildMdfcBackLandAbility(card: Card): LandAbility? {
+    if (!card.isModal || !card.hasState(forge.card.CardStateName.Backside)) return null
+    val backState = card.getState(forge.card.CardStateName.Backside)
+    if (!backState.type.isLand) return null
+    return LandAbility(card, backState)
+}
+
 fun chooseCastAbility(
     card: Card,
     player: Player,
+    checkTiming: Boolean = true,
 ): SpellAbility? {
-    val all = getAllCastableAbilities(card, player)
+    val all = getAllCastableAbilities(card, player, checkTiming)
     if (all.isEmpty()) return null
     return all.firstOrNull { it.hasParam("WithoutManaCost") } ?: all.first()
 }

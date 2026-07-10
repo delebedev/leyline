@@ -44,6 +44,7 @@ object RequestBuilder {
         val includeSourceAbilityOnCost: Boolean,
     ) {
         Convoke(KeywordAbilityIds.CONVOKE, KeywordAbilityIds.CONVOKE_PAYMENT, false),
+        Improvise(KeywordAbilityIds.IMPROVISE, KeywordAbilityIds.IMPROVISE, false),
         Waterbend(KeywordAbilityIds.WATERBEND, WATERBEND_PAYMENT_ABILITY_GRP_ID, true),
     }
 
@@ -671,6 +672,11 @@ object RequestBuilder {
         bridge: GameBridge,
     ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Convoke)
 
+    fun buildImproviseCostPayCostsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): Pair<PayCostsReq, Prompt> = buildManaSourceCostPayCostsReq(prompt, bridge, ManaSourcePaymentKind.Improvise)
+
     private fun buildManaSourceCostPayCostsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
@@ -815,7 +821,7 @@ object RequestBuilder {
         kind: ManaSourcePaymentKind,
         convokeShard: ManaCostShard?,
     ): ManaColor {
-        if (kind == ManaSourcePaymentKind.Waterbend) return ManaColor.Colorless_afc9
+        if (kind == ManaSourcePaymentKind.Waterbend || kind == ManaSourcePaymentKind.Improvise) return ManaColor.Colorless_afc9
         convokeShard?.let { return ManaColorMapping.paymentWireColor(it) }
         val colorsNeeded = prompt.request.waterbendManaCost.toMap()
         return when {

@@ -126,6 +126,9 @@ dependencies {
     webProfileRuntimeClasspath(libs.sqlite.jdbc)
     webProfileRuntimeClasspath(libs.ktor.server.netty)
     webProfileRuntimeClasspath(libs.logback.classic)
+    // logback.xml wires a Sentry appender; without this class on the
+    // classpath the whole appender model fails and nothing logs at all.
+    webProfileRuntimeClasspath(libs.sentry.logback)
 }
 
 // --- Upstream JAR freshness check ---

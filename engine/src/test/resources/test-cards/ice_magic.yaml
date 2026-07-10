@@ -1,0 +1,13 @@
+name: "Ice Magic"
+grpId: 95912
+titleId: 927838
+abilities:
+  - id: 189137
+    textId: 927844
+    category: 4
+    baseId: 365
+    modalChildren:
+      - 189134
+      - 189135
+      - 189136
+expansionCode: "FIN"

@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import forge.ai.AiCostDecision
 import forge.ai.PlayerControllerAi
 import forge.card.ColorSet
 import forge.card.MagicColor
@@ -10,6 +11,7 @@ import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
+import forge.game.cost.CostSacrifice
 import forge.game.player.Player
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.LandAbility
@@ -17,6 +19,7 @@ import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -56,13 +59,14 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
  *    response futures. Swap it out and the simclient stops producing prompt
  *    traces.
  *
- * 2. **Wrap every Forge-AI call in
- *    `seatPlayer.runWithController(proc, aiController)`.** Forge AI internals
- *    (e.g. `forge.ai.ability.AttachAi.attachToCardAIPreferences`) cast
+ * 2. **Wrap every Forge-AI call in [askAi].** Forge AI internals (e.g.
+ *    `forge.ai.AiCostDecision`, `forge.ai.ability.AttachAi`) cast
  *    `player.getController()` to `PlayerControllerAi`. Outside that scope
  *    you'll get `ClassCastException` because the registered controller is
- *    leyline's bridge. The `runWithController` helper layers a
- *    timestamp-MAX controller and removes it in `finally`.
+ *    leyline's bridge. Forge's own `runWithController` is NOT enough: the
+ *    bridge registers its controller at `Long.MAX_VALUE - 1`, above any
+ *    `getNextTimestamp()` layer, so [askAi] layers the AI controller at
+ *    `Long.MAX_VALUE` and removes it in `finally`.
  *
  * 3. **Skip AI consult on Pass-only AARs** (caller side — see
  *    `SimClientDriver.hasCastableActionsInAar`). Forge AI's search costs
@@ -71,10 +75,10 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
  *    causing a state resync that pollutes the trace with a spurious GSM.
  *    The driver's race guard handles this; translators here don't need to.
  *
- * Scope: `chooseAarAction` (ActionsAvailableReq), `chooseAttackers`
- * (DeclareAttackersReq), and `chooseBlockers` (DeclareBlockersReq). Other
- * prompt types (SelectTargets, OptionalAction, CTO, NumericInput, Group) fall
- * through to the greedy responder in [SimClientDriver].
+ * Scope: one consult method per adapter in [ForgeAiPromptPolicy]'s registry
+ * (AAR, attackers/blockers, SelectN, SelectTargets, CTO, sacrifice
+ * PayCosts). Prompt types without an adapter — and any consult that fails
+ * closed — fall through to the greedy responder in [SimClientDriver].
  */
 class ForgeAiPolicy(
     private val harness: MatchFlowHarness,
@@ -306,6 +310,46 @@ class ForgeAiPolicy(
         return selected.takeIf { it.isNotEmpty() }
     }
 
+    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean = sacrificeCostContext(msg) != null
+
+    /**
+     * Recover the Forge-AI cost decision for a sacrifice cost-payment prompt.
+     * The pending bridge prompt carries the [SpellAbility] being paid; the AI
+     * cost visitor picks the cards it would sacrifice, and those map to the
+     * prompt's candidate instance ids. Fails closed (null) when the prompt is
+     * not a sacrifice cost selection or the AI choice does not map onto the
+     * offered candidates.
+     *
+     * Assumes the pending prompt corresponds to the SA's first [CostSacrifice]
+     * part; an SA with several sacrifice parts would need prompt/part
+     * correlation. Candidate-id validation keeps a mismatched decision from
+     * being submitted — it degrades to greedy instead.
+     */
+    fun chooseSacrificeCostPayment(msg: GREToClientMessage): List<Int>? {
+        val (sa, costPart) = sacrificeCostContext(msg) ?: return null
+        val decision =
+            askAi("sacrificeCostDecision") {
+                costPart.accept(AiCostDecision(seatPlayer, sa, false))
+            } ?: return null
+        val chosenIds = decision.cards.map { instanceIdForCard(it) }
+        return sacrificeCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+    }
+
+    private fun sacrificeCostContext(msg: GREToClientMessage): Pair<SpellAbility, CostSacrifice>? {
+        if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
+        if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
+        val bridge = runCatching { harness.bridge }.getOrNull() ?: return null
+        val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
+        if (pending.request.semantic != PromptSemantic.SelectNCostSacrifice) return null
+        val sa = pending.targetingSa ?: return null
+        val costPart =
+            sa.payCosts
+                ?.costParts
+                ?.filterIsInstance<CostSacrifice>()
+                ?.firstOrNull() ?: return null
+        return sa to costPart
+    }
+
     fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
         if (!msg.hasSelectTargetsReq()) return false
         val req = msg.selectTargetsReq
@@ -517,22 +561,38 @@ class ForgeAiPolicy(
             if (hasGreen()) StaticChoiceIds.colorIdForMask(MagicColor.GREEN)?.let(::add)
         }
 
+    private var askAiDepth = 0
+
     private fun <T> askAi(
         label: String,
         block: () -> T,
     ): T? {
+        // The bridge registers leyline's PlayerController at Long.MAX_VALUE - 1,
+        // so Forge's Player.runWithController (which layers at getNextTimestamp())
+        // never out-ranks it. Layer the AI controller at Long.MAX_VALUE instead so
+        // Forge-AI internals that cast player.getController() see PlayerControllerAi.
+        // The fixed slot is shared, so nested consults only add/remove at depth 0.
         var result: T? = null
         var threw: Throwable? = null
-        seatPlayer.runWithController({
-            try {
-                result = block()
-            } catch (t: Throwable) {
-                threw = t
-            }
-        }, aiController)
+        if (askAiDepth == 0) seatPlayer.addController(Long.MAX_VALUE, seatPlayer, aiController, false)
+        askAiDepth += 1
+        try {
+            result = block()
+        } catch (t: Throwable) {
+            threw = t
+        } finally {
+            askAiDepth -= 1
+            if (askAiDepth == 0) seatPlayer.removeController(Long.MAX_VALUE, false)
+        }
         val failure = threw
         if (failure != null) {
-            log.warn("Forge AI {} threw: {}: {}", label, failure::class.simpleName, failure.message)
+            log.warn(
+                "Forge AI {} threw: {}: {} at {}",
+                label,
+                failure::class.simpleName,
+                failure.message,
+                failure.stackTrace.firstOrNull(),
+            )
         }
         return result
     }
@@ -561,6 +621,25 @@ internal fun chooseCastActionByVariant(
         is ExpectedCastVariant.Alternative -> candidates.firstOrNull { it.alternativeGrpId == variant.alternativeGrpId }
         ExpectedCastVariant.UnresolvedAlternative -> null
     }
+
+/**
+ * Validate AI-chosen sacrifice ids against the cost selection contract:
+ * every id must be an offered candidate, chosen exactly once, and the count
+ * must satisfy the selection's min/max. Null means "no usable AI decision".
+ */
+internal fun sacrificeCostSelectionIds(
+    chosenIds: List<Int>,
+    selection: SelectNReq,
+): List<Int>? {
+    if (chosenIds.isEmpty()) return null
+    val allowed = selection.idsList.toSet()
+    if (chosenIds.any { it == 0 || it !in allowed }) return null
+    if (chosenIds.distinct().size != chosenIds.size) return null
+    val min = selection.minSel.coerceAtLeast(0)
+    val max = if (selection.maxSel > 0) selection.maxSel else min
+    if (chosenIds.size !in min..max) return null
+    return chosenIds
+}
 
 internal fun allowedStaticColorIds(
     req: SelectNReq,

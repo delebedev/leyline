@@ -27,6 +27,7 @@ import leyline.web.EmbeddedWebGreEngineSession
 import leyline.web.GreStartRequest
 import leyline.web.InMemoryRateLimiter
 import leyline.web.InProcessWebGreRelay
+import leyline.web.LimitedSetView
 import leyline.web.ResendEmailSender
 import leyline.web.SqliteWebAuthStore
 import leyline.web.WebAuthService
@@ -41,7 +42,14 @@ fun main(args: Array<String>) {
     val options = parseArgs(args)
     val port = options["--web-port"]?.toIntOrNull() ?: System.getenv("LEYLINE_WEBDOOR_PORT")?.toIntOrNull() ?: 8080
     val host = options["--web-host"] ?: System.getenv("LEYLINE_WEBDOOR_HOST")?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
-    val config = MatchConfig.load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
+    // Browser clients animate on their own; server-side pacing between engine
+    // steps only delays frame delivery, so the web profile runs the engine
+    // at full speed unless LEYLINE_AI_SPEED asks for pacing.
+    val aiSpeed = System.getenv("LEYLINE_AI_SPEED")?.toDoubleOrNull() ?: 0.0
+    val config =
+        MatchConfig
+            .load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
+            .let { it.copy(ai = it.ai.copy(speed = aiSpeed)) }
     val cardRepo = resolveCardRepository()
     val playerDb = resolvePlayerDb(config)
     val playerDatabase = Database.connect("jdbc:sqlite:${playerDb.absolutePath}", "org.sqlite.JDBC")
@@ -122,6 +130,11 @@ fun main(args: Array<String>) {
                     rateLimitConfig = AuthRateLimitConfig.fromEnv(),
                     fixedLoginCode = resolveFixedLoginCode(System.getenv()),
                 ),
+            sealedSets = {
+                SealedPoolGenerator.supportedSets().map {
+                    LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)
+                }
+            },
         )
 
     embeddedServer(Netty, host = host, port = port) { installWeb(services) }.start(wait = true)
@@ -139,11 +152,14 @@ private class WebRuntimeMatchLauncher(
         request: GreStartRequest,
     ): DraftPlayResponse {
         val matchId = request.matchId?.takeIf { it.isNotBlank() } ?: "web-${UUID.randomUUID()}"
+        // Watch requests may arrive without decklists; an AI-vs-AI match still
+        // needs two decks, so blank spectator seats fall back to defaults.
+        val spectator = request.spectatorMode == true
         runtimeMatches.configure(
             RuntimeMatchConfig(
                 matchId = matchId,
-                seat1Deck = request.seat1Deck,
-                seat2Deck = request.seat2Deck,
+                seat1Deck = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator },
+                seat2Deck = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator },
                 puzzle = request.puzzle,
                 spectatorMode = request.spectatorMode,
             ),
@@ -168,11 +184,10 @@ private class WebRuntimeMatchLauncher(
     ): DraftPlayResponse {
         relay.register(
             matchId,
-            EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches),
             ownerPlayerId = playerId,
             publicAccess = publicAccess,
             onClose = { runtimeMatches.remove(matchId) },
-        )
+        ) { onFrame, onClosed -> EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches, onFrame, onClosed) }
         return DraftPlayResponse(matchId, matchId)
     }
 }

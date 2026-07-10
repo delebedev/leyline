@@ -14,6 +14,7 @@ import forge.game.cost.*
 import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
+import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
@@ -100,7 +101,7 @@ class CostDecision(
                 minSelectionWeight = minSelectionWeight,
                 sourceEntityId = source.id.takeIf { it > 0 },
             )
-        val indices = bridge.requestChoice(request)
+        val indices = bridge.requestChoice(request, targetingSa = ability)
         if (indices.isEmpty() && cancelAllowed) return null
         val selected = CardCollection()
         for (idx in indices) {
@@ -131,7 +132,14 @@ class CostDecision(
     private fun discardAmount(
         cost: CostDiscard,
         discardType: String,
-    ): Int = if (ability.isJumpstart && discardType == "Card") 1 else cost.getAbilityAmount(ability)
+    ): Int =
+        if ((ability.isJumpstart && discardType == "Card") ||
+            (ability.isOptionalCostPaid(OptionalCost.Retrace) && discardType == "Land")
+        ) {
+            1
+        } else {
+            cost.getAbilityAmount(ability)
+        }
 
     private fun selectTotalPowerTapCost(
         cost: CostTapType,

@@ -36,11 +36,13 @@ import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import forge.game.staticability.StaticAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
 import leyline.bridge.coord.SpellExecutor
@@ -163,16 +165,16 @@ import java.util.function.Predicate
  * method we previously inherited:
  *
  * 1. **Trivial body (≤ 5 lines, direct `bridge.requestChoice` or `super` call)?**
- *    Keep it here. Update [PlayerControllerStructureTest] and the override
- *    table in `engine/CLAUDE.md` in the same commit.
+ *    Keep it here. Update [PlayerControllerStructureTest]'s pinned override
+ *    count in the same commit.
  * 2. **Fits an existing coordinator's concern?** Add a method there, delegate.
  * 3. **Shares a lifecycle pattern with other overrides** (e.g. a future dance)?
  *    Extract a shared helper before adding the override — see [OptionalActionGate].
  * 4. **New concern that does not fit any existing coordinator?** Propose a new
  *    coordinator; justify it against the anti-patterns above.
  *
- * The structure test is the guardrail: it fails when the override count drifts,
- * forcing the table and the class to stay in sync.
+ * The structure test is the guardrail: it fails when the override count drifts
+ * from its pinned value, forcing this class and the test to stay in sync.
  *
  * ## Threading
  *
@@ -379,7 +381,16 @@ class PlayerController(
         max: Int,
         validTargets: CardCollectionView,
         message: String?,
-    ): CardCollectionView = targetingCoordinator.choosePermanentsToSacrifice(sa, min, max, validTargets, message)
+    ): CardCollectionView {
+        // Optional sacrifice reductions answer from the active policy.
+        // Mandatory sacrifices fall through so the refusal surfaces at the bridge.
+        if (min == 0) {
+            NonInteractiveScope.active?.let { policy ->
+                return NonInteractiveAnswers.permanentsToSacrifice(policy, sa, validTargets)
+            }
+        }
+        return targetingCoordinator.choosePermanentsToSacrifice(sa, min, max, validTargets, message)
+    }
 
     override fun choosePermanentsToDestroy(
         sa: SpellAbility?,
@@ -792,8 +803,62 @@ class PlayerController(
         artifacts: Boolean,
         creatures: Boolean,
         maxReduction: Int?,
-    ): Map<Card, ManaCostShard> =
-        costPaymentCoordinator.chooseCardsForConvokeOrImprovise(sa, manaCost, untappedCards, artifacts, creatures, maxReduction)
+    ): Map<Card, ManaCostShard> {
+        NonInteractiveScope.active?.let { policy ->
+            return NonInteractiveAnswers.cardsForConvokeOrImprovise(policy, manaCost, untappedCards, artifacts, maxReduction)
+        }
+        return costPaymentCoordinator.chooseCardsForConvokeOrImprovise(sa, manaCost, untappedCards, artifacts, creatures, maxReduction)
+    }
+
+    override fun chooseCardsToDelve(
+        genericAmount: Int,
+        grave: CardCollection,
+    ): CardCollectionView {
+        NonInteractiveScope.active?.let { policy ->
+            return NonInteractiveAnswers.cardsToDelve(policy, genericAmount, grave)
+        }
+        return super.chooseCardsToDelve(genericAmount, grave)
+    }
+
+    override fun chooseNumberForCostReduction(
+        sa: SpellAbility,
+        min: Int,
+        max: Int,
+    ): Int {
+        NonInteractiveScope.active?.let { policy ->
+            return NonInteractiveAnswers.numberForCostReduction(policy, min, max)
+        }
+        return super.chooseNumberForCostReduction(sa, min, max)
+    }
+
+    override fun chooseSingleStaticAbility(possibleStatics: List<StaticAbility>): StaticAbility {
+        // Reduce/set statics all apply; only the application order is chosen.
+        // Non-interactive contexts take them in list order.
+        if (NonInteractiveScope.active != null) return possibleStatics.first()
+        return super.chooseSingleStaticAbility(possibleStatics)
+    }
+
+    override fun choosePlayerToAssistPayment(
+        optionList: FCollectionView<Player>,
+        sa: SpellAbility,
+        title: String?,
+        max: Int,
+    ): Player? {
+        // Assist commits another player's mana; no non-interactive context may
+        // assume it.
+        if (NonInteractiveScope.active != null) return null
+        return super.choosePlayerToAssistPayment(optionList, sa, title, max)
+    }
+
+    override fun helpPayForAssistSpell(
+        cost: ManaCostBeingPaid,
+        sa: SpellAbility,
+        max: Int,
+        requested: Int,
+    ): Boolean {
+        if (NonInteractiveScope.active != null) return false
+        return super.helpPayForAssistSpell(cost, sa, max, requested)
+    }
 
     // -- Pay cost to prevent effect ----------------------------------------
 
@@ -1192,7 +1257,7 @@ class PlayerController(
     }
 
     /**
-     * For an SP$ Charm SA (Charm or Spree), compute possible/excluded mappings
+     * For an SP$ Charm SA (Charm, Spree, Tiered), compute possible/excluded mappings
      * into the unfiltered Choices list plus per-mode costs parsed from Forge's
      * `ModeCost$` SVar. Returns `(null, null, null, null)` when:
      *   - the SA has no `getAdditionalAbilityList("Choices")` (not a Charm)
@@ -1233,7 +1298,7 @@ class PlayerController(
     }
 
     /**
-     * Parse Forge's `ModeCost$` text (e.g. `"1 U"`, `"3"`, `"2 R"`) into
+     * Parse Forge's `ModeCost$` text (e.g. `"0"`, `"3"`, `"2 R"`) into
      * (ManaColor, count) pairs. Tokenizer differs from card-DB OldSchoolManaText
      * (whitespace vs. `o` prefix) but the single-symbol vocabulary is shared via
      * [manaTokenToPair]. Empty/null returns empty list (Charm-style cost-free mode).
@@ -1242,6 +1307,10 @@ class PlayerController(
         if (text.isNullOrBlank()) return emptyList()
         val counts = mutableMapOf<ManaColor, Int>()
         for (token in text.trim().split(Regex("\\s+"))) {
+            if (token == "0") {
+                counts[ManaColor.Generic] = 0
+                continue
+            }
             val pair = manaTokenToPair(token) ?: continue
             counts.merge(pair.first, pair.second, Int::plus)
         }

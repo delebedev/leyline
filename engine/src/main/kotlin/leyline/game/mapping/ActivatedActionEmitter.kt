@@ -59,7 +59,7 @@ internal object ActivatedActionEmitter {
             if (!ability.canPlay()) continue
             if (skipDisguiseTurnFaceUp && ability.isDisguiseUp) continue
             val canPay = ActionManaCosts.canPayManaCost(ability, player)
-            val abilityCost = ability.payCosts?.totalMana
+            val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
             val autoTap =
                 if (canPay && abilityCost != null && !abilityCost.isNoCost) {
                     autoTapSolution(abilityCost)

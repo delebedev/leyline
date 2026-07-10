@@ -1,0 +1,11 @@
+name: "Sunhome Stalwart"
+grpId: 93555
+titleId: 272626
+abilities:
+  - id: 6
+    textId: 158
+    category: 3
+  - id: 171
+    textId: 272577
+    category: 2
+expansionCode: "J25"

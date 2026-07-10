@@ -61,6 +61,8 @@ graph LR
 
 Ports are configured via `leyline.toml` or CLI flags (`--fd-port`, `--md-port`, `--debug-port`, …); the values above are defaults.
 
+The debug server binds loopback-only by default; set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose it on all interfaces.
+
 ---
 
 ## 3. Wire Frame (Match Door)

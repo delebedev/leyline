@@ -665,11 +665,13 @@ class GameBridge(
      *
      * The game should already be at the desired phase (via `devModeSet`).
      * Cards should already be in zones (via `Zone.add`). This method wires
-     * only the components needed for proto output: [GameEventCollector] for
-     * annotations, [InstanceIdRegistry] for card IDs.
+     * the components needed for proto output — [GameEventCollector] for
+     * annotations, [InstanceIdRegistry] for card IDs — and registers the
+     * bridged player controller so engine callbacks (cost calculation,
+     * choice answers) behave as in a started game.
      *
-     * No bridges, no threads, no CompletableFuture — fully synchronous.
-     * Forge events fire inline when you call `game.action.*` methods.
+     * No threads, no game loop — fully synchronous. Forge events fire
+     * inline when you call `game.action.*` methods.
      *
      * Use in conformance tests where you need [leyline.game.mapping.StateMapper] + [leyline.game.bundle.BundleBuilder]
      * but don't need the game loop or player interaction.
@@ -677,9 +679,32 @@ class GameBridge(
     fun wrapGame(g: Game) {
         game = g
         populateSeatMap(g)
+        // Register the bridged controller exactly as the started-game paths
+        // do — a wrapped game whose cost calculations reach the default
+        // controller would block on desktop input machinery.
+        registerHumanController(g)
         val collector = GameEventCollector(this)
         eventCollector = collector
         g.subscribeToEvents(collector)
+    }
+
+    private fun registerHumanController(g: Game) {
+        val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return
+        val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
+        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        val controller =
+            BridgedPlayerController(
+                game = g,
+                player = human,
+                lobbyPlayer = human.lobbyPlayer,
+                bridge = promptBridge(SeatId(1)),
+                seating = seating,
+                actionBridge = actionBridge(SeatId(1)),
+                mulliganBridge = mulliganBridge(SeatId(1)),
+                phaseStopProfile = phaseStopProfile,
+            )
+        humanController = controller
+        human.addController(Long.MAX_VALUE - 1, human, controller, false)
     }
 
     /**
@@ -729,25 +754,9 @@ class GameBridge(
 
         populateSeatMap(g)
 
-        // Wire PlayerController for seat 1 (human) with mulligan bridge
-        val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
-        val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val controller =
-            BridgedPlayerController(
-                game = g,
-                player = human,
-                lobbyPlayer = human.lobbyPlayer,
-                bridge = promptBridge(SeatId(1)),
-                seating = seating,
-                actionBridge = actionBridge(SeatId(1)),
-                mulliganBridge = mulliganBridge(SeatId(1)),
-                phaseStopProfile = phaseStopProfile,
-            )
-        humanController = controller
-        human.addController(Long.MAX_VALUE - 1, human, controller, false)
-
-        // AI keeps its default controller — handles priority, combat, etc. natively
+        // Wire PlayerController for seat 1 (human) with mulligan bridge.
+        // AI keeps its default controller — handles priority, combat, etc. natively.
+        registerHumanController(g)
 
         val loop =
             GameLoopController(

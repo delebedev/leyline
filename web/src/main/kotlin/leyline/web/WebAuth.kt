@@ -330,7 +330,7 @@ class InMemoryWebAuthStore : WebAuthStore {
 class WebAuthService(
     private val store: WebAuthStore,
     private val emailSender: EmailSender,
-    private val secret: String = DEV_WEB_AUTH_SECRET,
+    private val secret: String,
     private val rateLimiter: RequestRateLimiter = NoopRateLimiter,
     private val rateLimitConfig: AuthRateLimitConfig = AuthRateLimitConfig.disabled(),
     private val fixedLoginCode: String? = null,

@@ -217,3 +217,14 @@ data class ParseDecklistResponse(
     val commander: List<ParsedCardDto>,
     val errors: List<String>,
 )
+
+@Serializable
+data class CardMetadataView(
+    val cards: List<CardMetadataEntry> = emptyList(),
+)
+
+@Serializable
+data class CardMetadataEntry(
+    val grpId: Int,
+    val name: String? = null,
+)

@@ -7,6 +7,7 @@ import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.pickMdfcBackSpellAbility
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
@@ -124,6 +125,7 @@ class ActionPerformer(
                 action.actionType == ActionType.CastLeftRoom ||
                 action.actionType == ActionType.CastRightRoom ||
                 action.actionType == ActionType.CastOmen ||
+                action.actionType == ActionType.CastMdfc ||
                 action.actionType == ActionType.SpecialTurnFaceUp_add3
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
@@ -140,7 +142,7 @@ class ActionPerformer(
             ActionType.Pass -> {
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
             }
-            ActionType.Play_add3 -> {
+            ActionType.Play_add3, ActionType.PlayMdfc -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val submitted =
                     if (cardId != null) {
@@ -154,38 +156,15 @@ class ActionPerformer(
                 val castAbilityIndex =
                     resolveCastAbilityIndex(action, bridge)
                         ?: resolveImplicitDisguiseCastAbilityIndex(action, bridge)
-                if (targetingHandler.checkAlternateAdditionalCostChoice(action, pending.actionId)) {
-                    Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
-                    return
-                }
-                if (targetingHandler.checkHybridManaTypeOptions(action, pending.actionId, castAbilityIndex)) {
-                    Tap.outboundTemplate("Cast deferred — hybrid mana type prompt sent")
-                    return
-                }
-                // Check for optional costs (kicker, buyback, etc.) before submitting.
-                // If found, sends CastingTimeOptionsReq to client and returns without
-                // submitting to engine. onCastingTimeOptions resumes the cast.
-                val skipOptionalCostPrompt = action.alternativeGrpId == KeywordAbilityIds.JUMP_START
-                if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(action, pending.actionId, castAbilityIndex)) {
-                    Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
-                    // Don't submit to engine yet — wait for CastingTimeOptionsResp
-                    return
-                } else {
-                    val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                    val submitted =
-                        if (cardId != null) {
-                            val abilityIndex =
-                                if (action.alternativeGrpId != 0) {
-                                    resolveAltCostAbilityIndex(action, cardId, bridge)
-                                } else {
-                                    castAbilityIndex
-                                }
-                            seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId, abilityIndex))
-                        } else {
-                            seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
-                        }
-                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-                }
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val abilityIndex =
+                    if (action.alternativeGrpId != 0 && cardId != null) {
+                        resolveAltCostAbilityIndex(action, cardId, bridge)
+                    } else {
+                        castAbilityIndex
+                    }
+                val submitted = submitCastOrDefer(action, pending.actionId, cardId, castAbilityIndex, abilityIndex) ?: return
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.Activate_add3 -> {
                 val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
@@ -224,6 +203,25 @@ class ActionPerformer(
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.CastMdfc -> {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val card = cardId?.let { findCard(game, it) }
+                val player = bridge.getPlayer(counters.seatId)
+                val backSpell = card?.let(::pickMdfcBackSpellAbility)
+                val abilityIndex =
+                    if (card != null && player != null && backSpell != null) {
+                        getAllCastableAbilities(card, player)
+                            .indexOfFirst { it === backSpell }
+                            .takeIf { it >= 0 }
+                    } else {
+                        null
+                    }
+                if (abilityIndex == null) {
+                    log.warn("CastMdfc: no backside spell SA found for card={} iid={}", card?.name, action.instanceId)
+                }
+                val submitted = submitCastOrDefer(action, pending.actionId, cardId, abilityIndex, abilityIndex) ?: return
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.CastAdventure -> {
@@ -487,6 +485,35 @@ class ActionPerformer(
     }
 
     private fun ManaColor.toMagicColorMask(): Byte? = WubrgColorMapping.magicMaskForManaColor(this)
+
+    private fun submitCastOrDefer(
+        action: Action,
+        pendingActionId: String,
+        cardId: ForgeCardId?,
+        castAbilityIndex: Int?,
+        submitAbilityIndex: Int?,
+    ): Boolean? {
+        if (targetingHandler.checkAlternateAdditionalCostChoice(action, pendingActionId)) {
+            Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
+            return null
+        }
+        if (targetingHandler.checkHybridManaTypeOptions(action, pendingActionId, castAbilityIndex)) {
+            Tap.outboundTemplate("Cast deferred — hybrid mana type prompt sent")
+            return null
+        }
+        val skipOptionalCostPrompt =
+            action.alternativeGrpId == KeywordAbilityIds.JUMP_START || action.alternativeGrpId == KeywordAbilityIds.RETRACE
+        if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(action, pendingActionId, castAbilityIndex)) {
+            Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
+            return null
+        }
+        val seatBridge = ctx.bridge.seat(counters.seatId)
+        return if (cardId != null) {
+            seatBridge.action.submitAction(pendingActionId, PlayerAction.CastSpell(cardId, submitAbilityIndex))
+        } else {
+            seatBridge.action.submitAction(pendingActionId, PlayerAction.PassPriority)
+        }
+    }
 
     private fun resolveCastAbilityIndex(
         action: Action,

@@ -1,0 +1,15 @@
+name: "Honored Dreyleader"
+grpId: 91714
+titleId: 811597
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 174066
+    textId: 811598
+    category: 2
+    subCategory: 10
+  - id: 174067
+    textId: 811600
+    category: 2
+expansionCode: "BLB"

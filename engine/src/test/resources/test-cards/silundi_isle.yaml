@@ -1,0 +1,14 @@
+name: "Silundi Isle"
+grpId: 94304
+titleId: 437225
+abilities:
+  - id: 180111
+    textId: 894988
+    category: 3
+  - id: 1002
+    textId: 227604
+    category: 1
+expansionCode: "PIO"
+linkedFaces:
+  - 94303
+isPrimaryCard: false

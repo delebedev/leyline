@@ -1,0 +1,17 @@
+[metadata]
+Name:Evoke - Mulldrifter
+Goal:Cast Mulldrifter for evoke and let it sacrifice itself after entering.
+Turns:4
+Difficulty:Easy
+Description:Mulldrifter exposes an evoke cast action, resolves, then moves to the graveyard from its evoke trigger.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Mulldrifter
+humanbattlefield=Island;Island;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island
+ailibrary=Mountain;Mountain;Mountain

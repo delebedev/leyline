@@ -17,11 +17,11 @@ import org.jetbrains.kotlin.psi.KtReturnExpression
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 
 /**
- * Flags `if (!x.exists()) return@label` — tests that pass silently when a
- * precondition file is missing, because the labeled return exits the enclosing
- * lambda (usually a Kotest test block) without running any assertion. The fix
- * is either Kotest's `config { enabledIf = ... }` to skip with intent, or an
- * explicit `io.kotest.assertions.fail(...)` so a missing file fails loudly.
+ * Flags labeled returns from missing-precondition checks — tests that pass
+ * silently because the labeled return exits the enclosing lambda (usually a
+ * Kotest test block) without running any assertion. The fix is either Kotest's
+ * `config { enabledIf = ... }` to skip with intent, or an explicit
+ * `io.kotest.assertions.fail(...)` so a missing precondition fails loudly.
  */
 class VacuousTestSkip(config: Config) : Rule(config) {
     override val issue = Issue(
@@ -34,7 +34,7 @@ class VacuousTestSkip(config: Config) : Rule(config) {
     override fun visitIfExpression(expression: KtIfExpression) {
         super.visitIfExpression(expression)
         val condition = expression.condition?.unwrapParens() ?: return
-        if (!isNegatedExistsCheck(condition)) return
+        if (!isSilentSkipPrecondition(condition)) return
         val thenBranch = expression.then ?: return
         val hasLabeledReturn = thenBranch.hasLabeledReturn()
         if (!hasLabeledReturn) return
@@ -42,8 +42,8 @@ class VacuousTestSkip(config: Config) : Rule(config) {
             CodeSmell(
                 issue,
                 Entity.from(expression),
-                "Test bails out silently when the file is missing. Use Kotest `config { enabledIf = ... }` " +
-                    "to skip with intent, or call `fail(\"...\")` so a missing file is a loud failure.",
+                "Test bails out silently when a precondition is missing. Use Kotest `config { enabledIf = ... }` " +
+                    "to skip with intent, or call `fail(\"...\")` so a missing precondition is a loud failure.",
             ),
         )
     }
@@ -63,6 +63,9 @@ class VacuousTestSkip(config: Config) : Rule(config) {
         )
         return found
     }
+
+    private fun isSilentSkipPrecondition(expr: KtExpression): Boolean =
+        isNegatedExistsCheck(expr) || isNullOrBlankCheck(expr)
 
     /**
      * Matches `!x.exists()` (prefix-not on an exists call) and `x.exists().not()`
@@ -86,5 +89,11 @@ class VacuousTestSkip(config: Config) : Rule(config) {
         if (expr !is KtDotQualifiedExpression) return false
         val selector = expr.selectorExpression as? KtCallExpression ?: return false
         return selector.calleeExpression?.text == "exists"
+    }
+
+    private fun isNullOrBlankCheck(expr: KtExpression): Boolean {
+        if (expr !is KtDotQualifiedExpression) return false
+        val selector = expr.selectorExpression as? KtCallExpression ?: return false
+        return selector.calleeExpression?.text == "isNullOrBlank"
     }
 }

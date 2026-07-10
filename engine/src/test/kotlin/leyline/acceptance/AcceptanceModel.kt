@@ -1,5 +1,7 @@
 package leyline.acceptance
 
+import leyline.game.data.KeywordAbilityIds
+
 data class AcceptanceSuite(
     val name: String,
     val description: String?,
@@ -109,12 +111,24 @@ data class PlayLandStep(
     override val label: String = "play_land $card"
 }
 
+data class PlayMdfcStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "play_mdfc $card"
+}
+
 data class CastStep(
     val card: String,
     val zone: AcceptanceZone = AcceptanceZone.Hand,
     val altCost: AcceptanceAltCost? = null,
 ) : AcceptanceStep {
     override val label: String = "cast $card"
+}
+
+data class CastMdfcStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "cast_mdfc $card"
 }
 
 data class SelectCostStep(
@@ -262,7 +276,9 @@ enum class AcceptanceActionType(
     val yamlName: String,
 ) {
     PlayLand("play_land"),
+    PlayMdfc("play_mdfc"),
     Cast("cast"),
+    CastMdfc("cast_mdfc"),
     Activate("activate"),
     ;
 
@@ -337,18 +353,27 @@ enum class AcceptanceManaTypeChoice(
 
 enum class AcceptanceAltCost(
     val yamlName: String,
+    val keywordAbilityId: Int,
 ) {
-    Cleave("cleave"),
-    Disguise("disguise"),
-    Overload("overload"),
-    Escape("escape"),
-    Foretell("foretell"),
-    Impending("impending"),
-    JumpStart("jump_start"),
-    Plot("plot"),
-    Warp("warp"),
-    Enlist("enlist"),
-    Airbend("airbend"),
+    Cleave("cleave", KeywordAbilityIds.CLEAVE),
+    Disguise("disguise", KeywordAbilityIds.DISGUISE),
+    Overload("overload", KeywordAbilityIds.OVERLOAD),
+    Spectacle("spectacle", KeywordAbilityIds.SPECTACLE),
+    Surge("surge", KeywordAbilityIds.SURGE),
+    Evoke("evoke", KeywordAbilityIds.EVOKE),
+    Blitz("blitz", KeywordAbilityIds.BLITZ),
+    Dash("dash", KeywordAbilityIds.DASH),
+    Emerge("emerge", KeywordAbilityIds.EMERGE),
+    Escape("escape", KeywordAbilityIds.ESCAPE),
+    Harmonize("harmonize", KeywordAbilityIds.HARMONIZE),
+    Foretell("foretell", KeywordAbilityIds.FORETELL),
+    Impending("impending", KeywordAbilityIds.IMPENDING),
+    JumpStart("jump_start", KeywordAbilityIds.JUMP_START),
+    Retrace("retrace", KeywordAbilityIds.RETRACE),
+    Plot("plot", KeywordAbilityIds.PLOT),
+    Warp("warp", KeywordAbilityIds.WARP),
+    Enlist("enlist", KeywordAbilityIds.ENLIST),
+    Airbend("airbend", KeywordAbilityIds.AIRBEND),
     ;
 
     companion object {

@@ -1,0 +1,11 @@
+name: "The Prismatic Bridge"
+grpId: 75213
+titleId: 477557
+abilities:
+  - id: 140041
+    textId: 477559
+    category: 2
+expansionCode: "KHM"
+linkedFaces:
+  - 75212
+isPrimaryCard: false

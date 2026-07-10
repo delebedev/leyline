@@ -312,6 +312,12 @@ object ObjectMapper {
             setIsCopy(true)
             setObjectSourceGrpId(this.grpId)
         }
+        if (cardSnap.tokenSourceCardGrpId != 0) {
+            setObjectSourceGrpId(cardSnap.tokenSourceCardGrpId)
+        }
+        if (cardSnap.tokenParentAbilityInstanceId != 0) {
+            setParentId(cardSnap.tokenParentAbilityInstanceId)
+        }
 
         // Prepared-spell exile copies project as Card with isCopy=true. The
         // parentId is set below via parentLinkage; the source can be null mid-

@@ -40,6 +40,8 @@ inline fun clientMessage(
 
 fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage = leyline.tooling.headless.performAction(block)
 
+fun performAction(action: Action): ClientToGREMessage = leyline.tooling.headless.performAction(action)
+
 fun declareAttackersResp(
     attackers: List<Int> = emptyList(),
     attackerAlternatives: Map<Int, Int> = emptyMap(),

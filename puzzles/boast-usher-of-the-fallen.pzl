@@ -1,0 +1,16 @@
+[metadata]
+Name:Boast - Usher of the Fallen
+Goal:Attack with Usher, activate Boast, and create a Human Warrior token.
+Turns:5
+Difficulty:Easy
+Description:Usher attacks, then its Boast activation creates a 1/1 Human Warrior token and cannot be activated again that turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Usher of the Fallen;Plains;Plains
+humanlibrary=Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain

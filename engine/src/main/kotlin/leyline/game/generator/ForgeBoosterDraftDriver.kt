@@ -131,13 +131,18 @@ class ForgeBoosterDraftDriver(
             draft.computerDeckMains().map { deck ->
                 val main = deck.getOrCreate(DeckSection.Main)
                 val grpIds = mutableListOf<Int>()
+                val unmapped = mutableListOf<String>()
                 for (entry in main) {
                     val grpId = cards.findGrpIdByName(entry.key.name)
                     if (grpId != null) {
                         repeat(entry.value) { grpIds.add(grpId) }
                     } else {
-                        log.warn("Bot deck: no grpId for '{}'", entry.key.name)
+                        unmapped.add(entry.key.name)
                     }
+                }
+                if (unmapped.isNotEmpty()) {
+                    log.error("Bot deck: no grpId for {}", unmapped)
+                    throw UnmappedCardNamesException(unmapped)
                 }
                 grpIds.toList()
             }
@@ -152,13 +157,18 @@ class ForgeBoosterDraftDriver(
 
     private fun packToGrpIds(pack: List<PaperCard>): List<Int> {
         val out = mutableListOf<Int>()
+        val unmapped = mutableListOf<String>()
         for (card in pack) {
             val grpId = cards.findGrpIdByName(card.name)
             if (grpId != null) {
                 out.add(grpId)
             } else {
-                log.warn("Draft pack: no grpId for '{}'", card.name)
+                unmapped.add(card.name)
             }
+        }
+        if (unmapped.isNotEmpty()) {
+            log.error("Draft pack: no grpId for {}", unmapped)
+            throw UnmappedCardNamesException(unmapped)
         }
         return out
     }

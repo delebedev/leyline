@@ -165,6 +165,24 @@ internal object ForgeAiGroupAdapter : ForgeAiPromptAdapter {
     }
 }
 
+internal object ForgeAiPayCostsAdapter : ForgeAiPromptAdapter {
+    override val promptType: GREMessageType = GREMessageType.PayCostsReq_695e
+    override val telemetryName: String = "PayCostsReq"
+
+    override fun shouldConsult(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): Boolean = context.forgeAi.canChooseSacrificeCostPayment(prompt.msg)
+
+    override fun decide(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): SimPromptResponse? {
+        val selected = context.forgeAi.chooseSacrificeCostPayment(prompt.msg) ?: return null
+        return SimPromptResponse(SimDecision.EffectCost(selected))
+    }
+}
+
 internal object ForgeAiCastingTimeOptionsAdapter : ForgeAiPromptAdapter {
     override val promptType: GREMessageType = GREMessageType.CastingTimeOptionsReq_695e
     override val telemetryName: String = "CastingTimeOptionsReq"

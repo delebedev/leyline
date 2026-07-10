@@ -61,6 +61,7 @@ class ExhaustLifecycleTest :
                 abilityExhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe JEONG_EXHAUST_ABILITY_GRP_ID
                 abilityExhausted.detailInt(DetailKeys.USES_REMAINING) shouldBe 0
                 abilityExhausted.detailInt(DetailKeys.UNIQUE_ABILITY_ID) shouldBe 51
+                abilityExhausted.affectorId shouldBe jeongIid
                 latestActions
                     .any {
                         it.actionType == ActionType.Activate_add3 &&
@@ -103,6 +104,7 @@ class ExhaustLifecycleTest :
                 abilityExhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe LOOT_MANA_EXHAUST_ABILITY_GRP_ID
                 abilityExhausted.detailInt(DetailKeys.USES_REMAINING) shouldBe 0
                 abilityExhausted.detailInt(DetailKeys.UNIQUE_ABILITY_ID) shouldBe 53
+                abilityExhausted.affectorId shouldBe lootIid
             }
         }
     })

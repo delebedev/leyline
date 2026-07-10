@@ -529,11 +529,11 @@ class AnnotationBuilderTest :
         // --- TokenCreated (Group B) ---
 
         test("tokenCreatedFields") {
-            val ann = AnnotationBuilder.tokenCreated(instanceId = 1100.iid)
+            val ann = AnnotationBuilder.tokenCreated(instanceId = 1100.iid, affectorId = 2100.iid)
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.TokenCreated
                 ann.affectedIdsList shouldContain 1100
-                ann.affectorId shouldBe 0
+                ann.affectorId shouldBe 2100
                 ann.detailsCount shouldBe 0
             }
         }
@@ -822,6 +822,7 @@ class AnnotationBuilderTest :
                 )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.AbilityExhausted
+                ann.affectorId shouldBe 294
                 ann.affectedIdsList shouldContain 294
                 ann.detailInt("AbilityGrpId") shouldBe 137955
                 ann.detailInt("UsesRemaining") shouldBe 0

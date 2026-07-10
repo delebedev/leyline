@@ -3,6 +3,7 @@ package leyline.tooling.simclient
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
+import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
@@ -115,6 +116,7 @@ class SimClientRunner(
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
                     cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
+                    responseMode = HeadlessResponseMode.PolicyVisible,
                 )
             is PuzzleSimClientRow ->
                 MatchFlowHarness(
@@ -123,6 +125,7 @@ class SimClientRunner(
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
                     cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
+                    responseMode = HeadlessResponseMode.PolicyVisible,
                 )
         }
 

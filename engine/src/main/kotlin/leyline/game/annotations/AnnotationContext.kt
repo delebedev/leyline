@@ -60,6 +60,8 @@ class AnnotationContext(
         TransferAnnotations.ConvokePaymentRecord(
             paymentForgeCardId = paymentForgeCardId,
             color = color,
+            substitutionGrpId = substitutionGrpId,
+            paymentAbilityGrpId = paymentAbilityGrpId,
         )
 
     /** Affector iid for a `CountersChanged` event, or null when none resolves. */

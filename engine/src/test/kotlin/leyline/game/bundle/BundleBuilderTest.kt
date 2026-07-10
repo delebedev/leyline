@@ -176,6 +176,7 @@ class BundleBuilderTest :
                 mr.modalOptionsCount shouldBe 2
                 mr.getModalOptions(0).grpId shouldBe 171803
                 mr.getModalOptions(0).modeCostCount shouldBe 1
+                mr.getModalOptions(0).getModeCost(0).id shouldBe 1
                 mr
                     .getModalOptions(0)
                     .getModeCost(0)
@@ -187,6 +188,7 @@ class BundleBuilderTest :
                     .manaCost.count shouldBe 3
 
                 mr.getModalOptions(1).grpId shouldBe 171804
+                mr.getModalOptions(1).getModeCost(0).id shouldBe 2
                 mr
                     .getModalOptions(1)
                     .getModeCost(0)
@@ -195,6 +197,8 @@ class BundleBuilderTest :
                 mr.excludedOptionsCount shouldBe 1
                 mr.getExcludedOptions(0).grpId shouldBe 171802
                 mr.getExcludedOptions(0).modeCostCount shouldBe 2
+                mr.getExcludedOptions(0).getModeCost(0).id shouldBe 3
+                mr.getExcludedOptions(0).getModeCost(1).id shouldBe 4
                 mr
                     .getExcludedOptions(0)
                     .getModeCost(0)
@@ -213,6 +217,63 @@ class BundleBuilderTest :
                     .getExcludedOptions(0)
                     .getModeCost(1)
                     .manaCost.count shouldBe 1
+            }
+        }
+
+        test("buildModalCastingTimeOptionsReq — Tiered shape (one of three costed tiers)") {
+            val req =
+                CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
+                    parentGrpId = 189137,
+                    childGrpIds = listOf(189134, 189135, 189136),
+                    modalCosts =
+                        listOf(
+                            listOf(Messages.ManaColor.Generic to 0),
+                            listOf(Messages.ManaColor.Generic to 2),
+                            listOf(
+                                Messages.ManaColor.Generic to 5,
+                                Messages.ManaColor.Blue_afc9 to 1,
+                            ),
+                        ),
+                    minSel = 1,
+                    maxSel = 1,
+                    sourceInstanceId = 283,
+                    grpId = 95912,
+                    ctoId = 2,
+                    playerIdToPrompt = 1,
+                )
+
+            val opt = req.getCastingTimeOptionReq(0)
+            val mr = opt.modalReq
+            assertSoftly {
+                opt.ctoId shouldBe 2
+                opt.grpId shouldBe 95912
+                opt.playerIdToPrompt shouldBe 1
+                mr.abilityGrpId shouldBe 189137
+                mr.minSel shouldBe 1
+                mr.maxSel shouldBe 1
+                mr.modalOptionsList.map { it.grpId } shouldBe listOf(189134, 189135, 189136)
+                mr.excludedOptionsCount shouldBe 0
+                mr.getModalOptions(0).getModeCost(0).id shouldBe 1
+                mr.getModalOptions(1).getModeCost(0).id shouldBe 2
+                mr.getModalOptions(2).getModeCost(0).id shouldBe 3
+                mr.getModalOptions(2).getModeCost(1).id shouldBe 4
+                mr
+                    .getModalOptions(0)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 0
+                mr
+                    .getModalOptions(1)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 2
+                mr
+                    .getModalOptions(2)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 5
+                mr
+                    .getModalOptions(2)
+                    .getModeCost(1)
+                    .manaCost
+                    .getColor(0) shouldBe Messages.ManaColor.Blue_afc9
             }
         }
 
