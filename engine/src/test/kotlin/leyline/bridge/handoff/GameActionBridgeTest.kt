@@ -12,6 +12,8 @@ import leyline.bridge.handoff.PlayerAction
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /** Deadlined poll for an engine-thread pending — sleep is poll interval, not a race. */
 @Suppress("NoThreadSleepInTests")
@@ -128,6 +130,37 @@ class GameActionBridgeTest :
                 bridge.markPromptEmitted(pending.actionId, 12) shouldBe true
                 bridge.acceptsResponse(pending, 11) shouldBe false
                 bridge.acceptsResponse(pending, 12) shouldBe true
+            }
+
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            engineThread.join(2000)
+        }
+
+        test("offered commands require the matching live prompt catalog") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val ready = CountDownLatch(1)
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            engineThread.isDaemon = true
+            engineThread.start()
+            ready.await(2, TimeUnit.SECONDS)
+
+            val pending = pollForPending(bridge).shouldNotBeNull()
+            val offered = Action.newBuilder().setActionType(ActionType.Pass).build()
+            val unknown = Action.newBuilder().setActionType(ActionType.Cast).setInstanceId(9).build()
+            val catalog = GameActionBridge.ActionOfferCatalog.of(listOf(GameActionBridge.ActionOffer(offered, PlayerAction.PassPriority)))
+
+            assertSoftly {
+                bridge.commandForOfferedAction(pending, 12, offered).shouldBeNull()
+                bridge.bindOfferCatalog(pending.actionId, 12, catalog) shouldBe true
+                bridge.commandForOfferedAction(pending, 11, offered).shouldBeNull()
+                bridge.commandForOfferedAction(pending, 12, unknown).shouldBeNull()
+                bridge.commandForOfferedAction(pending, 12, offered) shouldBe PlayerAction.PassPriority
             }
 
             bridge.submitAction(pending.actionId, PlayerAction.PassPriority)

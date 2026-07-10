@@ -7,6 +7,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.PrioritySignal
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -75,7 +76,36 @@ class GameActionBridge(
         val state: PendingActionState,
         val future: CompletableFuture<PlayerAction>,
         @Volatile var promptGameStateId: Int? = null,
+        @Volatile var offerCatalog: ActionOfferCatalog? = null,
     )
+
+    /**
+     * One client-visible priority action and the command selected while Forge is
+     * blocked for that priority window. The catalog lifetime is the pending
+     * action lifetime; it must never escape into later game state.
+     */
+    data class ActionOffer(
+        val protocol: Action,
+        val command: PlayerAction,
+    )
+
+    class ActionOfferCatalog private constructor(
+        private val commands: Map<Action, PlayerAction>,
+    ) {
+        fun commandFor(action: Action): PlayerAction? = commands[action]
+
+        companion object {
+            fun of(offers: Iterable<ActionOffer>): ActionOfferCatalog {
+                val commands = LinkedHashMap<Action, PlayerAction>()
+                for (offer in offers) {
+                    check(commands.put(offer.protocol, offer.command) == null) {
+                        "Duplicate protocol action in pending offer catalog: ${offer.protocol.actionType}"
+                    }
+                }
+                return ActionOfferCatalog(commands)
+            }
+        }
+    }
 
     private val pending = AtomicReference<PendingAction?>(null)
 
@@ -196,6 +226,25 @@ class GameActionBridge(
         return true
     }
 
+    /**
+     * Atomically bind a priority prompt and its executable offers to the live
+     * pending action. An AAR without this binding is informational only and
+     * cannot be used to complete the engine wait.
+     */
+    fun bindOfferCatalog(
+        actionId: String,
+        gameStateId: Int,
+        catalog: ActionOfferCatalog,
+    ): Boolean {
+        val current = pending.get() ?: return false
+        synchronized(current) {
+            if (current.actionId != actionId || current.future.isDone) return false
+            current.promptGameStateId = gameStateId
+            current.offerCatalog = catalog
+            return true
+        }
+    }
+
     fun markCurrentPromptEmitted(gameStateId: Int): Boolean {
         val current = getPending() ?: return false
         return markPromptEmitted(current.actionId, gameStateId)
@@ -207,6 +256,23 @@ class GameActionBridge(
     ): Boolean {
         if (responseGameStateId == 0) return true
         return pendingAction.promptGameStateId == responseGameStateId
+    }
+
+    /**
+     * Resolve an exact offered action only while the same pending priority
+     * window is still live. Unknown, inactive, stale, and unbound actions all
+     * return null and therefore cannot advance Forge.
+     */
+    fun commandForOfferedAction(
+        pendingAction: PendingAction,
+        responseGameStateId: Int,
+        action: Action,
+    ): PlayerAction? {
+        if (pending.get() !== pendingAction) return null
+        synchronized(pendingAction) {
+            if (pendingAction.future.isDone || !acceptsResponse(pendingAction, responseGameStateId)) return null
+            return pendingAction.offerCatalog?.commandFor(action)
+        }
     }
 
     /**
