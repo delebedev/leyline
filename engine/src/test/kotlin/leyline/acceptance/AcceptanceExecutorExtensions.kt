@@ -72,7 +72,7 @@ internal fun GREToClientMessage.matchesPrompt(
         (promptId == null || this.prompt.promptId == promptId)
 
 internal fun String.toForgePhaseName(): String =
-    when (replace("-", "").replace(" ", "").uppercase()) {
+    when (substringBefore("_").replace("-", "").replace(" ", "").uppercase()) {
         "MAIN1", "PRECOMBATMAIN" -> "MAIN1"
         "MAIN2", "POSTCOMBATMAIN" -> "MAIN2"
         "DECLAREATTACKERS", "COMBATDECLAREATTACKERS" -> "COMBAT_DECLARE_ATTACKERS"

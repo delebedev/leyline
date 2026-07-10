@@ -504,6 +504,7 @@ class MatchdoorAcceptanceExecutor(
             is PromptCondition ->
                 "${condition.label}; actual latest prompt=${latestPromptNameWithId(harness) ?: "none"}"
             is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
+            is AnnotationSeenInPhaseCondition -> "${condition.label}; actual annotations=${annotationTypesByPhase(harness)}"
             StackEmptyCondition ->
                 "${condition.label}; actual stack size=${
                     runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"
@@ -527,6 +528,7 @@ class MatchdoorAcceptanceExecutor(
             is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
             is PromptCondition -> promptSeen(harness, condition.prompt, condition.promptId)
             is AnnotationSeenCondition -> annotationSeen(harness, condition.type)
+            is AnnotationSeenInPhaseCondition -> annotationSeenInPhase(harness, condition.type, condition.phase)
             StackEmptyCondition -> harness.game().stackZone.size() == 0
         }
 
@@ -541,12 +543,38 @@ class MatchdoorAcceptanceExecutor(
             .any { expected in it.typeList }
     }
 
+    private fun annotationSeenInPhase(
+        harness: MatchFlowHarness,
+        type: String,
+        phase: String,
+    ): Boolean {
+        val expected = AnnotationType.valueOf(type)
+        val expectedPhase = phase.toForgePhaseName()
+        return harness.allMessages
+            .filter { it.hasGameStateMessage() && it.gameStateMessage.hasTurnInfo() }
+            .any { message ->
+                val gsm = message.gameStateMessage
+                gsm.turnInfo.phase.name.toForgePhaseName() == expectedPhase &&
+                    (gsm.annotationsList + gsm.persistentAnnotationsList).any { expected in it.typeList }
+            }
+    }
+
     private fun annotationTypes(harness: MatchFlowHarness): List<String> =
         harness.allMessages
             .filter { it.hasGameStateMessage() }
             .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
             .flatMap { it.typeList }
             .map { it.name }
+
+    private fun annotationTypesByPhase(harness: MatchFlowHarness): List<String> =
+        harness.allMessages
+            .filter { it.hasGameStateMessage() && it.gameStateMessage.hasTurnInfo() }
+            .flatMap { message ->
+                val phase = message.gameStateMessage.turnInfo.phase.name
+                (message.gameStateMessage.annotationsList + message.gameStateMessage.persistentAnnotationsList)
+                    .flatMap { it.typeList }
+                    .map { "${it.name}@$phase" }
+            }
 
     private fun actionAvailable(
         harness: MatchFlowHarness,

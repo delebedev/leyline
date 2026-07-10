@@ -1,6 +1,28 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: paradigm-germination-main1-copy
+    puzzle: paradigm-germination-live
+    run: cast Germination Practicum, then cast its recurring copy during the next Main1 trigger
+    expect: the Paradigm copy is offered in Main1, casts from exile for free, and self-exiles again
+    steps:
+      - expect:
+          action: { type: cast, card: Germination Practicum }
+      - cast: Germination Practicum
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Germination Practicum }
+            - stack_empty: true
+      - pass_until:
+          annotation_seen_in_phase: { type: AbilityInstanceCreated, phase: MAIN1 }
+          max_passes: 30
+      - expect:
+          all:
+            - annotation_seen_in_phase: { type: AbilityInstanceCreated, phase: MAIN1 }
+            - annotation_seen: UserActionTaken
+            - zone_contains: { side: ours, zone: exile, card: Germination Practicum }
+            - stack_empty: true
   - id: mdfc-silundi-front-spell
     puzzle: mdfc-silundi-front-spell
     run: cast Silundi Vision as its front spell face

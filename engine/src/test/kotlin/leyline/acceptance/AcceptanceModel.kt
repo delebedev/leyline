@@ -268,6 +268,13 @@ data class AnnotationSeenCondition(
     override val label: String = "annotation $type seen"
 }
 
+data class AnnotationSeenInPhaseCondition(
+    val type: String,
+    val phase: String,
+) : AcceptanceCondition {
+    override val label: String = "annotation $type seen in $phase"
+}
+
 data object StackEmptyCondition : AcceptanceCondition {
     override val label: String = "stack empty"
 }
