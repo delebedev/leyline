@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -83,6 +84,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
 
+@Suppress("LargeClass") // Web route coverage shares a single server fixture.
 class WebRoutesTest :
     FunSpec({
         val json = Json { ignoreUnknownKeys = true }
@@ -527,7 +529,7 @@ class WebRoutesTest :
 
                 assertSoftly {
                     closedA.get() shouldBe false
-                    framesB.isNotEmpty() shouldBe true
+                    framesB.shouldNotBeEmpty()
                     postPassTypes shouldContain wotc.mtgo.gre.external.messaging.Messages.GREMessageType.GameStateMessage_695e
                 }
             } finally {
