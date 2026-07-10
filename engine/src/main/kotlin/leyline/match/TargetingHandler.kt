@@ -28,7 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class TargetingHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    @Suppress("UnusedParameter") tracer: Any? = null,
+    @Suppress("UnusedPrivateProperty") tracer: SessionOps? = null,
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
@@ -408,36 +408,21 @@ class TargetingHandler(
             }
 
             is ClassifiedPrompt.ModalChoice -> {
-                val prefix = if (context == PromptDispatchContext.POST_CAST) "post-cast modal" else "modal"
                 sendCastingTimeOptionsReq(classified.pendingPrompt)
                 true
             }
 
             is ClassifiedPrompt.SelectN -> {
-                val semantic = pendingPrompt.request.semantic
-                val label =
-                    if (context == PromptDispatchContext.POST_CAST) {
-                        "post-cast selectN semantic=$semantic candidates=${pendingPrompt.request.candidateRefs.size}"
-                    } else {
-                        "select_n($semantic) candidates=${pendingPrompt.request.candidateRefs.size}"
-                    }
                 sendSelectNPrompt(classified.pendingPrompt)
                 true
             }
 
             is ClassifiedPrompt.Targeting -> {
-                val prefix = if (context == PromptDispatchContext.POST_CAST) "cast-target targets" else "targets"
                 sendSelectTargetsReq(classified.pendingPrompt)
                 true
             }
 
             is ClassifiedPrompt.Search -> {
-                val label =
-                    if (context == PromptDispatchContext.POST_CAST) {
-                        "post-cast search"
-                    } else {
-                        "search: ${pendingPrompt.request.message}"
-                    }
                 sendSearchReq(classified.pendingPrompt)
                 true
             }

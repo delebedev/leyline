@@ -177,7 +177,11 @@ class MatchConnection(
             ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -> handleMatchDoorConnect(msg)
             ClientToMatchServiceMessageType.ClientToGremessage -> handleGREMessage(msg)
             ClientToMatchServiceMessageType.ClientToGreuimessage -> handleGREMessage(msg)
-            else -> log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
+            ClientToMatchServiceMessageType.None_a0f0,
+            ClientToMatchServiceMessageType.CreateMatchGameRoomRequest_f487,
+            ClientToMatchServiceMessageType.EchoRequest_f487,
+            ClientToMatchServiceMessageType.UNRECOGNIZED,
+            -> log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
         }
     }
 

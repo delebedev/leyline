@@ -101,6 +101,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -187,6 +188,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -216,6 +218,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -278,6 +281,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 

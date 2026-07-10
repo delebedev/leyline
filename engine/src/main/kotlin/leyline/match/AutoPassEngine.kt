@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory
 class AutoPassEngine(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    @Suppress("UnusedParameter") tracer: Any? = null,
+    @Suppress("UnusedPrivateProperty") tracer: SessionOps? = null,
     private val bundles: BundleBuilderHolder,
     private val pacing: Pacing,
     private val combatHandler: CombatHandler,
@@ -245,7 +245,6 @@ class AutoPassEngine(
         game: Game,
         isAiTurn: Boolean,
     ): PriorityDecision {
-        val turnContext = if (isAiTurn) "opponentTurn" else "ownTurn"
         val actions = bundles.bundleBuilder.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
@@ -276,11 +275,6 @@ class AutoPassEngine(
             return decision
         }
 
-        val actionSummary =
-            actions.actionsList
-                .groupBy { it.actionType.name.removeSuffix("_add3") }
-                .map { (t, v) -> "$t=${v.size}" }
-                .joinToString(" ")
         val decision =
             PriorityDecision.Grant(
                 phase = game.phaseHandler.phase?.name ?: "UNKNOWN",

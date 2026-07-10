@@ -38,8 +38,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ActionPerformer(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val recorder: MatchRecorder? = null,
-    @Suppress("UnusedParameter") tracer: Any? = null,
+    recorder: MatchRecorder? = null,
+    tracer: SessionOps? = null,
+    private val recorder: MatchRecorder? = recorder ?: tracer?.recorder,
     private val bundles: BundleBuilderHolder,
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
@@ -130,14 +131,6 @@ class ActionPerformer(
                 action.actionType == ActionType.SpecialTurnFaceUp_add3
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
-        val actionName = action.actionType.name.removeSuffix("_add3")
-        val cardName =
-            if (action.instanceId != 0) {
-                bridge.cardRepository.findNameByGrpId(action.grpId)?.let { " ($it)" } ?: ""
-            } else {
-                ""
-            }
-
         when (action.actionType) {
             ActionType.Pass -> {
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)

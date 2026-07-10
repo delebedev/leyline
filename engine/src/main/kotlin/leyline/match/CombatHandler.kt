@@ -27,7 +27,7 @@ import kotlin.collections.iterator
 open class CombatHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    @Suppress("UnusedParameter") tracer: Any? = null,
+    @Suppress("UnusedPrivateProperty") tracer: SessionOps? = null,
     private val bundles: BundleBuilderHolder,
     private val pacing: Pacing,
     protected val ctx: SessionContext,
