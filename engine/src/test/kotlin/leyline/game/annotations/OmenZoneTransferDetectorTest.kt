@@ -13,6 +13,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.InvariantChecker
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
+import leyline.game.event.Zone
+import leyline.game.event.ZoneMove
 import leyline.game.mapping.ZoneIds
 import leyline.game.sid
 import leyline.game.state.InstanceIdRegistry
@@ -89,6 +91,11 @@ class OmenZoneTransferDetectorTest :
                             },
                             idLookup = { fid -> InstanceId(fid.value + 1000) },
                             grpIdResolver = { GrpId(95536) },
+                            zoneMoves =
+                                listOf(
+                                    ZoneMove(0, ForgeCardId(42), Zone.Hand, Zone.Stack, null),
+                                    ZoneMove(1, ForgeCardId(42), Zone.Stack, Zone.Library, null),
+                                ),
                         ),
                 )
 
@@ -169,6 +176,11 @@ class OmenZoneTransferDetectorTest :
                             },
                             idLookup = { fid -> InstanceId(fid.value + 1000) },
                             grpIdResolver = { GrpId(102608) },
+                            zoneMoves =
+                                listOf(
+                                    ZoneMove(0, ForgeCardId(42), Zone.Hand, Zone.Stack, null),
+                                    ZoneMove(1, ForgeCardId(42), Zone.Stack, Zone.Exile, null),
+                                ),
                         ),
                 )
 

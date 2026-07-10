@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentLinkedDeque
  * [record]; engine or annotation-build thread drains via `consume*` / peek.
  * Storage is split by lifetime:
  *
- * - `drains` — [PromptSideEffect.SearchedToHand] / [PromptSideEffect.LegendVictim]
+ * - `drains` — [PromptSideEffect.LegendVictim] and other one-shot effects
  *   entries. Per-entry drain semantics: each record is one event, each consume
  *   removes at most one matching entry (first-match wins). Writers should not
  *   record duplicates for the same id within a single prompt resolution.
@@ -59,7 +59,6 @@ class PromptJournal {
 
     fun record(effect: PromptSideEffect) {
         when (effect) {
-            is PromptSideEffect.SearchedToHand,
             is PromptSideEffect.ExiledUnderSource,
             is PromptSideEffect.LegendVictim,
             is PromptSideEffect.EnlistTapAffector,
@@ -76,9 +75,6 @@ class PromptJournal {
                     currentConvokePayments + (effect.sourceForgeCardId to effect.payments)
         }
     }
-
-    /** Remove + return `true` iff a [PromptSideEffect.SearchedToHand] for [id] was present. */
-    fun consumeSearched(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.SearchedToHand && it.forgeCardId == id }
 
     /** Remove + return source iff an [PromptSideEffect.ExiledUnderSource] for [id] was present. */
     fun consumeExiledUnderSource(id: ForgeCardId): ForgeCardId? {

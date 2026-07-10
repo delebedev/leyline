@@ -13,7 +13,6 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
-import leyline.match.MatchEventType
 import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
@@ -56,11 +55,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -88,11 +86,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -102,7 +99,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTraceContaining("opponentTurn") shouldBe true
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -120,11 +117,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -148,11 +144,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -174,11 +169,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -189,8 +183,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
-                ops.hasTraceContaining("fullControl") shouldBe true
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -205,11 +198,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -220,8 +212,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTraceContaining("fullControl") shouldBe true
-                ops.hasTraceContaining("opponentTurn") shouldBe true
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -236,11 +227,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -252,7 +242,6 @@ class AutoPassEngineTest :
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>()
                 (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.ClientAutoPass
-                ops.hasTrace(MatchEventType.AUTO_PASS) shouldBe true
             }
         }
 
@@ -270,11 +259,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -285,7 +273,7 @@ class AutoPassEngineTest :
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
+                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
             }
         }
 
@@ -298,11 +286,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -326,11 +313,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -341,7 +327,6 @@ class AutoPassEngineTest :
             decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             val grant = decision as PriorityDecision.Grant
             grant.phase shouldBe "MAIN1"
-            ops.hasTrace(MatchEventType.SEND_STATE) shouldBe true
         }
 
         // --- checkHumanActions: decision log ---
@@ -353,11 +338,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -380,11 +364,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -404,11 +387,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -419,7 +401,6 @@ class AutoPassEngineTest :
             assertSoftly {
                 ops.sendGameOverCount shouldBe 1
                 ops.sendRealGameStateCount shouldBe 0
-                ops.hasTrace(MatchEventType.GAME_OVER) shouldBe true
             }
         }
 
@@ -435,11 +416,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -460,11 +440,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -474,7 +453,6 @@ class AutoPassEngineTest :
             engine.autoPassAndAdvance()
 
             ops.sendRealGameStateCount shouldBe 1
-            ops.hasTraceContaining("fullControl") shouldBe true
         }
 
         // --- autoPassAndAdvance: combat signal tests ---
@@ -488,7 +466,6 @@ class AutoPassEngineTest :
                 object : CombatHandler(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
                     ctx = ops.ctx,
@@ -504,11 +481,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
                     combatHandler = stubCombat,
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -532,7 +508,6 @@ class AutoPassEngineTest :
                 object : CombatHandler(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
                     ctx = ops.ctx,
@@ -548,11 +523,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
                     combatHandler = stubCombat,
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
@@ -572,7 +546,6 @@ class AutoPassEngineTest :
                 object : CombatHandler(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
                     ctx = ops.ctx,
@@ -588,11 +561,10 @@ class AutoPassEngineTest :
                 AutoPassEngine(
                     sink = ops,
                     counters = ops,
-                    tracer = ops,
                     bundles = ops,
                     pacing = ops,
                     combatHandler = stubCombat,
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, tracer = ops, bundles = ops, ctx = ops.ctx),
+                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,

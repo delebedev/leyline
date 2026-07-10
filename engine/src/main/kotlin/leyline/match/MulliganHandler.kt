@@ -1,10 +1,10 @@
 package leyline.match
 
-import io.netty.channel.ChannelHandlerContext
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.game.state.GameBridge
+import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
@@ -15,16 +15,16 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * (hand grpIds, mull count, London tuck) and is testable without a live Netty
  * channel.
  *
- * Uses provider lambdas for session/ctx/matchId/seatId to avoid holding
- * [MatchHandler] references directly. Cross-seat lookups (e.g. sending the
- * opponent's DealHand) go through [MatchRegistry.getHandler] → peer's
+ * Uses provider lambdas for session/output/matchId/seatId to avoid holding
+ * [MatchConnection] references directly. Cross-seat lookups (e.g. sending the
+ * opponent's DealHand) go through [MatchRegistry.getConnection] → peer's
  * [MulliganHandler], which requires both seat handlers to be registered first.
  */
 class MulliganHandler(
     private val matchConfig: MatchConfig,
     private val registry: MatchRegistry,
     private val sessionProvider: () -> GameOps?,
-    private val ctxProvider: () -> ChannelHandlerContext?,
+    private val outputProvider: () -> MatchOutput,
     private val matchIdProvider: () -> String,
     private val seatIdProvider: () -> SeatId,
 ) {
@@ -37,12 +37,12 @@ class MulliganHandler(
     var seat2Hand: List<Int> = emptyList()
 
     private val session get() = sessionProvider()
-    private val ctx get() = ctxProvider()
+    private val output get() = outputProvider()
     private val matchId get() = matchIdProvider()
     private val seatId: SeatId get() = seatIdProvider()
 
     /** Handle ChooseStartingPlayerResp — triggers mulligan flow or skip-mulligan. */
-    fun onChooseStartingPlayer(matchHandlerRef: MatchHandler) {
+    fun onChooseStartingPlayer() {
         // ChooseStartingPlayerResp may arrive on any seat's channel (often seat 2).
         // Check puzzle mode via registry; don't require MatchSession locally.
         val match = registry.getMatch(matchId)
@@ -54,17 +54,17 @@ class MulliganHandler(
         if (matchConfig.game.skipMulligan) {
             log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
             // Send DealHand on this seat's channel — use handler's session (may be FamiliarSession)
-            sendDealHandViaHandler(ctx!!, matchHandlerRef.session, match?.bridge)
-            val seat1Handler = registry.getHandler(matchId, SeatId(1))
-            seat1Handler?.mulliganHandler?.sendDealHandPublic()
-            seat1Handler?.session?.onMulliganKeep()
+            sendDealHandViaConnection(session, match?.bridge)
+            val seat1Connection = registry.getConnection(matchId, SeatId(1))
+            seat1Connection?.mulliganHandler?.sendDealHandPublic()
+            seat1Connection?.session?.onMulliganKeep()
         } else {
             log.info("Match Door GRE: seat {} chose starting player", seatId.value)
-            sendDealHandAndMulligan(ctx!!)
-            val seat1Handler = registry.getHandler(matchId, SeatId(1))
-            if (seat1Handler != null) {
-                seat1Handler.mulliganHandler.sendDealHandPublic()
-                seat1Handler.mulliganHandler.sendMulliganReq()
+            sendDealHandAndMulligan()
+            val seat1Connection = registry.getConnection(matchId, SeatId(1))
+            if (seat1Connection != null) {
+                seat1Connection.mulliganHandler.sendDealHandPublic()
+                seat1Connection.mulliganHandler.sendMulliganReq()
             } else {
                 log.warn("Match Door: seat 1 peer not found for matchId={}", matchId)
             }
@@ -98,7 +98,7 @@ class MulliganHandler(
                 mulliganCount++
                 val deletedIds = bridge.ids.resetAll().map { it.value }
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
-                sendDealHand(ctx!!, deletedIds)
+                sendDealHand(deletedIds)
                 sendMulliganReq(reportedMulliganCount = mulliganCount, numCards = seat1Hand.size)
             }
         }
@@ -130,8 +130,7 @@ class MulliganHandler(
      * DealHand via any SessionOps (works for both MatchSession and FamiliarSession).
      * Used when ChooseStartingPlayerResp arrives on the Familiar channel with skipMulligan.
      */
-    private fun sendDealHandViaHandler(
-        ctx: ChannelHandlerContext,
+    private fun sendDealHandViaConnection(
         s: SessionOps?,
         bridge: GameBridge?,
     ) {
@@ -142,20 +141,16 @@ class MulliganHandler(
         s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=0")
         ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
-        ctx.writeAndFlush(msg)
+        output.send(msg)
     }
 
-    /** DealHand only — public for cross-connection calls. Uses stored ctx. */
+    /** DealHand only — public for cross-connection calls. */
     fun sendDealHandPublic() {
-        val c = ctx ?: return
-        sendDealHand(c)
+        sendDealHand()
     }
 
     /** DealHand only (no MulliganReq) for this handler's seat. */
-    private fun sendDealHand(
-        ctx: ChannelHandlerContext,
-        diffDeletedInstanceIds: List<Int> = emptyList(),
-    ) {
+    private fun sendDealHand(diffDeletedInstanceIds: List<Int> = emptyList()) {
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
@@ -164,7 +159,7 @@ class MulliganHandler(
         s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=${diffDeletedInstanceIds.size}")
         ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
-        ctx.writeAndFlush(msg)
+        output.send(msg)
     }
 
     /**
@@ -177,7 +172,6 @@ class MulliganHandler(
         reportedMulliganCount: Int = mulliganCount,
         numCards: Int = 7,
     ) {
-        val c = ctx ?: return
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
@@ -193,11 +187,11 @@ class MulliganHandler(
         s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("MulliganReq seat=${seatId.value} mulliganCount=$reportedMulliganCount numCards=$numCards")
         ProtoDump.dump(msg, "MulliganReq-seat${seatId.value}")
-        c.writeAndFlush(msg)
+        output.send(msg)
     }
 
     /** DealHand + MulliganReq bundled (for seat 2). */
-    private fun sendDealHandAndMulligan(ctx: ChannelHandlerContext) {
+    private fun sendDealHandAndMulligan() {
         val s = session ?: return
         val bridge = s.gameBridge
         val gsId = s.counter.nextGsId()
@@ -206,6 +200,6 @@ class MulliganHandler(
         s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("DealHand+MulliganReq seat=${seatId.value}")
         ProtoDump.dump(msg, "DealHand+MullReq-seat${seatId.value}")
-        ctx.writeAndFlush(msg)
+        output.send(msg)
     }
 }

@@ -1,7 +1,5 @@
 package leyline.match
 
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.SimpleChannelInboundHandler
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -18,14 +16,15 @@ import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
-import leyline.infra.NettyMessageSink
+import leyline.infra.MatchOutput
+import leyline.infra.MatchOutputMessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * GRE match-session handler — routes parsed match-service messages into the engine.
+ * Transport-neutral GRE match connection — routes parsed match-service messages into the engine.
  *
  * **Pre-mulligan:** auth, connect, room state, deal hand, and mulligan use templated
  * proto senders (fixed message shapes). **Post-mulligan:** all game actions delegate
@@ -34,8 +33,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Mulligan and puzzle sub-flows are extracted into [MulliganHandler] / [PuzzleHandler]
  * to keep this class a thin message-routing layer.
  */
-class MatchHandler(
-    private val registry: MatchRegistry = defaultRegistry,
+class MatchConnection(
+    private val registry: MatchRegistry,
+    private val output: MatchOutput,
     private val matchConfig: MatchConfig = MatchConfig(),
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
@@ -43,14 +43,14 @@ class MatchHandler(
     private val cardRepository: CardRepository,
     /** Debug server wiring — session/bridge providers. Null in tests. */
     private val debugSink: MatchDebugSink? = null,
-    /** Factory for per-session tracers. Null = no tracing. */
+    /** Factory for per-session action recorders. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
     /** Runtime puzzle file path supplier — non-null activates puzzle mode. */
     private val puzzlePath: () -> String? = { null },
     /** MatchId-keyed runtime config for web/native clients. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
-) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
-    private val log = LoggerFactory.getLogger(MatchHandler::class.java)
+) {
+    private val log = LoggerFactory.getLogger(MatchConnection::class.java)
 
     /**
      * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
@@ -96,13 +96,6 @@ class MatchHandler(
                 is MatchHandlerState.Connected -> s.isFamiliar
             }
 
-    private val nettyCtx: ChannelHandlerContext?
-        get() =
-            when (val s = state) {
-                is MatchHandlerState.Handshaking -> s.nettyCtx
-                is MatchHandlerState.Connected -> s.nettyCtx
-            }
-
     /**
      * Game session — null until connect completes, reassigned on puzzle hot-swap.
      * Reads/writes are backed by the [MatchHandlerState.Connected] state.
@@ -121,7 +114,7 @@ class MatchHandler(
             matchConfig,
             registry,
             sessionProvider = { session as? GameOps },
-            ctxProvider = { nettyCtx },
+            outputProvider = { output },
             matchIdProvider = { matchId },
             seatIdProvider = { SeatId(seatId) },
         )
@@ -136,9 +129,7 @@ class MatchHandler(
             coordinator = coordinator,
             cardRepository = cardRepository,
             puzzleHandler = puzzleHandler,
-            matchId = { matchId },
-            seatId = { seatId },
-            isFamiliar = { isFamiliar },
+            output = output,
             createMatchSession = ::createAndRegisterMatchSession,
             createFamiliarSession = ::createAndRegisterFamiliarSession,
             createSpectatorSession = ::createAndRegisterSpectatorSession,
@@ -151,7 +142,6 @@ class MatchHandler(
         )
 
     companion object {
-        val defaultRegistry = MatchRegistry()
         private val lenientJson =
             Json {
                 ignoreUnknownKeys = true
@@ -175,29 +165,27 @@ class MatchHandler(
 
     private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: matchConfig.game.spectatorMode
 
-    override fun channelActive(ctx: ChannelHandlerContext) {
-        log.info("Match Door: client connected from {}", ctx.channel().remoteAddress())
+    fun opened() {
+        log.info("Match connection opened")
     }
 
-    override fun channelRead0(
-        ctx: ChannelHandlerContext,
-        msg: ClientToMatchServiceMessage,
-    ) {
+    fun receive(msg: ClientToMatchServiceMessage) {
         Tap.inbound(msg.clientToMatchServiceMessageType)
 
         when (msg.clientToMatchServiceMessageType) {
-            ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(ctx, msg)
-            ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -> handleMatchDoorConnect(ctx, msg)
-            ClientToMatchServiceMessageType.ClientToGremessage -> handleGREMessage(ctx, msg)
-            ClientToMatchServiceMessageType.ClientToGreuimessage -> handleGREMessage(ctx, msg)
-            else -> log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
+            ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(msg)
+            ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -> handleMatchDoorConnect(msg)
+            ClientToMatchServiceMessageType.ClientToGremessage -> handleGREMessage(msg)
+            ClientToMatchServiceMessageType.ClientToGreuimessage -> handleGREMessage(msg)
+            ClientToMatchServiceMessageType.None_a0f0,
+            ClientToMatchServiceMessageType.CreateMatchGameRoomRequest_f487,
+            ClientToMatchServiceMessageType.EchoRequest_f487,
+            ClientToMatchServiceMessageType.UNRECOGNIZED,
+            -> log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
         }
     }
 
-    private fun handleMatchAuth(
-        ctx: ChannelHandlerContext,
-        msg: ClientToMatchServiceMessage,
-    ) {
+    private fun handleMatchAuth(msg: ClientToMatchServiceMessage) {
         val authReq = AuthenticateRequest.parseFrom(msg.payload)
         val hs = requireHandshaking()
         hs.clientId = authReq.clientId.ifEmpty { "leyline-player-${hs.seatId}" }
@@ -217,13 +205,10 @@ class MatchHandler(
                         .setScreenName(playerName),
                 ).build()
         ProtoDump.dump(resp, "AuthResp")
-        ctx.writeAndFlush(resp)
+        output.send(resp)
     }
 
-    private fun handleMatchDoorConnect(
-        ctx: ChannelHandlerContext,
-        msg: ClientToMatchServiceMessage,
-    ) {
+    private fun handleMatchDoorConnect(msg: ClientToMatchServiceMessage) {
         val connectReq = ClientToMatchDoorConnectRequest.parseFrom(msg.payload)
         val hs = requireHandshaking()
         if (connectReq.matchId.isNotEmpty()) hs.matchId = connectReq.matchId
@@ -234,12 +219,10 @@ class MatchHandler(
         val greMsg = ClientToGREMessage.parseFrom(connectReq.clientToGreMessageBytes)
         if (greMsg.systemSeatId > 0) hs.seatId = greMsg.systemSeatId
         log.info("Match Door: detected seatId={}", hs.seatId)
-        hs.nettyCtx = ctx
-
         // Session creation deferred to the ConnectReq branch in processGREMessage:
         // MatchSession requires a non-null bridge at construction, so we wait for
         // getOrCreateMatch() to build the bridge before constructing the session.
-        processGREMessage(ctx, greMsg)
+        processGREMessage(greMsg)
     }
 
     /**
@@ -268,7 +251,6 @@ class MatchHandler(
                 it.clientId = prior.clientId
                 it.seatId = prior.seatId
                 it.isFamiliar = prior.isFamiliar
-                it.nettyCtx = prior.nettyCtx
             }
         state = reopened
         return reopened
@@ -284,18 +266,15 @@ class MatchHandler(
         state =
             when (val s = state) {
                 is MatchHandlerState.Handshaking ->
-                    MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, s.nettyCtx, session)
+                    MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, session)
                 is MatchHandlerState.Connected ->
-                    MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, s.nettyCtx, session)
+                    MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, session)
             }
     }
 
     /** Create and register a [MatchSession] bound to [bridge]. */
-    private fun createAndRegisterMatchSession(
-        ctx: ChannelHandlerContext,
-        bridge: GameBridge,
-    ): MatchSession {
-        val sink = NettyMessageSink(ctx, dumpEnabled = true)
+    private fun createAndRegisterMatchSession(bridge: GameBridge): MatchSession {
+        val sink = MatchOutputMessageSink(output, dumpEnabled = true)
         val rec = recorderFactory?.invoke()
         val connection =
             ConnectionState(
@@ -309,58 +288,46 @@ class MatchHandler(
         val s = MatchSession(connection = connection, gameBridge = bridge, paceDelayMs = matchConfig.paceDelayMs)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
-        registry.registerHandler(matchId, SeatId(seatId), this)
+        registry.registerConnection(matchId, SeatId(seatId), this)
         return s
     }
 
     /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
-    private fun createAndRegisterFamiliarSession(
-        ctx: ChannelHandlerContext,
-        counter: MessageCounter,
-    ): FamiliarSession {
-        val sink = NettyMessageSink(ctx, dumpEnabled = false)
+    private fun createAndRegisterFamiliarSession(counter: MessageCounter): FamiliarSession {
+        val sink = MatchOutputMessageSink(output, dumpEnabled = false)
         val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
-        registry.registerHandler(matchId, SeatId(seatId), this)
+        registry.registerConnection(matchId, SeatId(seatId), this)
         return s
     }
 
-    private fun createAndRegisterSpectatorSession(
-        ctx: ChannelHandlerContext,
-        bridge: GameBridge,
-    ): SpectatorSession {
-        val sink = NettyMessageSink(ctx, dumpEnabled = true)
+    private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
+        val sink = MatchOutputMessageSink(output, dumpEnabled = true)
         val s = SpectatorSession(SeatId(seatId), matchId, sink, bridge, playerId = clientId.removeSuffix("_Familiar"))
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
-        registry.registerHandler(matchId, SeatId(seatId), this)
+        registry.registerConnection(matchId, SeatId(seatId), this)
         return s
     }
 
-    private fun handleGREMessage(
-        ctx: ChannelHandlerContext,
-        msg: ClientToMatchServiceMessage,
-    ) {
+    private fun handleGREMessage(msg: ClientToMatchServiceMessage) {
         val greMsg = ClientToGREMessage.parseFrom(msg.payload)
-        processGREMessage(ctx, greMsg)
+        processGREMessage(greMsg)
     }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
-    private fun processGREMessage(
-        ctx: ChannelHandlerContext,
-        greMsg: ClientToGREMessage,
-    ) {
+    private fun processGREMessage(greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
 
         // Pre-session messages drive the handshake/mulligan flow, which read session
         // state defensively through providers. Everything else is a post-handshake
         // game action that requires a live session — dispatched against Connected.
         when (greMsg.type) {
-            ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ctx)
+            ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ConnectAttempt(matchId, seatId, isFamiliar))
 
             ClientMessageType.ChooseStartingPlayerResp_097b ->
-                mulliganHandler.onChooseStartingPlayer(this)
+                mulliganHandler.onChooseStartingPlayer()
 
             ClientMessageType.MulliganResp_097b ->
                 mulliganHandler.onMulliganResp(greMsg)
@@ -461,19 +428,19 @@ class MatchHandler(
         }
     }
 
-    // --- Template-based senders (pre-mulligan, use ctx directly) ---
+    // --- Template-based senders (pre-mulligan) ---
 
-    private fun sendRoomState(ctx: ChannelHandlerContext) {
+    private fun sendRoomState() {
         val playerId = clientId.removeSuffix("_Familiar")
         val opponentName = "AI Opponent"
         val eventName = coordinator?.selectedEventName ?: "AIBotMatch"
         val msg = HandshakeMessages.roomState(matchId, playerId, opponentName, eventName, true)
         Tap.outboundTemplate("RoomState matchId=$matchId opponent=$opponentName")
         ProtoDump.dump(msg, "RoomState")
-        ctx.writeAndFlush(msg)
+        output.send(msg)
     }
 
-    private fun sendInitialBundle(ctx: ChannelHandlerContext) {
+    private fun sendInitialBundle() {
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
@@ -498,14 +465,11 @@ class MatchHandler(
         s.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
-        ctx.writeAndFlush(msg)
+        output.send(msg)
     }
 
-    private fun onLocalPlayerConnected(
-        ctx: ChannelHandlerContext,
-        bridge: GameBridge,
-    ) {
-        createAndRegisterMatchSession(ctx, bridge)
+    private fun onLocalPlayerConnected(bridge: GameBridge) {
+        createAndRegisterMatchSession(bridge)
         mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
         mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
         log.info(
@@ -514,15 +478,14 @@ class MatchHandler(
             mulliganHandler.seat1Hand,
             mulliganHandler.seat2Hand,
         )
-        sendRoomState(ctx)
-        sendInitialBundle(ctx)
+        sendRoomState()
+        sendInitialBundle()
     }
 
-    override fun channelInactive(ctx: ChannelHandlerContext) {
+    fun disconnected() {
         log.info("Match Door: client disconnected")
         if (isSpectatorMode() && isFamiliar) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
-            super.channelInactive(ctx)
             return
         }
         registry.teardownMatch(
@@ -532,13 +495,9 @@ class MatchHandler(
             recorder = session?.recorder,
             fallbackBridge = (session as? GameOps)?.gameBridge,
         )
-        super.channelInactive(ctx)
     }
 
-    override fun exceptionCaught(
-        ctx: ChannelHandlerContext,
-        cause: Throwable,
-    ) {
+    fun failed(cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
         registry.teardownMatch(
             matchId = matchId,
@@ -547,7 +506,7 @@ class MatchHandler(
             recorder = session?.recorder,
             fallbackBridge = (session as? GameOps)?.gameBridge,
         )
-        ctx.close()
+        output.close()
     }
 
     internal fun detachAfterTeardown() {
@@ -578,7 +537,6 @@ class MatchHandler(
             var seatId: Int = 1
 
             var isFamiliar: Boolean = false
-            var nettyCtx: ChannelHandlerContext? = null
         }
 
         class Connected(
@@ -586,8 +544,6 @@ class MatchHandler(
             val clientId: String,
             val seatId: Int,
             val isFamiliar: Boolean,
-            // Null only in tests that bind a session without driving the connect request.
-            val nettyCtx: ChannelHandlerContext?,
             var session: SessionOps,
         ) : MatchHandlerState()
     }

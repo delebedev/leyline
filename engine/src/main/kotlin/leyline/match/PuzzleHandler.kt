@@ -1,7 +1,6 @@
 package leyline.match
 
 import forge.gamemodes.puzzle.Puzzle
-import io.netty.channel.ChannelHandlerContext
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
@@ -9,6 +8,7 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
+import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
@@ -63,7 +63,7 @@ class PuzzleHandler(
 
     /** Send puzzle initial bundle: ConnectResp + Full GSM (stage=Play) + ActionsAvailableReq. */
     fun sendPuzzleInitialBundle(
-        ctx: ChannelHandlerContext,
+        output: MatchOutput,
         session: MatchSession,
         matchId: String,
         seatId: Int,
@@ -84,7 +84,7 @@ class PuzzleHandler(
         session.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
-        ctx.writeAndFlush(bundleMsg)
+        output.send(bundleMsg)
 
         // Send ActionsAvailableReq immediately after
         val (actionsMsg, nextMsgId2) =
@@ -99,7 +99,7 @@ class PuzzleHandler(
         bridge.seat(SeatId(seatId)).action.markCurrentPromptEmitted(gsId)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
-        ctx.writeAndFlush(actionsMsg)
+        output.send(actionsMsg)
 
         // Enter the game loop — same as onMulliganKeep but without mulligan
         session.onPuzzleStart()

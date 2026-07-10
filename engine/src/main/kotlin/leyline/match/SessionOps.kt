@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -44,17 +43,6 @@ interface GreMessageSink {
 interface SessionCounters {
     val seatId: SeatId
     var counter: MessageCounter
-}
-
-/** Optional tracing for conformance/replay telemetry. */
-interface SessionTracer {
-    val recorder: MatchRecorder? get() = null
-
-    fun traceEvent(
-        type: MatchEventType,
-        game: Game,
-        detail: String,
-    )
 }
 
 /**
@@ -144,9 +132,9 @@ interface ActionReceiver {
 interface SessionOps :
     GreMessageSink,
     SessionCounters,
-    SessionTracer,
     Pacing,
     ActionReceiver {
+    val recorder: MatchRecorder? get() = null
     val matchId: String
 
     /** Build a single GRE message with an explicit msgId (no side-effect on counters). */

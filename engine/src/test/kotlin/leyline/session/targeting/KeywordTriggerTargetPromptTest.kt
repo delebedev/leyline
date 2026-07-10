@@ -3,6 +3,7 @@ package leyline.session.targeting
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -35,6 +36,7 @@ class KeywordTriggerTargetPromptTest :
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Enduring Bondwarden")
+            TestCardRegistry.ensureCardRegistered("Llanowar Elves")
             TestCardRegistry.ensureCardRegistered("Sunhome Stalwart")
         }
 
@@ -116,11 +118,7 @@ class KeywordTriggerTargetPromptTest :
             }
         }
 
-        // Disabled: Mentor's attack trigger currently emits no SelectTargetsReq at
-        // all, so this fails on the first assertion. The prompt mapping exists, but
-        // nothing reaches it from the attack trigger. Tracked as bd leyline-ebln;
-        // re-enable together with the fix.
-        test("Mentor target prompt carries the shared keyword prompt shape").config(enabled = false) {
+        test("Mentor target prompt carries the shared keyword prompt shape") {
             val h = MatchFlowHarness()
             try {
                 h.connectAndKeepPuzzleText(
@@ -136,32 +134,52 @@ class KeywordTriggerTargetPromptTest :
                     HumanLife=20
                     AILife=20
 
-                    humanbattlefield=Sunhome Stalwart;Enduring Bondwarden;Plains
+                    humanbattlefield=Sunhome Stalwart;Enduring Bondwarden;Llanowar Elves;Plains
                     humanlibrary=Plains
                     ailibrary=Mountain
                     """.trimIndent(),
                 )
-                h.advanceToCombat()
-                h.declareAllAttackers()
-                h.submitAttackers()
+                val reachedDeclareAttackers = h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
+                reachedDeclareAttackers.shouldBeTrue()
+                h.allMessages
+                    .last { it.hasDeclareAttackersReq() }
+                    .declareAttackersReq
+                    .attackersList
+                    .shouldNotBeEmpty()
+                val attackers =
+                    h
+                        .humanBattlefieldCreatures()
+                        .filter { (_, name) -> name == "Sunhome Stalwart" || name == "Enduring Bondwarden" || name == "Llanowar Elves" }
+                        .map { (instanceId, _) -> instanceId }
+                h.declareAttackers(attackers)
                 h.passUntilPrompt { it.abilityGrpId == KeywordAbilityIds.MENTOR }
 
                 val prompts = h.selectTargetsReqs().filter { it.abilityGrpId == KeywordAbilityIds.MENTOR }
                 prompts.shouldNotBeEmpty()
 
                 val prompt = prompts.first()
+                val battlefieldCreatures = h.humanBattlefieldCreatures().toMap()
+                val targetGroup = prompt.targetsList.single()
+                targetGroup.targetsList
+                    .map { battlefieldCreatures.getValue(it.targetInstanceId) }
+                    .shouldContainExactlyInAnyOrder("Enduring Bondwarden", "Llanowar Elves")
                 assertSoftly(prompt) {
                     abilityGrpId shouldBe KeywordAbilityIds.MENTOR
-                    targetsList.single().targetingAbilityGrpId shouldBe KeywordAbilityIds.MENTOR
-                    targetsList.single().prompt.promptId shouldBe PromptIds.MENTOR_TARGET
-                    targetsList
-                        .single()
-                        .prompt.parametersList
+                    targetGroup.targetingAbilityGrpId shouldBe KeywordAbilityIds.MENTOR
+                    targetGroup.prompt.promptId shouldBe PromptIds.MENTOR_TARGET
+                    targetGroup.prompt.parametersList
                         .single()
                         .numberValue shouldBe sourceId
-                    targetsList.single().minTargets shouldBe 1
-                    targetsList.single().maxTargets shouldBe 1
+                    targetGroup.minTargets shouldBe 1
+                    targetGroup.maxTargets shouldBe 1
                 }
+                val bondwardenTarget =
+                    targetGroup.targetsList.single {
+                        battlefieldCreatures.getValue(it.targetInstanceId) == "Enduring Bondwarden"
+                    }
+                h.selectTargets(
+                    listOf(bondwardenTarget.targetInstanceId),
+                )
                 h
                     .targetSpecs()
                     .any {

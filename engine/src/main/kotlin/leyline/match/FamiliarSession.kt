@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -41,12 +40,6 @@ class FamiliarSession(
     override fun sendBundle(result: BundleBuilder.BundleResult) {}
 
     override fun sendGameOver(reason: ResultReason) {}
-
-    override fun traceEvent(
-        type: MatchEventType,
-        game: Game,
-        detail: String,
-    ) {}
 
     override fun paceDelay(multiplier: Int) {}
 

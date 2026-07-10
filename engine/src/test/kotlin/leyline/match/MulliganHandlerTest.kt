@@ -13,6 +13,7 @@ import leyline.BoardTag
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.infra.ListMessageSink
+import leyline.infra.MatchOutput
 import leyline.testkit.BoardTestBase
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
@@ -76,7 +77,17 @@ class MulliganHandlerTest :
                 MatchConfig(),
                 registry,
                 sessionProvider = { session },
-                ctxProvider = { ctx },
+                outputProvider = {
+                    object : MatchOutput {
+                        override fun send(message: MatchServiceToClientMessage) {
+                            ctx?.writeAndFlush(message)
+                        }
+
+                        override fun close() {
+                            ctx?.close()
+                        }
+                    }
+                },
                 matchIdProvider = { session.matchId },
                 seatIdProvider = { seatId },
             )

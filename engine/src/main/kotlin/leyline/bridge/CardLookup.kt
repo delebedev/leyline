@@ -59,10 +59,15 @@ internal fun resolveAttackDefender(
  * All castable spell abilities for a card, including alternative costs
  * (Overload, Flashback, Escape, etc.). Stable ordering: base ability first,
  * then alt costs in engine order.
+ *
+ * [checkTiming] false skips the legality/timing filter — for embedded action
+ * lists built while another player holds the turn, where the same ability
+ * selection must yield the same displayed cost as the checked path.
  */
 fun getAllCastableAbilities(
     card: Card,
     player: Player,
+    checkTiming: Boolean = true,
 ): List<SpellAbility> {
     // Foretold cards in exile are face-down — card.getSpells() reads from the
     // current state (face-down) which has no spells. Reach into the original
@@ -136,6 +141,7 @@ fun getAllCastableAbilities(
     // locked; from battlefield only the side(s) not yet unlocked surface here.
     appendRoomDoorSAs(card, player, expanded)
 
+    if (!checkTiming) return expanded
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
 }
 
@@ -218,8 +224,9 @@ fun buildMdfcBackLandAbility(card: Card): LandAbility? {
 fun chooseCastAbility(
     card: Card,
     player: Player,
+    checkTiming: Boolean = true,
 ): SpellAbility? {
-    val all = getAllCastableAbilities(card, player)
+    val all = getAllCastableAbilities(card, player, checkTiming)
     if (all.isEmpty()) return null
     return all.firstOrNull { it.hasParam("WithoutManaCost") } ?: all.first()
 }

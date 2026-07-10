@@ -9,7 +9,6 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.event.FrameEventLog
-import leyline.game.event.GameEvent
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -59,7 +58,7 @@ class PureDiffReplayTest :
         data class BundleStep(
             val prev: GsmSnapshot?,
             val cur: GsmSnapshot,
-            val events: List<GameEvent>,
+            val events: FrameEventLog,
             val gameStateId: Int,
             val diff: GameStateMessage,
         )
@@ -95,7 +94,7 @@ class PureDiffReplayTest :
                             StateMapper.buildDiff(
                                 prev = step.prev,
                                 cur = step.cur,
-                                events = FrameEventLog(step.events),
+                                events = step.events,
                                 gameStateId = step.gameStateId,
                                 matchId = BoardTestBase.TEST_MATCH_ID,
                                 bridge = replayBridge,
@@ -139,7 +138,7 @@ class PureDiffReplayTest :
                             StateMapper.buildDiff(
                                 prev = step.prev,
                                 cur = step.cur,
-                                events = FrameEventLog(step.events),
+                                events = step.events,
                                 gameStateId = step.gameStateId,
                                 matchId = BoardTestBase.TEST_MATCH_ID,
                                 bridge = replayBridge,
@@ -182,7 +181,7 @@ class PureDiffReplayTest :
                         StateMapper.buildDiff(
                             prev = step.prev,
                             cur = step.cur,
-                            events = FrameEventLog(step.events),
+                            events = step.events,
                             gameStateId = step.gameStateId,
                             matchId = BoardTestBase.TEST_MATCH_ID,
                             bridge = replayBridge,
@@ -236,7 +235,7 @@ class PureDiffReplayTest :
                     StateMapper.buildDiff(
                         prev = step.prev,
                         cur = step.cur,
-                        events = FrameEventLog(step.events),
+                        events = step.events,
                         gameStateId = step.gameStateId,
                         matchId = BoardTestBase.TEST_MATCH_ID,
                         bridge = replayBridge,
@@ -256,6 +255,9 @@ class PureDiffReplayTest :
     }) {
     companion object {
         private const val SCENARIO_SEED = 42L
+
+        private fun FrameEventLog.toList(): FrameEventLog = this
+
         private const val SEAT_ID = 1
     }
 }

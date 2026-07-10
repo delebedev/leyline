@@ -1,0 +1,11 @@
+name: "Treasure Cruise"
+grpId: 94309
+titleId: 45686
+abilities:
+  - id: 67
+    textId: 25
+    category: 3
+  - id: 1746
+    textId: 1464
+    category: 4
+expansionCode: "PIO"

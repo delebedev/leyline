@@ -4,7 +4,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Trace contract for match sessions.
- * Currently unused (no tracer wired). Retained for future external tooling.
+ * Records client action decisions for local diagnostics.
  */
 interface MatchRecorder {
     /** Trace outbound GRE messages (what we told the client). */

@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory
 class AutoPassEngine(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val tracer: SessionTracer,
     private val bundles: BundleBuilderHolder,
     private val pacing: Pacing,
     private val combatHandler: CombatHandler,
@@ -93,7 +92,6 @@ class AutoPassEngine(
             if (drainPlayback()) return@repeat
 
             if (game.isGameOver) {
-                tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
                 sink.sendGameOver()
                 return
             }
@@ -246,7 +244,6 @@ class AutoPassEngine(
         game: Game,
         isAiTurn: Boolean,
     ): PriorityDecision {
-        val turnContext = if (isAiTurn) "opponentTurn" else "ownTurn"
         val actions = bundles.bundleBuilder.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
@@ -257,7 +254,6 @@ class AutoPassEngine(
                     actionCount = actions.actionsCount,
                 )
             recordDecision(game, decision)
-            tracer.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant $turnContext")
             return decision
         }
 
@@ -268,7 +264,6 @@ class AutoPassEngine(
             val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
             if (!isAiTurn) {
                 recordDecision(game, decision)
-                tracer.traceEvent(MatchEventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption} $turnContext")
             }
             return decision
         }
@@ -279,18 +274,12 @@ class AutoPassEngine(
             return decision
         }
 
-        val actionSummary =
-            actions.actionsList
-                .groupBy { it.actionType.name.removeSuffix("_add3") }
-                .map { (t, v) -> "$t=${v.size}" }
-                .joinToString(" ")
         val decision =
             PriorityDecision.Grant(
                 phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
                 actionCount = actions.actionsCount,
             )
         recordDecision(game, decision)
-        tracer.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary $turnContext")
         return decision
     }
 
@@ -314,12 +303,10 @@ class AutoPassEngine(
             // Engine-internal AI_DEFAULTS in PhaseStopProfile are NOT checked
             // here — they're for the AI's own combat logic.
             if (isAiTurn && phase != null && autoPassState.hasOpponentStop(phase)) {
-                tracer.traceEvent(MatchEventType.SEND_STATE, game, "opponentStop: ${phase.name}")
                 sink.sendRealGameState(bridge)
                 return LoopSignal.EXIT // client will respond via onPerformAction
             }
 
-            tracer.traceEvent(MatchEventType.AUTO_PASS, game, "human priority, pass-only")
             // During AI turn, skip sending EdictalMessage — client never
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
@@ -330,21 +317,17 @@ class AutoPassEngine(
             bridge.seat(counters.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
-            tracer.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")
             val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
                 if (game.isGameOver) {
-                    tracer.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
                     if (drainPlayback()) return LoopSignal.CONTINUE
                     sink.sendGameOver()
                     return LoopSignal.EXIT
                 }
-                tracer.traceEvent(MatchEventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
                 log.warn("autoPass: AI turn timed out, suppressing ActionsAvailableReq")
                 return LoopSignal.EXIT
             }
         } else {
-            tracer.traceEvent(MatchEventType.PRIORITY_GRANT, game, "waiting for engine")
             log.warn("autoPass: no pending action, waiting for priority")
             bridge.awaitPriority()
         }

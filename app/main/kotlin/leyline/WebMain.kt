@@ -22,8 +22,8 @@ import leyline.infra.persistence.SqlitePlayerStore
 import leyline.web.AuthRateLimitConfig
 import leyline.web.DEV_WEB_AUTH_SECRET
 import leyline.web.DevEmailSender
+import leyline.web.DirectWebGreEngineSession
 import leyline.web.DraftPlayResponse
-import leyline.web.EmbeddedWebGreEngineSession
 import leyline.web.GreStartRequest
 import leyline.web.InMemoryRateLimiter
 import leyline.web.InProcessWebGreRelay
@@ -187,7 +187,7 @@ private class WebRuntimeMatchLauncher(
             ownerPlayerId = playerId,
             publicAccess = publicAccess,
             onClose = { runtimeMatches.remove(matchId) },
-        ) { onFrame, onClosed -> EmbeddedWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches, onFrame, onClosed) }
+        ) { onFrame, onClosed -> DirectWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches, onFrame, onClosed) }
         return DraftPlayResponse(matchId, matchId)
     }
 }

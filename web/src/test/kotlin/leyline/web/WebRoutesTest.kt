@@ -3,6 +3,8 @@ package leyline.web
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -61,6 +63,8 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardData
 import org.jetbrains.exposed.v1.jdbc.Database
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -71,12 +75,16 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import java.nio.file.Files
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
 
+@Suppress("LargeClass") // Web route coverage shares a single server fixture.
 class WebRoutesTest :
     FunSpec({
         val json = Json { ignoreUnknownKeys = true }
@@ -376,7 +384,7 @@ class WebRoutesTest :
                 val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
                 runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
                 repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
-                    EmbeddedWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
+                    DirectWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
                 }
 
                 greSocket(login, matchId) {
@@ -390,6 +398,144 @@ class WebRoutesTest :
                         while (true) incoming.receive()
                     }
                 }
+            }
+        }
+
+        test("separate web engines keep the first match usable after the second connects") {
+            val cards =
+                InMemoryCardRepository().also {
+                    it.registerData(
+                        CardData(
+                            grpId = 1,
+                            titleId = 1,
+                            power = "",
+                            toughness = "",
+                            colors = emptyList(),
+                            types = listOf(CardType.Land_a80b.number),
+                            subtypes = emptyList(),
+                            supertypes = emptyList(),
+                            abilityIds = emptyList(),
+                            manaCost = emptyList(),
+                        ),
+                        "Mountain",
+                    )
+                    it.registerData(
+                        CardData(
+                            grpId = 2,
+                            titleId = 2,
+                            power = "",
+                            toughness = "",
+                            colors = listOf(CardColor.Red_a3b0.number),
+                            types = listOf(CardType.Instant.number),
+                            subtypes = emptyList(),
+                            supertypes = emptyList(),
+                            abilityIds = emptyList(),
+                            manaCost = listOf(ManaColor.Red_afc9 to 1),
+                        ),
+                        "Lightning Bolt",
+                    )
+                }
+            val puzzle =
+                Files.createTempFile("web-engine-isolation", ".pzl").toFile().apply {
+                    writeText(
+                        """
+                        [metadata]
+                        Name:Bolt Face
+                        Goal:Win
+                        Turns:1
+                        Difficulty:Easy
+                        Description:Bolt face.
+
+                        [state]
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=3
+
+                        humanhand=Lightning Bolt
+                        humanbattlefield=Mountain
+                        humanlibrary=Mountain
+                        ailibrary=Mountain
+                        """.trimIndent(),
+                    )
+                }
+            val configs = RuntimeMatchConfigRegistry()
+            val matchA = "web-engine-a"
+            val matchB = "web-engine-b"
+            configs.put(RuntimeMatchConfig(matchId = matchA, puzzle = puzzle.absolutePath))
+            configs.put(RuntimeMatchConfig(matchId = matchB, puzzle = puzzle.absolutePath))
+            val framesA = CopyOnWriteArrayList<ByteArray>()
+            val framesB = CopyOnWriteArrayList<ByteArray>()
+            val closedA = AtomicBoolean(false)
+            val engineA =
+                DirectWebGreEngineSession(
+                    MatchConfig(),
+                    MatchCoordinator.NOOP,
+                    cards,
+                    configs,
+                    framesA::add,
+                    { closedA.set(true) },
+                )
+            val engineB =
+                DirectWebGreEngineSession(
+                    MatchConfig(),
+                    MatchCoordinator.NOOP,
+                    cards,
+                    configs,
+                    framesB::add,
+                )
+
+            try {
+                fun connect(
+                    engine: DirectWebGreEngineSession,
+                    matchId: String,
+                ) {
+                    engine.receiveFromBrowser(authRequestBytes("web-player"))
+                    engine.receiveFromBrowser(connectRequestBytes(matchId, seatId = 1))
+                }
+
+                connect(engineA, matchA)
+                connect(engineB, matchB)
+                val beforePass = framesA.size
+                engineA.receiveFromBrowser(
+                    ClientToMatchServiceMessage
+                        .newBuilder()
+                        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToGremessage)
+                        .setPayload(
+                            ClientToGREMessage
+                                .newBuilder()
+                                .setSystemSeatId(1)
+                                .setType(ClientMessageType.PerformActionResp_097b)
+                                .setPerformActionResp(
+                                    PerformActionResp
+                                        .newBuilder()
+                                        .addActions(
+                                            Action
+                                                .newBuilder()
+                                                .setActionType(ActionType.Pass),
+                                        ),
+                                ).build()
+                                .toByteString(),
+                        ).build()
+                        .toByteArray(),
+                )
+
+                val postPassTypes =
+                    framesA
+                        .drop(beforePass)
+                        .map(MatchServiceToClientMessage::parseFrom)
+                        .flatMap { it.greToClientEvent.greToClientMessagesList }
+                        .map { it.type }
+
+                assertSoftly {
+                    closedA.get() shouldBe false
+                    framesB.shouldNotBeEmpty()
+                    postPassTypes shouldContain wotc.mtgo.gre.external.messaging.Messages.GREMessageType.GameStateMessage_695e
+                }
+            } finally {
+                engineA.close()
+                engineB.close()
+                Files.deleteIfExists(puzzle.toPath())
             }
         }
 

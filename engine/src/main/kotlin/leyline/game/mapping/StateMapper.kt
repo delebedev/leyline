@@ -321,7 +321,14 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        var transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, eventsMutable)
+        var transferResult =
+            ZoneTransferDetector.detectZoneTransfers(
+                gameObjects,
+                zones,
+                bridge,
+                eventsMutable,
+                zoneMoves = events.zoneMoves,
+            )
         recordParadigmSourceStackIids(transferResult, bridge)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the

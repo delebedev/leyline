@@ -1,7 +1,5 @@
 package leyline.infra
 
-import io.netty.channel.ChannelHandlerContext
-import leyline.protocol.ProtoDump
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -35,9 +33,16 @@ class ListMessageSink : MessageSink {
     }
 }
 
-/** Production sink: wraps Netty [ChannelHandlerContext.writeAndFlush]. */
-class NettyMessageSink(
-    private val ctx: ChannelHandlerContext,
+/** Transport-neutral raw match output. */
+interface MatchOutput {
+    fun send(message: MatchServiceToClientMessage)
+
+    fun close()
+}
+
+/** Wraps a raw [MatchOutput] in the GRE-focused [MessageSink] used by sessions. */
+class MatchOutputMessageSink(
+    private val output: MatchOutput,
     /** When false, skips ProtoDump — used for mirror/familiar sinks to avoid duplicate .bin files. */
     private val dumpEnabled: Boolean = true,
 ) : MessageSink {
@@ -49,11 +54,11 @@ class NettyMessageSink(
                 .newBuilder()
                 .setGreToClientEvent(event.build())
                 .build()
-        if (dumpEnabled) ProtoDump.dump(msg)
-        ctx.writeAndFlush(msg)
+        if (dumpEnabled) leyline.protocol.ProtoDump.dump(msg)
+        output.send(msg)
     }
 
     override fun sendRaw(msg: MatchServiceToClientMessage) {
-        ctx.writeAndFlush(msg)
+        output.send(msg)
     }
 }
