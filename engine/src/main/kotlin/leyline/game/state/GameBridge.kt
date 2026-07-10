@@ -383,7 +383,7 @@ class GameBridge(
         (
             prev: GsmSnapshot?,
             cur: GsmSnapshot,
-            events: List<GameEvent>,
+            events: FrameEventLog,
             gameStateId: Int,
             diff: GameStateMessage,
         ) -> Unit
@@ -606,11 +606,12 @@ class GameBridge(
      * a separate design concern if the pattern ever matters.
      */
     fun closeBundleFrame(viewingSeatId: Int = 0): FrameEventLog {
-        val events = closeFrame().events.toMutableList()
+        val frame = closeFrame()
+        val events = frame.events.toMutableList()
         for (reveal in drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
-        return FrameEventLog(events)
+        return FrameEventLog(events, frame.zoneMoves)
     }
 
     /** True if the open frame has accumulated events not yet closed into a GSM. */

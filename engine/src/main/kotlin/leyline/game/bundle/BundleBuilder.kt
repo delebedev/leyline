@@ -100,7 +100,7 @@ class BundleBuilder(
                 revealForSeat = revealForSeat,
             )
         bridge.applyMutations(result.mutations)
-        bridge.diffListener?.invoke(previousSnap, snap, events.events, nextGs, result.gsm)
+        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, result.gsm)
         return FrameDiff(nextGs, snap, result, events)
     }
 

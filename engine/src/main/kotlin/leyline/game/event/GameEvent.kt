@@ -146,6 +146,10 @@ sealed interface GameEvent {
         /** Non-zero when the cast chose an X value. Drives the persistent
          *  CastingTimeOption type=ChooseX_a7b4 annotation with this value. */
         val chosenX: Int = 0,
+        /** Root Forge SpellAbility id for joining child operations to this stack item. */
+        val rootAbilityForgeId: Int = 0,
+        /** Wrapped/effected Forge ability id for exact operation-to-stack joins. */
+        val stackAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.
@@ -177,6 +181,10 @@ sealed interface GameEvent {
         val isParadigmCopy: Boolean = false,
         /** Stack iid allocated when the Paradigm copy was cast. */
         val stackInstanceId: Int = 0,
+        /** Root Forge SpellAbility id for joining child operations to this stack item. */
+        val rootAbilityForgeId: Int = 0,
+        /** Wrapped/effected Forge ability id for exact operation-to-stack joins. */
+        val stackAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */
@@ -228,8 +236,8 @@ sealed interface GameEvent {
     ) : GameEvent
 
     // -- Group A: zone-transition disambiguation --
-    // These replace generic ZoneChanged for specific zone pairs, enabling
-    // direct category mapping without the TransferCategoryResolver zone-pair fallback.
+    // These refine generic zone outcomes with operation-specific facts for
+    // ZoneMoveLedger and the missing-move fallback.
 
     /** A legendary permanent was put into graveyard by the legend rule SBA.
      *  More specific than [CardDestroyed] — produces `SBA_LegendRule` category. */
@@ -244,12 +252,16 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val sourceCardId: ForgeCardId? = null,
+        val sourceAbilityForgeId: Int = 0,
     ) : GameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */
     data class CardSacrificed(
         val cardId: ForgeCardId,
         val seatId: SeatId,
+        val sourceCardId: ForgeCardId? = null,
+        val sourceAbilityForgeId: Int = 0,
+        val costPayment: Boolean = false,
     ) : GameEvent
 
     /** A permanent was bounced (BF→Hand or BF→Library). */
@@ -279,14 +291,6 @@ sealed interface GameEvent {
     data class CardMilled(
         val cardId: ForgeCardId,
         val seatId: SeatId,
-        val sourceCardId: ForgeCardId? = null,
-    ) : GameEvent
-
-    /** A card was moved Library→Hand via a search effect (tutor, ChangeZone).
-     *  Produces [leyline.game.annotations.TransferCategory.Put] instead of [leyline.game.annotations.TransferCategory.Draw].
-     *  [sourceCardId] = host card of the search ability (for affectorId). */
-    data class CardSearchedToHand(
-        val cardId: ForgeCardId,
         val sourceCardId: ForgeCardId? = null,
     ) : GameEvent
 
@@ -434,8 +438,7 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A permanent's controller changed (steal effect or revert).
-     *  Fires both on steal (Claim the Firstborn) and on revert (end of turn).
-     *  [sourceCardId] resolved later from events list (TransferCategoryResolver.affectorSourceFromEvents pattern). */
+     *  Fires both on steal (Claim the Firstborn) and on revert (end of turn). */
     data class ControllerChanged(
         val cardId: ForgeCardId,
         val oldControllerSeatId: SeatId,
