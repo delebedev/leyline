@@ -880,7 +880,7 @@ object StateMapper {
                 .addAllTeams(listOf(team1, team2))
                 .setTurnInfo(effectiveTurnInfo)
                 .addAllPlayers(listOf(player1, player2))
-                .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
+                .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId }.map(ZoneMapper::clientOrderedZone))
                 .addAllGameObjects(transferResult.patchedObjects)
                 .addAllAnnotations(remaining.numbered)
                 .addAllPersistentAnnotations(remaining.persistent)

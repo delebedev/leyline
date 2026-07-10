@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -17,6 +18,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTestBase
 import leyline.testkit.aiPlayer
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
@@ -54,17 +56,34 @@ class StateMapperShapeTest :
                 base.startWithBoard { g, human, _ ->
                     base.addCard("Forest", human, ZoneType.Hand)
                     base.addCard("Forest", human, ZoneType.Graveyard)
+                    base.addCard("Mountain", human, ZoneType.Graveyard)
+                    base.addCard("Grizzly Bears", human, ZoneType.Exile)
+                    base.addCard("Llanowar Elves", human, ZoneType.Exile)
                 }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
+            val objectsById = gs.gameObjectsList.associateBy { it.instanceId }
+            val zoneGrpIds: (Int) -> List<Int> = { zoneId ->
+                byId.getValue(zoneId).objectInstanceIdsList.map { objectsById.getValue(it).grpId }
+            }
             assertSoftly {
                 byId[ZoneIds.SUPPRESSED]!!.visibility shouldBe Messages.Visibility.Public
                 byId[ZoneIds.PENDING]!!.visibility shouldBe Messages.Visibility.Public
                 byId[ZoneIds.P1_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
                 byId[ZoneIds.P2_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
+                zoneGrpIds(ZoneIds.P1_GRAVEYARD) shouldContainExactly
+                    listOf(
+                        b.cardRepository.findGrpIdByName("Mountain")!!,
+                        b.cardRepository.findGrpIdByName("Forest")!!,
+                    )
+                zoneGrpIds(ZoneIds.EXILE) shouldContainExactly
+                    listOf(
+                        b.cardRepository.findGrpIdByName("Llanowar Elves")!!,
+                        b.cardRepository.findGrpIdByName("Grizzly Bears")!!,
+                    )
             }
 
             val gyObjects =
@@ -103,13 +122,19 @@ class StateMapperShapeTest :
             }
         }
 
-        test("diff state redacts changed opponent sideboard contents") {
+        test("diff state projects changed public zones and redacts opponent sideboard contents") {
             val (b, game) =
-                base.startWithBoard { _, _, ai ->
+                base.startWithBoard { _, human, ai ->
                     base.addCard("Mountain", ai, ZoneType.Sideboard)
+                    base.addCard("Forest", human, ZoneType.Graveyard)
+                    base.addCard("Grizzly Bears", human, ZoneType.Exile)
                 }
             val prev = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
             base.addCard("Forest", game.aiPlayer, ZoneType.Sideboard)
+            base.addCard("Mountain", game.humanPlayer, ZoneType.Graveyard)
+            base.addCard("Llanowar Elves", game.humanPlayer, ZoneType.Exile)
+            base.addCard("Grizzly Bears", game.humanPlayer, ZoneType.Graveyard)
+            base.addCard("Forest", game.humanPlayer, ZoneType.Exile)
             val cur = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 2)
 
             val gs =
@@ -124,10 +149,20 @@ class StateMapperShapeTest :
                         viewingSeatId = 1,
                     ).gsm
             val opponentSideboard = gs.zonesList.single { it.zoneId == ZoneIds.P2_SIDEBOARD }
+            val objectsById = gs.gameObjectsList.associateBy { it.instanceId }
+            val zoneInstanceIds: (Int) -> List<Int> = { zoneId ->
+                gs.zonesList.single { it.zoneId == zoneId }.objectInstanceIdsList
+            }
+            val graveyardIds = zoneInstanceIds(ZoneIds.P1_GRAVEYARD)
+            val exileIds = zoneInstanceIds(ZoneIds.EXILE)
 
             assertSoftly {
                 opponentSideboard.objectInstanceIdsCount shouldBe 0
                 gs.gameObjectsList.count { it.zoneId == ZoneIds.P2_SIDEBOARD } shouldBe 0
+                objectsById.getValue(graveyardIds[0]).grpId shouldBe b.cardRepository.findGrpIdByName("Grizzly Bears")
+                objectsById.getValue(graveyardIds[1]).grpId shouldBe b.cardRepository.findGrpIdByName("Mountain")
+                objectsById.getValue(exileIds[0]).grpId shouldBe b.cardRepository.findGrpIdByName("Forest")
+                objectsById.getValue(exileIds[1]).grpId shouldBe b.cardRepository.findGrpIdByName("Llanowar Elves")
             }
         }
 
