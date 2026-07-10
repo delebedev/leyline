@@ -131,6 +131,7 @@ class ActionMapperPureTest :
 
             val activateMana = actions.actionsList.first { it.actionType == ActionType.ActivateMana }
             activateMana.abilityGrpId shouldBe 1002
+            activateMana.uniqueAbilityId shouldBe 50
         }
 
         // -----------------------------------------------------------------------

@@ -188,6 +188,46 @@ internal object ActivatedActionEmitter {
         }
     }
 
+    /**
+     * Build the minimal inactive mana-action rail for a tapped source.
+     *
+     * Inactive mana actions identify the source and ability but deliberately
+     * omit payment options and selections: the client only needs enough shape
+     * to render the source as unavailable.
+     */
+    fun buildInactiveActivateManaActions(
+        card: Card,
+        instanceId: Int,
+        grpId: Int,
+        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): List<Action> {
+        val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
+        val registry = abilityRegistryLookup(card, cardData)
+        return card.manaAbilities.mapNotNull { sa ->
+            sa.setActivatingPlayer(card.controller)
+            if (sa.canPlay()) return@mapNotNull null
+            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
+            val actionBuilder =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.ActivateMana)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+            actionBuilder
+                .apply {
+                    if (abilityGrpId != 0) setAbilityGrpId(abilityGrpId)
+                    uniqueAbilityIdFor(cardData, abilityGrpId)?.let(::setUniqueAbilityId)
+                }
+            sa.payCosts
+                ?.totalMana
+                ?.takeIf { !it.isNoCost }
+                ?.let { ActionManaCosts.addManaCostFromForge(it, actionBuilder, abilityGrpId) }
+            actionBuilder.build()
+        }
+    }
+
     fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
     fun uniqueAbilityIdFor(
@@ -195,12 +235,11 @@ internal object ActivatedActionEmitter {
         abilityGrpId: Int,
     ): Int? {
         if (abilityGrpId == 0) return null
-        if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
         val index =
-            cardData.abilityIds.indexOfFirst { (grpId, _) ->
+            cardData?.abilityIds?.indexOfFirst { (grpId, _) ->
                 grpId == abilityGrpId
-            }
-        return index.takeIf { it >= 0 }?.let { INITIAL_UNIQUE_ABILITY_ID + it }
+            } ?: -1
+        return if (index >= 0) INITIAL_UNIQUE_ABILITY_ID + index else INITIAL_UNIQUE_ABILITY_ID
     }
 
     fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {

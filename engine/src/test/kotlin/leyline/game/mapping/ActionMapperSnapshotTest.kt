@@ -3,6 +3,7 @@ package leyline.game.mapping
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -99,6 +100,34 @@ class ActionMapperSnapshotTest :
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
+        }
+
+        test("tapped land on battlefield — ActivateMana is inactive with identity only") {
+            var islandForgeId = 0
+            val (b, game, _) =
+                base.startWithBoard { _, human, _ ->
+                    base
+                        .addCard("Island", human, ZoneType.Battlefield)
+                        .also { islandForgeId = it.id }
+                        .tap(true, true, null, null)
+                }
+
+            val fromSnap = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val inactive = fromSnap.inactiveActionsList.single { it.actionType == ActionType.ActivateMana }
+            val expectedInstanceId = b.getOrAllocInstanceId(ForgeCardId(islandForgeId)).value
+            val expectedGrpId = b.resolveGrpId(b.findCard(ForgeCardId(islandForgeId))!!, expectedInstanceId)
+
+            assertSoftly {
+                fromSnap.actionsList.none { it.actionType == ActionType.ActivateMana }.shouldBeTrue()
+                inactive.abilityGrpId shouldBe 1002
+                inactive.instanceId shouldBe expectedInstanceId
+                inactive.grpId shouldBe expectedGrpId
+                inactive.facetId shouldBe expectedInstanceId
+                inactive.uniqueAbilityId shouldBe 50
+                inactive.isBatchable.shouldBeFalse()
+                inactive.manaPaymentOptionsCount shouldBe 0
+                inactive.manaSelectionsCount shouldBe 0
+            }
         }
 
         test("battlefield activated ability carries matching uniqueAbilityId") {
