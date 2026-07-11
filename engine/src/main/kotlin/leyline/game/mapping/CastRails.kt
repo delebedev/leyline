@@ -24,7 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *
  * `ActionMapper.addZoneCastActionsFromSnap` iterates the zone-cast buckets;
  * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket;
- * `ActionPerformer.resolveAltCostAbilityIndex` looks rails up by keyword
+ * `ActionOfferCatalog` looks rails up by keyword while binding the offer
  * BaseId or universal-149 and uses [CastRail.saPredicate] to find the
  * matching SA index in `getAllCastableAbilities`.
  *
@@ -381,7 +381,7 @@ object CastRails {
             ),
         )
 
-    /** All rails — used by [leyline.match.ActionPerformer.resolveAltCostAbilityIndex]
+    /** All rails — used by [leyline.match.ActionOfferCatalog] when binding alt-cost offers.
      *  to enumerate candidates by keyword BaseId. */
     val all: List<CastRail> = fromExile + fromGraveyard + handWithAltCost
 }

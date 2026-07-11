@@ -538,7 +538,6 @@ class MatchSession(
         // TODO: empty diff detection — disabled for now, many legitimate empty diffs exist
         //  (actions-only updates, phase transitions). Needs filtering by caller context.
 
-        bindPendingActionPrompt(result)
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action
@@ -699,15 +698,24 @@ class MatchSession(
         autoAdvanceExecutor.shutdownNow()
     }
 
-    private fun bindPendingActionPrompt(result: BundleBuilder.BundleResult) {
-        bindPendingActionPrompt(result.messages)
-    }
-
     private fun bindPendingActionPrompt(messages: List<GREToClientMessage>) {
-        val promptGsId = messages.firstOrNull { it.hasActionsAvailableReq() }?.gameStateId ?: return
-        val bound = gameBridge.seat(seatId).action.markCurrentPromptEmitted(promptGsId)
+        val prompt = messages.firstOrNull { it.hasActionsAvailableReq() } ?: return
+        val actionBridge = gameBridge.seat(seatId).action
+        val pending = actionBridge.getPending()
+        val offers = ActionOfferCatalog.build(prompt.actionsAvailableReq, gameBridge, seatId.value)
+        val bound =
+            pending != null &&
+                offers.size == prompt.actionsAvailableReq.actionsCount &&
+                actionBridge.bindActionCatalog(pending.actionId, prompt.gameStateId, offers)
         if (!bound) {
-            log.debug("MatchSession: ActionsAvailableReq gsId={} emitted without a pending action", promptGsId)
+            log.warn(
+                "MatchSession: refusing unbound ActionsAvailableReq gsId={} pending={} offers={}/{} types={}",
+                prompt.gameStateId,
+                pending?.actionId?.take(8),
+                offers.size,
+                prompt.actionsAvailableReq.actionsCount,
+                prompt.actionsAvailableReq.actionsList.map { it.actionType },
+            )
         }
     }
 

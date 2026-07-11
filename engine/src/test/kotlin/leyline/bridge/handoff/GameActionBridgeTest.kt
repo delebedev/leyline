@@ -9,6 +9,9 @@ import leyline.UnitTag
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -125,12 +128,111 @@ class GameActionBridgeTest :
             val pending = pollForPending(bridge).shouldNotBeNull()
             assertSoftly {
                 bridge.acceptsResponse(pending, 12) shouldBe false
-                bridge.markPromptEmitted(pending.actionId, 12) shouldBe true
+                bridge.bindActionCatalog(
+                    pending.actionId,
+                    12,
+                    listOf(
+                        GameActionBridge.ActionOffer(Action.newBuilder().setActionType(ActionType.Pass).build(), PlayerAction.PassPriority),
+                    ),
+                ) shouldBe true
                 bridge.acceptsResponse(pending, 11) shouldBe false
                 bridge.acceptsResponse(pending, 12) shouldBe true
             }
 
             bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             engineThread.join(2000)
+        }
+
+        test("catalog resolves client payment detail against the offered selector") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val ready = CountDownLatch(1)
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            engineThread.isDaemon = true
+            engineThread.start()
+            ready.await(2, TimeUnit.SECONDS)
+
+            val pending = pollForPending(bridge).shouldNotBeNull()
+            val cast =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(14)
+                    .setGrpId(91)
+                    .setAbilityGrpId(44)
+                    .setAlternativeGrpId(0)
+                    .build()
+            bridge.bindActionCatalog(pending.actionId, 12, listOf(GameActionBridge.ActionOffer(cast, PlayerAction.PassPriority))) shouldBe
+                true
+            val response = cast.toBuilder().addManaCost(ManaRequirement.newBuilder().setCount(1)).build()
+            assertSoftly {
+                bridge.resolveOfferedAction(pending, 12, response)?.command shouldBe PlayerAction.PassPriority
+                bridge.resolveOfferedAction(pending, 11, response).shouldBeNull()
+                bridge.resolveOfferedAction(pending, 12, Action.newBuilder().setActionType(ActionType.FloatMana).build()).shouldBeNull()
+            }
+
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            engineThread.join(2000)
+        }
+
+        test("catalog coalesces payment variants and supersedes an earlier prompt") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val ready = CountDownLatch(1)
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            engineThread.isDaemon = true
+            engineThread.start()
+            ready.await(2, TimeUnit.SECONDS)
+
+            val pending = pollForPending(bridge).shouldNotBeNull()
+            val pass = Action.newBuilder().setActionType(ActionType.Pass).build()
+            assertSoftly {
+                bridge.bindActionCatalog(
+                    pending.actionId,
+                    12,
+                    listOf(
+                        GameActionBridge.ActionOffer(pass, PlayerAction.PassPriority),
+                        GameActionBridge.ActionOffer(pass, PlayerAction.PassPriority),
+                    ),
+                ) shouldBe true
+                bridge.bindActionCatalog(
+                    pending.actionId,
+                    12,
+                    listOf(GameActionBridge.ActionOffer(pass, PlayerAction.PassPriority)),
+                ) shouldBe
+                    true
+                bridge.bindActionCatalog(
+                    pending.actionId,
+                    13,
+                    listOf(GameActionBridge.ActionOffer(pass, PlayerAction.PassPriority)),
+                ) shouldBe
+                    true
+                bridge.resolveOfferedAction(pending, 12, pass).shouldBeNull()
+                bridge.resolveOfferedAction(pending, 13, pass)?.command shouldBe PlayerAction.PassPriority
+            }
+
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            engineThread.join(2000)
+        }
+
+        test("catalog cannot bind an action request without a live priority wait") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val pass = Action.newBuilder().setActionType(ActionType.Pass).build()
+
+            bridge.bindActionCatalog(
+                actionId = "missing",
+                gameStateId = 12,
+                offers = listOf(GameActionBridge.ActionOffer(pass, PlayerAction.PassPriority)),
+            ) shouldBe false
         }
     })

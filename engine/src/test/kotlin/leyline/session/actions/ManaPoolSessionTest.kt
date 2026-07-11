@@ -1,7 +1,5 @@
 package leyline.session.actions
 
-import forge.game.card.Card
-import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
@@ -12,6 +10,7 @@ import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
+import java.io.File
 
 class ManaPoolSessionTest :
     SessionTest({
@@ -62,8 +61,7 @@ class ManaPoolSessionTest :
 
         test("tapping dual land projects selected floating mana") {
             leyline.testkit.TestCardRegistry.ensureCardRegistered("Racers' Ring")
-            startGame(validating = true)
-            addCardToBattlefield("Racers' Ring", human)
+            startPuzzleRaw(File("../puzzles/racers-ring-draw.pzl").readText(), validating = true)
 
             val landIid = instanceIdOf("Racers' Ring")
             val messages =
@@ -77,30 +75,6 @@ class ManaPoolSessionTest :
             }
         }
     })
-
-private fun addCardToBattlefield(
-    name: String,
-    player: Player,
-): Card {
-    val paperCard =
-        forge.model.FModel
-            .getMagicDb()
-            .commonCards
-            .getCard(name)
-            ?: run {
-                forge.StaticData.instance().attemptToLoadCard(name)
-                forge.model.FModel
-                    .getMagicDb()
-                    .commonCards
-                    .getCard(name)
-            }
-            ?: error("Card not found: $name")
-    val card = Card.fromPaperCard(paperCard, player)
-    card.setGameTimestamp(player.game.nextTimestamp)
-    player.getZone(ZoneType.Battlefield).add(card)
-    card.setSickness(false)
-    return card
-}
 
 private fun List<GREToClientMessage>.latestHumanManaPool(): List<ManaInfo> =
     gameStateMessages()
