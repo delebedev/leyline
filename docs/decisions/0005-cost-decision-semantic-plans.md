@@ -9,7 +9,10 @@ read_when:
 
 ## Status
 
-Accepted for incremental implementation.
+Accepted for bridge-side prompt materialization. Narrowed by
+[ADR 0009](0009-reuse-forge-human-cost-decisions.md): Forge owns candidate
+filtering and cost rules; these plans begin after Forge delegates a choice to
+the frontend controller.
 
 ## Context
 
