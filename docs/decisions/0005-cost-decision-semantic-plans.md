@@ -9,10 +9,13 @@ read_when:
 
 ## Status
 
-Accepted for bridge-side prompt materialization. Narrowed by
-[ADR 0009](0009-reuse-forge-human-cost-decisions.md): Forge owns candidate
-filtering and cost rules; these plans begin after Forge delegates a choice to
-the frontend controller.
+Implemented by PR #227. Superseded for ongoing cost architecture by
+[ADR 0009](0009-reuse-forge-human-cost-decisions.md).
+
+The existing plans are migration scaffolding. Delete each family plan when its
+Leyline cost visitor is replaced by the shared Forge human visitor. Prompt
+semantics and weighted-selection metadata stay at the frontend controller
+adapter; they do not require a second cost-rule model.
 
 ## Context
 

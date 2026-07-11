@@ -86,9 +86,16 @@ inputs. Leyline's human controller continues to implement it through the prompt
 bridge. Protocol request construction and response lifecycle stay outside
 Forge's cost visitor.
 
-ADR 0005's semantic plans remain valid as bridge-side prompt materialization.
-They may describe protocol intent after Forge has supplied the candidates and
-choice constraints. They must not duplicate candidate filtering or cost rules.
+ADR 0005's semantic plans are implemented, but they are not the target
+architecture. They currently separate `CostDecision` from prompt metadata while
+the duplicated visitors remain. Delete each family plan with the Leyline visitor
+that consumes it.
+
+Ordinary families should delegate directly from the shared Forge visitor to the
+controller choice method. Protocol semantics and weighted-selection metadata
+belong in Leyline's controller adapter or in a narrowly typed choice hook when
+the generic hook cannot carry them. Do not replace `CostDecisionPlanner` with a
+new generic planner.
 
 ## Constraints
 
@@ -118,13 +125,16 @@ frontends retain their current interaction, and Leyline's sacrifice visitor is
 deleted.
 
 The migration is complete when `CostDecision` contains only genuinely
-bridge-specific behaviour. Delete it if no such behaviour remains.
+bridge-specific behaviour. Delete it if no such behaviour remains. Delete
+`CostDecisionPlanner` when its final family plan loses its consumer.
 
 ## Consequences
 
 - Cost rules have one authority in Forge.
 - Leyline deletes visitors incrementally instead of replacing both copies with
   a third abstraction.
+- The corresponding ADR 0005 plan and planner test are deleted with each
+  migrated visitor; they are not preserved as an extra protocol layer.
 - Desktop input classes may remain inside `HumanCostDecision` until a migrated
   family proves a controller seam; no all-at-once GUI extraction is required.
 - The controller API grows only for demonstrated interaction shapes.
