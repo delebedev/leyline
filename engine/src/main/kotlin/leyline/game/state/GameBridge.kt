@@ -203,6 +203,7 @@ class GameBridge(
         promptBridges[1] =
             InteractivePromptBridge(timeoutMs = promptFailsafeMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
+                it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
@@ -269,6 +270,7 @@ class GameBridge(
         promptBridges[seatId.value] =
             InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
+                it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
@@ -1408,6 +1410,19 @@ class GameBridge(
             // Stack / RareAside / etc. — not zones we seed for puzzles.
             else -> null
         }
+
+    private fun trackedZoneFor(cardId: ForgeCardId): ZoneType? {
+        val instanceId = ids.peek(cardId) ?: return null
+        return when (diff.getPreviousZone(instanceId.value)) {
+            ZoneIds.BATTLEFIELD -> ZoneType.Battlefield
+            ZoneIds.EXILE -> ZoneType.Exile
+            ZoneIds.COMMAND -> ZoneType.Command
+            ZoneIds.P1_HAND, ZoneIds.P2_HAND -> ZoneType.Hand
+            ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY -> ZoneType.Library
+            ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> ZoneType.Graveyard
+            else -> null
+        }
+    }
 
     /**
      * Seed persistent [AnnotationType.Attachment] annotations for cards that start

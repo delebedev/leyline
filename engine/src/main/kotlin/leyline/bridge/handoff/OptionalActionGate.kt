@@ -47,8 +47,8 @@ interface OwnerContext {
 
 /**
  * Owns the [PlayerController.pendingOptionalAction] future lifecycle for the
- * override sites that share it (`confirmTrigger`, `confirmReplacementEffect`,
- * `playSaFromPlayEffect`, `payCostToPreventEffect`).
+ * override sites that share it (`confirmAction`, `confirmTrigger`,
+ * `confirmReplacementEffect`, `playSaFromPlayEffect`, `payCostToPreventEffect`).
  *
  * Each site used to assemble the future, assign the pending field, signal the
  * priority bridge, `get()` the future with a timeout, and clear the field in a

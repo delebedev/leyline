@@ -33,8 +33,13 @@ class MatchdoorAcceptanceExecutor(
         val harness = MatchFlowHarness(seed = seed)
         try {
             harness.connectAndKeepPuzzleText(readPuzzleText(scenario.puzzle))
+            var remainingOptionalActions = scenario.steps.count { it is OptionalActionStep }
+            if (remainingOptionalActions > 0) harness.holdNextOptionalAction()
             scenario.steps.forEachIndexed { index, step ->
                 executeStep(harness, scenario, index, step)
+                if (step is OptionalActionStep && --remainingOptionalActions > 0) {
+                    harness.holdNextOptionalAction()
+                }
                 if (!harness.isGameOver()) {
                     harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
                 }

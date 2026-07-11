@@ -243,8 +243,14 @@ class AbilityWordScannerTest :
                     base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
-            human.addSpellCastThisTurn()
-            human.addSpellCastThisTurn()
+            val castAbility =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Jeskai Devotee" }
+                    .firstSpellAbility
+                    .also { it.activatingPlayer = human }
+            game.stack.spellsCastThisTurn.addAll(listOf(castAbility, castAbility))
 
             val results =
                 AbilityWordScanner.scan(

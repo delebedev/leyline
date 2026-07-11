@@ -1,0 +1,18 @@
+[metadata]
+Name:Commander Return Swords
+Goal:Exile a commander, then return it to command through the state-based choice.
+Turns:3
+Difficulty:Tutorial
+Description:Arabella starts on the battlefield as the human commander with Swords to Plowshares ready.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=25
+AILife=25
+
+humanhand=Swords to Plowshares
+humanbattlefield=Arabella, Abandoned Doll|IsCommander;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
