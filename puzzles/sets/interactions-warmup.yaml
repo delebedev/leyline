@@ -1,6 +1,24 @@
 name: interactions-warmup
 description: Activated ability and simple zone movement protocol smoke.
 scenarios:
+  - id: commander-return-after-destroy
+    puzzle: commander-return-self-bolt
+    run: destroy Arabella, accept the state-based command-zone move, and verify the commander returns
+    expect: a commander reaches the graveyard before the optional command-zone move completes
+    steps:
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: { side: ours, zone: battlefield, card: "Arabella, Abandoned Doll" }
+      - expect:
+          zone_contains: { side: ours, zone: graveyard, card: "Arabella, Abandoned Doll" }
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: graveyard, card: "Arabella, Abandoned Doll" }
+            - action: { type: cast, card: "Arabella, Abandoned Doll" }
+            - stack_empty: true
   - id: circuitous-route-library-search
     puzzle: circuitous-route-library-search
     run: cast Circuitous Route, choose two library lands, and finish resolving

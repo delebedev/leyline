@@ -124,8 +124,8 @@ scenarios:
           action: { type: cast, card: Reclamation Sage }
       - cast: Reclamation Sage
       - resolve_stack: {}
-      - optional_action: { accept: true }
       - target: { side: opponent, zone: battlefield, card: Sol Ring }
+      - optional_action: { accept: true }
       - resolve_stack: {}
       - expect:
           zone_not_contains: { side: opponent, zone: battlefield, card: Sol Ring }

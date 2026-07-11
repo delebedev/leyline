@@ -1112,7 +1112,6 @@ class MatchFlowHarness(
         wpc.pendingOptionalAction ?: return false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return false
         if (holdNextOptionalResponse) {
-            holdNextOptionalResponse = false
             return false
         }
 
@@ -1213,6 +1212,7 @@ class MatchFlowHarness(
      * For tests that need explicit control over the optional decision.
      */
     fun respondToOptionalAction(accept: Boolean) {
+        holdNextOptionalResponse = false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
         val greMsg =
             ClientToGREMessage

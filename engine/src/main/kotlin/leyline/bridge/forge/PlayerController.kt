@@ -115,7 +115,7 @@ import java.util.function.Predicate
  *   `executeActivateMana` / `executePlayLand` cluster. Called only from
  *   `chooseSpellAbilityToPlay` inside [PriorityLoopCoordinator].
  * - [OptionalActionGate] — owns the [pendingOptionalAction] future lifecycle
- *   shared by `confirmTrigger`, `playSaFromPlayEffect`, and `payCostToPreventEffect`.
+ *   shared by confirm callbacks, `playSaFromPlayEffect`, and `payCostToPreventEffect`.
  *
  * ## State ownership
  *
@@ -504,13 +504,17 @@ class PlayerController(
     ): Boolean {
         if (isParadigmCopyCast(sa) || isParadigmCopyCard(cardToShow)) return true
 
+        val hostCard = cardToShow ?: sa?.hostCard
+        if (mode == PlayerActionConfirmMode.ChangeZoneToAltDestination && hostCard?.isRealCommander == true) {
+            return awaitCommanderReturn(hostCard, sa, "confirmAction:Commander")
+        }
+
         // Endure: binary mode pick at trigger resolution. Yes → +1/+1 counters
         // (engine adds counters when confirmAction returns true); No → Spirit
         // token (engine creates the token in the else branch). Rides the same
         // OptionalActionMessage gate as confirmTrigger, with a counters-flavoured
         // promptId so the client renders a Yes/No prompt over the source creature.
         if (sa?.api == ApiType.Endure) {
-            val hostCard = cardToShow ?: sa.hostCard
             return optionalActionGate.await(
                 hostCard = hostCard,
                 defaultOnTimeout = true,
@@ -666,14 +670,7 @@ class PlayerController(
     ): Boolean {
         if (replacementEffect.hasParam("CommanderMoveReplacement")) {
             val hostCard = (affected as? Card) ?: replacementEffect.hostCard
-            return optionalActionGate.await(
-                hostCard = hostCard,
-                forceSnapshotBeforePrompt = true,
-                defaultOnTimeout = true,
-                logContext = "confirmReplacementEffect:Commander",
-                customPromptId = PromptIds.COMMANDER_RETURN_TO_COMMAND,
-                commanderReturn = hostCard?.let { commanderReturnContext(it, sa) },
-            )
+            return awaitCommanderReturn(hostCard, sa, "confirmReplacementEffect:Commander")
         }
 
         // PCHuman uses GuiBase + InputConfirm
@@ -691,6 +688,20 @@ class PlayerController(
         return result.firstOrNull() == 0
     }
 
+    private fun awaitCommanderReturn(
+        hostCard: Card?,
+        sa: SpellAbility?,
+        logContext: String,
+    ): Boolean =
+        optionalActionGate.await(
+            hostCard = hostCard,
+            forceSnapshotBeforePrompt = true,
+            defaultOnTimeout = true,
+            logContext = logContext,
+            customPromptId = PromptIds.COMMANDER_RETURN_TO_COMMAND,
+            commanderReturn = hostCard?.let { commanderReturnContext(it, sa) },
+        )
+
     private fun isEnterAsCopyReplacement(message: String): Boolean = message.contains("enter as a copy", ignoreCase = true)
 
     @Suppress("UNCHECKED_CAST")
@@ -699,9 +710,13 @@ class PlayerController(
         sa: SpellAbility?,
     ): CommanderReturnPromptContext? {
         val originalParams = sa?.getReplacingObject(AbilityKey.OriginalParams) as? Map<AbilityKey, Any?>
-        val origin = originalParams?.get(AbilityKey.Origin) as? ZoneType ?: card.zone?.zoneType ?: ZoneType.Battlefield
-        val destination = originalParams?.get(AbilityKey.Destination) as? ZoneType ?: ZoneType.Graveyard
-        val oldInstanceId = bridge.forgeIidResolver?.invoke(ForgeCardId(card.id))?.value ?: return null
+        val cardId = ForgeCardId(card.id)
+        val oldInstanceId = bridge.forgeIidResolver?.invoke(cardId)?.value ?: return null
+        val destination = originalParams?.get(AbilityKey.Destination) as? ZoneType ?: card.zone?.zoneType ?: ZoneType.Graveyard
+        val origin =
+            originalParams?.get(AbilityKey.Origin) as? ZoneType
+                ?: bridge.trackedZoneResolver?.invoke(cardId)
+                ?: destination
         val promptInstanceId = bridge.instanceIdReservoir?.invoke()?.value ?: return null
         return CommanderReturnPromptContext(
             oldInstanceId = oldInstanceId,
