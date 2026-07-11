@@ -67,7 +67,7 @@ class MatchdoorAcceptanceExecutor(
             is ManaTypeChoicesStep -> manaTypeChoices(harness, step, context)
             is ModalChoiceStep -> modalChoice(harness, step, context)
             is StaticChoiceStep -> staticChoice(harness, step, context)
-            is OptionalActionStep -> harness.respondToOptionalAction(step.accept)
+            is OptionalActionStep -> respondToOptionalAction(harness, step, context)
             is TargetStep -> target(harness, step.target, context)
             is SelectCostStep -> selectCost(harness, step)
             is SelectCardStep -> selectCard(harness, step, context)
@@ -397,6 +397,7 @@ class MatchdoorAcceptanceExecutor(
             if (index > 0 && harness.game().stackZone.size() == 0) return
             if (harness.isGameOver()) return
             harness.passPriority()
+            if (harness.bridge.humanController?.pendingOptionalAction != null) return
             if (harness.game().stackZone.size() == 0) return
         }
         error(
@@ -417,6 +418,16 @@ class MatchdoorAcceptanceExecutor(
                 "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
                 "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(harness, it) }}"
         }
+    }
+
+    private fun respondToOptionalAction(
+        harness: MatchFlowHarness,
+        step: OptionalActionStep,
+        context: String,
+    ) {
+        val ready = harness.passUntil(maxPasses = 20) { bridge.humanController?.pendingOptionalAction != null }
+        require(ready) { "$context optional action did not become pending" }
+        harness.respondToOptionalAction(step.accept)
     }
 
     private fun passUntilConditionReached(
