@@ -31,6 +31,35 @@ object AcceptanceSuiteLoader {
             ?: error("suite not found: $fileName in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
     }
 
+    /** Every suite YAML in the acceptance suite catalog, for static validation of the full set. */
+    internal fun suiteFiles(): List<Path> =
+        Files.list(suiteSetsDirectory()).use { stream ->
+            stream.filter { it.toString().endsWith(".yaml") }.sorted().toList()
+        }
+
+    private fun suiteSetsDirectory(): Path {
+        val candidates =
+            listOf(
+                Paths.get("puzzles/sets"),
+                Paths.get("../puzzles/sets"),
+                Paths.get("../../puzzles/sets"),
+            )
+        return candidates.firstOrNull { Files.isDirectory(it) }
+            ?: error("suite sets directory not found in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
+    }
+
+    /** Whether a scenario's `puzzle` reference resolves to an existing fixture. */
+    internal fun puzzleExists(puzzle: String): Boolean {
+        val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
+        val candidates =
+            listOf(
+                Paths.get("puzzles/$fileName"),
+                Paths.get("../puzzles/$fileName"),
+                Paths.get("../../puzzles/$fileName"),
+            )
+        return candidates.any { Files.exists(it) }
+    }
+
     private fun parseScenario(
         index: Int,
         raw: Any?,
