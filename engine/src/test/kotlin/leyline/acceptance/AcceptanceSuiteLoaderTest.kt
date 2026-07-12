@@ -107,4 +107,39 @@ class AcceptanceSuiteLoaderTest :
                 )
             }
         }
+
+        test("reports a missing required key as required, not as a type mismatch") {
+            val exception =
+                shouldThrow<IllegalStateException> {
+                    AcceptanceSuiteLoader.loadFromText(
+                        """
+                        name: bad
+                        scenarios:
+                          - id: missing-puzzle
+                            steps:
+                              - resolve_stack: {}
+                        """.trimIndent(),
+                    )
+                }
+            exception.message shouldBe "scenario[0].puzzle is required"
+        }
+
+        test("reports a wrong-typed optional key with its full context path") {
+            val exception =
+                shouldThrow<IllegalStateException> {
+                    AcceptanceSuiteLoader.loadFromText(
+                        """
+                        name: bad
+                        scenarios:
+                          - id: bad-zone
+                            puzzle: any
+                            steps:
+                              - cast:
+                                  card: Think Twice
+                                  zone: [not, a, string]
+                        """.trimIndent(),
+                    )
+                }
+            exception.message shouldBe "step[0].cast.zone must be a string"
+        }
     })

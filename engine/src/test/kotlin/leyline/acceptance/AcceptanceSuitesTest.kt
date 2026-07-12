@@ -5,7 +5,6 @@ import io.kotest.matchers.shouldBe
 import leyline.AcceptanceTag
 import leyline.IntegrationTag
 import java.nio.file.Files
-import java.nio.file.Paths
 
 class AcceptanceSuitesTest :
     FunSpec({
@@ -40,15 +39,7 @@ class AcceptanceSuitesTest :
     })
 
 private fun discoverSuiteNames(): List<String> {
-    val candidates =
-        listOf(
-            Paths.get("puzzles/sets"),
-            Paths.get("../puzzles/sets"),
-            Paths.get("../../puzzles/sets"),
-        )
-    val dir =
-        candidates.firstOrNull { Files.isDirectory(it) }
-            ?: error("puzzles/sets not found in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
+    val dir = AcceptancePaths.resolve("puzzles/sets", notFoundMessage = "puzzles/sets not found", exists = Files::isDirectory)
     return Files.newDirectoryStream(dir, "*.yaml").use { stream ->
         stream.map { it.fileName.toString().removeSuffix(".yaml") }.sorted()
     }
