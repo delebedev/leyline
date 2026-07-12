@@ -794,6 +794,28 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Forum Familiar }
             - battlefield_stats_at_least: { side: ours, card: Forum Familiar, power: 2, toughness: 2 }
             - stack_empty: true
+  - id: prepared-honorbound-page
+    puzzle: honorbound-page-prepare
+    run: cast Honorbound Page, then cast the prepared Forum's Favor copy from exile
+    expect: Page enters prepared with an exile spell copy; casting the copy unprepares and buffs the target
+    steps:
+      - expect:
+          action: { type: cast, card: Honorbound Page }
+      - cast: Honorbound Page
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Honorbound Page }
+            - zone_contains: { side: ours, zone: exile, card: Forum's Favor }
+      - cast: { card: Forum's Favor, zone: exile }
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: exile, card: Forum's Favor }
+            - annotation_seen: GainDesignation
+            - annotation_seen: LoseDesignation
+            - annotation_seen: PowerToughnessModCreated
+            - stack_empty: true
   - id: warp-quantum-riddler
     puzzle: try-warp
     run: cast Quantum Riddler for its Warp cost
