@@ -1,31 +1,23 @@
 package leyline.game.mapping
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.humanPlayer
 
 class ObjectMapperTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("DFC card has othersideGrpId set") {
             // Register back face in test card DB (startWithBoard only registers board cards)
             TestCardRegistry.ensureCardRegistered("Revealing Eye")
 
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Concealing Curtains", human, ZoneType.Battlefield)
                 }
             val card =
                 game.humanPlayer
@@ -48,8 +40,8 @@ class ObjectMapperTest :
 
         test("non-DFC card has othersideGrpId zero") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val card =
                 game.humanPlayer
@@ -73,8 +65,8 @@ class ObjectMapperTest :
             // two fields collapsed to the same value; the fix reroutes any
             // future regression that re-collapses them straight into this test.
             val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val abilityGrpId = 86 // Cascade
             val sourceCardGrpId = 93301 // Bloodbraid Elf (canonical Cascade host)

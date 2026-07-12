@@ -8,10 +8,8 @@ import forge.game.GameEndReason
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.BoardTag
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
@@ -21,6 +19,7 @@ import leyline.match.CombatHandler
 import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.aiPlayer
 import leyline.testkit.settingsMessage
@@ -40,20 +39,14 @@ import kotlin.time.Duration.Companion.seconds
  * integration tests with a running game loop.
  */
 class AutoPassEngineTest :
-    FunSpec({
-
-        tags(BoardTag)
+    BoardTest({
 
         timeout = 15.seconds.inWholeMilliseconds
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
 
         // --- checkHumanActions: AI turn ---
 
         test("checkHumanActions — AI turn with pass-only actions returns Skip(OnlyPassActions)") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
             game.phaseHandler.onStackResolved()
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -80,10 +73,10 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — AI turn with real action grants priority") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Burst Lightning", human, ZoneType.Hand)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Raging Goblin", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Burst Lightning", human, ZoneType.Hand)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Raging Goblin", ai, ZoneType.Battlefield)
                 }
             game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
             game.phaseHandler.onStackResolved()
@@ -111,10 +104,10 @@ class AutoPassEngineTest :
 
         test("shouldCheckHumanActions — AI turn waits for pending human priority") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Burst Lightning", human, ZoneType.Hand)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Raging Goblin", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Burst Lightning", human, ZoneType.Hand)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Raging Goblin", ai, ZoneType.Battlefield)
                 }
             game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
             game.phaseHandler.onStackResolved()
@@ -137,11 +130,11 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — AI turn with only sorcery-speed hand actions skips") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Raging Goblin", human, ZoneType.Hand)
-                    base.addCard("Mountain", human, ZoneType.Hand)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Raging Goblin", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Raging Goblin", human, ZoneType.Hand)
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Raging Goblin", ai, ZoneType.Battlefield)
                 }
             game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
             game.phaseHandler.onStackResolved()
@@ -167,7 +160,7 @@ class AutoPassEngineTest :
         // --- checkHumanActions: full control ---
 
         test("checkHumanActions — full control grants priority even with pass-only actions") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -194,7 +187,7 @@ class AutoPassEngineTest :
         }
 
         test("checkHumanActions — AI turn full control grants priority even with pass-only actions") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
             game.phaseHandler.onStackResolved()
             val autoPassState = ClientAutoPassState()
@@ -225,7 +218,7 @@ class AutoPassEngineTest :
         // --- checkHumanActions: client autoPass ---
 
         test("checkHumanActions — client autoPass + pass-only → Skip(ClientAutoPass)") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -253,10 +246,10 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — client autoPass + real actions → Grant") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
@@ -286,7 +279,7 @@ class AutoPassEngineTest :
         // --- checkHumanActions: no autoPass ---
 
         test("checkHumanActions — no autoPass + pass-only → Skip(OnlyPassActions)") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -309,10 +302,10 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — real actions → Grant with correct phase") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -338,7 +331,7 @@ class AutoPassEngineTest :
         // --- checkHumanActions: decision diagnostics ---
 
         test("checkHumanActions logs structured session decisions") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -370,7 +363,7 @@ class AutoPassEngineTest :
         }
 
         test("AI turn skip does not log a session decision") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -401,7 +394,7 @@ class AutoPassEngineTest :
         }
 
         test("PlayerController logs structured engine decisions") {
-            val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val appender = ListAppender<ILoggingEvent>().apply { start() }
             val logger = LoggerFactory.getLogger(PlayerController::class.java) as Logger
             val previousLevel = logger.level
@@ -421,7 +414,7 @@ class AutoPassEngineTest :
         // --- autoPassAndAdvance: non-blocking exits ---
 
         test("autoPassAndAdvance — game over sends sendGameOver and returns") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             game.setGameOver(GameEndReason.AllOpposingTeamsLost)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -447,10 +440,10 @@ class AutoPassEngineTest :
 
         test("autoPassAndAdvance — Grant from real actions sends state and exits") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -473,7 +466,7 @@ class AutoPassEngineTest :
         }
 
         test("autoPassAndAdvance — full control grants priority on empty board") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -500,7 +493,7 @@ class AutoPassEngineTest :
         // These use stub CombatHandler (open class) to control the combat signal.
 
         test("autoPassAndAdvance — combat STOP exits loop immediately") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =
@@ -538,10 +531,10 @@ class AutoPassEngineTest :
 
         test("autoPassAndAdvance — SEND_STATE with real actions exits via Grant") {
             val (bridge, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
@@ -580,7 +573,7 @@ class AutoPassEngineTest :
         }
 
         test("autoPassAndAdvance — SEND_STATE with pass-only actions emits state-only bundle") {
-            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =

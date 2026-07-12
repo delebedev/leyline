@@ -61,6 +61,11 @@ abstract class BoardTest(
 
     fun startPuzzleAtMain1FromResource(resourcePath: String) = base.startPuzzleAtMain1FromResource(resourcePath)
 
+    /** Register a manually constructed [GameBridge] so teardown shuts it down after the test. */
+    fun useBridge(b: GameBridge) {
+        base.bridge = b
+    }
+
     fun addCard(
         name: String,
         player: Player,
@@ -76,6 +81,20 @@ abstract class BoardTest(
         checkSba: Boolean = false,
         action: () -> Unit,
     ): GameStateMessage = base.captureAfterAction(b, game, counter, checkSba, action)
+
+    fun captureAfterAction(
+        b: GameBridge,
+        game: Game,
+        counter: MessageCounter,
+        checkSba: Boolean = false,
+        action: () -> Unit,
+    ): GameStateMessage = base.captureAfterAction(b, game, counter, checkSba, action)
+
+    fun stateOnlyDiff(
+        game: Game,
+        b: GameBridge,
+        counter: MessageCounter,
+    ): GameStateMessage = base.stateOnlyDiff(game, b, counter)
 
     // --- Board actions ---
 
@@ -188,6 +207,8 @@ abstract class BoardTest(
     fun castSpellAndCaptureWithIds() = base.castSpellAndCaptureWithIds()
 
     fun resolveAndCapture() = base.resolveAndCapture()
+
+    fun playLandAndCapture() = base.playLandAndCapture()
 
     companion object {
         const val SEAT_ID = BoardTestBase.SEAT_ID

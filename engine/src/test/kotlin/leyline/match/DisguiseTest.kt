@@ -2,19 +2,17 @@ package leyline.match
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -43,21 +41,15 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
     "WeakAssertionOnly",
 )
 class DisguiseTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Forge surfaces the Disguise face-down hand SA on a hand card (isCastFaceDown=true)") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Forum Familiar", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Forum Familiar", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Forum Familiar" }
@@ -75,11 +67,11 @@ class DisguiseTest :
             // Forum Familiar's printed cost is {W} (1 mana). Disguise face-down
             // cast is {3} (3 mana). With 3 Plains we can pay either.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Forum Familiar", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Forum Familiar", human, ZoneType.Hand)
                 }
 
             val familiarGrpId = b.cardRepository.findGrpIdByName("Forum Familiar")!!
@@ -129,10 +121,10 @@ class DisguiseTest :
             // Disguise face-down requires {3}. 2 Plains can pay neither the
             // {W} regular cast nor the {3} disguise cast.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Forum Familiar", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Forum Familiar", human, ZoneType.Hand)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -147,11 +139,11 @@ class DisguiseTest :
             // canPlay default for Spell rejects non-hand zones). A graveyard
             // card must surface no disguise offer.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Forum Familiar", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Forum Familiar", human, ZoneType.Graveyard)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)

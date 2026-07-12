@@ -3,13 +3,11 @@ package leyline.game.bundle
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
@@ -30,7 +28,7 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PhaseSnapshot
 import leyline.game.state.GameBridge
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -45,13 +43,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
  */
 @Suppress("LargeClass") // Builder fixture lives in one class so the proto-shape assertions stay co-located.
 class BundleBuilderTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         /** Create a BundleBuilder for pure proto tests (no game state needed). */
         fun pureBB(
@@ -616,9 +608,9 @@ class BundleBuilderTest :
         // --- Conformance tests (board-based) ---
 
         test("declareAttackersBundle shape") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
 
-            val result = base.bundleBuilder(b).declareAttackersBundle(game, counter)
+            val result = bundleBuilder(b).declareAttackersBundle(game, counter)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -629,9 +621,9 @@ class BundleBuilderTest :
         }
 
         test("declareBlockersBundle shape") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
 
-            val result = base.bundleBuilder(b).declareBlockersBundle(game, counter)
+            val result = bundleBuilder(b).declareBlockersBundle(game, counter)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -642,7 +634,7 @@ class BundleBuilderTest :
         }
 
         test("selectTargetsBundle shape") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
 
             val candidateRefs =
                 listOf(
@@ -662,7 +654,7 @@ class BundleBuilderTest :
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
-            val result = base.bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
+            val result = bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -676,9 +668,9 @@ class BundleBuilderTest :
 
         test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
-                    base.addCard("Elvish Mystic", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                    addCard("Elvish Mystic", human, ZoneType.Battlefield)
                 }
 
             val creatures =
@@ -689,7 +681,7 @@ class BundleBuilderTest :
             val allIds = creatures.map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
             val selectedIds = listOf(allIds.first())
 
-            val result = base.bundleBuilder(b).echoAttackersBundle(game, counter, selectedIds, allIds)
+            val result = bundleBuilder(b).echoAttackersBundle(game, counter, selectedIds, allIds)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -720,8 +712,8 @@ class BundleBuilderTest :
 
         test("echoBlockersBundle conformance — SendAndRecord, no combat state, actions present") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
                 }
 
             val blocker =
@@ -732,7 +724,7 @@ class BundleBuilderTest :
             val blockerId = b.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
             val blockAssignments = mapOf(blockerId to 999)
 
-            val result = base.bundleBuilder(b).echoBlockersBundle(game, counter, blockAssignments)
+            val result = bundleBuilder(b).echoBlockersBundle(game, counter, blockAssignments)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -756,7 +748,7 @@ class BundleBuilderTest :
         }
 
         test("selectNBundle shape") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
 
             val req =
                 SelectNReq
@@ -764,7 +756,7 @@ class BundleBuilderTest :
                     .setMinSel(1)
                     .setMaxSel(1)
                     .build()
-            val result = base.bundleBuilder(b).selectNBundle(game, counter, SelectNEnvelope.default(req))
+            val result = bundleBuilder(b).selectNBundle(game, counter, SelectNEnvelope.default(req))
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -776,7 +768,7 @@ class BundleBuilderTest :
         }
 
         test("orderBundle shape") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
             val prompt =
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "order-test",
@@ -790,7 +782,7 @@ class BundleBuilderTest :
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val result = base.bundleBuilder(b).orderBundle(game, counter, prompt)
+            val result = bundleBuilder(b).orderBundle(game, counter, prompt)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -805,9 +797,9 @@ class BundleBuilderTest :
 
         test("discard SelectNReq uses Resolution context and Dynamic listType (#175)") {
             val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Mountain", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
                 }
 
             val handCards =
@@ -851,8 +843,8 @@ class BundleBuilderTest :
 
         test("generic SelectNReq does not infer cost-payment from sacrifice text") {
             val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Walking Corpse", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Walking Corpse", human, ZoneType.Battlefield)
                 }
 
             val creature =
@@ -887,10 +879,10 @@ class BundleBuilderTest :
         }
 
         test("payCostsBundle shape") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
 
             val req = Messages.PayCostsReq.newBuilder().build()
-            val result = base.bundleBuilder(b).payCostsBundle(game, counter, req)
+            val result = bundleBuilder(b).payCostsBundle(game, counter, req)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -1016,11 +1008,11 @@ class BundleBuilderTest :
 
         test("postAction emits SendAndRecord when there are no draw events (baseline preserved)") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
                 }
 
-            val result = base.bundleBuilder(b).postAction(game, counter)
+            val result = bundleBuilder(b).postAction(game, counter)
             val gsm = result.messages.first { it.hasGameStateMessage() }.gameStateMessage
 
             // startWithBoard parks us at MAIN1 with activePlayer=humanPlayer=seat 1.

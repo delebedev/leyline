@@ -4,17 +4,15 @@ import forge.card.GamePieceType
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 
 /**
  * Pins that BoundCard's per-card bound view agrees with direct
@@ -24,20 +22,14 @@ import leyline.testkit.BoardTestBase
  * snapshot/projection boundary.
  */
 class BoundCardParityTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("boundCards has one entry per object, each matching the repository's findByGrpId") {
             val (b, game, _) =
-                base.startWithBoard { _, human, opp ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
-                    base.addCard("Lightning Bolt", opp, ZoneType.Hand)
+                startWithBoard { _, human, opp ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
+                    addCard("Lightning Bolt", opp, ZoneType.Hand)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -64,8 +56,8 @@ class BoundCardParityTest :
 
         test("EFFECT pieces with grpId=0 get null CardData on the bound view") {
             val (b, game, _) =
-                base.startWithBoard { g, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { g, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
 
                     // Synthetic engine goal — mirrors the SnapshotCapture EFFECT case.
                     val goal = Card(-1, g)
@@ -93,9 +85,9 @@ class BoundCardParityTest :
 
         test("designations mirror CardSnapshot's per-role state") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // Plain creature — no designations.
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -115,9 +107,9 @@ class BoundCardParityTest :
 
         test("parentLinkage resolves AttachedTo for an aura on a permanent") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    val bear = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    val aura = base.addCard("Pacifism", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    val bear = addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    val aura = addCard("Pacifism", human, ZoneType.Battlefield)
                     aura.attachToEntity(bear, null, true)
                 }
 
@@ -147,8 +139,8 @@ class BoundCardParityTest :
 
         test("non-Mobilize cards carry no Mobilize alt-cost row and no cleanup") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)

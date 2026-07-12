@@ -7,7 +7,6 @@ import forge.game.event.*
 import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -15,12 +14,11 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
@@ -33,18 +31,12 @@ import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
  * then asserts on collector.closeFrame(). ~0.01s per test.
  */
 class GameEventCollectorTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         // -- infrastructure --
 
         test("collector is wired after wrapGame") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector.shouldNotBeNull()
 
             collector.closeFrame().events shouldBe emptyList()
@@ -52,8 +44,8 @@ class GameEventCollectorTest :
 
         test("drain events returns and clears") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
 
@@ -73,8 +65,8 @@ class GameEventCollectorTest :
 
         test("land played event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -99,8 +91,8 @@ class GameEventCollectorTest :
 
         test("spell cast event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Lightning Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -125,8 +117,8 @@ class GameEventCollectorTest :
 
         test("spell resolved event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Lightning Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -149,8 +141,8 @@ class GameEventCollectorTest :
 
         test("spell resolved fizzled") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Lightning Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -171,8 +163,8 @@ class GameEventCollectorTest :
 
         test("BF to GY via zone change emits ZoneChanged (CardDestroyed comes from dedicated event)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -195,9 +187,9 @@ class GameEventCollectorTest :
 
         test("GameEventCardDestroyed emits CardDestroyed with source") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Lightning Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -226,8 +218,8 @@ class GameEventCollectorTest :
 
         test("BF to Hand emits CardBounced") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -248,8 +240,8 @@ class GameEventCollectorTest :
 
         test("any to Exile emits CardExiled") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -269,8 +261,8 @@ class GameEventCollectorTest :
 
         test("Hand to GY emits CardDiscarded") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Lightning Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -290,8 +282,8 @@ class GameEventCollectorTest :
 
         test("Library to GY emits CardMilled") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Library)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Library)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -311,8 +303,8 @@ class GameEventCollectorTest :
 
         test("generic fallback emits ZoneChanged") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Graveyard)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -336,9 +328,9 @@ class GameEventCollectorTest :
 
         test("every Forge zone event contributes one ordered ZoneMove with frozen cause") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Goblin Fireslinger", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Goblin Fireslinger", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -371,7 +363,7 @@ class GameEventCollectorTest :
 
         test("legacy three-argument Forge zone event records an unknown-cause ZoneMove") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ -> base.addCard("Grizzly Bears", human, ZoneType.Battlefield) }
+                startWithBoard { _, human, _ -> addCard("Grizzly Bears", human, ZoneType.Battlefield) }
             val collector = b.eventCollector!!
             collector.closeFrame()
             val card =
@@ -399,8 +391,8 @@ class GameEventCollectorTest :
 
         test("card tapped event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -422,8 +414,8 @@ class GameEventCollectorTest :
 
         test("card untapped event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -444,9 +436,9 @@ class GameEventCollectorTest :
 
         test("damage dealt to card event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Serra Angel", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Serra Angel", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -471,8 +463,8 @@ class GameEventCollectorTest :
 
         test("damage dealt to player event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -497,7 +489,7 @@ class GameEventCollectorTest :
         // -- LifeChanged --
 
         test("life changed event") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
             collector.closeFrame()
 
@@ -516,8 +508,8 @@ class GameEventCollectorTest :
 
         test("card sacrificed event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -541,9 +533,9 @@ class GameEventCollectorTest :
 
         test("card attached event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Pacifism", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Pacifism", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -567,9 +559,9 @@ class GameEventCollectorTest :
 
         test("card detached event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Pacifism", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Pacifism", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -595,8 +587,8 @@ class GameEventCollectorTest :
 
         test("counters changed event") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
@@ -625,7 +617,7 @@ class GameEventCollectorTest :
         // -- Shuffle --
 
         test("library shuffled event") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
             collector.closeFrame()
 
@@ -639,7 +631,7 @@ class GameEventCollectorTest :
         // -- Scry --
 
         test("scry event") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
             collector.closeFrame()
             b.recordLibraryArrangement(SeatId(1), GroupingContext.Scry_a0f6, topIds = listOf(101), awayIds = listOf(102, 103))
@@ -658,7 +650,7 @@ class GameEventCollectorTest :
         // -- Surveil --
 
         test("surveil event") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
             collector.closeFrame()
             b.recordLibraryArrangement(SeatId(1), GroupingContext.Surveil, topIds = listOf(201), awayIds = listOf(202, 203, 204))
@@ -677,7 +669,7 @@ class GameEventCollectorTest :
         // -- CombatEnded --
 
         test("combat ended event") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
             collector.closeFrame()
 
@@ -690,7 +682,7 @@ class GameEventCollectorTest :
         // -- AI player events get seatId=2 --
 
         test("AI player gets seatId 2") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val collector = b.eventCollector!!
             collector.closeFrame()
 

@@ -2,15 +2,14 @@ package leyline.board.handshake
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.mapping.PromptIds
 import leyline.protocol.HandshakeMessages
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -24,13 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Focuses on bundle shape and value correctness.
  */
 class DealHandConformanceTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         /** Helper: extract GRE messages from a MatchServiceToClientMessage. */
         fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
@@ -39,9 +32,9 @@ class DealHandConformanceTest :
 
         test("dealHand seat 1: 1 GRE msg, Diff GSM with zones and objects") {
             val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
-                    repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
+                startWithBoard { _, human, _ ->
+                    repeat(7) { addCard("Plains", human, ZoneType.Hand) }
+                    repeat(53) { addCard("Plains", human, ZoneType.Library) }
                 }
             val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = SeatId(1))
             val messages = greMessages(msg)
@@ -75,11 +68,11 @@ class DealHandConformanceTest :
 
         test("dealHandMulliganSeat2: 2 msgs (GSM + MulliganReq)") {
             val (b, _, _) =
-                base.startWithBoard { _, human, ai ->
-                    repeat(7) { base.addCard("Plains", human, ZoneType.Hand) }
-                    repeat(53) { base.addCard("Plains", human, ZoneType.Library) }
-                    repeat(7) { base.addCard("Plains", ai, ZoneType.Hand) }
-                    repeat(53) { base.addCard("Plains", ai, ZoneType.Library) }
+                startWithBoard { _, human, ai ->
+                    repeat(7) { addCard("Plains", human, ZoneType.Hand) }
+                    repeat(53) { addCard("Plains", human, ZoneType.Library) }
+                    repeat(7) { addCard("Plains", ai, ZoneType.Hand) }
+                    repeat(53) { addCard("Plains", ai, ZoneType.Library) }
                 }
             val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
             val messages = greMessages(msg)
@@ -108,7 +101,7 @@ class DealHandConformanceTest :
         // --- mulliganReqSeat1 ---
 
         test("mulliganReqSeat1: 3 msgs (thin Diff + PromptReq + MulliganReq)") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(10, 3, b)
             val messages = greMessages(msg)
 
@@ -145,7 +138,7 @@ class DealHandConformanceTest :
         // --- initialBundle ---
 
         test("initialBundle seat 1: ConnectResp + DieRoll + Full GSM (3 msgs)") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(1)))
             val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(1), BoardTestBase.TEST_MATCH_ID, 2, 1, deck, b)
             val messages = greMessages(msg)
@@ -169,7 +162,7 @@ class DealHandConformanceTest :
         }
 
         test("initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(2)))
             val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(2), BoardTestBase.TEST_MATCH_ID, 3, 1, deck, b)
             val messages = greMessages(msg)

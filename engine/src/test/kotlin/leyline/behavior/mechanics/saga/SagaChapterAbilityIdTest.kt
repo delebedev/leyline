@@ -1,12 +1,10 @@
 package leyline.behavior.mechanics.saga
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.TestCardInjector
 
 /**
@@ -23,16 +21,11 @@ import leyline.testkit.TestCardInjector
  * (Tribute to Horobi).
  */
 class SagaChapterAbilityIdTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Tribute to Horobi: 3 distinct chapter ability ids in leading abilityIds positions") {
             val cardName = "Tribute to Horobi"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
 
             TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
             val grpId = b.cardRepository.findGrpIdByName(cardName)!!
@@ -50,7 +43,7 @@ class SagaChapterAbilityIdTest :
 
         test("non-saga card has empty chapterAbilityGrpIds") {
             val cardName = "Grizzly Bears"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
 
             TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
             val grpId = b.cardRepository.findGrpIdByName(cardName)!!

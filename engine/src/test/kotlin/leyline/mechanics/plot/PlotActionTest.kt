@@ -2,13 +2,11 @@ package leyline.mechanics.plot
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
@@ -16,7 +14,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
@@ -45,22 +43,16 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
     "WeakAssertionOnly",
 )
 class PlotActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Forge surfaces the Plot hand SA on a hand card (isPlotting=true)") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Railway Brawler", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Railway Brawler", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Railway Brawler" }
@@ -73,12 +65,12 @@ class PlotActionTest :
 
         test("ActionMapper offers Cast for plot card in hand when mana available (alternativeGrpId=PLOTTED row)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Railway Brawler", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Railway Brawler", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -111,12 +103,12 @@ class PlotActionTest :
 
         test("ActionMapper.buildFromSnapshot offers Cast for plot card in hand (snapshot path parity)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Railway Brawler", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Railway Brawler", human, ZoneType.Hand)
                 }
 
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
@@ -153,10 +145,10 @@ class PlotActionTest :
             // Plot {3}{G} unpayable with 2 Forests. The non-alt-cost base Cast at 4G
             // is also unpayable. Both must be absent from active offers.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Railway Brawler", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Railway Brawler", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -180,12 +172,12 @@ class PlotActionTest :
         test("plot card only in graveyard → no Cast offer with alternativeGrpId=PLOTTED row") {
             // Plot is hand-only. A plot card in graveyard must not surface a plot offer.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Railway Brawler", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Railway Brawler", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
 

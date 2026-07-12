@@ -2,16 +2,15 @@ package leyline.game.annotations
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -26,19 +25,13 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * annotation batch is committed.
  */
 class TargetSpecAnnotationTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("pending target spec emits TargetSpec persistent annotation") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Murder", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Murder", human, ZoneType.Hand)
                 }
 
             val creature =
@@ -82,9 +75,9 @@ class TargetSpecAnnotationTest :
 
         test("pending target spec is consumed only when mapper mutations apply") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Murder", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Murder", human, ZoneType.Hand)
                 }
 
             val creature =
@@ -133,8 +126,8 @@ class TargetSpecAnnotationTest :
 
         test("no pending targets emits no TargetSpec") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Divination", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Divination", human, ZoneType.Hand)
                 }
 
             val snapTarget2 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -147,9 +140,9 @@ class TargetSpecAnnotationTest :
 
         test("TargetSpec removed when pending list is empty on next build") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    base.addCard("Murder", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Murder", human, ZoneType.Hand)
                 }
 
             val creature =

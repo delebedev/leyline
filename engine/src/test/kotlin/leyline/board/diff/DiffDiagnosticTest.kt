@@ -2,17 +2,15 @@ package leyline.board.diff
 
 import forge.game.ability.AbilityKey
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.ClientAccumulator
 import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.annotation
@@ -32,18 +30,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * assertions about diff contents — which zones appear, annotation types, field values.
  */
 class DiffDiagnosticTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("diff after land play has correct GSM type, zones, and annotations") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ForgeZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ForgeZoneType.Hand)
                 }
 
             val land =
@@ -52,7 +44,7 @@ class DiffDiagnosticTest :
                     .cards
                     .first { it.isLand }
             val gsm =
-                base.captureAfterAction(b, game, counter) {
+                captureAfterAction(b, game, counter) {
                     game.action.moveToPlay(land, null, AbilityKey.newMap())
                 }
 
@@ -72,7 +64,7 @@ class DiffDiagnosticTest :
 
         test("cast creature -> pass -> resolve tracks zone placement correctly") {
             val (b, game, counter) =
-                base.startGameAtMain1(
+                startGameAtMain1(
                     deckList =
                         """
                         30 Forest
@@ -80,19 +72,19 @@ class DiffDiagnosticTest :
                         """.trimIndent(),
                 )
             val acc = ClientAccumulator()
-            acc.seedFull(base.handshakeFull(game, b, counter.currentGsId()))
+            acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
 
-            val startResult = base.gameStart(game, b, counter)
+            val startResult = gameStart(game, b, counter)
             acc.processAll(startResult.messages)
             b.seedDiffBaseline(game)
 
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            val afterLand = base.postAction(game, b, counter)
+            playLand(b) ?: error("playLand failed at seed 42")
+            val afterLand = postAction(game, b, counter)
             acc.processAll(afterLand.messages)
 
-            val castAction = base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val castAction = castCreature(b) ?: error("castCreature failed at seed 42")
             val creatureForgeId = castAction.cardId.value
-            val afterCast = base.postAction(game, b, counter)
+            val afterCast = postAction(game, b, counter)
             acc.processAll(afterCast.messages)
 
             val creatureNewId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
@@ -106,8 +98,8 @@ class DiffDiagnosticTest :
             } else {
                 creatureObj.zoneId shouldBe ZoneIds.STACK
 
-                base.passPriority(b)
-                val afterPass = base.postAction(game, b, counter)
+                passPriority(b)
+                val afterPass = postAction(game, b, counter)
                 acc.processAll(afterPass.messages)
 
                 val resolved = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
@@ -117,19 +109,19 @@ class DiffDiagnosticTest :
         }
 
         test("resolve keeps instanceId") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, counter) = startGameAtMain1()
 
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            base.postAction(game, b, counter)
+            playLand(b) ?: error("playLand failed at seed 42")
+            postAction(game, b, counter)
 
-            val castAction = base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val castAction = castCreature(b) ?: error("castCreature failed at seed 42")
             val creatureForgeId = castAction.cardId.value
-            base.postAction(game, b, counter)
+            postAction(game, b, counter)
             val castId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
 
             if (!game.stack.isEmpty) {
-                base.passPriority(b)
-                base.postAction(game, b, counter)
+                passPriority(b)
+                postAction(game, b, counter)
             }
 
             val resolvedId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
@@ -138,8 +130,8 @@ class DiffDiagnosticTest :
 
         test("remoteActionDiff contains BF objects for AI land play") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ForgeZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ForgeZoneType.Hand)
                 }
 
             val land =
@@ -147,12 +139,12 @@ class DiffDiagnosticTest :
                     .getZone(ForgeZoneType.Hand)
                     .cards
                     .first { it.isLand }
-            base.captureAfterAction(b, game, counter) {
+            captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
 
             val aiResult =
-                base.bundleBuilder(b).remoteActionDiff(
+                bundleBuilder(b).remoteActionDiff(
                     game,
                     counter,
                 )

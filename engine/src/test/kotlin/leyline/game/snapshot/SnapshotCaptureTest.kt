@@ -4,29 +4,21 @@ import forge.card.GamePieceType
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 
 class SnapshotCaptureTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Puzzle-Goal-style EFFECT in Command zone: snapshot captures with grpId=0, no throw") {
             val (b, game, _) =
-                base.startWithBoard { g, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { g, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
 
                     // Mirror forge.gamemodes.puzzle.Puzzle — synthetic engine goal card.
                     // forgeId=-1 signals "not a real card"; GamePieceType.EFFECT signals
@@ -56,8 +48,8 @@ class SnapshotCaptureTest :
 
         test("Effect helper with source is omitted from snapshot zones and objects") {
             val (b, game, _) =
-                base.startWithBoard { g, human, _ ->
-                    val source = base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
+                startWithBoard { g, human, _ ->
+                    val source = addCard("Grizzly Bears", human, ZoneType.Graveyard)
 
                     val helper = Card(198, g)
                     helper.owner = human

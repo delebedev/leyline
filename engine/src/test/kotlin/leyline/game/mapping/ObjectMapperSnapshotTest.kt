@@ -2,14 +2,13 @@ package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.aiPlayer
@@ -22,18 +21,12 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * Uses [BoardTestBase.startWithBoard] for a synchronous board setup (~0.01s/test).
  */
 class ObjectMapperSnapshotTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("off-battlefield hand card: snapshot fields are correct") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
             val card =
                 game.humanPlayer
@@ -60,8 +53,8 @@ class ObjectMapperSnapshotTest :
 
         test("on-battlefield creature: P/T + tapped + sickness captured") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val card =
                 game.humanPlayer
@@ -100,8 +93,8 @@ class ObjectMapperSnapshotTest :
 
         test("graveyard card: visibility and zone are correct") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Graveyard)
                 }
             val card =
                 game.humanPlayer
@@ -137,8 +130,8 @@ class ObjectMapperSnapshotTest :
             TestCardRegistry.ensureCardRegistered("Revealing Eye")
 
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Concealing Curtains", human, ZoneType.Battlefield)
                 }
             val card =
                 game.humanPlayer
@@ -175,8 +168,8 @@ class ObjectMapperSnapshotTest :
             TestCardRegistry.ensureCardRegistered("Chandra, Torch of Defiance")
 
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Chandra, Torch of Defiance", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Chandra, Torch of Defiance", human, ZoneType.Battlefield)
                 }
             val card =
                 game.humanPlayer
@@ -205,8 +198,8 @@ class ObjectMapperSnapshotTest :
 
         test("buildFromSnapshot owner/controller seats correct for AI cards") {
             val (b, game, _) =
-                base.startWithBoard { _, _, ai ->
-                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                startWithBoard { _, _, ai ->
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
             val card =
                 game.aiPlayer

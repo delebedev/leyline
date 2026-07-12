@@ -4,29 +4,22 @@ import forge.game.ability.ApiType
 import forge.game.staticability.StaticAbilityMode
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.CardDataDeriver
 import leyline.testkit.TestCardInjector
 
 class AbilityRegistryTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Station activated ability maps to shared abilityGrpId 373") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Lumen-Class Frigate", ZoneType.Battlefield)
             val stationAbility =
                 injected.card.spellAbilities.first { ability ->
@@ -40,7 +33,7 @@ class AbilityRegistryTest :
 
         test("keyword-backed activated ability dispatches by activated index") {
             val cardName = "Ninja of the Deep Hours"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Hand)
             val ninjutsuAbility =
                 injected.card.spellAbilities.single { ability ->
@@ -55,7 +48,7 @@ class AbilityRegistryTest :
 
         test("Reconfigure attach and unattach map to distinct activated slots") {
             val cardName = "Rabbit Battery"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
             val activated =
                 injected.card.spellAbilities
@@ -76,8 +69,8 @@ class AbilityRegistryTest :
 
         test("unclaimed intrinsic static maps to matching intrinsic ability slot") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Pacifism", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Pacifism", human, ZoneType.Battlefield)
                 }
             val pacifism =
                 game.players[0]
@@ -96,8 +89,8 @@ class AbilityRegistryTest :
 
         test("unclaimed printed static maps with legacy slot data") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Pacifism", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Pacifism", human, ZoneType.Battlefield)
                 }
             val pacifism =
                 game.players[0]
@@ -122,7 +115,7 @@ class AbilityRegistryTest :
 
         test("planeswalker loyalty abilities map to distinct abilityGrpId slots") {
             val cardName = "Chandra, Torch of Defiance"
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
 
             // Inject planeswalker onto battlefield
             val injected =
@@ -170,7 +163,7 @@ class AbilityRegistryTest :
         // when assigning Forge activated SAs to abilityGrpIds.
         test("trigger slot interleaved before activated abilities does not shift mapping") {
             val cardName = "Kaito, Cunning Infiltrator"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
 
             val injected =
                 TestCardInjector.inject(
@@ -249,7 +242,7 @@ class AbilityRegistryTest :
 
         test("mana slot interleaved before activated land ability does not shift mapping") {
             val cardName = "Racers' Ring"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
             val card = injected.card
             val manaAbility = card.spellAbilities.single { it.isManaAbility() && it.isIntrinsic }
@@ -271,7 +264,7 @@ class AbilityRegistryTest :
 
         test("Evolved Sleeper activated abilities map to per-ability rows") {
             val cardName = "Evolved Sleeper"
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
             val activatedAbilities =
                 injected.card.spellAbilities

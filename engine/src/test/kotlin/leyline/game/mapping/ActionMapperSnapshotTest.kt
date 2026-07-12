@@ -2,14 +2,13 @@ package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
@@ -23,20 +22,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Cost-legality routes through the live Forge bridge, so these are BoardTag tests.
  */
 class ActionMapperSnapshotTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         // -----------------------------------------------------------------------
         // Test 1: empty hand + battlefield → Pass + FloatMana only
         // -----------------------------------------------------------------------
 
         test("empty hand and battlefield yields only Pass and FloatMana") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -60,8 +53,8 @@ class ActionMapperSnapshotTest :
 
         test("land in hand — Play action present") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Hand)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -76,8 +69,8 @@ class ActionMapperSnapshotTest :
 
         test("non-land spell in hand — Cast action present (active or inactive)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -92,8 +85,8 @@ class ActionMapperSnapshotTest :
 
         test("untapped land on battlefield — ActivateMana present") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -105,9 +98,8 @@ class ActionMapperSnapshotTest :
         test("tapped land on battlefield — ActivateMana is inactive with identity only") {
             var islandForgeId = 0
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base
-                        .addCard("Island", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
                         .also { islandForgeId = it.id }
                         .tap(true, true, null, null)
                 }
@@ -132,8 +124,8 @@ class ActionMapperSnapshotTest :
 
         test("battlefield activated ability carries matching uniqueAbilityId") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Tavern Swindler", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Tavern Swindler", human, ZoneType.Battlefield)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -148,10 +140,10 @@ class ActionMapperSnapshotTest :
 
         test("snow-costed activated ability carries snow mana cost") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Ascendant Spirit", human, ZoneType.Battlefield)
-                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
-                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Ascendant Spirit", human, ZoneType.Battlefield)
+                    addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                    addCard("Snow-Covered Island", human, ZoneType.Battlefield)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -188,9 +180,9 @@ class ActionMapperSnapshotTest :
 
         test("affordable Llanowar Elves — Cast in active actions") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
@@ -211,9 +203,9 @@ class ActionMapperSnapshotTest :
 
         test("CardSnapshot.isLand is true for lands, false for non-lands") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Hand)
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Hand)
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)

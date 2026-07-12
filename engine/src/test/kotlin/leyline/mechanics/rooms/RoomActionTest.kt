@@ -2,19 +2,17 @@ package leyline.mechanics.rooms
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.RoomDoorCastDescriptors
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -33,13 +31,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  */
 @Suppress("WeakAssertionOnly")
 class RoomActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         fun roomOffersForIid(
             actions: List<Action>,
@@ -52,13 +44,13 @@ class RoomActionTest :
 
         test("room in hand with both door costs payable → both CastLeft/RightRoom offers") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // 4 Plains covers right door {3}{W}; left {1}{W} also payable.
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Hand)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
@@ -85,10 +77,10 @@ class RoomActionTest :
         test("room in hand with insufficient mana for right door → only left offer") {
             // 2 Plains: left {1}{W} payable, right {3}{W} not.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
@@ -118,12 +110,12 @@ class RoomActionTest :
 
         test("room in graveyard → no door cast offers") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Graveyard).cards.first { it.isRoom }
@@ -138,12 +130,12 @@ class RoomActionTest :
 
         test("room on battlefield with left already unlocked → only CastRightRoom offered") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
@@ -160,12 +152,12 @@ class RoomActionTest :
 
         test("room on battlefield with both doors unlocked → no door cast offers") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
@@ -191,9 +183,9 @@ class RoomActionTest :
             // the LEFT door. pickRoomDoorSa now picks the per-door SpellPermanent
             // from getSpells() so the offer side and accept side agree.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Battlefield) }
-                    base.addCard("Surgical Suite", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    repeat(5) { addCard("Plains", human, ZoneType.Battlefield) }
+                    addCard("Surgical Suite", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
@@ -218,9 +210,9 @@ class RoomActionTest :
 
         test("StateMapper emits LeftUnlocked Designation pAnn for bf room with left door open") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
@@ -251,9 +243,9 @@ class RoomActionTest :
 
         test("snapshot exposes door state for battlefield room") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Surgical Suite", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }

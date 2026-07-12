@@ -1,7 +1,6 @@
 package leyline.match
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -9,12 +8,11 @@ import io.kotest.matchers.shouldBe
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
-import leyline.BoardTag
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.infra.ListMessageSink
 import leyline.infra.MatchOutput
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -23,13 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 
 class MulliganHandlerTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         fun channelCtx(): Pair<EmbeddedChannel, ChannelHandlerContext> {
             val probe = object : ChannelInboundHandlerAdapter() {}
@@ -100,7 +92,7 @@ class MulliganHandlerTest :
                 .build()
 
         test("MulliganResp from familiar seat is ignored") {
-            val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val registry = MatchRegistry()
             val (session, sink) = sessionFor(SeatId(2), registry, bridge)
             val mulligan = handler(SeatId(2), session, registry)
@@ -112,7 +104,7 @@ class MulliganHandlerTest :
         }
 
         test("GroupResp from familiar seat is ignored") {
-            val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val registry = MatchRegistry()
             val (session, sink) = sessionFor(SeatId(2), registry, bridge)
             val mulligan = handler(SeatId(2), session, registry)
@@ -124,9 +116,9 @@ class MulliganHandlerTest :
 
         test("sendMulliganReq emits thin GSM, PromptReq, and MulliganReq") {
             val (bridge, _, _) =
-                base.startWithBoard { _, human, ai ->
-                    repeat(7) { base.addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
-                    repeat(7) { base.addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
+                startWithBoard { _, human, ai ->
+                    repeat(7) { addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
+                    repeat(7) { addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
                 }
             val registry = MatchRegistry()
             val (session, _) = sessionFor(SeatId(1), registry, bridge)
@@ -156,8 +148,8 @@ class MulliganHandlerTest :
 
         test("sendDealHandPublic emits a DealHand GSM") {
             val (bridge, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(7) { base.addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
+                startWithBoard { _, human, _ ->
+                    repeat(7) { addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
                 }
             val registry = MatchRegistry()
             val (session, _) = sessionFor(SeatId(1), registry, bridge)

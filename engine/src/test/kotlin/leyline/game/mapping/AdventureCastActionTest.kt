@@ -2,33 +2,25 @@ package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 class AdventureCastActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("adventure card in hand produces both Cast and CastAdventure actions") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
-                    repeat(3) { base.addCard("Mountain", human, ZoneType.Battlefield) }
+                startWithBoard { _, human, _ ->
+                    addCard("Ratcatcher Trainee", human, ZoneType.Hand)
+                    repeat(3) { addCard("Mountain", human, ZoneType.Battlefield) }
                 }
 
             val creatureGrpId =
@@ -65,9 +57,9 @@ class AdventureCastActionTest :
 
         test("non-adventure card produces no CastAdventure") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                    repeat(2) { base.addCard("Forest", human, ZoneType.Battlefield) }
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    repeat(2) { addCard("Forest", human, ZoneType.Battlefield) }
                 }
 
             val actions =
@@ -83,8 +75,8 @@ class AdventureCastActionTest :
 
         test("unaffordable adventure action cost does not require pre-seeded activator") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Ratcatcher Trainee", human, ZoneType.Hand)
                 }
 
             val actions =

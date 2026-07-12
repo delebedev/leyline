@@ -3,30 +3,23 @@ package leyline.mechanics.mdfc
 import forge.card.CardStateName
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.pickMdfcBackSpellAbility
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 @Suppress("WeakAssertionOnly")
 class MdfcActionTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         fun actionsFor(
             actions: List<Action>,
@@ -36,9 +29,9 @@ class MdfcActionTest :
 
         test("spell-front land-back MDFC offers normal Cast and PlayMdfc") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(3) { base.addCard("Island", human, ZoneType.Battlefield) }
-                    base.addCard("Silundi Vision", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
+                    addCard("Silundi Vision", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Silundi Vision" }
@@ -61,13 +54,13 @@ class MdfcActionTest :
 
         test("spell-back MDFC offers CastMdfc with spell-face cost") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Esika, God of the Tree", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Esika, God of the Tree", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Esika, God of the Tree" }
@@ -87,9 +80,9 @@ class MdfcActionTest :
 
         test("MDFC actions are hand-only") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(3) { base.addCard("Island", human, ZoneType.Battlefield) }
-                    base.addCard("Silundi Vision", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
+                    addCard("Silundi Vision", human, ZoneType.Graveyard)
                 }
             val card =
                 game.humanPlayer
@@ -106,14 +99,14 @@ class MdfcActionTest :
 
         test("MDFC accept helpers resolve backside spell and land abilities") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Esika, God of the Tree", human, ZoneType.Hand)
-                    base.addCard("Silundi Vision", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Esika, God of the Tree", human, ZoneType.Hand)
+                    addCard("Silundi Vision", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val esika = human.getZone(ZoneType.Hand).cards.first { it.name == "Esika, God of the Tree" }
