@@ -10,23 +10,6 @@ class CostDecisionPlannerTest :
     FunSpec({
         tags(UnitTag)
 
-        test("collect evidence plans semantic intent before card selection policy") {
-            val intent = CostDecisionPlanner.collectEvidencePlan(total = 6, manaValues = listOf(3, -1, 4))
-
-            intent.total shouldBe 6
-            intent.manaValues shouldBe listOf(3, -1, 4)
-        }
-
-        test("collect evidence materializes weighted cost selection") {
-            val plan = CostDecisionPlanner.collectEvidencePlan(total = 6, manaValues = listOf(3, -1, 4)).toCardSelectionPlan()
-
-            assertSoftly(plan) {
-                semantic shouldBe PromptSemantic.SelectNCostCollectEvidence
-                costSelectionWeights shouldBe listOf(3, 0, 4)
-                minSelectionWeight shouldBe 6
-            }
-        }
-
         test("enlist plans semantic intent before card selection policy") {
             CostDecisionPlanner.enlistPlan(requiredCount = 1).requiredCount shouldBe 1
         }

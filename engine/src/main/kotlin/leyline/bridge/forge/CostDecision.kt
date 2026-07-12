@@ -112,25 +112,6 @@ class CostDecision(
         return if (selected.size >= min) selected else null
     }
 
-    private fun selectCardsWithPlan(
-        message: String,
-        cards: CardCollectionView,
-        min: Int,
-        max: Int,
-        cancelAllowed: Boolean = true,
-        plan: CostCardSelectionPlan,
-    ): CardCollection? =
-        selectCards(
-            message,
-            cards,
-            min,
-            max,
-            cancelAllowed,
-            plan.semantic,
-            plan.costSelectionWeights,
-            plan.minSelectionWeight,
-        )
-
     private fun selectTotalPowerTapCost(
         cost: CostTapType,
         typeList: CardCollectionView,
@@ -147,13 +128,15 @@ class CostDecision(
                 CostCardSelectionPlan(PromptSemantic.Generic)
             }
         val selected =
-            selectCardsWithPlan(
+            selectCards(
                 Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
                 typeList,
                 1,
                 typeList.size,
                 cancelAllowed = false,
-                plan = plan,
+                semantic = plan.semantic,
+                costSelectionWeights = plan.costSelectionWeights,
+                minSelectionWeight = plan.minSelectionWeight,
             ) ?: return null
         if (CardLists.getTotalPower(selected, ability) < totalPower) return null
         return PaymentDecision.card(selected)
@@ -442,34 +425,6 @@ class CostDecision(
     // Interactive visit() methods (bridge-based card selection)
     // ═══════════════════════════════════════════════════════════════════
 
-    override fun visit(cost: CostCollectEvidence): PaymentDecision? {
-        val list =
-            CardLists.filter(
-                player.getCardsIn(ZoneType.Graveyard),
-                CardPredicates.canExiledBy(ability, isEffect),
-            )
-        val total = AbilityUtils.calculateAmount(source, cost.amount, ability)
-        bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(source.id), total))
-        val plan = CostDecisionPlanner.collectEvidencePlan(total, list.map { it.getCMC() })
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblCollectEvidence", total),
-                list,
-                0,
-                list.size,
-                cancelAllowed = true,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: run {
-                bridge.journal.clearCollectEvidenceCost()
-                return null
-            }
-        if (CardLists.getTotalCMC(selected) < total) {
-            bridge.journal.clearCollectEvidenceCost()
-            return null
-        }
-        return PaymentDecision.card(selected)
-    }
-
     override fun visit(cost: CostExile): PaymentDecision? {
         if (isOrdinaryExileCost(cost)) return super.visit(cost)
 
@@ -736,13 +691,13 @@ class CostDecision(
         if (list.isEmpty()) return null
         val plan = CostDecisionPlanner.enlistPlan(requiredCount = 1)
         val selected =
-            selectCardsWithPlan(
+            selectCards(
                 Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
                 list,
                 1,
                 1,
                 cancelAllowed = true,
-                plan = plan.toCardSelectionPlan(),
+                semantic = plan.toCardSelectionPlan().semantic,
             ) ?: return null
         if (selected.isEmpty()) return null
         bridge.journal.record(
@@ -770,26 +725,26 @@ class CostDecision(
         val foodSacrificePlan = plan.foodSacrifice
         if (foodSacrificePlan != null && confirmAction("Sacrifice Food")) {
             val selected =
-                selectCardsWithPlan(
+                selectCards(
                     Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
                     food,
                     foodSacrificePlan.requiredCount,
                     foodSacrificePlan.requiredCount,
                     cancelAllowed = !mandatory,
-                    plan = foodSacrificePlan.toCardSelectionPlan(),
+                    semantic = foodSacrificePlan.toCardSelectionPlan().semantic,
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
         val graveyardExilePlan = plan.graveyardExile
         if (graveyardExilePlan != null) {
             val selected =
-                selectCardsWithPlan(
+                selectCards(
                     Localizer.getInstance().getMessage("lblSelectToExile", graveyardExilePlan.requiredCount),
                     exile,
                     graveyardExilePlan.requiredCount,
                     graveyardExilePlan.requiredCount,
                     cancelAllowed = !mandatory,
-                    plan = graveyardExilePlan.toCardSelectionPlan(),
+                    semantic = graveyardExilePlan.toCardSelectionPlan().semantic,
                 ) ?: return null
             return PaymentDecision.card(selected)
         }
@@ -1228,13 +1183,13 @@ class CostDecision(
                 isStation = ability.isKeyword(Keyword.STATION),
             )
         val selected =
-            selectCardsWithPlan(
+            selectCards(
                 Localizer.getInstance().getMessage("lblSelectATargetToTap", cost.descriptiveType, "%d"),
                 typeList,
                 minSelection,
                 maxSelection,
                 cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
+                semantic = plan.toCardSelectionPlan().semantic,
             ) ?: return null
         return PaymentDecision.card(selected)
     }

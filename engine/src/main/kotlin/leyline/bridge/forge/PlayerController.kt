@@ -14,6 +14,7 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.card.CardLists
 import forge.game.card.CardView
 import forge.game.combat.Combat
 import forge.game.cost.Cost
@@ -63,6 +64,7 @@ import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
@@ -1015,6 +1017,38 @@ class PlayerController(
             sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
             forcePrompt = isOptional,
         )
+    }
+
+    override fun chooseCardsForCollectEvidence(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        total: Int,
+        prompt: String,
+    ): CardCollectionView {
+        bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(sa.hostCard.id), total))
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = prompt,
+                options = optionList.map { it.name },
+                min = 0,
+                max = optionList.size,
+                defaultIndex = 0,
+                semantic = PromptSemantic.SelectNCostCollectEvidence,
+                candidateRefs = optionList.toCandidateRefs(),
+                costSelectionWeights = optionList.map { it.getCMC().coerceAtLeast(0) },
+                minSelectionWeight = total,
+                sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            )
+        val indices = bridge.requestChoice(request, targetingSa = sa)
+        val selected = CardCollection()
+        for (index in indices) {
+            if (index in 0 until optionList.size) selected.add(optionList[index])
+        }
+        if (CardLists.getTotalCMC(selected) < total) {
+            bridge.journal.clearCollectEvidenceCost()
+        }
+        return selected
     }
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
