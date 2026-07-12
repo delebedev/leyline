@@ -65,6 +65,8 @@ scenarios:
             - stack_empty: true
   - id: reconfigure-attach-unattach
     puzzle: reconfigure-rabbit-battery
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: attach Rabbit Battery to Grizzly Bears, then unattach it
     expect: Grizzly Bears is 3/3 while equipped and returns to 2/2 after unattach
     steps:

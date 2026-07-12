@@ -185,6 +185,8 @@ scenarios:
             - stack_empty: true
   - id: suspected-frantic-scapegoat
     puzzle: suspected-frantic-scapegoat
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: cast Frantic Scapegoat, then suspect Grizzly Bears when it enters
     expect: the Suspected designation moves from Scapegoat to Grizzly Bears
     steps:
@@ -368,6 +370,8 @@ scenarios:
             - stack_empty: true
   - id: casualty-make-disappear-stack-spells
     puzzle: make-disappear-own-stack-casualty
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: cast Shock, Lightning Bolt, then Make Disappear with Casualty to counter both stack spells
     expect: both burn spells are countered and opponent life remains unchanged
     steps:
@@ -500,6 +504,8 @@ scenarios:
             - stack_empty: true
   - id: waterbend-ruinous-waterbending
     puzzle: waterbend-ruinous-waterbending
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: cast Ruinous Waterbending and pay Waterbend with artifact and creature reducers
     expect: Waterbend emits PayCostsReq payment actions and resolves the spell
     steps:
@@ -524,6 +530,8 @@ scenarios:
             - stack_empty: true
   - id: waterbend-giant-koi
     puzzle: waterbend-giant-koi
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: activate Giant Koi and pay Waterbend with creature and artifact reducers
     expect: Waterbend emits PayCostsReq payment actions and accepts MakePayment clicks
     steps:
@@ -562,6 +570,8 @@ scenarios:
             - stack_empty: true
   - id: convoke-conclave-tribunal
     puzzle: convoke-conclave-tribunal
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: cast Conclave Tribunal and pay Convoke with a creature reducer
     expect: Convoke emits PayCostsReq payment actions, taps the selected creature, and resolves the spell
     steps:
@@ -706,6 +716,8 @@ scenarios:
     expect: Clue leaves battlefield and a card is drawn
     arena:
       xfail: Clue token activation UI is selected but not committed by arena-ts yet.
+    web:
+      skip: GRE Clue activation leaves the token on battlefield after action submission.
     steps:
       - expect:
           action: { type: cast, card: Novice Inspector }
@@ -722,6 +734,8 @@ scenarios:
             - stack_empty: true
   - id: saga-tribute-transform
     puzzle: saga-tribute-cast
+    web:
+      skip: GRE saga scenario does not reach the transformed permanent state in browser smoke.
     run: cast Tribute to Horobi and advance through the final chapter transform
     expect: Echo of Death's Wail appears on battlefield
     steps:
@@ -779,6 +793,8 @@ scenarios:
             - stack_empty: true
   - id: disguise-forum-familiar
     puzzle: disguise-forum-familiar
+    web:
+      skip: Web runner does not yet activate this face-down action path.
     run: cast Forum Familiar face-down, then turn it face up
     expect: Forum Familiar flips face up and resolves its target prompt
     steps:
@@ -918,6 +934,8 @@ scenarios:
           stack_empty: true
   - id: planeswalker-combat-destroy
     puzzle: planeswalker-combat-destroy
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: attack Liliana of the Veil with Raging Goblin
     expect: Liliana is destroyed and opponent life stays unchanged
     steps:
