@@ -1,5 +1,5 @@
 ---
-summary: "ADR: classify cost callbacks into semantic cost plans before request-shape emission."
+summary: "Superseded ADR: semantic cost plans replaced by shared Forge HumanCostDecision visitors."
 read_when:
   - "working in CostDecision, CostDecisionPlanner, CostPaymentCoordinator, or cost prompt handling"
   - "adding sacrifice, tap, exile, discard, mana-source, or optional-cost mechanics"
@@ -9,13 +9,15 @@ read_when:
 
 ## Status
 
-Implemented by PR #227. Superseded for ongoing cost architecture by
-[ADR 0009](0009-reuse-forge-human-cost-decisions.md).
+Superseded by [ADR 0009](0009-reuse-forge-human-cost-decisions.md).
 
-The existing plans are migration scaffolding. Delete each family plan when its
-Leyline cost visitor is replaced by the shared Forge human visitor. Prompt
-semantics and weighted-selection metadata stay at the frontend controller
-adapter; they do not require a second cost-rule model.
+Implemented by PR #227, then removed during the shared HumanCostDecision
+migration. `CostDecisionPlanner` and its tests no longer exist. Prompt semantics
+and weighted-selection metadata now live directly at the frontend controller or
+the remaining bridge-specific interaction site; Leyline no longer maintains a
+second cost-planning model.
+
+The decision below is retained only as historical context.
 
 ## Context
 

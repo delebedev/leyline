@@ -9,7 +9,9 @@ read_when:
 
 ## Status
 
-Accepted for incremental implementation.
+Accepted for incremental implementation. Supersedes
+[ADR 0005](0005-cost-decision-semantic-plans.md); its planner scaffolding has
+been removed.
 
 ## Context
 

@@ -18,6 +18,7 @@ import forge.game.cost.PaymentDecision
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import forge.player.HumanCostDecision
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -159,6 +160,23 @@ class CostDecisionTest :
             return method.invoke(decision, cost) as Boolean
         }
 
+        fun isLegalCardSelection(
+            decision: CostDecision,
+            options: CardCollectionView,
+            selected: CardCollectionView,
+            amount: Int,
+        ): Boolean {
+            val method =
+                HumanCostDecision::class.java.getDeclaredMethod(
+                    "isLegalCardSelection",
+                    CardCollectionView::class.java,
+                    CardCollectionView::class.java,
+                    Int::class.javaPrimitiveType,
+                )
+            method.isAccessible = true
+            return method.invoke(decision, options, selected, amount) as Boolean
+        }
+
         test("selectCards returns null for empty cancelable choice") {
             val fx = fixture()
 
@@ -270,7 +288,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 1
+                    min shouldBe 0
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
@@ -299,7 +317,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 1
+                    min shouldBe 0
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
@@ -351,10 +369,28 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 1
+                    min shouldBe 0
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
+            }
+        }
+
+        test("Forge rejects duplicate and out-of-candidate controller selections") {
+            val fx = fixture()
+            val options = CardCollection(fx.source)
+            val duplicate =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(fx.source)
+                }
+            val outsider = fx.player.getCardsIn(ZoneType.Battlefield).first()
+
+            assertSoftly {
+                isLegalCardSelection(fx.decision, options, CardCollection(fx.source), 1) shouldBe true
+                isLegalCardSelection(fx.decision, options, CardCollection(), 1) shouldBe false
+                isLegalCardSelection(fx.decision, options, duplicate, 2) shouldBe false
+                isLegalCardSelection(fx.decision, options, CardCollection(outsider), 1) shouldBe false
             }
         }
     })

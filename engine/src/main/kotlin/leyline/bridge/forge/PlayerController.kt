@@ -1011,7 +1011,7 @@ class PlayerController(
         val selected =
             targetingCoordinator.chooseCardsViaBridge(
                 cards = optionList,
-                min = amount,
+                min = if (isOptional) 0 else amount,
                 max = amount,
                 message = prompt,
                 semantic = semantic,
