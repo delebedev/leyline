@@ -170,6 +170,7 @@ testIntegrationStrict.configure { mustRunAfter(testGate) }
 
 val simclient by tasks.registering(JavaExec::class) {
     group = "simclient"
+    (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
     description = "Run standalone simclient deck/puzzle matrices"
     dependsOn(tasks.named("harnessClasses"))
     classpath = sourceSets["harness"].runtimeClasspath
@@ -182,6 +183,7 @@ val simclient by tasks.registering(JavaExec::class) {
 
 val simref by tasks.registering(JavaExec::class) {
     group = "simclient"
+    (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
     description = "Run direct Forge AI deck/puzzle matrices"
     dependsOn(tasks.named("harnessClasses"))
     classpath = sourceSets["harness"].runtimeClasspath
