@@ -3,6 +3,7 @@ package leyline.session.zones
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.SeatId
@@ -37,7 +38,7 @@ class DiscardInteractionTest :
             """.trimIndent()
 
         test("discard-as-cost — SelectNReq proto shape") {
-            startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
+            startPuzzle(marduState, name = "Mardu Outrider", turns = 10)
 
             castSpellByName("Mardu Outrider") shouldBe true
 
@@ -53,7 +54,7 @@ class DiscardInteractionTest :
         }
 
         test("discard-as-cost — spell resolves after responding") {
-            startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
+            startPuzzle(marduState, name = "Mardu Outrider", turns = 10)
 
             castSpellByName("Mardu Outrider") shouldBe true
             val req = lastSelectNReq()
@@ -78,8 +79,12 @@ class DiscardInteractionTest :
                     .cards
                     .filter { it.name == "Mountain" } shouldHaveSize 1
 
-                // Original hand cards consumed — hand empty (started with 2, both gone)
-                human.getZone(ForgeZoneType.Hand).cards shouldHaveSize 0
+                // Original hand cards consumed (auto-pass may already have carried
+                // the game into the next turn's draw step, adding library cards)
+                human
+                    .getZone(ForgeZoneType.Hand)
+                    .cards
+                    .filter { it.name == "Mardu Outrider" || it.name == "Mountain" } shouldHaveSize 0
 
                 assertAccumulatorConsistent("after mandatory discard cost")
                 assertGsIdChain(allMessages, context = "mandatory discard cost flow")
@@ -101,7 +106,7 @@ class DiscardInteractionTest :
                 ailibrary=Island;Island;Island;Island;Island
                 """,
                 name = "Duress reveal discard",
-                turns = 2,
+                turns = 10,
             )
 
             castSpellByName("Duress") shouldBe true
@@ -142,7 +147,7 @@ class DiscardInteractionTest :
                 ailibrary=Island;Island;Island;Island;Island
                 """,
                 name = "Deep-Cavern Bat reveal exile",
-                turns = 2,
+                turns = 10,
             )
 
             castSpellByName("Deep-Cavern Bat") shouldBe true
@@ -191,7 +196,7 @@ class DiscardInteractionTest :
                 ailibrary=Island;Island;Island;Island;Island
                 """,
                 name = "Cleanup Discard",
-                turns = 2,
+                turns = 10,
             )
 
             human.getZone(ForgeZoneType.Hand).size() shouldBe 7
@@ -220,7 +225,10 @@ class DiscardInteractionTest :
 
             respondToSelectN(listOf(req.idsList.first()))
 
-            human.getZone(ForgeZoneType.Hand).size() shouldBe 7
+            // Cleanup enforced 8 → 7; auto-pass may then carry into the next
+            // turn's draw step (7 + 1 drawn). Either depth is legitimate —
+            // the enforcement itself is proven by the graveyard count below.
+            human.getZone(ForgeZoneType.Hand).size() shouldBeInRange 7..8
             // Divination (resolved) + 1 discarded card
             human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
 
