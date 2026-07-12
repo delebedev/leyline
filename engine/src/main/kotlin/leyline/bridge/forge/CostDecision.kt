@@ -20,8 +20,6 @@ import forge.util.*
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.interaction.CostCardSelectionPlan
-import leyline.bridge.interaction.CostDecisionPlanner
 import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -110,16 +108,7 @@ class CostDecision(
         typeList: CardCollectionView,
         totalPower: Int,
     ): PaymentDecision? {
-        val plan =
-            if (cost is CostTeamwork) {
-                CostDecisionPlanner
-                    .teamworkPlan(
-                        totalPower = totalPower,
-                        powers = typeList.map { (it.netPower ?: 0).coerceAtLeast(0) },
-                    ).toCardSelectionPlan()
-            } else {
-                CostCardSelectionPlan(PromptSemantic.Generic)
-            }
+        val teamwork = cost is CostTeamwork
         val selected =
             selectCards(
                 Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
@@ -127,9 +116,10 @@ class CostDecision(
                 1,
                 typeList.size,
                 cancelAllowed = false,
-                semantic = plan.semantic,
-                costSelectionWeights = plan.costSelectionWeights,
-                minSelectionWeight = plan.minSelectionWeight,
+                semantic = if (teamwork) PromptSemantic.TeamworkCost else PromptSemantic.Generic,
+                costSelectionWeights =
+                    if (teamwork) typeList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
+                minSelectionWeight = totalPower.takeIf { teamwork },
             ) ?: return null
         if (CardLists.getTotalPower(selected, ability) < totalPower) return null
         return PaymentDecision.card(selected)
@@ -757,12 +747,6 @@ class CostDecision(
 
         val minSelection = c ?: 1
         val maxSelection = c ?: typeList.size
-        val plan =
-            CostDecisionPlanner.tapTypePlan(
-                minSelection = minSelection,
-                maxSelection = maxSelection,
-                isStation = ability.isKeyword(Keyword.STATION),
-            )
         val selected =
             selectCards(
                 Localizer.getInstance().getMessage("lblSelectATargetToTap", cost.descriptiveType, "%d"),
@@ -770,7 +754,8 @@ class CostDecision(
                 minSelection,
                 maxSelection,
                 cancelAllowed = !mandatory,
-                semantic = plan.toCardSelectionPlan().semantic,
+                semantic =
+                    if (ability.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic,
             ) ?: return null
         return PaymentDecision.card(selected)
     }
