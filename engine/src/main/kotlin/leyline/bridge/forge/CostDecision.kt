@@ -790,81 +790,44 @@ class CostDecision(
     }
 
     override fun visit(cost: CostPutCardToLib): PaymentDecision? {
+        if (cost.payCostFromSource() || !cost.sameZone) return super.visit(cost)
+
         val c = cost.getAbilityAmount(ability)
         val list =
             CardLists.getValidCards(
-                if (cost.sameZone) player.game.getCardsIn(cost.from) else player.getCardsIn(cost.from),
+                player.game.getCardsIn(cost.from),
                 cost.type.split(";").toTypedArray(),
                 player,
                 source,
                 ability,
             )
 
-        if (cost.payCostFromSource()) {
-            return if (source.zone == player.getZone(cost.from) &&
-                confirmAction(Localizer.getInstance().getMessage("lblPutCardToLibraryConfirm", source.translatedName))
-            ) {
-                PaymentDecision.card(source)
+        val players = player.game.players
+        val payableZone = mutableListOf<Player>()
+        for (p in players) {
+            val enoughType = CardLists.filter(list, CardPredicates.isOwner(p))
+            if (enoughType.size < c) {
+                list.removeAll(enoughType)
             } else {
-                null
+                payableZone.add(p)
             }
         }
-
-        if (cost.from == ZoneType.Hand) {
-            val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblPutNCardsFromYourZone", "%d", cost.from.translatedName),
-                    list,
-                    c,
-                    c,
-                    cancelAllowed = true,
-                ) ?: return null
-            return PaymentDecision.card(selected)
-        }
-
-        if (cost.sameZone) {
-            val players = player.game.players
-            val payableZone = mutableListOf<Player>()
-            for (p in players) {
-                val enoughType = CardLists.filter(list, CardPredicates.isOwner(p))
-                if (enoughType.size < c) {
-                    list.removeAll(enoughType)
-                } else {
-                    payableZone.add(p)
-                }
-            }
-            val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(payableZone)
-            val pv =
-                controller.gui.oneOrNone(
-                    TextUtil.concatNoSpace(Localizer.getInstance().getMessage("lblPutCardsFromWhoseZone"), cost.from.translatedName),
-                    gameCachePlayer.trackableKeys,
-                )
-            if (pv == null || !gameCachePlayer.containsKey(pv)) return null
-            val p = gameCachePlayer[pv]
-            val typeList = CardLists.filter(list, CardPredicates.isOwner(p))
-            if (typeList.size < c) return null
-            val chosen = CardCollection()
-            val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
-            repeat(c) {
-                val cv =
-                    controller.gui.oneOrNone(
-                        Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
-                        gameCacheCard.trackableKeys,
-                    )
-                if (cv == null || !gameCacheCard.containsKey(cv)) return null
-                chosen.add(gameCacheCard.remove(cv))
-            }
-            return PaymentDecision.card(chosen)
-        }
-
-        // From graveyard (non-same-zone)
-        if (list.size < c) return null
+        val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(payableZone)
+        val pv =
+            controller.gui.oneOrNone(
+                TextUtil.concatNoSpace(Localizer.getInstance().getMessage("lblPutCardsFromWhoseZone"), cost.from.translatedName),
+                gameCachePlayer.trackableKeys,
+            )
+        if (pv == null || !gameCachePlayer.containsKey(pv)) return null
+        val p = gameCachePlayer[pv]
+        val typeList = CardLists.filter(list, CardPredicates.isOwner(p))
+        if (typeList.size < c) return null
         val chosen = CardCollection()
-        val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(list)
+        val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
         repeat(c) {
             val cv =
                 controller.gui.oneOrNone(
-                    Localizer.getInstance().getMessage("lblFromZonePutToLibrary", cost.from.translatedName),
+                    Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
                     gameCacheCard.trackableKeys,
                 )
             if (cv == null || !gameCacheCard.containsKey(cv)) return null
