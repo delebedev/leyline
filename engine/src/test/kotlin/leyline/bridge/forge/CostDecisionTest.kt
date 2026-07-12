@@ -256,6 +256,35 @@ class CostDecisionTest :
             }
         }
 
+        test("reveal cost hook keeps exact-cardinality projection") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForRevealCost(
+                    cards,
+                    fx.ability,
+                    CostReveal("1", "Card", null),
+                    1,
+                    true,
+                    false,
+                    "reveal one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 1
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
+            }
+        }
+
         test("exile delegates only ordinary and automatic shapes") {
             val fx = fixture()
 
