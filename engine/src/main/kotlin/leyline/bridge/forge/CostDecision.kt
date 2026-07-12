@@ -10,7 +10,6 @@ import forge.game.ability.AbilityUtils
 import forge.game.card.*
 import forge.game.cost.*
 import forge.game.keyword.Keyword
-import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -47,8 +46,6 @@ class CostDecision(
     private val bridge: InteractivePromptBridge,
     prompt: String? = null,
 ) : HumanCostDecision(controller, p, sa, effect, prompt) {
-    private val orString: String? = PlaySpellAbility.getOrStringFromCost(sa, prompt)
-
     companion object {
         @Suppress("UnusedPrivateProperty")
         private val log = LoggerFactory.getLogger(CostDecision::class.java)
@@ -172,38 +169,6 @@ class CostDecision(
 
     override fun visit(cost: CostAddMana): PaymentDecision = PaymentDecision.number(cost.getAbilityAmount(ability))
 
-    override fun visit(cost: CostDamage): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(
-                Localizer.getInstance().getMessage("lblDoYouWantCardDealNDamageToYou", source.translatedName, c.toString()),
-            )
-        ) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostDraw): PaymentDecision? {
-        if (!cost.canPay(ability, player, isEffect)) return null
-        val c = cost.getAbilityAmount(ability)
-        val res = cost.getPotentialPlayers(player, ability)
-        val message =
-            if (!orString.isNullOrEmpty()) {
-                if (res.contains(player)) {
-                    Localizer.getInstance().getMessage("lblDoYouWantLetThatPlayerDrawNCardOrDoAction", c.toString(), orString)
-                } else {
-                    Localizer.getInstance().getMessage("lblDoYouWantDrawNCardOrDoAction", c.toString(), orString)
-                }
-            } else {
-                Localizer.getInstance().getMessage("lblDrawNCardsConfirm", c.toString())
-            }
-        if (!confirmAction(message)) return null
-        val decision = PaymentDecision.players(res)
-        decision.c = c
-        return decision
-    }
-
     override fun visit(cost: CostFlipCoin): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantFlipNCoinAction", c.toString()))) {
@@ -222,69 +187,6 @@ class CostDecision(
         }
     }
 
-    override fun visit(cost: CostMill): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        val message =
-            if (!orString.isNullOrEmpty()) {
-                Localizer.getInstance().getMessage("lblDoYouWantMillNCardsOrDoAction", c.toString(), orString)
-            } else {
-                Localizer.getInstance().getMessage("lblMillNCardsFromYourLibraryConfirm", c.toString())
-            }
-        return if (confirmAction(message)) PaymentDecision.number(c) else null
-    }
-
-    override fun visit(cost: CostPayLife): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (mandatory) return PaymentDecision.number(c)
-        val message =
-            if (!orString.isNullOrEmpty()) {
-                Localizer.getInstance().getMessage("lblDoYouWantPayNLife", c.toString(), orString)
-            } else {
-                Localizer.getInstance().getMessage("lblPayNLifeConfirm", c.toString())
-            }
-        if (player.canPayLife(c, isEffect, ability) && confirmAction(message)) {
-            if (!player.game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
-                mandatory = true
-            }
-            return PaymentDecision.number(c)
-        }
-        return null
-    }
-
-    override fun visit(cost: CostPayEnergy): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (player.canPayEnergy(c) &&
-            confirmAction(
-                Localizer.getInstance().getMessage(
-                    "lblPayEnergyConfirm",
-                    cost.toString(),
-                    player.getCounters(CounterEnumType.ENERGY).toString(),
-                    "{E}",
-                ),
-            )
-        ) {
-            return PaymentDecision.number(c)
-        }
-        return null
-    }
-
-    override fun visit(cost: CostPayShards): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (player.canPayShards(c) &&
-            confirmAction(
-                Localizer.getInstance().getMessage(
-                    "lblPayShardsConfirm",
-                    cost.toString(),
-                    player.numManaShards.toString(),
-                    "{M} (Mana Shards)",
-                ),
-            )
-        ) {
-            return PaymentDecision.number(c)
-        }
-        return null
-    }
-
     override fun visit(cost: CostPartMana): PaymentDecision = PaymentDecision(0)
 
     override fun visit(cost: CostTap): PaymentDecision = PaymentDecision.number(1)
@@ -292,37 +194,6 @@ class CostDecision(
     override fun visit(cost: CostUntap): PaymentDecision = PaymentDecision.number(1)
 
     override fun visit(cost: CostRevealChosen): PaymentDecision = PaymentDecision.number(1)
-
-    override fun visit(cost: CostPromiseGift): PaymentDecision? {
-        val opponents = cost.getPotentialPlayers(player, ability)
-        val giftee =
-            controller.chooseSingleEntityForEffect(
-                opponents,
-                null,
-                ability,
-                "Choose an opponent to promise a gift",
-                false,
-                null,
-                null,
-            ) ?: return null
-        return PaymentDecision.players(Lists.newArrayList(giftee))
-    }
-
-    override fun visit(cost: CostGainLife): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        val oppsThatCanGainLife = cost.getPotentialTargets(player, ability).filter { it.canGainLife() }
-        if (cost.cntPlayers == Int.MAX_VALUE) {
-            return PaymentDecision.players(oppsThatCanGainLife)
-        }
-        val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(oppsThatCanGainLife)
-        val pv =
-            controller.gui.oneOrNone(
-                Localizer.getInstance().getMessage("lblCardChooseAnOpponentToGainNLife", source.translatedName, c.toString()),
-                gameCachePlayer.trackableKeys,
-            )
-        if (pv == null || !gameCachePlayer.containsKey(pv)) return null
-        return PaymentDecision.players(Lists.newArrayList(gameCachePlayer[pv]))
-    }
 
     override fun visit(cost: CostExileFromStack): PaymentDecision? {
         val game = player.game
@@ -358,35 +229,6 @@ class CostDecision(
             exiled.add(toExile)
         }
         return PaymentDecision.spellabilities(exiled)
-    }
-
-    override fun visit(cost: CostExiledMoveToGrave): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        val activator = ability.activatingPlayer
-        val list =
-            CardLists.getValidCards(
-                activator.game.getCardsIn(ZoneType.Exile),
-                cost.type.split(";").toTypedArray(),
-                activator,
-                source,
-                ability,
-            )
-        if (list.size < c) return null
-        val min = if (ability.isOptionalTrigger) 0 else c
-        val gameCacheExile: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(list)
-        val views =
-            controller.gui.many(
-                Localizer.getInstance().getMessage("lblChooseAnExiledCardPutIntoGraveyard"),
-                Localizer.getInstance().getMessage("lblToGraveyard"),
-                min,
-                c,
-                CardView.getCollection(list),
-                CardView.get(source),
-            )
-        if (views == null || views.size < c) return null
-        val result = Lists.newArrayList<Card>()
-        gameCacheExile.addToList(views, result)
-        return PaymentDecision.card(result)
     }
 
     override fun visit(cost: CostBlight): PaymentDecision? = visit(cost as CostPutCounter)
@@ -621,39 +463,6 @@ class CostDecision(
         val result = Lists.newArrayList<Card>()
         gameCacheExile.addToList(views, result)
         return PaymentDecision.card(result)
-    }
-
-    override fun visit(cost: CostExert): PaymentDecision? {
-        val list =
-            CardLists.getValidCards(
-                player.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        if (cost.payCostFromSource()) {
-            return if (source.controller == ability.activatingPlayer &&
-                source.isInPlay &&
-                confirmAction(Localizer.getInstance().getMessage("lblExertCardConfirm", source.translatedName))
-            ) {
-                PaymentDecision.card(source)
-            } else {
-                null
-            }
-        }
-        val c = cost.getAbilityAmount(ability)
-        if (c == 0) return PaymentDecision.number(0)
-        if (list.size < c) return null
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectACostToExert", cost.descriptiveType, "%d"),
-                list,
-                c,
-                c,
-                cancelAllowed = true,
-            ) ?: return null
-        return PaymentDecision.card(selected)
     }
 
     override fun visit(cost: CostPutCounter): PaymentDecision? {

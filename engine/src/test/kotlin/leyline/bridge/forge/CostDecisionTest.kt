@@ -4,7 +4,10 @@ import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.cost.CostDiscard
+import forge.game.cost.CostExert
 import forge.game.cost.CostExile
+import forge.game.cost.CostExiledMoveToGrave
+import forge.game.cost.CostMill
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostPutCardToLib
 import forge.game.cost.CostReveal
@@ -176,6 +179,24 @@ class CostDecisionTest :
             val result = fx.decision.visit(CostPayLife("3", null))
 
             result!!.c shouldBe 3
+        }
+
+        test("inherited mill visitor returns numeric payment when confirm defaults yes") {
+            val fx = fixture()
+
+            fx.decision.visit(CostMill("2"))!!.c shouldBe 2
+        }
+
+        test("inherited exert visitor refuses impossible payment") {
+            val fx = fixture()
+
+            fx.decision.visit(CostExert("1", "Creature", null)).shouldBeNull()
+        }
+
+        test("inherited exiled-to-grave visitor refuses impossible payment") {
+            val fx = fixture()
+
+            fx.decision.visit(CostExiledMoveToGrave("1", "Card", null)).shouldBeNull()
         }
 
         test("visit discard from source returns source card") {
