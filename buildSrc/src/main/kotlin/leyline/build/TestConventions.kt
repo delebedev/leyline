@@ -5,6 +5,9 @@ import org.gradle.api.tasks.testing.Test
 fun Test.configureTestDefaults() {
     useJUnitPlatform()
     maxHeapSize = "1280m"
+    if (project.findProperty("noJacoco") == "true") {
+        extensions.findByType(org.gradle.testing.jacoco.plugins.JacocoTaskExtension::class.java)?.isEnabled = false
+    }
     // Belt-and-suspenders: kill the whole task if Kotest itself deadlocks.
     // Kotest's per-test timeout (KotestProjectConfig = 90s) fires first in
     // the normal case; this is a last-resort for JVM-level hangs.

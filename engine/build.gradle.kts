@@ -141,6 +141,7 @@ val testIntegration by tasks.registering(Test::class) {
 
 val testIntegrationStrict by tasks.registering(Test::class) {
     configureTestDefaults()
+    (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
     systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
     maxParallelForks = integrationForks
     outputs.cacheIf { false }
