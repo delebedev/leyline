@@ -2,18 +2,15 @@ package leyline.testkit
 
 import forge.game.Game
 import forge.game.card.Card
-import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
-import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
@@ -64,43 +61,16 @@ open class BoardTestBase {
      * @param seed RNG seed for deterministic shuffles
      * @param deckList custom deck list (e.g. "30 Plains\n30 Forest"); null uses default mono-green
      * @param variant game variant (e.g. "brawl" for commander tax + command zone); null = Constructed
-     * @return (bridge, game, counter)
      */
     fun startGameAtMain1(
         seed: Long = 42L,
         deckList: String? = null,
         variant: String? = null,
-    ): Triple<GameBridge, Game, MessageCounter> {
-        // Auto-register CardData for all cards in the deck list
-        if (deckList != null) {
-            TestCardRegistry.ensureDeckRegistered(deckList)
-        }
-        val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-        testCounter = counter
-        val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
-        bridge = b
-        // Forge's MyRandom is a static Random. b.start(seed) replaces it via
-        // MyRandom.setRandom(Random(seed)), so two concurrent Kotest specs
-        // calling this race — one overwrites the other's RNG mid-shuffle and
-        // non-deterministic hands result ("No land in hand at seed 42" flake
-        // at kotest.framework.parallelism=8).
-        //
-        // Serialize the seed → shuffle → hand-draw window. After advanceToMain1
-        // the library is fixed and further MyRandom writes from other specs
-        // don't affect assertion outcomes in tests that don't trigger random
-        // mid-game effects.
-        val game =
-            synchronized(RNG_LOCK) {
-                b.start(seed = seed, deckList = deckList, variant = variant)
-                b.submitKeep(SeatId(1))
-                advanceToMain1(b)
-                b.getGame()!!
-            }
-        check(game.phaseHandler.phase == PhaseType.MAIN1) {
-            "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
-        }
-        b.seedDiffBaseline(game, counter.currentGsId())
-        return Triple(b, game, counter)
+    ): Board {
+        val result = Board.startGameAtMain1(seed, deckList, variant)
+        bridge = result.bridge
+        testCounter = result.counter
+        return result
     }
 
     /**
@@ -113,30 +83,20 @@ open class BoardTestBase {
      * rather than the default mono-green deck.
      *
      * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
-     * @return (bridge, game, counter)
      */
-    fun startPuzzleAtMain1(puzzleText: String): Triple<GameBridge, Game, MessageCounter> =
-        startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText))
+    fun startPuzzleAtMain1(puzzleText: String): Board {
+        val result = Board.startPuzzleAtMain1(puzzleText)
+        bridge = result.bridge
+        testCounter = result.counter
+        return result
+    }
 
     /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
-    fun startPuzzleAtMain1FromResource(resourcePath: String): Triple<GameBridge, Game, MessageCounter> =
-        startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath))
-
-    private fun startPuzzleAtMain1(puzzle: forge.gamemodes.puzzle.Puzzle): Triple<GameBridge, Game, MessageCounter> {
-        val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-        testCounter = counter
-        val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
-        bridge = b
-
-        b.startPuzzle(puzzle)
-
-        val game = b.getGame()!!
-        TestCardRegistry.registerPuzzleCards(game)
-        check(game.phaseHandler.phase == PhaseType.MAIN1) {
-            "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})"
-        }
-        b.seedDiffBaseline(game, counter.currentGsId())
-        return Triple(b, game, counter)
+    fun startPuzzleAtMain1FromResource(resourcePath: String): Board {
+        val result = Board.startPuzzleAtMain1FromResource(resourcePath)
+        bridge = result.bridge
+        testCounter = result.counter
+        return result
     }
 
     /**
@@ -147,63 +107,27 @@ open class BoardTestBase {
      * when you call `game.action.*`. ~0.01s per test (vs 0.5s for startGameAtMain1).
      *
      * @param board lambda that receives (game, human, ai) to set up zones
-     * @return (bridge, game, counter)
      */
-    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Triple<GameBridge, Game, MessageCounter> {
-        val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-        testCounter = counter
-        val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
-        bridge = b
-
-        val game = GameBootstrap.createGame()
-        b.wrapGame(game)
-
-        board(game, game.humanPlayer, game.aiPlayer)
-
-        // Register all cards on the board in CardRepository + InstanceIdRegistry
-        for (player in game.players) {
-            for (zone in listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Library)) {
-                for (card in player.getZone(zone).cards) {
-                    TestCardRegistry.ensureCardRegistered(card.name)
-                    b.getOrAllocInstanceId(ForgeCardId(card.id))
-                }
-            }
-        }
-
-        b.seedDiffBaseline(game, counter.currentGsId())
-        return Triple(b, game, counter)
+    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Board {
+        val result = Board.startWithBoard(board)
+        bridge = result.bridge
+        testCounter = result.counter
+        return result
     }
 
     /**
      * Add a card to a player's zone. Convenience for [startWithBoard] lambdas.
      * Mirrors upstream `AITest.addCardToZone()`.
+     *
+     * No bridge registration — used before a [Board] exists yet (during
+     * [startWithBoard]'s own setup lambda). [Board.addCard] is the
+     * bridge-registering counterpart for use after setup.
      */
     fun addCard(
         name: String,
         player: Player,
         zone: ZoneType = ZoneType.Battlefield,
-    ): Card {
-        val paperCard =
-            forge.model.FModel
-                .getMagicDb()
-                .commonCards
-                .getCard(name)
-                ?: run {
-                    forge.StaticData.instance().attemptToLoadCard(name)
-                    forge.model.FModel
-                        .getMagicDb()
-                        .commonCards
-                        .getCard(name)
-                }
-                ?: error("Card not found: $name")
-        val card = Card.fromPaperCard(paperCard, player)
-        card.setGameTimestamp(player.game.nextTimestamp)
-        player.getZone(zone).add(card)
-        if (zone == ZoneType.Battlefield) {
-            card.setSickness(false)
-        }
-        return card
-    }
+    ): Card = Board.createCard(name, player, zone)
 
     // ----- Board helpers -----
 
@@ -297,10 +221,6 @@ open class BoardTestBase {
     companion object {
         const val TEST_MATCH_ID = "test-match"
         const val SEAT_ID = 1
-
-        // Guards Forge's static MyRandom during seed → shuffle → initial-draw.
-        // See note in startGameAtMain1 for why.
-        private val RNG_LOCK = Any()
     }
 
     /** Build a postAction bundle with standard test constants. */
