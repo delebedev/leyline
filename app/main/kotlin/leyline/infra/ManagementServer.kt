@@ -7,7 +7,7 @@ import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 
 /**
- * Lightweight management HTTP server — always starts, separate from debug panel.
+ * Lightweight management HTTP server — always starts, separate from local debug controls.
  *
  * Endpoints:
  *   GET /health  → 200 if server channels are active, 503 otherwise

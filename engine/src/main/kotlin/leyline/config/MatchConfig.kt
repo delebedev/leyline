@@ -131,7 +131,7 @@ data class ServerConfig(
     /** Match Door port (game protocol). CLI: --md-port */
     @SerialName("md_port")
     val mdPort: Int = 30003,
-    /** Debug panel HTTP port. CLI: --debug-port */
+    /** Debug-control HTTP port. CLI: --debug-port */
     @SerialName("debug_port")
     val debugPort: Int = 8090,
     /** AccountServer (auth) HTTPS port. CLI: --account-port */

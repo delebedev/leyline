@@ -38,7 +38,7 @@ interface OwnerContext {
     /** Client auto-pass state (full-control flag, phase stops). */
     val autoPassState: ClientAutoPassState?
 
-    /** Append a priority decision to the bounded log backing [PlayerController.decisionLog]. */
+    /** Emit a structured priority-decision log entry. */
     fun recordDecision(decision: PriorityDecision)
 
     /** Invoke the `onStateChanged` callback so the session layer can ship updated state. */

@@ -115,9 +115,6 @@ class MatchRegistry {
         )
     }
 
-    /** Snapshot of all active bridges (for debug panel). */
-    fun activeBridges(): Map<String, GameBridge> = HashMap(matches).mapValues { it.value.bridge }
-
     /** Get seat 1 MatchSession for any active match (for debug injection). */
     fun activeSession(): MatchSession? =
         sessions.values

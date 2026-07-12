@@ -24,7 +24,6 @@ class NativeMatchDoorBootstrapTest :
             val ssl = SslContextBuilder.forServer(cert.certificate(), cert.privateKey()).build()
             val debugSink =
                 object : MatchDebugSink {
-                    override var bridgeProvider: (() -> Map<String, Any>)? = null
                     override var sessionProvider: (() -> Any?)? = null
                 }
 

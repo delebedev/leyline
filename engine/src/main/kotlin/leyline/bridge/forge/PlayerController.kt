@@ -132,8 +132,7 @@ import java.util.function.Predicate
  *   [assignCombatDamage].
  * - [autoPassState] — written via [setAutoPassState] (called by
  *   `MatchSession.connectBridge`); read by [PriorityLoopCoordinator.chooseSpellAbility].
- * - `decisionLog()` / `recentDecisions` — written by [recordDecision]; read by
- *   `DebugServer.servePriorityTrace`.
+ * - Priority decisions are emitted as structured log entries by [recordDecision].
  *
  * Coordinators read and write these through [OwnerContext]; external callers use
  * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
@@ -287,39 +286,17 @@ class PlayerController(
 
     companion object {
         private val log = LoggerFactory.getLogger(PlayerController::class.java)
-        private const val MAX_DECISIONS = 200
     }
-
-    /** Recent priority decisions for debug observability. */
-    private val recentDecisions = ArrayDeque<PriorityDecisionEntry>()
 
     private var pendingManaColorChoice: Byte? = null
 
-    data class PriorityDecisionEntry(
-        val ts: Long,
-        val phase: String?,
-        val turn: Int,
-        val decision: PriorityDecision,
-    )
-
-    /** Snapshot of recent decisions for the debug API. */
-    fun decisionLog(): List<PriorityDecisionEntry> =
-        synchronized(recentDecisions) {
-            recentDecisions.toList()
-        }
-
     override fun recordDecision(decision: PriorityDecision) {
-        val entry =
-            PriorityDecisionEntry(
-                ts = System.currentTimeMillis(),
-                phase = game.phaseHandler.phase?.name,
-                turn = game.phaseHandler.turn,
-                decision = decision,
-            )
-        synchronized(recentDecisions) {
-            recentDecisions.addLast(entry)
-            while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
-        }
+        log.info(
+            "event=priority_decision source=engine phase={} turn={} decision={}",
+            game.phaseHandler.phase?.name,
+            game.phaseHandler.turn,
+            decision,
+        )
     }
 
     fun <T> withManaColorChoice(

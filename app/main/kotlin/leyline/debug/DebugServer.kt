@@ -8,9 +8,6 @@ import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.config.RuntimeMatchConfigRegistry
-import leyline.domain.service.CourseService
-import leyline.domain.service.DraftService
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -20,7 +17,6 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
-import leyline.infra.AppMatchCoordinator
 import leyline.match.ActionOfferCatalog
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
@@ -31,40 +27,26 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Embedded HTTP server for the Leyline debug panel.
+ * Embedded HTTP server for local engine diagnostics and puzzle control.
  * Zero-dep JDK [HttpServer] on the given port (default 8090).
  *
  * Only engine-specific endpoints live here. Read-only state inspection lives in separate analysis tooling.
  *
  * Endpoints:
- * - `GET /`                → leyline-debug.html from classpath
  * - `GET /api/best-play`   → engine simulation recommendation for current board state
- * - `GET /api/priority-log` → combined AutoPass + engine priority decision log
  * - `POST /api/inject-full` → rebuild and push a full state update to the client
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
- * - `GET /api/events`       → SSE real-time event stream
- *
- * Server-to-server GRE match control is mounted by [GreMatchControlApi].
- * Web-client draft/course control is mounted by [DraftControlApi].
  *
  * Binds loopback-only by default. Set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose
- * the panel on all interfaces (control-token behavior is unchanged either way).
+ * these local controls on all interfaces.
  */
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
     private val port: Int = 8090,
     private val sessionProvider: (() -> MatchSession?)? = null,
-    private val eventBus: DebugEventBus? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
-    /** MatchId-keyed runtime config for native Match Door starts. */
-    private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
-    /** Optional bearer token for server-to-server GRE match control. */
-    private val greMatchControlToken: String? = null,
-    private val draftServiceProvider: (() -> DraftService?)? = null,
-    private val courseServiceProvider: (() -> CourseService?)? = null,
-    private val matchCoordinatorProvider: (() -> AppMatchCoordinator?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -80,8 +62,6 @@ class DebugServer(
         val srv = HttpServer.create(InetSocketAddress(resolveBindAddress(), port), 0)
 
         mapOf(
-            "/" to ::serveHtml,
-            "/api/priority-log" to ::servePriorityLog,
             "/api/best-play" to ::serveBestPlay,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
@@ -110,38 +90,13 @@ class DebugServer(
                 }
             }
         }
-        GreMatchControlApi(runtimeMatchConfigs, greMatchControlToken, ::resolvePuzzleReference).mount(srv)
-        DraftControlApi(
-            draftServiceProvider = { draftServiceProvider?.invoke() },
-            courseServiceProvider = { courseServiceProvider?.invoke() },
-            matchCoordinatorProvider = { matchCoordinatorProvider?.invoke() },
-            runtimeMatchConfigs = runtimeMatchConfigs,
-            controlToken = greMatchControlToken,
-        ).mount(srv)
-
-        srv.createContext("/api/events") { ex ->
-            try {
-                if (ex.requestMethod != "GET") {
-                    ex.sendResponseHeaders(405, -1)
-                    ex.close()
-                    return@createContext
-                }
-                serveSSE(ex)
-            } catch (t: Throwable) {
-                log.error("SSE error: {}", t.message)
-                try {
-                    ex.close()
-                } catch (_: Throwable) {
-                }
-            }
-        }
         srv.executor =
             Executors.newCachedThreadPool { r ->
                 Thread(r, "debug-http").apply { isDaemon = true }
             }
         srv.start()
         server = srv
-        log.info("Debug panel: http://localhost:{}", port)
+        log.info("Debug controls listening on http://localhost:{}", port)
     }
 
     fun stop() {
@@ -177,62 +132,6 @@ class DebugServer(
                 }
             }
         }
-    }
-
-    private fun serveHtml(ex: HttpExchange) {
-        val html =
-            javaClass.classLoader
-                .getResourceAsStream("leyline-debug.html")
-                ?.bufferedReader()
-                ?.readText()
-        if (html == null) {
-            respond(ex, 404, "text/plain", "leyline-debug.html not found on classpath")
-        } else {
-            respond(ex, 200, "text/html; charset=utf-8", html)
-        }
-    }
-
-    // --- Priority decision log ---
-
-    /**
-     * `/api/priority-log` — combined priority decision log from
-     * AutoPassEngine (session thread) and PlayerController (engine thread).
-     */
-    private fun servePriorityLog(ex: HttpExchange) {
-        val session = sessionProvider?.invoke()
-        if (session == null) {
-            respondJsonList(ex, "[]", null)
-            return
-        }
-
-        @Serializable
-        data class Entry(
-            val ts: Long,
-            val source: String,
-            val phase: String?,
-            val turn: Int,
-            val decision: String,
-        )
-
-        val entries = mutableListOf<Entry>()
-
-        // AutoPassEngine decisions (session thread)
-        for (e in session.autoPassEngine.decisionLog()) {
-            entries.add(Entry(e.ts, "session", e.phase, e.turn, e.decision.toString()))
-        }
-
-        // PlayerController decisions (engine thread)
-        val bridge = session.gameBridge
-        val controller = bridge.humanController
-        if (controller != null) {
-            for (e in controller.decisionLog()) {
-                entries.add(Entry(e.ts, "engine", e.phase, e.turn, e.decision.toString()))
-            }
-        }
-
-        entries.sortBy { it.ts }
-
-        respondJsonList(ex, json.encodeToString(entries), null)
     }
 
     // --- Engine recommendation ---
@@ -651,12 +550,6 @@ class DebugServer(
         return null
     }
 
-    private fun resolvePuzzleReference(value: String): String? {
-        val file = File(value)
-        if (file.exists()) return file.absolutePath
-        return resolvePuzzleFile(value.removeSuffix(".pzl"))
-    }
-
     // --- Helpers ---
 
     private fun safe(
@@ -701,57 +594,4 @@ class DebugServer(
         ex: HttpExchange,
         body: String,
     ) = respond(ex, 200, "application/json; charset=utf-8", body)
-
-    /** Wrap a list response in a versioned envelope with optional cursor. */
-    private fun respondJsonList(
-        ex: HttpExchange,
-        data: String,
-        cursor: Int?,
-    ) {
-        val cursorJson = if (cursor != null) ",\"cursor\":$cursor" else ""
-        respondJson(ex, "{\"version\":1,\"data\":$data$cursorJson}")
-    }
-
-    /** SSE endpoint — pushes real-time debug events to connected clients. */
-    private fun serveSSE(ex: HttpExchange) {
-        ex.responseHeaders.add("Content-Type", "text/event-stream")
-        ex.responseHeaders.add("Cache-Control", "no-cache")
-        ex.responseHeaders.add("Connection", "keep-alive")
-        ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
-        ex.sendResponseHeaders(200, 0)
-        val os = ex.responseBody
-
-        val listener: (String, String) -> Unit = { type, data ->
-            try {
-                val msg = "event: $type\ndata: $data\n\n"
-                synchronized(os) {
-                    os.write(msg.toByteArray(Charsets.UTF_8))
-                    os.flush()
-                }
-            } catch (e: Exception) {
-                log.debug("SSE send failed", e)
-            }
-        }
-
-        eventBus?.addListener(listener)
-        log.info("SSE client connected")
-        try {
-            while (true) {
-                Thread.sleep(30_000)
-                synchronized(os) {
-                    os.write(":keepalive\n\n".toByteArray(Charsets.UTF_8))
-                    os.flush()
-                }
-            }
-        } catch (_: Exception) {
-            // client disconnected
-        } finally {
-            eventBus?.removeListener(listener)
-            log.info("SSE client disconnected")
-            try {
-                ex.close()
-            } catch (_: Throwable) {
-            }
-        }
-    }
 }
