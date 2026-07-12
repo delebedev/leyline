@@ -18,8 +18,6 @@ import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.debug.DebugCollector
-import leyline.debug.DebugEventBus
 import leyline.debug.DebugSinkAdapter
 import leyline.domain.CollationPool
 import leyline.domain.DeckCard
@@ -80,25 +78,11 @@ class LeylineServer(
     @Volatile private var matchDoorChannel: Channel? = null
 
     // --- Debug infrastructure (wired in start()) ---
-    val eventBus = DebugEventBus()
-    val debugCollector = DebugCollector(eventBus)
     val debugSink = DebugSinkAdapter()
 
     /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
     val runtimePuzzle = AtomicReference<String?>(null)
     val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
-
-    @Volatile
-    var courseServiceForControl: CourseService? = null
-        private set
-
-    @Volatile
-    var draftServiceForControl: DraftService? = null
-        private set
-
-    @Volatile
-    var matchCoordinatorForControl: AppMatchCoordinator? = null
-        private set
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -108,9 +92,6 @@ class LeylineServer(
     }
 
     fun start() {
-        // Register global instance for logback appender (must happen before any logging)
-        DebugCollector.instance = debugCollector
-
         // Initialize dev-time strict checking from config
         DevCheck.init(matchConfig.dev.strict, matchConfig.dev.strictPass)
 
@@ -204,8 +185,6 @@ class LeylineServer(
                     }
                 },
             )
-        courseServiceForControl = courseService
-        draftServiceForControl = draftService
         draftService.discardIncompleteSessions()
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService =
@@ -227,8 +206,6 @@ class LeylineServer(
                 draftRepo = draftRepo,
                 nameByGrpId = cardRepo::findNameByGrpId,
             )
-        matchCoordinatorForControl = coordinator
-
         frontDoorChannel =
             bindServer(fdSsl, frontDoorPort) { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())

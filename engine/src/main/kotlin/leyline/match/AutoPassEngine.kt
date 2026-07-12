@@ -36,45 +36,18 @@ class AutoPassEngine(
 
     companion object {
         private const val MAX_ITERATIONS = 50
-        private const val MAX_DECISIONS = 200
-    }
-
-    /** Recent priority decisions for debug API. */
-    private val recentDecisions = ArrayDeque<PriorityDecisionEntry>()
-
-    data class PriorityDecisionEntry(
-        val ts: Long,
-        val phase: String?,
-        val turn: Int,
-        val decision: PriorityDecision,
-    )
-
-    /** Snapshot of recent decisions for the debug API. */
-    fun decisionLog(): List<PriorityDecisionEntry> =
-        synchronized(recentDecisions) {
-            recentDecisions.toList()
-        }
-
-    /** Clear decision history for puzzle hot-swap. */
-    fun reset() {
-        synchronized(recentDecisions) { recentDecisions.clear() }
     }
 
     private fun recordDecision(
         game: Game,
         decision: PriorityDecision,
     ) {
-        val entry =
-            PriorityDecisionEntry(
-                ts = System.currentTimeMillis(),
-                phase = game.phaseHandler.phase?.name,
-                turn = game.phaseHandler.turn,
-                decision = decision,
-            )
-        synchronized(recentDecisions) {
-            recentDecisions.addLast(entry)
-            while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
-        }
+        log.info(
+            "event=priority_decision source=session phase={} turn={} decision={}",
+            game.phaseHandler.phase?.name,
+            game.phaseHandler.turn,
+            decision,
+        )
     }
 
     /**

@@ -1,5 +1,9 @@
 package leyline.match
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import forge.game.GameEndReason
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
@@ -8,6 +12,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.BoardTag
+import leyline.bridge.forge.PlayerController
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
@@ -19,6 +24,7 @@ import leyline.match.TargetingHandler
 import leyline.testkit.BoardTestBase
 import leyline.testkit.aiPlayer
 import leyline.testkit.settingsMessage
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import kotlin.time.Duration.Companion.seconds
@@ -329,9 +335,9 @@ class AutoPassEngineTest :
             grant.phase shouldBe "MAIN1"
         }
 
-        // --- checkHumanActions: decision log ---
+        // --- checkHumanActions: decision diagnostics ---
 
-        test("checkHumanActions records decisions in decisionLog") {
+        test("checkHumanActions logs structured session decisions") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -347,17 +353,23 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            engine.decisionLog().size shouldBe 0
-            engine.checkHumanActions(game, isAiTurn = false)
-            engine.decisionLog().size shouldBe 1
-            engine
-                .decisionLog()
-                .first()
-                .decision
-                .shouldBeInstanceOf<PriorityDecision.Skip>()
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            val logger = LoggerFactory.getLogger(AutoPassEngine::class.java) as Logger
+            val previousLevel = logger.level
+            logger.level = Level.INFO
+            logger.addAppender(appender)
+            try {
+                engine.checkHumanActions(game, isAiTurn = false)
+                appender.list.single().formattedMessage shouldBe
+                    "event=priority_decision source=session phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = previousLevel
+                appender.stop()
+            }
         }
 
-        test("AI turn skip does not record in decisionLog") {
+        test("AI turn skip does not log a session decision") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -373,8 +385,37 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            engine.checkHumanActions(game, isAiTurn = true)
-            engine.decisionLog().size shouldBe 0
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            val logger = LoggerFactory.getLogger(AutoPassEngine::class.java) as Logger
+            val previousLevel = logger.level
+            logger.level = Level.INFO
+            logger.addAppender(appender)
+            try {
+                engine.checkHumanActions(game, isAiTurn = true)
+                appender.list.size shouldBe 0
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = previousLevel
+                appender.stop()
+            }
+        }
+
+        test("PlayerController logs structured engine decisions") {
+            val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            val logger = LoggerFactory.getLogger(PlayerController::class.java) as Logger
+            val previousLevel = logger.level
+            logger.level = Level.INFO
+            logger.addAppender(appender)
+            try {
+                bridge.humanController!!.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
+                appender.list.single().formattedMessage shouldBe
+                    "event=priority_decision source=engine phase=MAIN1 turn=1 decision=Skip(SmartPhaseSkip)"
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = previousLevel
+                appender.stop()
+            }
         }
 
         // --- autoPassAndAdvance: non-blocking exits ---

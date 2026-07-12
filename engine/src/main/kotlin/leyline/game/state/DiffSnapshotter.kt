@@ -27,7 +27,7 @@ class DiffSnapshotter {
     /** Get the zone an instanceId was last seen in. */
     fun getPreviousZone(instanceId: Int): Int? = previousZones[instanceId]
 
-    /** Read-only snapshot of all zone assignments (for debug panel). */
+    /** Read-only snapshot of all zone assignments for diagnostics. */
     fun allZones(): Map<Int, Int> = HashMap(previousZones)
 
     /** Full reset — clear all tracked state (zones). Used on puzzle hot-swap. */
