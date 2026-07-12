@@ -50,16 +50,18 @@ class SpellExecutor(
         cardId: ForgeCardId,
         abilityId: Int?,
         targets: List<Target>,
+        offeredAbility: SpellAbility? = null,
     ): List<SpellAbility>? {
-        val card = findCard(game, cardId) ?: return null
-        val candidates = getAllCastableAbilities(card, player)
-        if (candidates.isEmpty()) return null
         val sa =
-            if (abilityId != null && abilityId < candidates.size) {
-                candidates[abilityId]
+            if (offeredAbility != null) {
+                offeredAbility
             } else {
-                candidates.first()
+                val card = findCard(game, cardId) ?: return null
+                val candidates = getAllCastableAbilities(card, player)
+                if (candidates.isEmpty()) return null
+                if (abilityId != null && abilityId < candidates.size) candidates[abilityId] else candidates.first()
             }
+        sa.setActivatingPlayer(player)
         applyTargets(sa, targets)
         return listOf(sa)
     }
@@ -69,10 +71,14 @@ class SpellExecutor(
         cardId: ForgeCardId,
         abilityId: Int,
         targets: List<Target>,
+        offeredAbility: SpellAbility? = null,
     ): List<SpellAbility>? {
-        val card = findCard(game, cardId) ?: return null
-        val abilities = getNonManaActivatedAbilities(card, player)
-        val sa = abilities.getOrNull(abilityId) ?: return null
+        val sa =
+            offeredAbility ?: run {
+                val card = findCard(game, cardId) ?: return null
+                getNonManaActivatedAbilities(card, player).getOrNull(abilityId) ?: return null
+            }
+        sa.setActivatingPlayer(player)
         applyTargets(sa, targets)
         return listOf(sa)
     }
@@ -90,9 +96,10 @@ class SpellExecutor(
         cardId: ForgeCardId,
         abilityId: Int? = null,
         selectedColor: Byte? = null,
+        offeredAbility: SpellAbility? = null,
     ): Boolean {
         val card = findCard(game, cardId) ?: return false
-        val playableAbilities = getPlayableManaAbilities(card, player)
+        val playableAbilities = offeredAbility?.let(::listOf) ?: getPlayableManaAbilities(card, player)
         if (playableAbilities.isEmpty()) return false
         log.debug("activateMana: {} ({} abilities)", card.name, playableAbilities.size)
 

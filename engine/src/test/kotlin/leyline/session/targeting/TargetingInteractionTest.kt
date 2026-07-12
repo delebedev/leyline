@@ -146,7 +146,9 @@ class TargetingInteractionTest :
                 )
 
                 h.castSpellByName("Giant Growth").shouldBeTrue()
-                waitFor(timeoutMs = 5_000L) {
+                // Generous deadline, not pacing: under parallel-fork CI load the
+                // cast → prompt round trip alone can exceed 5s on a slow runner.
+                waitFor(timeoutMs = 20_000L) {
                     h.drainSink()
                     if (
                         h.allMessages.none { it.hasSelectTargetsReq() } &&
@@ -160,7 +162,7 @@ class TargetingInteractionTest :
                 val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
 
                 assertSoftly {
-                    waitFor(timeoutMs = 5_000L) {
+                    waitFor(timeoutMs = 20_000L) {
                         h.drainSink()
                         h.allMessages.any { it.gameStateId > promptGsId }
                     }.shouldBeTrue()

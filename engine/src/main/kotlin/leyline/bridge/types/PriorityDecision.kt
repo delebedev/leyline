@@ -3,7 +3,7 @@ package leyline.bridge.types
 /**
  * Why priority was skipped without client input.
  *
- * Visible in `/api/priority-log` as the `decision` field (e.g. `Skip(SmartPhaseSkip)`).
+ * Rendered in structured priority-decision log entries (for example, `Skip(SmartPhaseSkip)`).
  */
 sealed class AutoPassReason {
     data object EndTurnFlag : AutoPassReason() {

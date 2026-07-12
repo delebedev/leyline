@@ -2,6 +2,7 @@ package leyline.bridge.handoff
 
 import forge.game.Game
 import forge.game.spellability.SpellAbility
+import forge.game.zone.ZoneType
 import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
 import leyline.bridge.NonInteractiveScope
@@ -53,6 +54,10 @@ class InteractivePromptBridge(
      */
     @Volatile
     var forgeIidResolver: ((ForgeCardId) -> InstanceId)? = null
+
+    /** Last zone recorded by diff tracking, used as prompt transfer context. */
+    @Volatile
+    var trackedZoneResolver: ((ForgeCardId) -> ZoneType?)? = null
 
     @Volatile
     var instanceIdReservoir: (() -> InstanceId)? = null

@@ -94,15 +94,25 @@ class PuzzleHandler(
                 SeatId(seatId),
                 bridge,
             )
+        val actions =
+            actionsMsg.greToClientEvent.greToClientMessagesList
+                .single()
+                .actionsAvailableReq
+        val offers = ActionOfferCatalog.build(actions, bridge, seatId)
         session.counter.setMsgId(nextMsgId2)
         session.counter.markPromptGsId(gsId)
-        bridge.seat(SeatId(seatId)).action.markCurrentPromptEmitted(gsId)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         output.send(actionsMsg)
 
-        // Enter the game loop — same as onMulliganKeep but without mulligan
+        // The puzzle loop starts after the bootstrap bundle is visible. Its
+        // priority wait materializes asynchronously; bind this already-built
+        // catalog as soon as that window exists, before a client can act.
         session.onPuzzleStart()
+        bridge.awaitPriority()
+        bridge.seat(SeatId(seatId)).action.getPending()?.let { pending ->
+            bridge.seat(SeatId(seatId)).action.bindActionCatalog(pending.actionId, gsId, offers)
+        }
     }
 
     /**

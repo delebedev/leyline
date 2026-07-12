@@ -145,13 +145,7 @@ private fun buildDebugServer(
 ) = DebugServer(
     port = port,
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
-    eventBus = server.eventBus,
     runtimePuzzle = server.runtimePuzzle,
-    runtimeMatchConfigs = server.runtimeMatchConfigs,
-    greMatchControlToken = System.getenv("LEYLINE_CONTROL_TOKEN")?.takeUnless { it.isBlank() },
-    draftServiceProvider = { server.draftServiceForControl },
-    courseServiceProvider = { server.courseServiceForControl },
-    matchCoordinatorProvider = { server.matchCoordinatorForControl },
 )
 
 private fun buildAccountServer(
@@ -255,7 +249,7 @@ private fun printBanner(
     println("Starting Leyline server ($mode mode)...")
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:$mgmtPort/health")
-    println("Debug panel: http://localhost:$debugPort")
+    println("Debug controls: http://localhost:$debugPort")
     println("Account:     https://localhost:$accountPort")
     println("Doorbell:    FdURI=$fdHost")
     println("Config: ${config.summary()}")

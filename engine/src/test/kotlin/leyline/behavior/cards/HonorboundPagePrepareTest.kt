@@ -193,9 +193,9 @@ class HonorboundPagePrepareTest :
             val cutoffMessageCount = allMessages.size
 
             // Cast the prepared copy and select a target — Forge's SpellCast trigger
-            // (Mode$ SpellCast | Static$ True | ValidSA$ Spell.IsRemembered) fires on
-            // moveToStack, which only happens after target selection completes. So
-            // the unprepare path runs only once we provide a target.
+            // (Mode$ SpellCast | Static$ True | ValidSA$ Spell.IsRemembered) fires once
+            // the cast completes on the stack, which only happens after target selection.
+            // So the unprepare path runs only once we provide a target.
             castSpellByName("Forum's Favor", zone = ZoneType.Exile)
 
             // Guard against SessionTest defaults silently auto-resolving the

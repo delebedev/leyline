@@ -8,7 +8,7 @@ Puzzle-backed scripted acceptance tests for MatchDoor.
 - This package maps scenario steps to `MatchFlowHarness`; the live-client smoke runner consumes the same YAML.
 - Run with `just test-acceptance`.
 
-Executed suites are explicit in `AcceptanceSuitesTest`: `warmup`, `mechanics-warmup`, `combat-warmup`, `graveyard`, `interactions-warmup`, `cost-selection-warmup`, `modal-warmup`, and `mechanics-protocol`.
+`AcceptanceSuitesTest` discovers every `puzzles/sets/*.yaml` stem and runs it; a suite opts a runner out via top-level metadata (for example `web: {skip: reason}`) rather than by omission from a hard-coded list.
 
 ## Current durable patterns
 
@@ -24,7 +24,7 @@ Executed suites are explicit in `AcceptanceSuitesTest`: `warmup`, `mechanics-war
 - If we start needing two `zone_contains` / `zone_not_contains` checks in the same block often, add an explicit list form like `all:` rather than relying on YAML duplicate-key tricks.
 - If `ability_index` starts to feel brittle, add label-based activation targeting before adding many more activated-ability scenarios.
 - Keep optional-cost choice, modal choice, and payment selection distinct in YAML unless the game action is truly the same. They map to different prompt families in the live executor.
-- Auto-discovering every `puzzles/sets/*.yaml` as executable can wait until every set file carries `steps`. For now, keep the executed suite list explicit in the acceptance test.
+- A set file becomes executable the moment it carries `steps`; runner-level opt-outs belong in suite metadata (`web: {skip: reason}`), not in a hand-maintained suite list.
 
 ## DSL direction notes
 

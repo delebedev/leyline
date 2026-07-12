@@ -1,12 +1,15 @@
 package leyline.bridge.handoff
 
 import forge.game.Game
+import forge.game.spellability.SpellAbility
 import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.PrioritySignal
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -70,11 +73,27 @@ class GameActionBridge(
         deadlineMs = timeoutMs?.let { System.currentTimeMillis() + it }
     }
 
+    /**
+     * One executable priority offer.
+     *
+     * The command is created while Forge is blocked for this priority window
+     * and is discarded when that window completes. It deliberately contains no
+     * protocol identity; [action] is the Leyline-only projection sent to the
+     * client.
+     */
+    data class ActionOffer(
+        val action: Action,
+        val command: PlayerAction,
+        val stackAbilityGrpId: Int? = null,
+        val forgeAbilityId: Int? = null,
+    )
+
     data class PendingAction(
         val actionId: String,
         val state: PendingActionState,
         val future: CompletableFuture<PlayerAction>,
         @Volatile var promptGameStateId: Int? = null,
+        @Volatile var actionCatalog: Map<ActionResponseKey, ActionOffer>? = null,
     )
 
     private val pending = AtomicReference<PendingAction?>(null)
@@ -182,24 +201,52 @@ class GameActionBridge(
     }
 
     /**
-     * Bind the outbound ActionsAvailableReq gsId to the pending engine wait.
-     * Later responses must echo this gsId; otherwise an old click can satisfy a
-     * newer pending action after the previous wait timed out or advanced.
+     * Atomically bind an executable priority catalog to its outbound prompt.
+     *
+     * Call this before the corresponding ActionsAvailableReq becomes visible.
+     * A later AAR for the same still-blocked priority window supersedes the
+     * previous catalog atomically; responses to the earlier game-state id then
+     * cannot resolve.
      */
-    fun markPromptEmitted(
+    fun bindActionCatalog(
         actionId: String,
         gameStateId: Int,
+        offers: List<ActionOffer>,
     ): Boolean {
+        // Payment/auto-tap variants share a canonical response key and the
+        // same pre-bound command. Keep the first server-provided projection.
+        val catalog = offers.associateBy { ActionResponseKey.from(it.action) }
+
         val current = pending.get() ?: return false
-        if (current.actionId != actionId || current.future.isDone) return false
-        current.promptGameStateId = gameStateId
-        return true
+        synchronized(current) {
+            if (current.actionId != actionId || current.future.isDone) return false
+            current.actionCatalog = catalog
+            current.promptGameStateId = gameStateId
+            return true
+        }
     }
 
-    fun markCurrentPromptEmitted(gameStateId: Int): Boolean {
-        val current = getPending() ?: return false
-        return markPromptEmitted(current.actionId, gameStateId)
+    /** Resolve a response only against the catalog bound to its pending window. */
+    fun resolveOfferedAction(
+        pendingAction: PendingAction,
+        responseGameStateId: Int,
+        action: Action,
+    ): ActionOffer? {
+        if (!acceptsResponse(pendingAction, responseGameStateId)) return null
+        val catalog = pendingAction.actionCatalog ?: return null
+        catalog[ActionResponseKey.from(action)]?.let { return it }
+        return catalog.values.singleOrNull { offer -> matchesPartialResponse(offer.action, action) }
     }
+
+    private fun matchesPartialResponse(
+        offer: Action,
+        response: Action,
+    ): Boolean =
+        offer.actionType == response.actionType &&
+            offer.instanceId == response.instanceId &&
+            (response.grpId == 0 || offer.grpId == 0 || offer.grpId == response.grpId) &&
+            (response.abilityGrpId == 0 || offer.abilityGrpId == 0 || offer.abilityGrpId == response.abilityGrpId) &&
+            (response.alternativeGrpId == 0 || offer.alternativeGrpId == 0 || offer.alternativeGrpId == response.alternativeGrpId)
 
     fun acceptsResponse(
         pendingAction: PendingAction,
@@ -231,6 +278,33 @@ class GameActionBridge(
     fun cancelPending() {
         val current = pending.getAndSet(null)
         current?.future?.cancel(true)
+    }
+}
+
+/** Stable protocol selectors; excludes client-populated payment and auto-tap detail. */
+data class ActionResponseKey(
+    val type: ActionType,
+    val instanceId: Int,
+    val grpId: Int,
+    val abilityGrpId: Int,
+    val alternativeGrpId: Int,
+) {
+    companion object {
+        @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+        fun from(action: Action) =
+            when (action.actionType) {
+                ActionType.Pass, ActionType.FloatMana -> ActionResponseKey(action.actionType, 0, 0, 0, 0)
+                ActionType.Play_add3, ActionType.PlayMdfc, ActionType.SpecialTurnFaceUp_add3 ->
+                    ActionResponseKey(action.actionType, action.instanceId, 0, 0, 0)
+                else ->
+                    ActionResponseKey(
+                        action.actionType,
+                        action.instanceId,
+                        action.grpId,
+                        action.abilityGrpId,
+                        action.alternativeGrpId,
+                    )
+            }
     }
 }
 
@@ -272,18 +346,21 @@ sealed class PlayerAction {
         val cardId: ForgeCardId,
         val abilityId: Int? = null,
         val targets: List<Target> = emptyList(),
+        val ability: SpellAbility? = null,
     ) : PlayerAction()
 
     data class ActivateAbility(
         val cardId: ForgeCardId,
         val abilityId: Int,
         val targets: List<Target> = emptyList(),
+        val ability: SpellAbility? = null,
     ) : PlayerAction()
 
     data class ActivateMana(
         val cardId: ForgeCardId,
         val abilityId: Int? = null,
         val selectedColor: Byte? = null,
+        val ability: SpellAbility? = null,
     ) : PlayerAction()
 
     data class PlayLand(
