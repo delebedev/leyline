@@ -52,7 +52,11 @@ testkit/
 ├── TestExtensions.kt         non-matcher extensions: AnnotationInfo.detail*(), GSM.annotation(type), ActionsAvailableReq.ofType()
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (main-source; performAction { ... })
-├── BoardTestBase.kt          legacy board-tier implementation helper; do not use directly in new tests
+├── Board.kt                  board-tier context (bridge, game, counter) returned by BoardTest's start* methods;
+│                             destructures as (bridge, game, counter) for legacy call sites, plus methods and an
+│                             instance probe DSL (Player.battlefield/hand/graveyard/exile/library, PlayerZone.iid)
+├── BoardTestBase.kt          board-tier engine behind BoardTest; construct directly only for an isolated
+│                             instance outside BoardTest's shared one (see PureDiffReplayTest)
 ├── BoardTest.kt              preferred board-tier base; wires BoardTestBase lifecycle + BoardTag
 ├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf, after { } slice builder, Player.{battlefield,hand,…}.iid(name) probe DSL
 ├── MessageSlice.kt           bounded slice of GREToClientMessage from after { } — typed expectOne*/expectNo* prompt assertions + block-form prompt-shape sub-DSL
@@ -62,6 +66,8 @@ testkit/
 ├── ClientAccumulator.kt      main-source GSM accumulator — invariant checker
 └── ValidatingMessageSink.kt  main-source per-message GSM/GRE validation — enable with validating=true
 ```
+
+**Helper-layering rule:** extensions on wire types (`GameStateMessage`, `List<GREToClientMessage>`, `Action`) when the helper only reads messages already produced; methods on `Board` / `MatchFlowHarness` when the helper needs live game/bridge state; spec base classes (`BoardTest`, `SessionTest`) carry lifecycle wiring and naming sugar only, not new logic.
 
 **Picking a layer when you reach for a helper:**
 

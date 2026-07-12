@@ -19,24 +19,14 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
- * Internal helper behind [BoardTest] for board-tier wire-shape tests.
+ * Board-tier engine behind [BoardTest]: starts deterministic games, plays
+ * actions, and builds outbound GRE message bundles via [BundleBuilder].
  *
- * Provides helpers to start deterministic games, play actions,
- * and capture outbound GRE messages via BundleBuilder.
- *
- * New tests should extend [BoardTest], which wires tags and lifecycle cleanup.
- * Keep direct `BoardTestBase()` use only for legacy files while migrating them.
- *
- * Preferred usage:
- * ```
- * class MyTest : BoardTest({
- *     test("foo") {
- *         val (b, game, counter) = startWithBoard { _, human, _ ->
- *             addCard("Grizzly Bears", human)
- *         }
- *     }
- * })
- * ```
+ * [BoardTest] owns one shared instance per spec — extend that for ordinary
+ * board-tier tests. Direct construction is reserved for tests that need an
+ * isolated instance outside the shared one, e.g. driving two independent
+ * bridges (live + replay) within a single test body, each needing its own
+ * teardown (see `PureDiffReplayTest`).
  */
 open class BoardTestBase {
     var bridge: GameBridge? = null
@@ -129,20 +119,6 @@ open class BoardTestBase {
         zone: ZoneType = ZoneType.Battlefield,
     ): Card = Board.createCard(name, player, zone)
 
-    // ----- Board helpers -----
-
-    /** First creature on [player]'s battlefield. */
-    fun Player.firstCreature(): Card = getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-
-    /** First card in [player]'s zone. */
-    fun Player.firstCardIn(zone: ZoneType): Card = getZone(zone).cards.first()
-
-    /** First card matching [predicate] in [player]'s zone. */
-    fun Player.firstCardIn(
-        zone: ZoneType,
-        predicate: (Card) -> Boolean,
-    ): Card = getZone(zone).cards.first(predicate)
-
     // ----- Capture helpers -----
 
     /** Create a [BundleBuilder] with standard test constants. */
@@ -201,23 +177,6 @@ open class BoardTestBase {
         awaitFreshPending(b, pending.actionId)
     }
 
-    // ----- Shared capture helpers -----
-
-    /**
-     * Create a [ValidatingMessageSink] seeded with the handshake Full GSM.
-     * Use in board/session tests to get automatic invariant coverage on every message.
-     */
-    fun validatingSink(
-        game: forge.game.Game,
-        b: GameBridge,
-        gsId: Int,
-        strict: Boolean = true,
-    ): ValidatingMessageSink {
-        val sink = ValidatingMessageSink(strict = strict)
-        sink.seedFull(handshakeFull(game, b, gsId))
-        return sink
-    }
-
     companion object {
         const val TEST_MATCH_ID = "test-match"
         const val SEAT_ID = 1
@@ -264,21 +223,6 @@ open class BoardTestBase {
         val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
         return postAction(game, b, counter).gsmOrNull
-    }
-
-    /**
-     * Play a land and capture GSM + pre/post instanceIds.
-     * Returns (gsm, origInstanceId, newInstanceId).
-     */
-    fun playLandAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
-        val (b, game, counter) = startGameAtMain1()
-
-        val action = playLand(b) ?: return null
-        val gsm = postAction(game, b, counter).gsmOrNull ?: return null
-        val origInstanceId = gsm.annotation(AnnotationType.ObjectIdChanged).detailInt("orig_id")
-        val newInstanceId = b.getOrAllocInstanceId(action.cardId).value
-
-        return Triple(gsm, origInstanceId, newInstanceId)
     }
 
     /**

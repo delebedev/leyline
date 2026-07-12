@@ -9,11 +9,12 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
-import leyline.testkit.BoardTestBase
 import leyline.testkit.MatchFlowHarness
+import leyline.testkit.TestCardRegistry
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
@@ -80,9 +81,10 @@ class MadnessLifecycleTest :
     FunSpec({
         tags(IntegrationTag)
 
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+        }
 
         test("madness cast path: discard outlet → exile → cast for {R} → resolve") {
             val h =
