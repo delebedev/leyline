@@ -30,7 +30,7 @@ This project reimplements a protocol for interoperability. Keep it clean:
 
 ## AI contributors
 
-Built with AI agents. [CLAUDE.md](CLAUDE.md) is the deep guide.
+Built with AI agents. [AGENTS.md](AGENTS.md) is the deep guide; `CLAUDE.md` is a compatibility link.
 
 ## License
 

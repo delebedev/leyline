@@ -10,7 +10,7 @@ import leyline.bridge.forge.PlayerController
  *
  * Forge dispatches through single inheritance — the class must keep hosting every
  * override. Any addition or removal is a spec change that must update this test and
- * the override table in `engine/CLAUDE.md` in the same commit.
+ * the override table in `engine/AGENTS.md` in the same commit.
  *
  * See [leyline.bridge.forge.PlayerController]'s KDoc for the pattern this guardrail supports.
  */

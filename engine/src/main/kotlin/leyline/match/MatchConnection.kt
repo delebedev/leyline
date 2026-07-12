@@ -150,7 +150,7 @@ class MatchConnection(
     }
 
     init {
-        // Wire debug server's bridge/session providers once per handler instance.
+        // Wire local-control bridge/session providers once per handler instance.
         debugSink?.sessionProvider = { registry.activeSession() }
     }
 
