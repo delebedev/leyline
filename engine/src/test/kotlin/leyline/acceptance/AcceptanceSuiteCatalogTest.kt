@@ -3,8 +3,8 @@ package leyline.acceptance
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import kotlin.io.path.name
@@ -23,8 +23,9 @@ class AcceptanceSuiteCatalogTest :
         val suiteFiles = AcceptanceSuiteLoader.suiteFiles()
 
         test("discovers the acceptance suite catalog") {
-            // Bump alongside puzzles/sets/*.yaml additions or removals.
-            suiteFiles shouldHaveSize 10
+            // Guards against discovery silently finding nothing or resolving the wrong
+            // directory, not an exact census — new suite YAMLs need no code changes here.
+            suiteFiles.size shouldBeGreaterThanOrEqual 10
         }
 
         suiteFiles.forEach { path ->
