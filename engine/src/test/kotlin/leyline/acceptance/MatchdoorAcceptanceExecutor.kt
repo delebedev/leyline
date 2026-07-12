@@ -21,10 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 
-@Suppress("LargeClass") // Executor grows one small adapter per backend-neutral DSL verb.
 class MatchdoorAcceptanceExecutor(
     private val seed: Long = 42L,
 ) {
@@ -33,10 +30,11 @@ class MatchdoorAcceptanceExecutor(
         val harness = MatchFlowHarness(seed = seed)
         try {
             harness.connectAndKeepPuzzleText(readPuzzleText(scenario.puzzle))
+            val run = ScenarioRun(harness, scenario.id)
             var remainingOptionalActions = scenario.steps.count { it is OptionalActionStep }
             if (remainingOptionalActions > 0) harness.holdNextOptionalAction()
             scenario.steps.forEachIndexed { index, step ->
-                executeStep(harness, scenario, index, step)
+                run.executeStep(index, step)
                 if (step is OptionalActionStep && --remainingOptionalActions > 0) {
                     harness.holdNextOptionalAction()
                 }
@@ -49,39 +47,86 @@ class MatchdoorAcceptanceExecutor(
             harness.shutdown()
         }
     }
+}
+
+private fun readPuzzleText(puzzle: String): String {
+    val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
+    return Files.readString(AcceptancePaths.resolve("puzzles/$fileName", notFoundMessage = "puzzle not found: $fileName"))
+}
+
+private val OUR_SEAT = SeatId(1)
+private val OPPONENT_SEAT = SeatId(2)
+
+private fun seat(side: AcceptanceSide): SeatId =
+    when (side) {
+        AcceptanceSide.Ours -> OUR_SEAT
+        AcceptanceSide.Opponent -> OPPONENT_SEAT
+    }
+
+private fun phaseMatches(
+    actual: String?,
+    expected: String,
+): Boolean = actual == expected.toForgePhaseName()
+
+private fun AcceptanceManaTypeChoice.toManaColor(): ManaColor =
+    when (this) {
+        AcceptanceManaTypeChoice.TwoGeneric -> ManaColor.TwoGeneric
+        AcceptanceManaTypeChoice.White -> ManaColor.White_afc9
+        AcceptanceManaTypeChoice.Blue -> ManaColor.Blue_afc9
+        AcceptanceManaTypeChoice.Black -> ManaColor.Black_afc9
+        AcceptanceManaTypeChoice.Red -> ManaColor.Red_afc9
+        AcceptanceManaTypeChoice.Green -> ManaColor.Green_afc9
+    }
+
+/** A condition's match outcome alongside the "actual" text used in failure diagnostics. */
+private data class ConditionResult(
+    val matched: Boolean,
+    val actual: String,
+)
+
+/**
+ * Drives one scenario's steps against a single [MatchFlowHarness]. Holds the harness plus the
+ * current step's error-context string so step/condition/card-resolution helpers don't have to
+ * thread both through every call.
+ */
+@Suppress("LargeClass") // Grows one small adapter per backend-neutral DSL verb.
+private class ScenarioRun(
+    val harness: MatchFlowHarness,
+    private val scenarioId: String,
+) {
+    lateinit var context: String
+        private set
 
     @Suppress("CyclomaticComplexMethod")
-    private fun executeStep(
-        harness: MatchFlowHarness,
-        scenario: AcceptanceScenario,
+    fun executeStep(
         index: Int,
         step: AcceptanceStep,
     ) {
-        val context = "${scenario.id} step ${index + 1} (${step.label})"
+        context = "$scenarioId step ${index + 1} (${step.label})"
         when (step) {
-            is WaitStep -> assertConditions(harness, step.conditions, context)
-            is ExpectStep -> assertConditions(harness, step.conditions, context)
-            is PassUntilStep -> passUntil(harness, step, context)
-            is ActivateStep -> activate(harness, step, context)
-            is ChooseStep -> choose(harness, step, context)
-            is ManaTypeChoicesStep -> manaTypeChoices(harness, step, context)
-            is ModalChoiceStep -> modalChoice(harness, step, context)
-            is StaticChoiceStep -> staticChoice(harness, step, context)
-            is OptionalActionStep -> respondToOptionalAction(harness, step, context)
-            is TargetStep -> target(harness, step.target, context)
-            is SelectCostStep -> selectCost(harness, step)
-            is SelectCardStep -> selectCard(harness, step, context)
-            is SelectCardsStep -> selectCards(harness, step, context)
-            is SearchCardsStep -> searchCards(harness, step, context)
-            is OrderCardsStep -> orderCards(harness, step, context)
-            is BlockStep -> block(harness, step, context)
-            is AttackStep -> attack(harness, step, context)
-            is TurnFaceUpStep -> turnFaceUp(harness, step, context)
-            is PlayLandStep -> requireAction(context) { harness.playLand(step.card) }
-            is PlayMdfcStep -> submitNamedAction(harness, ActionType.PlayMdfc, step.card, context)
-            is CastStep -> cast(harness, step, context)
-            is CastMdfcStep -> submitNamedAction(harness, ActionType.CastMdfc, step.card, context)
-            ResolveStackStep -> resolveStack(harness, context)
+            is WaitStep -> assertConditions(step.conditions)
+            is ExpectStep -> assertConditions(step.conditions)
+            is PassUntilStep -> passUntil(step)
+            is ActivateStep -> activate(step)
+            is ChooseStep -> choose(step)
+            is ManaTypeChoicesStep -> manaTypeChoices(step)
+            is ModalChoiceStep -> modalChoice(step)
+            is StaticChoiceStep -> staticChoice(step)
+            is OptionalActionStep -> respondToOptionalAction(step)
+            is TargetStep -> target(step.target)
+            is SelectCostStep -> selectCost(step)
+            is SelectCardStep -> selectCard(step)
+            is SelectCardsStep -> selectCards(step)
+            is SearchCardsStep -> searchCards(step)
+            is OrderCardsStep -> orderCards(step)
+            is BlockStep -> block(step)
+            is AttackStep -> attack(step)
+            is TurnFaceUpStep -> turnFaceUp(step)
+            is PlayLandStep -> requireAction { harness.playLand(step.card) }
+            is PlayMdfcStep -> submitNamedAction(ActionType.PlayMdfc, step.card)
+            is CastStep -> cast(step)
+            is CastMdfcStep -> submitNamedAction(ActionType.CastMdfc, step.card)
+            ResolveStackStep -> resolveStack()
             AttackAllStep -> {
                 harness.declareAllAttackers()
                 harness.submitAttackers()
@@ -89,26 +134,20 @@ class MatchdoorAcceptanceExecutor(
         }
     }
 
-    private fun cast(
-        harness: MatchFlowHarness,
-        step: CastStep,
-        context: String,
-    ) {
+    private fun cast(step: CastStep) {
         val action =
             harness.accumulator.actions?.actionsList.orEmpty().firstOrNull { action ->
                 action.actionType == ActionType.Cast &&
-                    actionCardName(harness, action).equals(step.card, ignoreCase = true) &&
-                    actionMatchesZone(harness, action, step.zone) &&
-                    actionMatchesAltCost(harness, action, step.altCost)
+                    actionCardName(action).equals(step.card, ignoreCase = true) &&
+                    actionMatchesZone(action, step.zone) &&
+                    actionMatchesAltCost(action, step.altCost)
             } ?: error("$context no cast action for ${step.card} in ${step.zone.yamlName}")
-        submitAction(harness, action)
+        submitAction(action)
     }
 
     private fun submitNamedAction(
-        harness: MatchFlowHarness,
         actionType: ActionType,
         card: String,
-        context: String,
     ) {
         val candidates =
             harness.accumulator.actions
@@ -116,38 +155,27 @@ class MatchdoorAcceptanceExecutor(
                 .orEmpty()
                 .filter { it.actionType == actionType }
         val action =
-            candidates.firstOrNull { actionCardName(harness, it).equals(card, ignoreCase = true) }
+            candidates.firstOrNull { actionCardName(it).equals(card, ignoreCase = true) }
                 ?: candidates
                     .singleOrNull()
                     ?.takeIf { actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc) }
                 ?: error("$context no named ${actionType.name} action for $card")
-        submitAction(harness, action)
+        submitAction(action)
     }
 
-    private fun selectCost(
-        harness: MatchFlowHarness,
-        step: SelectCostStep,
-    ) {
-        val ids = step.cards.map { resolveCardInZone(harness, step.side, step.zone, it) }
+    private fun selectCost(step: SelectCostStep) {
+        val ids = step.cards.map { resolveCardInZone(step.side, step.zone, it) }
         harness.respondToEffectCost(ids)
     }
 
-    private fun selectCard(
-        harness: MatchFlowHarness,
-        step: SelectCardStep,
-        context: String,
-    ) = selectCards(harness, SelectCardsStep(step.side, step.zone, listOf(step.card)), context)
+    private fun selectCard(step: SelectCardStep) = selectCards(SelectCardsStep(step.side, step.zone, listOf(step.card)))
 
-    private fun selectCards(
-        harness: MatchFlowHarness,
-        step: SelectCardsStep,
-        context: String,
-    ) {
-        val prompt = latestPromptMessage(harness)
+    private fun selectCards(step: SelectCardsStep) {
+        val prompt = latestPromptMessage()
         require(prompt?.hasSelectNReq() == true) {
             "$context expected latest prompt SelectNReq"
         }
-        val selectedIds = step.cards.map { resolveCardInZone(harness, step.side, step.zone, it) }
+        val selectedIds = step.cards.map { resolveCardInZone(step.side, step.zone, it) }
         selectedIds.zip(step.cards).forEach { (selectedId, card) ->
             require(selectedId in prompt.selectNReq.idsList) {
                 "$context selected $card iid=$selectedId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
@@ -161,16 +189,12 @@ class MatchdoorAcceptanceExecutor(
         harness.respondToSelectN(selectedIds)
     }
 
-    private fun searchCards(
-        harness: MatchFlowHarness,
-        step: SearchCardsStep,
-        context: String,
-    ) {
-        val prompt = latestPromptMessage(harness)
+    private fun searchCards(step: SearchCardsStep) {
+        val prompt = latestPromptMessage()
         require(prompt?.hasSearchReq() == true) {
             "$context expected latest prompt SearchReq"
         }
-        val selectedIds = step.cards.map { resolveCardInZone(harness, step.side, AcceptanceZone.Library, it) }
+        val selectedIds = step.cards.map { resolveCardInZone(step.side, AcceptanceZone.Library, it) }
         selectedIds.zip(step.cards).forEach { (selectedId, card) ->
             require(selectedId in prompt.searchReq.itemsSoughtList) {
                 "$context selected $card iid=$selectedId is not in SearchReq candidates ${prompt.searchReq.itemsSoughtList}"
@@ -179,43 +203,31 @@ class MatchdoorAcceptanceExecutor(
         harness.respondToSearch(selectedIds)
     }
 
-    private fun orderCards(
-        harness: MatchFlowHarness,
-        step: OrderCardsStep,
-        context: String,
-    ) {
-        val prompt = latestPromptMessage(harness)
+    private fun orderCards(step: OrderCardsStep) {
+        val prompt = latestPromptMessage()
         require(prompt?.hasOrderReq() == true) {
             "$context expected latest prompt OrderReq"
         }
-        val orderedIds = resolvePromptCardOrder(harness, prompt.orderReq.idsList, step.cards, context)
+        val orderedIds = resolvePromptCardOrder(prompt.orderReq.idsList, step.cards)
         harness.respondToOrder(orderedIds)
     }
 
-    private fun activate(
-        harness: MatchFlowHarness,
-        step: ActivateStep,
-        context: String,
-    ) {
+    private fun activate(step: ActivateStep) {
         val matching =
             harness.accumulator.actions?.actionsList.orEmpty().filter { action ->
                 action.actionType == ActionType.Activate_add3 &&
-                    actionCardName(harness, action).equals(step.card, ignoreCase = true) &&
-                    actionMatchesZone(harness, action, step.zone)
+                    actionCardName(action).equals(step.card, ignoreCase = true) &&
+                    actionMatchesZone(action, step.zone)
             }
         val action =
             matching.getOrNull(step.abilityIndex)
                 ?: error(
                     "$context no activate action index ${step.abilityIndex} for ${step.card} in ${step.zone.yamlName}",
                 )
-        submitAction(harness, action)
+        submitAction(action)
     }
 
-    private fun choose(
-        harness: MatchFlowHarness,
-        step: ChooseStep,
-        context: String,
-    ) {
+    private fun choose(step: ChooseStep) {
         if (step.ctoId != null) {
             harness.respondToOptionalCost(step.ctoId)
             return
@@ -232,11 +244,7 @@ class MatchdoorAcceptanceExecutor(
         harness.respondToOptionalCost(option.ctoId)
     }
 
-    private fun manaTypeChoices(
-        harness: MatchFlowHarness,
-        step: ManaTypeChoicesStep,
-        context: String,
-    ) {
+    private fun manaTypeChoices(step: ManaTypeChoicesStep) {
         val options =
             harness.allMessages
                 .lastOrNull { it.hasCastingTimeOptionsReq() }
@@ -250,21 +258,7 @@ class MatchdoorAcceptanceExecutor(
         harness.respondToManaTypeChoices(options.zip(step.choices).map { (option, choice) -> option.ctoId to choice.toManaColor() })
     }
 
-    private fun AcceptanceManaTypeChoice.toManaColor(): ManaColor =
-        when (this) {
-            AcceptanceManaTypeChoice.TwoGeneric -> ManaColor.TwoGeneric
-            AcceptanceManaTypeChoice.White -> ManaColor.White_afc9
-            AcceptanceManaTypeChoice.Blue -> ManaColor.Blue_afc9
-            AcceptanceManaTypeChoice.Black -> ManaColor.Black_afc9
-            AcceptanceManaTypeChoice.Red -> ManaColor.Red_afc9
-            AcceptanceManaTypeChoice.Green -> ManaColor.Green_afc9
-        }
-
-    private fun modalChoice(
-        harness: MatchFlowHarness,
-        step: ModalChoiceStep,
-        context: String,
-    ) {
+    private fun modalChoice(step: ModalChoiceStep) {
         val option =
             harness.allMessages
                 .lastOrNull { it.hasCastingTimeOptionsReq() }
@@ -276,12 +270,8 @@ class MatchdoorAcceptanceExecutor(
         harness.respondModalChoice(listOf(option.grpId))
     }
 
-    private fun staticChoice(
-        harness: MatchFlowHarness,
-        step: StaticChoiceStep,
-        context: String,
-    ) {
-        val prompt = latestPromptMessage(harness)
+    private fun staticChoice(step: StaticChoiceStep) {
+        val prompt = latestPromptMessage()
         require(prompt?.hasSelectNReq() == true) {
             "$context expected latest prompt SelectNReq"
         }
@@ -295,54 +285,37 @@ class MatchdoorAcceptanceExecutor(
         harness.respondToSelectN(listOf(step.id))
     }
 
-    private fun target(
-        harness: MatchFlowHarness,
-        target: AcceptanceTargetSpec,
-        context: String,
-    ) {
-        require(latestPromptMatches(harness, "SelectTargetsReq")) {
+    private fun target(target: AcceptanceTargetSpec) {
+        require(latestPromptMatches("SelectTargetsReq")) {
             "$context expected latest prompt SelectTargetsReq"
         }
-        harness.selectTargets(listOf(resolveTargetInstanceId(harness, target)))
+        harness.selectTargets(listOf(resolveTargetInstanceId(target)))
     }
 
-    private fun block(
-        harness: MatchFlowHarness,
-        step: BlockStep,
-        context: String,
-    ) {
-        require(latestPromptMatches(harness, "DeclareBlockersReq")) {
+    private fun block(step: BlockStep) {
+        require(latestPromptMatches("DeclareBlockersReq")) {
             "$context expected latest prompt DeclareBlockersReq"
         }
-        val blockerId = resolveBattlefieldCard(harness, AcceptanceSide.Ours, step.blocker)
-        val attackerId =
-            resolveBattlefieldCard(harness, AcceptanceSide.Opponent, step.attacker)
+        val blockerId = resolveBattlefieldCard(AcceptanceSide.Ours, step.blocker)
+        val attackerId = resolveBattlefieldCard(AcceptanceSide.Opponent, step.attacker)
         harness.declareBlockers(mapOf(blockerId to attackerId))
     }
 
-    private fun attack(
-        harness: MatchFlowHarness,
-        step: AttackStep,
-        context: String,
-    ) {
-        require(latestPromptMatches(harness, "DeclareAttackersReq")) {
+    private fun attack(step: AttackStep) {
+        require(latestPromptMatches("DeclareAttackersReq")) {
             "$context expected latest prompt DeclareAttackersReq"
         }
-        val attackerIds = step.cards.map { resolveBattlefieldCard(harness, AcceptanceSide.Ours, it) }
-        val alternatives = step.altCost?.let { altCost -> attackerIds.associateWith { keywordAbilityId(altCost) } }.orEmpty()
+        val attackerIds = step.cards.map { resolveBattlefieldCard(AcceptanceSide.Ours, it) }
+        val alternatives = step.altCost?.let { altCost -> attackerIds.associateWith { altCost.keywordAbilityId } }.orEmpty()
         val damageRecipients =
             step.target
-                ?.let { target -> attackerIds.associateWith { damageRecipientForAttackTarget(harness, target, context) } }
+                ?.let { target -> attackerIds.associateWith { damageRecipientForAttackTarget(target) } }
                 .orEmpty()
         harness.toggleAttackers(attackerIds, alternatives, damageRecipients)
         harness.submitAttackers()
     }
 
-    private fun damageRecipientForAttackTarget(
-        harness: MatchFlowHarness,
-        target: AcceptanceTargetSpec,
-        context: String,
-    ): DamageRecipient =
+    private fun damageRecipientForAttackTarget(target: AcceptanceTargetSpec): DamageRecipient =
         when (target) {
             is PlayerTargetSpec ->
                 DamageRecipient
@@ -356,7 +329,7 @@ class MatchdoorAcceptanceExecutor(
                     "$context attack target must be an opponent battlefield planeswalker, got ${target.label}"
                 }
                 val card =
-                    cardsInZone(harness, target.side, target.zone)
+                    cardsInZone(target.side, target.zone)
                         .firstOrNull { it.name.equals(target.card, ignoreCase = true) }
                         ?: error("$context could not find attack target ${target.label}")
                 require(card.isPlaneswalker) { "$context attack target ${target.card} is not a planeswalker" }
@@ -368,19 +341,14 @@ class MatchdoorAcceptanceExecutor(
             }
         }
 
-    private fun turnFaceUp(
-        harness: MatchFlowHarness,
-        step: TurnFaceUpStep,
-        context: String,
-    ) {
+    private fun turnFaceUp(step: TurnFaceUpStep) {
         val card =
-            player(AcceptanceSide.Ours, harness)
+            player(AcceptanceSide.Ours)
                 .getZone(ZoneType.Battlefield)
                 .cards
                 .firstOrNull { it.name.equals(step.card, ignoreCase = true) || it.isFaceDown }
                 ?: error("$context could not find ${step.card} or a face-down card on battlefield")
         submitAction(
-            harness,
             Action
                 .newBuilder()
                 .setActionType(ActionType.SpecialTurnFaceUp_add3)
@@ -389,10 +357,7 @@ class MatchdoorAcceptanceExecutor(
         )
     }
 
-    private fun resolveStack(
-        harness: MatchFlowHarness,
-        context: String,
-    ) {
+    private fun resolveStack() {
         repeat(12) { index ->
             if (index > 0 && harness.game().stackZone.size() == 0) return
             if (harness.isGameOver()) return
@@ -405,153 +370,138 @@ class MatchdoorAcceptanceExecutor(
         )
     }
 
-    private fun passUntil(
-        harness: MatchFlowHarness,
-        step: PassUntilStep,
-        context: String,
-    ) {
-        harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(harness, step) }
-        val reached = runCatching { step.conditions.all { matchesCondition(harness, it) } }.getOrDefault(false)
+    private fun passUntil(step: PassUntilStep) {
+        harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(step) }
+        val reached = runCatching { step.conditions.all { matchesCondition(it) } }.getOrDefault(false)
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
-                "latest prompt=${latestPromptNameWithId(harness) ?: "none"}; " +
+                "latest prompt=${latestPromptNameWithId() ?: "none"}; " +
                 "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
-                "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(harness, it) }}"
+                "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}"
         }
     }
 
-    private fun respondToOptionalAction(
-        harness: MatchFlowHarness,
-        step: OptionalActionStep,
-        context: String,
-    ) {
-        val ready = harness.passUntil(maxPasses = 20) { bridge.humanController?.pendingOptionalAction != null }
+    private fun respondToOptionalAction(step: OptionalActionStep) {
+        val ready = harness.passUntil(maxPasses = 20) { harness.bridge.humanController?.pendingOptionalAction != null }
         require(ready) { "$context optional action did not become pending" }
         harness.respondToOptionalAction(step.accept)
     }
 
-    private fun passUntilConditionReached(
-        harness: MatchFlowHarness,
-        step: PassUntilStep,
-    ): Boolean =
+    private fun passUntilConditionReached(step: PassUntilStep): Boolean =
         try {
             GameLoopPoller.awaitCondition(timeoutMs = 200, pollIntervalMs = 20) {
                 harness.drainSink()
-                step.conditions.all { matchesCondition(harness, it) }
+                step.conditions.all { matchesCondition(it) }
             }
             true
         } catch (_: Throwable) {
             false
         }
 
-    private fun assertConditions(
-        harness: MatchFlowHarness,
-        conditions: List<AcceptanceCondition>,
-        context: String,
-    ) {
-        val missing = conditions.filterNot { matchesCondition(harness, it) }
-        require(missing.isEmpty()) {
-            "$context failed: ${missing.joinToString("; ") { explainConditionFailure(harness, it) }}"
+    private fun assertConditions(conditions: List<AcceptanceCondition>) {
+        val failures = conditions.map { it to evaluateCondition(it) }.filterNot { (_, result) -> result.matched }
+        require(failures.isEmpty()) {
+            "$context failed: ${failures.joinToString("; ") { (condition, result) -> "${condition.label}; actual ${result.actual}" }}"
         }
     }
 
-    private fun explainConditionFailure(
-        harness: MatchFlowHarness,
-        condition: AcceptanceCondition,
-    ): String =
+    private fun matchesCondition(condition: AcceptanceCondition): Boolean = evaluateCondition(condition).matched
+
+    @Suppress("CyclomaticComplexMethod")
+    private fun evaluateCondition(condition: AcceptanceCondition): ConditionResult =
         when (condition) {
             is ActionAvailableCondition ->
-                "${condition.label}; actual actions=${
-                    harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(harness, it) }
-                }"
+                ConditionResult(
+                    actionAvailable(condition),
+                    "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}",
+                )
 
-            is ZoneContainsCondition ->
-                "${condition.label}; actual ${condition.side.yamlName} ${condition.zone.yamlName}=${
-                    zoneCardNames(harness, condition.side, condition.zone)
-                }"
-
-            is ZoneNotContainsCondition ->
-                "${condition.label}; actual ${condition.side.yamlName} ${condition.zone.yamlName}=${
-                    zoneCardNames(harness, condition.side, condition.zone)
-                }"
-
-            is ZoneCountAtLeastCondition ->
-                "${condition.label}; actual count=${zoneCardNames(harness, condition.side, condition.zone).size} cards=${
-                    zoneCardNames(harness, condition.side, condition.zone)
-                }"
-
-            is LifeTotalCondition ->
-                "${condition.label}; actual ${condition.side.yamlName} life=${player(condition.side, harness).life}"
-
-            is WinnerCondition -> "${condition.label}; actual winner=${finalWinnerSeat(harness) ?: "none"}"
-            is LoserCondition -> "${condition.label}; actual loser=${finalLoserSeat(harness) ?: "none"}"
-
-            is BattlefieldStatsAtLeastCondition -> {
-                val card =
-                    player(condition.side, harness)
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
-                if (card == null) {
-                    "${condition.label}; actual battlefield=${
-                        zoneCardNames(harness, condition.side, AcceptanceZone.Battlefield)
-                    }"
-                } else {
-                    "${condition.label}; actual stats=${card.netPower}/${card.netToughness}"
-                }
+            is ZoneContainsCondition -> {
+                val names = zoneCardNames(condition.side, condition.zone)
+                ConditionResult(
+                    names.any { it.equals(condition.card, ignoreCase = true) },
+                    "${condition.side.yamlName} ${condition.zone.yamlName}=$names",
+                )
             }
 
-            is BattlefieldStatsCondition -> {
-                val card =
-                    player(condition.side, harness)
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
-                if (card == null) {
-                    "${condition.label}; actual battlefield=${
-                        zoneCardNames(harness, condition.side, AcceptanceZone.Battlefield)
-                    }"
-                } else {
-                    "${condition.label}; actual stats=${card.netPower}/${card.netToughness}"
-                }
+            is ZoneNotContainsCondition -> {
+                val names = zoneCardNames(condition.side, condition.zone)
+                ConditionResult(
+                    names.none { it.equals(condition.card, ignoreCase = true) },
+                    "${condition.side.yamlName} ${condition.zone.yamlName}=$names",
+                )
             }
 
-            is PhaseCondition -> "${condition.label}; actual phase=${runCatching { harness.phase() }.getOrNull() ?: "none"}"
+            is ZoneCountAtLeastCondition -> {
+                val names = zoneCardNames(condition.side, condition.zone)
+                ConditionResult(names.size >= condition.count, "count=${names.size} cards=$names")
+            }
+
+            is LifeTotalCondition -> {
+                val life = player(condition.side).life
+                ConditionResult(life == condition.value, "${condition.side.yamlName} life=$life")
+            }
+
+            is WinnerCondition -> {
+                val winner = finalWinnerSeat()
+                ConditionResult(winner == seat(condition.side).value, "winner=${winner ?: "none"}")
+            }
+
+            is LoserCondition -> {
+                val loser = finalLoserSeat()
+                ConditionResult(loser == seat(condition.side).value, "loser=${loser ?: "none"}")
+            }
+
+            is BattlefieldStatsAtLeastCondition ->
+                battlefieldStatsResult(condition.side, condition.card) { card ->
+                    card.netPower >= condition.power && card.netToughness >= condition.toughness
+                }
+
+            is BattlefieldStatsCondition ->
+                battlefieldStatsResult(condition.side, condition.card) { card ->
+                    card.netPower == condition.power && card.netToughness == condition.toughness
+                }
+
+            is PhaseCondition ->
+                ConditionResult(
+                    phaseMatches(harness.phase(), condition.phase),
+                    "phase=${runCatching { harness.phase() }.getOrNull() ?: "none"}",
+                )
+
             is PromptCondition ->
-                "${condition.label}; actual latest prompt=${latestPromptNameWithId(harness) ?: "none"}"
-            is AnnotationSeenCondition -> "${condition.label}; actual annotations=${annotationTypes(harness).distinct()}"
-            is AnnotationSeenInPhaseCondition -> "${condition.label}; actual annotations=${annotationTypesByPhase(harness)}"
+                ConditionResult(promptSeen(condition.prompt, condition.promptId), "latest prompt=${latestPromptNameWithId() ?: "none"}")
+
+            is AnnotationSeenCondition ->
+                ConditionResult(annotationSeen(condition.type), "annotations=${annotationTypes().distinct()}")
+
+            is AnnotationSeenInPhaseCondition ->
+                ConditionResult(annotationSeenInPhase(condition.type, condition.phase), "annotations=${annotationTypesByPhase()}")
+
             StackEmptyCondition ->
-                "${condition.label}; actual stack size=${
-                    runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"
-                }"
+                ConditionResult(
+                    harness.game().stackZone.size() == 0,
+                    "stack size=${runCatching { harness.game().stackZone.size() }.getOrNull() ?: "none"}",
+                )
         }
 
-    private fun matchesCondition(
-        harness: MatchFlowHarness,
-        condition: AcceptanceCondition,
-    ): Boolean =
-        when (condition) {
-            is ActionAvailableCondition -> actionAvailable(harness, condition)
-            is ZoneContainsCondition -> zoneContains(harness, condition)
-            is ZoneNotContainsCondition -> zoneNotContains(harness, condition)
-            is ZoneCountAtLeastCondition -> zoneCountAtLeast(harness, condition)
-            is LifeTotalCondition -> player(condition.side, harness).life == condition.value
-            is WinnerCondition -> finalWinnerSeat(harness) == seat(condition.side).value
-            is LoserCondition -> finalLoserSeat(harness) == seat(condition.side).value
-            is BattlefieldStatsCondition -> battlefieldStats(harness, condition)
-            is BattlefieldStatsAtLeastCondition -> battlefieldStatsAtLeast(harness, condition)
-            is PhaseCondition -> phaseMatches(harness.phase(), condition.phase)
-            is PromptCondition -> promptSeen(harness, condition.prompt, condition.promptId)
-            is AnnotationSeenCondition -> annotationSeen(harness, condition.type)
-            is AnnotationSeenInPhaseCondition -> annotationSeenInPhase(harness, condition.type, condition.phase)
-            StackEmptyCondition -> harness.game().stackZone.size() == 0
+    private fun battlefieldStatsResult(
+        side: AcceptanceSide,
+        cardName: String,
+        matches: (Card) -> Boolean,
+    ): ConditionResult {
+        val card =
+            player(side)
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .firstOrNull { it.name.equals(cardName, ignoreCase = true) }
+        return if (card == null) {
+            ConditionResult(false, "battlefield=${zoneCardNames(side, AcceptanceZone.Battlefield)}")
+        } else {
+            ConditionResult(matches(card), "stats=${card.netPower}/${card.netToughness}")
         }
+    }
 
-    private fun annotationSeen(
-        harness: MatchFlowHarness,
-        type: String,
-    ): Boolean {
+    private fun annotationSeen(type: String): Boolean {
         val expected = AnnotationType.valueOf(type)
         return harness.allMessages
             .filter { it.hasGameStateMessage() }
@@ -560,7 +510,6 @@ class MatchdoorAcceptanceExecutor(
     }
 
     private fun annotationSeenInPhase(
-        harness: MatchFlowHarness,
         type: String,
         phase: String,
     ): Boolean {
@@ -576,14 +525,14 @@ class MatchdoorAcceptanceExecutor(
             }
     }
 
-    private fun annotationTypes(harness: MatchFlowHarness): List<String> =
+    private fun annotationTypes(): List<String> =
         harness.allMessages
             .filter { it.hasGameStateMessage() }
             .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
             .flatMap { it.typeList }
             .map { it.name }
 
-    private fun annotationTypesByPhase(harness: MatchFlowHarness): List<String> =
+    private fun annotationTypesByPhase(): List<String> =
         harness.allMessages
             .filter { it.hasGameStateMessage() && it.gameStateMessage.hasTurnInfo() }
             .flatMap { message ->
@@ -593,10 +542,7 @@ class MatchdoorAcceptanceExecutor(
                     .map { "${it.name}@$phase" }
             }
 
-    private fun actionAvailable(
-        harness: MatchFlowHarness,
-        condition: ActionAvailableCondition,
-    ): Boolean {
+    private fun actionAvailable(condition: ActionAvailableCondition): Boolean {
         val expectedType =
             when (condition.type) {
                 AcceptanceActionType.PlayLand -> ActionType.Play_add3
@@ -613,8 +559,8 @@ class MatchdoorAcceptanceExecutor(
         val namedMatch =
             candidates.any { action ->
                 action.actionType == expectedType &&
-                    actionCardName(harness, action).equals(condition.card, ignoreCase = true) &&
-                    (condition.altCost == null || actionMatchesAltCost(harness, action, condition.altCost))
+                    actionCardName(action).equals(condition.card, ignoreCase = true) &&
+                    (condition.altCost == null || actionMatchesAltCost(action, condition.altCost))
             }
         if (namedMatch) return true
         return condition.type in listOf(AcceptanceActionType.PlayMdfc, AcceptanceActionType.CastMdfc) &&
@@ -622,10 +568,7 @@ class MatchdoorAcceptanceExecutor(
             candidates.size == 1
     }
 
-    private fun actionCardName(
-        harness: MatchFlowHarness,
-        action: Action,
-    ): String? {
+    private fun actionCardName(action: Action): String? {
         val grpName = harness.bridge.cardRepository.findNameByGrpId(action.grpId)
         if (grpName != null) return grpName
         val objectGrpName =
@@ -646,7 +589,6 @@ class MatchdoorAcceptanceExecutor(
     }
 
     private fun actionMatchesZone(
-        harness: MatchFlowHarness,
         action: Action,
         expectedZone: AcceptanceZone,
     ): Boolean {
@@ -656,7 +598,6 @@ class MatchdoorAcceptanceExecutor(
     }
 
     private fun actionMatchesAltCost(
-        harness: MatchFlowHarness,
         action: Action,
         altCost: AcceptanceAltCost?,
     ): Boolean {
@@ -675,79 +616,24 @@ class MatchdoorAcceptanceExecutor(
             (abilityGrpId != null && (action.alternativeGrpId == abilityGrpId || action.abilityGrpId == abilityGrpId))
     }
 
-    private fun keywordAbilityId(altCost: AcceptanceAltCost): Int = altCost.keywordAbilityId
-
-    private fun zoneContains(
-        harness: MatchFlowHarness,
-        condition: ZoneContainsCondition,
-    ): Boolean =
-        cardsInZone(harness, condition.side, condition.zone)
-            .any { it.name.equals(condition.card, ignoreCase = true) }
-
-    private fun zoneNotContains(
-        harness: MatchFlowHarness,
-        condition: ZoneNotContainsCondition,
-    ): Boolean =
-        cardsInZone(harness, condition.side, condition.zone)
-            .none { it.name.equals(condition.card, ignoreCase = true) }
-
-    private fun zoneCountAtLeast(
-        harness: MatchFlowHarness,
-        condition: ZoneCountAtLeastCondition,
-    ): Boolean = cardsInZone(harness, condition.side, condition.zone).size >= condition.count
-
-    private fun battlefieldStatsAtLeast(
-        harness: MatchFlowHarness,
-        condition: BattlefieldStatsAtLeastCondition,
-    ): Boolean {
-        val card =
-            player(condition.side, harness)
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
-                ?: return false
-        return card.netPower >= condition.power && card.netToughness >= condition.toughness
-    }
-
-    private fun battlefieldStats(
-        harness: MatchFlowHarness,
-        condition: BattlefieldStatsCondition,
-    ): Boolean {
-        val card =
-            player(condition.side, harness)
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .firstOrNull { it.name.equals(condition.card, ignoreCase = true) }
-                ?: return false
-        return card.netPower == condition.power && card.netToughness == condition.toughness
-    }
-
     private fun promptSeen(
-        harness: MatchFlowHarness,
         prompt: String,
         promptId: Int?,
     ): Boolean = harness.allMessages.any { it.matchesPrompt(prompt, promptId) }
 
     private fun latestPromptMatches(
-        harness: MatchFlowHarness,
         prompt: String,
         promptId: Int? = null,
-    ): Boolean = latestPromptMessage(harness)?.matchesPrompt(prompt, promptId) == true
+    ): Boolean = latestPromptMessage()?.matchesPrompt(prompt, promptId) == true
 
-    private fun latestPromptMessage(harness: MatchFlowHarness): GREToClientMessage? =
+    private fun latestPromptMessage(): GREToClientMessage? =
         harness.allMessages
             .asReversed()
             .firstOrNull { it.isPromptMessage() }
 
-    private fun latestPromptNameWithId(harness: MatchFlowHarness): String? =
-        latestPromptMessage(harness)?.let { msg -> "${msg.promptName()}#${msg.prompt.promptId}" }
+    private fun latestPromptNameWithId(): String? = latestPromptMessage()?.let { msg -> "${msg.promptName()}#${msg.prompt.promptId}" }
 
-    private fun phaseMatches(
-        actual: String?,
-        expected: String,
-    ): Boolean = actual == expected.toForgePhaseName()
-
-    private fun finalWinnerSeat(harness: MatchFlowHarness): Int? {
+    private fun finalWinnerSeat(): Int? {
         val resultRows =
             harness.allMessages
                 .asReversed()
@@ -760,33 +646,14 @@ class MatchdoorAcceptanceExecutor(
         return resultRows.firstOrNull { it.winningTeamId != 0 }?.winningTeamId
     }
 
-    private fun finalLoserSeat(harness: MatchFlowHarness): Int? = finalWinnerSeat(harness)?.let { 3 - it }
+    private fun finalLoserSeat(): Int? = finalWinnerSeat()?.let { 3 - it }
 
-    private fun player(
-        side: AcceptanceSide,
-        harness: MatchFlowHarness,
-    ): Player {
-        val bridgePlayer =
-            when (side) {
-                AcceptanceSide.Ours -> harness.bridge.getPlayer(OUR_SEAT)
-                AcceptanceSide.Opponent -> harness.bridge.getPlayer(OPPONENT_SEAT)
-            }
-        if (bridgePlayer != null) return bridgePlayer
-        return when (side) {
-            AcceptanceSide.Ours -> harness.bridge.getPlayer(OUR_SEAT)
-            AcceptanceSide.Opponent -> harness.bridge.getPlayer(OPPONENT_SEAT)
-        } ?: harness.game().registeredPlayers.getOrNull(seat(side).value - 1)
+    private fun player(side: AcceptanceSide): Player =
+        harness.bridge.getPlayer(seat(side))
+            ?: harness.game().registeredPlayers.getOrNull(seat(side).value - 1)
             ?: error("missing ${side.yamlName} player")
-    }
-
-    private fun seat(side: AcceptanceSide): SeatId =
-        when (side) {
-            AcceptanceSide.Ours -> OUR_SEAT
-            AcceptanceSide.Opponent -> OPPONENT_SEAT
-        }
 
     private fun cardsInZone(
-        harness: MatchFlowHarness,
         side: AcceptanceSide,
         zone: AcceptanceZone,
     ): List<Card> =
@@ -804,20 +671,14 @@ class MatchdoorAcceptanceExecutor(
             AcceptanceZone.Exile,
             AcceptanceZone.Library,
             AcceptanceZone.Sideboard,
-            -> player(side, harness).getZone(zone.toForgeZone()).cards.toList()
+            -> player(side).getZone(zone.toForgeZone()).cards.toList()
         }
 
-    private fun requireAction(
-        context: String,
-        action: () -> Boolean,
-    ) {
+    private fun requireAction(action: () -> Boolean) {
         require(action()) { "$context action failed" }
     }
 
-    private fun submitAction(
-        harness: MatchFlowHarness,
-        action: Action,
-    ) {
+    private fun submitAction(action: Action) {
         harness.session.onPerformAction(
             harness.submitWithGsId(
                 wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
@@ -830,101 +691,57 @@ class MatchdoorAcceptanceExecutor(
         harness.drainSink()
     }
 
-    private fun readPuzzleText(puzzle: String): String = Files.readString(resolvePuzzlePath(puzzle))
-
-    private fun resolvePuzzlePath(puzzle: String): Path {
-        val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
-        val candidates =
-            listOf(
-                Paths.get("puzzles/$fileName"),
-                Paths.get("../puzzles/$fileName"),
-                Paths.get("../../puzzles/$fileName"),
-            )
-        return candidates.firstOrNull { Files.exists(it) }
-            ?: error("puzzle not found: $fileName in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
-    }
-
-    private fun resolveTargetInstanceId(
-        harness: MatchFlowHarness,
-        target: AcceptanceTargetSpec,
-    ): Int =
+    private fun resolveTargetInstanceId(target: AcceptanceTargetSpec): Int =
         when (target) {
-            is PlayerTargetSpec ->
-                when (target.side) {
-                    AcceptanceSide.Ours -> OUR_SEAT.value
-                    AcceptanceSide.Opponent -> OPPONENT_SEAT.value
-                }
-
-            is CardTargetSpec -> resolveCardInZone(harness, target.side, target.zone, target.card)
+            is PlayerTargetSpec -> seat(target.side).value
+            is CardTargetSpec -> resolveCardInZone(target.side, target.zone, target.card)
         }
 
     private fun resolveBattlefieldCard(
-        harness: MatchFlowHarness,
         side: AcceptanceSide,
         card: String,
-    ): Int = resolveCardInZone(harness, side, AcceptanceZone.Battlefield, card)
+    ): Int = resolveCardInZone(side, AcceptanceZone.Battlefield, card)
 
     private fun resolvePromptCardOrder(
-        harness: MatchFlowHarness,
         candidateIds: List<Int>,
         cards: List<String>,
-        context: String,
     ): List<Int> {
         require(candidateIds.size == cards.size) {
-            "$context ordered ${cards.size} cards but OrderReq has ${candidateIds.size} candidates ${promptCardNames(
-                harness,
-                candidateIds,
-            )}"
+            "$context ordered ${cards.size} cards but OrderReq has ${candidateIds.size} candidates ${promptCardNames(candidateIds)}"
         }
         val remaining = candidateIds.toMutableList()
         return cards.map { card ->
             val id =
-                remaining.firstOrNull { iid -> cardNameByInstanceId(harness, iid).equals(card, ignoreCase = true) }
-                    ?: error("$context could not find $card in OrderReq candidates ${promptCardNames(harness, candidateIds)}")
+                remaining.firstOrNull { iid -> cardNameByInstanceId(iid).equals(card, ignoreCase = true) }
+                    ?: error("$context could not find $card in OrderReq candidates ${promptCardNames(candidateIds)}")
             remaining.remove(id)
             id
         }
     }
 
     private fun resolveCardInZone(
-        harness: MatchFlowHarness,
         side: AcceptanceSide,
         zone: AcceptanceZone,
         cardName: String,
     ): Int {
         val card =
-            cardsInZone(harness, side, zone)
+            cardsInZone(side, zone)
                 .firstOrNull { it.name.equals(cardName, ignoreCase = true) }
                 ?: error("could not find $cardName in ${side.yamlName} ${zone.yamlName}")
         return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
     }
 
-    private fun promptCardNames(
-        harness: MatchFlowHarness,
-        ids: List<Int>,
-    ): List<String> = ids.map { iid -> cardNameByInstanceId(harness, iid) ?: "iid=$iid" }
+    private fun promptCardNames(ids: List<Int>): List<String> = ids.map { iid -> cardNameByInstanceId(iid) ?: "iid=$iid" }
 
-    private fun cardNameByInstanceId(
-        harness: MatchFlowHarness,
-        iid: Int,
-    ): String? {
+    private fun cardNameByInstanceId(iid: Int): String? {
         val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: return null
         return harness.game().findById(cardId.value)?.name
     }
 
     private fun zoneCardNames(
-        harness: MatchFlowHarness,
         side: AcceptanceSide,
         zone: AcceptanceZone,
-    ): List<String> = cardsInZone(harness, side, zone).map { it.name }
+    ): List<String> = cardsInZone(side, zone).map { it.name }
 
-    private fun actionSummary(
-        harness: MatchFlowHarness,
-        action: Action,
-    ): String = "${action.actionType.name}:${actionCardName(harness, action) ?: "?"}"
-
-    private companion object {
-        val OUR_SEAT = SeatId(1)
-        val OPPONENT_SEAT = SeatId(2)
-    }
+    private fun actionSummary(action: Action): String = "${action.actionType.name}:${actionCardName(action) ?: "?"}"
 }

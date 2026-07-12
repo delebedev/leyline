@@ -25,51 +25,32 @@ internal fun AcceptanceCastingTimeOption.toProtoType(): CastingTimeOptionType =
         AcceptanceCastingTimeOption.Overload -> CastingTimeOptionType.CastThroughAbility
     }
 
-internal fun GREToClientMessage.isPromptMessage(): Boolean =
-    hasCastingTimeOptionsReq() ||
-        hasDeclareAttackersReq() ||
-        hasDeclareBlockersReq() ||
-        hasGroupReq() ||
-        hasOptionalActionMessage() ||
-        hasOrderReq() ||
-        hasPayCostsReq() ||
-        hasSearchReq() ||
-        hasSelectNReq() ||
-        hasSelectTargetsReq()
+/** Ordered by precedence: [promptName] reports the first type in this list that matches. */
+private val PROMPT_TYPES: List<Pair<String, GREToClientMessage.() -> Boolean>> =
+    listOf(
+        "CastingTimeOptionsReq" to GREToClientMessage::hasCastingTimeOptionsReq,
+        "DeclareAttackersReq" to GREToClientMessage::hasDeclareAttackersReq,
+        "DeclareBlockersReq" to GREToClientMessage::hasDeclareBlockersReq,
+        "GroupReq" to GREToClientMessage::hasGroupReq,
+        "OptionalActionMessage" to GREToClientMessage::hasOptionalActionMessage,
+        "OrderReq" to GREToClientMessage::hasOrderReq,
+        "PayCostsReq" to GREToClientMessage::hasPayCostsReq,
+        "SearchReq" to GREToClientMessage::hasSearchReq,
+        "SelectNReq" to GREToClientMessage::hasSelectNReq,
+        "SelectTargetsReq" to GREToClientMessage::hasSelectTargetsReq,
+    )
 
-internal fun GREToClientMessage.promptName(): String =
-    when {
-        hasCastingTimeOptionsReq() -> "CastingTimeOptionsReq"
-        hasDeclareAttackersReq() -> "DeclareAttackersReq"
-        hasDeclareBlockersReq() -> "DeclareBlockersReq"
-        hasGroupReq() -> "GroupReq"
-        hasOptionalActionMessage() -> "OptionalActionMessage"
-        hasOrderReq() -> "OrderReq"
-        hasPayCostsReq() -> "PayCostsReq"
-        hasSearchReq() -> "SearchReq"
-        hasSelectNReq() -> "SelectNReq"
-        hasSelectTargetsReq() -> "SelectTargetsReq"
-        else -> "UnknownPrompt"
-    }
+internal fun GREToClientMessage.isPromptMessage(): Boolean = PROMPT_TYPES.any { (_, matches) -> matches() }
+
+internal fun GREToClientMessage.promptName(): String = PROMPT_TYPES.firstOrNull { (_, matches) -> matches() }?.first ?: "UnknownPrompt"
 
 internal fun GREToClientMessage.matchesPrompt(
     prompt: String,
     promptId: Int? = null,
-): Boolean =
-    when (prompt) {
-        "CastingTimeOptionsReq" -> hasCastingTimeOptionsReq()
-        "DeclareAttackersReq" -> hasDeclareAttackersReq()
-        "DeclareBlockersReq" -> hasDeclareBlockersReq()
-        "GroupReq" -> hasGroupReq()
-        "OptionalActionMessage" -> hasOptionalActionMessage()
-        "OrderReq" -> hasOrderReq()
-        "PayCostsReq" -> hasPayCostsReq()
-        "SearchReq" -> hasSearchReq()
-        "SelectNReq" -> hasSelectNReq()
-        "SelectTargetsReq" -> hasSelectTargetsReq()
-        else -> error("unknown prompt condition: $prompt")
-    } &&
-        (promptId == null || this.prompt.promptId == promptId)
+): Boolean {
+    val matches = PROMPT_TYPES.firstOrNull { (name, _) -> name == prompt }?.second ?: error("unknown prompt condition: $prompt")
+    return matches() && (promptId == null || this.prompt.promptId == promptId)
+}
 
 internal fun String.toForgePhaseName(): String =
     when (substringBefore("_").replace("-", "").replace(" ", "").uppercase()) {
