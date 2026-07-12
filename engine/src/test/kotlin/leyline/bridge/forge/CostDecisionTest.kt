@@ -9,6 +9,8 @@ import forge.game.cost.CostPayLife
 import forge.game.cost.CostPutCardToLib
 import forge.game.cost.CostReveal
 import forge.game.cost.CostSacrifice
+import forge.game.cost.CostTapType
+import forge.game.cost.CostUnattach
 import forge.game.cost.PaymentDecision
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
@@ -135,6 +137,15 @@ class CostDecisionTest :
             ) as? CardCollection
         }
 
+        fun isOrdinaryExactTapCost(
+            decision: CostDecision,
+            cost: CostTapType,
+        ): Boolean {
+            val method = CostDecision::class.java.getDeclaredMethod("isOrdinaryExactTapCost", CostTapType::class.java)
+            method.isAccessible = true
+            return method.invoke(decision, cost) as Boolean
+        }
+
         test("selectCards returns null for empty cancelable choice") {
             val fx = fixture()
 
@@ -182,6 +193,29 @@ class CostDecisionTest :
             val result: PaymentDecision? = fx.decision.visit(CostSacrifice("0", "Land", null))
 
             result!!.c shouldBe 0
+        }
+
+        test("inherited unattach visitor refuses when nothing is attached") {
+            val fx = fixture()
+
+            fx.decision.visit(CostUnattach("OriginalHost", "equipment")).shouldBeNull()
+        }
+
+        test("tap cost delegates only the ordinary exact-count shape") {
+            val fx = fixture()
+
+            assertSoftly {
+                isOrdinaryExactTapCost(fx.decision, CostTapType("1", "Land", "land", false)) shouldBe true
+                isOrdinaryExactTapCost(fx.decision, CostTapType("Any", "Land", "land", false)) shouldBe false
+                isOrdinaryExactTapCost(
+                    fx.decision,
+                    CostTapType("2", "Creature.sharesCreatureTypeWith", "creatures", false),
+                ) shouldBe false
+                isOrdinaryExactTapCost(
+                    fx.decision,
+                    CostTapType("Any", "Creature+withTotalPowerGE4", "creatures", false),
+                ) shouldBe false
+            }
         }
 
         test("existing exile cost hook keeps exact-cardinality projection") {

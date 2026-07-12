@@ -53,20 +53,6 @@ data class TeamworkCostPlan(
         )
 }
 
-data class ReturnCostPlan(
-    val requiredCount: Int,
-    val type: String,
-    val descriptiveType: String,
-) {
-    val isUnblockedAttacker: Boolean =
-        type.contains("attacking+unblocked") || descriptiveType.contains("unblocked attacker", ignoreCase = true)
-
-    fun toCardSelectionPlan(): CostCardSelectionPlan =
-        CostCardSelectionPlan(
-            semantic = if (isUnblockedAttacker) PromptSemantic.ReturnUnblockedAttackerCost else PromptSemantic.Generic,
-        )
-}
-
 data class ForageGraveyardExilePlan(
     val requiredCount: Int,
 ) {
@@ -99,12 +85,6 @@ object CostDecisionPlanner {
         totalPower: Int,
         powers: List<Int>,
     ): TeamworkCostPlan = TeamworkCostPlan(totalPower, powers)
-
-    fun returnCostPlan(
-        requiredCount: Int,
-        type: String,
-        descriptiveType: String,
-    ): ReturnCostPlan = ReturnCostPlan(requiredCount, type, descriptiveType)
 
     fun foragePlan(
         foodCount: Int,

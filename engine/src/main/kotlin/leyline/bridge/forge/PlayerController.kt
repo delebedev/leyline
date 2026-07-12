@@ -23,6 +23,7 @@ import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
 import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
@@ -993,6 +994,14 @@ class PlayerController(
         val semantic =
             when (cpl) {
                 is CostDiscard -> PromptSemantic.SelectNDiscard
+                is CostReturn ->
+                    if (cpl.type.contains("attacking+unblocked") ||
+                        cpl.descriptiveType.contains("unblocked attacker", ignoreCase = true)
+                    ) {
+                        PromptSemantic.ReturnUnblockedAttackerCost
+                    } else {
+                        PromptSemantic.Generic
+                    }
                 is CostSacrifice -> PromptSemantic.SelectNCostSacrifice
                 else -> PromptSemantic.Generic
             }

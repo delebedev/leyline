@@ -48,42 +48,6 @@ class CostDecisionPlannerTest :
             }
         }
 
-        test("return cost plans unblocked attacker semantic from cost type") {
-            val intent =
-                CostDecisionPlanner.returnCostPlan(
-                    requiredCount = 1,
-                    type = "Creature.attacking+unblocked",
-                    descriptiveType = "creature",
-                )
-
-            intent.isUnblockedAttacker shouldBe true
-            intent.toCardSelectionPlan().semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
-        }
-
-        test("return cost plans unblocked attacker semantic from descriptive type") {
-            val intent =
-                CostDecisionPlanner.returnCostPlan(
-                    requiredCount = 1,
-                    type = "Creature",
-                    descriptiveType = "Unblocked Attacker you control",
-                )
-
-            intent.isUnblockedAttacker shouldBe true
-            intent.toCardSelectionPlan().semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
-        }
-
-        test("return cost stays generic for adjacent attacker cost") {
-            val intent =
-                CostDecisionPlanner.returnCostPlan(
-                    requiredCount = 1,
-                    type = "Creature.attacking",
-                    descriptiveType = "attacking creature",
-                )
-
-            intent.isUnblockedAttacker shouldBe false
-            intent.toCardSelectionPlan().semantic shouldBe PromptSemantic.Generic
-        }
-
         test("forage plans both payment modes when both are available") {
             val intent = CostDecisionPlanner.foragePlan(foodCount = 2, graveyardExileCount = 5)
 

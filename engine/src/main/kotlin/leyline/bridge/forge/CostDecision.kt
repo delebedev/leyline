@@ -159,6 +159,14 @@ class CostDecision(
         return PaymentDecision.card(selected)
     }
 
+    private fun isOrdinaryExactTapCost(cost: CostTapType): Boolean =
+        cost.amount != "Any" &&
+            !cost.type.contains(".sharesCreatureTypeWith") &&
+            !cost.type.contains("+withTotalPowerGE") &&
+            cost !is CostTeamwork &&
+            !ability.isCrew &&
+            !ability.isKeyword(Keyword.STATION)
+
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
@@ -842,51 +850,6 @@ class CostDecision(
         }
     }
 
-    override fun visit(cost: CostReturn): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (cost.payCostFromSource()) {
-            val card = ability.hostCard
-            return if (card.controller == player &&
-                card.isInPlay &&
-                confirmAction(
-                    Localizer.getInstance().getMessage(
-                        "lblReturnCardToHandConfirm",
-                        CardTranslation.getTranslatedName(CardView.get(card).name),
-                    ),
-                )
-            ) {
-                PaymentDecision.card(card)
-            } else {
-                null
-            }
-        }
-        val validCards =
-            CardLists.getValidCards(
-                ability.activatingPlayer.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        if (validCards.size < c) return null
-        val plan =
-            CostDecisionPlanner.returnCostPlan(
-                requiredCount = c,
-                type = cost.type,
-                descriptiveType = cost.descriptiveType,
-            )
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblNTypeCardsToHand", "%d", cost.descriptiveType),
-                validCards,
-                plan.requiredCount,
-                plan.requiredCount,
-                cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
     override fun visit(cost: CostReveal): PaymentDecision? {
         if (cost.payCostFromSource()) return PaymentDecision.card(source)
         if (cost.type == "Hand") return PaymentDecision.card(player.getCardsIn(ZoneType.Hand))
@@ -1155,6 +1118,8 @@ class CostDecision(
     }
 
     override fun visit(cost: CostTapType): PaymentDecision? {
+        if (isOrdinaryExactTapCost(cost)) return super.visit(cost)
+
         var type = cost.type
         val amount = cost.amount
 
@@ -1276,29 +1241,6 @@ class CostDecision(
             ) ?: return null
         if (selected.size != c) return null
         return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostUnattach): PaymentDecision? {
-        val cardToUnattach = cost.findCardToUnattach(source, player, ability)
-        if (cardToUnattach.size == 1 &&
-            confirmAction(Localizer.getInstance().getMessage("lblUnattachCardConfirm", cardToUnattach.first().translatedName))
-        ) {
-            return PaymentDecision.card(cardToUnattach.first())
-        }
-        if (cardToUnattach.size > 1) {
-            val c = cost.getAbilityAmount(ability)
-            val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblUnattachCardConfirm", cost.descriptiveType),
-                    cardToUnattach,
-                    c,
-                    c,
-                    cancelAllowed = true,
-                ) ?: return null
-            if (selected.size != c) return null
-            return PaymentDecision.card(selected)
-        }
-        return null
     }
 
     override fun visit(cost: CostPutCardToLib): PaymentDecision? {
