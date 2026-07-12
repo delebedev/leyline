@@ -4,11 +4,22 @@ import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.cost.CostDiscard
+import forge.game.cost.CostExert
+import forge.game.cost.CostExile
+import forge.game.cost.CostExiledMoveToGrave
+import forge.game.cost.CostMill
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostPutCardToLib
 import forge.game.cost.CostReveal
+import forge.game.cost.CostSacrifice
+import forge.game.cost.CostTapType
+import forge.game.cost.CostUnattach
 import forge.game.cost.PaymentDecision
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import forge.game.zone.ZoneType
+import forge.player.HumanCostDecision
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
@@ -44,6 +55,7 @@ class CostDecisionTest :
             val player: Player,
             val source: Card,
             val ability: SpellAbility,
+            val controller: PlayerController,
             val decision: CostDecision,
         )
 
@@ -77,12 +89,14 @@ class CostDecisionTest :
             val player = localBridge.getPlayer(SeatId(1))!!
             val source = player.getCardsIn(forge.game.zone.ZoneType.Hand).first { it.name == "Lightning Bolt" }
             val ability = source.spellAbilities.first()
+            ability.activatingPlayer = player
             val controller = localBridge.humanController ?: error("No human controller")
             return Fixture(
                 bridge = localBridge,
                 player = player,
                 source = source,
                 ability = ability,
+                controller = controller,
                 decision =
                     CostDecision(
                         controller,
@@ -90,7 +104,6 @@ class CostDecisionTest :
                         ability,
                         false,
                         localBridge.promptBridge(SeatId(1)),
-                        source,
                     ),
             )
         }
@@ -129,6 +142,41 @@ class CostDecisionTest :
             ) as? CardCollection
         }
 
+        fun isOrdinaryExactTapCost(
+            decision: CostDecision,
+            cost: CostTapType,
+        ): Boolean {
+            val method = CostDecision::class.java.getDeclaredMethod("isOrdinaryExactTapCost", CostTapType::class.java)
+            method.isAccessible = true
+            return method.invoke(decision, cost) as Boolean
+        }
+
+        fun isOrdinaryExileCost(
+            decision: CostDecision,
+            cost: CostExile,
+        ): Boolean {
+            val method = CostDecision::class.java.getDeclaredMethod("isOrdinaryExileCost", CostExile::class.java)
+            method.isAccessible = true
+            return method.invoke(decision, cost) as Boolean
+        }
+
+        fun isLegalCardSelection(
+            decision: CostDecision,
+            options: CardCollectionView,
+            selected: CardCollectionView,
+            amount: Int,
+        ): Boolean {
+            val method =
+                HumanCostDecision::class.java.getDeclaredMethod(
+                    "isLegalCardSelection",
+                    CardCollectionView::class.java,
+                    CardCollectionView::class.java,
+                    Int::class.javaPrimitiveType,
+                )
+            method.isAccessible = true
+            return method.invoke(decision, options, selected, amount) as Boolean
+        }
+
         test("selectCards returns null for empty cancelable choice") {
             val fx = fixture()
 
@@ -151,6 +199,24 @@ class CostDecisionTest :
             result!!.c shouldBe 3
         }
 
+        test("inherited mill visitor returns numeric payment when confirm defaults yes") {
+            val fx = fixture()
+
+            fx.decision.visit(CostMill("2"))!!.c shouldBe 2
+        }
+
+        test("inherited exert visitor refuses impossible payment") {
+            val fx = fixture()
+
+            fx.decision.visit(CostExert("1", "Creature", null)).shouldBeNull()
+        }
+
+        test("inherited exiled-to-grave visitor refuses impossible payment") {
+            val fx = fixture()
+
+            fx.decision.visit(CostExiledMoveToGrave("1", "Card", null)).shouldBeNull()
+        }
+
         test("visit discard from source returns source card") {
             val fx = fixture()
             val result: PaymentDecision? = fx.decision.visit(CostDiscard("1", "CARDNAME", null))
@@ -163,5 +229,168 @@ class CostDecisionTest :
             val result: PaymentDecision? = fx.decision.visit(CostReveal("1", "CARDNAME", null))
 
             result!!.cards.map { it.name } shouldContainExactly listOf("Lightning Bolt")
+        }
+
+        test("inherited sacrifice visitor refuses impossible payment") {
+            val fx = fixture()
+
+            fx.decision.visit(CostSacrifice("1", "Creature", null)).shouldBeNull()
+        }
+
+        test("inherited sacrifice visitor handles zero without a choice") {
+            val fx = fixture()
+            val result: PaymentDecision? = fx.decision.visit(CostSacrifice("0", "Land", null))
+
+            result!!.c shouldBe 0
+        }
+
+        test("inherited unattach visitor refuses when nothing is attached") {
+            val fx = fixture()
+
+            fx.decision.visit(CostUnattach("OriginalHost", "equipment")).shouldBeNull()
+        }
+
+        test("tap cost delegates only the ordinary exact-count shape") {
+            val fx = fixture()
+
+            assertSoftly {
+                isOrdinaryExactTapCost(fx.decision, CostTapType("1", "Land", "land", false)) shouldBe true
+                isOrdinaryExactTapCost(fx.decision, CostTapType("Any", "Land", "land", false)) shouldBe false
+                isOrdinaryExactTapCost(
+                    fx.decision,
+                    CostTapType("2", "Creature.sharesCreatureTypeWith", "creatures", false),
+                ) shouldBe false
+                isOrdinaryExactTapCost(
+                    fx.decision,
+                    CostTapType("Any", "Creature+withTotalPowerGE4", "creatures", false),
+                ) shouldBe false
+            }
+        }
+
+        test("existing exile cost hook keeps exact-cardinality projection") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForCost(
+                    cards,
+                    fx.ability,
+                    CostExile("1", "Card", null, forge.game.zone.ZoneType.Hand),
+                    1,
+                    true,
+                    "exile one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 0
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
+            }
+        }
+
+        test("reveal cost hook keeps exact-cardinality projection") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForRevealCost(
+                    cards,
+                    fx.ability,
+                    CostReveal("1", "Card", null),
+                    1,
+                    true,
+                    false,
+                    "reveal one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 0
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
+            }
+        }
+
+        test("exile delegates only ordinary and automatic shapes") {
+            val fx = fixture()
+
+            assertSoftly {
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Hand)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Battlefield)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Library)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "CardFromTopGrave", null, ZoneType.Graveyard)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Graveyard)) shouldBe false
+                isOrdinaryExileCost(
+                    fx.decision,
+                    CostExile("2", "Card+withTotalCMCGE4", null, ZoneType.Hand),
+                ) shouldBe false
+                isOrdinaryExileCost(
+                    fx.decision,
+                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand),
+                ) shouldBe false
+                isOrdinaryExileCost(
+                    fx.decision,
+                    CostExile("1", "Card", null, listOf(ZoneType.Hand, ZoneType.Graveyard)),
+                ) shouldBe false
+            }
+        }
+
+        test("existing put-to-library cost hook keeps exact-cardinality projection") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForCost(
+                    cards,
+                    fx.ability,
+                    CostPutCardToLib("1", "0", "Card", null, forge.game.zone.ZoneType.Hand),
+                    1,
+                    true,
+                    "put one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 0
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
+            }
+        }
+
+        test("Forge rejects duplicate and out-of-candidate controller selections") {
+            val fx = fixture()
+            val options = CardCollection(fx.source)
+            val duplicate =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(fx.source)
+                }
+            val outsider = fx.player.getCardsIn(ZoneType.Battlefield).first()
+
+            assertSoftly {
+                isLegalCardSelection(fx.decision, options, CardCollection(fx.source), 1) shouldBe true
+                isLegalCardSelection(fx.decision, options, CardCollection(), 1) shouldBe false
+                isLegalCardSelection(fx.decision, options, duplicate, 2) shouldBe false
+                isLegalCardSelection(fx.decision, options, CardCollection(outsider), 1) shouldBe false
+            }
         }
     })

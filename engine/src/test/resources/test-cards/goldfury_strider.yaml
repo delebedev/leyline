@@ -1,0 +1,11 @@
+name: "Goldfury Strider"
+grpId: 87303
+titleId: 737622
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 169623
+    textId: 737624
+    category: 1
+expansionCode: "LCI"

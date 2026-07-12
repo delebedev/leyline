@@ -13,7 +13,7 @@ import java.io.File
  * Standalone entry point for the local Leyline server.
  *
  * Run via justfile target: `just serve`.
- * See CLAUDE.md for mode descriptions.
+ * See AGENTS.md for mode descriptions.
  *
  * TLS: self-signed certs by default. Pass --cert/--key for explicit certs.
  *

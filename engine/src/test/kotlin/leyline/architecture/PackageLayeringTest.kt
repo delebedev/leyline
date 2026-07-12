@@ -16,7 +16,7 @@ import java.nio.file.Path
  * internal tier structure that Gradle can't see.
  *
  * Rules match on prefix (`leyline.bridge..`) and apply to every sub-package
- * beneath. See `engine/CLAUDE.md` for the full sub-package tree.
+ * beneath. See `engine/AGENTS.md` for the full sub-package tree.
  *
  * ```
  * Tier 0 — foundation (leaves, import nothing from engine):

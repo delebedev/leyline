@@ -1,11 +1,12 @@
 package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
@@ -62,8 +63,13 @@ class ImmersturmPredatorTest :
                     .seat(SeatId(1))
                     .prompt
                     .getPendingPrompt()
-            sacPrompt shouldNotBe null
-            sacPrompt!!.request.candidateRefs.size shouldBeGreaterThan 0
+                    .shouldNotBeNull()
+            assertSoftly {
+                sacPrompt.request.candidateRefs.size shouldBeGreaterThan 0
+                sacPrompt.request.semantic shouldBe leyline.bridge.handoff.PromptSemantic.SelectNCostSacrifice
+                sacPrompt.request.min shouldBe 0
+                sacPrompt.request.max shouldBe 1
+            }
 
             // --- Step 2: Respond to sacrifice cost by submitting directly to prompt bridge ---
             // The prompt has candidateRefs with forge card IDs. Index 0 = Grizzly Bears.

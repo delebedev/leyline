@@ -61,7 +61,7 @@ Investigation journals (deep-dive notes from tracing one behaviour) are valuable
 
 ## 6. Agent-first, human-readable
 
-`CLAUDE.md` is the primary entry point for contributors — agent and human alike. Standalone docs serve agents first; humans benefit from the same clarity. Write for a reader who has 200K tokens of context and needs to decide in one line whether a doc is relevant right now.
+`AGENTS.md` is the primary entry point for contributors — agent and human alike. `CLAUDE.md` is a compatibility link. Standalone docs serve agents first; humans benefit from the same clarity. Write for a reader who needs to decide in one line whether a doc is relevant right now.
 
 ## 7. `read_when` frontmatter on every standalone doc
 
@@ -80,4 +80,4 @@ read_when:
 
 ## 8. One canonical location per fact
 
-Build instructions live in `CLAUDE.md`. Module boundaries live in the module's own `CLAUDE.md`. Architectural shape lives in `architecture.md`. Everything else links — never restates. Redundancy is staleness waiting to happen.
+Build instructions live in root `AGENTS.md`. Module boundaries live in the module's own `AGENTS.md`. Architectural shape lives in `architecture.md`. Everything else links — never restates. Redundancy is staleness waiting to happen.

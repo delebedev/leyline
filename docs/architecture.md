@@ -49,19 +49,19 @@ graph LR
 
 ## 2. Runtime Services
 
-`LeylineMain` is the composition root: it constructs each service, wires the shared state they need (card repository, match coordinator, debug collector), and starts them together. `LeylineServer` owns the two client-facing Netty TCP doors; the debug, account, and management servers are each their own object started alongside.
+`LeylineMain` is the composition root: it constructs each service, wires shared state (card repository, match coordinator, runtime puzzle holder), and starts them together. `LeylineServer` owns the two client-facing Netty TCP doors; the local-control, account, and management servers are separate objects started alongside.
 
 | Service | Default port | Protocol | Implementation |
 |---|---|---|---|
 | Native lobby | 30010 | TLS + 6-byte-framed JSON | `native/frontdoor/FrontDoorHandler` |
 | Native match | 30003 | TLS + 6-byte-framed protobuf | `native/matchdoor/NativeMatchDoorBootstrap` -> `engine/match/MatchConnection` |
-| Debug | 8090 | HTTP + SSE (JDK `HttpServer`) | `app/.../debug/DebugServer` |
+| Local control | 8090 | HTTP (JDK `HttpServer`) | `app/.../debug/DebugServer` |
 | Account | 9443 | HTTPS (Ktor) | `native/account/AccountServer` |
 | Management | 8091 | HTTP | `app/.../infra/ManagementServer` |
 
 Ports are configured via `leyline.toml` or CLI flags (`--fd-port`, `--md-port`, `--debug-port`, …); the values above are defaults.
 
-The debug server binds loopback-only by default; set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose it on all interfaces.
+The local-control server exposes puzzle control, best-play, and full-state injection endpoints. It binds loopback-only by default; set `LEYLINE_DEBUG_BIND=0.0.0.0` only when another local device must reach it.
 
 ---
 

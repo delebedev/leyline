@@ -343,78 +343,78 @@ private class TappingPlayerControllerAi(
     override fun playChosenSpellAbility(sa: SpellAbility): Boolean = tap("playChosenSpellAbility") { super.playChosenSpellAbility(sa) }
 
     override fun assignCombatDamage(
-        attacker: Card,
-        blockers: CardCollectionView,
-        remaining: CardCollectionView,
+        attacker: Card?,
+        blockers: CardCollectionView?,
+        remaining: CardCollectionView?,
         damageDealt: Int,
-        defender: GameEntity,
+        defender: GameEntity?,
         overrideOrder: Boolean,
-    ): MutableMap<Card, Int> =
+    ): MutableMap<Card, Int>? =
         tap("assignCombatDamage", context(source = attacker, prompt = defender.toString())) {
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         }
 
     override fun declareAttackers(
-        attacker: Player,
-        combat: Combat,
+        attacker: Player?,
+        combat: Combat?,
     ) = tap("declareAttackers") { super.declareAttackers(attacker, combat) }
 
     override fun declareBlockers(
-        defender: Player,
-        combat: Combat,
+        defender: Player?,
+        combat: Combat?,
     ) = tap("declareBlockers") { super.declareBlockers(defender, combat) }
 
     override fun chooseModeForAbility(
-        sa: SpellAbility,
-        possible: MutableList<AbilitySub>,
+        sa: SpellAbility?,
+        possible: MutableList<AbilitySub>?,
         min: Int,
         num: Int,
         allowRepeat: Boolean,
-    ): MutableList<AbilitySub> =
+    ): MutableList<AbilitySub>? =
         tap("chooseModeForAbility", context(sa)) { super.chooseModeForAbility(sa, possible, min, num, allowRepeat) }
 
     override fun chooseCardsForEffect(
-        sourceList: CardCollectionView,
-        sa: SpellAbility,
-        title: String,
+        sourceList: CardCollectionView?,
+        sa: SpellAbility?,
+        title: String?,
         min: Int,
         max: Int,
         isOptional: Boolean,
         params: MutableMap<String, Any>?,
-    ): CardCollectionView =
+    ): CardCollectionView? =
         tap("chooseCardsForEffect", context(sa, title)) {
             super.chooseCardsForEffect(sourceList, sa, title, min, max, isOptional, params)
         }
 
     override fun <T : GameEntity> chooseEntitiesForEffect(
-        optionList: FCollectionView<T>,
+        optionList: FCollectionView<T>?,
         min: Int,
         max: Int,
-        delayedReveal: DelayedReveal,
-        sa: SpellAbility,
-        title: String,
+        delayedReveal: DelayedReveal?,
+        sa: SpellAbility?,
+        title: String?,
         targetedPlayer: Player?,
         params: MutableMap<String, Any>?,
-    ): MutableList<T> =
+    ): MutableList<T>? =
         tap("chooseEntitiesForEffect", context(sa, title)) {
             super.chooseEntitiesForEffect(optionList, min, max, delayedReveal, sa, title, targetedPlayer, params)
         }
 
     override fun chooseSpellAbilitiesForEffect(
-        spells: MutableList<SpellAbility>,
-        sa: SpellAbility,
-        title: String,
+        spells: MutableList<SpellAbility>?,
+        sa: SpellAbility?,
+        title: String?,
         num: Int,
         params: MutableMap<String, Any>?,
-    ): MutableList<SpellAbility> =
+    ): MutableList<SpellAbility>? =
         tap("chooseSpellAbilitiesForEffect", context(sa, title)) {
             super.chooseSpellAbilitiesForEffect(spells, sa, title, num, params)
         }
 
     override fun chooseSingleSpellForEffect(
-        spells: MutableList<SpellAbility>,
-        sa: SpellAbility,
-        title: String,
+        spells: MutableList<SpellAbility>?,
+        sa: SpellAbility?,
+        title: String?,
         params: MutableMap<String, Any>?,
     ): SpellAbility? =
         tap("chooseSingleSpellForEffect", context(sa, title)) {
@@ -422,14 +422,14 @@ private class TappingPlayerControllerAi(
         }
 
     override fun <T : GameEntity> chooseSingleEntityForEffect(
-        optionList: FCollectionView<T>,
-        delayedReveal: DelayedReveal,
-        sa: SpellAbility,
-        title: String,
+        optionList: FCollectionView<T>?,
+        delayedReveal: DelayedReveal?,
+        sa: SpellAbility?,
+        title: String?,
         isOptional: Boolean,
         relatedPlayer: Player?,
         params: MutableMap<String, Any>?,
-    ): T =
+    ): T? =
         tap("chooseSingleEntityForEffect", context(sa, title)) {
             super.chooseSingleEntityForEffect(optionList, delayedReveal, sa, title, isOptional, relatedPlayer, params)
         }
@@ -445,18 +445,18 @@ private class TappingPlayerControllerAi(
         tap("confirmAction", context(sa, message, cardToShow)) { super.confirmAction(sa, mode, message, options, cardToShow, params) }
 
     override fun confirmBidAction(
-        sa: SpellAbility,
-        mode: PlayerActionConfirmMode,
-        string: String,
+        sa: SpellAbility?,
+        mode: PlayerActionConfirmMode?,
+        string: String?,
         bid: Int,
-        winner: Player,
+        winner: Player?,
     ): Boolean = tap("confirmBidAction", context(sa, string)) { super.confirmBidAction(sa, mode, string, bid, winner) }
 
     override fun confirmStaticApplication(
-        hostCard: Card,
-        mode: PlayerActionConfirmMode,
-        message: String,
-        logic: String,
+        hostCard: Card?,
+        mode: PlayerActionConfirmMode?,
+        message: String?,
+        logic: String?,
     ): Boolean =
         tap("confirmStaticApplication", context(source = hostCard, prompt = message)) {
             super.confirmStaticApplication(hostCard, mode, message, logic)
@@ -465,62 +465,62 @@ private class TappingPlayerControllerAi(
     override fun confirmTrigger(sa: WrappedAbility): Boolean = tap("confirmTrigger", context(sa)) { super.confirmTrigger(sa) }
 
     override fun confirmPayment(
-        costPart: CostPart,
-        prompt: String,
-        sa: SpellAbility,
+        costPart: CostPart?,
+        prompt: String?,
+        sa: SpellAbility?,
     ): Boolean = tap("confirmPayment", context(sa, prompt)) { super.confirmPayment(costPart, prompt, sa) }
 
     override fun confirmReplacementEffect(
-        replacementEffect: ReplacementEffect,
-        effectSA: SpellAbility,
-        affected: GameEntity,
-        question: String,
+        replacementEffect: ReplacementEffect?,
+        effectSA: SpellAbility?,
+        affected: GameEntity?,
+        question: String?,
     ): Boolean =
         tap("confirmReplacementEffect", context(effectSA, question)) {
             super.confirmReplacementEffect(replacementEffect, effectSA, affected, question)
         }
 
     override fun chooseCardsToDiscardFrom(
-        playerDiscard: Player,
-        sa: SpellAbility,
-        validCards: CardCollection,
+        playerDiscard: Player?,
+        sa: SpellAbility?,
+        validCards: CardCollection?,
         min: Int,
         max: Int,
-        visibleToChooser: CardCollectionView,
-    ): CardCollection =
+        visibleToChooser: CardCollectionView?,
+    ): CardCollection? =
         tap("chooseCardsToDiscardFrom", context(sa, "discard")) {
             super.chooseCardsToDiscardFrom(playerDiscard, sa, validCards, min, max, visibleToChooser)
         }
 
     override fun choosePermanentsToSacrifice(
-        sa: SpellAbility,
+        sa: SpellAbility?,
         min: Int,
         max: Int,
-        validTargets: CardCollectionView,
-        message: String,
-    ): CardCollectionView =
+        validTargets: CardCollectionView?,
+        message: String?,
+    ): CardCollectionView? =
         tap("choosePermanentsToSacrifice", context(sa, message)) {
             super.choosePermanentsToSacrifice(sa, min, max, validTargets, message)
         }
 
     override fun choosePermanentsToDestroy(
-        sa: SpellAbility,
+        sa: SpellAbility?,
         min: Int,
         max: Int,
-        validTargets: CardCollectionView,
-        message: String,
-    ): CardCollectionView =
+        validTargets: CardCollectionView?,
+        message: String?,
+    ): CardCollectionView? =
         tap("choosePermanentsToDestroy", context(sa, message)) {
             super.choosePermanentsToDestroy(sa, min, max, validTargets, message)
         }
 
     override fun chooseOptionalCosts(
-        choosen: SpellAbility,
-        optionalCostValues: MutableList<OptionalCostValue>,
-    ): MutableList<OptionalCostValue> =
+        choosen: SpellAbility?,
+        optionalCostValues: MutableList<OptionalCostValue>?,
+    ): MutableList<OptionalCostValue>? =
         tap("chooseOptionalCosts", context(choosen)) { super.chooseOptionalCosts(choosen, optionalCostValues) }
 
-    override fun chooseCardsToDiscardToMaximumHandSize(numDiscard: Int): CardCollectionView =
+    override fun chooseCardsToDiscardToMaximumHandSize(numDiscard: Int): CardCollectionView? =
         tap("chooseCardsToDiscardToMaximumHandSize", SimRefDecisionContext(prompt = numDiscard.toString())) {
             super.chooseCardsToDiscardToMaximumHandSize(numDiscard)
         }
@@ -528,137 +528,137 @@ private class TappingPlayerControllerAi(
     override fun chooseCardsToRevealFromHand(
         min: Int,
         max: Int,
-        valid: CardCollectionView,
-    ): CardCollectionView =
+        valid: CardCollectionView?,
+    ): CardCollectionView? =
         tap("chooseCardsToRevealFromHand", SimRefDecisionContext(prompt = "$min..$max")) {
             super.chooseCardsToRevealFromHand(min, max, valid)
         }
 
     override fun chooseNumber(
-        sa: SpellAbility,
-        title: String,
+        sa: SpellAbility?,
+        title: String?,
         min: Int,
         max: Int,
     ): Int = tap("chooseNumber", context(sa, title)) { super.chooseNumber(sa, title, min, max) }
 
     override fun chooseNumber(
-        sa: SpellAbility,
-        string: String,
+        sa: SpellAbility?,
+        string: String?,
         min: Int,
         max: Int,
         params: MutableMap<String, Any>?,
     ): Int = tap("chooseNumberWithParams", context(sa, string)) { super.chooseNumber(sa, string, min, max, params) }
 
     override fun chooseNumber(
-        sa: SpellAbility,
-        title: String,
-        options: MutableList<Int>,
+        sa: SpellAbility?,
+        title: String?,
+        options: MutableList<Int>?,
         relatedPlayer: Player?,
     ): Int = tap("chooseNumberFromOptions", context(sa, title)) { super.chooseNumber(sa, title, options, relatedPlayer) }
 
     override fun chooseFlipResult(
-        sa: SpellAbility,
-        flipper: Player,
+        sa: SpellAbility?,
+        flipper: Player?,
         call: Boolean,
     ): Boolean = tap("chooseFlipResult", context(sa)) { super.chooseFlipResult(sa, flipper, call) }
 
     override fun chooseTarget(
-        saSrc: SpellAbility,
-        allTargets: MutableList<Pair<SpellAbilityStackInstance, GameObject>>,
-    ): Pair<SpellAbilityStackInstance, GameObject> = tap("chooseTarget", context(saSrc)) { super.chooseTarget(saSrc, allTargets) }
+        saSrc: SpellAbility?,
+        allTargets: MutableList<Pair<SpellAbilityStackInstance, GameObject>>?,
+    ): Pair<SpellAbilityStackInstance, GameObject>? = tap("chooseTarget", context(saSrc)) { super.chooseTarget(saSrc, allTargets) }
 
     override fun chooseBinary(
-        sa: SpellAbility,
-        question: String,
-        kindOfChoice: BinaryChoiceType,
+        sa: SpellAbility?,
+        question: String?,
+        kindOfChoice: BinaryChoiceType?,
         defaultVal: Boolean?,
     ): Boolean = tap("chooseBinary", context(sa, question)) { super.chooseBinary(sa, question, kindOfChoice, defaultVal) }
 
     override fun chooseBinary(
-        sa: SpellAbility,
-        question: String,
-        kindOfChoice: BinaryChoiceType,
+        sa: SpellAbility?,
+        question: String?,
+        kindOfChoice: BinaryChoiceType?,
         params: MutableMap<String, Any>?,
     ): Boolean = tap("chooseBinaryWithParams", context(sa, question)) { super.chooseBinary(sa, question, kindOfChoice, params) }
 
     override fun chooseColorAllowColorless(
-        message: String,
-        card: Card,
-        colors: ColorSet,
+        message: String?,
+        card: Card?,
+        colors: ColorSet?,
     ): Byte =
         tap("chooseColorAllowColorless", context(source = card, prompt = message)) {
             super.chooseColorAllowColorless(message, card, colors)
         }
 
     override fun chooseColor(
-        message: String,
-        sa: SpellAbility,
-        colors: ColorSet,
+        message: String?,
+        sa: SpellAbility?,
+        colors: ColorSet?,
     ): Byte = tap("chooseColor", context(sa, message)) { super.chooseColor(message, sa, colors) }
 
     override fun chooseColors(
-        message: String,
-        sa: SpellAbility,
+        message: String?,
+        sa: SpellAbility?,
         min: Int,
         max: Int,
-        options: ColorSet,
-    ): ColorSet = tap("chooseColors", context(sa, message)) { super.chooseColors(message, sa, min, max, options) }
+        options: ColorSet?,
+    ): ColorSet? = tap("chooseColors", context(sa, message)) { super.chooseColors(message, sa, min, max, options) }
 
     override fun chooseCounterType(
-        options: MutableList<CounterType>,
-        sa: SpellAbility,
-        prompt: String,
+        options: MutableList<CounterType>?,
+        sa: SpellAbility?,
+        prompt: String?,
         params: MutableMap<String, Any>?,
-    ): CounterType = tap("chooseCounterType", context(sa, prompt)) { super.chooseCounterType(options, sa, prompt, params) }
+    ): CounterType? = tap("chooseCounterType", context(sa, prompt)) { super.chooseCounterType(options, sa, prompt, params) }
 
     override fun chooseKeywordForPump(
-        options: MutableList<String>,
-        sa: SpellAbility,
-        prompt: String,
+        options: MutableList<String>?,
+        sa: SpellAbility?,
+        prompt: String?,
         tgtCard: Card?,
-    ): String = tap("chooseKeywordForPump", context(sa, prompt, tgtCard)) { super.chooseKeywordForPump(options, sa, prompt, tgtCard) }
+    ): String? = tap("chooseKeywordForPump", context(sa, prompt, tgtCard)) { super.chooseKeywordForPump(options, sa, prompt, tgtCard) }
 
     override fun chooseCardsForCost(
-        optionList: CardCollectionView,
-        sa: SpellAbility,
-        cpl: CostPartWithList,
+        optionList: CardCollectionView?,
+        sa: SpellAbility?,
+        cpl: CostPartWithList?,
         amount: Int,
         isOptional: Boolean,
-        prompt: String,
-    ): CardCollectionView =
+        prompt: String?,
+    ): CardCollectionView? =
         tap("chooseCardsForCost", context(sa, prompt)) {
             super.chooseCardsForCost(optionList, sa, cpl, amount, isOptional, prompt)
         }
 
     override fun orderBlockers(
-        attacker: Card,
-        blockers: CardCollection,
-    ): CardCollection = tap("orderBlockers", context(source = attacker)) { super.orderBlockers(attacker, blockers) }
+        attacker: Card?,
+        blockers: CardCollection?,
+    ): CardCollection? = tap("orderBlockers", context(source = attacker)) { super.orderBlockers(attacker, blockers) }
 
     override fun orderBlocker(
-        attacker: Card,
-        blocker: Card,
-        oldBlockers: CardCollection,
-    ): CardCollection =
-        tap("orderBlocker", context(source = attacker, prompt = blocker.name)) {
+        attacker: Card?,
+        blocker: Card?,
+        oldBlockers: CardCollection?,
+    ): CardCollection? =
+        tap("orderBlocker", context(source = attacker, prompt = blocker?.name)) {
             super.orderBlocker(attacker, blocker, oldBlockers)
         }
 
     override fun orderAttackers(
-        blocker: Card,
-        attackers: CardCollection,
-    ): CardCollection = tap("orderAttackers", context(source = blocker)) { super.orderAttackers(blocker, attackers) }
+        blocker: Card?,
+        attackers: CardCollection?,
+    ): CardCollection? = tap("orderAttackers", context(source = blocker)) { super.orderAttackers(blocker, attackers) }
 
     override fun orderMoveToZoneList(
-        cards: CardCollectionView,
-        destinationZone: ZoneType,
-        source: SpellAbility,
-    ): CardCollectionView =
-        tap("orderMoveToZoneList", context(source, destinationZone.name)) {
+        cards: CardCollectionView?,
+        destinationZone: ZoneType?,
+        source: SpellAbility?,
+    ): CardCollectionView? =
+        tap("orderMoveToZoneList", context(source, destinationZone?.name)) {
             super.orderMoveToZoneList(cards, destinationZone, source)
         }
 
-    override fun orderSimultaneousSa(activePlayerSAs: MutableList<SpellAbility>): MutableList<SpellAbility> =
+    override fun orderSimultaneousSa(activePlayerSAs: MutableList<SpellAbility>): MutableList<SpellAbility>? =
         tap(
             "orderSimultaneousSa",
             SimRefDecisionContext(prompt = activePlayerSAs.size.toString()),
@@ -670,80 +670,80 @@ private class TappingPlayerControllerAi(
         }
 
     override fun chooseNewTargetsFor(
-        ability: SpellAbility,
-        filter: Predicate<GameObject>,
+        ability: SpellAbility?,
+        filter: Predicate<GameObject>?,
         optional: Boolean,
     ): TargetChoices? = tap("chooseNewTargetsFor", context(ability)) { super.chooseNewTargetsFor(ability, filter, optional) }
 
     override fun chooseCardsPile(
-        sa: SpellAbility,
-        pile1: CardCollectionView,
-        pile2: CardCollectionView,
-        faceUp: String,
+        sa: SpellAbility?,
+        pile1: CardCollectionView?,
+        pile2: CardCollectionView?,
+        faceUp: String?,
     ): Boolean = tap("chooseCardsPile", context(sa, faceUp)) { super.chooseCardsPile(sa, pile1, pile2, faceUp) }
 
     override fun chooseSingleCardForZoneChange(
-        destination: ZoneType,
-        origin: MutableList<ZoneType>,
-        sa: SpellAbility,
-        fetchList: CardCollection,
-        delayedReveal: DelayedReveal,
-        selectPrompt: String,
+        destination: ZoneType?,
+        origin: MutableList<ZoneType>?,
+        sa: SpellAbility?,
+        fetchList: CardCollection?,
+        delayedReveal: DelayedReveal?,
+        selectPrompt: String?,
         isOptional: Boolean,
-        decider: Player,
+        decider: Player?,
     ): Card? =
         tap("chooseSingleCardForZoneChange", context(sa, selectPrompt)) {
             super.chooseSingleCardForZoneChange(destination, origin, sa, fetchList, delayedReveal, selectPrompt, isOptional, decider)
         }
 
     override fun chooseCardsForZoneChange(
-        destination: ZoneType,
-        origin: MutableList<ZoneType>,
-        sa: SpellAbility,
-        fetchList: CardCollection,
+        destination: ZoneType?,
+        origin: MutableList<ZoneType>?,
+        sa: SpellAbility?,
+        fetchList: CardCollection?,
         min: Int,
         max: Int,
-        delayedReveal: DelayedReveal,
-        selectPrompt: String,
-        decider: Player,
+        delayedReveal: DelayedReveal?,
+        selectPrompt: String?,
+        decider: Player?,
     ): MutableList<Card>? =
         tap("chooseCardsForZoneChange", context(sa, selectPrompt)) {
             super.chooseCardsForZoneChange(destination, origin, sa, fetchList, min, max, delayedReveal, selectPrompt, decider)
         }
 
     override fun chooseSingleCardFace(
-        sa: SpellAbility,
-        faces: MutableList<ICardFace>,
-        message: String,
-    ): ICardFace = tap("chooseSingleCardFace", context(sa, message)) { super.chooseSingleCardFace(sa, faces, message) }
+        sa: SpellAbility?,
+        faces: MutableList<ICardFace>?,
+        message: String?,
+    ): ICardFace? = tap("chooseSingleCardFace", context(sa, message)) { super.chooseSingleCardFace(sa, faces, message) }
 
     override fun chooseSingleCardState(
-        sa: SpellAbility,
-        states: MutableList<CardState>,
-        message: String,
+        sa: SpellAbility?,
+        states: MutableList<CardState>?,
+        message: String?,
         params: MutableMap<String, Any>?,
-    ): CardState = tap("chooseSingleCardState", context(sa, message)) { super.chooseSingleCardState(sa, states, message, params) }
+    ): CardState? = tap("chooseSingleCardState", context(sa, message)) { super.chooseSingleCardState(sa, states, message, params) }
 
     override fun chooseCardsForSplice(
-        sa: SpellAbility,
-        cards: MutableList<Card>,
-    ): MutableList<Card> = tap("chooseCardsForSplice", context(sa)) { super.chooseCardsForSplice(sa, cards) }
+        sa: SpellAbility?,
+        cards: MutableList<Card>?,
+    ): MutableList<Card>? = tap("chooseCardsForSplice", context(sa)) { super.chooseCardsForSplice(sa, cards) }
 
     override fun chooseNumberForKeywordCost(
-        sa: SpellAbility,
-        cost: forge.game.cost.Cost,
-        keyword: KeywordInterface,
-        prompt: String,
+        sa: SpellAbility?,
+        cost: forge.game.cost.Cost?,
+        keyword: KeywordInterface?,
+        prompt: String?,
         max: Int,
     ): Int = tap("chooseNumberForKeywordCost", context(sa, prompt)) { super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max) }
 
     override fun chooseNumberForCostReduction(
-        sa: SpellAbility,
+        sa: SpellAbility?,
         min: Int,
         max: Int,
     ): Int = tap("chooseNumberForCostReduction", context(sa)) { super.chooseNumberForCostReduction(sa, min, max) }
 
-    override fun orderCosts(costs: MutableList<CostPart>): MutableList<CostPart> = tap("orderCosts") { super.orderCosts(costs) }
+    override fun orderCosts(costs: MutableList<CostPart>): MutableList<CostPart>? = tap("orderCosts") { super.orderCosts(costs) }
 
     private fun <T> tap(
         callback: String,
@@ -845,9 +845,9 @@ internal fun simRefDecisionsJson(report: SimRefDecisionReport): String {
     }
 }
 
-private fun nullableSimJsonString(value: String?): String = value?.let(::simJsonString) ?: "null"
+private fun nullableSimJsonString(value: String?): String? = value?.let(::simJsonString) ?: "null"
 
-private fun stringsToJson(values: List<String>): String = values.joinToString(",", "[", "]") { simJsonString(it) }
+private fun stringsToJson(values: List<String>): String? = values.joinToString(",", "[", "]") { simJsonString(it) }
 
 private fun simRefSummaryJson(summaries: List<SimRefRowSummary>): String =
     summaries.joinToString(",", "[", "]") { s ->
