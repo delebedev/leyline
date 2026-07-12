@@ -646,14 +646,14 @@ class GameBridge(
 
         /** Short settle delay after detecting pending state — lets engine thread finish
          *  in-flight zone moves before we snapshot. */
-        private const val SETTLE_MS = 10L
+        private const val SETTLE_MS = 1L
 
         /** Max time to wait for gsId to advance after detecting a pending interaction.
          *  Capped to avoid stalling on prompts that fire before any GSM is sent. */
         private const val PROGRESS_WAIT_MS = 50L
 
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
-        private const val POLL_INTERVAL_MS = 50L
+        private const val POLL_INTERVAL_MS = 5L
     }
 
     /**
