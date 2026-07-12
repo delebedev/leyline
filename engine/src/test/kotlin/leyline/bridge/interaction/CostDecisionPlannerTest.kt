@@ -62,20 +62,6 @@ class CostDecisionPlannerTest :
             }
         }
 
-        test("sacrifice plans semantic intent before card selection policy") {
-            val intent = CostDecisionPlanner.sacrificePlan(requiredCount = 2, differentNames = true)
-
-            intent.requiredCount shouldBe 2
-            intent.differentNames shouldBe true
-        }
-
-        test("sacrifice materializes sacrifice cost semantic") {
-            CostDecisionPlanner
-                .sacrificePlan(requiredCount = 2)
-                .toCardSelectionPlan()
-                .semantic shouldBe PromptSemantic.SelectNCostSacrifice
-        }
-
         test("return cost plans unblocked attacker semantic from cost type") {
             val intent =
                 CostDecisionPlanner.returnCostPlan(

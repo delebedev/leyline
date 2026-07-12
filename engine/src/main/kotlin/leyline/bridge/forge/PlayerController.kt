@@ -22,6 +22,7 @@ import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostSacrifice
 import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
@@ -66,6 +67,7 @@ import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.manaTokenToPair
+import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
@@ -918,8 +920,7 @@ class PlayerController(
             ability,
             effect,
             bridge,
-            ability.hostCard,
-            PlaySpellAbility.getOrStringFromCost(ability, prompt),
+            prompt,
         )
 
     // -- Target Selection --------------------------------------------------
@@ -988,8 +989,17 @@ class PlayerController(
         isOptional: Boolean,
         prompt: String,
     ): CardCollectionView {
-        val min = if (isOptional) 0 else amount
-        return targetingCoordinator.chooseCardsViaBridge(optionList, min, amount, prompt)
+        val semantic = if (cpl is CostSacrifice) PromptSemantic.SelectNCostSacrifice else PromptSemantic.Generic
+        return targetingCoordinator.chooseCardsViaBridge(
+            cards = optionList,
+            min = amount,
+            max = amount,
+            message = prompt,
+            semantic = semantic,
+            candidateRefs = optionList.toCandidateRefs(),
+            sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            forcePrompt = isOptional,
+        )
     }
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------

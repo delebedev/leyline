@@ -12,11 +12,13 @@ import forge.game.ability.AbilityUtils
 import forge.game.card.*
 import forge.game.cost.*
 import forge.game.keyword.Keyword
+import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import forge.player.HumanCostDecision
 import forge.player.PlayerControllerHuman
 import forge.util.*
 import leyline.bridge.handoff.InteractivePromptBridge
@@ -34,29 +36,30 @@ import java.util.*
  * Web-based cost decision maker: routes interactive cost choices through the
  * [InteractivePromptBridge] instead of desktop Input* classes.
  *
- * Extends [CostDecisionMakerBase] and implements all ~35 [ICostVisitor] methods.
+ * Extends Forge's [HumanCostDecision], retaining bridge-specific visitor
+ * overrides while shared visitors migrate into Forge.
  * Non-interactive costs (confirm-only) go through [ClientGuiGame.confirm];
  * interactive card selections go through the [selectCards] helper.
  *
  * See ADR-010 Seam 1 spike for design rationale.
  */
+@Suppress("LargeClass")
 class CostDecision(
     private val controller: PlayerControllerHuman,
     p: Player,
     sa: SpellAbility,
     effect: Boolean,
     private val bridge: InteractivePromptBridge,
-    source: Card = sa.hostCard,
-    private val orString: String? = null,
-) : CostDecisionMakerBase(p, effect, sa, source) {
+    prompt: String? = null,
+) : HumanCostDecision(controller, p, sa, effect, prompt) {
+    private val orString: String? = PlaySpellAbility.getOrStringFromCost(sa, prompt)
+
     companion object {
         @Suppress("UnusedPrivateProperty")
         private val log = LoggerFactory.getLogger(CostDecision::class.java)
     }
 
     private var mandatory: Boolean = sa.payCosts?.isMandatory ?: false
-
-    override fun paysRightAfterDecision(): Boolean = true
 
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
@@ -1256,85 +1259,6 @@ class CostDecision(
             }
         }
         return counterTable
-    }
-
-    override fun visit(cost: CostSacrifice): PaymentDecision? {
-        val amount = cost.amount
-        var type = cost.type
-
-        if (cost.payCostFromSource()) {
-            return if (source.controller == ability.activatingPlayer &&
-                source.canBeSacrificedBy(ability, isEffect) &&
-                (mandatory || confirmAction(Localizer.getInstance().getMessage("lblSacrificeCardConfirm", source.translatedName)))
-            ) {
-                PaymentDecision.card(source)
-            } else {
-                null
-            }
-        }
-        if (type == "OriginalHost") {
-            val host = ability.originalHost
-            return if (host.controller == ability.activatingPlayer &&
-                host.canBeSacrificedBy(ability, isEffect) &&
-                confirmAction(Localizer.getInstance().getMessage("lblSacrificeCardConfirm", host.translatedName))
-            ) {
-                PaymentDecision.card(host)
-            } else {
-                null
-            }
-        }
-
-        var differentNames = false
-        if (type.contains("+WithDifferentNames")) {
-            type = type.replace("+WithDifferentNames", "")
-            differentNames = true
-        }
-
-        var list: CardCollectionView =
-            CardLists.filter(
-                player.getCardsIn(ZoneType.Battlefield),
-                CardPredicates.canBeSacrificedBy(ability, isEffect),
-            )
-        list = CardLists.getValidCards(list, type.split(";").toTypedArray(), player, source, ability)
-
-        if (amount == "All") return PaymentDecision.card(list)
-
-        var c = cost.getAbilityAmount(ability)
-        if (c == 0) return PaymentDecision.number(0)
-
-        if (differentNames) {
-            val chosen = CardCollection()
-            while (c > 0) {
-                val plan = CostDecisionPlanner.sacrificePlan(requiredCount = 1, differentNames = true)
-                val selected =
-                    selectCardsWithPlan(
-                        Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, c),
-                        list,
-                        plan.requiredCount,
-                        plan.requiredCount,
-                        cancelAllowed = true,
-                        plan = plan.toCardSelectionPlan(),
-                    ) ?: return null
-                val first = selected.first()
-                chosen.add(first)
-                list = CardLists.filter(list, CardPredicates.sharesNameWith(first).negate())
-                c--
-            }
-            return PaymentDecision.card(chosen)
-        }
-
-        if (list.size < c) return null
-        val plan = CostDecisionPlanner.sacrificePlan(requiredCount = c)
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, "%d"),
-                list,
-                plan.requiredCount,
-                plan.requiredCount,
-                cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        return PaymentDecision.card(selected)
     }
 
     override fun visit(cost: CostTapType): PaymentDecision? {

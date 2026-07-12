@@ -20,9 +20,8 @@ data class CollectEvidenceCostPlan(
         )
 }
 
-data class SacrificeCostPlan(
-    val requiredCount: Int,
-    val differentNames: Boolean = false,
+data class ForageFoodPlan(
+    val requiredCount: Int = 1,
 ) {
     fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNCostSacrifice)
 }
@@ -82,7 +81,7 @@ data class ForageGraveyardExilePlan(
 }
 
 data class ForageCostPlan(
-    val foodSacrifice: SacrificeCostPlan?,
+    val foodSacrifice: ForageFoodPlan?,
     val graveyardExile: ForageGraveyardExilePlan?,
 ) {
     val canSacrificeFood: Boolean = foodSacrifice != null
@@ -94,11 +93,6 @@ object CostDecisionPlanner {
         total: Int,
         manaValues: List<Int>,
     ): CollectEvidenceCostPlan = CollectEvidenceCostPlan(total, manaValues)
-
-    fun sacrificePlan(
-        requiredCount: Int,
-        differentNames: Boolean = false,
-    ): SacrificeCostPlan = SacrificeCostPlan(requiredCount, differentNames)
 
     fun discardPlan(
         requiredCount: Int,
@@ -129,7 +123,7 @@ object CostDecisionPlanner {
         graveyardExileCount: Int,
     ): ForageCostPlan =
         ForageCostPlan(
-            foodSacrifice = if (foodCount > 0) sacrificePlan(requiredCount = 1) else null,
+            foodSacrifice = if (foodCount > 0) ForageFoodPlan() else null,
             graveyardExile =
                 if (graveyardExileCount >= FORAGE_GRAVEYARD_EXILE_COUNT) {
                     ForageGraveyardExilePlan(FORAGE_GRAVEYARD_EXILE_COUNT)

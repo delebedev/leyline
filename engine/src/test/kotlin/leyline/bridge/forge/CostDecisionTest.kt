@@ -6,6 +6,7 @@ import forge.game.card.CardCollectionView
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostReveal
+import forge.game.cost.CostSacrifice
 import forge.game.cost.PaymentDecision
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
@@ -77,6 +78,7 @@ class CostDecisionTest :
             val player = localBridge.getPlayer(SeatId(1))!!
             val source = player.getCardsIn(forge.game.zone.ZoneType.Hand).first { it.name == "Lightning Bolt" }
             val ability = source.spellAbilities.first()
+            ability.activatingPlayer = player
             val controller = localBridge.humanController ?: error("No human controller")
             return Fixture(
                 bridge = localBridge,
@@ -90,7 +92,6 @@ class CostDecisionTest :
                         ability,
                         false,
                         localBridge.promptBridge(SeatId(1)),
-                        source,
                     ),
             )
         }
@@ -163,5 +164,18 @@ class CostDecisionTest :
             val result: PaymentDecision? = fx.decision.visit(CostReveal("1", "CARDNAME", null))
 
             result!!.cards.map { it.name } shouldContainExactly listOf("Lightning Bolt")
+        }
+
+        test("inherited sacrifice visitor refuses impossible payment") {
+            val fx = fixture()
+
+            fx.decision.visit(CostSacrifice("1", "Creature", null)).shouldBeNull()
+        }
+
+        test("inherited sacrifice visitor handles zero without a choice") {
+            val fx = fixture()
+            val result: PaymentDecision? = fx.decision.visit(CostSacrifice("0", "Land", null))
+
+            result!!.c shouldBe 0
         }
     })
