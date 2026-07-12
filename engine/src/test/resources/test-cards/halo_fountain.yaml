@@ -1,0 +1,19 @@
+name: "Halo Fountain"
+grpId: 80166
+titleId: 567064
+abilities:
+  - id: 149359
+    textId: 567065
+    category: 1
+    mana: "oW"
+  - id: 149360
+    textId: 567066
+    category: 1
+    mana: "oWoW"
+  - id: 149361
+    textId: 567067
+    category: 1
+    mana: "oWoWoWoWoW"
+expansionCode: "SNC"
+tokens:
+  "149359": 80540

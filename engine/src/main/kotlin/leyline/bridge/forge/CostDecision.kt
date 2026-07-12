@@ -1217,32 +1217,6 @@ class CostDecision(
         return PaymentDecision.card(selected)
     }
 
-    override fun visit(cost: CostUntapType): PaymentDecision? {
-        var typeList =
-            CardLists.getValidCards(
-                player.game.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        typeList =
-            CardLists.filter(typeList) { c ->
-                c.canUntap(null, false) && (c.getCounters(CounterEnumType.STUN) == 0 || c.canRemoveCounters(CounterEnumType.STUN))
-            }
-        val c = cost.getAbilityAmount(ability)
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectATargetToUntap", cost.descriptiveType, "%d"),
-                typeList,
-                c,
-                c,
-                cancelAllowed = true,
-            ) ?: return null
-        if (selected.size != c) return null
-        return PaymentDecision.card(selected)
-    }
-
     override fun visit(cost: CostPutCardToLib): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         val list =
