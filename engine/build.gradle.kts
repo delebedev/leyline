@@ -130,9 +130,11 @@ val testBoard by tasks.registering(Test::class) {
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
-    // Gate runs the same union as testUnit/testBoard (both parallelism 8 above);
-    // 4 balances the ARM CI runners' 8 cores under job co-tenancy.
-    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "4"))
+    // Default 1: measured on the ARM CI runners, parallelism=4 made this step
+    // 37-66% slower (283-345s at 1 vs 444/535s at 4) — no in-JVM parallel
+    // headroom under job co-tenancy. Override with -PkotestParallelism for
+    // local experiments.
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
 }
 
 val testIntegration by tasks.registering(Test::class) {
