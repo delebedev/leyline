@@ -51,7 +51,7 @@ class CostDecision(
         private val log = LoggerFactory.getLogger(CostDecision::class.java)
     }
 
-    private var mandatory: Boolean = sa.payCosts?.isMandatory ?: false
+    private val mandatory: Boolean = sa.payCosts?.isMandatory ?: false
 
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
