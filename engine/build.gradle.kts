@@ -130,7 +130,9 @@ val testBoard by tasks.registering(Test::class) {
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
-    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
+    // Gate runs the same union as testUnit/testBoard (both parallelism 8 above);
+    // 4 balances the ARM CI runners' 8 cores under job co-tenancy.
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "4"))
 }
 
 val testIntegration by tasks.registering(Test::class) {
