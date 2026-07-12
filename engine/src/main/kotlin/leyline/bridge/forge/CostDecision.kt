@@ -203,8 +203,6 @@ class CostDecision(
         return PaymentDecision.spellabilities(exiled)
     }
 
-    override fun visit(cost: CostBlight): PaymentDecision? = visit(cost as CostPutCounter)
-
     // ═══════════════════════════════════════════════════════════════════
     // Interactive visit() methods (bridge-based card selection)
     // ═══════════════════════════════════════════════════════════════════
@@ -473,18 +471,6 @@ class CostDecision(
                 cancelAllowed = !mandatory,
             ) ?: return null
         return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostPutCounterYou): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(
-                Localizer.getInstance().getMessage("lblPutNTypeCounterOnTarget", c, cost.counter.name, player.toString()),
-            )
-        ) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
     }
 
     override fun visit(cost: CostRemoveAnyCounter): PaymentDecision? {
