@@ -2,8 +2,6 @@ package leyline.bridge.forge
 
 import com.google.common.collect.ImmutableList
 import com.google.common.collect.Lists
-import forge.card.CardType
-import forge.card.ColorSet
 import forge.card.MagicColor
 import forge.game.GameEntityCounterTable
 import forge.game.GameEntityView
@@ -14,18 +12,14 @@ import forge.game.cost.*
 import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
-import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import forge.player.HumanCostDecision
 import forge.player.PlayerControllerHuman
 import forge.util.*
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.handoff.PromptSideEffect
-import leyline.bridge.interaction.CostCardSelectionPlan
-import leyline.bridge.interaction.CostDecisionPlanner
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -34,29 +28,28 @@ import java.util.*
  * Web-based cost decision maker: routes interactive cost choices through the
  * [InteractivePromptBridge] instead of desktop Input* classes.
  *
- * Extends [CostDecisionMakerBase] and implements all ~35 [ICostVisitor] methods.
+ * Extends Forge's [HumanCostDecision], retaining bridge-specific visitor
+ * overrides while shared visitors migrate into Forge.
  * Non-interactive costs (confirm-only) go through [ClientGuiGame.confirm];
  * interactive card selections go through the [selectCards] helper.
  *
  * See ADR-010 Seam 1 spike for design rationale.
  */
+@Suppress("LargeClass")
 class CostDecision(
     private val controller: PlayerControllerHuman,
     p: Player,
     sa: SpellAbility,
     effect: Boolean,
     private val bridge: InteractivePromptBridge,
-    source: Card = sa.hostCard,
-    private val orString: String? = null,
-) : CostDecisionMakerBase(p, effect, sa, source) {
+    prompt: String? = null,
+) : HumanCostDecision(controller, p, sa, effect, prompt) {
     companion object {
         @Suppress("UnusedPrivateProperty")
         private val log = LoggerFactory.getLogger(CostDecision::class.java)
     }
 
-    private var mandatory: Boolean = sa.payCosts?.isMandatory ?: false
-
-    override fun paysRightAfterDecision(): Boolean = true
+    private val mandatory: Boolean = sa.payCosts?.isMandatory ?: false
 
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
@@ -110,246 +103,59 @@ class CostDecision(
         return if (selected.size >= min) selected else null
     }
 
-    private fun selectCardsWithPlan(
-        message: String,
-        cards: CardCollectionView,
-        min: Int,
-        max: Int,
-        cancelAllowed: Boolean = true,
-        plan: CostCardSelectionPlan,
-    ): CardCollection? =
-        selectCards(
-            message,
-            cards,
-            min,
-            max,
-            cancelAllowed,
-            plan.semantic,
-            plan.costSelectionWeights,
-            plan.minSelectionWeight,
-        )
-
-    private fun discardAmount(
-        cost: CostDiscard,
-        discardType: String,
-    ): Int =
-        if ((ability.isJumpstart && discardType == "Card") ||
-            (ability.isOptionalCostPaid(OptionalCost.Retrace) && discardType == "Land")
-        ) {
-            1
-        } else {
-            cost.getAbilityAmount(ability)
-        }
-
     private fun selectTotalPowerTapCost(
         cost: CostTapType,
         typeList: CardCollectionView,
         totalPower: Int,
     ): PaymentDecision? {
-        val plan =
-            if (cost is CostTeamwork) {
-                CostDecisionPlanner
-                    .teamworkPlan(
-                        totalPower = totalPower,
-                        powers = typeList.map { (it.netPower ?: 0).coerceAtLeast(0) },
-                    ).toCardSelectionPlan()
-            } else {
-                CostCardSelectionPlan(PromptSemantic.Generic)
-            }
+        val teamwork = cost is CostTeamwork
         val selected =
-            selectCardsWithPlan(
+            selectCards(
                 Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
                 typeList,
                 1,
                 typeList.size,
                 cancelAllowed = false,
-                plan = plan,
+                semantic = if (teamwork) PromptSemantic.TeamworkCost else PromptSemantic.Generic,
+                costSelectionWeights =
+                    if (teamwork) typeList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
+                minSelectionWeight = totalPower.takeIf { teamwork },
             ) ?: return null
         if (CardLists.getTotalPower(selected, ability) < totalPower) return null
         return PaymentDecision.card(selected)
     }
 
+    private fun isOrdinaryExactTapCost(cost: CostTapType): Boolean =
+        cost.amount != "Any" &&
+            !cost.type.contains(".sharesCreatureTypeWith") &&
+            !cost.type.contains("+withTotalPowerGE") &&
+            cost !is CostTeamwork &&
+            !ability.isCrew &&
+            !ability.isKeyword(Keyword.STATION)
+
+    private fun isOrdinaryExileCost(cost: CostExile): Boolean {
+        if (cost.payCostFromSource() || cost.type == "OriginalHost" || cost.type == "All") return true
+        if (
+            listOf(
+                "+withTotalCMCEQ",
+                "+withTotalCMCGE",
+                "+withTotalManaSymbols_",
+                "+withSharedCardType",
+                "+withTypesGE",
+            ).any(cost.type::contains)
+        ) {
+            return false
+        }
+        if (cost.type.contains("FromTopGrave")) return true
+        if (cost.from.size != 1) return false
+        return cost.from[0] == ZoneType.Battlefield ||
+            cost.from[0] == ZoneType.Hand ||
+            cost.from[0] == ZoneType.Library
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
-
-    override fun visit(cost: CostAddMana): PaymentDecision = PaymentDecision.number(cost.getAbilityAmount(ability))
-
-    override fun visit(cost: CostChooseColor): PaymentDecision {
-        val c = cost.getAbilityAmount(ability)
-        return PaymentDecision.colors(
-            player.controller.chooseColors(
-                Localizer.getInstance().getMessage("lblChooseAColor"),
-                ability,
-                c,
-                c,
-                ColorSet.WUBRG,
-            ),
-        )
-    }
-
-    override fun visit(cost: CostChooseCreatureType): PaymentDecision? {
-        val choice =
-            controller.chooseSomeType(
-                Localizer.getInstance().getMessage("lblCreature"),
-                ability,
-                CardType.getAllCreatureTypes(),
-                true,
-            ) ?: return null
-        return PaymentDecision.type(choice)
-    }
-
-    override fun visit(cost: CostDamage): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(
-                Localizer.getInstance().getMessage("lblDoYouWantCardDealNDamageToYou", source.translatedName, c.toString()),
-            )
-        ) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostDraw): PaymentDecision? {
-        if (!cost.canPay(ability, player, isEffect)) return null
-        val c = cost.getAbilityAmount(ability)
-        val res = cost.getPotentialPlayers(player, ability)
-        val message =
-            if (!orString.isNullOrEmpty()) {
-                if (res.contains(player)) {
-                    Localizer.getInstance().getMessage("lblDoYouWantLetThatPlayerDrawNCardOrDoAction", c.toString(), orString)
-                } else {
-                    Localizer.getInstance().getMessage("lblDoYouWantDrawNCardOrDoAction", c.toString(), orString)
-                }
-            } else {
-                Localizer.getInstance().getMessage("lblDrawNCardsConfirm", c.toString())
-            }
-        if (!confirmAction(message)) return null
-        val decision = PaymentDecision.players(res)
-        decision.c = c
-        return decision
-    }
-
-    override fun visit(cost: CostFlipCoin): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantFlipNCoinAction", c.toString()))) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostRollDice): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantRollNDiceAction", c.toString(), "d${cost.type}"))) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostMill): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        val message =
-            if (!orString.isNullOrEmpty()) {
-                Localizer.getInstance().getMessage("lblDoYouWantMillNCardsOrDoAction", c.toString(), orString)
-            } else {
-                Localizer.getInstance().getMessage("lblMillNCardsFromYourLibraryConfirm", c.toString())
-            }
-        return if (confirmAction(message)) PaymentDecision.number(c) else null
-    }
-
-    override fun visit(cost: CostPayLife): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (mandatory) return PaymentDecision.number(c)
-        val message =
-            if (!orString.isNullOrEmpty()) {
-                Localizer.getInstance().getMessage("lblDoYouWantPayNLife", c.toString(), orString)
-            } else {
-                Localizer.getInstance().getMessage("lblPayNLifeConfirm", c.toString())
-            }
-        if (player.canPayLife(c, isEffect, ability) && confirmAction(message)) {
-            if (!player.game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
-                mandatory = true
-            }
-            return PaymentDecision.number(c)
-        }
-        return null
-    }
-
-    override fun visit(cost: CostPayEnergy): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (player.canPayEnergy(c) &&
-            confirmAction(
-                Localizer.getInstance().getMessage(
-                    "lblPayEnergyConfirm",
-                    cost.toString(),
-                    player.getCounters(CounterEnumType.ENERGY).toString(),
-                    "{E}",
-                ),
-            )
-        ) {
-            return PaymentDecision.number(c)
-        }
-        return null
-    }
-
-    override fun visit(cost: CostPayShards): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (player.canPayShards(c) &&
-            confirmAction(
-                Localizer.getInstance().getMessage(
-                    "lblPayShardsConfirm",
-                    cost.toString(),
-                    player.numManaShards.toString(),
-                    "{M} (Mana Shards)",
-                ),
-            )
-        ) {
-            return PaymentDecision.number(c)
-        }
-        return null
-    }
-
-    override fun visit(cost: CostPartMana): PaymentDecision = PaymentDecision(0)
-
-    override fun visit(cost: CostTap): PaymentDecision = PaymentDecision.number(1)
-
-    override fun visit(cost: CostUntap): PaymentDecision = PaymentDecision.number(1)
-
-    override fun visit(cost: CostRevealChosen): PaymentDecision = PaymentDecision.number(1)
-
-    override fun visit(cost: CostPromiseGift): PaymentDecision? {
-        val opponents = cost.getPotentialPlayers(player, ability)
-        val giftee =
-            controller.chooseSingleEntityForEffect(
-                opponents,
-                null,
-                ability,
-                "Choose an opponent to promise a gift",
-                false,
-                null,
-                null,
-            ) ?: return null
-        return PaymentDecision.players(Lists.newArrayList(giftee))
-    }
-
-    override fun visit(cost: CostGainLife): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        val oppsThatCanGainLife = cost.getPotentialTargets(player, ability).filter { it.canGainLife() }
-        if (cost.cntPlayers == Int.MAX_VALUE) {
-            return PaymentDecision.players(oppsThatCanGainLife)
-        }
-        val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(oppsThatCanGainLife)
-        val pv =
-            controller.gui.oneOrNone(
-                Localizer.getInstance().getMessage("lblCardChooseAnOpponentToGainNLife", source.translatedName, c.toString()),
-                gameCachePlayer.trackableKeys,
-            )
-        if (pv == null || !gameCachePlayer.containsKey(pv)) return null
-        return PaymentDecision.players(Lists.newArrayList(gameCachePlayer[pv]))
-    }
 
     override fun visit(cost: CostExileFromStack): PaymentDecision? {
         val game = player.game
@@ -387,166 +193,13 @@ class CostDecision(
         return PaymentDecision.spellabilities(exiled)
     }
 
-    override fun visit(cost: CostExiledMoveToGrave): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        val activator = ability.activatingPlayer
-        val list =
-            CardLists.getValidCards(
-                activator.game.getCardsIn(ZoneType.Exile),
-                cost.type.split(";").toTypedArray(),
-                activator,
-                source,
-                ability,
-            )
-        if (list.size < c) return null
-        val min = if (ability.isOptionalTrigger) 0 else c
-        val gameCacheExile: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(list)
-        val views =
-            controller.gui.many(
-                Localizer.getInstance().getMessage("lblChooseAnExiledCardPutIntoGraveyard"),
-                Localizer.getInstance().getMessage("lblToGraveyard"),
-                min,
-                c,
-                CardView.getCollection(list),
-                CardView.get(source),
-            )
-        if (views == null || views.size < c) return null
-        val result = Lists.newArrayList<Card>()
-        gameCacheExile.addToList(views, result)
-        return PaymentDecision.card(result)
-    }
-
-    override fun visit(cost: CostBlight): PaymentDecision? = visit(cost as CostPutCounter)
-
-    override fun visit(cost: CostBeholdExile): PaymentDecision? = visit(cost as CostBehold)
-
     // ═══════════════════════════════════════════════════════════════════
     // Interactive visit() methods (bridge-based card selection)
     // ═══════════════════════════════════════════════════════════════════
 
-    override fun visit(cost: CostCollectEvidence): PaymentDecision? {
-        val list =
-            CardLists.filter(
-                player.getCardsIn(ZoneType.Graveyard),
-                CardPredicates.canExiledBy(ability, isEffect),
-            )
-        val total = AbilityUtils.calculateAmount(source, cost.amount, ability)
-        bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(source.id), total))
-        val plan = CostDecisionPlanner.collectEvidencePlan(total, list.map { it.getCMC() })
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblCollectEvidence", total),
-                list,
-                0,
-                list.size,
-                cancelAllowed = true,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: run {
-                bridge.journal.clearCollectEvidenceCost()
-                return null
-            }
-        if (CardLists.getTotalCMC(selected) < total) {
-            bridge.journal.clearCollectEvidenceCost()
-            return null
-        }
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostDiscard): PaymentDecision? {
-        var hand: CardCollectionView = player.getCardsIn(ZoneType.Hand)
-        val discardType = cost.type
-
-        if (cost.payCostFromSource()) {
-            return if (hand.contains(source)) PaymentDecision.card(source) else null
-        }
-        if (discardType == "Hand") {
-            if (!mandatory && !confirmAction(Localizer.getInstance().getMessage("lblDoYouWantDiscardYourHand"))) {
-                return null
-            }
-            if (hand.size > 1 && ability.activatingPlayer != null) {
-                hand = ability.activatingPlayer.controller.orderMoveToZoneList(hand, ZoneType.Graveyard, ability)
-            }
-            return PaymentDecision.card(hand)
-        }
-        if (discardType == "LastDrawn") {
-            val lastDrawn = player.lastDrawnCard
-            return if (hand.contains(lastDrawn)) PaymentDecision.card(lastDrawn) else null
-        }
-
-        var c = discardAmount(cost, discardType)
-
-        if (discardType == "Random") {
-            var randomSubset: CardCollectionView = CardCollection(Aggregates.random(hand, c))
-            if (randomSubset.size > 1 && ability.activatingPlayer != null) {
-                randomSubset = ability.activatingPlayer.controller.orderMoveToZoneList(randomSubset, ZoneType.Graveyard, ability)
-            }
-            return PaymentDecision.card(randomSubset)
-        }
-        if (discardType.contains("+WithDifferentNames")) {
-            val discarded = CardCollection()
-            while (c > 0) {
-                val selected =
-                    selectCards(
-                        Localizer.getInstance().getMessage("lblSelectOneDifferentNameCardToDiscardAlreadyChosen") + discarded,
-                        hand,
-                        1,
-                        1,
-                        cancelAllowed = true,
-                    ) ?: return null
-                val first = selected.first()
-                discarded.add(first)
-                hand = CardLists.filter(hand, CardPredicates.sharesNameWith(first).negate())
-                c--
-            }
-            return PaymentDecision.card(discarded)
-        }
-        if (discardType.contains("+WithSameName")) {
-            val type = TextUtil.fastReplace(discardType, "+WithSameName", "")
-            hand = CardLists.getValidCards(hand, type.split(";").toTypedArray(), player, source, ability)
-            val hand2 = hand
-            hand =
-                CardLists.filter(hand) { c1 ->
-                    hand2.any { card -> card != c1 && card.name == c1.name }
-                }
-            if (c == 0) return PaymentDecision.card(CardCollection())
-            val discarded = CardCollection()
-            while (c > 0) {
-                val selected =
-                    selectCards(
-                        Localizer.getInstance().getMessage("lblSelectOneSameNameCardToDiscardAlreadyChosen") + discarded,
-                        hand,
-                        1,
-                        1,
-                        cancelAllowed = true,
-                    ) ?: return null
-                val first = selected.first()
-                discarded.add(first)
-                hand = CardLists.filter(hand, CardPredicates.nameEquals(first.name))
-                (hand as CardCollection).remove(first)
-                c--
-            }
-            return PaymentDecision.card(discarded)
-        }
-
-        // Typed discard
-        val validType = discardType.split(";").toTypedArray()
-        hand = CardLists.getValidCards(hand, validType, player, source, ability)
-        if (hand.size < 1) return null
-        val plan = CostDecisionPlanner.discardPlan(requiredCount = c, discardType = discardType)
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblSelectNMoreTargetTypeCardToDiscard", "%d", cost.descriptiveType),
-                hand,
-                plan.requiredCount,
-                plan.requiredCount,
-                cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        if (selected.size != plan.requiredCount) return null
-        return PaymentDecision.card(selected)
-    }
-
     override fun visit(cost: CostExile): PaymentDecision? {
+        if (isOrdinaryExileCost(cost)) return super.visit(cost)
+
         var type = cost.type
         var onlyPayable: Card? = null
         if (cost.payCostFromSource()) onlyPayable = source
@@ -772,130 +425,6 @@ class CostDecision(
         return PaymentDecision.card(result)
     }
 
-    override fun visit(cost: CostExert): PaymentDecision? {
-        val list =
-            CardLists.getValidCards(
-                player.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        if (cost.payCostFromSource()) {
-            return if (source.controller == ability.activatingPlayer &&
-                source.isInPlay &&
-                confirmAction(Localizer.getInstance().getMessage("lblExertCardConfirm", source.translatedName))
-            ) {
-                PaymentDecision.card(source)
-            } else {
-                null
-            }
-        }
-        val c = cost.getAbilityAmount(ability)
-        if (c == 0) return PaymentDecision.number(0)
-        if (list.size < c) return null
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectACostToExert", cost.descriptiveType, "%d"),
-                list,
-                c,
-                c,
-                cancelAllowed = true,
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostEnlist): PaymentDecision? {
-        val list = CostEnlist.getCardsForEnlisting(player)
-        if (list.isEmpty()) return null
-        val plan = CostDecisionPlanner.enlistPlan(requiredCount = 1)
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblSelectACostToEnlist", cost.descriptiveType, "%d"),
-                list,
-                1,
-                1,
-                cancelAllowed = true,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        if (selected.isEmpty()) return null
-        bridge.journal.record(
-            PromptSideEffect.EnlistTapAffector(
-                tappedForgeCardId = ForgeCardId(selected.first().id),
-                attackerForgeCardId = ForgeCardId(source.id),
-            ),
-        )
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostForage): PaymentDecision? {
-        val food =
-            CardLists.filter(
-                player.getCardsIn(ZoneType.Battlefield),
-                CardPredicates.isType("Food"),
-                CardPredicates.canBeSacrificedBy(ability, isEffect),
-            )
-        val exile =
-            CardLists.filter(
-                player.getCardsIn(ZoneType.Graveyard),
-                CardPredicates.canExiledBy(ability, isEffect),
-            )
-        val plan = CostDecisionPlanner.foragePlan(foodCount = food.size, graveyardExileCount = exile.size)
-        val foodSacrificePlan = plan.foodSacrifice
-        if (foodSacrificePlan != null && confirmAction("Sacrifice Food")) {
-            val selected =
-                selectCardsWithPlan(
-                    Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", "Food", "%d"),
-                    food,
-                    foodSacrificePlan.requiredCount,
-                    foodSacrificePlan.requiredCount,
-                    cancelAllowed = !mandatory,
-                    plan = foodSacrificePlan.toCardSelectionPlan(),
-                ) ?: return null
-            return PaymentDecision.card(selected)
-        }
-        val graveyardExilePlan = plan.graveyardExile
-        if (graveyardExilePlan != null) {
-            val selected =
-                selectCardsWithPlan(
-                    Localizer.getInstance().getMessage("lblSelectToExile", graveyardExilePlan.requiredCount),
-                    exile,
-                    graveyardExilePlan.requiredCount,
-                    graveyardExilePlan.requiredCount,
-                    cancelAllowed = !mandatory,
-                    plan = graveyardExilePlan.toCardSelectionPlan(),
-                ) ?: return null
-            return PaymentDecision.card(selected)
-        }
-        return null
-    }
-
-    override fun visit(cost: CostGainControl): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        var validCards: CardCollectionView =
-            CardLists.getValidCards(
-                player.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        validCards = CardLists.filter(validCards) { crd -> crd.canBeControlledBy(player) }
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage(
-                    "lblGainNTargetControl",
-                    "%d",
-                    cost.typeDescription ?: cost.type,
-                ),
-                validCards,
-                c,
-                c,
-                cancelAllowed = true,
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
     override fun visit(cost: CostPutCounter): PaymentDecision? {
         val c = cost.getAbilityAmount(ability)
         if (cost.payCostFromSource()) {
@@ -929,128 +458,6 @@ class CostDecision(
                 typeList,
                 1,
                 1,
-                cancelAllowed = !mandatory,
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostPutCounterYou): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(
-                Localizer.getInstance().getMessage("lblPutNTypeCounterOnTarget", c, cost.counter.name, player.toString()),
-            )
-        ) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostReturn): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (cost.payCostFromSource()) {
-            val card = ability.hostCard
-            return if (card.controller == player &&
-                card.isInPlay &&
-                confirmAction(
-                    Localizer.getInstance().getMessage(
-                        "lblReturnCardToHandConfirm",
-                        CardTranslation.getTranslatedName(CardView.get(card).name),
-                    ),
-                )
-            ) {
-                PaymentDecision.card(card)
-            } else {
-                null
-            }
-        }
-        val validCards =
-            CardLists.getValidCards(
-                ability.activatingPlayer.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        if (validCards.size < c) return null
-        val plan =
-            CostDecisionPlanner.returnCostPlan(
-                requiredCount = c,
-                type = cost.type,
-                descriptiveType = cost.descriptiveType,
-            )
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblNTypeCardsToHand", "%d", cost.descriptiveType),
-                validCards,
-                plan.requiredCount,
-                plan.requiredCount,
-                cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostReveal): PaymentDecision? {
-        if (cost.payCostFromSource()) return PaymentDecision.card(source)
-        if (cost.type == "Hand") return PaymentDecision.card(player.getCardsIn(ZoneType.Hand))
-
-        if (cost.type == "SameColor") {
-            val num = cost.getAbilityAmount(ability)
-            var hand: CardCollectionView = player.getCardsIn(cost.revealFrom)
-            val hand2 = hand
-            hand =
-                CardLists.filter(hand) { c ->
-                    hand2.any { card -> card != c && card.sharesColorWith(c) }
-                }
-            if (num == 0) return PaymentDecision.number(0)
-            val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblSelectNCardOfSameColorToReveal", num.toString()),
-                    hand,
-                    num,
-                    num,
-                    cancelAllowed = !mandatory,
-                ) ?: return null
-            // Validate all selected share a color
-            if (selected.size > 1) {
-                val first = selected.first()
-                if (!selected.all { it === first || CardPredicates.sharesColorWith(first).test(it) }) {
-                    return null
-                }
-            }
-            return PaymentDecision.card(selected)
-        }
-
-        // Standard typed reveal
-        val num = cost.getAbilityAmount(ability)
-        var hand = player.getCardsIn(cost.revealFrom)
-        hand = CardLists.getValidCards(hand, cost.type.split(";").toTypedArray(), player, source, ability)
-        if (hand.size < num) return null
-        if (num == 0) return PaymentDecision.number(0)
-        if (!ability.isCastFromPlayEffect && hand.size == num) return PaymentDecision.card(hand)
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectNMoreTypeCardsTpReveal", "%d", cost.descriptiveType),
-                hand,
-                num,
-                num,
-                cancelAllowed = !mandatory,
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostBehold): PaymentDecision? {
-        val num = cost.getAbilityAmount(ability)
-        var hand = player.getCardsIn(cost.revealFrom)
-        hand = CardLists.getValidCards(hand, cost.type.split(";").toTypedArray(), player, source, ability)
-        if (hand.size < num) return null
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectNMoreTypeCardsTpReveal", "%d", cost.descriptiveType),
-                hand,
-                num,
-                num,
                 cancelAllowed = !mandatory,
             ) ?: return null
         return PaymentDecision.card(selected)
@@ -1258,86 +665,9 @@ class CostDecision(
         return counterTable
     }
 
-    override fun visit(cost: CostSacrifice): PaymentDecision? {
-        val amount = cost.amount
-        var type = cost.type
-
-        if (cost.payCostFromSource()) {
-            return if (source.controller == ability.activatingPlayer &&
-                source.canBeSacrificedBy(ability, isEffect) &&
-                (mandatory || confirmAction(Localizer.getInstance().getMessage("lblSacrificeCardConfirm", source.translatedName)))
-            ) {
-                PaymentDecision.card(source)
-            } else {
-                null
-            }
-        }
-        if (type == "OriginalHost") {
-            val host = ability.originalHost
-            return if (host.controller == ability.activatingPlayer &&
-                host.canBeSacrificedBy(ability, isEffect) &&
-                confirmAction(Localizer.getInstance().getMessage("lblSacrificeCardConfirm", host.translatedName))
-            ) {
-                PaymentDecision.card(host)
-            } else {
-                null
-            }
-        }
-
-        var differentNames = false
-        if (type.contains("+WithDifferentNames")) {
-            type = type.replace("+WithDifferentNames", "")
-            differentNames = true
-        }
-
-        var list: CardCollectionView =
-            CardLists.filter(
-                player.getCardsIn(ZoneType.Battlefield),
-                CardPredicates.canBeSacrificedBy(ability, isEffect),
-            )
-        list = CardLists.getValidCards(list, type.split(";").toTypedArray(), player, source, ability)
-
-        if (amount == "All") return PaymentDecision.card(list)
-
-        var c = cost.getAbilityAmount(ability)
-        if (c == 0) return PaymentDecision.number(0)
-
-        if (differentNames) {
-            val chosen = CardCollection()
-            while (c > 0) {
-                val plan = CostDecisionPlanner.sacrificePlan(requiredCount = 1, differentNames = true)
-                val selected =
-                    selectCardsWithPlan(
-                        Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, c),
-                        list,
-                        plan.requiredCount,
-                        plan.requiredCount,
-                        cancelAllowed = true,
-                        plan = plan.toCardSelectionPlan(),
-                    ) ?: return null
-                val first = selected.first()
-                chosen.add(first)
-                list = CardLists.filter(list, CardPredicates.sharesNameWith(first).negate())
-                c--
-            }
-            return PaymentDecision.card(chosen)
-        }
-
-        if (list.size < c) return null
-        val plan = CostDecisionPlanner.sacrificePlan(requiredCount = c)
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.descriptiveType, "%d"),
-                list,
-                plan.requiredCount,
-                plan.requiredCount,
-                cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
     override fun visit(cost: CostTapType): PaymentDecision? {
+        if (isOrdinaryExactTapCost(cost)) return super.visit(cost)
+
         var type = cost.type
         val amount = cost.amount
 
@@ -1417,149 +747,58 @@ class CostDecision(
 
         val minSelection = c ?: 1
         val maxSelection = c ?: typeList.size
-        val plan =
-            CostDecisionPlanner.tapTypePlan(
-                minSelection = minSelection,
-                maxSelection = maxSelection,
-                isStation = ability.isKeyword(Keyword.STATION),
-            )
         val selected =
-            selectCardsWithPlan(
+            selectCards(
                 Localizer.getInstance().getMessage("lblSelectATargetToTap", cost.descriptiveType, "%d"),
                 typeList,
                 minSelection,
                 maxSelection,
                 cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
+                semantic =
+                    if (ability.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic,
             ) ?: return null
         return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostUntapType): PaymentDecision? {
-        var typeList =
-            CardLists.getValidCards(
-                player.game.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        typeList =
-            CardLists.filter(typeList) { c ->
-                c.canUntap(null, false) && (c.getCounters(CounterEnumType.STUN) == 0 || c.canRemoveCounters(CounterEnumType.STUN))
-            }
-        val c = cost.getAbilityAmount(ability)
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectATargetToUntap", cost.descriptiveType, "%d"),
-                typeList,
-                c,
-                c,
-                cancelAllowed = true,
-            ) ?: return null
-        if (selected.size != c) return null
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostUnattach): PaymentDecision? {
-        val cardToUnattach = cost.findCardToUnattach(source, player, ability)
-        if (cardToUnattach.size == 1 &&
-            confirmAction(Localizer.getInstance().getMessage("lblUnattachCardConfirm", cardToUnattach.first().translatedName))
-        ) {
-            return PaymentDecision.card(cardToUnattach.first())
-        }
-        if (cardToUnattach.size > 1) {
-            val c = cost.getAbilityAmount(ability)
-            val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblUnattachCardConfirm", cost.descriptiveType),
-                    cardToUnattach,
-                    c,
-                    c,
-                    cancelAllowed = true,
-                ) ?: return null
-            if (selected.size != c) return null
-            return PaymentDecision.card(selected)
-        }
-        return null
     }
 
     override fun visit(cost: CostPutCardToLib): PaymentDecision? {
+        if (cost.payCostFromSource() || !cost.sameZone) return super.visit(cost)
+
         val c = cost.getAbilityAmount(ability)
         val list =
             CardLists.getValidCards(
-                if (cost.sameZone) player.game.getCardsIn(cost.from) else player.getCardsIn(cost.from),
+                player.game.getCardsIn(cost.from),
                 cost.type.split(";").toTypedArray(),
                 player,
                 source,
                 ability,
             )
 
-        if (cost.payCostFromSource()) {
-            return if (source.zone == player.getZone(cost.from) &&
-                confirmAction(Localizer.getInstance().getMessage("lblPutCardToLibraryConfirm", source.translatedName))
-            ) {
-                PaymentDecision.card(source)
+        val players = player.game.players
+        val payableZone = mutableListOf<Player>()
+        for (p in players) {
+            val enoughType = CardLists.filter(list, CardPredicates.isOwner(p))
+            if (enoughType.size < c) {
+                list.removeAll(enoughType)
             } else {
-                null
+                payableZone.add(p)
             }
         }
-
-        if (cost.from == ZoneType.Hand) {
-            val selected =
-                selectCards(
-                    Localizer.getInstance().getMessage("lblPutNCardsFromYourZone", "%d", cost.from.translatedName),
-                    list,
-                    c,
-                    c,
-                    cancelAllowed = true,
-                ) ?: return null
-            return PaymentDecision.card(selected)
-        }
-
-        if (cost.sameZone) {
-            val players = player.game.players
-            val payableZone = mutableListOf<Player>()
-            for (p in players) {
-                val enoughType = CardLists.filter(list, CardPredicates.isOwner(p))
-                if (enoughType.size < c) {
-                    list.removeAll(enoughType)
-                } else {
-                    payableZone.add(p)
-                }
-            }
-            val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(payableZone)
-            val pv =
-                controller.gui.oneOrNone(
-                    TextUtil.concatNoSpace(Localizer.getInstance().getMessage("lblPutCardsFromWhoseZone"), cost.from.translatedName),
-                    gameCachePlayer.trackableKeys,
-                )
-            if (pv == null || !gameCachePlayer.containsKey(pv)) return null
-            val p = gameCachePlayer[pv]
-            val typeList = CardLists.filter(list, CardPredicates.isOwner(p))
-            if (typeList.size < c) return null
-            val chosen = CardCollection()
-            val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
-            repeat(c) {
-                val cv =
-                    controller.gui.oneOrNone(
-                        Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
-                        gameCacheCard.trackableKeys,
-                    )
-                if (cv == null || !gameCacheCard.containsKey(cv)) return null
-                chosen.add(gameCacheCard.remove(cv))
-            }
-            return PaymentDecision.card(chosen)
-        }
-
-        // From graveyard (non-same-zone)
-        if (list.size < c) return null
+        val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(payableZone)
+        val pv =
+            controller.gui.oneOrNone(
+                TextUtil.concatNoSpace(Localizer.getInstance().getMessage("lblPutCardsFromWhoseZone"), cost.from.translatedName),
+                gameCachePlayer.trackableKeys,
+            )
+        if (pv == null || !gameCachePlayer.containsKey(pv)) return null
+        val p = gameCachePlayer[pv]
+        val typeList = CardLists.filter(list, CardPredicates.isOwner(p))
+        if (typeList.size < c) return null
         val chosen = CardCollection()
-        val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(list)
+        val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
         repeat(c) {
             val cv =
                 controller.gui.oneOrNone(
-                    Localizer.getInstance().getMessage("lblFromZonePutToLibrary", cost.from.translatedName),
+                    Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
                     gameCacheCard.trackableKeys,
                 )
             if (cv == null || !gameCacheCard.containsKey(cv)) return null

@@ -21,6 +21,7 @@ Start here for the public technical docs.
 - [`decisions/0001-prompt-interaction-planners.md`](decisions/0001-prompt-interaction-planners.md) — callback-specific planners for Forge prompt classification before `PromptRequest` construction
 - [`decisions/0006-single-backbone-core-and-heads.md`](decisions/0006-single-backbone-core-and-heads.md) — leyline as a single backbone: a domain core + engine with native and web protocol heads
 - [`decisions/0008-forge-zone-operation-context.md`](decisions/0008-forge-zone-operation-context.md) — immutable Forge cause identity on ordered zone moves, with observable snapshot fallback
+- [`decisions/0009-reuse-forge-human-cost-decisions.md`](decisions/0009-reuse-forge-human-cost-decisions.md) — shared Forge human cost rules with frontend-specific controller choice hooks
 
 ## Setup
 

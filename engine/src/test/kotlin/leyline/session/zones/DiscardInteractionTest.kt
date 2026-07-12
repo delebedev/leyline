@@ -4,8 +4,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeInRange
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
@@ -47,7 +49,8 @@ class DiscardInteractionTest :
                 req.context shouldBe SelectionContext.Discard_a163
                 req.listType shouldBe SelectionListType.Static
                 req.optionContext shouldBe OptionContext.Payment
-                req.minSel shouldBe 1
+                // Empty selection declines the optional payment; Forge still requires exactly one card to complete it.
+                req.minSel shouldBe 0
                 req.maxSel shouldBe 1
                 req.idsList shouldHaveSize 1
             }
@@ -88,6 +91,36 @@ class DiscardInteractionTest :
 
                 assertAccumulatorConsistent("after mandatory discard cost")
                 assertGsIdChain(allMessages, context = "mandatory discard cost flow")
+            }
+        }
+
+        test("discard-as-cost — empty controller answer cancels exact payment") {
+            startPuzzle(marduState, name = "Mardu Outrider cancellation", turns = 2)
+
+            castSpellByName("Mardu Outrider") shouldBe true
+            val pending =
+                harness.bridge
+                    .seat(SeatId(1))
+                    .prompt
+                    .getPendingPrompt()
+                    .shouldNotBeNull()
+            pending.request.semantic shouldBe PromptSemantic.SelectNDiscard
+
+            harness.bridge
+                .seat(SeatId(1))
+                .prompt
+                .submitResponse(pending.promptId, emptyList())
+            harness.bridge.awaitPriority()
+
+            assertSoftly {
+                human
+                    .getZone(ForgeZoneType.Hand)
+                    .cards
+                    .map { it.name }
+                    .toSet() shouldBe
+                    setOf("Mardu Outrider", "Mountain")
+                human.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
+                game().stack.isEmpty shouldBe true
             }
         }
 

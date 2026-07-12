@@ -14,14 +14,20 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.card.CardLists
 import forge.game.card.CardView
 import forge.game.combat.Combat
 import forge.game.cost.Cost
 import forge.game.cost.CostDecisionMakerBase
+import forge.game.cost.CostDiscard
+import forge.game.cost.CostEnlist
+import forge.game.cost.CostForage
 import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostReturn
+import forge.game.cost.CostSacrifice
 import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
@@ -60,12 +66,14 @@ import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.manaTokenToPair
+import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
@@ -910,8 +918,7 @@ class PlayerController(
             ability,
             effect,
             bridge,
-            ability.hostCard,
-            PlaySpellAbility.getOrStringFromCost(ability, prompt),
+            prompt,
         )
 
     // -- Target Selection --------------------------------------------------
@@ -980,9 +987,90 @@ class PlayerController(
         isOptional: Boolean,
         prompt: String,
     ): CardCollectionView {
-        val min = if (isOptional) 0 else amount
-        return targetingCoordinator.chooseCardsViaBridge(optionList, min, amount, prompt)
+        val semantic =
+            when (cpl) {
+                is CostDiscard -> PromptSemantic.SelectNDiscard
+                is CostReturn ->
+                    if (cpl.type.contains("attacking+unblocked") ||
+                        cpl.descriptiveType.contains("unblocked attacker", ignoreCase = true)
+                    ) {
+                        PromptSemantic.ReturnUnblockedAttackerCost
+                    } else {
+                        PromptSemantic.Generic
+                    }
+                is CostSacrifice -> PromptSemantic.SelectNCostSacrifice
+                is CostEnlist -> PromptSemantic.EnlistCost
+                is CostForage ->
+                    if (optionList.all { it.isInPlay }) {
+                        PromptSemantic.SelectNCostSacrifice
+                    } else {
+                        PromptSemantic.Generic
+                    }
+                else -> PromptSemantic.Generic
+            }
+        val selected =
+            targetingCoordinator.chooseCardsViaBridge(
+                cards = optionList,
+                min = if (isOptional) 0 else amount,
+                max = amount,
+                message = prompt,
+                semantic = semantic,
+                candidateRefs = optionList.toCandidateRefs(),
+                sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+                forcePrompt = isOptional,
+            )
+        if (cpl is CostEnlist && selected.isNotEmpty()) {
+            bridge.journal.record(
+                PromptSideEffect.EnlistTapAffector(
+                    tappedForgeCardId = ForgeCardId(selected.first().id),
+                    attackerForgeCardId = ForgeCardId(sa.hostCard.id),
+                ),
+            )
+        }
+        return selected
     }
+
+    override fun chooseCardsForCollectEvidence(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        total: Int,
+        prompt: String,
+    ): CardCollectionView {
+        bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(sa.hostCard.id), total))
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = prompt,
+                options = optionList.map { it.name },
+                min = 0,
+                max = optionList.size,
+                defaultIndex = 0,
+                semantic = PromptSemantic.SelectNCostCollectEvidence,
+                candidateRefs = optionList.toCandidateRefs(),
+                costSelectionWeights = optionList.map { it.getCMC().coerceAtLeast(0) },
+                minSelectionWeight = total,
+                sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            )
+        val indices = bridge.requestChoice(request, targetingSa = sa)
+        val selected = CardCollection()
+        for (index in indices) {
+            if (index in 0 until optionList.size) selected.add(optionList[index])
+        }
+        if (CardLists.getTotalCMC(selected) < total) {
+            bridge.journal.clearCollectEvidenceCost()
+        }
+        return selected
+    }
+
+    override fun chooseCardsForRevealCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        cost: CostPartWithList,
+        amount: Int,
+        optional: Boolean,
+        sameColor: Boolean,
+        prompt: String,
+    ): CardCollectionView = chooseCardsForCost(optionList, sa, cost, amount, optional, prompt)
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
     // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on
@@ -1139,7 +1227,11 @@ class PlayerController(
         // Instead, read the stashed decision from TargetingHandler (set after client
         // responded to CastingTimeOptionsReq). Fallback: auto-accept all (test harness).
         var sa = chosenSa
-        val optionalCosts = GameActionUtil.getOptionalCostValues(sa)
+        val optionalCosts =
+            GameActionUtil
+                .getOptionalCostValues(sa)
+                .filterNot { sa.isOptionalCostPaid(it.type) }
+                .toMutableList()
         if (optionalCosts.isNotEmpty()) {
             val chosen = chooseOptionalCosts(sa, optionalCosts)
             sa = GameActionUtil.addOptionalCosts(sa, chosen)
