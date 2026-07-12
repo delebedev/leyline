@@ -3,7 +3,6 @@ package leyline.acceptance
 import org.yaml.snakeyaml.Yaml
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 
 object AcceptanceSuiteLoader {
     fun load(name: String): AcceptanceSuite = loadFromFile(resolveSuitePath(name))
@@ -14,21 +13,14 @@ object AcceptanceSuiteLoader {
         val root = Yaml().load<Any?>(text).asMap("suite")
         return AcceptanceSuite(
             name = root.requiredString("name", "suite"),
-            description = root.optionalString("description"),
+            description = root.optionalString("description", "suite"),
             scenarios = root.requiredList("scenarios", "suite").mapIndexed(::parseScenario),
         )
     }
 
     private fun resolveSuitePath(name: String): Path {
         val fileName = if (name.endsWith(".yaml")) name else "$name.yaml"
-        val candidates =
-            listOf(
-                Paths.get("puzzles/sets/$fileName"),
-                Paths.get("../puzzles/sets/$fileName"),
-                Paths.get("../../puzzles/sets/$fileName"),
-            )
-        return candidates.firstOrNull { Files.exists(it) }
-            ?: error("suite not found: $fileName in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
+        return AcceptancePaths.resolve("puzzles/sets/$fileName", notFoundMessage = "suite not found: $fileName")
     }
 
     /** Every suite YAML in the acceptance suite catalog, for static validation of the full set. */
@@ -37,27 +29,13 @@ object AcceptanceSuiteLoader {
             stream.filter { it.toString().endsWith(".yaml") }.sorted().toList()
         }
 
-    private fun suiteSetsDirectory(): Path {
-        val candidates =
-            listOf(
-                Paths.get("puzzles/sets"),
-                Paths.get("../puzzles/sets"),
-                Paths.get("../../puzzles/sets"),
-            )
-        return candidates.firstOrNull { Files.isDirectory(it) }
-            ?: error("suite sets directory not found in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
-    }
+    private fun suiteSetsDirectory(): Path =
+        AcceptancePaths.resolve("puzzles/sets", notFoundMessage = "suite sets directory not found", exists = Files::isDirectory)
 
     /** Whether a scenario's `puzzle` reference resolves to an existing fixture. */
     internal fun puzzleExists(puzzle: String): Boolean {
         val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
-        val candidates =
-            listOf(
-                Paths.get("puzzles/$fileName"),
-                Paths.get("../puzzles/$fileName"),
-                Paths.get("../../puzzles/$fileName"),
-            )
-        return candidates.any { Files.exists(it) }
+        return AcceptancePaths.resolveOrNull("puzzles/$fileName") != null
     }
 
     private fun parseScenario(
@@ -69,9 +47,9 @@ object AcceptanceSuiteLoader {
         return AcceptanceScenario(
             id = map.requiredString("id", context),
             puzzle = map.requiredString("puzzle", context),
-            run = map.optionalString("run"),
-            expect = map.optionalString("expect"),
-            steps = map.optionalList("steps")?.mapIndexed { stepIndex, step -> parseStep(stepIndex, step) } ?: emptyList(),
+            run = map.optionalString("run", context),
+            expect = map.optionalString("expect", context),
+            steps = map.optionalList("steps", context)?.mapIndexed { stepIndex, step -> parseStep(stepIndex, step) } ?: emptyList(),
         )
     }
 
@@ -118,7 +96,7 @@ object AcceptanceSuiteLoader {
         context: String,
     ): PassUntilStep {
         val map = raw.asMap(context)
-        val maxPasses = map.optionalInt("max_passes") ?: 20
+        val maxPasses = map.optionalInt("max_passes", context) ?: 20
         val conditionMap = map.filterKeys { it != "max_passes" }
         return PassUntilStep(parseConditions(conditionMap, context), maxPasses)
     }
@@ -133,8 +111,8 @@ object AcceptanceSuiteLoader {
                 val map = raw.asMap(context)
                 CastStep(
                     card = map.requiredString("card", context),
-                    zone = map.optionalString("zone")?.let(AcceptanceZone::parse) ?: AcceptanceZone.Hand,
-                    altCost = map.optionalString("alt_cost")?.let(AcceptanceAltCost::parse),
+                    zone = map.optionalString("zone", context)?.let(AcceptanceZone::parse) ?: AcceptanceZone.Hand,
+                    altCost = map.optionalString("alt_cost", context)?.let(AcceptanceAltCost::parse),
                 )
             }
         }
@@ -145,7 +123,7 @@ object AcceptanceSuiteLoader {
     ): SelectCostStep {
         val map = raw.asMap(context)
         return SelectCostStep(
-            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            side = map.optionalString("side", context)?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             zone = AcceptanceZone.parse(map.requiredString("zone", context)),
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
         )
@@ -157,7 +135,7 @@ object AcceptanceSuiteLoader {
     ): SelectCardStep {
         val map = raw.asMap(context)
         return SelectCardStep(
-            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            side = map.optionalString("side", context)?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             zone = AcceptanceZone.parse(map.requiredString("zone", context)),
             card = map.requiredString("card", context),
         )
@@ -169,7 +147,7 @@ object AcceptanceSuiteLoader {
     ): SelectCardsStep {
         val map = raw.asMap(context)
         return SelectCardsStep(
-            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            side = map.optionalString("side", context)?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             zone = AcceptanceZone.parse(map.requiredString("zone", context)),
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
         )
@@ -181,7 +159,7 @@ object AcceptanceSuiteLoader {
     ): SearchCardsStep {
         val map = raw.asMap(context)
         return SearchCardsStep(
-            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            side = map.optionalString("side", context)?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
         )
     }
@@ -210,8 +188,8 @@ object AcceptanceSuiteLoader {
                 val map = raw.asMap(context)
                 ActivateStep(
                     card = map.requiredString("card", context),
-                    zone = map.optionalString("zone")?.let(AcceptanceZone::parse) ?: AcceptanceZone.Battlefield,
-                    abilityIndex = map.optionalInt("ability_index") ?: 0,
+                    zone = map.optionalString("zone", context)?.let(AcceptanceZone::parse) ?: AcceptanceZone.Battlefield,
+                    abilityIndex = map.optionalInt("ability_index", context) ?: 0,
                 )
             }
         }
@@ -222,8 +200,8 @@ object AcceptanceSuiteLoader {
     ): ChooseStep {
         val map = raw.asMap(context)
         return ChooseStep(
-            optionalCost = map.optionalString("optional_cost")?.let(AcceptanceCastingTimeOption::parse),
-            ctoId = map.optionalInt("cto_id"),
+            optionalCost = map.optionalString("optional_cost", context)?.let(AcceptanceCastingTimeOption::parse),
+            ctoId = map.optionalInt("cto_id", context),
         )
     }
 
@@ -277,7 +255,7 @@ object AcceptanceSuiteLoader {
         val map = raw.asMap(context)
         return AttackStep(
             cards = map.requiredList("cards", context).mapIndexed { index, item -> item.asString("$context.cards[$index]") },
-            altCost = map.optionalString("alt_cost")?.let(AcceptanceAltCost::parse),
+            altCost = map.optionalString("alt_cost", context)?.let(AcceptanceAltCost::parse),
             target = map["target"]?.let { parseTarget(it, "$context.target") },
         )
     }
@@ -353,7 +331,7 @@ object AcceptanceSuiteLoader {
         return ActionAvailableCondition(
             type = AcceptanceActionType.parse(map.requiredString("type", context)),
             card = map.requiredString("card", context),
-            altCost = map.optionalString("alt_cost")?.let(AcceptanceAltCost::parse),
+            altCost = map.optionalString("alt_cost", context)?.let(AcceptanceAltCost::parse),
         )
     }
 
@@ -412,7 +390,7 @@ object AcceptanceSuiteLoader {
     ): BattlefieldStatsCondition {
         val map = raw.asMap(context)
         return BattlefieldStatsCondition(
-            side = map.optionalString("side")?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
+            side = map.optionalString("side", context)?.let(AcceptanceSide::parse) ?: AcceptanceSide.Ours,
             card = map.requiredString("card", context),
             power = map.requiredInt("power", context),
             toughness = map.requiredInt("toughness", context),
@@ -429,7 +407,7 @@ object AcceptanceSuiteLoader {
                 val map = raw.asMap(context)
                 PromptCondition(
                     prompt = map.requiredString("type", context),
-                    promptId = map.optionalInt("prompt_id"),
+                    promptId = map.optionalInt("prompt_id", context),
                 )
             }
         }
@@ -467,28 +445,49 @@ private fun Any?.asList(context: String): List<Any?> = this as? List<Any?> ?: er
 private fun Map<String, Any?>.requiredString(
     key: String,
     context: String,
-): String = this[key].asString("$context.$key")
+): String {
+    val value = this[key] ?: error("$context.$key is required")
+    return value.asString("$context.$key")
+}
 
-private fun Map<String, Any?>.optionalString(key: String): String? = this[key]?.asString(key)
+private fun Map<String, Any?>.optionalString(
+    key: String,
+    context: String,
+): String? = this[key]?.asString("$context.$key")
 
-private fun Map<String, Any?>.optionalInt(key: String): Int? = this[key]?.asInt(key)
+private fun Map<String, Any?>.optionalInt(
+    key: String,
+    context: String,
+): Int? = this[key]?.asInt("$context.$key")
 
 private fun Map<String, Any?>.requiredInt(
     key: String,
     context: String,
-): Int = this[key].asInt("$context.$key")
+): Int {
+    val value = this[key] ?: error("$context.$key is required")
+    return value.asInt("$context.$key")
+}
 
 private fun Map<String, Any?>.requiredBoolean(
     key: String,
     context: String,
-): Boolean = this[key].asBoolean("$context.$key")
+): Boolean {
+    val value = this[key] ?: error("$context.$key is required")
+    return value.asBoolean("$context.$key")
+}
 
 private fun Map<String, Any?>.requiredList(
     key: String,
     context: String,
-): List<Any?> = optionalList(key) ?: error("$context.$key must be a list")
+): List<Any?> {
+    val value = this[key] ?: error("$context.$key is required")
+    return value as? List<Any?> ?: error("$context.$key must be a list")
+}
 
-private fun Map<String, Any?>.optionalList(key: String): List<Any?>? {
+private fun Map<String, Any?>.optionalList(
+    key: String,
+    context: String,
+): List<Any?>? {
     val value = this[key] ?: return null
-    return value as? List<Any?> ?: error("$key must be a list")
+    return value as? List<Any?> ?: error("$context.$key must be a list")
 }

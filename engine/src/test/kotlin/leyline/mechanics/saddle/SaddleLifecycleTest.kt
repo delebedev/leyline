@@ -21,7 +21,7 @@ private val PUZZLE =
     [metadata]
     Name:Saddle Drover Grizzly
     Goal:Saddle Drover Grizzly with a helper creature.
-    Turns:2
+    Turns:10
     Difficulty:Easy
 
     [state]
