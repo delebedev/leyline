@@ -167,34 +167,6 @@ class CostDecision(
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
 
-    override fun visit(cost: CostAddMana): PaymentDecision = PaymentDecision.number(cost.getAbilityAmount(ability))
-
-    override fun visit(cost: CostFlipCoin): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantFlipNCoinAction", c.toString()))) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostRollDice): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        return if (confirmAction(Localizer.getInstance().getMessage("lblDoYouWantRollNDiceAction", c.toString(), "d${cost.type}"))) {
-            PaymentDecision.number(c)
-        } else {
-            null
-        }
-    }
-
-    override fun visit(cost: CostPartMana): PaymentDecision = PaymentDecision(0)
-
-    override fun visit(cost: CostTap): PaymentDecision = PaymentDecision.number(1)
-
-    override fun visit(cost: CostUntap): PaymentDecision = PaymentDecision.number(1)
-
-    override fun visit(cost: CostRevealChosen): PaymentDecision = PaymentDecision.number(1)
-
     override fun visit(cost: CostExileFromStack): PaymentDecision? {
         val game = player.game
         val saList = mutableListOf<SpellAbility>()
