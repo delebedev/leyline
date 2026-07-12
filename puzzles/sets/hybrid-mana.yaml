@@ -1,5 +1,7 @@
 name: hybrid-mana
 description: Hybrid mana-cost prompt and payment smoke.
+web:
+  skip: Not yet exercised by the browser client runner.
 scenarios:
   - id: temur-tawnyback-two-generic-pip
     puzzle: hybrid-mana-temur-tawnyback
