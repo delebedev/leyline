@@ -26,13 +26,6 @@ data class ForageFoodPlan(
     fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNCostSacrifice)
 }
 
-data class DiscardCostPlan(
-    val requiredCount: Int,
-    val discardType: String,
-) {
-    fun toCardSelectionPlan(): CostCardSelectionPlan = CostCardSelectionPlan(PromptSemantic.SelectNDiscard)
-}
-
 data class TapTypeCostPlan(
     val minSelection: Int,
     val maxSelection: Int,
@@ -93,11 +86,6 @@ object CostDecisionPlanner {
         total: Int,
         manaValues: List<Int>,
     ): CollectEvidenceCostPlan = CollectEvidenceCostPlan(total, manaValues)
-
-    fun discardPlan(
-        requiredCount: Int,
-        discardType: String,
-    ): DiscardCostPlan = DiscardCostPlan(requiredCount, discardType)
 
     fun tapTypePlan(
         minSelection: Int,

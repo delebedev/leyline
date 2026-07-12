@@ -15,7 +15,6 @@ import forge.game.keyword.Keyword
 import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
 import forge.game.player.PlayerView
-import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.HumanCostDecision
@@ -131,18 +130,6 @@ class CostDecision(
             plan.costSelectionWeights,
             plan.minSelectionWeight,
         )
-
-    private fun discardAmount(
-        cost: CostDiscard,
-        discardType: String,
-    ): Int =
-        if ((ability.isJumpstart && discardType == "Card") ||
-            (ability.isOptionalCostPaid(OptionalCost.Retrace) && discardType == "Land")
-        ) {
-            1
-        } else {
-            cost.getAbilityAmount(ability)
-        }
 
     private fun selectTotalPowerTapCost(
         cost: CostTapType,
@@ -452,100 +439,6 @@ class CostDecision(
             bridge.journal.clearCollectEvidenceCost()
             return null
         }
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostDiscard): PaymentDecision? {
-        var hand: CardCollectionView = player.getCardsIn(ZoneType.Hand)
-        val discardType = cost.type
-
-        if (cost.payCostFromSource()) {
-            return if (hand.contains(source)) PaymentDecision.card(source) else null
-        }
-        if (discardType == "Hand") {
-            if (!mandatory && !confirmAction(Localizer.getInstance().getMessage("lblDoYouWantDiscardYourHand"))) {
-                return null
-            }
-            if (hand.size > 1 && ability.activatingPlayer != null) {
-                hand = ability.activatingPlayer.controller.orderMoveToZoneList(hand, ZoneType.Graveyard, ability)
-            }
-            return PaymentDecision.card(hand)
-        }
-        if (discardType == "LastDrawn") {
-            val lastDrawn = player.lastDrawnCard
-            return if (hand.contains(lastDrawn)) PaymentDecision.card(lastDrawn) else null
-        }
-
-        var c = discardAmount(cost, discardType)
-
-        if (discardType == "Random") {
-            var randomSubset: CardCollectionView = CardCollection(Aggregates.random(hand, c))
-            if (randomSubset.size > 1 && ability.activatingPlayer != null) {
-                randomSubset = ability.activatingPlayer.controller.orderMoveToZoneList(randomSubset, ZoneType.Graveyard, ability)
-            }
-            return PaymentDecision.card(randomSubset)
-        }
-        if (discardType.contains("+WithDifferentNames")) {
-            val discarded = CardCollection()
-            while (c > 0) {
-                val selected =
-                    selectCards(
-                        Localizer.getInstance().getMessage("lblSelectOneDifferentNameCardToDiscardAlreadyChosen") + discarded,
-                        hand,
-                        1,
-                        1,
-                        cancelAllowed = true,
-                    ) ?: return null
-                val first = selected.first()
-                discarded.add(first)
-                hand = CardLists.filter(hand, CardPredicates.sharesNameWith(first).negate())
-                c--
-            }
-            return PaymentDecision.card(discarded)
-        }
-        if (discardType.contains("+WithSameName")) {
-            val type = TextUtil.fastReplace(discardType, "+WithSameName", "")
-            hand = CardLists.getValidCards(hand, type.split(";").toTypedArray(), player, source, ability)
-            val hand2 = hand
-            hand =
-                CardLists.filter(hand) { c1 ->
-                    hand2.any { card -> card != c1 && card.name == c1.name }
-                }
-            if (c == 0) return PaymentDecision.card(CardCollection())
-            val discarded = CardCollection()
-            while (c > 0) {
-                val selected =
-                    selectCards(
-                        Localizer.getInstance().getMessage("lblSelectOneSameNameCardToDiscardAlreadyChosen") + discarded,
-                        hand,
-                        1,
-                        1,
-                        cancelAllowed = true,
-                    ) ?: return null
-                val first = selected.first()
-                discarded.add(first)
-                hand = CardLists.filter(hand, CardPredicates.nameEquals(first.name))
-                (hand as CardCollection).remove(first)
-                c--
-            }
-            return PaymentDecision.card(discarded)
-        }
-
-        // Typed discard
-        val validType = discardType.split(";").toTypedArray()
-        hand = CardLists.getValidCards(hand, validType, player, source, ability)
-        if (hand.size < 1) return null
-        val plan = CostDecisionPlanner.discardPlan(requiredCount = c, discardType = discardType)
-        val selected =
-            selectCardsWithPlan(
-                Localizer.getInstance().getMessage("lblSelectNMoreTargetTypeCardToDiscard", "%d", cost.descriptiveType),
-                hand,
-                plan.requiredCount,
-                plan.requiredCount,
-                cancelAllowed = !mandatory,
-                plan = plan.toCardSelectionPlan(),
-            ) ?: return null
-        if (selected.size != plan.requiredCount) return null
         return PaymentDecision.card(selected)
     }
 

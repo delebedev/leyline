@@ -3,8 +3,10 @@ package leyline.session.zones
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
@@ -83,6 +85,36 @@ class DiscardInteractionTest :
 
                 assertAccumulatorConsistent("after mandatory discard cost")
                 assertGsIdChain(allMessages, context = "mandatory discard cost flow")
+            }
+        }
+
+        test("discard-as-cost — empty controller answer cancels exact payment") {
+            startPuzzle(marduState, name = "Mardu Outrider cancellation", turns = 2)
+
+            castSpellByName("Mardu Outrider") shouldBe true
+            val pending =
+                harness.bridge
+                    .seat(SeatId(1))
+                    .prompt
+                    .getPendingPrompt()
+                    .shouldNotBeNull()
+            pending.request.semantic shouldBe PromptSemantic.SelectNDiscard
+
+            harness.bridge
+                .seat(SeatId(1))
+                .prompt
+                .submitResponse(pending.promptId, emptyList())
+            harness.bridge.awaitPriority()
+
+            assertSoftly {
+                human
+                    .getZone(ForgeZoneType.Hand)
+                    .cards
+                    .map { it.name }
+                    .toSet() shouldBe
+                    setOf("Mardu Outrider", "Mountain")
+                human.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
+                game().stack.isEmpty shouldBe true
             }
         }
 

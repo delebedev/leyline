@@ -4,12 +4,15 @@ import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.cost.CostDiscard
+import forge.game.cost.CostExile
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostPutCardToLib
 import forge.game.cost.CostReveal
 import forge.game.cost.CostSacrifice
 import forge.game.cost.PaymentDecision
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
@@ -45,6 +48,7 @@ class CostDecisionTest :
             val player: Player,
             val source: Card,
             val ability: SpellAbility,
+            val controller: PlayerController,
             val decision: CostDecision,
         )
 
@@ -85,6 +89,7 @@ class CostDecisionTest :
                 player = player,
                 source = source,
                 ability = ability,
+                controller = controller,
                 decision =
                     CostDecision(
                         controller,
@@ -177,5 +182,61 @@ class CostDecisionTest :
             val result: PaymentDecision? = fx.decision.visit(CostSacrifice("0", "Land", null))
 
             result!!.c shouldBe 0
+        }
+
+        test("existing exile cost hook keeps exact-cardinality projection") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForCost(
+                    cards,
+                    fx.ability,
+                    CostExile("1", "Card", null, forge.game.zone.ZoneType.Hand),
+                    1,
+                    true,
+                    "exile one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 1
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
+            }
+        }
+
+        test("existing put-to-library cost hook keeps exact-cardinality projection") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForCost(
+                    cards,
+                    fx.ability,
+                    CostPutCardToLib("1", "0", "Card", null, forge.game.zone.ZoneType.Hand),
+                    1,
+                    true,
+                    "put one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 1
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
+            }
         }
     })

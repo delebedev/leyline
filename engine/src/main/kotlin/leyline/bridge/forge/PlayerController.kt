@@ -18,6 +18,7 @@ import forge.game.card.CardView
 import forge.game.combat.Combat
 import forge.game.cost.Cost
 import forge.game.cost.CostDecisionMakerBase
+import forge.game.cost.CostDiscard
 import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
@@ -989,7 +990,12 @@ class PlayerController(
         isOptional: Boolean,
         prompt: String,
     ): CardCollectionView {
-        val semantic = if (cpl is CostSacrifice) PromptSemantic.SelectNCostSacrifice else PromptSemantic.Generic
+        val semantic =
+            when (cpl) {
+                is CostDiscard -> PromptSemantic.SelectNDiscard
+                is CostSacrifice -> PromptSemantic.SelectNCostSacrifice
+                else -> PromptSemantic.Generic
+            }
         return targetingCoordinator.chooseCardsViaBridge(
             cards = optionList,
             min = amount,
@@ -1157,7 +1163,11 @@ class PlayerController(
         // Instead, read the stashed decision from TargetingHandler (set after client
         // responded to CastingTimeOptionsReq). Fallback: auto-accept all (test harness).
         var sa = chosenSa
-        val optionalCosts = GameActionUtil.getOptionalCostValues(sa)
+        val optionalCosts =
+            GameActionUtil
+                .getOptionalCostValues(sa)
+                .filterNot { sa.isOptionalCostPaid(it.type) }
+                .toMutableList()
         if (optionalCosts.isNotEmpty()) {
             val chosen = chooseOptionalCosts(sa, optionalCosts)
             sa = GameActionUtil.addOptionalCosts(sa, chosen)

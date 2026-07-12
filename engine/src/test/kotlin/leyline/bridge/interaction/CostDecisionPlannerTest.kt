@@ -27,20 +27,6 @@ class CostDecisionPlannerTest :
             }
         }
 
-        test("typed discard plans semantic intent before card selection policy") {
-            val intent = CostDecisionPlanner.discardPlan(requiredCount = 2, discardType = "Creature")
-
-            intent.requiredCount shouldBe 2
-            intent.discardType shouldBe "Creature"
-        }
-
-        test("typed discard materializes discard cost semantic") {
-            CostDecisionPlanner
-                .discardPlan(requiredCount = 2, discardType = "Creature")
-                .toCardSelectionPlan()
-                .semantic shouldBe PromptSemantic.SelectNDiscard
-        }
-
         test("enlist plans semantic intent before card selection policy") {
             CostDecisionPlanner.enlistPlan(requiredCount = 1).requiredCount shouldBe 1
         }
