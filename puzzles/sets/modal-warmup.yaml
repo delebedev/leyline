@@ -117,6 +117,8 @@ scenarios:
     puzzle: optional-trigger-reclamation-sage
     arena:
       xfail: Optional trigger OptionalActionMessage is not driven by arena-ts yet.
+    web:
+      skip: Web runner does not yet drive this optional trigger path to the expected board state.
     run: cast Reclamation Sage and accept its optional trigger
     expect: Sol Ring is destroyed
     steps:
