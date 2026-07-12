@@ -53,14 +53,16 @@ testkit/
 ├── MessageWalk.kt            List<GREToClientMessage> walkers: allAnnotations(), firstGameObjectByIid(), etc.
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (main-source; performAction { ... })
 ├── Board.kt                  board-tier context (bridge, game, counter) returned by BoardTest's start* methods;
-│                             destructures as (bridge, game, counter) for legacy call sites, plus methods and an
-│                             instance probe DSL (Player.battlefield/hand/graveyard/exile/library, PlayerZone.iid)
+│                             destructures as (bridge, game, counter) for legacy call sites; single implementation
+│                             of snapshotDiff/postAction/gameStart/transferCard — the (b, game, counter)-parameter
+│                             helpers on BoardTest/BoardTestBase delegate here
 ├── BoardTestBase.kt          board-tier engine behind BoardTest; construct directly only for an isolated
 │                             instance outside BoardTest's shared one (see PureDiffReplayTest)
-├── BoardTest.kt              preferred board-tier base; wires BoardTestBase lifecycle + BoardTag
+├── BoardTest.kt              preferred board-tier base; wires lifecycle + BoardTag, hosts the board-tier
+│                             probe DSL (Player.battlefield/hand/….iid(name) via the current board's bridge)
 ├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf, after { } slice builder, Player.{battlefield,hand,…}.iid(name) probe DSL
 ├── MessageSlice.kt           bounded slice of GREToClientMessage from after { } — typed expectOne*/expectNo* prompt assertions + block-form prompt-shape sub-DSL
-├── PlayerZone.kt             (player, zone) probe handle for SessionTest's instance-probe DSL
+├── PlayerZone.kt             (player, zone) probe handle + shared iidVia(bridge, name) resolver behind both bases' probe DSLs
 ├── MatchFlowHarness.kt       Session-tier harness (main-source) — owns the game thread, message stream, scripted AI
 ├── ScriptedPlayerController.kt (main-source)
 ├── ClientAccumulator.kt      main-source GSM accumulator — invariant checker
@@ -71,7 +73,7 @@ testkit/
 
 **Picking a layer when you reach for a helper:**
 
-- Need to *find a card iid* in a Session-tier test? Prefer the probe DSL: `human.battlefield.iid("Walking Corpse")`, `ai.exile.iid("Forum's Favor")`. Falls back to `instanceIdOf(name, player, zone)` when the zone is computed at runtime. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
+- Need to *find a card iid* in a Session- or Board-tier test? Prefer the probe DSL: `human.battlefield.iid("Walking Corpse")`, `ai.exile.iid("Forum's Favor")`. Falls back to `instanceIdOf(name, player, zone)` when the zone is computed at runtime. Don't roll `getZone(...).cards.first { it.name == name }.let { bridge.getOrAllocInstanceId(...) }` inline.
 - Need to *assert prompt shape* in a window of messages? `after { castSpellByName("X") }.expectOneCastingTimeOptionsReq()` (or `.expectNo*` / block-form `.expectCastingTimeOptionsReq { option(...); done(...) }`). Raw `messageSnapshot()` / `messagesSince()` still work as an escape hatch when the assertion is positional. Note: `expectOne*` means *exactly one* — if a flow legitimately re-prompts, fall back to the raw walker rather than silently tightening the contract.
 - Need to *assert a card is in a zone*? Use `ZoneMatchers` (`"X" should beInHandOf(player)` or `... should beInZoneOf(zone, player, count = N)`). The matcher's failure message names card+player+zone; an inline `.cards.any { it.name == ... } shouldBe true` doesn't.
 - Need to *walk the message log*? Use `MessageWalk.kt` extensions on `List<GREToClientMessage>` — they compose with `MessageSlice.messages`. Don't add private file-scoped walkers — promote them.

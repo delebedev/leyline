@@ -119,7 +119,7 @@ open class BoardTestBase {
         zone: ZoneType = ZoneType.Battlefield,
     ): Card = Board.createCard(name, player, zone)
 
-    // ----- Capture helpers -----
+    // ----- Snapshot-diff helpers — (b, game, counter)-parameter façade over [Board] -----
 
     /** Create a [BundleBuilder] with standard test constants. */
     fun bundleBuilder(b: GameBridge): BundleBuilder = BundleBuilder(b, TEST_MATCH_ID, SEAT_ID)
@@ -129,10 +129,7 @@ open class BoardTestBase {
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
-    ): GameStateMessage =
-        bundleBuilder(b)
-            .stateOnlyDiff(game, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+    ): GameStateMessage = Board(b, game, counter).stateOnlyDiff()
 
     /**
      * Snapshot, run [action], build stateOnlyDiff, return GSM.
@@ -144,12 +141,7 @@ open class BoardTestBase {
         counter: MessageCounter,
         checkSba: Boolean = false,
         action: () -> Unit,
-    ): GameStateMessage {
-        b.seedDiffBaseline(game, counter.currentGsId())
-        action()
-        if (checkSba) game.action.checkStateEffects(true)
-        return stateOnlyDiff(game, b, counter)
-    }
+    ): GameStateMessage = Board(b, game, counter).snapshotDiff(checkSba, action)
 
     fun playLand(b: GameBridge): PlayerAction.PlayLand? {
         val player = b.getPlayer(SeatId(1)) ?: return null
@@ -187,23 +179,14 @@ open class BoardTestBase {
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
-    ): BundleBuilder.BundleResult {
-        val playbackMessages =
-            b.playback
-                ?.drainQueue()
-                .orEmpty()
-                .flatten()
-        val postAction = bundleBuilder(b).postAction(game, counter)
-        if (playbackMessages.isEmpty()) return postAction
-        return BundleBuilder.BundleResult(playbackMessages + postAction.messages)
-    }
+    ): BundleBuilder.BundleResult = Board(b, game, counter).postAction()
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
     fun gameStart(
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
-    ): BundleBuilder.BundleResult = bundleBuilder(b).phaseTransitionDiff(game, counter)
+    ): BundleBuilder.BundleResult = Board(b, game, counter).gameStart()
 
     /**
      * Build a Full state GSM simulating the handshake baseline.

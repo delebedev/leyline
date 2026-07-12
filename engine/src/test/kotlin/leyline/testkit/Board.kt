@@ -1,17 +1,14 @@
 package leyline.testkit
 
 import forge.game.Game
-import forge.game.ability.AbilityKey
 import forge.game.card.Card
 import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.advanceToMain1
-import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.generator.PuzzleSource
@@ -100,19 +97,6 @@ class Board(
         return snapshotDiff { human.playLand(land, null) }
     }
 
-    /** Move card to battlefield — raw zone move, no events, no triggers. For setup. */
-    fun moveToBattlefield(card: Card) {
-        game.action.moveToPlay(card, null, AbilityKey.newMap())
-    }
-
-    fun destroy(card: Card) {
-        game.action.destroy(card, null, false, AbilityKey.newMap())
-    }
-
-    fun exile(card: Card) {
-        game.action.exile(card, null, AbilityKey.newMap())
-    }
-
     /** Find card by name, perform action, assert realloc + Limbo, return (gsm, newInstanceId). */
     fun transferCard(
         cardName: String,
@@ -137,67 +121,6 @@ class Board(
 
     /** Resolve a Forge card.id to its current proto instanceId. */
     fun instanceId(cardId: Int): Int = bridge.getOrAllocInstanceId(ForgeCardId(cardId)).value
-
-    // ----- Threaded action helpers (startGameAtMain1 tier) -----
-
-    fun playLand(): PlayerAction.PlayLand? {
-        val player = bridge.getPlayer(SeatId(1)) ?: return null
-        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
-        val pending = awaitFreshPending(bridge, null) ?: return null
-        val action = PlayerAction.PlayLand(ForgeCardId(land.id))
-        bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, action)
-        awaitFreshPending(bridge, pending.actionId)
-        return action
-    }
-
-    fun castCreature(): PlayerAction.CastSpell? {
-        val player = bridge.getPlayer(SeatId(1)) ?: return null
-        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
-        val pending = awaitFreshPending(bridge, null) ?: return null
-        val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
-        bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, action)
-        awaitFreshPending(bridge, pending.actionId)
-        return action
-    }
-
-    fun passPriority() {
-        val pending = awaitFreshPending(bridge, null) ?: return
-        bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
-        awaitFreshPending(bridge, pending.actionId)
-    }
-
-    // ----- Instance probe DSL -----
-
-    /** Battlefield zone of [this] player as a probe handle. */
-    val Player.battlefield: PlayerZone get() = PlayerZone(this, ZoneType.Battlefield)
-
-    /** Hand zone of [this] player as a probe handle. */
-    val Player.hand: PlayerZone get() = PlayerZone(this, ZoneType.Hand)
-
-    /** Graveyard zone of [this] player as a probe handle. */
-    val Player.graveyard: PlayerZone get() = PlayerZone(this, ZoneType.Graveyard)
-
-    /** Exile zone of [this] player as a probe handle. */
-    val Player.exile: PlayerZone get() = PlayerZone(this, ZoneType.Exile)
-
-    /** Library zone of [this] player as a probe handle. */
-    val Player.library: PlayerZone get() = PlayerZone(this, ZoneType.Library)
-
-    /**
-     * Resolve a card by name within this (player, zone) handle to its
-     * instanceId — call sites read like a path: `human.battlefield.iid("Walking Corpse")`.
-     */
-    fun PlayerZone.iid(cardName: String): Int {
-        val card =
-            player.getZone(zone).cards.firstOrNull { it.name == cardName }
-                ?: error("Card '$cardName' not found in ${player.name} $zone")
-        return instanceId(card.id)
-    }
-
-    /**
-     * Resolve multiple cards by name in one go — `human.battlefield.iids("A", "B", "C")`.
-     */
-    fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
 
     companion object {
         // Guards Forge's static MyRandom during seed → shuffle → initial-draw.

@@ -8,12 +8,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
-import leyline.game.seedDiffBaseline
 import leyline.testkit.BoardTest
-import leyline.testkit.gsm
-import leyline.testkit.gsmOrNull
-import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -25,24 +20,26 @@ class AttachmentAnnotationTest :
     BoardTest({
 
         test("attachment produces transient and persistent annotations") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                     addCard("Pacifism", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val game = board.game
+            val human = board.human
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val auraCard = human.getZone(ZoneType.Hand).cards.first()
 
             game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
-            b.seedDiffBaseline(game, counter.currentGsId())
-            game.fireEvent(GameEventCardAttachment(auraCard, null, creature))
+            val gsm =
+                board.snapshotDiff {
+                    game.fireEvent(GameEventCardAttachment(auraCard, null, creature))
+                }
 
-            val result = bundleBuilder(b).stateOnlyDiff(game, counter)
-            val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-            val auraIid = b.getOrAllocInstanceId(ForgeCardId(auraCard.id)).value
-            val creatureIid = b.getOrAllocInstanceId(ForgeCardId(creature.id)).value
+            // The manually fired attachment event doesn't move the aura through a real
+            // attach, so resolve its iid by card id rather than by battlefield lookup.
+            val auraIid = board.instanceId(auraCard.id)
+            val creatureIid = human.battlefield.iid("Grizzly Bears")
 
             val attachCreated =
                 gsm.annotationsList.firstOrNull {
@@ -67,21 +64,21 @@ class AttachmentAnnotationTest :
         }
 
         test("detach does not produce AttachmentCreated") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                     addCard("Pacifism", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val game = board.game
+            val human = board.human
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val auraCard = human.getZone(ZoneType.Hand).cards.first()
 
             game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
-            b.seedDiffBaseline(game, counter.currentGsId())
-            game.fireEvent(GameEventCardAttachment(auraCard, creature, null))
-
-            val result = bundleBuilder(b).stateOnlyDiff(game, counter)
-            val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+            val gsm =
+                board.snapshotDiff {
+                    game.fireEvent(GameEventCardAttachment(auraCard, creature, null))
+                }
 
             gsm.annotationsList
                 .firstOrNull {
