@@ -2,13 +2,11 @@ package leyline.mechanics.foretell
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
@@ -16,7 +14,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
@@ -53,20 +51,14 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
     "WeakAssertionOnly",
 )
 class ForetellActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Forge surfaces the Foretell hand SA on a hand card (isForetelling=true)") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Demon Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Demon Bolt", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Demon Bolt" }
@@ -82,10 +74,10 @@ class ForetellActionTest :
             // FORETELL row carries the *cast* cost {R}. Cost-agnostic lookup must still
             // resolve the offer's alternativeGrpId correctly.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Demon Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Demon Bolt", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -123,11 +115,11 @@ class ForetellActionTest :
             // a Grizzly Bears so the base SA's targeting is met and the foretell
             // alt-cost branch in addHandAltCostCastActions actually fires.
             val (b, game, _) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Demon Bolt", human, ZoneType.Hand)
-                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Demon Bolt", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
 
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
@@ -164,9 +156,9 @@ class ForetellActionTest :
             // Only one Mountain — can't pay foretell action cost {2}. Base Cast at {R}
             // is payable but carries no alternativeGrpId; the foretell offer must be absent.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Demon Bolt", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Demon Bolt", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -191,10 +183,10 @@ class ForetellActionTest :
             // Foretell hand-action is hand-only. A foretell card in graveyard must not
             // surface a foretell offer.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Demon Bolt", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Demon Bolt", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
 

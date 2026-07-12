@@ -3,11 +3,9 @@ package leyline.board.diff
 import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.gsm
 import leyline.testkit.humanPlayer
@@ -25,21 +23,15 @@ import leyline.testkit.humanPlayer
  * Uses [startWithBoard] (~0.01s) — all checks are on synchronous diff builders.
  */
 class GsIdChainTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("remoteActionDiff produces content GSM plus echo with chained gsIds and no pendingMessageCount") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Hand)
                 }
 
-            val result = base.bundleBuilder(b).remoteActionDiff(game, counter)
+            val result = bundleBuilder(b).remoteActionDiff(game, counter)
             result.messages.size shouldBe 2
             val content = result.messages[0].gameStateMessage
             val echo = result.messages[1].gameStateMessage
@@ -53,8 +45,8 @@ class GsIdChainTest :
 
         test("postAction GSM has pendingMessageCount=1 (AAR follows)") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Hand)
                 }
 
             val land =
@@ -62,22 +54,22 @@ class GsIdChainTest :
                     .getZone(ZoneType.Hand)
                     .cards
                     .first { it.isLand }
-            base.captureAfterAction(b, game, counter) {
+            captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
 
-            val result = base.postAction(game, b, counter)
+            val result = postAction(game, b, counter)
             val gsm = result.gsm
             gsm.pendingMessageCount shouldBe 1
         }
 
         test("phaseTransitionDiff produces 5 messages with correct echo chain") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Hand)
                 }
 
-            val result = base.bundleBuilder(b).phaseTransitionDiff(game, counter)
+            val result = bundleBuilder(b).phaseTransitionDiff(game, counter)
             result.messages.size shouldBe 5
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }

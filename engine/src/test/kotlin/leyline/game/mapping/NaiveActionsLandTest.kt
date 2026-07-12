@@ -1,12 +1,10 @@
 package leyline.game.mapping
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import leyline.BoardTag
 import leyline.game.mapping.ActionMapper
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -14,20 +12,14 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * in naive mode (opponent's turn). They should go to inactiveActions.
  */
 class NaiveActionsLandTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("buildNaiveActions puts lands in inactiveActions, not actions") {
             val (bridge, game) =
-                base.startWithBoard { game, human, ai ->
-                    base.addCard("Forest", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Hand)
-                    base.addCard("Plains", human, ZoneType.Hand)
+                startWithBoard { game, human, ai ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Plains", human, ZoneType.Hand)
                 }
 
             val req = ActionMapper.buildNaiveActions(1, bridge)

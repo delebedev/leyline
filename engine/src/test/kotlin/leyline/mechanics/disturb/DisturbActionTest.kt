@@ -4,13 +4,11 @@ import forge.game.ability.AbilityKey
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
@@ -20,7 +18,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
@@ -45,25 +43,19 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  * Back face: Waildrifter (Creature 2/2 Flying Spirit, exile-instead-of-graveyard).
  */
 class DisturbActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("disturb card only in hand → no graveyard-cast offer (zone guard)") {
             // Disturb is graveyard-only. A disturb card in hand should not surface
             // the disturb alt-cost from graveyard rail.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Galedrifter", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Galedrifter", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -86,8 +78,8 @@ class DisturbActionTest :
 
         test("StateMapper emits DisturbBack face object for graveyard disturb card") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Galedrifter", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Galedrifter", human, ZoneType.Graveyard)
                 }
             val galedrifterGrpId = b.cardRepository.findGrpIdByName("Galedrifter")!!
             val waildrifterGrpId = b.cardRepository.findGrpIdByNameAnyFace("Waildrifter")!!
@@ -124,8 +116,8 @@ class DisturbActionTest :
 
         test("StateMapper deletes DisturbBack face object when source leaves player zone") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Galedrifter", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Galedrifter", human, ZoneType.Graveyard)
                 }
             val galedrifter =
                 game.humanPlayer
@@ -163,8 +155,8 @@ class DisturbActionTest :
 
         test("SnapshotCapture.resolveOthersideGrpId returns Waildrifter for Galedrifter (DFC linkage)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Galedrifter", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Galedrifter", human, ZoneType.Graveyard)
                 }
             val card =
                 game.humanPlayer
@@ -181,8 +173,8 @@ class DisturbActionTest :
 
         test("SnapshotCapture.resolveOthersideGrpId falls back to any-face lookup for Lunarch Veteran") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Lunarch Veteran", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Lunarch Veteran", human, ZoneType.Battlefield)
                 }
             val card =
                 game.humanPlayer

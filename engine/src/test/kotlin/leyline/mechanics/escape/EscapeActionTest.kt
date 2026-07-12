@@ -2,15 +2,13 @@ package leyline.mechanics.escape
 
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
 
@@ -30,26 +28,20 @@ import leyline.testkit.offerAltCost
  * Card: Glimpse of Freedom (Instant {U}, "Draw a card.", Escape {2}{U}+exile-5).
  */
 class EscapeActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("escape card only in hand → no graveyard-cast offer (zone guard)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Glimpse of Freedom", human, ZoneType.Hand)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Glimpse of Freedom", human, ZoneType.Hand)
+                    addCard("Plains", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
 
@@ -73,14 +65,14 @@ class EscapeActionTest :
             // Glimpse needs 5 other GY cards exiled. With only 3 others, Forge's canPlay
             // should fail the additional-cost check and the Escape SA should not surface.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Glimpse of Freedom", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
-                    base.addCard("Plains", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Glimpse of Freedom", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
+                    addCard("Plains", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Glimpse of Freedom" }

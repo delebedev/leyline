@@ -2,15 +2,13 @@ package leyline.behavior.annotations.abilitywordactive
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
@@ -25,19 +23,13 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * and threshold fields.
  */
 class AbilityWordPuzzleTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Threshold creature emits AbilityWordActive with GY card count") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Graveyard) }
+                startWithBoard { _, human, _ ->
+                    addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
+                    repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
                 }
 
             val human = game.humanPlayer
@@ -67,10 +59,10 @@ class AbilityWordPuzzleTest :
 
         test("AbilityWordActive value updates when GY count changes") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Graveyard) }
-                    base.addCard("Island", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
+                    repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
+                    addCard("Island", human, ZoneType.Hand)
                 }
 
             // Initial value from the store (baseline) — value=5.
@@ -85,7 +77,7 @@ class AbilityWordPuzzleTest :
             val human = game.humanPlayer
             val island = human.getZone(ZoneType.Hand).cards.first { it.name == "Island" }
             game.action.moveToGraveyard(island, null)
-            base.captureAfterAction(b, game, counter) {}
+            captureAfterAction(b, game, counter) {}
 
             // Post-action store — value should be 6.
             val aw2 =
@@ -97,9 +89,9 @@ class AbilityWordPuzzleTest :
 
         test("Morbid pAnn has seatId affectorId and morbid permanents in affectedIds") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val prowler =
@@ -113,7 +105,7 @@ class AbilityWordPuzzleTest :
             val ai = game.registeredPlayers.find { it != human }!!
             val bear = ai.getZone(ZoneType.Battlefield).cards.first()
             val gsm =
-                base.captureAfterAction(b, game, counter) {
+                captureAfterAction(b, game, counter) {
                     game.action.moveToGraveyard(bear, null)
                 }
 
@@ -135,11 +127,11 @@ class AbilityWordPuzzleTest :
 
         test("Morbid pAnn absent when no creature died") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
                 }
 
-            val gsm = base.stateOnlyDiff(game, b, counter)
+            val gsm = stateOnlyDiff(game, b, counter)
             gsm.persistentAnnotationsList
                 .filter {
                     AnnotationType.AbilityWordActive in it.typeList &&
@@ -149,17 +141,17 @@ class AbilityWordPuzzleTest :
 
         test("Two morbid cards produce single pAnn with both iids in affectedIds") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
-                    base.addCard("Needletooth Pack", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                    addCard("Needletooth Pack", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val ai = game.registeredPlayers.find { it != human }!!
             val bear = ai.getZone(ZoneType.Battlefield).cards.first()
 
             val gsm =
-                base.captureAfterAction(b, game, counter) {
+                captureAfterAction(b, game, counter) {
                     game.action.moveToGraveyard(bear, null)
                 }
 
@@ -174,12 +166,12 @@ class AbilityWordPuzzleTest :
 
         test("no AbilityWordActive for non-threshold creatures") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Graveyard) }
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
                 }
 
-            val gsm = base.stateOnlyDiff(game, b, counter)
+            val gsm = stateOnlyDiff(game, b, counter)
             gsm.persistentAnnotationsList.filter {
                 AnnotationType.AbilityWordActive in it.typeList
             } shouldHaveSize 0

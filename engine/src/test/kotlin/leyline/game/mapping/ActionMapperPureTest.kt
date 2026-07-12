@@ -2,15 +2,14 @@ package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.GrpId
 import leyline.game.data.CardData
 import leyline.game.snapshot.GrpIdResolver
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
@@ -26,20 +25,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 @Suppress("WeakAssertionOnly")
 class ActionMapperPureTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         // -----------------------------------------------------------------------
         // Test 1: Pass action always present
         // -----------------------------------------------------------------------
 
         test("buildActionList includes Pass action on empty board") {
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val human = game.humanPlayer
 
             val actions =
@@ -63,8 +56,8 @@ class ActionMapperPureTest :
 
         test("buildActionList includes Play for lands in hand (inactiveActions in naive mode)") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -90,8 +83,8 @@ class ActionMapperPureTest :
 
         test("buildActionList includes Cast for non-land spells in hand") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
 
@@ -115,8 +108,8 @@ class ActionMapperPureTest :
 
         test("buildActionList includes ActivateMana for untapped lands on battlefield") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Island", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Island", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
 
@@ -162,9 +155,9 @@ class ActionMapperPureTest :
 
         test("unaffordable Cast goes to inactiveActions with manaCost") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // Spell in hand, no lands — can't pay
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand) // costs {G}
+                    addCard("Llanowar Elves", human, ZoneType.Hand) // costs {G}
                 }
             val human = game.humanPlayer
 
@@ -191,9 +184,9 @@ class ActionMapperPureTest :
 
         test("affordable Cast stays in actions") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand) // costs {G}
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Hand) // costs {G}
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
 
@@ -217,11 +210,11 @@ class ActionMapperPureTest :
 
         test("unaffordable Activate goes to inactiveActions") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // Permanent with mana-costed activated ability, no mana available
-                    base.addCard("Prismari Command", human, ZoneType.Hand)
+                    addCard("Prismari Command", human, ZoneType.Hand)
                     // Sorcerer Class has {3}{U}{R}: level 2 — a mana-costed activate
-                    base.addCard("Sorcerer Class", human, ZoneType.Battlefield)
+                    addCard("Sorcerer Class", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
 
@@ -246,14 +239,14 @@ class ActionMapperPureTest :
 
         test("affordable Activate stays in actions") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Sorcerer Class", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Sorcerer Class", human, ZoneType.Battlefield)
                     // Enough mana for {3}{U}{R}
-                    base.addCard("Island", human, ZoneType.Battlefield)
-                    base.addCard("Mountain", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
 
@@ -272,10 +265,10 @@ class ActionMapperPureTest :
 
         test("snow-costed Activate carries snow mana cost when payable") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Ascendant Spirit", human, ZoneType.Battlefield)
-                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
-                    base.addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Ascendant Spirit", human, ZoneType.Battlefield)
+                    addCard("Snow-Covered Island", human, ZoneType.Battlefield)
+                    addCard("Snow-Covered Island", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
 

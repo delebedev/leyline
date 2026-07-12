@@ -1,16 +1,14 @@
 package leyline.game.state
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.maps.shouldNotBeEmpty
-import leyline.BoardTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.state.GameBridge
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 
@@ -30,22 +28,17 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateType
  * every post-entry frame.
  */
 class PersistentAnnotationDiffTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("persistent annotation IDs appear on exactly one Diff GSM in a scripted scenario") {
-            val (bridge, _, _) = base.startGameAtMain1(seed = 42L)
+            val (bridge, _, _) = startGameAtMain1(seed = 42L)
             val diffs = mutableListOf<GameStateMessage>()
             bridge.diffListener = { _, _, _, _, diff -> diffs.add(diff) }
 
             // Scenario: play a land (creates EZTT + ColorProduction persistent
             // annotations), then pass through the full turn so we accumulate
             // many Diff GSMs after the persistent state has changed.
-            base.playLand(bridge) ?: error("scenario requires a playable land in opening hand")
+            playLand(bridge) ?: error("scenario requires a playable land in opening hand")
             advanceToEndOfTurnLocal(bridge)
 
             bridge.diffListener = null

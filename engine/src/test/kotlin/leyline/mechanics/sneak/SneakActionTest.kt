@@ -2,19 +2,17 @@ package leyline.mechanics.sneak
 
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
 
@@ -41,20 +39,14 @@ import leyline.testkit.offerAltCost
     "WeakAssertionOnly",
 )
 class SneakActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Forge surfaces the Sneak alt-cost SA on a hand card (plumbing ready)") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Splinter's Technique", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Splinter's Technique" }
@@ -74,8 +66,8 @@ class SneakActionTest :
 
         test("Sneak card present: card DB carries the sneak keyword ability grpId") {
             val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Splinter's Technique", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
@@ -91,10 +83,10 @@ class SneakActionTest :
             // appear. This pins the snapshot path shape — the same rail the live puzzle
             // runtime exercises — against the Sneak keyword.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Splinter's Technique", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
@@ -119,10 +111,10 @@ class SneakActionTest :
             // Here we assert the NEGATIVE guardrail: empty keyword map + no payable
             // sneak cost → no offer, and critically no NPE/IndexOutOfBounds.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Splinter's Technique", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
@@ -149,9 +141,9 @@ class SneakActionTest :
 
         test("Sneak card in hand, insufficient mana → no alt-cost Cast offer") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // No Swamps — can't pay {1}{B}.
-                    base.addCard("Splinter's Technique", human, ZoneType.Hand)
+                    addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
@@ -174,10 +166,10 @@ class SneakActionTest :
 
         test("Sneak card only in library → no alt-cost Cast offer") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Splinter's Technique", human, ZoneType.Library)
+                startWithBoard { _, human, _ ->
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Splinter's Technique", human, ZoneType.Library)
                 }
             val human = game.humanPlayer
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
@@ -200,10 +192,10 @@ class SneakActionTest :
 
         test("Sneak card in graveyard → no alt-cost Cast offer") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Swamp", human, ZoneType.Battlefield)
-                    base.addCard("Splinter's Technique", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Swamp", human, ZoneType.Battlefield)
+                    addCard("Splinter's Technique", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!

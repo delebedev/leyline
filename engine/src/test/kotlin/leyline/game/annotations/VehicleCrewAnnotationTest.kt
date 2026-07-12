@@ -3,13 +3,11 @@ package leyline.game.annotations
 import forge.game.card.CardCollection
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.codes.DetailKeys
 import leyline.game.eid
@@ -18,6 +16,7 @@ import leyline.game.iid
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -28,20 +27,14 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
  * and crew-related persistent annotations (CrewedThisTurn, ModifiedType+LayeredEffect).
  */
 class VehicleCrewAnnotationTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         // --- Task 1: Type overlay tests (existing) ---
 
         test("vehicle gains Creature type when crew adds Creature to Forge card type") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    val vehicle = base.addCard("Smuggler's Copter", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    val vehicle = addCard("Smuggler's Copter", human, ZoneType.Battlefield)
                     vehicle.addType("Creature")
                 }
 
@@ -59,8 +52,8 @@ class VehicleCrewAnnotationTest :
 
         test("non-vehicle artifact does not gain Creature type") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Sol Ring", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Sol Ring", human, ZoneType.Battlefield)
                 }
 
             val snap2 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -77,8 +70,8 @@ class VehicleCrewAnnotationTest :
 
         test("creature on battlefield has correct type without overlay changes") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
 
             val snap3 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -154,10 +147,10 @@ class VehicleCrewAnnotationTest :
 
         test("crewed vehicle produces CrewedThisTurn persistent annotation in GSM") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    val vehicle = base.addCard("Smuggler's Copter", human, ZoneType.Battlefield)
-                    val crew1 = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    val crew2 = base.addCard("Elvish Mystic", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    val vehicle = addCard("Smuggler's Copter", human, ZoneType.Battlefield)
+                    val crew1 = addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    val crew2 = addCard("Elvish Mystic", human, ZoneType.Battlefield)
 
                     // Simulate crew: add Creature type + set crewedByThisTurn
                     vehicle.addType("Creature")
@@ -177,9 +170,9 @@ class VehicleCrewAnnotationTest :
 
         test("crewed vehicle-creature produces ModifiedType+LayeredEffect persistent annotation") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    val vehicle = base.addCard("Smuggler's Copter", human, ZoneType.Battlefield)
-                    val crew = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    val vehicle = addCard("Smuggler's Copter", human, ZoneType.Battlefield)
+                    val crew = addCard("Grizzly Bears", human, ZoneType.Battlefield)
 
                     vehicle.addType("Creature")
                     vehicle.addCrewedByThisTurn(CardCollection(listOf(crew)))
@@ -199,8 +192,8 @@ class VehicleCrewAnnotationTest :
 
         test("uncrewed vehicle produces no crew persistent annotations") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Smuggler's Copter", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Smuggler's Copter", human, ZoneType.Battlefield)
                 }
 
             val snap6 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -216,9 +209,9 @@ class VehicleCrewAnnotationTest :
 
         test("crew effect expiry removes ModifiedType persistent annotation") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    val vehicle = base.addCard("Smuggler's Copter", human, ZoneType.Battlefield)
-                    val crew = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    val vehicle = addCard("Smuggler's Copter", human, ZoneType.Battlefield)
+                    val crew = addCard("Grizzly Bears", human, ZoneType.Battlefield)
                     vehicle.addType("Creature")
                     vehicle.addCrewedByThisTurn(CardCollection(listOf(crew)))
                 }

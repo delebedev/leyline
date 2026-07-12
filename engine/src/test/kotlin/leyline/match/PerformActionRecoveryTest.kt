@@ -1,15 +1,13 @@
 package leyline.match
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.SeatId
 import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.performAction
 
 /**
@@ -19,16 +17,10 @@ import leyline.testkit.performAction
  * auto-pass loop (which would spin through phases and emit many messages).
  */
 class PerformActionRecoveryTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("missing pending action emits exactly one postAction resync bundle") {
-            val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
 
             val sink = ListMessageSink()
             val session =

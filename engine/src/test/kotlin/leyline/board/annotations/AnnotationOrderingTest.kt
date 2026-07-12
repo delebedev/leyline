@@ -1,11 +1,9 @@
 package leyline.board.annotations
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
@@ -16,13 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * PlayLand ordering tests moved to LandManaTest.
  */
 class AnnotationOrderingTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         fun assertAnnotationIdsSequential(gsm: GameStateMessage) {
             val ids = gsm.annotationsList.map { it.id }
@@ -39,11 +31,11 @@ class AnnotationOrderingTest :
         // ===== Cross-category: annotation IDs =====
 
         test("annotation IDs sequential across categories") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
+            val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
             assertAnnotationIdsSequential(gsm)
 
             // CastSpell: check each GSM in the triplet independently
-            val castBundle = base.castSpellBundle()
+            val castBundle = castSpellBundle()
             if (castBundle != null) {
                 for (msg in castBundle.messages.filter { it.hasGameStateMessage() }) {
                     val gsmInner = msg.gameStateMessage
@@ -51,7 +43,7 @@ class AnnotationOrderingTest :
                 }
             }
 
-            val resolveGsm = base.resolveAndCapture()
+            val resolveGsm = resolveAndCapture()
             if (resolveGsm != null) assertAnnotationIdsSequential(resolveGsm)
         }
 

@@ -4,36 +4,27 @@ import forge.deck.Deck
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
 
 class SnapshotSeatMappingTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-
-        beforeSpec { base.initCardDatabase() }
-
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("all-AI games preserve protocol seats in snapshots") {
             val bridge = GameBridge(cardRepository = TestCardRegistry.repo)
-            base.bridge = bridge
+            useBridge(bridge)
             val game = GameBootstrap.createAiVsAiGame(Deck(), Deck())
             bridge.wrapGame(game)
 
             val seat1 = game.players[0]
             val seat2 = game.players[1]
-            val seat1Card = base.addCard("Forest", seat1, ZoneType.Hand)
-            val seat2Card = base.addCard("Mountain", seat2, ZoneType.Hand)
+            val seat1Card = addCard("Forest", seat1, ZoneType.Hand)
+            val seat2Card = addCard("Mountain", seat2, ZoneType.Hand)
             game.phaseHandler.devModeSet(PhaseType.MAIN1, seat2)
 
             val snap = GsmSnapshot.capture(game, bridge, "test-match", 1)

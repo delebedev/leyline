@@ -2,15 +2,13 @@ package leyline.mechanics.omen
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -31,13 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  */
 @Suppress("WeakAssertionOnly")
 class OmenActionTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         fun omenOffers(
             actions: List<Action>,
@@ -46,9 +38,9 @@ class OmenActionTest :
 
         test("Omen card in hand with both costs payable → both Cast and CastOmen offered") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Battlefield) }
-                    base.addCard("Riling Dawnbreaker", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    repeat(5) { addCard("Plains", human, ZoneType.Battlefield) }
+                    addCard("Riling Dawnbreaker", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isAdventureCard || it.name == "Riling Dawnbreaker" }
@@ -74,10 +66,10 @@ class OmenActionTest :
         test("Omen card with only Omen cost payable → only CastOmen offered (active), main Cast inactive") {
             // 2 Plains: Omen {1}{W} payable, main {4}{W} not.
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Plains", human, ZoneType.Battlefield)
-                    base.addCard("Riling Dawnbreaker", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Riling Dawnbreaker", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Riling Dawnbreaker" }
@@ -101,9 +93,9 @@ class OmenActionTest :
 
         test("Omen card in graveyard → no CastOmen offer") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Battlefield) }
-                    base.addCard("Riling Dawnbreaker", human, ZoneType.Graveyard)
+                startWithBoard { _, human, _ ->
+                    repeat(5) { addCard("Plains", human, ZoneType.Battlefield) }
+                    addCard("Riling Dawnbreaker", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Riling Dawnbreaker" }
@@ -118,8 +110,8 @@ class OmenActionTest :
 
         test("snapshot exposes isOmenCard flag") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Riling Dawnbreaker", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Riling Dawnbreaker", human, ZoneType.Hand)
                 }
             val card =
                 game.humanPlayer

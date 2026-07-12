@@ -1,15 +1,13 @@
 package leyline.board.actions
 
 import forge.game.zone.ZoneType
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.CardDataDeriver
 import leyline.testkit.TestCardInjector
 import leyline.testkit.TestCardRegistry
@@ -21,16 +19,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * match expected CardData slots.
  */
 class AbilityGrpIdConformanceTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("planeswalker Activate actions have distinct abilityGrpIds") {
             val cardName = "Chandra, Torch of Defiance"
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
 
             // Inject planeswalker onto battlefield
             val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
@@ -75,7 +68,7 @@ class AbilityGrpIdConformanceTest :
 
         test("land with mana and non-mana activations emits matching abilityGrpIds") {
             val cardName = "Racers' Ring"
-            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val (b, game, _) = startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, cardName, ZoneType.Battlefield)
             val cardData = CardDataDeriver.fromForgeCard(injected.card, cardName)
             TestCardRegistry.repo.registerData(cardData, cardName)

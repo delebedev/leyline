@@ -4,31 +4,23 @@ import forge.game.ability.AbilityKey
 import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
 import leyline.game.annotations.AbilityWordScanner
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 
 class AbilityWordScannerTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("Station thresholds emit StationLevelThreshold entries after charge counters exist") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Lumen-Class Frigate", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Lumen-Class Frigate", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val frigate = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Lumen-Class Frigate" }
@@ -57,9 +49,9 @@ class AbilityWordScannerTest :
 
         test("Threshold creature emits AbilityWordActive with GY count") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Graveyard) }
+                startWithBoard { _, human, _ ->
+                    addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
+                    repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
                 }
             val human = game.humanPlayer
             val scavenger =
@@ -92,9 +84,9 @@ class AbilityWordScannerTest :
 
         test("Morbid card with dead creature emits per-player AbilityWordEntry") {
             val (b, game, _) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val prowler =
@@ -132,8 +124,8 @@ class AbilityWordScannerTest :
 
         test("Morbid card with no creature death emits no entry") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
                 }
 
             val allBf = game.registeredPlayers.flatMap { it.getZone(ZoneType.Battlefield).cards.toList() }
@@ -149,11 +141,11 @@ class AbilityWordScannerTest :
 
         test("Morbid and Threshold on same scan does not interfere") {
             val (b, game, _) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
-                    base.addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
-                    repeat(5) { base.addCard("Plains", human, ZoneType.Graveyard) }
-                    base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                startWithBoard { _, human, ai ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                    addCard("Dreadwing Scavenger", human, ZoneType.Battlefield)
+                    repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val ai = game.registeredPlayers.find { it != human }!!
@@ -177,8 +169,8 @@ class AbilityWordScannerTest :
 
         test("no ability word cards returns empty") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
 
@@ -194,8 +186,8 @@ class AbilityWordScannerTest :
 
         test("Raid card without attack this turn emits no AbilityWordActive") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Rigging Runner", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Rigging Runner", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val results =
@@ -209,8 +201,8 @@ class AbilityWordScannerTest :
 
         test("Flurry card with 0 spells cast emits value=0 threshold=2") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Jeskai Devotee", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val devotee =
@@ -239,8 +231,8 @@ class AbilityWordScannerTest :
 
         test("Flurry card with 2 spells cast this turn emits value=2") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Jeskai Devotee", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Jeskai Devotee", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val castAbility =
@@ -268,12 +260,12 @@ class AbilityWordScannerTest :
 
         test("Coven active when controller has 3 different-power creatures emits per-controller entry") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Sungold Sentinel", human, ZoneType.Battlefield) // 3/2
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield) // 2/2
-                    base.addCard("Savannah Lions", human, ZoneType.Battlefield) // 2/1, but power=2 same as Bears
+                startWithBoard { _, human, _ ->
+                    addCard("Sungold Sentinel", human, ZoneType.Battlefield) // 3/2
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield) // 2/2
+                    addCard("Savannah Lions", human, ZoneType.Battlefield) // 2/1, but power=2 same as Bears
                     // Need a third distinct power — add a 1-power creature.
-                    base.addCard("Soul Warden", human, ZoneType.Battlefield) // 1/1
+                    addCard("Soul Warden", human, ZoneType.Battlefield) // 1/1
                 }
             val human = game.humanPlayer
             val sentinel =
@@ -302,9 +294,9 @@ class AbilityWordScannerTest :
 
         test("Coven inactive when only 2 different powers emits no entry") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Sungold Sentinel", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Sungold Sentinel", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val results =
@@ -318,9 +310,9 @@ class AbilityWordScannerTest :
 
         test("Disappear active after a permanent leaves controller battlefield this turn") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Rat King, Verminister", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Rat King, Verminister", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val rat =
@@ -351,8 +343,8 @@ class AbilityWordScannerTest :
 
         test("Disappear inactive when no permanent left battlefield this turn") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Rat King, Verminister", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Rat King, Verminister", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val results =
@@ -366,8 +358,8 @@ class AbilityWordScannerTest :
 
         test("Infusion source with life gained emits Infusion marker + LifeGainedThisTurn helper") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             human.lifeGainedThisTurn = 3
@@ -403,8 +395,8 @@ class AbilityWordScannerTest :
 
         test("Infusion source without life gain emits no Infusion marker and no LifeGainedThisTurn helper") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Poisoner's Apprentice", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             // lifeGainedThisTurn defaults to 0 — Infusion condition not active, marker omitted.
@@ -420,9 +412,9 @@ class AbilityWordScannerTest :
 
         test("Raid card in hand after declaring an attacker emits keyword-only AbilityWordActive on the hand iid") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Rigging Runner", human, ZoneType.Hand)
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Rigging Runner", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val ai = game.registeredPlayers.first { it != human }
@@ -458,8 +450,8 @@ class AbilityWordScannerTest :
 
         test("Infusion card in hand with life gained emits Infusion marker + LifeGainedThisTurn helper on hand iid") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Poisoner's Apprentice", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Poisoner's Apprentice", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
             human.lifeGainedThisTurn = 4
@@ -494,9 +486,9 @@ class AbilityWordScannerTest :
 
         test("Raid card after declaring an attacker emits keyword-only AbilityWordActive") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Rigging Runner", human, ZoneType.Battlefield)
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Rigging Runner", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
             val ai = game.registeredPlayers.first { it != human }

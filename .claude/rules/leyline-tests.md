@@ -80,7 +80,7 @@ See `forge-seams.md` for full details. Quick reference:
 
 ## Test class shape
 
-**New tests: extend BoardTest** (auto-wires tags, initCardDatabase, tearDown):
+**All board-tier tests: extend BoardTest** (auto-wires tags, initCardDatabase, tearDown). Its `start*` methods return a `Board` (bridge + game + counter, plus methods and an instance probe DSL); `Board` destructures as `(bridge, game, counter)`, so existing `val (b, game, counter) = start*` call sites keep working unchanged:
 
 ```kotlin
 class FooTest : BoardTest({
@@ -94,7 +94,7 @@ class FooTest : BoardTest({
 })
 ```
 
-Existing tests using `val base = BoardTestBase()` pattern still work, but `BoardTestBase` is a legacy implementation helper. Do not start new files with it. Migrate touched board-tier tests to `BoardTest` unless a specific legacy setup seam blocks the conversion.
+`BoardTestBase` is the engine behind `BoardTest`. Construct it directly only when a test needs an isolated instance outside `BoardTest`'s shared one — e.g. driving two independent bridges (live + replay) within one test body, each needing its own teardown (see `PureDiffReplayTest`). Do not start new files with it.
 
 ## Style
 
@@ -203,9 +203,9 @@ checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
 
 ### BoardTest (preferred)
 
-Board-level and bridge-level tests. Extends FunSpec, auto-wires tags/setup/teardown. Key methods:
+Board-level and bridge-level tests. Extends FunSpec, auto-wires tags/setup/teardown. `start*` methods return a `Board` — destructures as `(bridge, game, counter)`, and also exposes `human`/`ai` player accessors plus an instance probe DSL (`human.battlefield.iid("Walking Corpse")`). Key methods:
 - `startWithBoard { game, human, ai -> }` — synchronous, no threads
-- `startGameAtMain1()` — full game boot, returns `(bridge, game, counter)`
+- `startGameAtMain1()` — full game boot, returns a `Board`
 - `addCard(name, player, zone)` — place card in zone
 - `capture(b, game, counter) { action() }` — snapshot → action → diff GSM
 - `moveToBattlefield(card, game)` — raw zone move (no events)

@@ -1,13 +1,12 @@
 package leyline.board.search
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -31,13 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  *   NO power, NO toughness, NO name, NO overlayGrpId, NO color
  */
 class LibrarySearchConformanceTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("library reveal GSM: basic land object shape matches reference") {
             val puzzleText =
@@ -60,7 +53,7 @@ class LibrarySearchConformanceTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            val (bridge, game, counter) = base.startPuzzleAtMain1(puzzleText)
+            val (bridge, game, counter) = startPuzzleAtMain1(puzzleText)
 
             // Simulate what TargetingHandler.sendSearchReq does:
             // reveal library for seat 1, then build a GSM
@@ -148,7 +141,7 @@ class LibrarySearchConformanceTest :
                 ailibrary=Forest
                 """.trimIndent()
 
-            val (bridge, game, counter) = base.startPuzzleAtMain1(puzzleText)
+            val (bridge, game, counter) = startPuzzleAtMain1(puzzleText)
 
             val gsId2 = counter.nextGsId()
             val snapLib2 = GsmSnapshot.capture(game, bridge, BoardTestBase.TEST_MATCH_ID, gsId2)

@@ -1,10 +1,8 @@
 package leyline.game.state
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
@@ -12,6 +10,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
@@ -40,12 +39,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * steal effects.
  */
 class PureDiffReplayTest :
-    FunSpec({
+    BoardTest({
 
-        tags(BoardTag)
-
-        beforeSpec { BoardTestBase().initCardDatabase() }
-
+        // Each test drives its own isolated BoardTestBase (not the BoardTest-level
+        // shared one) so live/replay bridge pairs stay independent within a test.
         fun <T> withBase(block: BoardTestBase.() -> T): T {
             val base = BoardTestBase()
             return try {

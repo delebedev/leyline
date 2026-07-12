@@ -61,6 +61,11 @@ abstract class BoardTest(
 
     fun startPuzzleAtMain1FromResource(resourcePath: String) = base.startPuzzleAtMain1FromResource(resourcePath)
 
+    /** Register a manually constructed [GameBridge] so teardown shuts it down after the test. */
+    fun useBridge(b: GameBridge) {
+        base.bridge = b
+    }
+
     fun addCard(
         name: String,
         player: Player,
@@ -77,6 +82,20 @@ abstract class BoardTest(
         action: () -> Unit,
     ): GameStateMessage = base.captureAfterAction(b, game, counter, checkSba, action)
 
+    fun captureAfterAction(
+        b: GameBridge,
+        game: Game,
+        counter: MessageCounter,
+        checkSba: Boolean = false,
+        action: () -> Unit,
+    ): GameStateMessage = base.captureAfterAction(b, game, counter, checkSba, action)
+
+    fun stateOnlyDiff(
+        game: Game,
+        b: GameBridge,
+        counter: MessageCounter,
+    ): GameStateMessage = base.stateOnlyDiff(game, b, counter)
+
     // --- Board actions ---
 
     /** Move card to battlefield — raw zone move, no events, no triggers. For setup. */
@@ -92,13 +111,7 @@ abstract class BoardTest(
         b: GameBridge,
         game: Game,
         counter: MessageCounter,
-    ): GameStateMessage {
-        val player = humanPlayer(b)
-        val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
-        return capture(b, game, counter) {
-            player.playLand(land, null)
-        }
-    }
+    ): GameStateMessage = Board(b, game, counter).playLandFromHand()
 
     // --- Player helpers ---
 
@@ -133,23 +146,36 @@ abstract class BoardTest(
         cardName: String,
         checkSba: Boolean = false,
         action: (Card, Game) -> Unit,
-    ): Pair<GameStateMessage, Int> {
-        val player = humanPlayer(b)
-        val card =
-            listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Library, ZoneType.Graveyard, ZoneType.Exile)
-                .firstNotNullOf { zone -> player.getZone(zone).cards.firstOrNull { it.name == cardName } }
-        val origId = b.instanceId(card.id)
-        val cardId = card.id
+    ): Pair<GameStateMessage, Int> = Board(b, game, counter).transferCard(cardName, checkSba, action)
 
-        val gsm = capture(b, game, counter, checkSba = checkSba) { action(card, game) }
-        val newId = b.instanceId(cardId)
+    // --- Instance probe DSL ---
 
-        // Every zone transfer reallocates instanceId and retires the old one to Limbo
-        check(origId != newId) { "instanceId should change on zone transfer ($cardName): $origId" }
-        assertLimboContains(gsm, origId)
+    /** Battlefield zone of [this] player as a probe handle. */
+    val Player.battlefield: PlayerZone get() = PlayerZone(this, ZoneType.Battlefield)
 
-        return gsm to newId
-    }
+    /** Hand zone of [this] player as a probe handle. */
+    val Player.hand: PlayerZone get() = PlayerZone(this, ZoneType.Hand)
+
+    /** Graveyard zone of [this] player as a probe handle. */
+    val Player.graveyard: PlayerZone get() = PlayerZone(this, ZoneType.Graveyard)
+
+    /** Exile zone of [this] player as a probe handle. */
+    val Player.exile: PlayerZone get() = PlayerZone(this, ZoneType.Exile)
+
+    /** Library zone of [this] player as a probe handle. */
+    val Player.library: PlayerZone get() = PlayerZone(this, ZoneType.Library)
+
+    /**
+     * Resolve a card by name within this (player, zone) handle to its
+     * instanceId — call sites read like a path: `human.battlefield.iid("Grizzly Bears")`.
+     * Resolves through the most recent `start*` board's bridge.
+     */
+    fun PlayerZone.iid(cardName: String): Int = iidVia(currentBridge(), cardName)
+
+    /** Resolve multiple cards by name in one go — `human.battlefield.iids("A", "B")`. */
+    fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
+
+    private fun currentBridge(): GameBridge = base.bridge ?: error("Call a start*() method before using the probe DSL")
 
     // --- Delegated bundle/capture ---
 
@@ -188,6 +214,8 @@ abstract class BoardTest(
     fun castSpellAndCaptureWithIds() = base.castSpellAndCaptureWithIds()
 
     fun resolveAndCapture() = base.resolveAndCapture()
+
+    fun playLandAndCapture() = base.playLandAndCapture()
 
     companion object {
         const val SEAT_ID = BoardTestBase.SEAT_ID

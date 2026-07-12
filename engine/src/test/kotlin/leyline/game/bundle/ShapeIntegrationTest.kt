@@ -2,14 +2,12 @@ package leyline.game.bundle
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.game.InMemoryCardRepository
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
@@ -22,22 +20,16 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  * Uses startWithBoard for fast synchronous setup (~0.01s).
  */
 class ShapeIntegrationTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("remoteActionDiff produces content SendHiFi GSM plus bare SendHiFi echo") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
 
-            val messages = base.bundleBuilder(b).remoteActionDiff(game, counter).messages
+            val messages = bundleBuilder(b).remoteActionDiff(game, counter).messages
 
             messages.size shouldBe 2
             val echo = messages[1].gameStateMessage
@@ -55,11 +47,11 @@ class ShapeIntegrationTest :
 
         test("declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6") {
             val (b, game, counter) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
 
-            val messages = base.bundleBuilder(b).declareAttackersBundle(game, counter).messages
+            val messages = bundleBuilder(b).declareAttackersBundle(game, counter).messages
 
             assertSoftly {
                 messages.size shouldBe 2

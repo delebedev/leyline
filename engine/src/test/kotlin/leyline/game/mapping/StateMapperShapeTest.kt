@@ -2,7 +2,6 @@ package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
@@ -11,11 +10,11 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.BoardTest
 import leyline.testkit.BoardTestBase
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
@@ -27,16 +26,10 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * Board-based (no game loop needed).
  */
 class StateMapperShapeTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("full state has timers") {
-            val (b, game) = base.startWithBoard { _, _, _ -> }
+            val (b, game) = startWithBoard { _, _, _ -> }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
@@ -53,12 +46,12 @@ class StateMapperShapeTest :
 
         test("zone visibility matches compatibility shape") {
             val (b, game) =
-                base.startWithBoard { g, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Graveyard)
-                    base.addCard("Mountain", human, ZoneType.Graveyard)
-                    base.addCard("Grizzly Bears", human, ZoneType.Exile)
-                    base.addCard("Llanowar Elves", human, ZoneType.Exile)
+                startWithBoard { g, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Graveyard)
+                    addCard("Mountain", human, ZoneType.Graveyard)
+                    addCard("Grizzly Bears", human, ZoneType.Exile)
+                    addCard("Llanowar Elves", human, ZoneType.Exile)
                 }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -105,9 +98,9 @@ class StateMapperShapeTest :
 
         test("full state redacts opponent sideboard contents") {
             val (b, game) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Forest", human, ZoneType.Sideboard)
-                    base.addCard("Mountain", ai, ZoneType.Sideboard)
+                startWithBoard { _, human, ai ->
+                    addCard("Forest", human, ZoneType.Sideboard)
+                    addCard("Mountain", ai, ZoneType.Sideboard)
                 }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -124,17 +117,17 @@ class StateMapperShapeTest :
 
         test("diff state projects changed public zones and redacts opponent sideboard contents") {
             val (b, game) =
-                base.startWithBoard { _, human, ai ->
-                    base.addCard("Mountain", ai, ZoneType.Sideboard)
-                    base.addCard("Forest", human, ZoneType.Graveyard)
-                    base.addCard("Grizzly Bears", human, ZoneType.Exile)
+                startWithBoard { _, human, ai ->
+                    addCard("Mountain", ai, ZoneType.Sideboard)
+                    addCard("Forest", human, ZoneType.Graveyard)
+                    addCard("Grizzly Bears", human, ZoneType.Exile)
                 }
             val prev = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            base.addCard("Forest", game.aiPlayer, ZoneType.Sideboard)
-            base.addCard("Mountain", game.humanPlayer, ZoneType.Graveyard)
-            base.addCard("Llanowar Elves", game.humanPlayer, ZoneType.Exile)
-            base.addCard("Grizzly Bears", game.humanPlayer, ZoneType.Graveyard)
-            base.addCard("Forest", game.humanPlayer, ZoneType.Exile)
+            addCard("Forest", game.aiPlayer, ZoneType.Sideboard)
+            addCard("Mountain", game.humanPlayer, ZoneType.Graveyard)
+            addCard("Llanowar Elves", game.humanPlayer, ZoneType.Exile)
+            addCard("Grizzly Bears", game.humanPlayer, ZoneType.Graveyard)
+            addCard("Forest", game.humanPlayer, ZoneType.Exile)
             val cur = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 2)
 
             val gs =
@@ -168,10 +161,10 @@ class StateMapperShapeTest :
 
         test("buildFromSnapshot produces valid state") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Hand)
-                    base.addCard("Forest", human, ZoneType.Hand)
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -190,9 +183,9 @@ class StateMapperShapeTest :
 
         test("game objects have card type fields") {
             val (b, game) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Hand)
-                    base.addCard("Llanowar Elves", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
@@ -229,7 +222,7 @@ class StateMapperShapeTest :
         }
 
         test("player info has timer ids") {
-            val (b, game) = base.startWithBoard { _, _, _ -> }
+            val (b, game) = startWithBoard { _, _, _ -> }
 
             val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
             val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm

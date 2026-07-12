@@ -381,12 +381,7 @@ abstract class SessionTest(
         cardName: String,
         player: Player = human,
         zone: ZoneType = ZoneType.Battlefield,
-    ): Int {
-        val card =
-            player.getZone(zone).cards.firstOrNull { it.name == cardName }
-                ?: error("Card '$cardName' not found in ${player.name} $zone")
-        return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-    }
+    ): Int = PlayerZone(player, zone).iidVia(harness.bridge, cardName)
 
     /**
      * Resolve an instanceId back to its [forge.game.card.Card] via the bridge.

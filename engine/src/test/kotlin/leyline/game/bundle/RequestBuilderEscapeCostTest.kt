@@ -3,13 +3,11 @@ package leyline.game.bundle
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
@@ -18,7 +16,7 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.IdType
@@ -43,16 +41,10 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
  * defaults via `buildSacrificePayCostsReq`.
  */
 class RequestBuilderEscapeCostTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("buildSelectCostPayCostsReq emits the full non-mana cost envelope") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val sourceForgeId = 100
             val candidateForgeIds = listOf(101, 102, 103)
             // Allocate iids so the builder's getOrAllocInstanceId calls return
@@ -129,7 +121,7 @@ class RequestBuilderEscapeCostTest :
         }
 
         test("buildSacrificePayCostsReq is the same envelope with the sacrifice promptId") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val sourceForgeId = 200
             val candidateForgeIds = listOf(201)
             b.getOrAllocInstanceId(ForgeCardId(sourceForgeId))
@@ -171,7 +163,7 @@ class RequestBuilderEscapeCostTest :
         }
 
         test("buildStationTapCostPayCostsReq uses Station prompt id with cost envelope") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val stationAbilityForgeId = 300
             val creatureForgeId = 301
             val stationAbilityIid = b.getOrAllocInstanceId(ForgeCardId(stationAbilityForgeId)).value
@@ -210,7 +202,7 @@ class RequestBuilderEscapeCostTest :
         }
 
         test("buildEnlistCostPayCostsReq uses Enlist prompt id with cost envelope") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val attackerForgeId = 400
             val enlistedForgeId = 401
             val attackerIid = b.getOrAllocInstanceId(ForgeCardId(attackerForgeId)).value
@@ -248,7 +240,7 @@ class RequestBuilderEscapeCostTest :
         }
 
         test("buildTeamworkCostPayCostsReq emits weighted power cost envelope") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val sourceForgeId = 450
             val candidateForgeIds = listOf(451, 452, 453)
             val sourceIid = b.getOrAllocInstanceId(ForgeCardId(sourceForgeId)).value
@@ -304,10 +296,10 @@ class RequestBuilderEscapeCostTest :
             lateinit var blueCreature: Card
             lateinit var greenCreature: Card
             val (b, _, _) =
-                base.startWithBoard { _, human, _ ->
-                    source = base.addCard("Plains", human, ZoneType.Hand)
-                    blueCreature = base.addCard("Coral Merfolk", human, ZoneType.Battlefield)
-                    greenCreature = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                startWithBoard { _, human, _ ->
+                    source = addCard("Plains", human, ZoneType.Hand)
+                    blueCreature = addCard("Coral Merfolk", human, ZoneType.Battlefield)
+                    greenCreature = addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val sourceIid = b.getOrAllocInstanceId(ForgeCardId(source.id)).value
             val blueIid = b.getOrAllocInstanceId(ForgeCardId(blueCreature.id)).value
@@ -372,7 +364,7 @@ class RequestBuilderEscapeCostTest :
         }
 
         test("CollectEvidencePayCostsBuilder emits weighted cost envelope") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val (b, _, _) = startWithBoard { _, _, _ -> }
             val sourceForgeId = 500
             val candidateForgeIds = listOf(501, 502, 503)
             val sourceIid = b.getOrAllocInstanceId(ForgeCardId(sourceForgeId)).value

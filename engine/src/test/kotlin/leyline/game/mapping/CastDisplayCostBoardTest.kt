@@ -3,17 +3,15 @@ package leyline.game.mapping
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.BoardTag
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.SnapshotCapture
-import leyline.testkit.BoardTestBase
+import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -27,13 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * See docs/decisions/0007-displayed-cost-and-controller-contexts.md.
  */
 class CastDisplayCostBoardTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         fun castActionsFor(
             req: wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq,
@@ -43,10 +35,10 @@ class CastDisplayCostBoardTest :
 
         test("Delve card in hand displays printed cost with a full graveyard, no prompt raised") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Treasure Cruise", human, ZoneType.Hand)
-                    repeat(4) { base.addCard("Forest", human, ZoneType.Graveyard) }
-                    repeat(2) { base.addCard("Island", human) }
+                startWithBoard { _, human, _ ->
+                    addCard("Treasure Cruise", human, ZoneType.Hand)
+                    repeat(4) { addCard("Forest", human, ZoneType.Graveyard) }
+                    repeat(2) { addCard("Island", human) }
                 }
             val cruise = game.humanPlayerCard("Treasure Cruise")
 
@@ -63,9 +55,9 @@ class CastDisplayCostBoardTest :
 
         test("Convoke card displays printed cost despite untapped creatures") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Conclave Tribunal", human, ZoneType.Hand)
-                    repeat(4) { base.addCard("Grizzly Bears", human) }
+                startWithBoard { _, human, _ ->
+                    addCard("Conclave Tribunal", human, ZoneType.Hand)
+                    repeat(4) { addCard("Grizzly Bears", human) }
                 }
             val tribunal = game.humanPlayerCard("Conclave Tribunal")
 
@@ -82,11 +74,11 @@ class CastDisplayCostBoardTest :
 
         test("Convoke card displays a state-derived static reduction") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Conclave Tribunal", human, ZoneType.Hand)
+                startWithBoard { _, human, _ ->
+                    addCard("Conclave Tribunal", human, ZoneType.Hand)
                     // "Enchantment spells you cast cost {1} less to cast."
-                    base.addCard("Starfield Mystic", human)
-                    base.addCard("Grizzly Bears", human)
+                    addCard("Starfield Mystic", human)
+                    addCard("Grizzly Bears", human)
                 }
             val tribunal = game.humanPlayerCard("Conclave Tribunal")
 
@@ -99,10 +91,10 @@ class CastDisplayCostBoardTest :
 
         test("Waterbend activation cost displays printed value despite untapped creatures") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // Giant Koi: "{Waterbend 3}: this creature can't be blocked."
-                    base.addCard("Giant Koi", human)
-                    repeat(2) { base.addCard("Grizzly Bears", human) }
+                    addCard("Giant Koi", human)
+                    repeat(2) { addCard("Grizzly Bears", human) }
                 }
             val koi = game.humanPlayerCard("Giant Koi")
 
@@ -120,9 +112,9 @@ class CastDisplayCostBoardTest :
 
         test("static reducer shows on a plain spell") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Fall of the Thran", human, ZoneType.Hand)
-                    base.addCard("Starfield Mystic", human)
+                startWithBoard { _, human, _ ->
+                    addCard("Fall of the Thran", human, ZoneType.Hand)
+                    addCard("Starfield Mystic", human)
                 }
             val fall = game.humanPlayerCard("Fall of the Thran")
 
@@ -135,11 +127,11 @@ class CastDisplayCostBoardTest :
 
         test("AlternateAdditionalCost card yields one Cast offer at base cost") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
+                startWithBoard { _, human, _ ->
                     // Thunderherd Migration {1}{G}: additional cost — reveal a
                     // Dinosaur ({1}{G} variant) or pay {1} more ({2}{G} variant).
-                    base.addCard("Thunderherd Migration", human, ZoneType.Hand)
-                    repeat(2) { base.addCard("Forest", human) }
+                    addCard("Thunderherd Migration", human, ZoneType.Hand)
+                    repeat(2) { addCard("Forest", human) }
                 }
             val migration = game.humanPlayerCard("Thunderherd Migration")
             val human = game.players.first { it.name == migration.controller.name }
@@ -163,10 +155,10 @@ class CastDisplayCostBoardTest :
 
         test("best-effort affordability includes Emerge and restores payment state") {
             val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Wretched Gryff", human, ZoneType.Hand)
-                    base.addCard("Walking Corpse", human)
-                    repeat(4) { base.addCard("Island", human) }
+                startWithBoard { _, human, _ ->
+                    addCard("Wretched Gryff", human, ZoneType.Hand)
+                    addCard("Walking Corpse", human)
+                    repeat(4) { addCard("Island", human) }
                 }
             val gryff = game.humanPlayerCard("Wretched Gryff")
             val corpse = game.humanPlayerCard("Walking Corpse")
@@ -184,14 +176,14 @@ class CastDisplayCostBoardTest :
 
         test("naive and snapshot builders agree on displayed cost for every hand card") {
             val (b, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Treasure Cruise", human, ZoneType.Hand)
-                    base.addCard("Conclave Tribunal", human, ZoneType.Hand)
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
-                    base.addCard("Fall of the Thran", human, ZoneType.Hand)
-                    base.addCard("Starfield Mystic", human)
-                    base.addCard("Grizzly Bears", human)
-                    repeat(3) { base.addCard("Forest", human, ZoneType.Graveyard) }
+                startWithBoard { _, human, _ ->
+                    addCard("Treasure Cruise", human, ZoneType.Hand)
+                    addCard("Conclave Tribunal", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Fall of the Thran", human, ZoneType.Hand)
+                    addCard("Starfield Mystic", human)
+                    addCard("Grizzly Bears", human)
+                    repeat(3) { addCard("Forest", human, ZoneType.Graveyard) }
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
