@@ -103,7 +103,17 @@ tasks.named<Test>("test") {
     systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag")
 }
 
-val integrationForks = (project.findProperty("integrationForks") as String?)?.toIntOrNull() ?: 1
+// Default fork count scales with the machine: ~1 fork per 4 cores, capped at 4.
+// The CI ARM runners (8 cores) thrash at 4 forks — timing-sensitive specs miss
+// their deadlines — so they land on 2; big dev machines get the full 4.
+// Override with -PintegrationForks=N.
+val integrationForks =
+    (project.findProperty("integrationForks") as String?)?.toIntOrNull()
+        ?: Runtime
+            .getRuntime()
+            .availableProcessors()
+            .div(4)
+            .coerceIn(1, 4)
 
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()
