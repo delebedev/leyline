@@ -10,17 +10,6 @@ class CostDecisionPlannerTest :
     FunSpec({
         tags(UnitTag)
 
-        test("enlist plans semantic intent before card selection policy") {
-            CostDecisionPlanner.enlistPlan(requiredCount = 1).requiredCount shouldBe 1
-        }
-
-        test("enlist materializes enlist cost semantic") {
-            CostDecisionPlanner
-                .enlistPlan(requiredCount = 1)
-                .toCardSelectionPlan()
-                .semantic shouldBe PromptSemantic.EnlistCost
-        }
-
         test("teamwork materializes weighted tap cost semantic") {
             val plan = CostDecisionPlanner.teamworkPlan(totalPower = 2, powers = listOf(3, -1, 1)).toCardSelectionPlan()
 
@@ -29,32 +18,6 @@ class CostDecisionPlannerTest :
                 costSelectionWeights shouldBe listOf(3, 0, 1)
                 minSelectionWeight shouldBe 2
             }
-        }
-
-        test("forage plans both payment modes when both are available") {
-            val intent = CostDecisionPlanner.foragePlan(foodCount = 2, graveyardExileCount = 5)
-
-            assertSoftly(intent) {
-                canSacrificeFood shouldBe true
-                canExileFromGraveyard shouldBe true
-                foodSacrifice?.requiredCount shouldBe 1
-                graveyardExile?.requiredCount shouldBe 3
-            }
-        }
-
-        test("forage omits unavailable payment modes") {
-            val intent = CostDecisionPlanner.foragePlan(foodCount = 0, graveyardExileCount = 2)
-
-            intent.canSacrificeFood shouldBe false
-            intent.canExileFromGraveyard shouldBe false
-        }
-
-        test("forage graveyard exile preserves generic prompt materialization") {
-            CostDecisionPlanner
-                .foragePlan(foodCount = 0, graveyardExileCount = 3)
-                .graveyardExile
-                ?.toCardSelectionPlan()
-                ?.semantic shouldBe PromptSemantic.Generic
         }
 
         test("tap type plans semantic intent before card selection policy") {

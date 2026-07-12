@@ -20,6 +20,8 @@ import forge.game.combat.Combat
 import forge.game.cost.Cost
 import forge.game.cost.CostDecisionMakerBase
 import forge.game.cost.CostDiscard
+import forge.game.cost.CostEnlist
+import forge.game.cost.CostForage
 import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
@@ -1005,18 +1007,35 @@ class PlayerController(
                         PromptSemantic.Generic
                     }
                 is CostSacrifice -> PromptSemantic.SelectNCostSacrifice
+                is CostEnlist -> PromptSemantic.EnlistCost
+                is CostForage ->
+                    if (optionList.all { it.isInPlay }) {
+                        PromptSemantic.SelectNCostSacrifice
+                    } else {
+                        PromptSemantic.Generic
+                    }
                 else -> PromptSemantic.Generic
             }
-        return targetingCoordinator.chooseCardsViaBridge(
-            cards = optionList,
-            min = amount,
-            max = amount,
-            message = prompt,
-            semantic = semantic,
-            candidateRefs = optionList.toCandidateRefs(),
-            sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
-            forcePrompt = isOptional,
-        )
+        val selected =
+            targetingCoordinator.chooseCardsViaBridge(
+                cards = optionList,
+                min = amount,
+                max = amount,
+                message = prompt,
+                semantic = semantic,
+                candidateRefs = optionList.toCandidateRefs(),
+                sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+                forcePrompt = isOptional,
+            )
+        if (cpl is CostEnlist && selected.isNotEmpty()) {
+            bridge.journal.record(
+                PromptSideEffect.EnlistTapAffector(
+                    tappedForgeCardId = ForgeCardId(selected.first().id),
+                    attackerForgeCardId = ForgeCardId(sa.hostCard.id),
+                ),
+            )
+        }
+        return selected
     }
 
     override fun chooseCardsForCollectEvidence(
@@ -1050,6 +1069,16 @@ class PlayerController(
         }
         return selected
     }
+
+    override fun chooseCardsForRevealCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        cost: CostPartWithList,
+        amount: Int,
+        optional: Boolean,
+        sameColor: Boolean,
+        prompt: String,
+    ): CardCollectionView = chooseCardsForCost(optionList, sa, cost, amount, optional, prompt)
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
     // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on
