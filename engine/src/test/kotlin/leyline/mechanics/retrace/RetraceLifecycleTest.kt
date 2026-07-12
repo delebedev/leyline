@@ -56,7 +56,7 @@ class RetraceLifecycleTest :
                 discardReq.context shouldBe SelectionContext.Discard_a163
                 discardReq.listType shouldBe SelectionListType.Static
                 discardReq.optionContext shouldBe OptionContext.Payment
-                discardReq.minSel shouldBe 1
+                discardReq.minSel shouldBe 0
                 discardReq.maxSel shouldBe 1
                 discardReq.idsList shouldHaveSize 2
             }

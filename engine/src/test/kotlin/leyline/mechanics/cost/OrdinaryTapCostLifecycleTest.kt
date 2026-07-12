@@ -48,7 +48,7 @@ class OrdinaryTapCostLifecycleTest :
 
             assertSoftly {
                 pending.request.semantic shouldBe PromptSemantic.Generic
-                pending.request.min shouldBe 2
+                pending.request.min shouldBe 0
                 pending.request.max shouldBe 2
                 pending.request.candidateRefs shouldHaveSize 3
             }

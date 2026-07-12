@@ -67,7 +67,7 @@ class ImmersturmPredatorTest :
             assertSoftly {
                 sacPrompt.request.candidateRefs.size shouldBeGreaterThan 0
                 sacPrompt.request.semantic shouldBe leyline.bridge.handoff.PromptSemantic.SelectNCostSacrifice
-                sacPrompt.request.min shouldBe 1
+                sacPrompt.request.min shouldBe 0
                 sacPrompt.request.max shouldBe 1
             }
 

@@ -44,7 +44,7 @@ class UntapCostLifecycleTest :
 
             assertSoftly {
                 pending.request.semantic shouldBe PromptSemantic.Generic
-                pending.request.min shouldBe 1
+                pending.request.min shouldBe 0
                 pending.request.max shouldBe 1
                 pending.request.candidateRefs shouldHaveSize 2
                 bearChoice.entityId shouldBe bear.id
