@@ -1,5 +1,7 @@
 name: ai-green-controls
 description: Direct Forge-AI and GRE-green terminal controls promoted into headless acceptance.
+web:
+  skip: Not yet exercised by the browser client runner.
 scenarios:
   - id: firebending-bolt-lethal
     puzzle: firebending-bolt-lethal

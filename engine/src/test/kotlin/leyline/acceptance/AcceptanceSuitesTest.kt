@@ -4,6 +4,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.AcceptanceTag
 import leyline.IntegrationTag
+import java.nio.file.Files
+import java.nio.file.Paths
 
 class AcceptanceSuitesTest :
     FunSpec({
@@ -12,19 +14,7 @@ class AcceptanceSuitesTest :
         val executor = MatchdoorAcceptanceExecutor()
         val suiteFilter = csvProperty("acceptance.suites")
         val scenarioFilter = csvProperty("acceptance.scenarios")
-        val suiteNames =
-            listOf(
-                "warmup",
-                "mechanics-warmup",
-                "combat-warmup",
-                "graveyard",
-                "interactions-warmup",
-                "cost-selection-warmup",
-                "modal-warmup",
-                "hybrid-mana",
-                "mechanics-protocol",
-                "ai-green-controls",
-            ).filter { suiteFilter == null || it in suiteFilter }
+        val suiteNames = discoverSuiteNames().filter { suiteFilter == null || it in suiteFilter }
 
         require(suiteNames.isNotEmpty()) {
             "No acceptance suites matched acceptance.suites=${suiteFilter.orEmpty()}"
@@ -48,6 +38,21 @@ class AcceptanceSuitesTest :
             }
         }
     })
+
+private fun discoverSuiteNames(): List<String> {
+    val candidates =
+        listOf(
+            Paths.get("puzzles/sets"),
+            Paths.get("../puzzles/sets"),
+            Paths.get("../../puzzles/sets"),
+        )
+    val dir =
+        candidates.firstOrNull { Files.isDirectory(it) }
+            ?: error("puzzles/sets not found in $candidates (cwd=${Paths.get("").toAbsolutePath()})")
+    return Files.newDirectoryStream(dir, "*.yaml").use { stream ->
+        stream.map { it.fileName.toString().removeSuffix(".yaml") }.sorted()
+    }
+}
 
 private fun csvProperty(name: String): Set<String>? =
     System
