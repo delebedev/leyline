@@ -14,6 +14,7 @@ import forge.game.cost.CostUnattach
 import forge.game.cost.PaymentDecision
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -146,6 +147,15 @@ class CostDecisionTest :
             return method.invoke(decision, cost) as Boolean
         }
 
+        fun isOrdinaryExileCost(
+            decision: CostDecision,
+            cost: CostExile,
+        ): Boolean {
+            val method = CostDecision::class.java.getDeclaredMethod("isOrdinaryExileCost", CostExile::class.java)
+            method.isAccessible = true
+            return method.invoke(decision, cost) as Boolean
+        }
+
         test("selectCards returns null for empty cancelable choice") {
             val fx = fixture()
 
@@ -243,6 +253,30 @@ class CostDecisionTest :
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
+            }
+        }
+
+        test("exile delegates only ordinary and automatic shapes") {
+            val fx = fixture()
+
+            assertSoftly {
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Hand)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Battlefield)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Library)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "CardFromTopGrave", null, ZoneType.Graveyard)) shouldBe true
+                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Graveyard)) shouldBe false
+                isOrdinaryExileCost(
+                    fx.decision,
+                    CostExile("2", "Card+withTotalCMCGE4", null, ZoneType.Hand),
+                ) shouldBe false
+                isOrdinaryExileCost(
+                    fx.decision,
+                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand),
+                ) shouldBe false
+                isOrdinaryExileCost(
+                    fx.decision,
+                    CostExile("1", "Card", null, listOf(ZoneType.Hand, ZoneType.Graveyard)),
+                ) shouldBe false
             }
         }
 

@@ -167,6 +167,26 @@ class CostDecision(
             !ability.isCrew &&
             !ability.isKeyword(Keyword.STATION)
 
+    private fun isOrdinaryExileCost(cost: CostExile): Boolean {
+        if (cost.payCostFromSource() || cost.type == "OriginalHost" || cost.type == "All") return true
+        if (
+            listOf(
+                "+withTotalCMCEQ",
+                "+withTotalCMCGE",
+                "+withTotalManaSymbols_",
+                "+withSharedCardType",
+                "+withTypesGE",
+            ).any(cost.type::contains)
+        ) {
+            return false
+        }
+        if (cost.type.contains("FromTopGrave")) return true
+        if (cost.from.size != 1) return false
+        return cost.from[0] == ZoneType.Battlefield ||
+            cost.from[0] == ZoneType.Hand ||
+            cost.from[0] == ZoneType.Library
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Non-interactive visit() methods
     // ═══════════════════════════════════════════════════════════════════
@@ -451,6 +471,8 @@ class CostDecision(
     }
 
     override fun visit(cost: CostExile): PaymentDecision? {
+        if (isOrdinaryExileCost(cost)) return super.visit(cost)
+
         var type = cost.type
         var onlyPayable: Card? = null
         if (cost.payCostFromSource()) onlyPayable = source
