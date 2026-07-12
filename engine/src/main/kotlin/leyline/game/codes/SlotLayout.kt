@@ -5,7 +5,7 @@ package leyline.game.codes
  *
  * Produced by [leyline.game.state.AbilityRegistry.build] from a card's
  * Forge spell abilities and its [leyline.game.data.CardData] slot list.
- * Consumed by `MatchSession.resolveAbilityIndex`. Eliminates the
+ * Consumed by action-offer projection. Eliminates the
  * dual-derivation bug class where keyword count was computed independently
  * in two places.
  *

@@ -120,10 +120,15 @@ class PriorityLoopCoordinator(
                     actionBridge.setAutoPassUntilEndOfTurn(true)
                     return null
                 }
-                is PlayerAction.CastSpell -> return spellExecutor.castSpell(action.cardId, action.abilityId, action.targets)
-                is PlayerAction.ActivateAbility -> return spellExecutor.activateAbility(action.cardId, action.abilityId, action.targets)
+                is PlayerAction.CastSpell -> return spellExecutor.castSpell(action.cardId, action.abilityId, action.targets, action.ability)
+                is PlayerAction.ActivateAbility -> return spellExecutor.activateAbility(
+                    action.cardId,
+                    action.abilityId,
+                    action.targets,
+                    action.ability,
+                )
                 is PlayerAction.ActivateMana -> {
-                    if (!spellExecutor.activateMana(action.cardId, action.abilityId, action.selectedColor)) {
+                    if (!spellExecutor.activateMana(action.cardId, action.abilityId, action.selectedColor, action.ability)) {
                         log.debug("Mana activation failed for card {}", action.cardId.value)
                     }
                     continue
