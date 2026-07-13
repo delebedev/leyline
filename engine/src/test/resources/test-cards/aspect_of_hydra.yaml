@@ -1,0 +1,8 @@
+name: "Aspect of Hydra"
+grpId: 94399
+titleId: 44065
+abilities:
+  - id: 20832
+    textId: 44067
+    category: 4
+expansionCode: "PIO"

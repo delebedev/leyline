@@ -255,7 +255,16 @@ object AbilityWordScanner {
             }
         }
 
-        // Phase 4: trigger-pattern ability words (Flurry, Infusion, Raid, Coven, …)
+        // Phase 4: quantitative CheckSVar comparison families (Devotion, Descend, …)
+        results.addAll(
+            AbilityWordValueRecognizers.scan(
+                battlefieldCards = battlefieldCards,
+                instanceIdResolver = instanceIdResolver,
+                registryResolver = registryResolver,
+            ),
+        )
+
+        // Phase 5: trigger-pattern ability words (Flurry, Infusion, Raid, Coven, …)
         results.addAll(
             AbilityWordTriggerRecognizers.scan(
                 battlefieldCards = battlefieldCards,

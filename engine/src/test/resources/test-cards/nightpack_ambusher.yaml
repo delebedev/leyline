@@ -1,0 +1,16 @@
+name: "Nightpack Ambusher"
+grpId: 69970
+titleId: 352086
+abilities:
+  - id: 7
+    textId: 43
+    category: 3
+  - id: 133464
+    textId: 352088
+    category: 3
+  - id: 133465
+    textId: 352089
+    category: 2
+expansionCode: "M20"
+tokens:
+  "133465": 70136

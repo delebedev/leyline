@@ -1,0 +1,11 @@
+name: "Stinging Cave Crawler"
+grpId: 87269
+titleId: 737507
+abilities:
+  - id: 1
+    textId: 100
+    category: 3
+  - id: 169587
+    textId: 967095
+    category: 2
+expansionCode: "LCI"

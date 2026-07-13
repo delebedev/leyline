@@ -1,0 +1,18 @@
+name: "Heliod, Sun-Crowned"
+grpId: 70529
+titleId: 419691
+abilities:
+  - id: 104
+    textId: 97
+    category: 3
+  - id: 100654
+    textId: 113156
+    category: 3
+  - id: 136666
+    textId: 419692
+    category: 2
+  - id: 136682
+    textId: 419693
+    category: 1
+    mana: "o1oW"
+expansionCode: "THB"

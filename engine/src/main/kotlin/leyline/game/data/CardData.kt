@@ -36,6 +36,8 @@ data class CardData(
      * "all-after-keywords-are-activated" positional assumption.
      */
     val abilityKinds: List<SlotKind> = emptyList(),
+    /** Raw client ability categories aligned with [abilityIds] (2=trigger, 3+=static/passive). */
+    val abilityCategories: List<Int> = emptyList(),
     val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
     /**

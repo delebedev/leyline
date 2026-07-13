@@ -259,6 +259,7 @@ class ExposedCardRepository(
                 Cards.selectAll().where { Cards.grpId eq grpId }.firstOrNull()?.let { row ->
                     val abilityIds = parseAbilityIds(row[Cards.abilityIds])
                     val abilityKinds = lookupAbilityKinds(abilityIds.map { it.first })
+                    val abilityCategories = lookupAbilityCategories(abilityIds.map { it.first })
                     CardData(
                         grpId = row[Cards.grpId],
                         titleId = row[Cards.titleId],
@@ -270,6 +271,7 @@ class ExposedCardRepository(
                         supertypes = parseIntList(row[Cards.supertypes]),
                         abilityIds = abilityIds,
                         abilityKinds = abilityKinds,
+                        abilityCategories = abilityCategories,
                         manaCost = parseManaCost(row[Cards.oldSchoolManaText]),
                         tokenGrpIds = parseTokenGrpIds(row[Cards.abilityIdToLinkedTokenGrpId]),
                         hiddenAbilityIds = parseAbilityIds(row[Cards.hiddenAbilityIds]),
@@ -298,6 +300,16 @@ class ExposedCardRepository(
             kinds[id] = SlotKind.fromAbilityInfo(row[Abilities.category], row[Abilities.subCategory])
         }
         return ids.map { id -> kinds[id] ?: SlotKind.fromCategory(null) }
+    }
+
+    private fun lookupAbilityCategories(ids: List<Int>): List<Int> {
+        if (ids.isEmpty()) return emptyList()
+        val categories = mutableMapOf<Int, Int>()
+        for (id in ids.distinct()) {
+            val row = Abilities.selectAll().where { Abilities.id eq id }.firstOrNull() ?: continue
+            categories[id] = row[Abilities.category]
+        }
+        return ids.map { categories[it] ?: 0 }
     }
 
     private fun queryNameByGrpId(grpId: Int): String? =

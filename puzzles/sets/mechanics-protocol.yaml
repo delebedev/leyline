@@ -504,6 +504,62 @@ scenarios:
             - battlefield_stats: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
             - zone_contains: { side: ours, zone: battlefield, card: Teapot Slinger }
             - stack_empty: true
+  - id: devotion-heliod
+    puzzle: devotion-heliod
+    run: cast Savannah Lions to raise white devotion from four to five
+    expect: Devotion reaches five and Heliod becomes a 5/5 creature
+    steps:
+      - cast: Savannah Lions
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: Devotion, value: 5, threshold: 5, AbilityGrpId: 100654 }
+            - battlefield_stats: { side: ours, card: "Heliod, Sun-Crowned", power: 5, toughness: 5 }
+            - zone_contains: { side: ours, zone: battlefield, card: Savannah Lions }
+            - stack_empty: true
+  - id: descend-everflowing-well
+    puzzle: descend-everflowing-well
+    run: discard the eighth permanent card, then advance to the Descend 8 upkeep trigger
+    expect: Descend displays eight of eight and The Everflowing Well transforms
+    steps:
+      - cast: Mardu Outrider
+      - select_cost: { zone: hand, cards: [Llanowar Elves] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: Descend, value: 8, threshold: 8, AbilityGrpId: 169501 }
+            - zone_contains: { side: ours, zone: graveyard, card: Llanowar Elves }
+      - pass_until:
+          zone_contains: { side: ours, zone: battlefield, card: The Myriad Pools }
+          max_passes: 20
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: The Myriad Pools }
+            - zone_not_contains: { side: ours, zone: battlefield, card: The Everflowing Well }
+            - stack_empty: true
+  - id: spell-count-reverberating-summons
+    puzzle: spell-count-reverberating-summons
+    run: cast Soul Warden and Savannah Lions, then advance to combat
+    expect: the spell count reaches two and Reverberating Summons becomes a 3/3 Monk
+    steps:
+      - cast: Soul Warden
+      - resolve_stack: {}
+      - cast: Savannah Lions
+      - resolve_stack: {}
+      - pass_until:
+          battlefield_stats: { side: ours, card: Reverberating Summons, power: 3, toughness: 3 }
+          max_passes: 12
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: NumberOfSpellsCast, value: 2, threshold: 2, AbilityGrpId: 188817 }
+            - battlefield_stats: { side: ours, card: Reverberating Summons, power: 3, toughness: 3 }
+            - stack_empty: true
   - id: earthbend-earthbending-lesson
     puzzle: earthbend-earthbending-lesson
     run: cast Earthbending Lesson and target Forest for Earthbend 4

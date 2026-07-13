@@ -76,6 +76,7 @@ object CardDataDeriver {
 
         val abilityIds = identity.abilities.map { it.id to it.textId }
         val abilityKinds = identity.abilities.map { ab -> SlotKind.fromAbilityInfo(ab.category, ab.subCategory) }
+        val abilityCategories = identity.abilities.map { it.category }
 
         return CardData(
             grpId = identity.grpId,
@@ -88,6 +89,7 @@ object CardDataDeriver {
             supertypes = supertypes,
             abilityIds = abilityIds,
             abilityKinds = abilityKinds,
+            abilityCategories = abilityCategories,
             manaCost = manaCost,
             tokenGrpIds = identity.tokens,
             linkedFaceGrpIds = identity.linkedFaces,
