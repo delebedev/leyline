@@ -10,6 +10,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
+import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -1577,9 +1578,11 @@ class BundleBuilder(
     }
 
     /**
-     * Drain a queued PlayerSubmittedTargets and append to the GSM. Bundle methods
-     * that build a diff call this after `buildDiff` so PSuT lands as the first
-     * annotation on the post-submit frame, matching the canonical slot ordering.
+     * Drain a queued PlayerSubmittedTargets into the GSM. The diff's annotations
+     * are already enforced and numbered when this runs, so the merged list goes
+     * through the ordering kernel again and the frame's existing id pool is
+     * reassigned positionally — PSuT leads the post-submit frame with ascending
+     * ids intact, matching the canonical slot ordering.
      */
     private fun appendPendingPlayerSubmittedTargets(gsm: GameStateMessage): GameStateMessage {
         val pending = cursor.drainPSuT() ?: return gsm
@@ -1589,7 +1592,15 @@ class BundleBuilder(
                 .toBuilder()
                 .setId(bridge.nextAnnotationId())
                 .build()
-        return gsm.toBuilder().addAnnotations(annotation).build()
+        val merged = gsm.annotationsList + annotation
+        val ids = merged.map { it.id }.sorted()
+        val ordered = AnnotationOrderEnforcer.enforce(merged)
+        val renumbered = ordered.mapIndexed { i, ann -> ann.toBuilder().setId(ids[i]).build() }
+        return gsm
+            .toBuilder()
+            .clearAnnotations()
+            .addAllAnnotations(renumbered)
+            .build()
     }
 
     private fun makeGRE(

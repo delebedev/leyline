@@ -38,7 +38,7 @@ object OrderRules {
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
             ResolveTransferOrderingRule,
-            SubmittedTargetsBeforePaymentRule,
+            SubmittedTargetsLeadsFrameRule,
         )
 }
 
@@ -236,15 +236,19 @@ data object ResolveTransferOrderingRule : OrderRule {
 }
 
 /**
- * Rule 6: PlayerSubmittedTargets must precede ManaPaid and UserActionTaken.
+ * Rule 6: PlayerSubmittedTargets leads its GSM.
  *
  * The client narrates a confirmed targeted cast as target submission first,
- * then payment and the cast confirm. Nothing orders ahead of the submission
- * within its GSM, so every PSuT gets an edge to every payment/confirm
- * annotation. PSuT-vs-PSuT keeps input order via topological sort stability.
+ * then the mana-ability bracket, payment, and the cast confirm in their
+ * original order. Nothing orders ahead of the submission within its GSM
+ * except a phase marker, so every PSuT gets an edge to every other
+ * annotation apart from PhaseOrStepModified (which [PhaseOrStepFirstRule]
+ * already places ahead — excluding it here avoids a cycle). Constraining
+ * only PSuT keeps the rest of the frame stable instead of hoisting
+ * unconstrained annotations past the payment block.
  */
-data object SubmittedTargetsBeforePaymentRule : OrderRule {
-    override val name: String = "submitted_targets_before_payment"
+data object SubmittedTargetsLeadsFrameRule : OrderRule {
+    override val name: String = "submitted_targets_leads_frame"
 
     override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
         val psutIndices =
@@ -252,17 +256,18 @@ data object SubmittedTargetsBeforePaymentRule : OrderRule {
                 AnnotationType.PlayerSubmittedTargets in annotations[it].typeList
             }
         if (psutIndices.isEmpty()) return emptyList()
-        val paymentIndices =
+        val followerIndices =
             annotations.indices.filter {
                 val types = annotations[it].typeList
-                AnnotationType.ManaPaid in types || AnnotationType.UserActionTaken in types
+                AnnotationType.PlayerSubmittedTargets !in types &&
+                    AnnotationType.PhaseOrStepModified !in types
             }
-        if (paymentIndices.isEmpty()) return emptyList()
+        if (followerIndices.isEmpty()) return emptyList()
 
         val edges = mutableListOf<Pair<Int, Int>>()
         for (psut in psutIndices) {
-            for (payment in paymentIndices) {
-                edges.add(psut to payment)
+            for (follower in followerIndices) {
+                edges.add(psut to follower)
             }
         }
         return edges
