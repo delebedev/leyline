@@ -1,0 +1,14 @@
+name: "Ugin, the Spirit Dragon"
+grpId: 71783
+titleId: 46453
+abilities:
+  - id: 101764
+    textId: 943182
+    category: 1
+  - id: 101765
+    textId: 523308
+    category: 1
+  - id: 101766
+    textId: 116231
+    category: 1
+expansionCode: "M21"

@@ -1,0 +1,12 @@
+name: "Fabrication Foundry"
+grpId: 87143
+titleId: 737060
+abilities:
+  - id: 169442
+    textId: 737061
+    category: 1
+  - id: 169443
+    textId: 737062
+    category: 1
+    mana: "o2oW"
+expansionCode: "LCI"
