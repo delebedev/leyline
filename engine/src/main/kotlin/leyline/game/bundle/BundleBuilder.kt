@@ -2,6 +2,7 @@ package leyline.game.bundle
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
@@ -117,6 +118,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
+        priorityCandidates: PriorityActionCandidates? = null,
     ): BundleResult {
         val diff =
             buildFrameDiff(game, counter, revealForSeat = revealForSeat) { snap, events ->
@@ -132,7 +134,7 @@ class BundleBuilder(
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val result = diff.result
-        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
+        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates)
         val actions = projection.actions
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
@@ -286,10 +288,10 @@ class BundleBuilder(
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(): ActionsAvailableReq {
+    fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
         val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        return ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+        return ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates).actions
     }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */

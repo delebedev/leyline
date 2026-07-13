@@ -103,6 +103,7 @@ object ActionMapper {
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
+        priorityCandidates: PriorityActionCandidates? = null,
     ): ActionProjection {
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()
@@ -130,7 +131,7 @@ object ActionMapper {
         val hand = snap.zones[handZoneId]?.contents.orEmpty()
         val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
         val player = bridge.getPlayer(SeatId(seatId))
-        val candidates = bridge.getGame()?.let { game -> player?.let { PriorityActionCandidates.query(game, it) } }
+        val candidates = priorityCandidates ?: bridge.getGame()?.let { game -> player?.let { PriorityActionCandidates.query(game, it) } }
 
         fun autoTapForCost(
             player: Player,

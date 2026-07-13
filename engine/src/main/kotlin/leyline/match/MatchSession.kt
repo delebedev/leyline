@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.player.GameLossReason
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
@@ -13,6 +14,7 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markIfPrompt
 import leyline.game.mapping.StopTypeMapping
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -231,27 +233,32 @@ class MatchSession(
 
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
-            // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
-            // path only fires for MatchSession. Warn if somehow called for a non-human
-            // MatchSession — it would consume the human seat's pending priority via the
-            // shared ActionBridge, advancing the engine past Main1.
-            val humanSeat = gameBridge.seating.humanSeat
-            if (seatId != humanSeat) {
-                log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
-                return
-            }
-
-            log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
-
-            // Seed state snapshot for subsequent diff computation.
-            // The puzzle initial bundle already sent the Full GSM, so the cursor
-            // needs a matching snapshot for the first Diff to be correct.
-            val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-            bundleBuilder.cursor.lastSent = snap2
+            preparePuzzleStart()
+            gameBridge.awaitPriority()
 
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()
         }
+
+    internal fun preparePuzzleStart() {
+        // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
+        // path only fires for MatchSession. Warn if somehow called for a non-human
+        // MatchSession — it would consume the human seat's pending priority via the
+        // shared ActionBridge, advancing the engine past Main1.
+        val humanSeat = gameBridge.seating.humanSeat
+        if (seatId != humanSeat) {
+            log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
+            return
+        }
+
+        log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
+
+        // Seed state snapshot for subsequent diff computation.
+        // The puzzle initial bundle already sent the Full GSM, so the cursor
+        // needs a matching snapshot for the first Diff to be correct.
+        val snap2 = SnapshotCapture.run(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+        bundleBuilder.cursor.lastSent = snap2
+    }
 
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
@@ -524,6 +531,17 @@ class MatchSession(
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
+    ) = sendPriorityState(bridge, revealForSeat, null)
+
+    override fun sendPriorityState(
+        bridge: GameBridge,
+        candidates: PriorityActionCandidates,
+    ) = sendPriorityState(bridge, null, candidates)
+
+    private fun sendPriorityState(
+        bridge: GameBridge,
+        revealForSeat: Int?,
+        candidates: PriorityActionCandidates?,
     ) {
         val game =
             bridge.getGame() ?: run {
@@ -532,7 +550,7 @@ class MatchSession(
             }
 
         val bb = bundleBuilder
-        val result = bb.postAction(game, counter, revealForSeat)
+        val result = bb.postAction(game, counter, revealForSeat, candidates)
 
         // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
         val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage

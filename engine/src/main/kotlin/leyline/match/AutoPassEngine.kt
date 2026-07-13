@@ -2,6 +2,7 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
@@ -110,10 +111,12 @@ class AutoPassEngine(
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
                         val bb = bundles.bundleBuilder
-                        val actions = bb.buildActions()
+                        val candidates = human?.let { PriorityActionCandidates.query(game, it) }
+                        val actions = bb.buildActions(candidates)
                         if (drainPlayback()) return@repeat
-                        if (!BundleBuilder.shouldAutoPass(actions)) {
-                            sink.sendRealGameState(bridge)
+                        val hasPendingWindow = bridge.seat(counters.seatId).action.getPending() != null
+                        if (hasPendingWindow && !BundleBuilder.shouldAutoPass(actions)) {
+                            sink.sendPriorityState(bridge, checkNotNull(candidates))
                             return
                         }
                         log.debug("SEND_STATE: emitting state-only diff at {}", phase)
@@ -149,10 +152,11 @@ class AutoPassEngine(
             // human priority window; otherwise instant-speed actions can make
             // us emit an ActionsAvailableReq while the AI still has priority.
             if (shouldCheckHumanActions(isAiTurn)) {
-                val decision = checkHumanActions(game, isAiTurn)
+                val candidates = human?.let { PriorityActionCandidates.query(game, it) }
+                val decision = checkHumanActions(game, isAiTurn, candidates)
                 if (decision is PriorityDecision.Grant) {
                     if (drainPlayback()) return@repeat
-                    sink.sendRealGameState(bridge)
+                    sink.sendPriorityState(bridge, checkNotNull(candidates))
                     return
                 }
             }
@@ -171,17 +175,20 @@ class AutoPassEngine(
         val stillAiTurn = human2 != null && game.phaseHandler.playerTurn != human2
         if (stillAiTurn) {
             log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
-        } else {
+        } else if (bridge.seat(counters.seatId).action.getPending() != null) {
             sink.sendRealGameState(bridge)
+        } else {
+            sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(game, counters.counter))
         }
     }
 
-    internal fun shouldCheckHumanActions(isAiTurn: Boolean): Boolean =
-        !isAiTurn ||
-            ctx.bridge
-                .seat(counters.seatId)
-                .action
-                .getPending() != null
+    internal fun shouldCheckHumanActions(
+        @Suppress("UNUSED_PARAMETER") isAiTurn: Boolean,
+    ): Boolean =
+        ctx.bridge
+            .seat(counters.seatId)
+            .action
+            .getPending() != null
 
     /**
      * Drain pending AI-action playback diffs. Returns true if diffs were sent
@@ -216,15 +223,18 @@ class AutoPassEngine(
     internal fun checkHumanActions(
         game: Game,
         isAiTurn: Boolean,
+        candidates: PriorityActionCandidates? = null,
     ): PriorityDecision {
-        val actions = bundles.bundleBuilder.buildActions()
+        val player = ctx.bridge.getPlayer(counters.seatId)
+        val resolvedCandidates = candidates ?: player?.let { PriorityActionCandidates.query(game, it) }
+        val hasLegalAction = player != null && resolvedCandidates?.hasLegalNonManaAction(player) == true
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
             val decision =
                 PriorityDecision.Grant(
                     phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
-                    actionCount = actions.actionsCount,
+                    actionCount = if (hasLegalAction) 1 else 0,
                 )
             recordDecision(game, decision)
             return decision
@@ -233,7 +243,7 @@ class AutoPassEngine(
         // Opponent-turn windows still build actions: legal instants and instant-speed
         // activations must stop, while pass-only windows keep auto-advancing.
         // Client autoPassOption active + no stop-worthy actions → skip.
-        if (autoPassState.shouldAutoPass() && BundleBuilder.shouldAutoPass(actions)) {
+        if (autoPassState.shouldAutoPass() && !hasLegalAction) {
             val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
             if (!isAiTurn) {
                 recordDecision(game, decision)
@@ -241,7 +251,7 @@ class AutoPassEngine(
             return decision
         }
 
-        if (BundleBuilder.shouldAutoPass(actions)) {
+        if (!hasLegalAction) {
             val decision = PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
             if (!isAiTurn) recordDecision(game, decision)
             return decision
@@ -250,7 +260,7 @@ class AutoPassEngine(
         val decision =
             PriorityDecision.Grant(
                 phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
-                actionCount = actions.actionsCount,
+                actionCount = 1,
             )
         recordDecision(game, decision)
         return decision

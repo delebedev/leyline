@@ -85,7 +85,7 @@ class PriorityLoopCoordinator(
         if (smartSkipAllowed &&
             handler.playerTurn?.id == player.id &&
             game.stack.isEmpty &&
-            !PriorityActionCandidates.query(game, player).hasLegalNonManaAction(player)
+            !PriorityActionCandidates.hasLegalNonManaAction(game, player)
         ) {
             owner.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
             return null
