@@ -246,6 +246,11 @@ data object ResolveTransferOrderingRule : OrderRule {
  * already places ahead — excluding it here avoids a cycle). Constraining
  * only PSuT keeps the rest of the frame stable instead of hoisting
  * unconstrained annotations past the payment block.
+ *
+ * PSuT references the spell's stack iid from allocation, never a same-frame
+ * ObjectIdChanged new_id — otherwise [ObjectIdChangedFirstRule] would demand
+ * OIC-before-PSuT while this rule demands the reverse, and the resulting
+ * cycle would fall back to input order.
  */
 data object SubmittedTargetsLeadsFrameRule : OrderRule {
     override val name: String = "submitted_targets_leads_frame"

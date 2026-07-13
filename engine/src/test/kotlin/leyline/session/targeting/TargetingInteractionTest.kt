@@ -359,6 +359,9 @@ class TargetingInteractionTest :
                 psut.affectorId shouldBe HUMAN_SEAT
                 psut.affectedIdsList shouldContain stackIid
                 psut.detailsCount shouldBe 0
+                // PSuT leads the post-submit frame with the frame's ids ascending
+                psutFrame.annotationsList.first().typeList shouldContain AnnotationType.PlayerSubmittedTargets
+                psutFrame.annotationsList.map { it.id } shouldBe psutFrame.annotationsList.map { it.id }.sorted()
             }
         }
 

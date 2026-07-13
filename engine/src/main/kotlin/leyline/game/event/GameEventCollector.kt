@@ -919,7 +919,9 @@ class GameEventCollector(
      * deathtouch state-based action — but only when damage evidence exists.
      * The state-effects pass consumes the card's deathtouch flag before the
      * destroy event fires, so the same-frame damage events are the signal:
-     * damage lands and the SBA destroy fires inside one event frame.
+     * damage lands and the SBA destroy fires inside one event frame. A
+     * deathtouch destroy split across frames would downgrade to LethalDamage —
+     * the marked-damage fallback has no cross-frame deathtouch counterpart.
      */
     private fun destructionCause(
         ev: GameEventCardDestroyed,

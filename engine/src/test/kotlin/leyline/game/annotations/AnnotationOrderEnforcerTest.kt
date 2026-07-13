@@ -100,6 +100,27 @@ class AnnotationOrderEnforcerTest :
                 )
         }
 
+        test("PlayerSubmittedTargets and same-frame ObjectIdChanged for another card do not cycle") {
+            val oic = AnnotationBuilder.objectIdChanged(origId = 106.iid, newId = 112.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 112.iid,
+                    srcZoneId = 28,
+                    destZoneId = 33,
+                    category = "SBA_Damage",
+                )
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 105.iid, casterSeatId = 1.sid)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                )
+        }
+
         test("no-op when PlayerSubmittedTargets already leads payment and confirm") {
             val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
             val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
