@@ -92,13 +92,13 @@ object ActionMapper {
      * overload remains as a focused test/naive-action helper and does not emit
      * zone-cast rail shapes.
      */
-    @Suppress("LongMethod", "CyclomaticComplexMethod") // action types × zone-specific wire shapes.
     fun buildFromSnapshot(
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
     ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge).actions
 
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
     fun buildProjectionFromSnapshot(
         seatId: Int,
         snap: GsmSnapshot,
@@ -1106,6 +1106,7 @@ object ActionMapper {
 
     private fun isMdfcBackSpell(sa: SpellAbility): Boolean = sa.hostCard?.isModal == true && sa.cardStateName == CardStateName.Backside
 
+    @Suppress("LongParameterList") // face identity, legality inputs, and exact-source callbacks stay coupled.
     private fun addMdfcFaceActions(
         card: Card,
         player: Player,

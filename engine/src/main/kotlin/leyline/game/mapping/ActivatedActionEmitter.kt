@@ -95,6 +95,7 @@ internal object ActivatedActionEmitter {
         }
     }
 
+    @Suppress("LongParameterList") // protocol identity, cost, and exact-source callback form one action emission.
     fun emitActivatedAbilityAction(
         builder: ActionsAvailableReq.Builder,
         instanceId: Int,
