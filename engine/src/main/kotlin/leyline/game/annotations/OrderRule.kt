@@ -38,6 +38,7 @@ object OrderRules {
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
             ResolveTransferOrderingRule,
+            SubmittedTargetsBeforePaymentRule,
         )
 }
 
@@ -231,6 +232,40 @@ data object ResolveTransferOrderingRule : OrderRule {
             .indexOfFirst {
                 AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
             }.takeIf { it >= 0 }
+    }
+}
+
+/**
+ * Rule 6: PlayerSubmittedTargets must precede ManaPaid and UserActionTaken.
+ *
+ * The client narrates a confirmed targeted cast as target submission first,
+ * then payment and the cast confirm. Nothing orders ahead of the submission
+ * within its GSM, so every PSuT gets an edge to every payment/confirm
+ * annotation. PSuT-vs-PSuT keeps input order via topological sort stability.
+ */
+data object SubmittedTargetsBeforePaymentRule : OrderRule {
+    override val name: String = "submitted_targets_before_payment"
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val psutIndices =
+            annotations.indices.filter {
+                AnnotationType.PlayerSubmittedTargets in annotations[it].typeList
+            }
+        if (psutIndices.isEmpty()) return emptyList()
+        val paymentIndices =
+            annotations.indices.filter {
+                val types = annotations[it].typeList
+                AnnotationType.ManaPaid in types || AnnotationType.UserActionTaken in types
+            }
+        if (paymentIndices.isEmpty()) return emptyList()
+
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for (psut in psutIndices) {
+            for (payment in paymentIndices) {
+                edges.add(psut to payment)
+            }
+        }
+        return edges
     }
 }
 

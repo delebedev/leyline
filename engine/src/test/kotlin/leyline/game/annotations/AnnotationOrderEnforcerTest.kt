@@ -61,6 +61,31 @@ class AnnotationOrderEnforcerTest :
                 )
         }
 
+        test("reorders PlayerSubmittedTargets before mana payment and cast confirm") {
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
+
+            // Deliberately wrong order: payment and confirm before target submission
+            val result = AnnotationOrderEnforcer.enforce(listOf(mp, uat, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.ManaPaid,
+                    AnnotationType.UserActionTaken,
+                )
+        }
+
+        test("no-op when PlayerSubmittedTargets already leads payment and confirm") {
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
+
+            val input = listOf(psut, mp, uat)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
         test("no-op when no ObjectIdChanged present") {
             val zt =
                 AnnotationBuilder.zoneTransfer(
