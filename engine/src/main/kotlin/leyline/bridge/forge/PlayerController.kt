@@ -28,6 +28,8 @@ import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
+import forge.game.cost.CostTapType
+import forge.game.cost.CostTeamwork
 import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
@@ -982,7 +984,7 @@ class PlayerController(
     override fun chooseCardsForCost(
         optionList: CardCollectionView,
         sa: SpellAbility,
-        cpl: CostPartWithList,
+        cpl: CostPart,
         amount: Int,
         isOptional: Boolean,
         prompt: String,
@@ -1000,6 +1002,10 @@ class PlayerController(
                     }
                 is CostSacrifice -> PromptSemantic.SelectNCostSacrifice
                 is CostEnlist -> PromptSemantic.EnlistCost
+                // Fixed-count Station taps (tapXType<1/...>) pay through the
+                // exact-count seam, not chooseCardsForTapCost.
+                is CostTapType ->
+                    if (sa.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic
                 is CostForage ->
                     if (optionList.all { it.isInPlay }) {
                         PromptSemantic.SelectNCostSacrifice
@@ -1071,6 +1077,39 @@ class PlayerController(
         sameColor: Boolean,
         prompt: String,
     ): CardCollectionView = chooseCardsForCost(optionList, sa, cost, amount, optional, prompt)
+
+    override fun chooseCardsForTapCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        cost: CostTapType,
+        min: Int,
+        max: Int,
+        totalPowerNeeded: Int?,
+        prompt: String,
+    ): CardCollectionView {
+        val teamwork = cost is CostTeamwork
+        val semantic =
+            when {
+                teamwork -> PromptSemantic.TeamworkCost
+                sa.isKeyword(Keyword.STATION) -> PromptSemantic.StationTapCost
+                else -> PromptSemantic.Generic
+            }
+        return targetingCoordinator.chooseCardsViaBridge(
+            cards = optionList,
+            min = maxOf(min, 1),
+            max = max,
+            message = prompt,
+            semantic = semantic,
+            candidateRefs = optionList.toCandidateRefs(),
+            sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            // Any-number taps (Station) prompt even with a single candidate;
+            // total-power taps keep the auto-take shortcut for a forced list.
+            forcePrompt = totalPowerNeeded == null,
+            costSelectionWeights =
+                if (teamwork) optionList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
+            minSelectionWeight = totalPowerNeeded.takeIf { teamwork },
+        )
+    }
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
     // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on

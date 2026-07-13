@@ -3,6 +3,7 @@ package leyline.bridge.forge
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
+import forge.game.card.CounterType
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostExert
 import forge.game.cost.CostExile
@@ -10,9 +11,11 @@ import forge.game.cost.CostExiledMoveToGrave
 import forge.game.cost.CostMill
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostPutCardToLib
+import forge.game.cost.CostRemoveCounter
 import forge.game.cost.CostReveal
 import forge.game.cost.CostSacrifice
 import forge.game.cost.CostTapType
+import forge.game.cost.CostTeamwork
 import forge.game.cost.CostUnattach
 import forge.game.cost.PaymentDecision
 import forge.game.player.Player
@@ -142,20 +145,11 @@ class CostDecisionTest :
             ) as? CardCollection
         }
 
-        fun isOrdinaryExactTapCost(
-            decision: CostDecision,
-            cost: CostTapType,
-        ): Boolean {
-            val method = CostDecision::class.java.getDeclaredMethod("isOrdinaryExactTapCost", CostTapType::class.java)
-            method.isAccessible = true
-            return method.invoke(decision, cost) as Boolean
-        }
-
-        fun isOrdinaryExileCost(
+        fun isSpecializedExileShape(
             decision: CostDecision,
             cost: CostExile,
         ): Boolean {
-            val method = CostDecision::class.java.getDeclaredMethod("isOrdinaryExileCost", CostExile::class.java)
+            val method = CostDecision::class.java.getDeclaredMethod("isSpecializedExileShape", CostExile::class.java)
             method.isAccessible = true
             return method.invoke(decision, cost) as Boolean
         }
@@ -250,20 +244,136 @@ class CostDecisionTest :
             fx.decision.visit(CostUnattach("OriginalHost", "equipment")).shouldBeNull()
         }
 
-        test("tap cost delegates only the ordinary exact-count shape") {
+        test("tap cost hook projects teamwork weights and semantic") {
             val fx = fixture()
+            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
+            val cards =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(mountain)
+                }
 
-            assertSoftly {
-                isOrdinaryExactTapCost(fx.decision, CostTapType("1", "Land", "land", false)) shouldBe true
-                isOrdinaryExactTapCost(fx.decision, CostTapType("Any", "Land", "land", false)) shouldBe false
-                isOrdinaryExactTapCost(
-                    fx.decision,
-                    CostTapType("2", "Creature.sharesCreatureTypeWith", "creatures", false),
-                ) shouldBe false
-                isOrdinaryExactTapCost(
-                    fx.decision,
-                    CostTapType("Any", "Creature+withTotalPowerGE4", "creatures", false),
-                ) shouldBe false
+            fx.controller.chooseCardsForTapCost(cards, fx.ability, CostTeamwork("4"), 0, cards.size, 4, "tap for teamwork")
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 1
+                    max shouldBe 2
+                    semantic shouldBe PromptSemantic.TeamworkCost
+                    costSelectionWeights shouldContainExactly listOf(0, 0)
+                    minSelectionWeight shouldBe 4
+                }
+            }
+        }
+
+        test("tap cost hook keeps generic any-number projection without weights") {
+            val fx = fixture()
+            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
+            val cards =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(mountain)
+                }
+
+            fx.controller.chooseCardsForTapCost(
+                cards,
+                fx.ability,
+                CostTapType("Any", "Creature", "creatures", false),
+                1,
+                cards.size,
+                null,
+                "tap any number",
+            )
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 1
+                    max shouldBe 2
+                    semantic shouldBe PromptSemantic.Generic
+                    costSelectionWeights shouldBe emptyList<Int>()
+                    minSelectionWeight.shouldBeNull()
+                }
+            }
+        }
+
+        test("fixed-count station tap cost projects StationTapCost through the exact seam") {
+            val fx = fixture()
+            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
+            val cards =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(mountain)
+                }
+            fx.ability.setKeyword(
+                forge.game.keyword.Keyword
+                    .getInstance("Station:8"),
+            )
+
+            fx.controller.chooseCardsForCost(
+                cards,
+                fx.ability,
+                CostTapType("1", "Creature.Other", "another creature", false),
+                1,
+                true,
+                "tap another creature",
+            )
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 0
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.StationTapCost
+                }
+            }
+        }
+
+        test("cost hook accepts non-list cost parts after seam widening") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            fx.controller
+                .chooseCardsForCost(
+                    cards,
+                    fx.ability,
+                    CostRemoveCounter(
+                        "1",
+                        CounterType.getType("P1P1"),
+                        "Creature",
+                        "creature",
+                        listOf(ZoneType.Battlefield),
+                        false,
+                    ),
+                    1,
+                    true,
+                    "remove counters from one",
+                ).map { it } shouldContainExactly listOf(fx.source)
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 0
+                    max shouldBe 1
+                    semantic shouldBe PromptSemantic.Generic
+                }
             }
         }
 
@@ -324,27 +434,35 @@ class CostDecisionTest :
             }
         }
 
-        test("exile delegates only ordinary and automatic shapes") {
+        test("exile keeps only aggregate and shared-type shapes specialized") {
             val fx = fixture()
 
             assertSoftly {
-                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Hand)) shouldBe true
-                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Battlefield)) shouldBe true
-                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Library)) shouldBe true
-                isOrdinaryExileCost(fx.decision, CostExile("1", "CardFromTopGrave", null, ZoneType.Graveyard)) shouldBe true
-                isOrdinaryExileCost(fx.decision, CostExile("1", "Card", null, ZoneType.Graveyard)) shouldBe false
-                isOrdinaryExileCost(
-                    fx.decision,
-                    CostExile("2", "Card+withTotalCMCGE4", null, ZoneType.Hand),
-                ) shouldBe false
-                isOrdinaryExileCost(
-                    fx.decision,
-                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand),
-                ) shouldBe false
-                isOrdinaryExileCost(
+                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Hand)) shouldBe false
+                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Battlefield)) shouldBe false
+                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Library)) shouldBe false
+                isSpecializedExileShape(fx.decision, CostExile("1", "CardFromTopGrave", null, ZoneType.Graveyard)) shouldBe false
+                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Graveyard)) shouldBe false
+                isSpecializedExileShape(
                     fx.decision,
                     CostExile("1", "Card", null, listOf(ZoneType.Hand, ZoneType.Graveyard)),
                 ) shouldBe false
+                isSpecializedExileShape(
+                    fx.decision,
+                    CostExile("2", "Card+withTotalCMCGE4", null, ZoneType.Hand),
+                ) shouldBe true
+                isSpecializedExileShape(
+                    fx.decision,
+                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand),
+                ) shouldBe true
+                isSpecializedExileShape(
+                    fx.decision,
+                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand, 0),
+                ) shouldBe false
+                isSpecializedExileShape(
+                    fx.decision,
+                    CostExile("1", "Card+withTypesGE2", null, ZoneType.Graveyard),
+                ) shouldBe true
             }
         }
 

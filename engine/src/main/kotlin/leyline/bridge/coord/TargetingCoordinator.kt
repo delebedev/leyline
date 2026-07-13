@@ -840,6 +840,7 @@ class TargetingCoordinator(
      * shares the same protocol shape — but conceptually a cost-payment override, so
      * it lives on [leyline.bridge.forge.PlayerController].
      */
+    @Suppress("LongParameterList") // mirrors PromptRequest's cost-selection surface
     fun chooseCardsViaBridge(
         cards: CardCollectionView,
         min: Int,
@@ -849,6 +850,8 @@ class TargetingCoordinator(
         candidateRefs: List<PromptCandidateRefDto> = emptyList(),
         sourceEntityId: Int? = null,
         forcePrompt: Boolean = false,
+        costSelectionWeights: List<Int> = emptyList(),
+        minSelectionWeight: Int? = null,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
@@ -866,6 +869,8 @@ class TargetingCoordinator(
                 semantic = semantic,
                 candidateRefs = candidateRefs,
                 sourceEntityId = sourceEntityId,
+                costSelectionWeights = costSelectionWeights,
+                minSelectionWeight = minSelectionWeight,
             )
         val indices = bridge.requestChoice(request)
         val result = CardCollection()

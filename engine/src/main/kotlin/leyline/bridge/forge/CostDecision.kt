@@ -1,17 +1,12 @@
 package leyline.bridge.forge
 
-import com.google.common.collect.ImmutableList
 import com.google.common.collect.Lists
 import forge.card.MagicColor
 import forge.game.GameEntityCounterTable
-import forge.game.GameEntityView
-import forge.game.GameEntityViewMap
 import forge.game.ability.AbilityUtils
 import forge.game.card.*
 import forge.game.cost.*
-import forge.game.keyword.Keyword
 import forge.game.player.Player
-import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.HumanCostDecision
@@ -22,20 +17,21 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
-import java.util.*
 
 /**
  * Web-based cost decision maker: routes interactive cost choices through the
  * [InteractivePromptBridge] instead of desktop Input* classes.
  *
- * Extends Forge's [HumanCostDecision], retaining bridge-specific visitor
- * overrides while shared visitors migrate into Forge.
- * Non-interactive costs (confirm-only) go through [ClientGuiGame.confirm];
- * interactive card selections go through the [selectCards] helper.
- *
- * See ADR-010 Seam 1 spike for design rationale.
+ * Extends Forge's [HumanCostDecision]; cost families pay through shared
+ * controller choice hooks and inherit the Forge visitors. Only two shapes
+ * remain overridden here:
+ * - [CostExile] aggregate/constrained selections (total CMC, mana symbols,
+ *   card-type counts, shared card type), pending a weighted or constrained
+ *   selection seam in Forge.
+ * - [CostRemoveAnyCounter], a multi-stage interaction (repeated card choice
+ *   with per-card counter labels plus counter-type choice) with no narrow
+ *   controller seam yet.
  */
-@Suppress("LargeClass")
 class CostDecision(
     private val controller: PlayerControllerHuman,
     p: Player,
@@ -103,122 +99,29 @@ class CostDecision(
         return if (selected.size >= min) selected else null
     }
 
-    private fun selectTotalPowerTapCost(
-        cost: CostTapType,
-        typeList: CardCollectionView,
-        totalPower: Int,
-    ): PaymentDecision? {
-        val teamwork = cost is CostTeamwork
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectACreatureToTap"),
-                typeList,
-                1,
-                typeList.size,
-                cancelAllowed = false,
-                semantic = if (teamwork) PromptSemantic.TeamworkCost else PromptSemantic.Generic,
-                costSelectionWeights =
-                    if (teamwork) typeList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
-                minSelectionWeight = totalPower.takeIf { teamwork },
-            ) ?: return null
-        if (CardLists.getTotalPower(selected, ability) < totalPower) return null
-        return PaymentDecision.card(selected)
-    }
-
-    private fun isOrdinaryExactTapCost(cost: CostTapType): Boolean =
-        cost.amount != "Any" &&
-            !cost.type.contains(".sharesCreatureTypeWith") &&
-            !cost.type.contains("+withTotalPowerGE") &&
-            cost !is CostTeamwork &&
-            !ability.isCrew &&
-            !ability.isKeyword(Keyword.STATION)
-
-    private fun isOrdinaryExileCost(cost: CostExile): Boolean {
-        if (cost.payCostFromSource() || cost.type == "OriginalHost" || cost.type == "All") return true
-        if (
-            listOf(
-                "+withTotalCMCEQ",
-                "+withTotalCMCGE",
-                "+withTotalManaSymbols_",
-                "+withSharedCardType",
-                "+withTypesGE",
-            ).any(cost.type::contains)
-        ) {
-            return false
-        }
-        if (cost.type.contains("FromTopGrave")) return true
-        if (cost.from.size != 1) return false
-        return cost.from[0] == ZoneType.Battlefield ||
-            cost.from[0] == ZoneType.Hand ||
-            cost.from[0] == ZoneType.Library
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Non-interactive visit() methods
-    // ═══════════════════════════════════════════════════════════════════
-
-    override fun visit(cost: CostExileFromStack): PaymentDecision? {
-        val game = player.game
-        val saList = mutableListOf<SpellAbility>()
-        val descList = mutableListOf<String>()
-        for (si in game.stack) {
-            val stC = si.sourceCard
-            val stSA = si.spellAbility.rootAbility
-            if (stC.isValid(cost.type.split(";").toTypedArray(), ability.activatingPlayer, source, ability) && stSA.isSpell) {
-                saList.add(stSA)
-                descList.add(
-                    if (stC.isCopiedSpell) {
-                        "${stSA.stackDescription} (Copied Spell)"
-                    } else {
-                        stSA.stackDescription
-                    },
-                )
-            }
-        }
-        if (cost.type == "All") return PaymentDecision.spellabilities(saList)
-        val c = cost.getAbilityAmount(ability)
-        if (saList.size < c) return null
-        val exiled = mutableListOf<SpellAbility>()
-        repeat(c) {
-            val o =
-                controller.gui.oneOrNone(
-                    Localizer.getInstance().getMessage("lblExileFromStack"),
-                    descList,
-                ) ?: return null
-            val toExile = saList[descList.indexOf(o)]
-            saList.remove(toExile)
-            descList.remove(o)
-            exiled.add(toExile)
-        }
-        return PaymentDecision.spellabilities(exiled)
+    /**
+     * Exile shapes that still need Leyline-side selection: aggregate totals
+     * (CMC, mana symbols, card-type counts) and shared-card-type constrained
+     * selection outside cross-player same-zone payment. Everything else
+     * inherits the Forge visitor.
+     */
+    private fun isSpecializedExileShape(cost: CostExile): Boolean {
+        val aggregateMarkers = listOf("+withTotalCMCEQ", "+withTotalCMCGE", "+withTotalManaSymbols_", "+withTypesGE")
+        if (aggregateMarkers.any(cost.type::contains)) return true
+        return cost.type.contains("+withSharedCardType") && cost.zoneRestriction != 0
     }
 
     // ═══════════════════════════════════════════════════════════════════
     // Interactive visit() methods (bridge-based card selection)
     // ═══════════════════════════════════════════════════════════════════
 
+    @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod")
     override fun visit(cost: CostExile): PaymentDecision? {
-        if (isOrdinaryExileCost(cost)) return super.visit(cost)
+        if (!isSpecializedExileShape(cost)) return super.visit(cost)
 
         var type = cost.type
-        var onlyPayable: Card? = null
-        if (cost.payCostFromSource()) onlyPayable = source
-        if (type == "OriginalHost") onlyPayable = ability.originalHost
-
-        if (onlyPayable != null) {
-            if (onlyPayable.canExiledBy(ability, isEffect) &&
-                onlyPayable.zone == player.getZone(cost.from[0]) &&
-                confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", onlyPayable.translatedName))
-            ) {
-                return PaymentDecision.card(onlyPayable)
-            }
-            return null
-        }
-
-        var fromTopGrave = false
         if (type.contains("FromTopGrave")) {
             type = TextUtil.fastReplace(type, "FromTopGrave", "")
-            fromTopGrave = true
         }
         var totalCMCgreater = false
         var totalM: String? = null
@@ -258,17 +161,6 @@ class CostDecision(
             } else {
                 CardCollection(player.getCardsIn(cost.from))
             }
-
-        if (type == "All") {
-            return if (confirmAction(
-                    Localizer.getInstance().getMessage("lblExileNCardsFromYourZone", list.size, cost.from[0].translatedName),
-                )
-            ) {
-                PaymentDecision.card(list)
-            } else {
-                null
-            }
-        }
         list = CardLists.getValidCards(list, type.split(";").toTypedArray(), player, source, ability)
         list = CardLists.filter(list, CardPredicates.canExiledBy(ability, isEffect))
 
@@ -322,145 +214,35 @@ class CostDecision(
             return PaymentDecision.card(selected)
         }
 
+        // Shared-card-type constrained selection (zoneRestriction != 0 by predicate).
         val c = cost.getAbilityAmount(ability)
         if (list.size < c) return null
         if (c == 0) return PaymentDecision.number(c)
 
-        if (cost.from.size == 1) {
-            val fromZone = cost.from[0]
-            if (fromZone == ZoneType.Battlefield || fromZone == ZoneType.Hand) {
-                val selected =
-                    selectCards(
-                        Localizer.getInstance().getMessage("lblExileNCardsFromYourZone", "%d", fromZone.translatedName),
-                        list,
-                        c,
-                        c,
-                        cancelAllowed = !mandatory,
-                    ) ?: return null
-                return PaymentDecision.card(selected)
-            }
-            if (fromZone == ZoneType.Library) {
-                return if (confirmAction(Localizer.getInstance().getMessage("lblExileNCardFromYourTopLibraryConfirm"))) {
-                    PaymentDecision.card(player.getCardsIn(ZoneType.Library, c))
-                } else {
-                    null
-                }
-            }
-        }
-
-        if (fromTopGrave) {
-            Collections.reverse(list)
-            return PaymentDecision.card(list.subList(0, c.coerceAtMost(list.size)))
-        }
-
-        if (cost.zoneRestriction != 0) {
-            if (cost.zoneRestriction == -1 && ability.isTrigger && c == 1 && list.size == 1) {
-                return if (confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", list.first().translatedName))) {
-                    PaymentDecision.card(list.first())
-                } else {
-                    null
-                }
-            }
-            val origin = Lists.newArrayList(cost.from)
-            val required = if (sharedType) " (must share a card type)" else ""
-            val chosen =
-                controller.chooseCardsForZoneChange(
-                    ZoneType.Exile,
-                    origin,
-                    ability,
-                    list,
-                    if (mandatory) c else 0,
-                    c,
-                    null,
-                    cost.toString(c) + required,
-                    null,
-                )
-            if (chosen.size < c) return null
-            if (sharedType && !chosen[1].sharesCardTypeWith(chosen[0])) return null
-            return PaymentDecision.card(chosen)
-        }
-
-        // Exile from same zone (cross-player)
-        val players = game.players
-        val payableZone = mutableListOf<Player>()
-        for (p in players) {
-            val enoughType = CardLists.filter(list, CardPredicates.isOwner(p))
-            if (enoughType.size < c) {
-                list.removeAll(enoughType)
+        if (cost.zoneRestriction == -1 && ability.isTrigger && c == 1 && list.size == 1) {
+            return if (confirmAction(Localizer.getInstance().getMessage("lblExileConfirm", list.first().translatedName))) {
+                PaymentDecision.card(list.first())
             } else {
-                payableZone.add(p)
+                null
             }
         }
-        return exileFromSame(cost, list, c, payableZone)
-    }
-
-    private fun exileFromSame(
-        cost: CostExile,
-        list: CardCollectionView,
-        nNeeded: Int,
-        payableZone: List<Player>,
-    ): PaymentDecision? {
-        if (nNeeded == 0) return PaymentDecision.number(0)
-        val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(payableZone)
-        val pv =
-            controller.gui.oneOrNone(
-                Localizer.getInstance().getMessage("lblExileFromWhoseZone", cost.from[0].translatedName),
-                gameCachePlayer.trackableKeys,
-            )
-        if (pv == null || !gameCachePlayer.containsKey(pv)) return null
-        val p = gameCachePlayer[pv]
-        val typeList = CardLists.filter(list, CardPredicates.isOwner(p))
-        if (typeList.size < nNeeded) return null
-        val gameCacheExile: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
-        val views =
-            controller.gui.many(
-                Localizer.getInstance().getMessage("lblExileFromZone", cost.from[0].translatedName),
-                Localizer.getInstance().getMessage("lblToBeExiled"),
-                nNeeded,
-                gameCacheExile.trackableKeys,
+        val origin = Lists.newArrayList(cost.from)
+        val required = if (sharedType) " (must share a card type)" else ""
+        val chosen =
+            controller.chooseCardsForZoneChange(
+                ZoneType.Exile,
+                origin,
+                ability,
+                list,
+                if (mandatory) c else 0,
+                c,
+                null,
+                cost.toString(c) + required,
                 null,
             )
-        val result = Lists.newArrayList<Card>()
-        gameCacheExile.addToList(views, result)
-        return PaymentDecision.card(result)
-    }
-
-    override fun visit(cost: CostPutCounter): PaymentDecision? {
-        val c = cost.getAbilityAmount(ability)
-        if (cost.payCostFromSource()) {
-            if (ability.hasParam("UnlessCost") &&
-                !confirmAction(
-                    Localizer.getInstance().getMessage(
-                        "lblPutNTypeCounterOnTarget",
-                        c.toString(),
-                        cost.counter.name,
-                        ability.hostCard.displayName,
-                    ),
-                )
-            ) {
-                return null
-            }
-            return PaymentDecision.card(source)
-        }
-        var typeList: CardCollectionView =
-            CardLists.getValidCards(
-                source.game.getCardsIn(ZoneType.Battlefield),
-                cost.type.split(";").toTypedArray(),
-                player,
-                ability.hostCard,
-                ability,
-            )
-        typeList = CardLists.filter(typeList, CardPredicates.canReceiveCounters(cost.counter))
-        if (typeList.isEmpty()) return null
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblPutNTypeCounterOnTarget", c.toString(), cost.counter.name, cost.descriptiveType),
-                typeList,
-                1,
-                1,
-                cancelAllowed = !mandatory,
-            ) ?: return null
-        return PaymentDecision.card(selected)
+        if (chosen.size < c) return null
+        if (sharedType && !chosen[1].sharesCardTypeWith(chosen[0])) return null
+        return PaymentDecision.card(chosen)
     }
 
     override fun visit(cost: CostRemoveAnyCounter): PaymentDecision? {
@@ -530,280 +312,5 @@ class CostDecision(
             c--
         }
         return PaymentDecision.counters(counterTable)
-    }
-
-    override fun visit(cost: CostRemoveCounter): PaymentDecision? {
-        val amount = cost.amount
-        val type = cost.type
-        val cntrs = cost.counter
-        val anyCounters = cntrs == null
-
-        var cntRemoved = 1
-        if (amount != "All") {
-            cntRemoved = cost.getAbilityAmount(ability)
-        }
-
-        if (cost.payCostFromSource()) {
-            val maxCounters = if (anyCounters) source.numAllCounters else source.getCounters(cntrs)
-            if (amount == "All") {
-                val prompt =
-                    Localizer.getInstance().getMessage("lblRemoveAllCountersConfirm") +
-                        if (anyCounters) "" else " (${cntrs!!.name})"
-                if (!confirmAction(prompt)) return null
-                cntRemoved = maxCounters
-            } else if (ability != null && !ability.isPwAbility) {
-                if (maxCounters < cntRemoved) return null
-                if (!confirmAction(
-                        Localizer.getInstance().getMessage(
-                            "lblRemoveNTargetCounterFromCardPayCostConfirm",
-                            amount,
-                            if (anyCounters) "" else cntrs!!.name.lowercase(),
-                            source.translatedName,
-                        ),
-                    )
-                ) {
-                    return null
-                }
-            }
-            if (maxCounters < cntRemoved) return null
-            val counterTable = generateCounterTable(source, cntrs, if (cntRemoved >= 0) cntRemoved else maxCounters)
-            return if (counterTable.isEmpty) null else PaymentDecision.counters(counterTable)
-        }
-
-        if (type == "OriginalHost") {
-            val origHost = ability.originalHost
-            val maxCounters = if (anyCounters) origHost.numAllCounters else origHost.getCounters(cntrs)
-            if (amount == "All") cntRemoved = maxCounters
-            if (maxCounters < cntRemoved) return null
-            val counterTable = generateCounterTable(origHost, cntrs, if (cntRemoved >= 0) cntRemoved else maxCounters)
-            return if (counterTable.isEmpty) null else PaymentDecision.counters(counterTable)
-        }
-
-        var validCards: CardCollectionView =
-            CardLists.getValidCards(
-                player.getCardsIn(cost.zone),
-                type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        validCards =
-            if (anyCounters) {
-                CardLists.filterAnyCounters(validCards, cntRemoved)
-            } else {
-                CardLists.filter(validCards, CardPredicates.hasCounter(cntrs, cntRemoved))
-            }
-        if (validCards.isEmpty()) return null
-
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage(
-                    "lblRemoveCountersFromAInZoneCard",
-                    Lang.joinHomogenous(cost.zone) { z -> z.translatedName },
-                ),
-                validCards,
-                1,
-                1,
-                cancelAllowed = true,
-            )
-        val card = selected?.first() ?: return null
-
-        val counterTable = generateCounterTable(card, cntrs, cntRemoved)
-        return if (counterTable.isEmpty) null else PaymentDecision.counters(counterTable)
-    }
-
-    private fun generateCounterTable(
-        c: Card,
-        cType: CounterType?,
-        cntToRemove: Int,
-    ): GameEntityCounterTable {
-        val counterTable = GameEntityCounterTable()
-        if (cType != null) {
-            counterTable.put(null, c, cType, cntToRemove)
-        } else {
-            val cMap = counterTable.filterToRemove(c)
-            for (ct in ImmutableList.copyOf(cMap.elementSet())) {
-                if (!c.canRemoveCounters(ct)) cMap.remove(ct, cMap.count(ct))
-            }
-            if (cMap.isEmpty()) return counterTable
-            if (cMap.elementSet().size == 1) {
-                counterTable.put(null, c, cMap.entrySet().first().element, cntToRemove)
-            } else {
-                var remaining = cntToRemove
-                while (remaining > 0) {
-                    val pc = c.controller.controller
-                    val chosen =
-                        pc.chooseCounterType(
-                            Lists.newArrayList(cMap.elementSet()),
-                            ability,
-                            Localizer.getInstance().getMessage("lblSelectCountersTypeToRemove"),
-                            null,
-                        ) ?: break
-                    val max = remaining.coerceAtMost(cMap.count(chosen))
-                    val totalRemaining = cMap.entrySet().sumOf { it.count }
-                    val min = 1.coerceAtLeast(max - totalRemaining)
-                    val chosenAmount =
-                        pc.chooseNumber(
-                            ability,
-                            Localizer.getInstance().getMessage("lblSelectRemoveCountersNumberOfTarget", chosen.name),
-                            min,
-                            max,
-                            null,
-                        )
-                    if (chosenAmount > 0) {
-                        counterTable.put(null, c, chosen, chosenAmount)
-                        cMap.clear()
-                        val refreshedCounters = counterTable.filterToRemove(c)
-                        if (refreshedCounters.isNotEmpty()) {
-                            check(cMap.addAll(refreshedCounters))
-                        }
-                    }
-                    remaining -= chosenAmount
-                }
-            }
-        }
-        return counterTable
-    }
-
-    override fun visit(cost: CostTapType): PaymentDecision? {
-        if (isOrdinaryExactTapCost(cost)) return super.visit(cost)
-
-        var type = cost.type
-        val amount = cost.amount
-
-        if (type == "OriginalHost") {
-            val host = ability.originalHost
-            return if (host.canTap()) PaymentDecision.card(host) else null
-        }
-
-        var sameType = false
-        if (type.contains(".sharesCreatureTypeWith")) {
-            sameType = true
-            type = TextUtil.fastReplace(type, ".sharesCreatureTypeWith", "")
-        }
-        var totalPower = false
-        var totalP = ""
-        if (type.contains("+withTotalPowerGE")) {
-            totalPower = true
-            totalP = type.split("withTotalPowerGE")[1]
-            type = TextUtil.fastReplace(type, "+withTotalPowerGE$totalP", "")
-        }
-
-        var typeList =
-            CardLists.getValidCards(
-                player.getCardsIn(ZoneType.Battlefield),
-                type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-        typeList = CardLists.filter(typeList, if (ability.isCrew) CardPredicates.CAN_CREW else CardPredicates.CAN_TAP)
-
-        var c: Int? = null
-        if (amount != "Any") {
-            c = cost.getAbilityAmount(ability)
-        }
-        if (c != null && c == 0) return PaymentDecision.number(0)
-
-        if (sameType) {
-            val list2 = typeList
-            typeList =
-                CardLists.filter(typeList) { c12 ->
-                    list2.any { card -> card != c12 && card.sharesCreatureTypeWith(c12) }
-                }
-            val tapped = CardCollection()
-            var remaining = c ?: return null
-            while (remaining > 0) {
-                val selected =
-                    selectCards(
-                        Localizer.getInstance().getMessage("lblSelectOneOfCardsToTapAlreadyChosen", tapped),
-                        typeList,
-                        1,
-                        1,
-                        cancelAllowed = true,
-                    ) ?: return null
-                val first = selected.first()
-                tapped.add(first)
-                typeList = CardLists.filter(typeList) { it.sharesCreatureTypeWith(first) }
-                typeList.remove(first)
-                remaining--
-            }
-            return PaymentDecision.card(tapped)
-        }
-
-        if (totalPower) {
-            return selectTotalPowerTapCost(cost, typeList, totalP.toInt())
-        }
-
-        if (c != null && c > typeList.size) {
-            if (!isEffect) {
-                controller.gui.message(
-                    Localizer.getInstance().getMessage("lblEnoughValidCardNotToPayTheCost"),
-                    Localizer.getInstance().getMessage("lblCostPaymentInvalid"),
-                )
-            }
-            return null
-        }
-
-        val minSelection = c ?: 1
-        val maxSelection = c ?: typeList.size
-        val selected =
-            selectCards(
-                Localizer.getInstance().getMessage("lblSelectATargetToTap", cost.descriptiveType, "%d"),
-                typeList,
-                minSelection,
-                maxSelection,
-                cancelAllowed = !mandatory,
-                semantic =
-                    if (ability.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic,
-            ) ?: return null
-        return PaymentDecision.card(selected)
-    }
-
-    override fun visit(cost: CostPutCardToLib): PaymentDecision? {
-        if (cost.payCostFromSource() || !cost.sameZone) return super.visit(cost)
-
-        val c = cost.getAbilityAmount(ability)
-        val list =
-            CardLists.getValidCards(
-                player.game.getCardsIn(cost.from),
-                cost.type.split(";").toTypedArray(),
-                player,
-                source,
-                ability,
-            )
-
-        val players = player.game.players
-        val payableZone = mutableListOf<Player>()
-        for (p in players) {
-            val enoughType = CardLists.filter(list, CardPredicates.isOwner(p))
-            if (enoughType.size < c) {
-                list.removeAll(enoughType)
-            } else {
-                payableZone.add(p)
-            }
-        }
-        val gameCachePlayer: GameEntityViewMap<Player, PlayerView> = GameEntityView.getMap(payableZone)
-        val pv =
-            controller.gui.oneOrNone(
-                TextUtil.concatNoSpace(Localizer.getInstance().getMessage("lblPutCardsFromWhoseZone"), cost.from.translatedName),
-                gameCachePlayer.trackableKeys,
-            )
-        if (pv == null || !gameCachePlayer.containsKey(pv)) return null
-        val p = gameCachePlayer[pv]
-        val typeList = CardLists.filter(list, CardPredicates.isOwner(p))
-        if (typeList.size < c) return null
-        val chosen = CardCollection()
-        val gameCacheCard: GameEntityViewMap<Card, CardView> = GameEntityView.getMap(typeList)
-        repeat(c) {
-            val cv =
-                controller.gui.oneOrNone(
-                    Localizer.getInstance().getMessage("lblPutZoneCardsToLibrary", cost.from.translatedName),
-                    gameCacheCard.trackableKeys,
-                )
-            if (cv == null || !gameCacheCard.containsKey(cv)) return null
-            chosen.add(gameCacheCard.remove(cv))
-        }
-        return PaymentDecision.card(chosen)
     }
 }

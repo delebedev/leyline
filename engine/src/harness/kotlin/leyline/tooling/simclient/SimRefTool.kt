@@ -14,7 +14,6 @@ import forge.game.card.CardState
 import forge.game.card.CounterType
 import forge.game.combat.Combat
 import forge.game.cost.CostPart
-import forge.game.cost.CostPartWithList
 import forge.game.keyword.KeywordInterface
 import forge.game.player.DelayedReveal
 import forge.game.player.Player
@@ -621,7 +620,7 @@ private class TappingPlayerControllerAi(
     override fun chooseCardsForCost(
         optionList: CardCollectionView?,
         sa: SpellAbility?,
-        cpl: CostPartWithList?,
+        cpl: CostPart?,
         amount: Int,
         isOptional: Boolean,
         prompt: String?,

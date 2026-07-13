@@ -185,6 +185,8 @@ class InteractivePromptBridge(
         val outcome: PromptCallStatus,
         val result: List<Int>,
         val callerFrames: List<String>,
+        val costSelectionWeights: List<Int> = emptyList(),
+        val minSelectionWeight: Int? = null,
     ) {
         override fun toString(): String =
             "[$outcome] $promptType/$semantic: \"$message\" opts=$options result=$result\n  ${callerFrames.joinToString("\n  ")}"
@@ -223,6 +225,8 @@ class InteractivePromptBridge(
                     outcome = outcome,
                     result = result,
                     callerFrames = frames,
+                    costSelectionWeights = request.costSelectionWeights,
+                    minSelectionWeight = request.minSelectionWeight,
                 ),
             )
         }
