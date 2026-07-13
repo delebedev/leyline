@@ -20,6 +20,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
+import leyline.testkit.PlayerZone
 import leyline.testkit.beAltCostOffer
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
@@ -444,7 +445,7 @@ class AltCostOfferTest :
                 val (b, game, _) = startWithBoard(row.seedOffer)
                 val human = game.humanPlayer
                 val card = human.getZone(row.sourceZone).cards.first { it.name == row.sourceCard }
-                val sourceIid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                val sourceIid = PlayerZone(human, row.sourceZone).iid(row.sourceCard)
                 val sourceGrpId = b.cardRepository.findGrpIdByName(row.sourceCard)!!
                 val keywordAbilityGrpId = b.cardRepository.findKeywordAbilityGrpId(sourceGrpId, row.keywordId)!!
 

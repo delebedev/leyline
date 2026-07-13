@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
@@ -125,17 +124,7 @@ class ForetellActionTest :
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
-            val boltIid =
-                b
-                    .getOrAllocInstanceId(
-                        ForgeCardId(
-                            game.humanPlayer
-                                .getZone(ZoneType.Hand)
-                                .cards
-                                .first { it.name == "Demon Bolt" }
-                                .id,
-                        ),
-                    ).value
+            val boltIid = game.humanPlayer.hand.iid("Demon Bolt")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)

@@ -9,7 +9,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
@@ -121,7 +120,7 @@ class NinjutsuPuzzleTest :
                     .shouldContain("Raging Goblin")
                 ai.life shouldBe 18
                 ninja.isTapped.shouldBeTrue()
-                val ninjaIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(ninja.id)).value
+                val ninjaIid = human.battlefield.iid("Ninja of the Deep Hours")
                 postCostMessages
                     .allGameObjects()
                     .firstOrNull { it.instanceId == ninjaIid && it.attackState == AttackState.Attacking }

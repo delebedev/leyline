@@ -9,7 +9,6 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
@@ -45,8 +44,7 @@ class MutateActionTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
-            val mutateCardInHand = human.getZone(ZoneType.Hand).cards.first { it.name == MUTATE_CARD }
-            val cardIid = b.getOrAllocInstanceId(ForgeCardId(mutateCardInHand.id)).value
+            val cardIid = human.hand.iid(MUTATE_CARD)
 
             val offer =
                 actions.actionsList.firstOrNull {

@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
@@ -114,17 +113,7 @@ class PlotActionTest :
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
-            val brawlerIid =
-                b
-                    .getOrAllocInstanceId(
-                        ForgeCardId(
-                            game.humanPlayer
-                                .getZone(ZoneType.Hand)
-                                .cards
-                                .first { it.name == "Railway Brawler" }
-                                .id,
-                        ),
-                    ).value
+            val brawlerIid = game.humanPlayer.hand.iid("Railway Brawler")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
