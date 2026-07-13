@@ -803,6 +803,8 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(ev.source().id),
                 targetCardId = ForgeCardId(ev.card().id),
                 amount = ev.amount(),
+                deathtouch = ev.type() == GameEventCardDamaged.DamageType.Deathtouch,
+                combat = ev.isCombat,
             ),
         )
     }
@@ -906,9 +908,34 @@ class GameEventCollector(
                 seatId = seat,
                 sourceCardId = sourceId?.let(::ForgeCardId),
                 sourceAbilityForgeId = cause?.abilityId() ?: 0,
+                destruction = destructionCause(ev, ForgeCardId(card.id)),
             ),
         )
         log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
+    }
+
+    /**
+     * A destroy with no causing ability and no activator is the lethal-damage /
+     * deathtouch state-based action — but only when damage evidence exists.
+     * The state-effects pass consumes the card's deathtouch flag before the
+     * destroy event fires, so the same-frame damage events are the signal:
+     * damage lands and the SBA destroy fires inside one event frame. A
+     * deathtouch destroy split across frames would downgrade to LethalDamage —
+     * the marked-damage fallback has no cross-frame deathtouch counterpart.
+     */
+    private fun destructionCause(
+        ev: GameEventCardDestroyed,
+        cardId: ForgeCardId,
+    ): DestructionCause {
+        if (ev.cause() != null || ev.activator() != null) return DestructionCause.Effect
+        val frameDamage =
+            frame.filterIsInstance<GameEvent.DamageDealtToCard>().filter { it.targetCardId == cardId }
+        return when {
+            frameDamage.any { it.deathtouch } -> DestructionCause.Deathtouch
+            frameDamage.isNotEmpty() || (bridge.findCard(cardId)?.damage ?: 0) > 0 ->
+                DestructionCause.LethalDamage
+            else -> DestructionCause.Effect
+        }
     }
 
     // -- Group A+: attachment events --

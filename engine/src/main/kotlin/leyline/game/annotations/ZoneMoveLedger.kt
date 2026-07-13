@@ -57,6 +57,8 @@ object ZoneMoveLedger {
         val cardId = move.cardId
         val cast = events.filterIsInstance<GameEvent.SpellCast>().firstOrNull { it.cardId == cardId }
         val resolved = events.filterIsInstance<GameEvent.SpellResolved>().firstOrNull { it.cardId == cardId }
+        val destruction =
+            events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == cardId }?.destruction
         return when {
             events.any { it is GameEvent.LandPlayed && it.cardId == cardId } &&
                 move.from == Zone.Hand &&
@@ -83,9 +85,9 @@ object ZoneMoveLedger {
             events.any { it is GameEvent.CardSacrificed && it.cardId == cardId } &&
                 move.from == Zone.Battlefield &&
                 move.to == Zone.Graveyard -> TransferCategory.Sacrifice
-            events.any { it is GameEvent.CardDestroyed && it.cardId == cardId } &&
+            destruction != null &&
                 move.from == Zone.Battlefield &&
-                move.to == Zone.Graveyard -> TransferCategory.Destroy
+                move.to == Zone.Graveyard -> TransferCategoryResolver.destructionCategory(destruction)
             move.cause?.api == "Discard" -> TransferCategory.Discard
             move.cause?.api == "Mill" -> TransferCategory.Mill
             move.cause?.api == "Surveil" -> TransferCategory.Surveil

@@ -108,7 +108,7 @@ object CombatAnnotations {
         for (ev in cardDamage) {
             val sourceIid = idResolver(ev.sourceCardId)
             val targetIid = idResolver(ev.targetCardId)
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount))
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount, combat = ev.combat))
         }
 
         // --- DamageDealt: creature → player ---
@@ -116,7 +116,7 @@ object CombatAnnotations {
         var playerDamageSeat: SeatId? = null
         for (ev in playerDamage) {
             val sourceIid = idResolver(ev.sourceCardId)
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount))
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount, combat = ev.combat))
             if (firstPlayerDamageAttacker == null) firstPlayerDamageAttacker = sourceIid
             playerDamageSeat = ev.targetSeatId
         }

@@ -16,6 +16,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.testkit.BoardTest
@@ -450,7 +451,9 @@ class GameEventCollectorTest :
                     .filter { it.isCreature }
             val source = cards[0]
             val target = cards[1]
-            game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal))
+            game.fireEvent(
+                GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal, true),
+            )
 
             val dmg = collector.closeFrame().events.filterIsInstance<GameEvent.DamageDealtToCard>()
             assertSoftly {

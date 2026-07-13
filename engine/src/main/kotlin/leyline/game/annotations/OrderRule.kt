@@ -38,6 +38,7 @@ object OrderRules {
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
             ResolveTransferOrderingRule,
+            SubmittedTargetsLeadsFrameRule,
         )
 }
 
@@ -231,6 +232,50 @@ data object ResolveTransferOrderingRule : OrderRule {
             .indexOfFirst {
                 AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
             }.takeIf { it >= 0 }
+    }
+}
+
+/**
+ * Rule 6: PlayerSubmittedTargets leads its GSM.
+ *
+ * The client narrates a confirmed targeted cast as target submission first,
+ * then the mana-ability bracket, payment, and the cast confirm in their
+ * original order. Nothing orders ahead of the submission within its GSM
+ * except a phase marker, so every PSuT gets an edge to every other
+ * annotation apart from PhaseOrStepModified (which [PhaseOrStepFirstRule]
+ * already places ahead — excluding it here avoids a cycle). Constraining
+ * only PSuT keeps the rest of the frame stable instead of hoisting
+ * unconstrained annotations past the payment block.
+ *
+ * PSuT references the spell's stack iid from allocation, never a same-frame
+ * ObjectIdChanged new_id — otherwise [ObjectIdChangedFirstRule] would demand
+ * OIC-before-PSuT while this rule demands the reverse, and the resulting
+ * cycle would fall back to input order.
+ */
+data object SubmittedTargetsLeadsFrameRule : OrderRule {
+    override val name: String = "submitted_targets_leads_frame"
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val psutIndices =
+            annotations.indices.filter {
+                AnnotationType.PlayerSubmittedTargets in annotations[it].typeList
+            }
+        if (psutIndices.isEmpty()) return emptyList()
+        val followerIndices =
+            annotations.indices.filter {
+                val types = annotations[it].typeList
+                AnnotationType.PlayerSubmittedTargets !in types &&
+                    AnnotationType.PhaseOrStepModified !in types
+            }
+        if (followerIndices.isEmpty()) return emptyList()
+
+        val edges = mutableListOf<Pair<Int, Int>>()
+        for (psut in psutIndices) {
+            for (follower in followerIndices) {
+                edges.add(psut to follower)
+            }
+        }
+        return edges
     }
 }
 

@@ -88,6 +88,10 @@ object AnnotationPipeline {
             VehicleAttachContributor,
         )
 
+    /** Death categories whose transfers defer behind same-frame DamageDealt emission. */
+    private val deathTransferCategories =
+        setOf(TransferCategory.Destroy, TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch)
+
     /** Result of stages 4-5 + persistent annotation computation. */
     internal data class RemainingAnnotationsResult(
         val numbered: List<AnnotationInfo>,
@@ -205,7 +209,7 @@ object AnnotationPipeline {
             }
         val (deferredTransfers, immediateTransfers) =
             patchedTransfers.partition { transfer ->
-                transfer.category == TransferCategory.Destroy &&
+                transfer.category in deathTransferCategories &&
                     transfer.forgeCardId != null &&
                     transfer.forgeCardId in lethalDamageVictims
             }

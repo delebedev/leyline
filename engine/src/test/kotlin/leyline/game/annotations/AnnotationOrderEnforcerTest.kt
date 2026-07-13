@@ -61,6 +61,75 @@ class AnnotationOrderEnforcerTest :
                 )
         }
 
+        test("reorders PlayerSubmittedTargets before mana payment and cast confirm") {
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
+
+            // Deliberately wrong order: payment and confirm before target submission
+            val result = AnnotationOrderEnforcer.enforce(listOf(mp, uat, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.ManaPaid,
+                    AnnotationType.UserActionTaken,
+                )
+        }
+
+        test("PlayerSubmittedTargets leads the frame; mana bracket keeps its order") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 104.iid, affectorId = 101.iid)
+            val tup = AnnotationBuilder.tappedUntappedPermanent(permanentId = 101.iid, abilityId = 104.iid)
+            val uatMana = AnnotationBuilder.userActionTaken(instanceId = 104.iid, seatId = 1.sid, actionType = ActionType.ActivateMana)
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 105.iid, landInstanceId = 101.iid)
+            val aid = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = 104.iid, affectorId = 101.iid)
+            val uatCast = AnnotationBuilder.userActionTaken(instanceId = 105.iid, seatId = 1.sid, actionType = ActionType.Cast)
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 105.iid, casterSeatId = 1.sid)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(aic, tup, uatMana, mp, aid, uatCast, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.AbilityInstanceCreated,
+                    AnnotationType.TappedUntappedPermanent,
+                    AnnotationType.UserActionTaken,
+                    AnnotationType.ManaPaid,
+                    AnnotationType.AbilityInstanceDeleted,
+                    AnnotationType.UserActionTaken,
+                )
+        }
+
+        test("PlayerSubmittedTargets and same-frame ObjectIdChanged for another card do not cycle") {
+            val oic = AnnotationBuilder.objectIdChanged(origId = 106.iid, newId = 112.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 112.iid,
+                    srcZoneId = 28,
+                    destZoneId = 33,
+                    category = "SBA_Damage",
+                )
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 105.iid, casterSeatId = 1.sid)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                )
+        }
+
+        test("no-op when PlayerSubmittedTargets already leads payment and confirm") {
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
+
+            val input = listOf(psut, mp, uat)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
         test("no-op when no ObjectIdChanged present") {
             val zt =
                 AnnotationBuilder.zoneTransfer(

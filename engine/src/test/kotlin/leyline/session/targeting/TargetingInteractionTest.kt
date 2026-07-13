@@ -359,6 +359,9 @@ class TargetingInteractionTest :
                 psut.affectorId shouldBe HUMAN_SEAT
                 psut.affectedIdsList shouldContain stackIid
                 psut.detailsCount shouldBe 0
+                // PSuT leads the post-submit frame with the frame's ids ascending
+                psutFrame.annotationsList.first().typeList shouldContain AnnotationType.PlayerSubmittedTargets
+                psutFrame.annotationsList.map { it.id } shouldBe psutFrame.annotationsList.map { it.id }.sorted()
             }
         }
 
@@ -594,8 +597,8 @@ class TargetingInteractionTest :
                 damageAnn.affectedIdsCount shouldBe 1
                 damageAnn.getAffectedIds(0) shouldBeGreaterThan 0
 
-                // Destroy zone transfer present
-                allMessages.firstWithTransferCategory("Destroy").shouldNotBeNull()
+                // Lethal fight damage death rides the damage SBA category
+                allMessages.firstWithTransferCategory("SBA_Damage").shouldNotBeNull()
 
                 // Bite Down → human GY, Grizzly Bears → ai GY
                 human
