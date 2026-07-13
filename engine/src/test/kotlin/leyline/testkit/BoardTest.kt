@@ -8,10 +8,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.BoardTag
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Base class for board-tier tests (land/mana, combat, stack, etc.).
@@ -22,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * ```
  * class LandManaTest : BoardTest({
  *     test("Forest — ColorProduction [5]") {
- *         val (b, game, counter) = startWithBoard { _, human, _ ->
+ *         val board = startWithBoard { _, human, _ ->
  *             addCard("Forest", human, ZoneType.Hand)
  *         }
  *         ...
@@ -37,8 +34,6 @@ abstract class BoardTest(
     body: BoardTest.() -> Unit,
 ) : FunSpec() {
     private val base = BoardTestBase()
-
-    val humanSeat = SeatId(1)
 
     init {
         tags(BoardTag)
@@ -72,30 +67,6 @@ abstract class BoardTest(
         zone: ZoneType = ZoneType.Battlefield,
     ): Card = base.addCard(name, player, zone)
 
-    // --- Capture ---
-
-    fun capture(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-        checkSba: Boolean = false,
-        action: () -> Unit,
-    ): GameStateMessage = base.captureAfterAction(b, game, counter, checkSba, action)
-
-    fun captureAfterAction(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-        checkSba: Boolean = false,
-        action: () -> Unit,
-    ): GameStateMessage = base.captureAfterAction(b, game, counter, checkSba, action)
-
-    fun stateOnlyDiff(
-        game: Game,
-        b: GameBridge,
-        counter: MessageCounter,
-    ): GameStateMessage = base.stateOnlyDiff(game, b, counter)
-
     // --- Board actions ---
 
     /** Move card to battlefield — raw zone move, no events, no triggers. For setup. */
@@ -105,17 +76,6 @@ abstract class BoardTest(
     ) {
         game.action.moveToPlay(card, null, AbilityKey.newMap())
     }
-
-    /** Play first land from hand via Forge's full path. Fires GameEventLandPlayed. */
-    fun playLandFromHand(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-    ): GameStateMessage = Board(b, game, counter).playLandFromHand()
-
-    // --- Player helpers ---
-
-    fun humanPlayer(b: GameBridge): Player = b.getPlayer(humanSeat)!!
 
     // --- ID helpers ---
 
@@ -137,16 +97,6 @@ abstract class BoardTest(
     ) {
         game.action.exile(card, null, AbilityKey.newMap())
     }
-
-    /** Find card by name, perform action, assert realloc + Limbo, return (gsm, newInstanceId). */
-    fun transferCard(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-        cardName: String,
-        checkSba: Boolean = false,
-        action: (Card, Game) -> Unit,
-    ): Pair<GameStateMessage, Int> = Board(b, game, counter).transferCard(cardName, checkSba, action)
 
     // --- Instance probe DSL ---
 
@@ -181,18 +131,6 @@ abstract class BoardTest(
 
     fun bundleBuilder(b: GameBridge) = base.bundleBuilder(b)
 
-    fun postAction(
-        game: Game,
-        b: GameBridge,
-        counter: MessageCounter,
-    ) = base.postAction(game, b, counter)
-
-    fun gameStart(
-        game: Game,
-        b: GameBridge,
-        counter: MessageCounter,
-    ) = base.gameStart(game, b, counter)
-
     fun handshakeFull(
         game: Game,
         b: GameBridge,
@@ -218,6 +156,6 @@ abstract class BoardTest(
     fun playLandAndCapture() = base.playLandAndCapture()
 
     companion object {
-        const val SEAT_ID = BoardTestBase.SEAT_ID
+        const val SEAT_ID = Board.SEAT_ID
     }
 }

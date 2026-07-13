@@ -55,21 +55,21 @@ class LandManaTest :
         // --- Zone transfer & annotation shape ---
 
         test("play land — annotations, zone transfer, instanceId realloc, Limbo") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Hand)
                 }
 
-            val player = humanPlayer(b)
+            val player = board.human
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
-            val origId = b.getOrAllocInstanceId(ForgeCardId(land.id)).value
+            val origId = board.instanceId(land.id)
             val cardId = land.id
 
             val gsm =
-                capture(b, game, counter) {
-                    moveToBattlefield(land, game)
+                board.snapshotDiff {
+                    moveToBattlefield(land, board.game)
                 }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
+            val newId = board.instanceId(cardId)
 
             origId shouldNotBe newId
 
@@ -121,16 +121,16 @@ class LandManaTest :
         }
 
         test("play land — accumulated client state consistent") {
-            val (b, game, counter) = startGameAtMain1()
+            val board = startGameAtMain1()
 
-            val startResult = gameStart(game, b, counter)
+            val startResult = board.gameStart()
             val acc = ClientAccumulator()
-            acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
+            acc.seedFull(handshakeFull(board.game, board.bridge, board.counter.currentGsId()))
             acc.processAll(startResult.messages)
-            b.seedDiffBaseline(game)
+            board.bridge.seedDiffBaseline(board.game)
 
-            playLand(b) ?: error("No land in hand")
-            val postResult = postAction(game, b, counter)
+            playLand(board.bridge) ?: error("No land in hand")
+            val postResult = board.postAction()
             acc.processAll(postResult.messages)
             val oic = postResult.mergedGsm.annotation(AnnotationType.ObjectIdChanged)
             val origId = oic.detailInt("orig_id")
@@ -154,35 +154,41 @@ class LandManaTest :
         // --- Color production ---
 
         test("Forest — ColorProduction [5]") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Hand)
                 }
-            playLandFromHand(b, game, counter)
+            board
+                .playLandFromHand()
                 .persistentAnnotation(AnnotationType.ColorProduction)
                 .detailIntList("colors") shouldBe listOf(ManaColor.Green_afc9.number)
         }
 
         test("Jungle Hollow — ColorProduction [3, 5]") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Jungle Hollow", human, ZoneType.Hand)
                 }
-            playLandFromHand(b, game, counter)
+            board
+                .playLandFromHand()
                 .persistentAnnotation(AnnotationType.ColorProduction)
                 .detailIntList("colors")
                 .shouldContainExactlyInAnyOrder(ManaColor.Black_afc9.number, ManaColor.Green_afc9.number)
         }
 
         test("Llanowar Elves — ColorProduction [5] from battlefield snapshot") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Llanowar Elves", human, ZoneType.Battlefield)
                 }
-            val elf = humanPlayer(b).getZone(ZoneType.Battlefield).cards.single { it.name == "Llanowar Elves" }
-            val elfIid = b.getOrAllocInstanceId(ForgeCardId(elf.id)).value
+            val elf =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Llanowar Elves" }
+            val elfIid = board.instanceId(elf.id)
 
-            handshakeFull(game, b, counter.currentGsId())
+            handshakeFull(board.game, board.bridge, board.counter.currentGsId())
                 .persistentAnnotationsList
                 .single { AnnotationType.ColorProduction in it.typeList && elfIid in it.affectedIdsList }
                 .detailIntList("colors") shouldBe listOf(ManaColor.Green_afc9.number)
@@ -191,14 +197,14 @@ class LandManaTest :
         // --- Action fields ---
 
         test("Play action — shouldStop, no abilityGrpId, no manaCost") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Hand)
                     addCard("Forest", human, ZoneType.Hand)
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
 
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
             val playActions = actions.ofType(ActionType.Play_add3)
             assertSoftly {
                 playActions.shouldHaveSize(2)
@@ -220,18 +226,21 @@ class LandManaTest :
         }
 
         test("ActivateMana fields after land on battlefield") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Hand)
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
 
-            val player = humanPlayer(b)
+            val player = board.human
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
-            capture(b, game, counter) { moveToBattlefield(land, game) }
+            board.snapshotDiff { moveToBattlefield(land, board.game) }
 
-            val manaActions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.ActivateMana)
+            val manaActions =
+                ActionMapper
+                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                    .ofType(ActionType.ActivateMana)
             assertSoftly {
                 manaActions.shouldHaveSize(2)
                 for (a in manaActions) {
@@ -248,19 +257,19 @@ class LandManaTest :
         }
 
         test("dual land ActivateMana exposes selectable colors") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Jungle Hollow", human, ZoneType.Battlefield)
                 }
 
             val action =
                 ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.ActivateMana)
                     .single()
             val colors = listOf(ManaColor.Black_afc9, ManaColor.Green_afc9)
             val selection = action.manaSelectionsList.single()
-            val cardData = b.cardRepository.findByGrpId(action.grpId) ?: error("missing card data")
+            val cardData = board.bridge.cardRepository.findByGrpId(action.grpId) ?: error("missing card data")
             val abilityIndex = cardData.abilityIds.indexOfFirst { (grpId, _) -> grpId == action.abilityGrpId }
             val expectedUniqueAbilityId = 50 + abilityIndex
 
@@ -280,18 +289,21 @@ class LandManaTest :
         }
 
         test("Cast action — manaCost, autoTapSolution with mana source details") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Hand)
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
 
-            val player = humanPlayer(b)
+            val player = board.human
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
-            capture(b, game, counter) { moveToBattlefield(land, game) }
+            board.snapshotDiff { moveToBattlefield(land, board.game) }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
+            val cast =
+                ActionMapper
+                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                    .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val a = cast[0]
@@ -318,7 +330,7 @@ class LandManaTest :
         }
 
         test("hybrid two-or-color autoTapSolution can use two generic for a missing color") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Island", human, ZoneType.Battlefield)
                     addCard("Mountain", human, ZoneType.Battlefield)
@@ -327,7 +339,10 @@ class LandManaTest :
                     addCard("Temur Tawnyback", human, ZoneType.Hand)
                 }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
+            val cast =
+                ActionMapper
+                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                    .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val autoTap = cast[0].autoTapSolution
@@ -342,14 +357,17 @@ class LandManaTest :
         }
 
         test("dual land autoTapSolution — Jungle Hollow casts Grizzly Bears") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Jungle Hollow", human, ZoneType.Battlefield)
                     addCard("Jungle Hollow", human, ZoneType.Battlefield)
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
+            val cast =
+                ActionMapper
+                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                    .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val a = cast[0]
@@ -368,18 +386,18 @@ class LandManaTest :
         }
 
         test("GSM embedded actions stripped — no grpId, facetId, autoTap") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Hand)
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
 
-            val player = humanPlayer(b)
+            val player = board.human
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
-            capture(b, game, counter) { moveToBattlefield(land, game) }
+            board.snapshotDiff { moveToBattlefield(land, board.game) }
 
-            val result = postAction(game, b, counter)
+            val result = board.postAction()
             val gsm = result.gsmOrNull.shouldNotBeNull()
             gsm.pendingMessageCount shouldBe 1
 
@@ -413,35 +431,35 @@ class LandManaTest :
         // --- Limbo accumulation ---
 
         test("Limbo grows across multiple land plays") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Hand)
                     addCard("Forest", human, ZoneType.Hand)
                 }
 
-            val player = humanPlayer(b)
+            val player = board.human
             val lands = player.getZone(ZoneType.Hand).cards.filter { it.isLand }
-            val origId1 = b.getOrAllocInstanceId(ForgeCardId(lands[0].id))
-            val origId2 = b.getOrAllocInstanceId(ForgeCardId(lands[1].id))
+            val origId1 = board.bridge.getOrAllocInstanceId(ForgeCardId(lands[0].id))
+            val origId2 = board.bridge.getOrAllocInstanceId(ForgeCardId(lands[1].id))
 
-            capture(b, game, counter) { moveToBattlefield(lands[0], game) }
+            board.snapshotDiff { moveToBattlefield(lands[0], board.game) }
             assertSoftly {
-                b.getLimboInstanceIds().shouldHaveSize(1)
-                b.getLimboInstanceIds().shouldContain(origId1)
+                board.bridge.getLimboInstanceIds().shouldHaveSize(1)
+                board.bridge.getLimboInstanceIds().shouldContain(origId1)
             }
 
-            capture(b, game, counter) { moveToBattlefield(lands[1], game) }
+            board.snapshotDiff { moveToBattlefield(lands[1], board.game) }
             assertSoftly {
-                b.getLimboInstanceIds().shouldHaveSize(2)
-                b.getLimboInstanceIds().shouldContain(origId1)
-                b.getLimboInstanceIds().shouldContain(origId2)
+                board.bridge.getLimboInstanceIds().shouldHaveSize(2)
+                board.bridge.getLimboInstanceIds().shouldContain(origId1)
+                board.bridge.getLimboInstanceIds().shouldContain(origId2)
             }
         }
 
         // --- AutoTap preference ---
 
         test("autoTapSolution prefers lands over mana dorks") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Battlefield)
                     addCard("Plains", human, ZoneType.Battlefield)
@@ -452,7 +470,10 @@ class LandManaTest :
                     addCard("Pacifism", human, ZoneType.Hand)
                 }
 
-            val cast = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b).ofType(ActionType.Cast)
+            val cast =
+                ActionMapper
+                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                    .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val autoTap = cast[0].autoTapSolution
@@ -460,11 +481,11 @@ class LandManaTest :
             autoTap.autoTapActionsCount shouldBe 2
 
             val landInstanceIds =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .filter { it.isLand }
-                    .map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+                    .map { board.instanceId(it.id) }
                     .toSet()
 
             for (tap in autoTap.autoTapActionsList) {

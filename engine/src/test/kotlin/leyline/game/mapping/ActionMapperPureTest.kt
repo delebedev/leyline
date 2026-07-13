@@ -9,8 +9,8 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.GrpId
 import leyline.game.data.CardData
 import leyline.game.snapshot.GrpIdResolver
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import leyline.testkit.mana
@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Pure tests for [ActionMapper.buildActionList] — the overload with function params.
  *
- * Uses [BoardTestBase.startWithBoard] to set up board state without a full
+ * Uses [Board.startWithBoard] to set up board state without a full
  * game loop. The key point: [ActionMapper.buildActionList] itself holds no
  * [leyline.game.state.GameBridge] reference — the bridge only provides the lambdas.
  */

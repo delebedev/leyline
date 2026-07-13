@@ -17,27 +17,27 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 class CombatQualificationTest :
     BoardTest({
         test("Pacifism-style aura emits can't attack and can't block Qualifications") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, ai ->
                     val target = addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                     val aura = addCard("Pacifism", human, ZoneType.Battlefield)
                     aura.attachToEntity(target, null, true)
                 }
             val aura =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Pacifism" }
             val target =
-                game.aiPlayer
+                board.game.aiPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Grizzly Bears" }
 
-            val gsm = handshakeFull(game, b, counter.nextGsId())
+            val gsm = handshakeFull(board.game, board.bridge, board.counter.nextGsId())
 
-            val targetIid = b.instanceId(target.id)
-            val auraIid = b.instanceId(aura.id)
+            val targetIid = board.instanceId(target.id)
+            val auraIid = board.instanceId(aura.id)
             val qualifications = gsm.qualificationsFor(targetIid)
             val qualificationTypes = qualifications.map { it.detailUint(DetailKeys.QUALIFICATION_TYPE) }
 
@@ -60,19 +60,19 @@ class CombatQualificationTest :
         }
 
         test("unblockable creature emits can't be blocked Qualification") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Silent Hallcreeper", human, ZoneType.Hand)
                 }
             val hallcreeper =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Hand)
                     .cards
                     .first { it.name == "Silent Hallcreeper" }
 
-            val gsm = capture(b, game, counter) { game.action.moveToPlay(hallcreeper, null, AbilityKey.newMap()) }
+            val gsm = board.snapshotDiff { board.game.action.moveToPlay(hallcreeper, null, AbilityKey.newMap()) }
 
-            val hallcreeperIid = b.instanceId(hallcreeper.id)
+            val hallcreeperIid = board.instanceId(hallcreeper.id)
             val qualification = gsm.qualificationsFor(hallcreeperIid).singleQualification(QualificationType.CantBeBlocked)
 
             assertSoftly {
@@ -83,27 +83,27 @@ class CombatQualificationTest :
         }
 
         test("block-only restriction emits can't block object list") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, ai ->
                     addCard("Wanderlight Spirit", human, ZoneType.Hand)
                     addCard("Coral Merfolk", ai, ZoneType.Battlefield)
                     addCard("Serra Angel", ai, ZoneType.Battlefield)
                 }
             val spirit =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Hand)
                     .cards
                     .first { it.name == "Wanderlight Spirit" }
             val merfolk =
-                game.aiPlayer
+                board.game.aiPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Coral Merfolk" }
 
-            val gsm = capture(b, game, counter) { game.action.moveToPlay(spirit, null, AbilityKey.newMap()) }
+            val gsm = board.snapshotDiff { board.game.action.moveToPlay(spirit, null, AbilityKey.newMap()) }
 
-            val spiritIid = b.instanceId(spirit.id)
-            val merfolkIid = b.instanceId(merfolk.id)
+            val spiritIid = board.instanceId(spirit.id)
+            val merfolkIid = board.instanceId(merfolk.id)
 
             val qualification = gsm.qualificationsFor(spiritIid).singleQualification(QualificationType.CantBlock)
 
@@ -111,27 +111,27 @@ class CombatQualificationTest :
         }
 
         test("blocker-specific evasion emits can't be blocked by object list") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, ai ->
                     addCard("Juggernaut", human, ZoneType.Hand)
                     addCard("Gleaming Barrier", ai, ZoneType.Battlefield)
                     addCard("Coral Merfolk", ai, ZoneType.Battlefield)
                 }
             val juggernaut =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Hand)
                     .cards
                     .first { it.name == "Juggernaut" }
             val wall =
-                game.aiPlayer
+                board.game.aiPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Gleaming Barrier" }
 
-            val gsm = capture(b, game, counter) { game.action.moveToPlay(juggernaut, null, AbilityKey.newMap()) }
+            val gsm = board.snapshotDiff { board.game.action.moveToPlay(juggernaut, null, AbilityKey.newMap()) }
 
-            val juggernautIid = b.instanceId(juggernaut.id)
-            val wallIid = b.instanceId(wall.id)
+            val juggernautIid = board.instanceId(juggernaut.id)
+            val wallIid = board.instanceId(wall.id)
 
             val qualification = gsm.qualificationsFor(juggernautIid).singleQualification(QualificationType.CantBeBlocked)
 
@@ -139,20 +139,20 @@ class CombatQualificationTest :
         }
 
         test("keyword evasion does not emit combat restriction Qualification") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, ai ->
                     addCard("Serra Angel", human, ZoneType.Battlefield)
                     addCard("Coral Merfolk", ai, ZoneType.Battlefield)
                 }
             val serra =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Serra Angel" }
 
-            val gsm = handshakeFull(game, b, counter.nextGsId())
+            val gsm = handshakeFull(board.game, board.bridge, board.counter.nextGsId())
 
-            val serraIid = b.instanceId(serra.id)
+            val serraIid = board.instanceId(serra.id)
             val qualificationTypes = gsm.qualificationsFor(serraIid).map { it.detailUint(DetailKeys.QUALIFICATION_TYPE) }
 
             qualificationTypes shouldBe emptyList()

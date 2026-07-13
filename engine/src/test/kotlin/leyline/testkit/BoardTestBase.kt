@@ -119,29 +119,10 @@ open class BoardTestBase {
         zone: ZoneType = ZoneType.Battlefield,
     ): Card = Board.createCard(name, player, zone)
 
-    // ----- Snapshot-diff helpers — (b, game, counter)-parameter façade over [Board] -----
+    // ----- Bundle helper — (b)-parameter façade over [Board] -----
 
     /** Create a [BundleBuilder] with standard test constants. */
-    fun bundleBuilder(b: GameBridge): BundleBuilder = BundleBuilder(b, TEST_MATCH_ID, SEAT_ID)
-
-    /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
-    fun stateOnlyDiff(
-        game: Game,
-        b: GameBridge,
-        counter: MessageCounter,
-    ): GameStateMessage = Board(b, game, counter).stateOnlyDiff()
-
-    /**
-     * Snapshot, run [action], build stateOnlyDiff, return GSM.
-     * If [checkSba] is true, triggers state-based actions after the action.
-     */
-    fun captureAfterAction(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-        checkSba: Boolean = false,
-        action: () -> Unit,
-    ): GameStateMessage = Board(b, game, counter).snapshotDiff(checkSba, action)
+    fun bundleBuilder(b: GameBridge): BundleBuilder = BundleBuilder(b, Board.TEST_MATCH_ID, Board.SEAT_ID)
 
     fun playLand(b: GameBridge): PlayerAction.PlayLand? {
         val player = b.getPlayer(SeatId(1)) ?: return null
@@ -169,25 +150,6 @@ open class BoardTestBase {
         awaitFreshPending(b, pending.actionId)
     }
 
-    companion object {
-        const val TEST_MATCH_ID = "test-match"
-        const val SEAT_ID = 1
-    }
-
-    /** Build a postAction bundle with standard test constants. */
-    fun postAction(
-        game: Game,
-        b: GameBridge,
-        counter: MessageCounter,
-    ): BundleBuilder.BundleResult = Board(b, game, counter).postAction()
-
-    /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
-    fun gameStart(
-        game: Game,
-        b: GameBridge,
-        counter: MessageCounter,
-    ): BundleBuilder.BundleResult = Board(b, game, counter).gameStart()
-
     /**
      * Build a Full state GSM simulating the handshake baseline.
      * Accumulator-based tests need this before processing thin Diffs from gameStart.
@@ -197,15 +159,15 @@ open class BoardTestBase {
         b: GameBridge,
         gsId: Int,
     ): GameStateMessage {
-        val snap = GsmSnapshot.capture(game, b, TEST_MATCH_ID, gsId)
-        return StateMapper.buildFromSnapshot(snap, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID).gsm
+        val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, gsId)
+        return StateMapper.buildFromSnapshot(snap, gsId, Board.TEST_MATCH_ID, b, viewingSeatId = Board.SEAT_ID).gsm
     }
 
     /** Play a land and capture the resulting GSM. */
     fun playLandAndCapture(): GameStateMessage? {
-        val (b, game, counter) = startGameAtMain1()
-        playLand(b) ?: return null
-        return postAction(game, b, counter).gsmOrNull
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        return board.postAction().gsmOrNull
     }
 
     /**
@@ -214,11 +176,11 @@ open class BoardTestBase {
      * QueuedGSM triplet + ActionsAvailableReq.
      */
     fun castSpellBundle(): BundleBuilder.BundleResult? {
-        val (b, game, counter) = startGameAtMain1()
-        playLand(b) ?: return null
-        b.seedDiffBaseline(game)
-        castCreature(b) ?: return null
-        return postAction(game, b, counter)
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        board.bridge.seedDiffBaseline(board.game)
+        castCreature(board.bridge) ?: return null
+        return board.postAction()
     }
 
     /**
@@ -233,15 +195,15 @@ open class BoardTestBase {
      * Returns (gsm, origInstanceId, newInstanceId).
      */
     fun castSpellAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
-        val (b, game, counter) = startGameAtMain1()
-        playLand(b) ?: return null
-        b.seedDiffBaseline(game)
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        board.bridge.seedDiffBaseline(board.game)
 
-        val action = castCreature(b) ?: return null
+        val action = castCreature(board.bridge) ?: return null
         // Use mergedGsm to combine QueuedGSM triplet annotations into one GSM
-        val gsm = postAction(game, b, counter).mergedGsm
+        val gsm = board.postAction().mergedGsm
         val origInstanceId = gsm.annotation(AnnotationType.ObjectIdChanged).detailInt("orig_id")
-        val newInstanceId = b.getOrAllocInstanceId(action.cardId).value
+        val newInstanceId = board.bridge.getOrAllocInstanceId(action.cardId).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }
@@ -251,16 +213,16 @@ open class BoardTestBase {
      * Returns the GSM from the resolution step.
      */
     fun resolveAndCapture(): GameStateMessage? {
-        val (b, game, counter) = startGameAtMain1()
-        playLand(b) ?: return null
-        b.seedDiffBaseline(game)
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        board.bridge.seedDiffBaseline(board.game)
 
-        castCreature(b) ?: return null
-        postAction(game, b, counter) // capture cast result (advances counter)
-        b.seedDiffBaseline(game)
+        castCreature(board.bridge) ?: return null
+        board.postAction() // capture cast result (advances counter)
+        board.bridge.seedDiffBaseline(board.game)
 
-        passPriority(b)
-        return postAction(game, b, counter).gsmOrNull
+        passPriority(board.bridge)
+        return board.postAction().gsmOrNull
     }
 }
 

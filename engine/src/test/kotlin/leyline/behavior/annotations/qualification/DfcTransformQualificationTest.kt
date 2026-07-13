@@ -16,25 +16,25 @@ class DfcTransformQualificationTest :
     BoardTest({
 
         test("transform emits Qualification pAnn for Menace on back face") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Concealing Curtains", human, ZoneType.Battlefield)
                 }
             val card =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.name == "Concealing Curtains" }
 
-            game.fireEvent(GameEventCardStatsChanged(card))
-            bundleBuilder(b).stateOnlyDiff(game, counter).gsmOrNull
+            board.game.fireEvent(GameEventCardStatsChanged(card))
+            bundleBuilder(board.bridge).stateOnlyDiff(board.game, board.counter).gsmOrNull
                 ?: error("front-face state diff returned no GSM")
 
             val gsm =
-                capture(b, game, counter) {
+                board.snapshotDiff {
                     card.setState(CardStateName.Backside, true)
                     card.setBackSide(true)
-                    game.fireEvent(GameEventCardStatsChanged(card))
+                    board.game.fireEvent(GameEventCardStatsChanged(card))
                 }
 
             val menaceAnn = gsm.persistentAnnotation(AnnotationType.Qualification)
