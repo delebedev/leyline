@@ -264,8 +264,9 @@ data class PromptCondition(
 
 data class AnnotationSeenCondition(
     val type: String,
+    val details: Map<String, String> = emptyMap(),
 ) : AcceptanceCondition {
-    override val label: String = "annotation $type seen"
+    override val label: String = "annotation $type${if (details.isEmpty()) "" else " $details"} seen"
 }
 
 data class AnnotationSeenInPhaseCondition(

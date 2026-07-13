@@ -472,7 +472,7 @@ private class ScenarioRun(
                 ConditionResult(promptSeen(condition.prompt, condition.promptId), "latest prompt=${latestPromptNameWithId() ?: "none"}")
 
             is AnnotationSeenCondition ->
-                ConditionResult(annotationSeen(condition.type), "annotations=${annotationTypes().distinct()}")
+                ConditionResult(annotationSeen(condition), "annotations=${annotationTypes().distinct()}")
 
             is AnnotationSeenInPhaseCondition ->
                 ConditionResult(annotationSeenInPhase(condition.type, condition.phase), "annotations=${annotationTypesByPhase()}")
@@ -501,12 +501,30 @@ private class ScenarioRun(
         }
     }
 
-    private fun annotationSeen(type: String): Boolean {
-        val expected = AnnotationType.valueOf(type)
+    private fun annotationSeen(condition: AnnotationSeenCondition): Boolean {
+        val expected = AnnotationType.valueOf(condition.type)
         return harness.allMessages
             .filter { it.hasGameStateMessage() }
             .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
-            .any { expected in it.typeList }
+            .any { annotation ->
+                expected in annotation.typeList &&
+                    condition.details.all { (key, value) ->
+                        annotation.detailsList
+                            .firstOrNull { it.key == key }
+                            ?.let { detail ->
+                                (
+                                    detail.valueUint32List.map(Any::toString) +
+                                        detail.valueInt32List.map(Any::toString) +
+                                        detail.valueUint64List.map(Any::toString) +
+                                        detail.valueInt64List.map(Any::toString) +
+                                        detail.valueBoolList.map(Any::toString) +
+                                        detail.valueStringList +
+                                        detail.valueFloatList.map(Any::toString) +
+                                        detail.valueDoubleList.map(Any::toString)
+                                ).contains(value)
+                            } == true
+                    }
+            }
     }
 
     private fun annotationSeenInPhase(

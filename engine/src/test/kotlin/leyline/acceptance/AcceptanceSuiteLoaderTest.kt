@@ -44,6 +44,9 @@ class AcceptanceSuiteLoaderTest :
                     |            - battlefield_stats_at_least: { side: ours, card: Monastery Swiftspear, power: 2, toughness: 3 }
                     |            - zone_not_contains: { side: ours, zone: hand, card: Miscalculation }
                     |            - zone_count_at_least: { side: ours, zone: hand, count: 2 }
+                    |            - annotation_seen:
+                    |                type: AbilityWordActive
+                    |                details: { AbilityWordName: ExpendedMana, value: 4, threshold: 4, AbilityGrpId: 174034 }
                     """.trimMargin(),
                 )
 
@@ -88,6 +91,15 @@ class AcceptanceSuiteLoaderTest :
                             BattlefieldStatsAtLeastCondition(AcceptanceSide.Ours, "Monastery Swiftspear", 2, 3),
                             ZoneNotContainsCondition(AcceptanceSide.Ours, AcceptanceZone.Hand, "Miscalculation"),
                             ZoneCountAtLeastCondition(AcceptanceSide.Ours, AcceptanceZone.Hand, 2),
+                            AnnotationSeenCondition(
+                                "AbilityWordActive",
+                                mapOf(
+                                    "AbilityWordName" to "ExpendedMana",
+                                    "value" to "4",
+                                    "threshold" to "4",
+                                    "AbilityGrpId" to "174034",
+                                ),
+                            ),
                         ),
                     )
             }

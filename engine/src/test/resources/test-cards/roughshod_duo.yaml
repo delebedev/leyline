@@ -1,0 +1,11 @@
+name: "Roughshod Duo"
+grpId: 91686
+titleId: 811491
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 174034
+    textId: 811494
+    category: 2
+expansionCode: "BLB"

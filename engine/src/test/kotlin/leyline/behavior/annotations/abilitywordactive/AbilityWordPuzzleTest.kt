@@ -87,6 +87,61 @@ class AbilityWordPuzzleTest :
             aw2.detailInt("value") shouldBe 6
         }
 
+        test("Expend annotation projects current mana, threshold, and ability identity") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Roughshod Duo", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            val duo = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Roughshod Duo" }
+            val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
+
+            human.expentThisTurn = 4
+            board.snapshotDiff {}
+
+            val expend =
+                board.bridge.annotations.snapshot().values.single {
+                    AnnotationType.AbilityWordActive in it.typeList &&
+                        it.detailString("AbilityWordName") == "ExpendedMana"
+                }
+            assertSoftly {
+                expend.affectorId shouldBe duoIid
+                expend.affectedIdsList shouldBe listOf(duoIid)
+                expend.detailInt("value") shouldBe 4
+                expend.detailInt("threshold") shouldBe 4
+                expend.detailInt("AbilityGrpId") shouldBe 174034
+            }
+        }
+
+        test("multi-threshold Expend source retains one persistent row per trigger ability") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Muerra, Trash Tactician", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+
+            fun expendRows() =
+                board.bridge.annotations.snapshot().values.filter {
+                    AnnotationType.AbilityWordActive in it.typeList &&
+                        it.detailString("AbilityWordName") == "ExpendedMana"
+                }
+
+            assertSoftly {
+                expendRows() shouldHaveSize 2
+                expendRows().map { it.detailInt("threshold") }.toSet() shouldBe setOf(4, 8)
+                expendRows().map { it.detailInt("AbilityGrpId") }.toSet() shouldBe setOf(174143, 174144)
+                expendRows().map { it.detailInt("value") }.toSet() shouldBe setOf(0)
+            }
+
+            human.expentThisTurn = 4
+            board.snapshotDiff {}
+            assertSoftly {
+                expendRows() shouldHaveSize 2
+                expendRows().map { it.detailInt("threshold") }.toSet() shouldBe setOf(4, 8)
+                expendRows().map { it.detailInt("value") }.toSet() shouldBe setOf(4)
+            }
+        }
+
         test("Morbid pAnn has seatId affectorId and morbid permanents in affectedIds") {
             val board =
                 startWithBoard { _, human, ai ->

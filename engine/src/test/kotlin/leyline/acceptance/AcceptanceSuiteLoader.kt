@@ -314,7 +314,7 @@ object AcceptanceSuiteLoader {
             "loser" -> LoserCondition(AcceptanceSide.parse(value.asString("$context.loser")))
             "phase" -> PhaseCondition(value.asString("$context.phase"))
             "prompt" -> parsePrompt(value, "$context.prompt")
-            "annotation_seen" -> AnnotationSeenCondition(value.asString("$context.annotation_seen"))
+            "annotation_seen" -> parseAnnotationSeen(value, "$context.annotation_seen")
             "annotation_seen_in_phase" -> parseAnnotationSeenInPhase(value, "$context.annotation_seen_in_phase")
             "stack_empty" -> {
                 require(value.asBoolean("$context.stack_empty")) { "$context.stack_empty only supports true" }
@@ -422,6 +422,23 @@ object AcceptanceSuiteLoader {
             phase = map.requiredString("phase", context),
         )
     }
+
+    private fun parseAnnotationSeen(
+        raw: Any?,
+        context: String,
+    ): AnnotationSeenCondition {
+        if (raw is String) return AnnotationSeenCondition(raw)
+        val map = raw.asMap(context)
+        val details =
+            map["details"]
+                ?.asMap("$context.details")
+                ?.mapValues { (key, value) -> value.asScalarString("$context.details.$key") }
+                .orEmpty()
+        return AnnotationSeenCondition(
+            type = map.requiredString("type", context),
+            details = details,
+        )
+    }
 }
 
 private fun Any?.asMap(context: String): Map<String, Any?> {
@@ -439,6 +456,12 @@ private fun Any?.asInt(context: String): Int =
     }
 
 private fun Any?.asBoolean(context: String): Boolean = this as? Boolean ?: error("$context must be a boolean")
+
+private fun Any?.asScalarString(context: String): String =
+    when (this) {
+        is String, is Number, is Boolean -> toString()
+        else -> error("$context must be a string, number, or boolean")
+    }
 
 private fun Any?.asList(context: String): List<Any?> = this as? List<Any?> ?: error("$context must be a list")
 

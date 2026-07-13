@@ -483,6 +483,27 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Enduring Bondwarden }
             - battlefield_stats_at_least: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
+  - id: expend-roughshod-duo
+    puzzle: expend-roughshod-duo
+    run: cast Teapot Slinger to expend four, then target Grizzly Bears with Roughshod Duo
+    expect: ExpendedMana is visible and Grizzly Bears becomes 3/3 from the Expend trigger
+    steps:
+      - expect:
+          action: { type: cast, card: Teapot Slinger }
+      - cast: Teapot Slinger
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: ExpendedMana, value: 4, threshold: 4, AbilityGrpId: 174034 }
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
+            - zone_contains: { side: ours, zone: battlefield, card: Teapot Slinger }
+            - stack_empty: true
   - id: earthbend-earthbending-lesson
     puzzle: earthbend-earthbending-lesson
     run: cast Earthbending Lesson and target Forest for Earthbend 4
