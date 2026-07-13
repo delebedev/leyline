@@ -12,7 +12,9 @@ read_when:
 Accepted.
 
 This ADR records the behavior-preserving `ActionMapper` boundary split. It does
-not supersede the existing `CastRails` descriptor model.
+not supersede the existing `CastRails` descriptor model. Executable action
+lifecycle and source binding are extended by
+[ADR 0010](0010-bind-priority-actions-at-projection-source.md).
 
 ## Context
 
