@@ -14,10 +14,9 @@ import leyline.testkit.SessionTest
  * Card-type-count exile cost payment (`withTypesGE` shape) through
  * Nethergoyf's Escape: candidate projection and payment.
  *
- * Characterizes the current validation defect on purpose: the type-count
- * check runs against the candidate list rather than the selected cards, so
- * a two-type selection pays as long as the graveyard offers four types.
- * The defect-fix commit flips the second test to a rejection.
+ * The type-count threshold is validated against the selected cards: a
+ * selection spanning four card types pays, a two-type selection is
+ * rejected even when the candidate list as a whole spans four types.
  */
 class ExileTypeCountCostLifecycleTest :
     SessionTest({
@@ -72,8 +71,8 @@ class ExileTypeCountCostLifecycleTest :
             }
         }
 
-        test("two-type selection currently pays because the list, not the selection, is validated") {
-            startPuzzle(puzzle, name = "TypesGE exile list-validation", validating = true)
+        test("two-type selection is rejected even when the candidate list spans four types") {
+            startPuzzle(puzzle, name = "TypesGE exile reject", validating = true)
 
             castFromGraveyard("Nethergoyf").shouldBeTrue()
             harness.bridge
@@ -87,8 +86,9 @@ class ExileTypeCountCostLifecycleTest :
             passUntilResolved(maxPasses = 8)
 
             assertSoftly {
-                human.getZone(ZoneType.Battlefield).cards.count { it.name == "Nethergoyf" } shouldBe 1
-                human.getZone(ZoneType.Exile).cards shouldHaveSize 2
+                human.getZone(ZoneType.Battlefield).cards.count { it.name == "Nethergoyf" } shouldBe 0
+                human.getZone(ZoneType.Graveyard).cards shouldHaveSize 5
+                human.getZone(ZoneType.Exile).cards shouldHaveSize 0
             }
         }
     })
