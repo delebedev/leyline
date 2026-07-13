@@ -10,8 +10,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -58,8 +58,8 @@ class TargetSpecAnnotationTest :
                 ),
             )
 
-            val snapTarget1 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snapTarget1, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snapTarget1 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snapTarget1, 1, Board.TEST_MATCH_ID, b).gsm
 
             val targetAnn =
                 gs.persistentAnnotationsList.firstOrNull { ann ->
@@ -103,8 +103,8 @@ class TargetSpecAnnotationTest :
                 ),
             )
 
-            val snapTarget = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val result = StateMapper.buildFromSnapshot(snapTarget, 1, BoardTestBase.TEST_MATCH_ID, b)
+            val snapTarget = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val result = StateMapper.buildFromSnapshot(snapTarget, 1, Board.TEST_MATCH_ID, b)
 
             result.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
@@ -130,8 +130,8 @@ class TargetSpecAnnotationTest :
                     addCard("Divination", human, ZoneType.Hand)
                 }
 
-            val snapTarget2 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snapTarget2, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snapTarget2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snapTarget2, 1, Board.TEST_MATCH_ID, b).gsm
 
             gs.persistentAnnotationsList.none { ann ->
                 AnnotationType.TargetSpec in ann.typeList
@@ -169,16 +169,16 @@ class TargetSpecAnnotationTest :
             )
 
             // First GSM: pending target → TargetSpec present
-            val snapTs1 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs1 = StateMapper.buildFromSnapshot(snapTs1, 1, BoardTestBase.TEST_MATCH_ID, b)
+            val snapTs1 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs1 = StateMapper.buildFromSnapshot(snapTs1, 1, Board.TEST_MATCH_ID, b)
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true
             b.applyMutations(gs1.mutations)
 
             // Second GSM: pending consumed, no new targets → TargetSpec removed
-            val snapTs2 = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 2)
-            val gs2 = StateMapper.buildFromSnapshot(snapTs2, 2, BoardTestBase.TEST_MATCH_ID, b)
+            val snapTs2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)
+            val gs2 = StateMapper.buildFromSnapshot(snapTs2, 2, Board.TEST_MATCH_ID, b)
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true

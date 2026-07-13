@@ -14,7 +14,6 @@ import leyline.testkit.beInCommandOf
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.gsm
-import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 
@@ -22,16 +21,18 @@ class CommanderPuzzleTest :
     BoardTest({
 
         test("puzzle with commander applies Brawl variant and places commander in zone 26") {
-            val (b, game, _) = startPuzzleAtMain1FromResource("puzzles/commander-visibility.pzl")
+            val board = startPuzzleAtMain1FromResource("puzzles/commander-visibility.pzl")
 
-            game.rules.hasAppliedVariant(GameType.Brawl).shouldBeTrue()
+            board.game.rules
+                .hasAppliedVariant(GameType.Brawl)
+                .shouldBeTrue()
 
-            val human = humanPlayer(b)
+            val human = board.human
             human.commanders.first().name shouldBe "Arabella, Abandoned Doll"
             "Arabella, Abandoned Doll" should beInCommandOf(human, count = 1)
 
-            val snap = GsmSnapshot.capture(game, b, "test", 999)
-            val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(board.game, board.bridge, "test", 999)
+            val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", board.bridge, viewingSeatId = 1).gsm
 
             assertSoftly {
                 gsm.gameInfo.hasDeckConstraintInfo().shouldBeTrue()
@@ -60,13 +61,13 @@ class CommanderPuzzleTest :
         }
 
         test("commander tax appears in commander designation annotations") {
-            val (b, game, _) = startPuzzleAtMain1FromResource("puzzles/commander-tax.pzl")
+            val board = startPuzzleAtMain1FromResource("puzzles/commander-tax.pzl")
 
-            val human = humanPlayer(b)
+            val human = board.human
             human.getCommanderCast(human.commanders.first()) shouldBe 1
 
-            val snap = GsmSnapshot.capture(game, b, "test", 999)
-            val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(board.game, board.bridge, "test", 999)
+            val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", board.bridge, viewingSeatId = 1).gsm
             val commandZone = gsm.zonesList.first { it.zoneId == ZoneIds.COMMAND }
             val commanderDesignations =
                 gsm.persistentAnnotationsList.filter {

@@ -10,8 +10,9 @@ import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
+import leyline.testkit.IsolatedBoardLifecycle
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -41,10 +42,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 class PureDiffReplayTest :
     BoardTest({
 
-        // Each test drives its own isolated BoardTestBase (not the BoardTest-level
+        // Each test drives its own isolated lifecycle (not the BoardTest-level
         // shared one) so live/replay bridge pairs stay independent within a test.
-        fun <T> withBase(block: BoardTestBase.() -> T): T {
-            val base = BoardTestBase()
+        fun <T> withBase(block: IsolatedBoardLifecycle.() -> T): T {
+            val base = IsolatedBoardLifecycle()
             return try {
                 base.block()
             } finally {
@@ -93,7 +94,7 @@ class PureDiffReplayTest :
                                 cur = step.cur,
                                 events = step.events,
                                 gameStateId = step.gameStateId,
-                                matchId = BoardTestBase.TEST_MATCH_ID,
+                                matchId = Board.TEST_MATCH_ID,
                                 bridge = replayBridge,
                                 updateType = updateType,
                                 viewingSeatId = SEAT_ID,
@@ -137,7 +138,7 @@ class PureDiffReplayTest :
                                 cur = step.cur,
                                 events = step.events,
                                 gameStateId = step.gameStateId,
-                                matchId = BoardTestBase.TEST_MATCH_ID,
+                                matchId = Board.TEST_MATCH_ID,
                                 bridge = replayBridge,
                                 updateType = updateType,
                                 viewingSeatId = SEAT_ID,
@@ -180,7 +181,7 @@ class PureDiffReplayTest :
                             cur = step.cur,
                             events = step.events,
                             gameStateId = step.gameStateId,
-                            matchId = BoardTestBase.TEST_MATCH_ID,
+                            matchId = Board.TEST_MATCH_ID,
                             bridge = replayBridge,
                             updateType = step.diff.update,
                             viewingSeatId = SEAT_ID,
@@ -234,7 +235,7 @@ class PureDiffReplayTest :
                         cur = step.cur,
                         events = step.events,
                         gameStateId = step.gameStateId,
-                        matchId = BoardTestBase.TEST_MATCH_ID,
+                        matchId = Board.TEST_MATCH_ID,
                         bridge = replayBridge,
                         updateType = step.diff.update,
                         viewingSeatId = SEAT_ID,

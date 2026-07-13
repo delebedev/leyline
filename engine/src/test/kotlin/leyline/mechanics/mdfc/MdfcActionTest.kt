@@ -34,8 +34,7 @@ class MdfcActionTest :
                     addCard("Silundi Vision", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Silundi Vision" }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = human.hand.iid("Silundi Vision")
 
             val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
@@ -63,8 +62,7 @@ class MdfcActionTest :
                     addCard("Esika, God of the Tree", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Esika, God of the Tree" }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = human.hand.iid("Esika, God of the Tree")
 
             val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
@@ -84,12 +82,7 @@ class MdfcActionTest :
                     repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
                     addCard("Silundi Vision", human, ZoneType.Graveyard)
                 }
-            val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Graveyard)
-                    .cards
-                    .first { it.name == "Silundi Vision" }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = game.humanPlayer.graveyard.iid("Silundi Vision")
 
             val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 

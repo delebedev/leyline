@@ -43,7 +43,7 @@ class Board(
     // ----- Snapshot + diff -----
 
     /** Create a [BundleBuilder] with standard test constants. */
-    fun bundleBuilder(): BundleBuilder = BundleBuilder(bridge, BoardTestBase.TEST_MATCH_ID, BoardTestBase.SEAT_ID)
+    fun bundleBuilder(): BundleBuilder = BundleBuilder(bridge, TEST_MATCH_ID, SEAT_ID)
 
     /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
     fun stateOnlyDiff(): GameStateMessage = bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull ?: error("stateOnlyDiff returned no GSM")
@@ -123,6 +123,9 @@ class Board(
     fun instanceId(cardId: Int): Int = bridge.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
     companion object {
+        const val TEST_MATCH_ID = "test-match"
+        const val SEAT_ID = 1
+
         // Guards Forge's static MyRandom during seed → shuffle → initial-draw.
         // See note in startGameAtMain1 for why.
         private val RNG_LOCK = Any()
@@ -261,3 +264,11 @@ class Board(
         }
     }
 }
+
+/** The human (non-AI) player. Use after any start* method. */
+val Game.humanPlayer: Player
+    get() = players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+
+/** The AI player. Use after any start* method. */
+val Game.aiPlayer: Player
+    get() = players.first { it.lobbyPlayer is forge.ai.LobbyPlayerAi }

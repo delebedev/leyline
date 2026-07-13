@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -39,8 +38,7 @@ class HarmonizeActionTest :
                     addCard("Winternight Stories", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Winternight Stories" }
-            val sourceIid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val sourceIid = human.graveyard.iid("Winternight Stories")
             val sourceGrpId = b.cardRepository.findGrpIdByName("Winternight Stories")!!
             val harmonizeAbilityGrpId = b.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.HARMONIZE)!!
 

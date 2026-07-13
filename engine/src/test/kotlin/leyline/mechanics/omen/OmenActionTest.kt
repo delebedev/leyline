@@ -72,8 +72,7 @@ class OmenActionTest :
                     addCard("Riling Dawnbreaker", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Riling Dawnbreaker" }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = human.hand.iid("Riling Dawnbreaker")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -98,8 +97,7 @@ class OmenActionTest :
                     addCard("Riling Dawnbreaker", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Riling Dawnbreaker" }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = human.graveyard.iid("Riling Dawnbreaker")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)

@@ -8,8 +8,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 /**
  * Verifies that [ObjectMapper.buildFromSnapshot] produces correct [GameObjectInfo] protos.
  *
- * Uses [BoardTestBase.startWithBoard] for a synchronous board setup (~0.01s/test).
+ * Uses [Board.startWithBoard] for a synchronous board setup (~0.01s/test).
  */
 class ObjectMapperSnapshotTest :
     BoardTest({

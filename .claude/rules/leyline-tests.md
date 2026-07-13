@@ -62,7 +62,7 @@ When the fix touches test helpers, prefer tightening the helper contract over ad
 
 | Tier | Method | Time | Use when |
 |---|---|---|---|
-| Board | `startWithBoard` + `capture()` | 0.01s | **Default.** Zone transitions, annotations, action fields, state mapping |
+| Board | `startWithBoard` + `board.snapshotDiff()` | 0.01s | **Default.** Zone transitions, annotations, action fields, state mapping |
 | Puzzle | `startPuzzleAtMain1(pzl)` | 0.09s | SBA scenarios, complex board states needing proper game start |
 | Bridge | `startGameAtMain1()` | 0.5s | Cast/resolve pipeline through bridge (needs engine thread) |
 | Session | `connectAndKeep()` (MatchFlowHarness) | 0.7-3s | Full MatchSession — auto-pass, combat, targeting, game-over |
@@ -80,21 +80,23 @@ See `forge-seams.md` for full details. Quick reference:
 
 ## Test class shape
 
-**All board-tier tests: extend BoardTest** (auto-wires tags, initCardDatabase, tearDown). Its `start*` methods return a `Board` (bridge + game + counter, plus methods and an instance probe DSL); `Board` destructures as `(bridge, game, counter)`, so existing `val (b, game, counter) = start*` call sites keep working unchanged:
+**All board-tier tests: extend BoardTest** (auto-wires tags, initCardDatabase, tearDown). Its `start*` methods return a `Board` (bridge + game + counter, plus methods and an instance probe DSL). Bind it to a single `board` value and call methods on it:
 
 ```kotlin
 class FooTest : BoardTest({
 
     test("some behavior") {
-        val (b, game, counter) = startWithBoard { _, human, _ ->
+        val board = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        // action + assertions
+        // action + assertions via board.bridge / board.game / board.snapshotDiff { ... }
     }
 })
 ```
 
-`BoardTestBase` is the engine behind `BoardTest`. Construct it directly only when a test needs an isolated instance outside `BoardTest`'s shared one — e.g. driving two independent bridges (live + replay) within one test body, each needing its own teardown (see `PureDiffReplayTest`). Do not start new files with it.
+`Board` also destructures as `(bridge, game, counter)` for call sites that only need the raw pieces directly (no threading them through a parameter-taking helper) — that form stays valid, just don't reach for it when `board.xxx()` already does the job.
+
+Need more than one independent bridge/counter pair within a single test body — e.g. driving two independent bridges (live + replay), each needing its own teardown? Use `IsolatedBoardLifecycle` (see `PureDiffReplayTest`) instead of a second `BoardTest`.
 
 ## Style
 
@@ -183,11 +185,11 @@ val newId = b.instanceId(card.id)
 val newId = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 ```
 
-### Zone transfer helper (BoardTest)
+### Zone transfer helper (Board)
 
 ```kotlin
-// transferCard: finds card by name, performs action, returns (gsm, newInstanceId)
-val (gsm, newId) = transferCard(b, game, counter, "Grizzly Bears") { card, g ->
+// board.transferCard: finds card by name, performs action, returns (gsm, newInstanceId)
+val (gsm, newId) = board.transferCard("Grizzly Bears") { card, g ->
     destroy(card, g)
 }
 checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
@@ -207,10 +209,10 @@ Board-level and bridge-level tests. Extends FunSpec, auto-wires tags/setup/teard
 - `startWithBoard { game, human, ai -> }` — synchronous, no threads
 - `startGameAtMain1()` — full game boot, returns a `Board`
 - `addCard(name, player, zone)` — place card in zone
-- `capture(b, game, counter) { action() }` — snapshot → action → diff GSM
+- `board.snapshotDiff { action() }` — snapshot → action → diff GSM
 - `moveToBattlefield(card, game)` — raw zone move (no events)
-- `playLandFromHand(b, game, counter)` — full land play, returns GSM
-- `humanPlayer(b)` — human player shortcut
+- `board.playLandFromHand()` — full land play, returns GSM
+- `board.human` — human player accessor
 
 ### MatchFlowHarness
 

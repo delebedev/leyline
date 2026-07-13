@@ -7,7 +7,6 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -25,8 +24,7 @@ class FlashbackActionTest :
                     addCard("Think Twice", human, ZoneType.Graveyard)
                 }
             val human = game.humanPlayer
-            val thinkTwice = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Think Twice" }
-            val thinkTwiceIid = b.getOrAllocInstanceId(ForgeCardId(thinkTwice.id)).value
+            val thinkTwiceIid = human.graveyard.iid("Think Twice")
             val thinkTwiceGrpId = b.cardRepository.findGrpIdByName("Think Twice")!!
             val flashbackAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(thinkTwiceGrpId, KeywordAbilityIds.FLASHBACK)!!

@@ -3,6 +3,7 @@ package leyline.testkit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.InMemoryCardRepository
 
 /**
@@ -15,8 +16,10 @@ class FixtureCardLoaderTest :
 
         tags(UnitTag)
 
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+        }
 
         test("registers adventure secondary face alongside primary") {
             val repo = InMemoryCardRepository()

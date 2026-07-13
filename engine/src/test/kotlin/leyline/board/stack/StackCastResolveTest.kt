@@ -93,13 +93,13 @@ class StackCastResolveTest :
         }
 
         test("CastSpell: OIC before ZT, Limbo contains old instanceId") {
-            val (b, game, counter) = startGameAtMain1()
-            playLand(b)
-            b.seedDiffBaseline(game)
+            val board = startGameAtMain1()
+            playLand(board.bridge)
+            board.bridge.seedDiffBaseline(board.game)
 
-            val castAction = castCreature(b) ?: error("castCreature failed")
-            val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after cast")
-            val newId = b.getOrAllocInstanceId(castAction.cardId)
+            val castAction = castCreature(board.bridge) ?: error("castCreature failed")
+            val gsm = board.postAction().gsmOrNull ?: error("No GSM after cast")
+            val newId = board.bridge.getOrAllocInstanceId(castAction.cardId)
 
             // OIC must precede ZT in annotation list
             val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
@@ -248,20 +248,20 @@ class StackCastResolveTest :
         }
 
         test("Resolve: keeps same instanceId across Stack→Battlefield") {
-            val (b, game, counter) = startGameAtMain1()
-            playLand(b) ?: error("playLand failed")
-            b.seedDiffBaseline(game)
+            val board = startGameAtMain1()
+            playLand(board.bridge) ?: error("playLand failed")
+            board.bridge.seedDiffBaseline(board.game)
 
-            val castAction = castCreature(b) ?: error("castCreature failed")
-            postAction(game, b, counter)
+            val castAction = castCreature(board.bridge) ?: error("castCreature failed")
+            board.postAction()
 
-            val stackId = b.getOrAllocInstanceId(castAction.cardId)
-            b.seedDiffBaseline(game)
+            val stackId = board.bridge.getOrAllocInstanceId(castAction.cardId)
+            board.bridge.seedDiffBaseline(board.game)
 
-            passPriority(b)
-            postAction(game, b, counter)
+            passPriority(board.bridge)
+            board.postAction()
 
-            val bfId = b.getOrAllocInstanceId(castAction.cardId)
+            val bfId = board.bridge.getOrAllocInstanceId(castAction.cardId)
             bfId shouldBe stackId
         }
 
@@ -277,29 +277,29 @@ class StackCastResolveTest :
         // ===================================================================
 
         test("countered creature — Stack→Graveyard with Countered category") {
-            val (b, game, counter) = startGameAtMain1()
-            val (stackCard, cardId) = castCreatureToStack(b, game, counter)
+            val board = startGameAtMain1()
+            val (stackCard, cardId) = castCreatureToStack(board.bridge, board.game, board.counter)
 
             val gsm =
-                capture(b, game, counter) {
-                    game.action.moveToGraveyard(stackCard, null)
+                board.snapshotDiff {
+                    board.game.action.moveToGraveyard(stackCard, null)
                 }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
+            val newId = board.bridge.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer" }
             zt.category shouldBe "Countered"
         }
 
         test("fizzled SpellResolved produces Countered not Resolve") {
-            val (b, game, counter) = startGameAtMain1()
-            val (stackCard, cardId) = castCreatureToStack(b, game, counter)
+            val board = startGameAtMain1()
+            val (stackCard, cardId) = castCreatureToStack(board.bridge, board.game, board.counter)
 
             val gsm =
-                capture(b, game, counter) {
-                    game.fireEvent(GameEventSpellResolved(stackCard.firstSpellAbility, true))
-                    game.action.moveToGraveyard(stackCard, null)
+                board.snapshotDiff {
+                    board.game.fireEvent(GameEventSpellResolved(stackCard.firstSpellAbility, true))
+                    board.game.action.moveToGraveyard(stackCard, null)
                 }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
+            val newId = board.bridge.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer" }
             zt.category shouldBe "Countered"

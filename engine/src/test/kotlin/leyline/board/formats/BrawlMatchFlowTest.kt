@@ -12,7 +12,6 @@ import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beInCommandOf
 import leyline.testkit.haveManaCost
-import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -31,15 +30,15 @@ class BrawlMatchFlowTest :
                 33 Savannah Lions
                 """.trimIndent()
 
-            val (b, _, _) = startGameAtMain1(seed = 42L, deckList = brawlDeck, variant = "brawl")
+            val board = startGameAtMain1(seed = 42L, deckList = brawlDeck, variant = "brawl")
 
-            val human = humanPlayer(b)
+            val human = board.human
             assertSoftly {
                 human.life shouldBe 25
                 human.getZone(ZoneType.Hand).size() shouldBe 7
                 "Isamaru, Hound of Konda" should beInCommandOf(human, count = 1)
-                b.getHandGrpIds(SeatId(1)).shouldNotBeEmpty()
-                b.getCommanderGrpIds(SeatId(1)) shouldBe listOf(72175, 72175)
+                board.bridge.getHandGrpIds(SeatId(1)).shouldNotBeEmpty()
+                board.bridge.getCommanderGrpIds(SeatId(1)) shouldBe listOf(72175, 72175)
             }
         }
 
@@ -53,15 +52,20 @@ class BrawlMatchFlowTest :
                 33 Savannah Lions
                 """.trimIndent()
 
-            val (b, game, _) = startGameAtMain1(seed = 42L, deckList = brawlDeck, variant = "brawl")
-            val activeSeat = if (game.phaseHandler.isPlayerTurn(b.getPlayer(SeatId(1)))) SeatId(1) else SeatId(2)
-            val activePlayer = b.getPlayer(activeSeat)!!
+            val board = startGameAtMain1(seed = 42L, deckList = brawlDeck, variant = "brawl")
+            val activeSeat = if (board.game.phaseHandler.isPlayerTurn(board.bridge.getPlayer(SeatId(1)))) SeatId(1) else SeatId(2)
+            val activePlayer = board.bridge.getPlayer(activeSeat)!!
             val commander = activePlayer.getZone(ZoneType.Command).cards.first { it.name == "Isamaru, Hound of Konda" }
             repeat(3) { addCard("Plains", activePlayer, ZoneType.Battlefield) }
             activePlayer.incCommanderCast(commander)
 
-            val commanderIid = b.getOrAllocInstanceId(ForgeCardId(commander.id)).value
-            val actions = ActionMapper.buildFromSnapshot(activeSeat.value, SnapshotCapture.run(game, b, "test", 0), b)
+            val commanderIid = board.bridge.getOrAllocInstanceId(ForgeCardId(commander.id)).value
+            val actions =
+                ActionMapper.buildFromSnapshot(
+                    activeSeat.value,
+                    SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                    board.bridge,
+                )
             val recastOffer =
                 actions.actionsList.firstOrNull {
                     it.actionType == ActionType.Cast && it.instanceId == commanderIid

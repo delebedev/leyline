@@ -8,8 +8,8 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Verifies that [ActionMapper.buildFromSnapshot] produces correct action shapes
  * for representative board states.
  *
- * Uses [BoardTestBase.startWithBoard] — synchronous board setup, no game loop.
+ * Uses [Board.startWithBoard] — synchronous board setup, no game loop.
  * Cost-legality routes through the live Forge bridge, so these are BoardTag tests.
  */
 class ActionMapperSnapshotTest :

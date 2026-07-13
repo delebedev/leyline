@@ -9,8 +9,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.mapping.PromptIds
 import leyline.protocol.HandshakeMessages
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -140,7 +140,7 @@ class DealHandConformanceTest :
         test("initialBundle seat 1: ConnectResp + DieRoll + Full GSM (3 msgs)") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(1)))
-            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(1), BoardTestBase.TEST_MATCH_ID, 2, 1, deck, b)
+            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(1), Board.TEST_MATCH_ID, 2, 1, deck, b)
             val messages = greMessages(msg)
 
             assertSoftly {
@@ -164,7 +164,7 @@ class DealHandConformanceTest :
         test("initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(2)))
-            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(2), BoardTestBase.TEST_MATCH_ID, 3, 1, deck, b)
+            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(2), Board.TEST_MATCH_ID, 3, 1, deck, b)
             val messages = greMessages(msg)
 
             assertSoftly {

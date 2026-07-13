@@ -14,8 +14,8 @@ import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
@@ -31,8 +31,8 @@ class StateMapperShapeTest :
         test("full state has timers") {
             val (b, game) = startWithBoard { _, _, _ -> }
 
-            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
 
             gs.timersCount shouldBeGreaterThanOrEqual 2
             val timer1 = gs.timersList.first { it.timerId == 1 }
@@ -54,8 +54,8 @@ class StateMapperShapeTest :
                     addCard("Llanowar Elves", human, ZoneType.Exile)
                 }
 
-            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
             val objectsById = gs.gameObjectsList.associateBy { it.instanceId }
@@ -103,8 +103,8 @@ class StateMapperShapeTest :
                     addCard("Mountain", ai, ZoneType.Sideboard)
                 }
 
-            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b, viewingSeatId = 1).gsm
+            val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b, viewingSeatId = 1).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
             assertSoftly {
@@ -122,13 +122,13 @@ class StateMapperShapeTest :
                     addCard("Forest", human, ZoneType.Graveyard)
                     addCard("Grizzly Bears", human, ZoneType.Exile)
                 }
-            val prev = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
+            val prev = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
             addCard("Forest", game.aiPlayer, ZoneType.Sideboard)
             addCard("Mountain", game.humanPlayer, ZoneType.Graveyard)
             addCard("Llanowar Elves", game.humanPlayer, ZoneType.Exile)
             addCard("Grizzly Bears", game.humanPlayer, ZoneType.Graveyard)
             addCard("Forest", game.humanPlayer, ZoneType.Exile)
-            val cur = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 2)
+            val cur = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)
 
             val gs =
                 StateMapper
@@ -137,7 +137,7 @@ class StateMapperShapeTest :
                         cur = cur,
                         events = FrameEventLog.EMPTY,
                         gameStateId = 2,
-                        matchId = BoardTestBase.TEST_MATCH_ID,
+                        matchId = Board.TEST_MATCH_ID,
                         bridge = b,
                         viewingSeatId = 1,
                     ).gsm
@@ -167,8 +167,8 @@ class StateMapperShapeTest :
                     addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
 
-            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
 
             gs.zonesCount shouldBeGreaterThan 0
             gs.gameObjectsCount shouldBeGreaterThan 0
@@ -188,8 +188,8 @@ class StateMapperShapeTest :
                     addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
 
-            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
 
             val handZone = gs.zonesList.first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
             val handInstanceIds = handZone.objectInstanceIdsList.toSet()
@@ -224,8 +224,8 @@ class StateMapperShapeTest :
         test("player info has timer ids") {
             val (b, game) = startWithBoard { _, _, _ -> }
 
-            val snap = GsmSnapshot.capture(game, b, BoardTestBase.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, BoardTestBase.TEST_MATCH_ID, b).gsm
+            val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
 
             for (player in gs.playersList) {
                 player.timerIdsCount shouldBeGreaterThan 0

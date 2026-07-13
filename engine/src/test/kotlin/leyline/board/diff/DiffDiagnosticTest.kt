@@ -33,19 +33,19 @@ class DiffDiagnosticTest :
     BoardTest({
 
         test("diff after land play has correct GSM type, zones, and annotations") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ForgeZoneType.Hand)
                 }
 
             val land =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ForgeZoneType.Hand)
                     .cards
                     .first { it.isLand }
             val gsm =
-                captureAfterAction(b, game, counter) {
-                    game.action.moveToPlay(land, null, AbilityKey.newMap())
+                board.snapshotDiff {
+                    board.game.action.moveToPlay(land, null, AbilityKey.newMap())
                 }
 
             assertSoftly {
@@ -63,7 +63,7 @@ class DiffDiagnosticTest :
         }
 
         test("cast creature -> pass -> resolve tracks zone placement correctly") {
-            val (b, game, counter) =
+            val board =
                 startGameAtMain1(
                     deckList =
                         """
@@ -72,34 +72,34 @@ class DiffDiagnosticTest :
                         """.trimIndent(),
                 )
             val acc = ClientAccumulator()
-            acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
+            acc.seedFull(handshakeFull(board.game, board.bridge, board.counter.currentGsId()))
 
-            val startResult = gameStart(game, b, counter)
+            val startResult = board.gameStart()
             acc.processAll(startResult.messages)
-            b.seedDiffBaseline(game)
+            board.bridge.seedDiffBaseline(board.game)
 
-            playLand(b) ?: error("playLand failed at seed 42")
-            val afterLand = postAction(game, b, counter)
+            playLand(board.bridge) ?: error("playLand failed at seed 42")
+            val afterLand = board.postAction()
             acc.processAll(afterLand.messages)
 
-            val castAction = castCreature(b) ?: error("castCreature failed at seed 42")
+            val castAction = castCreature(board.bridge) ?: error("castCreature failed at seed 42")
             val creatureForgeId = castAction.cardId.value
-            val afterCast = postAction(game, b, counter)
+            val afterCast = board.postAction()
             acc.processAll(afterCast.messages)
 
-            val creatureNewId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
+            val creatureNewId = board.bridge.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
             val creatureObj =
                 checkNotNull(acc.objects[creatureNewId]) {
                     "Creature should exist in accumulated objects with instanceId $creatureNewId"
                 }
 
-            if (game.stack.isEmpty) {
+            if (board.game.stack.isEmpty) {
                 creatureObj.zoneId shouldBe ZoneIds.BATTLEFIELD
             } else {
                 creatureObj.zoneId shouldBe ZoneIds.STACK
 
-                passPriority(b)
-                val afterPass = postAction(game, b, counter)
+                passPriority(board.bridge)
+                val afterPass = board.postAction()
                 acc.processAll(afterPass.messages)
 
                 val resolved = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
@@ -109,44 +109,44 @@ class DiffDiagnosticTest :
         }
 
         test("resolve keeps instanceId") {
-            val (b, game, counter) = startGameAtMain1()
+            val board = startGameAtMain1()
 
-            playLand(b) ?: error("playLand failed at seed 42")
-            postAction(game, b, counter)
+            playLand(board.bridge) ?: error("playLand failed at seed 42")
+            board.postAction()
 
-            val castAction = castCreature(b) ?: error("castCreature failed at seed 42")
+            val castAction = castCreature(board.bridge) ?: error("castCreature failed at seed 42")
             val creatureForgeId = castAction.cardId.value
-            postAction(game, b, counter)
-            val castId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
+            board.postAction()
+            val castId = board.bridge.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
 
-            if (!game.stack.isEmpty) {
-                passPriority(b)
-                postAction(game, b, counter)
+            if (!board.game.stack.isEmpty) {
+                passPriority(board.bridge)
+                board.postAction()
             }
 
-            val resolvedId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
+            val resolvedId = board.bridge.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
             castId shouldBe resolvedId
         }
 
         test("remoteActionDiff contains BF objects for AI land play") {
-            val (b, game, counter) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ForgeZoneType.Hand)
                 }
 
             val land =
-                game.humanPlayer
+                board.game.humanPlayer
                     .getZone(ForgeZoneType.Hand)
                     .cards
                     .first { it.isLand }
-            captureAfterAction(b, game, counter) {
-                game.action.moveToPlay(land, null, AbilityKey.newMap())
+            board.snapshotDiff {
+                board.game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
 
             val aiResult =
-                bundleBuilder(b).remoteActionDiff(
-                    game,
-                    counter,
+                bundleBuilder(board.bridge).remoteActionDiff(
+                    board.game,
+                    board.counter,
                 )
 
             val gsm = aiResult.gsm

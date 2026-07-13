@@ -8,7 +8,6 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.AbilityInfo
@@ -202,17 +201,7 @@ class WarpActionTest :
             val riddlerGrpId = b.cardRepository.findGrpIdByName("Quantum Riddler")!!
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(riddlerGrpId, KeywordAbilityIds.WARP)!!
-            val riddlerIid =
-                b
-                    .getOrAllocInstanceId(
-                        ForgeCardId(
-                            game.humanPlayer
-                                .getZone(ZoneType.Hand)
-                                .cards
-                                .first { it.name == "Quantum Riddler" }
-                                .id,
-                        ),
-                    ).value
+            val riddlerIid = game.humanPlayer.hand.iid("Quantum Riddler")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -242,17 +231,7 @@ class WarpActionTest :
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
-            val wurmIid =
-                b
-                    .getOrAllocInstanceId(
-                        ForgeCardId(
-                            game.humanPlayer
-                                .getZone(ZoneType.Hand)
-                                .cards
-                                .first { it.name == "Germinating Wurm" }
-                                .id,
-                        ),
-                    ).value
+            val wurmIid = game.humanPlayer.hand.iid("Germinating Wurm")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)

@@ -19,8 +19,8 @@ import leyline.match.CombatHandler
 import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.BoardTestBase
 import leyline.testkit.aiPlayer
 import leyline.testkit.settingsMessage
 import org.slf4j.LoggerFactory
@@ -32,7 +32,7 @@ import kotlin.time.Duration.Companion.seconds
  * Unit tests for [AutoPassEngine] decision logic.
  *
  * Tests [checkHumanActions] directly (internal visibility) using real Game
- * and BundleBuilder from [BoardTestBase.startWithBoard].
+ * and BundleBuilder from [Board.startWithBoard].
  *
  * Loop-level [autoPassAndAdvance] tests cover game-over detection and
  * Grant-path exits. Skip-path tests (advanceOrWait) are deferred to

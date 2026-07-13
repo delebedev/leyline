@@ -2,11 +2,9 @@ package leyline.testkit
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.shouldFail
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.string.shouldContain
-import leyline.BoardTag
 
 @Suppress(
     // Matcher tests verify failure-message shape via `shouldFail { ... }.message
@@ -16,20 +14,14 @@ import leyline.BoardTag
     "MissingAssertSoftly",
 )
 class ZoneMatchersTest :
-    FunSpec({
-
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("beInHandOf passes when card is present, fails with naming message when absent") {
-            val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Grizzly Bears", human, ZoneType.Hand)
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val human = board.human
 
             "Grizzly Bears" should beInHandOf(human)
 
@@ -42,12 +34,12 @@ class ZoneMatchersTest :
         }
 
         test("beOnBattlefieldOf with count enforces exact cardinality") {
-            val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Forest", human, ZoneType.Battlefield)
-                    base.addCard("Forest", human, ZoneType.Battlefield)
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val human = game.humanPlayer
+            val human = board.human
 
             "Forest" should beOnBattlefieldOf(human, count = 2)
             "Forest" should beOnBattlefieldOf(human) // unbounded ≥1 still passes
@@ -68,11 +60,11 @@ class ZoneMatchersTest :
         }
 
         test("shouldNot inversion fires the negation message") {
-            val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Mountain", human, ZoneType.Hand)
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val human = board.human
 
             "Mountain" shouldNot beInGraveyardOf(human)
 
@@ -85,12 +77,12 @@ class ZoneMatchersTest :
         }
 
         test("beInZoneOf works for less common zones (Library, Exile, Command)") {
-            val (_, game, _) =
-                base.startWithBoard { _, human, _ ->
-                    base.addCard("Plains", human, ZoneType.Library)
-                    base.addCard("Swamp", human, ZoneType.Exile)
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Library)
+                    addCard("Swamp", human, ZoneType.Exile)
                 }
-            val human = game.humanPlayer
+            val human = board.human
 
             "Plains" should beInLibraryOf(human)
             "Swamp" should beInExileOf(human)

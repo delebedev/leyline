@@ -11,11 +11,11 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 class PoisonCounterAnnotationTest :
     BoardTest({
         test("poison counters emit player CounterAdded and persistent Counter annotations") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
-            val human = b.getPlayer(SeatId(1))!!
-            val ai = b.getPlayer(SeatId(2))!!
+            val board = startWithBoard { _, _, _ -> }
+            val human = board.bridge.getPlayer(SeatId(1))!!
+            val ai = board.bridge.getPlayer(SeatId(2))!!
 
-            val gsm = capture(b, game, counter) { human.setPoisonCounters(2, ai) }
+            val gsm = board.snapshotDiff { human.setPoisonCounters(2, ai) }
             val counterAdded = gsm.annotationsList.single { AnnotationType.CounterAdded in it.typeList }
             val counterState = gsm.persistentAnnotationsList.single { AnnotationType.Counter_803b in it.typeList }
 
