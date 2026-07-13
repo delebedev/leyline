@@ -1,0 +1,13 @@
+name: "Nethergoyf"
+grpId: 90952
+titleId: 760271
+abilities:
+  - id: 145338
+    textId: 760272
+    category: 3
+  - id: 172295
+    textId: 760273
+    category: 3
+    baseId: 199
+    mana: "o2oB"
+expansionCode: "MH3"
