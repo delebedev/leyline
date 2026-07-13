@@ -803,6 +803,7 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(ev.source().id),
                 targetCardId = ForgeCardId(ev.card().id),
                 amount = ev.amount(),
+                deathtouch = ev.type() == GameEventCardDamaged.DamageType.Deathtouch,
             ),
         )
     }
@@ -906,10 +907,29 @@ class GameEventCollector(
                 seatId = seat,
                 sourceCardId = sourceId?.let(::ForgeCardId),
                 sourceAbilityForgeId = cause?.abilityId() ?: 0,
+                destruction = destructionCause(ev, ForgeCardId(card.id)),
             ),
         )
         log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
     }
+
+    /**
+     * A destroy with no causing ability and no activator is the lethal-damage /
+     * deathtouch state-based action. The damage that killed the card lands in the
+     * same event frame as the SBA destroy, so a frame-local scan distinguishes
+     * deathtouch from plain lethal damage.
+     */
+    private fun destructionCause(
+        ev: GameEventCardDestroyed,
+        cardId: ForgeCardId,
+    ): DestructionCause =
+        when {
+            ev.cause() != null || ev.activator() != null -> DestructionCause.Effect
+            frame.any {
+                it is GameEvent.DamageDealtToCard && it.targetCardId == cardId && it.deathtouch
+            } -> DestructionCause.Deathtouch
+            else -> DestructionCause.LethalDamage
+        }
 
     // -- Group A+: attachment events --
 

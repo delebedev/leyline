@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
 
 class TransferCategoryResolverTest :
@@ -35,6 +36,16 @@ class TransferCategoryResolverTest :
             Case("mill", GameEvent.CardMilled(cardId, seatId), TransferCategory.Mill),
             Case("sacrifice", GameEvent.CardSacrificed(cardId, seatId), TransferCategory.Sacrifice),
             Case("destroy", GameEvent.CardDestroyed(cardId, seatId), TransferCategory.Destroy),
+            Case(
+                "lethal damage death",
+                GameEvent.CardDestroyed(cardId, seatId, destruction = DestructionCause.LethalDamage),
+                TransferCategory.SbaDamage,
+            ),
+            Case(
+                "deathtouch death",
+                GameEvent.CardDestroyed(cardId, seatId, destruction = DestructionCause.Deathtouch),
+                TransferCategory.SbaDeathtouch,
+            ),
         ).forEach { case ->
             test("resolves ${case.name} fallback from its operation event") {
                 TransferCategoryResolver.categoryFromEvents(cardId, listOf(case.event)) shouldBe case.expected

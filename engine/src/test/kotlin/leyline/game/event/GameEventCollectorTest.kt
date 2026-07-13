@@ -5,6 +5,7 @@ import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.player.PlayerView
+import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -16,6 +17,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.testkit.BoardTest
@@ -214,6 +216,106 @@ class GameEventCollectorTest :
                 destroyed[0].seatId shouldBe SeatId(1)
                 destroyed[0].sourceCardId shouldBe ForgeCardId(bolt.id)
             }
+        }
+
+        test("SBA destroy after normal damage classifies as lethal-damage death") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+
+            val creature =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.isCreature }
+            val bolt =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            game.fireEvent(
+                GameEventCardDamaged(
+                    CardView.get(creature),
+                    CardView.get(bolt),
+                    3,
+                    GameEventCardDamaged.DamageType.Normal,
+                ),
+            )
+            game.fireEvent(GameEventCardDestroyed(creature, null as SpellAbility?))
+
+            val destroyed = collector.closeFrame().events.filterIsInstance<GameEvent.CardDestroyed>()
+            destroyed.size shouldBe 1
+            destroyed[0].destruction shouldBe DestructionCause.LethalDamage
+        }
+
+        test("SBA destroy after deathtouch damage classifies as deathtouch death") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+
+            val creature =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.isCreature }
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            game.fireEvent(
+                GameEventCardDamaged(
+                    CardView.get(creature),
+                    CardView.get(source),
+                    1,
+                    GameEventCardDamaged.DamageType.Deathtouch,
+                ),
+            )
+            game.fireEvent(GameEventCardDestroyed(creature, null as SpellAbility?))
+
+            val events = collector.closeFrame().events
+            val damaged = events.filterIsInstance<GameEvent.DamageDealtToCard>()
+            val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
+            assertSoftly {
+                damaged.size shouldBe 1
+                damaged[0].deathtouch.shouldBeTrue()
+                destroyed.size shouldBe 1
+                destroyed[0].destruction shouldBe DestructionCause.Deathtouch
+            }
+        }
+
+        test("destroy with a causing source stays an effect destruction") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+
+            val creature =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.isCreature }
+            val bolt =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            game.fireEvent(GameEventCardDestroyed(creature, bolt))
+
+            val destroyed = collector.closeFrame().events.filterIsInstance<GameEvent.CardDestroyed>()
+            destroyed.size shouldBe 1
+            destroyed[0].destruction shouldBe DestructionCause.Effect
         }
 
         test("BF to Hand emits CardBounced") {

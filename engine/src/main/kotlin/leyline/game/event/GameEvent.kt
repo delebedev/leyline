@@ -70,6 +70,9 @@ enum class Zone {
  * instead of correlating summary events with zone changes after the fact.
  * Consider extending Forge when a new mechanic needs per-card category resolution.
  */
+/** Why a permanent was destroyed — selects the wire transfer category. */
+enum class DestructionCause { Effect, LethalDamage, Deathtouch }
+
 sealed interface GameEvent {
     /** A land was played from hand to battlefield.
      *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
@@ -201,11 +204,13 @@ sealed interface GameEvent {
         val affectorCardId: ForgeCardId? = null,
     ) : GameEvent
 
-    /** Damage was dealt to a creature. */
+    /** Damage was dealt to a creature. [deathtouch] = source had deathtouch,
+     *  so any nonzero amount marks the target for the deathtouch destroy SBA. */
     data class DamageDealtToCard(
         val sourceCardId: ForgeCardId,
         val targetCardId: ForgeCardId,
         val amount: Int,
+        val deathtouch: Boolean = false,
     ) : GameEvent
 
     /** Damage was dealt to a player. */
@@ -247,12 +252,15 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A permanent was destroyed (BF→GY, not sacrifice).
-     *  [sourceCardId] = host card of the ability that caused the destruction (for affectorId). */
+     *  [sourceCardId] = host card of the ability that caused the destruction (for affectorId).
+     *  [destruction] = destroy effect vs lethal-damage/deathtouch state-based action;
+     *  drives the wire transfer category (`Destroy` vs `SBA_Damage`/`SBA_Deathtouch`). */
     data class CardDestroyed(
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val sourceCardId: ForgeCardId? = null,
         val sourceAbilityForgeId: Int = 0,
+        val destruction: DestructionCause = DestructionCause.Effect,
     ) : GameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */
