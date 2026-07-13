@@ -70,6 +70,7 @@ enum class Zone {
  * instead of correlating summary events with zone changes after the fact.
  * Consider extending Forge when a new mechanic needs per-card category resolution.
  */
+
 /** Why a permanent was destroyed — selects the wire transfer category. */
 enum class DestructionCause { Effect, LethalDamage, Deathtouch }
 

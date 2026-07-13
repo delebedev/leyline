@@ -5,7 +5,6 @@ import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.player.PlayerView
-import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
