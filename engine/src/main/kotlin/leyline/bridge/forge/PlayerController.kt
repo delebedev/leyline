@@ -21,6 +21,7 @@ import forge.game.cost.Cost
 import forge.game.cost.CostDecisionMakerBase
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostEnlist
+import forge.game.cost.CostExile
 import forge.game.cost.CostForage
 import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
@@ -1110,6 +1111,32 @@ class PlayerController(
             minSelectionWeight = totalPowerNeeded.takeIf { teamwork },
         )
     }
+
+    // Aggregate exile prompts project plain min/max Generic selections;
+    // no weight/threshold envelope is defined for these costs yet.
+    @Suppress("LongParameterList") // mirrors the Forge hook's flat contract
+    override fun chooseCardsForExileCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        cost: CostExile,
+        min: Int,
+        max: Int,
+        aggregateHint: String?,
+        aggregateGoal: Int?,
+        sharedCardType: Boolean,
+        cancelAllowed: Boolean,
+        prompt: String,
+    ): CardCollectionView =
+        targetingCoordinator.chooseCardsViaBridge(
+            cards = optionList,
+            min = min,
+            max = max,
+            message = prompt,
+            semantic = PromptSemantic.Generic,
+            candidateRefs = optionList.toCandidateRefs(),
+            sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            forcePrompt = cancelAllowed,
+        )
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
     // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on

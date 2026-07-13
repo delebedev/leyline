@@ -111,49 +111,6 @@ class CostDecisionTest :
             )
         }
 
-        fun invokeSelectCards(
-            decision: CostDecision,
-            cards: CardCollectionView,
-            min: Int,
-            max: Int,
-            cancelAllowed: Boolean,
-        ): CardCollection? {
-            val method =
-                CostDecision::class.java.getDeclaredMethod(
-                    "selectCards",
-                    String::class.java,
-                    CardCollectionView::class.java,
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                    Boolean::class.javaPrimitiveType,
-                    PromptSemantic::class.java,
-                    List::class.java,
-                    Integer::class.java,
-                )
-            method.isAccessible = true
-            @Suppress("UNCHECKED_CAST")
-            return method.invoke(
-                decision,
-                "pick",
-                cards,
-                min,
-                max,
-                cancelAllowed,
-                PromptSemantic.Generic,
-                emptyList<Int>(),
-                null,
-            ) as? CardCollection
-        }
-
-        fun isSpecializedExileShape(
-            decision: CostDecision,
-            cost: CostExile,
-        ): Boolean {
-            val method = CostDecision::class.java.getDeclaredMethod("isSpecializedExileShape", CostExile::class.java)
-            method.isAccessible = true
-            return method.invoke(decision, cost) as Boolean
-        }
-
         fun isLegalCardSelection(
             decision: CostDecision,
             options: CardCollectionView,
@@ -169,21 +126,6 @@ class CostDecisionTest :
                 )
             method.isAccessible = true
             return method.invoke(decision, options, selected, amount) as Boolean
-        }
-
-        test("selectCards returns null for empty cancelable choice") {
-            val fx = fixture()
-
-            invokeSelectCards(fx.decision, CardCollection(), min = 1, max = 1, cancelAllowed = true).shouldBeNull()
-        }
-
-        test("selectCards auto-returns single forced choice") {
-            val fx = fixture()
-            val cards = CardCollection(fx.source)
-
-            invokeSelectCards(fx.decision, cards, min = 1, max = 1, cancelAllowed = false)!!.map {
-                it.name
-            } shouldContainExactly listOf("Lightning Bolt")
         }
 
         test("visit pay life returns numeric payment when confirm defaults yes") {
@@ -434,35 +376,41 @@ class CostDecisionTest :
             }
         }
 
-        test("exile keeps only aggregate and shared-type shapes specialized") {
+        test("exile cost hook projects plain min-max selection without weights") {
             val fx = fixture()
+            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
+            val cards =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(mountain)
+                }
 
-            assertSoftly {
-                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Hand)) shouldBe false
-                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Battlefield)) shouldBe false
-                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Library)) shouldBe false
-                isSpecializedExileShape(fx.decision, CostExile("1", "CardFromTopGrave", null, ZoneType.Graveyard)) shouldBe false
-                isSpecializedExileShape(fx.decision, CostExile("1", "Card", null, ZoneType.Graveyard)) shouldBe false
-                isSpecializedExileShape(
-                    fx.decision,
-                    CostExile("1", "Card", null, listOf(ZoneType.Hand, ZoneType.Graveyard)),
-                ) shouldBe false
-                isSpecializedExileShape(
-                    fx.decision,
-                    CostExile("2", "Card+withTotalCMCGE4", null, ZoneType.Hand),
-                ) shouldBe true
-                isSpecializedExileShape(
-                    fx.decision,
-                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand),
-                ) shouldBe true
-                isSpecializedExileShape(
-                    fx.decision,
-                    CostExile("2", "Card+withSharedCardType", null, ZoneType.Hand, 0),
-                ) shouldBe false
-                isSpecializedExileShape(
-                    fx.decision,
-                    CostExile("1", "Card+withTypesGE2", null, ZoneType.Graveyard),
-                ) shouldBe true
+            fx.controller.chooseCardsForExileCost(
+                cards,
+                fx.ability,
+                CostExile("2", "Card+withTotalCMCGE4", null, ZoneType.Hand),
+                1,
+                cards.size,
+                "CMC",
+                4,
+                false,
+                true,
+                "exile cards with total mana value",
+            )
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    min shouldBe 1
+                    max shouldBe 2
+                    semantic shouldBe PromptSemantic.Generic
+                    costSelectionWeights shouldBe emptyList<Int>()
+                    minSelectionWeight.shouldBeNull()
+                }
             }
         }
 
