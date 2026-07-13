@@ -1110,7 +1110,7 @@ class MatchFlowHarness(
     private fun autoRespondToOptionalAction(): Boolean {
         val wpc = bridge.humanController ?: return false
         wpc.pendingOptionalAction ?: return false
-        val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return false
+        val msg = latestOptionalActionMessage() ?: return false
         if (holdNextOptionalResponse) {
             return false
         }
@@ -1121,21 +1121,7 @@ class MatchFlowHarness(
         val response = nextOptionalResponse ?: OptionResponse.AllowYes
         nextOptionalResponse = null
 
-        val greMsg =
-            ClientToGREMessage
-                .newBuilder()
-                .setType(ClientMessageType.OptionalActionResp)
-                .setGameStateId(msg.gameStateId)
-                .setRespId(msg.msgId)
-                .setOptionalResp(
-                    OptionalResp
-                        .newBuilder()
-                        .setResponse(response),
-                ).build()
-        session.onOptionalActionResp(greMsg)
-
-        // Drain follow-up messages without recursing
-        collectSinkMessages()
+        submitOptionalActionResponse(response, msg)
         return true
     }
 
@@ -1156,25 +1142,12 @@ class MatchFlowHarness(
     private fun autoRespondToNumericInput(): Boolean {
         val wpc = bridge.humanController ?: return false
         wpc.pendingNumericInput ?: return false
-        val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e } ?: return false
+        val msg = latestNumericInputMessage() ?: return false
 
         val value = nextNumericInputValue ?: 0
         nextNumericInputValue = null
 
-        val greMsg =
-            ClientToGREMessage
-                .newBuilder()
-                .setType(ClientMessageType.NumericInputResp_097b)
-                .setGameStateId(msg.gameStateId)
-                .setRespId(msg.msgId)
-                .setNumericInputResp(
-                    NumericInputResp
-                        .newBuilder()
-                        .setNumericInputValue(value),
-                ).build()
-        session.onNumericInputResp(greMsg)
-
-        collectSinkMessages()
+        submitNumericInputResponse(value, msg)
         return true
     }
 
@@ -1191,7 +1164,15 @@ class MatchFlowHarness(
      * For tests that need direct control over the numeric pick.
      */
     fun respondToNumericInput(value: Int) {
-        val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e }
+        submitNumericInputResponse(value, latestNumericInputMessage())
+    }
+
+    private fun latestNumericInputMessage(): GREToClientMessage? = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e }
+
+    private fun submitNumericInputResponse(
+        value: Int,
+        msg: GREToClientMessage?,
+    ) {
         val greMsg =
             ClientToGREMessage
                 .newBuilder()
@@ -1213,7 +1194,19 @@ class MatchFlowHarness(
      */
     fun respondToOptionalAction(accept: Boolean) {
         holdNextOptionalResponse = false
-        val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+        submitOptionalActionResponse(
+            if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo,
+            latestOptionalActionMessage(),
+        )
+    }
+
+    private fun latestOptionalActionMessage(): GREToClientMessage? =
+        allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+
+    private fun submitOptionalActionResponse(
+        response: OptionResponse,
+        msg: GREToClientMessage?,
+    ) {
         val greMsg =
             ClientToGREMessage
                 .newBuilder()
@@ -1223,7 +1216,7 @@ class MatchFlowHarness(
                 .setOptionalResp(
                     OptionalResp
                         .newBuilder()
-                        .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
+                        .setResponse(response),
                 ).build()
         session.onOptionalActionResp(greMsg)
         collectSinkMessages()
