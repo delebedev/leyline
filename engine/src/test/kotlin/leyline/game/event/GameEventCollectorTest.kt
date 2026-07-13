@@ -243,6 +243,7 @@ class GameEventCollectorTest :
                     CardView.get(bolt),
                     3,
                     GameEventCardDamaged.DamageType.Normal,
+                    false,
                 ),
             )
             game.fireEvent(GameEventCardDestroyed(creature, null as SpellAbility?))
@@ -277,6 +278,7 @@ class GameEventCollectorTest :
                     CardView.get(source),
                     1,
                     GameEventCardDamaged.DamageType.Deathtouch,
+                    false,
                 ),
             )
             game.fireEvent(GameEventCardDestroyed(creature, null as SpellAbility?))
@@ -290,6 +292,48 @@ class GameEventCollectorTest :
                 destroyed.size shouldBe 1
                 destroyed[0].destruction shouldBe DestructionCause.Deathtouch
             }
+        }
+
+        test("card damage carries the combat flag from the engine event") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+
+            val creature =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.isCreature }
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            game.fireEvent(
+                GameEventCardDamaged(
+                    CardView.get(creature),
+                    CardView.get(source),
+                    3,
+                    GameEventCardDamaged.DamageType.Normal,
+                    false,
+                ),
+            )
+            game.fireEvent(
+                GameEventCardDamaged(
+                    CardView.get(creature),
+                    CardView.get(source),
+                    2,
+                    GameEventCardDamaged.DamageType.Normal,
+                    true,
+                ),
+            )
+
+            val damaged = collector.closeFrame().events.filterIsInstance<GameEvent.DamageDealtToCard>()
+            damaged.map { it.combat } shouldContainExactly listOf(false, true)
         }
 
         test("destroy with a causing source stays an effect destruction") {
@@ -552,7 +596,7 @@ class GameEventCollectorTest :
                     .filter { it.isCreature }
             val source = cards[0]
             val target = cards[1]
-            game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal))
+            game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal, true))
 
             val dmg = collector.closeFrame().events.filterIsInstance<GameEvent.DamageDealtToCard>()
             assertSoftly {

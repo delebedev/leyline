@@ -205,12 +205,15 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** Damage was dealt to a creature. [deathtouch] = source had deathtouch,
-     *  so any nonzero amount marks the target for the deathtouch destroy SBA. */
+     *  so any nonzero amount marks the target for the deathtouch destroy SBA.
+     *  [combat] = combat damage step vs spell/ability damage; selects the
+     *  DamageDealt wire type. */
     data class DamageDealtToCard(
         val sourceCardId: ForgeCardId,
         val targetCardId: ForgeCardId,
         val amount: Int,
         val deathtouch: Boolean = false,
+        val combat: Boolean = true,
     ) : GameEvent
 
     /** Damage was dealt to a player. */

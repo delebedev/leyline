@@ -594,8 +594,8 @@ class TargetingInteractionTest :
                 damageAnn.affectedIdsCount shouldBe 1
                 damageAnn.getAffectedIds(0) shouldBeGreaterThan 0
 
-                // Destroy zone transfer present
-                allMessages.firstWithTransferCategory("Destroy").shouldNotBeNull()
+                // Lethal fight damage death rides the damage SBA category
+                allMessages.firstWithTransferCategory("SBA_Damage").shouldNotBeNull()
 
                 // Bite Down → human GY, Grizzly Bears → ai GY
                 human

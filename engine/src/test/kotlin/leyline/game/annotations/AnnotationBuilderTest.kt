@@ -477,6 +477,27 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("damageDealtTypeFromSourceKind") {
+            val combat =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 1000.iid,
+                    targetId = 2.wid,
+                    amount = 3,
+                    combat = true,
+                )
+            val noncombat =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 1000.iid,
+                    targetId = 2.wid,
+                    amount = 3,
+                    combat = false,
+                )
+            assertSoftly {
+                combat.detailInt("type") shouldBe 1
+                noncombat.detailInt("type") shouldBe 2
+            }
+        }
+
         // --- ModifiedLife ---
 
         test("modifiedLifePositiveDelta") {

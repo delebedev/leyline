@@ -804,6 +804,7 @@ class GameEventCollector(
                 targetCardId = ForgeCardId(ev.card().id),
                 amount = ev.amount(),
                 deathtouch = ev.type() == GameEventCardDamaged.DamageType.Deathtouch,
+                combat = ev.isCombat,
             ),
         )
     }
@@ -915,21 +916,25 @@ class GameEventCollector(
 
     /**
      * A destroy with no causing ability and no activator is the lethal-damage /
-     * deathtouch state-based action. The damage that killed the card lands in the
-     * same event frame as the SBA destroy, so a frame-local scan distinguishes
-     * deathtouch from plain lethal damage.
+     * deathtouch state-based action — but only when damage evidence exists.
+     * The state-effects pass consumes the card's deathtouch flag before the
+     * destroy event fires, so the same-frame damage events are the signal:
+     * damage lands and the SBA destroy fires inside one event frame.
      */
     private fun destructionCause(
         ev: GameEventCardDestroyed,
         cardId: ForgeCardId,
-    ): DestructionCause =
-        when {
-            ev.cause() != null || ev.activator() != null -> DestructionCause.Effect
-            frame.any {
-                it is GameEvent.DamageDealtToCard && it.targetCardId == cardId && it.deathtouch
-            } -> DestructionCause.Deathtouch
-            else -> DestructionCause.LethalDamage
+    ): DestructionCause {
+        if (ev.cause() != null || ev.activator() != null) return DestructionCause.Effect
+        val frameDamage =
+            frame.filterIsInstance<GameEvent.DamageDealtToCard>().filter { it.targetCardId == cardId }
+        return when {
+            frameDamage.any { it.deathtouch } -> DestructionCause.Deathtouch
+            frameDamage.isNotEmpty() || (bridge.findCard(cardId)?.damage ?: 0) > 0 ->
+                DestructionCause.LethalDamage
+            else -> DestructionCause.Effect
         }
+    }
 
     // -- Group A+: attachment events --
 

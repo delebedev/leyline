@@ -50,8 +50,10 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 object AnnotationBuilder {
     private const val MANA_SPEC_DOES_NOT_EMPTY_VALUE = 14695
 
-    /** DamageDealt `type` wire value for combat damage. Non-combat (0) isn't exercised yet. */
+    /** DamageDealt `type` wire values: 1 = combat damage, 2 = spell/ability damage.
+     *  Fight damage (3) is not derived yet and rides the noncombat value. */
     private const val COMBAT_DAMAGE_TYPE = 1
+    private const val NONCOMBAT_DAMAGE_TYPE = 2
 
     /** DamageDealt `markDamage` flag — always 1; the client requires the detail key present. */
     private const val MARK_DAMAGE_FLAG = 1
@@ -380,6 +382,7 @@ object AnnotationBuilder {
         sourceInstanceId: InstanceId,
         targetId: WireId,
         amount: Int,
+        combat: Boolean = true,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -387,7 +390,7 @@ object AnnotationBuilder {
             .setAffectorId(sourceInstanceId.value)
             .addAffectedIds(targetId.value)
             .addDetails(int32Detail(DetailKeys.DAMAGE, amount))
-            .addDetails(int32Detail(DetailKeys.TYPE, COMBAT_DAMAGE_TYPE))
+            .addDetails(int32Detail(DetailKeys.TYPE, if (combat) COMBAT_DAMAGE_TYPE else NONCOMBAT_DAMAGE_TYPE))
             .addDetails(int32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
             .build()
 
