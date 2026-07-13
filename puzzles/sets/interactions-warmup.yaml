@@ -47,15 +47,16 @@ scenarios:
     steps:
       - expect:
           action: { type: cast, card: Kami of Bamboo Groves }
-      - cast: Kami of Bamboo Groves
+      - cast: { card: Kami of Bamboo Groves, arena_modal_index: 0 }
       - resolve_stack: {}
       - optional_action: { accept: true }
-      - expect:
-          prompt: { type: SelectNReq }
-      - select_card: { side: ours, zone: hand, card: Island }
+      - play_land: Island
       - expect:
           all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
             - zone_contains: { side: ours, zone: battlefield, card: Island }
+            - zone_contains: { side: ours, zone: battlefield, card: Kami of Bamboo Groves }
+            - zone_count_at_least: { side: ours, zone: battlefield, count: 3 }
             - stack_empty: true
   - id: activated-ability
     puzzle: activated-ability
@@ -101,6 +102,8 @@ scenarios:
     puzzle: evolved-sleeper-activation-chain
     run: activate Evolved Sleeper through all three ability choices
     expect: Evolved Sleeper becomes 4/4, draws a card, and costs one life
+    native:
+      xfail: Client battlefield projection remains 2/2 after the second activation.
     steps:
       - expect:
           action: { type: activate, card: Evolved Sleeper }

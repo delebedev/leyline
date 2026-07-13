@@ -7,6 +7,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
@@ -1041,6 +1042,14 @@ class MatchFlowHarness(
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
     fun latestPromptMsgId(): Int = messageLog.latestPromptMsgId()
+
+    fun hasPendingSelectNPrompt(): Boolean =
+        bridge
+            .seat(seatId)
+            .prompt
+            .getPendingPrompt()
+            ?.request
+            ?.route is ResolvedPromptRoute.SelectN
 
     /**
      * Reflect the latest prompt ids onto a client response before it enters

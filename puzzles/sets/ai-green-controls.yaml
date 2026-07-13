@@ -5,6 +5,8 @@ web:
 scenarios:
   - id: firebending-bolt-lethal
     puzzle: firebending-bolt-lethal
+    native:
+      skip: Terminal ratchet scenario is headless-only until native puzzle outcomes can preserve the client match.
     run: attack with Jeong Jeong, spend Firebending mana on Lightning Bolt, and win
     expect: Firebending combat mana carries through the cast path and the opponent loses
     steps:
@@ -45,6 +47,8 @@ scenarios:
           max_passes: 8
   - id: channel-twinshot-lethal
     puzzle: channel-twinshot-lethal
+    native:
+      skip: Terminal ratchet scenario is headless-only until native puzzle outcomes can preserve the client match.
     run: channel Twinshot Sniper at opponent for lethal
     expect: hand-zone activation targets the opponent and wins the game
     steps:
@@ -58,6 +62,8 @@ scenarios:
           max_passes: 8
   - id: kicker-burst-lethal
     puzzle: kicker-burst-lethal
+    native:
+      skip: Terminal ratchet scenario is headless-only until native puzzle outcomes can preserve the client match.
     run: kick Burst Lightning and target the opponent for lethal
     expect: the kicked spell targets the opponent and wins the game
     steps:

@@ -366,6 +366,12 @@ object StateMapper {
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
         val frameIds = FrameIdResolver(bridge, FrameIdResolver.postReallocIids(transferResult))
+        val resolvedStackAbilityIids =
+            eventsMutable
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .filter { it.isTrigger || it.isAbility }
+                .mapTo(linkedSetOf()) { AnnotationContext.stackAbilityIid(it.abilityForgeId, it.cardId, frameIds) }
+        transferResult = transferResult.withoutStackAbilities(resolvedStackAbilityIids)
         transferResult = transferResult.withDecayedCleanupAffectors(eventsMutable, snap, bridge, frameIds)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
@@ -539,7 +545,10 @@ object StateMapper {
                 consumedTargetSpecs = remaining.consumedTargetSpecs,
                 nextAnnotationId = null,
                 holderBatch = holderBatch,
-                diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
+                diffDeletedInstanceIds =
+                    (stackTransferDeletedIds(transferResult) + resolvedStackAbilityIids)
+                        .distinct()
+                        .map { InstanceId(it) },
                 nextTransientLinkedFaceFamilyIds = transferResult.transientHiddenFamilyIds.mapTo(mutableSetOf(), ::InstanceId),
             )
 
@@ -708,10 +717,12 @@ object StateMapper {
                 }
                 else -> null
             }
+        val hasStackRetirement = fullResult.mutations.diffDeletedInstanceIds.isNotEmpty()
         val changedZones =
             current.zonesList
                 .filter { zone ->
                     zone.zoneId in changedZoneIds ||
+                        (zone.zoneId == ZoneIds.STACK && hasStackRetirement) ||
                         (
                             zone.zoneId == ZoneIds.LIMBO &&
                                 (
@@ -1059,6 +1070,31 @@ object StateMapper {
                 transfer.copy(category = category, affectorId = affector)
             }
         return copy(transfers = patchedTransfers)
+    }
+
+    /**
+     * Resolution events are authoritative when Forge's stack snapshot still
+     * carries the resolved ability for the current frame. Remove those stale
+     * projections before diffing; [BridgeMutations.diffDeletedInstanceIds]
+     * retires their client identity without placing abilities in Limbo.
+     */
+    private fun TransferResult.withoutStackAbilities(resolvedIids: Set<Int>): TransferResult {
+        if (resolvedIids.isEmpty()) return this
+        val updatedObjects = patchedObjects.filterNot { it.instanceId in resolvedIids }
+        if (updatedObjects.size == patchedObjects.size) return this
+        val updatedZones =
+            patchedZones.map { zone ->
+                if (zone.zoneId != ZoneIds.STACK) {
+                    zone
+                } else {
+                    zone
+                        .toBuilder()
+                        .clearObjectInstanceIds()
+                        .addAllObjectInstanceIds(zone.objectInstanceIdsList.filterNot { it in resolvedIids })
+                        .build()
+                }
+            }
+        return copy(patchedObjects = updatedObjects, patchedZones = updatedZones)
     }
 
     private fun TransferResult.withDelayedTriggerHolders(
