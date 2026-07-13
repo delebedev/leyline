@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.pickMdfcBackSpellAbility
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -105,8 +104,8 @@ class MdfcActionTest :
             val esika = human.getZone(ZoneType.Hand).cards.first { it.name == "Esika, God of the Tree" }
             val silundi = human.getZone(ZoneType.Hand).cards.first { it.name == "Silundi Vision" }
 
-            val backSpell = pickMdfcBackSpellAbility(esika)
             val castable = getAllCastableAbilities(esika, human)
+            val backSpell = castable.firstOrNull { it.cardStateName == CardStateName.Backside && it.isSpell && !it.isLandAbility }
             val landAbility = buildMdfcBackLandAbility(silundi)
             landAbility?.activatingPlayer = human
 

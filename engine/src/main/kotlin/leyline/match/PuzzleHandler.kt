@@ -7,6 +7,8 @@ import leyline.config.MatchConfig
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.ActionMapper
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
@@ -86,33 +88,29 @@ class PuzzleHandler(
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
         output.send(bundleMsg)
 
-        // Send ActionsAvailableReq immediately after
+        session.onPuzzleStart()
+        bridge.awaitPriority()
+        val actionBridge = bridge.seat(SeatId(seatId)).action
+        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
+        val snap = SnapshotCapture.run(checkNotNull(bridge.getGame()), bridge, matchId, gsId)
+        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
+        check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
+            "Puzzle priority actions did not bind to the pending window"
+        }
+
+        // Expose the request only after its executable catalog is installed.
         val (actionsMsg, nextMsgId2) =
             HandshakeMessages.puzzleActionsReq(
                 session.counter.currentMsgId(),
                 gsId,
                 SeatId(seatId),
-                bridge,
+                projection.actions,
             )
-        val actions =
-            actionsMsg.greToClientEvent.greToClientMessagesList
-                .single()
-                .actionsAvailableReq
-        val offers = ActionOfferCatalog.build(actions, bridge, seatId)
         session.counter.setMsgId(nextMsgId2)
         session.counter.markPromptGsId(gsId)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         output.send(actionsMsg)
-
-        // The puzzle loop starts after the bootstrap bundle is visible. Its
-        // priority wait materializes asynchronously; bind this already-built
-        // catalog as soon as that window exists, before a client can act.
-        session.onPuzzleStart()
-        bridge.awaitPriority()
-        bridge.seat(SeatId(seatId)).action.getPending()?.let { pending ->
-            bridge.seat(SeatId(seatId)).action.bindActionCatalog(pending.actionId, gsId, offers)
-        }
     }
 
     /**

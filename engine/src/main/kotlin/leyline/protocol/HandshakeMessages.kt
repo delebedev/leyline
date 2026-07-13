@@ -17,6 +17,25 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * which handles in-game state diffs.
  */
 object HandshakeMessages {
+    fun puzzleActionsReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: SeatId,
+        actions: ActionsAvailableReq,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                .build()
+        return wrapGre(gre) to (msgId + 1)
+    }
+
     /** Room state event — match room with both players. */
     fun roomState(
         matchId: String,

@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.player.GameLossReason
+import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
@@ -549,6 +550,7 @@ class MatchSession(
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {
+        bindActionOffers(result.actionGameStateId, result.actionOffers)
         for (gre in result.messages) {
             if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
             if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
@@ -655,7 +657,6 @@ class MatchSession(
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId)
         }
-        bindPendingActionPrompt(messages)
         recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)
@@ -698,24 +699,16 @@ class MatchSession(
         autoAdvanceExecutor.shutdownNow()
     }
 
-    private fun bindPendingActionPrompt(messages: List<GREToClientMessage>) {
-        val prompt = messages.firstOrNull { it.hasActionsAvailableReq() } ?: return
+    private fun bindActionOffers(
+        gameStateId: Int?,
+        offers: List<GameActionBridge.ActionOffer>,
+    ) {
+        if (gameStateId == null && offers.isEmpty()) return
+        val promptGameStateId = checkNotNull(gameStateId) { "Action offers require a game-state id" }
         val actionBridge = gameBridge.seat(seatId).action
-        val pending = actionBridge.getPending()
-        val offers = ActionOfferCatalog.build(prompt.actionsAvailableReq, gameBridge, seatId.value)
-        val bound =
-            pending != null &&
-                offers.size == prompt.actionsAvailableReq.actionsCount &&
-                actionBridge.bindActionCatalog(pending.actionId, prompt.gameStateId, offers)
-        if (!bound) {
-            log.warn(
-                "MatchSession: refusing unbound ActionsAvailableReq gsId={} pending={} offers={}/{} types={}",
-                prompt.gameStateId,
-                pending?.actionId?.take(8),
-                offers.size,
-                prompt.actionsAvailableReq.actionsCount,
-                prompt.actionsAvailableReq.actionsList.map { it.actionType },
-            )
+        val pending = checkNotNull(actionBridge.getPending()) { "Cannot expose priority actions without a pending window" }
+        check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
+            "Cannot bind priority actions to pending window ${pending.actionId.take(8)}"
         }
     }
 

@@ -2,6 +2,7 @@ package leyline.game.bundle
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
@@ -68,6 +69,8 @@ class BundleBuilder(
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
+        val actionOffers: List<ActionOffer> = emptyList(),
+        val actionGameStateId: Int? = null,
     )
 
     private data class FrameDiff(
@@ -129,7 +132,8 @@ class BundleBuilder(
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val result = diff.result
-        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
+        val actions = projection.actions
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.
@@ -156,7 +160,7 @@ class BundleBuilder(
                 )
 
         cursor.lastSent = snap
-        return BundleResult(messages)
+        return BundleResult(messages, projection.offers, nextGs)
     }
 
     /**
@@ -265,7 +269,7 @@ class BundleBuilder(
      *
      * This is the **session-side** layer of a two-layer auto-pass system:
      *
-     * 1. **Engine-side** — [PlayableActionQuery.hasPlayableNonManaAction] runs
+     * 1. **Engine-side** — [leyline.bridge.PriorityActionCandidates.hasLegalNonManaAction] runs
      *    inside [PlayerController.chooseSpellAbilityToPlay] on the engine
      *    thread, own-turn only. When false, the engine auto-passes before the
      *    bridge round-trip even happens. The session thread never sees it.
@@ -318,6 +322,7 @@ class BundleBuilder(
         // Client expects Cast/Play actions embedded regardless of current phase (cosmetic only;
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
+        val priorityProjection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
 
         // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
         val gs1 =
@@ -381,12 +386,12 @@ class BundleBuilder(
         // Message 5: ActionsAvailableReq (promptId=2)
         val msg5 =
             makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
-                it.actionsAvailableReq = actions
+                it.actionsAvailableReq = priorityProjection.actions
                 it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             }
 
         cursor.lastSent = snap
-        return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5))
+        return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), priorityProjection.offers, commitGs)
     }
 
     /** Embed stripped-down actions from ActionsAvailableReq into a GSM builder. */
