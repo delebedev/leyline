@@ -13,13 +13,13 @@ import leyline.testkit.performAction
 /**
  * Regression: stale duplicate PerformActionResp packets can arrive after the
  * original action already consumed the pending bridge action. Recovery must
- * resync the client with a single postAction bundle, not re-enter the
+ * resync the client with a single state-only bundle, not expose unbound actions or re-enter the
  * auto-pass loop (which would spin through phases and emit many messages).
  */
 class PerformActionRecoveryTest :
     BoardTest({
 
-        test("missing pending action emits exactly one postAction resync bundle") {
+        test("missing pending action emits exactly one state-only resync bundle") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
 
             val sink = ListMessageSink()
@@ -38,15 +38,15 @@ class PerformActionRecoveryTest :
 
             session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 
-            // postAction resync emits one content GSM + one AAR. autoPassAndAdvance
-            // would iterate phases, emitting multiple GSM/AAR pairs.
+            // The state-only resync emits content + echo GSMs and no action request.
+            // autoPassAndAdvance would iterate phases, emitting multiple bundles.
             val gsms = sink.messages.filter { it.hasGameStateMessage() }
             val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
-            val content = gsms[0].gameStateMessage
+            val content = gsms.first().gameStateMessage
             assertSoftly {
-                gsms.size shouldBe 1
-                aarCount shouldBe 1
-                content.pendingMessageCount shouldBe 1
+                gsms.size shouldBe 2
+                aarCount shouldBe 0
+                content.pendingMessageCount shouldBe 0
             }
         }
     })

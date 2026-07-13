@@ -65,7 +65,7 @@ class ActionPerformer(
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-                sink.sendRealGameState(bridge)
+                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.game, counters.counter))
                 return
             }
         if (!seatBridge.action.acceptsResponse(pending, clientGsId)) {
