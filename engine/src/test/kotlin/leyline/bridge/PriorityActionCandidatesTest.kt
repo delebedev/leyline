@@ -1,6 +1,7 @@
 package leyline.bridge
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import leyline.game.mapping.ActionMapper
@@ -23,12 +24,15 @@ class PriorityActionCandidatesTest :
                     1,
                     SnapshotCapture.run(board.game, board.bridge, "test", 0),
                     board.bridge,
+                    candidates,
                 )
 
-            candidates.hasLegalNonManaAction(board.human).shouldBeTrue()
-            projection.actions.ofType(ActionType.Cast).shouldHaveSize(0)
-            projection.actions.inactiveActionsList
-                .filter { it.actionType == ActionType.Cast }
-                .shouldHaveSize(1)
+            assertSoftly {
+                candidates.hasLegalNonManaAction(board.human).shouldBeTrue()
+                projection.actions.ofType(ActionType.Cast).shouldHaveSize(0)
+                projection.actions.inactiveActionsList
+                    .filter { it.actionType == ActionType.Cast }
+                    .shouldHaveSize(1)
+            }
         }
     })
