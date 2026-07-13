@@ -7,14 +7,25 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.BoardTag
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.awaitFreshPending
+import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.MessageCounter
+import leyline.game.mapping.StateMapper
+import leyline.game.seedDiffBaseline
+import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Base class for board-tier tests (land/mana, combat, stack, etc.).
  *
- * Extends FunSpec — no `val base =` boilerplate. All BoardTestBase
- * helpers available directly. Wires initCardDatabase/tearDown automatically.
+ * Extends FunSpec — no `val base =` boilerplate. Wires initCardDatabase/tearDown
+ * automatically; owns one shared bridge/counter pair per spec.
  *
  * ```
  * class LandManaTest : BoardTest({
@@ -26,6 +37,10 @@ import leyline.game.state.GameBridge
  *     }
  * })
  * ```
+ *
+ * Tests that need an isolated bridge/counter pair outside this shared instance
+ * (e.g. driving two independent bridges within a single test body) should use
+ * [IsolatedBoardLifecycle] instead of constructing another `BoardTest`.
  */
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
 // class directly (no zero-arg constructor — only the `body` lambda variant).
@@ -33,39 +48,74 @@ import leyline.game.state.GameBridge
 abstract class BoardTest(
     body: BoardTest.() -> Unit,
 ) : FunSpec() {
-    private val base = BoardTestBase()
+    private var bridge: GameBridge? = null
+
+    /** Shared counter for the current test. Reset per test via [startGameAtMain1] et al. */
+    private var testCounter: MessageCounter = MessageCounter()
 
     init {
         tags(BoardTag)
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+        }
+        afterEach {
+            bridge?.shutdown()
+            bridge = null
+            testCounter = MessageCounter()
+        }
         body()
     }
 
-    // --- Delegated setup ---
+    // --- Setup ---
 
-    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit) = base.startWithBoard(board)
+    /**
+     * Start a game with cards placed directly into zones — no threads, no loop.
+     * ~0.01s per test (vs 0.5s for [startGameAtMain1]).
+     *
+     * @param board lambda that receives (game, human, ai) to set up zones
+     */
+    fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Board = trackResult(Board.startWithBoard(board))
 
+    /**
+     * Start a deterministic game, keep hand, advance to Main1.
+     *
+     * @param seed RNG seed for deterministic shuffles
+     * @param deckList custom deck list (e.g. "30 Plains\n30 Forest"); null uses default mono-green
+     * @param variant game variant (e.g. "brawl" for commander tax + command zone); null = Constructed
+     */
     fun startGameAtMain1(
         seed: Long = 42L,
         deckList: String? = null,
         variant: String? = null,
-    ) = base.startGameAtMain1(seed, deckList, variant)
+    ): Board = trackResult(Board.startGameAtMain1(seed, deckList, variant))
 
-    fun startPuzzleAtMain1(puzzleText: String) = base.startPuzzleAtMain1(puzzleText)
+    /**
+     * Start a game from an inline puzzle definition — no mulligan, no turn advancement.
+     *
+     * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
+     */
+    fun startPuzzleAtMain1(puzzleText: String): Board = trackResult(Board.startPuzzleAtMain1(puzzleText))
 
-    fun startPuzzleAtMain1FromResource(resourcePath: String) = base.startPuzzleAtMain1FromResource(resourcePath)
+    /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
+    fun startPuzzleAtMain1FromResource(resourcePath: String): Board = trackResult(Board.startPuzzleAtMain1FromResource(resourcePath))
+
+    private fun trackResult(result: Board): Board {
+        bridge = result.bridge
+        testCounter = result.counter
+        return result
+    }
 
     /** Register a manually constructed [GameBridge] so teardown shuts it down after the test. */
     fun useBridge(b: GameBridge) {
-        base.bridge = b
+        bridge = b
     }
 
     fun addCard(
         name: String,
         player: Player,
         zone: ZoneType = ZoneType.Battlefield,
-    ): Card = base.addCard(name, player, zone)
+    ): Card = Board.createCard(name, player, zone)
 
     // --- Board actions ---
 
@@ -125,35 +175,115 @@ abstract class BoardTest(
     /** Resolve multiple cards by name in one go — `human.battlefield.iids("A", "B")`. */
     fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
 
-    private fun currentBridge(): GameBridge = base.bridge ?: error("Call a start*() method before using the probe DSL")
+    private fun currentBridge(): GameBridge = bridge ?: error("Call a start*() method before using the probe DSL")
 
-    // --- Delegated bundle/capture ---
+    // --- Bundle / action-loop helpers ---
 
-    fun bundleBuilder(b: GameBridge) = base.bundleBuilder(b)
+    /** Create a [BundleBuilder] with standard test constants. */
+    fun bundleBuilder(b: GameBridge): BundleBuilder = BundleBuilder(b, Board.TEST_MATCH_ID, Board.SEAT_ID)
 
+    /**
+     * Build a Full state GSM simulating the handshake baseline.
+     * Accumulator-based tests need this before processing thin Diffs from gameStart.
+     */
     fun handshakeFull(
         game: Game,
         b: GameBridge,
         gsId: Int,
-    ) = base.handshakeFull(game, b, gsId)
+    ): GameStateMessage {
+        val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, gsId)
+        return StateMapper.buildFromSnapshot(snap, gsId, Board.TEST_MATCH_ID, b, viewingSeatId = Board.SEAT_ID).gsm
+    }
 
-    fun playLand(b: GameBridge) = base.playLand(b)
+    fun playLand(b: GameBridge): PlayerAction.PlayLand? {
+        val player = b.getPlayer(SeatId(1)) ?: return null
+        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
+        val pending = awaitFreshPending(b, null) ?: return null
+        val action = PlayerAction.PlayLand(ForgeCardId(land.id))
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, action)
+        awaitFreshPending(b, pending.actionId)
+        return action
+    }
 
-    fun castCreature(b: GameBridge) = base.castCreature(b)
+    fun castCreature(b: GameBridge): PlayerAction.CastSpell? {
+        val player = b.getPlayer(SeatId(1)) ?: return null
+        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
+        val pending = awaitFreshPending(b, null) ?: return null
+        val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, action)
+        awaitFreshPending(b, pending.actionId)
+        return action
+    }
 
-    fun passPriority(b: GameBridge) = base.passPriority(b)
+    fun passPriority(b: GameBridge) {
+        val pending = awaitFreshPending(b, null) ?: return
+        b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
+        awaitFreshPending(b, pending.actionId)
+    }
 
     // --- Cast/resolve convenience captures ---
 
-    fun castSpellBundle() = base.castSpellBundle()
+    /** Play a land and capture the resulting GSM. */
+    fun playLandAndCapture(): GameStateMessage? {
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        return board.postAction().gsmOrNull
+    }
 
-    fun castSpellAndCapture() = base.castSpellAndCapture()
+    /**
+     * Cast a creature spell and capture the full bundle.
+     * Plays a land first for mana. With CastSpell split, this returns the
+     * QueuedGSM triplet + ActionsAvailableReq.
+     */
+    fun castSpellBundle(): BundleBuilder.BundleResult? {
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        board.bridge.seedDiffBaseline(board.game)
+        castCreature(board.bridge) ?: return null
+        return board.postAction()
+    }
 
-    fun castSpellAndCaptureWithIds() = base.castSpellAndCaptureWithIds()
+    /**
+     * Cast a creature spell and capture the on-stack GSM.
+     * Plays a land first for mana. Returns merged GSM with all annotations
+     * from the QueuedGSM triplet combined.
+     */
+    fun castSpellAndCapture(): GameStateMessage? = castSpellBundle()?.mergedGsm
 
-    fun resolveAndCapture() = base.resolveAndCapture()
+    /**
+     * Cast a creature and capture GSM + pre/post instanceIds.
+     * Returns (gsm, origInstanceId, newInstanceId).
+     */
+    fun castSpellAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        board.bridge.seedDiffBaseline(board.game)
 
-    fun playLandAndCapture() = base.playLandAndCapture()
+        val action = castCreature(board.bridge) ?: return null
+        // Use mergedGsm to combine QueuedGSM triplet annotations into one GSM
+        val gsm = board.postAction().mergedGsm
+        val origInstanceId = gsm.annotation(AnnotationType.ObjectIdChanged).detailInt("orig_id")
+        val newInstanceId = board.bridge.getOrAllocInstanceId(action.cardId).value
+
+        return Triple(gsm, origInstanceId, newInstanceId)
+    }
+
+    /**
+     * Full cast+resolve cycle: play land -> cast creature -> pass priority.
+     * Returns the GSM from the resolution step.
+     */
+    fun resolveAndCapture(): GameStateMessage? {
+        val board = startGameAtMain1()
+        playLand(board.bridge) ?: return null
+        board.bridge.seedDiffBaseline(board.game)
+
+        castCreature(board.bridge) ?: return null
+        board.postAction() // capture cast result (advances counter)
+        board.bridge.seedDiffBaseline(board.game)
+
+        passPriority(board.bridge)
+        return board.postAction().gsmOrNull
+    }
 
     companion object {
         const val SEAT_ID = Board.SEAT_ID

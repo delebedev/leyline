@@ -2,14 +2,12 @@ package leyline.testkit
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.BoardTag
 import leyline.bridge.types.InstanceId
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -24,20 +22,15 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
  * tests the deck registration path.
  */
 class CardInjectionTest :
-    FunSpec({
-        tags(BoardTag)
-
-        val base = BoardTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+    BoardTest({
 
         test("injected Serra Angel appears in GSM with correct metadata") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
-            val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
+            val board = startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(board.bridge, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
-            val gsId1 = counter.nextGsId()
-            val snap1 = GsmSnapshot.capture(game, b, "test", gsId1)
-            val gsm = StateMapper.buildFromSnapshot(snap1, gsId1, "test", b, viewingSeatId = 1).gsm
+            val gsId1 = board.counter.nextGsId()
+            val snap1 = GsmSnapshot.capture(board.game, board.bridge, "test", gsId1)
+            val gsm = StateMapper.buildFromSnapshot(snap1, gsId1, "test", board.bridge, viewingSeatId = 1).gsm
             val obj =
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
@@ -51,9 +44,11 @@ class CardInjectionTest :
                 obj.toughness.value shouldBe 4
                 obj.uniqueAbilitiesCount shouldBeGreaterThanOrEqual 2
 
-                b.getForgeCardId(InstanceId(injected.instanceId))?.value shouldBe injected.forgeCardId
-                b.cardRepository.findByGrpId(injected.grpId).shouldNotBeNull()
-                b.cardRepository.findNameByGrpId(injected.grpId) shouldBe "Serra Angel"
+                board.bridge.getForgeCardId(InstanceId(injected.instanceId))?.value shouldBe injected.forgeCardId
+                board.bridge.cardRepository
+                    .findByGrpId(injected.grpId)
+                    .shouldNotBeNull()
+                board.bridge.cardRepository.findNameByGrpId(injected.grpId) shouldBe "Serra Angel"
             }
 
             val acc = ClientAccumulator()
@@ -62,12 +57,12 @@ class CardInjectionTest :
         }
 
         test("injected creature to hand is visible in hand zone") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
-            val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
+            val board = startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(board.bridge, 1, "Lightning Bolt", ZoneType.Hand)
 
-            val gsId2 = counter.nextGsId()
-            val snap2 = GsmSnapshot.capture(game, b, "test", gsId2)
-            val gsm = StateMapper.buildFromSnapshot(snap2, gsId2, "test", b, viewingSeatId = 1).gsm
+            val gsId2 = board.counter.nextGsId()
+            val snap2 = GsmSnapshot.capture(board.game, board.bridge, "test", gsId2)
+            val gsm = StateMapper.buildFromSnapshot(snap2, gsId2, "test", board.bridge, viewingSeatId = 1).gsm
             val obj =
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
@@ -86,10 +81,10 @@ class CardInjectionTest :
         }
 
         test("CardDataDeriver produces consistent grpIds for same card name") {
-            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            val board = startWithBoard { _, _, _ -> }
 
-            val first = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
-            val second = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
+            val first = TestCardInjector.inject(board.bridge, 1, "Grizzly Bears", ZoneType.Battlefield)
+            val second = TestCardInjector.inject(board.bridge, 1, "Grizzly Bears", ZoneType.Battlefield)
 
             assertSoftly {
                 first.grpId shouldBe second.grpId
@@ -100,21 +95,21 @@ class CardInjectionTest :
 
         test("auto-register deck list populates repository for all cards") {
             val deckList = "30 Plains\n20 Serra Angel\n10 Lightning Bolt"
-            val (b, _, _) = base.startGameAtMain1(deckList = deckList)
+            val board = startGameAtMain1(deckList = deckList)
 
             val registeredNames =
                 listOf("Plains", "Serra Angel", "Lightning Bolt")
-                    .filter { b.cardRepository.findGrpIdByName(it) != null }
+                    .filter { board.bridge.cardRepository.findGrpIdByName(it) != null }
             registeredNames shouldBe listOf("Plains", "Serra Angel", "Lightning Bolt")
         }
 
         test("injected land enters tapped when requested") {
-            val (b, game, counter) = base.startWithBoard { _, _, _ -> }
-            val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
+            val board = startWithBoard { _, _, _ -> }
+            val injected = TestCardInjector.inject(board.bridge, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
-            val gsId3 = counter.nextGsId()
-            val snap3 = GsmSnapshot.capture(game, b, "test", gsId3)
-            val gsm = StateMapper.buildFromSnapshot(snap3, gsId3, "test", b, viewingSeatId = 1).gsm
+            val gsId3 = board.counter.nextGsId()
+            val snap3 = GsmSnapshot.capture(board.game, board.bridge, "test", gsId3)
+            val gsm = StateMapper.buildFromSnapshot(snap3, gsId3, "test", board.bridge, viewingSeatId = 1).gsm
             val obj =
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },

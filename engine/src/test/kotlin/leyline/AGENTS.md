@@ -54,12 +54,12 @@ testkit/
 ├── ProtoDsl.kt               builder DSL for client→GRE messages (main-source; performAction { ... })
 ├── Board.kt                  board-tier context (bridge, game, counter) returned by BoardTest's start* methods;
 │                             destructures as (bridge, game, counter) for legacy call sites; single implementation
-│                             of snapshotDiff/postAction/gameStart/transferCard — the (b, game, counter)-parameter
-│                             helpers on BoardTest/BoardTestBase delegate here
-├── BoardTestBase.kt          board-tier engine behind BoardTest; construct directly only for an isolated
-│                             instance outside BoardTest's shared one (see PureDiffReplayTest)
-├── BoardTest.kt              preferred board-tier base; wires lifecycle + BoardTag, hosts the board-tier
-│                             probe DSL (Player.battlefield/hand/….iid(name) via the current board's bridge)
+│                             of snapshotDiff/postAction/gameStart/transferCard
+├── BoardTest.kt              board-tier base; wires lifecycle (initCardDatabase/tearDown) + BoardTag directly,
+│                             hosts the board-tier probe DSL (Player.battlefield/hand/….iid(name) via the
+│                             current board's bridge) and the cast/resolve convenience flows
+├── IsolatedBoardLifecycle.kt standalone bridge/counter lifecycle for tests that need more than one independent
+│                             Board within a single test body (see PureDiffReplayTest) — not a spec base class
 ├── SessionTest.kt            base class — wires MatchFlowHarness, exposes selectTargets/passUntil/instanceIdOf, after { } slice builder, Player.{battlefield,hand,…}.iid(name) probe DSL
 ├── MessageSlice.kt           bounded slice of GREToClientMessage from after { } — typed expectOne*/expectNo* prompt assertions + block-form prompt-shape sub-DSL
 ├── PlayerZone.kt             (player, zone) probe handle + shared iidVia(bridge, name) resolver behind both bases' probe DSLs

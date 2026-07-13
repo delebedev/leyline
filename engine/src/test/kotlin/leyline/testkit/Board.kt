@@ -264,3 +264,11 @@ class Board(
         }
     }
 }
+
+/** The human (non-AI) player. Use after any start* method. */
+val Game.humanPlayer: Player
+    get() = players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+
+/** The AI player. Use after any start* method. */
+val Game.aiPlayer: Player
+    get() = players.first { it.lobbyPlayer is forge.ai.LobbyPlayerAi }
