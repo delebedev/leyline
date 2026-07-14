@@ -8,6 +8,7 @@ import leyline.game.codes.CounterTypes
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -140,6 +141,7 @@ class AnnotationContext(
     }
 
     fun targetSpecAbilityGrpId(spec: InteractivePromptBridge.PendingTarget): Int {
+        if (spec.promptId == PromptIds.MUTATE_TARGET) return 0
         spec.abilityIdentity
             ?.abilityGrpId
             ?.takeIf { it != 0 }
