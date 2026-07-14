@@ -111,11 +111,15 @@ class AutoPassEngine(
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
                         val bb = bundles.bundleBuilder
+                        if (drainPlayback()) return@repeat
+                        if (bridge.seat(counters.seatId).action.getPending() == null) {
+                            log.debug("SEND_STATE: no pending priority window at {}", phase)
+                            sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
+                            return
+                        }
                         val candidates = human?.let { PriorityActionCandidates.query(game, it) }
                         val actions = bb.buildActions(candidates)
-                        if (drainPlayback()) return@repeat
-                        val hasPendingWindow = bridge.seat(counters.seatId).action.getPending() != null
-                        if (hasPendingWindow && !BundleBuilder.shouldAutoPass(actions)) {
+                        if (!BundleBuilder.shouldAutoPass(actions)) {
                             sink.sendPriorityState(bridge, checkNotNull(candidates))
                             return
                         }
@@ -126,9 +130,6 @@ class AutoPassEngine(
                         // pending pass-only action, fall through to advanceOrWait so it
                         // auto-passes via edictalPass + submitAction. Without this the
                         // engine hangs until bridgeTimeoutMs.
-                        if (bridge.seat(counters.seatId).action.getPending() == null) {
-                            return
-                        }
                     }
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check

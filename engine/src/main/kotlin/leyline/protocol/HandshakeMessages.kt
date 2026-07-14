@@ -493,32 +493,6 @@ object HandshakeMessages {
         return wrapGre(*messages.toTypedArray()) to msgId
     }
 
-    /**
-     * Puzzle ActionsAvailableReq — first priority stop actions for the puzzle.
-     * Follows the Full GSM in the puzzle initial bundle.
-     */
-    fun puzzleActionsReq(
-        msgId: Int,
-        gameStateId: Int,
-        seatId: SeatId,
-        bridge: GameBridge,
-    ): Pair<MatchServiceToClientMessage, Int> {
-        val game = bridge.getGame()!!
-        val snap = GsmSnapshot.capture(game, bridge, "", 0)
-        val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .addSystemSeatIds(seatId.value)
-                .setMsgId(msgId)
-                .setGameStateId(gameStateId)
-                .setActionsAvailableReq(actions)
-                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                .build()
-        return wrapGre(gre) to (msgId + 1)
-    }
-
     /** SetSettingsResp — echo client settings back. */
     fun settingsResp(
         seatId: SeatId,

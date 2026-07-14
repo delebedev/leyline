@@ -610,8 +610,13 @@ class AutoPassEngineTest :
             closePriorityWindow(bridge, pending)
         }
 
-        test("autoPassAndAdvance — SEND_STATE with pass-only actions emits state-only bundle") {
-            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
+        test("autoPassAndAdvance — SEND_STATE without a pending window emits state only") {
+            val (bridge, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =

@@ -454,6 +454,9 @@ class DebugServer(
             }
 
         val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
+        bridge.awaitPriority()
+        val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
+        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }
 
         val counter = newSession.counter
         val gsId = counter.nextGsId()
@@ -505,8 +508,6 @@ class DebugServer(
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
-        val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }
         check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
             "Puzzle hot-swap could not bind priority actions"
         }

@@ -9,6 +9,7 @@ import leyline.UnitTag
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
@@ -234,5 +235,39 @@ class GameActionBridgeTest :
                 gameStateId = 12,
                 offers = listOf(GameActionBridge.ActionOffer(pass, PlayerAction.PassPriority)),
             ) shouldBe false
+        }
+
+        test("catalog rejects duplicate response keys with distinct commands") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val ready = CountDownLatch(1)
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            engineThread.isDaemon = true
+            engineThread.start()
+            ready.await(2, TimeUnit.SECONDS)
+
+            val pending = pollForPending(bridge).shouldNotBeNull()
+            val play =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Play_add3)
+                    .setInstanceId(14)
+                    .build()
+            bridge.bindActionCatalog(
+                pending.actionId,
+                12,
+                listOf(
+                    GameActionBridge.ActionOffer(play, PlayerAction.PlayLand(ForgeCardId(1))),
+                    GameActionBridge.ActionOffer(play, PlayerAction.PlayLand(ForgeCardId(2))),
+                ),
+            ) shouldBe false
+
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            engineThread.join(2000)
         }
     })

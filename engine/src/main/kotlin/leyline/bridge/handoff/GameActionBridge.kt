@@ -213,9 +213,21 @@ class GameActionBridge(
         gameStateId: Int,
         offers: List<ActionOffer>,
     ): Boolean {
-        // Payment/auto-tap variants share a canonical response key and the
-        // same pre-bound command. Keep the first server-provided projection.
-        val catalog = offers.associateBy { ActionResponseKey.from(it.action) }
+        // Payment/auto-tap variants may share a canonical response key only
+        // when they retain one exact execution identity.
+        val groupedOffers = offers.groupBy { ActionResponseKey.from(it.action) }
+        val hasAmbiguousKey =
+            groupedOffers.values.any { variants ->
+                variants
+                    .map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }
+                    .distinct()
+                    .size > 1
+            }
+        if (hasAmbiguousKey) {
+            log.warn("Refusing ambiguous action catalog with duplicate response keys")
+            return false
+        }
+        val catalog = groupedOffers.mapValues { (_, variants) -> variants.first() }
 
         val current = pending.get() ?: return false
         synchronized(current) {
