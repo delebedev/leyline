@@ -357,8 +357,8 @@ class AbilityRegistryTest :
                 secondCopy.id shouldNotBe second.id
                 firstCopy.definitionId shouldBe first.definitionId
                 secondCopy.definitionId shouldBe second.definitionId
-                registry.resolve(AbilityDefinitionRef.SpellAbility(firstCopy.definitionId))?.abilityGrpId shouldBe 9001
-                registry.resolve(AbilityDefinitionRef.SpellAbility(secondCopy.definitionId))?.abilityGrpId shouldBe 9002
+                registry.forSpellAbility(firstCopy) shouldBe 9001
+                registry.forSpellAbility(secondCopy) shouldBe 9002
             }
         }
     })

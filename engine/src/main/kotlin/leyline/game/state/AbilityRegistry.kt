@@ -29,6 +29,9 @@ class AbilityRegistry private constructor(
     private val keywordFamilies: Map<AbilityDefinitionRef, AbilityKeywordFamily>,
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
 ) {
+    /** Resolve a live or copied SpellAbility through its stable definition identity. */
+    fun forSpellAbility(ability: SpellAbility): Int? = forSpellAbility(ability.definitionId)
+
     /** SpellAbility definition ID → abilityGrpId (mana + activated). */
     fun forSpellAbility(definitionId: Int): Int? = resolve(AbilityDefinitionRef.SpellAbility(definitionId))?.abilityGrpId
 

@@ -334,7 +334,7 @@ class MatchFlowHarness(
         val cardData = bridge.cardRepository.findByGrpId(grpId)
         val ability = getPlayableManaAbilities(card, player).getOrNull(abilityIndex) ?: return false
         val abilityGrpId =
-            bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id)
+            bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability)
                 ?: basicLandAbilityGrpId(card)
         val offer =
             ActionMapper
@@ -864,7 +864,7 @@ class MatchFlowHarness(
         val ability = bridge.getPlayer(seatId)?.let { getNonManaActivatedAbilities(card, it).getOrNull(abilityIndex) }
         val abilityGrpId =
             if (cardData != null && ability != null) {
-                bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id) ?: 0
+                bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability) ?: 0
             } else {
                 0
             }
