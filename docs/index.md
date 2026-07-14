@@ -24,6 +24,7 @@ Start here for the public technical docs.
 - [`decisions/0009-reuse-forge-human-cost-decisions.md`](decisions/0009-reuse-forge-human-cost-decisions.md) — shared Forge human cost rules with frontend-specific controller choice hooks
 - [`decisions/0010-bind-priority-actions-at-projection-source.md`](decisions/0010-bind-priority-actions-at-projection-source.md) — executable priority commands bound beside their protocol actions, without reverse reconstruction
 - [`decisions/0011-preserve-ability-definition-identity.md`](decisions/0011-preserve-ability-definition-identity.md) — stable ability definitions separated from unique runtime invocations across events, stack projection, and prompts
+- [`decisions/0012-bind-prompt-routes-once.md`](decisions/0012-bind-prompt-routes-once.md) — one resolved prompt route carried through request emission, re-prompting, and response handling
 
 ## Setup
 
