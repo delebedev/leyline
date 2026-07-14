@@ -13,6 +13,7 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.PromptChoiceDto
 import leyline.bridge.types.PromptOptionDto
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -63,6 +64,9 @@ class InteractivePromptBridge(
     var instanceIdReservoir: (() -> InstanceId)? = null
 
     @Volatile
+    var abilityIdentityResolver: ((SpellAbility) -> ResolvedAbilityIdentity?)? = null
+
+    @Volatile
     var timeoutListener: (() -> Unit)? = null
 
     /**
@@ -103,9 +107,9 @@ class InteractivePromptBridge(
      * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
      * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      *
-     * [forgeAbilityId] is the Forge `SpellAbility.id` for the targeting
-     * spell/ability. It drives TargetSpec abilityGrpId resolution; for
-     * triggered abilities it also drives stack-ability iid resolution when
+     * [abilityIdentity] fixes the definition and client row while the callback
+     * still owns the exact Forge ability. [forgeAbilityId] is the runtime
+     * `SpellAbility.id`; for triggered abilities it drives stack-ability iid resolution when
      * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
      *
      * [affectorInstanceIdAtRecord] is the spell/ability iid as it stood at
@@ -125,8 +129,8 @@ class InteractivePromptBridge(
         val targetForgeCardId: Int? = null,
         val targetSeatId: Int? = null,
         val isTriggeredAbility: Boolean = false,
-        val abilityGrpId: Int? = null,
         val promptId: Int? = null,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** Forge `SpellAbility.id` for the targeting spell/ability. */
         val forgeAbilityId: Int = 0,
     )
@@ -164,6 +168,8 @@ class InteractivePromptBridge(
          * Null for non-targeting prompts.
          */
         val targetingSa: SpellAbility? = null,
+        /** Stable definition and client row fixed at prompt creation. */
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
     )
 
     // ── Call history ────────────────────────────────────────────────────────
@@ -367,7 +373,7 @@ class InteractivePromptBridge(
 
         val promptId = UUID.randomUUID().toString()
         val future = CompletableFuture<List<Int>>()
-        val prompt = PendingPrompt(promptId, request, future, targetingSa)
+        val prompt = PendingPrompt(promptId, request, future, targetingSa, targetingSa?.let { resolveAbilityIdentity(it) })
 
         if (!pending.compareAndSet(null, prompt)) {
             if (strict) {
@@ -451,6 +457,8 @@ class InteractivePromptBridge(
         val p = pending.get() ?: return null
         return if (p.future.isDone) null else p
     }
+
+    fun resolveAbilityIdentity(ability: SpellAbility): ResolvedAbilityIdentity? = abilityIdentityResolver?.invoke(ability)
 
     /**
      * Block until a prompt becomes pending (poll-based).

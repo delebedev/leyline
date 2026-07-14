@@ -2,8 +2,12 @@ package leyline.game.state
 
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
+import leyline.bridge.types.AbilityDefinitionRef
+import leyline.bridge.types.AbilityKeywordFamily
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.codes.SlotEntry
 import leyline.game.codes.SlotKind
 import leyline.game.codes.SlotLayout
@@ -11,7 +15,7 @@ import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 
 /**
- * Maps Forge trait IDs (SpellAbility, Trigger, StaticAbility) to client
+ * Maps stable Forge definition IDs (SpellAbility, Trigger, StaticAbility) to client
  * abilityGrpId slots for a single card.
  *
  * Slot ordering follows [CardData.abilityIds] verbatim — the same shape
@@ -22,20 +26,34 @@ class AbilityRegistry private constructor(
     private val saMap: Map<Int, Int>,
     private val staticMap: Map<Int, Int>,
     private val triggerMap: Map<Int, Int>,
+    private val keywordFamilies: Map<AbilityDefinitionRef, AbilityKeywordFamily>,
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
 ) {
-    /** SpellAbility forge id → abilityGrpId (mana + activated). */
-    fun forSpellAbility(forgeId: Int): Int? = saMap[forgeId]
+    /** Resolve a live or copied SpellAbility through its stable definition identity. */
+    fun forSpellAbility(ability: SpellAbility): Int? = forSpellAbility(ability.definitionId)
 
-    /** StaticAbility forge id → abilityGrpId. */
-    fun forStaticAbility(forgeId: Int): Int? = staticMap[forgeId]
+    /** SpellAbility definition ID → abilityGrpId (mana + activated). */
+    fun forSpellAbility(definitionId: Int): Int? = resolve(AbilityDefinitionRef.SpellAbility(definitionId))?.abilityGrpId
 
-    /** Trigger forge id → abilityGrpId. */
-    fun forTrigger(forgeId: Int): Int? = triggerMap[forgeId]
+    /** StaticAbility definition ID → abilityGrpId. */
+    fun forStaticAbility(definitionId: Int): Int? = resolve(AbilityDefinitionRef.StaticAbility(definitionId))?.abilityGrpId
+
+    /** Trigger definition ID → abilityGrpId. */
+    fun forTrigger(definitionId: Int): Int? = resolve(AbilityDefinitionRef.Trigger(definitionId))?.abilityGrpId
+
+    fun resolve(definition: AbilityDefinitionRef): ResolvedAbilityIdentity? {
+        val abilityGrpId =
+            when (definition) {
+                is AbilityDefinitionRef.SpellAbility -> saMap[definition.definitionId]
+                is AbilityDefinitionRef.Trigger -> triggerMap[definition.definitionId]
+                is AbilityDefinitionRef.StaticAbility -> staticMap[definition.definitionId]
+            } ?: return null
+        return ResolvedAbilityIdentity(definition, abilityGrpId, keywordFamilies[definition])
+    }
 
     companion object {
         /** Empty registry — no mappings. */
-        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), SlotLayout.Companion.EMPTY)
+        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), SlotLayout.Companion.EMPTY)
 
         /**
          * Build a registry from a live Forge [card] and its [cardData].
@@ -52,8 +70,9 @@ class AbilityRegistry private constructor(
             val saMap = mutableMapOf<Int, Int>()
             val staticMap = mutableMapOf<Int, Int>()
             val triggerMap = mutableMapOf<Int, Int>()
+            val keywordFamilies = mutableMapOf<AbilityDefinitionRef, AbilityKeywordFamily>()
 
-            val keywordCount = mapKeywords(card, abilityIds, saMap, staticMap, triggerMap)
+            val keywordCount = mapKeywords(card, abilityIds, saMap, staticMap, triggerMap, keywordFamilies)
             val slotKinds =
                 abilityIds.mapIndexed { i, _ ->
                     when {
@@ -102,7 +121,7 @@ class AbilityRegistry private constructor(
                 } + virtualSlots
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
-            return AbilityRegistry(saMap, staticMap, triggerMap, layout)
+            return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, layout)
         }
 
         /**
@@ -125,7 +144,7 @@ class AbilityRegistry private constructor(
 
             val thresholdRows = abilityIds.map { it.first }.filter { it >= STATION_THRESHOLD_ABILITY_ID_FLOOR }
             for ((staticAbility, grpId) in stationStatics.zip(thresholdRows)) {
-                staticMap[staticAbility.id] = grpId
+                staticMap[staticAbility.definitionId] = grpId
             }
         }
 
@@ -136,6 +155,7 @@ class AbilityRegistry private constructor(
             saMap: MutableMap<Int, Int>,
             staticMap: MutableMap<Int, Int>,
             triggerMap: MutableMap<Int, Int>,
+            keywordFamilies: MutableMap<AbilityDefinitionRef, AbilityKeywordFamily>,
         ): Int {
             val keywordStrings =
                 card.rules
@@ -154,9 +174,19 @@ class AbilityRegistry private constructor(
                     }
                 for (kw in matching) {
                     claimed.add(kw)
-                    for (sa in kw.abilities) saMap[sa.id] = grpId
-                    for (trig in kw.triggers) triggerMap[trig.id] = grpId
-                    for (st in kw.staticAbilities) staticMap[st.id] = grpId
+                    val family = keywordFamily(kw)
+                    for (sa in kw.abilities) {
+                        saMap[sa.definitionId] = grpId
+                        family?.let { keywordFamilies[AbilityDefinitionRef.SpellAbility(sa.definitionId)] = it }
+                    }
+                    for (trig in kw.triggers) {
+                        triggerMap[trig.definitionId] = grpId
+                        family?.let { keywordFamilies[AbilityDefinitionRef.Trigger(trig.definitionId)] = it }
+                    }
+                    for (st in kw.staticAbilities) {
+                        staticMap[st.definitionId] = grpId
+                        family?.let { keywordFamilies[AbilityDefinitionRef.StaticAbility(st.definitionId)] = it }
+                    }
                 }
             }
             return keywordStrings.size
@@ -181,7 +211,7 @@ class AbilityRegistry private constructor(
             for (sa in nonManaActivatedAbilities(card)) {
                 if (!sa.isActivatedAbility || sa.isManaAbility()) continue
                 if (isReconfigureUnattach(sa)) {
-                    saMap[sa.id] = KeywordAbilityIds.RECONFIGURE_UNATTACH
+                    saMap[sa.definitionId] = KeywordAbilityIds.RECONFIGURE_UNATTACH
                     continue
                 }
                 if (idx >= activatedSlotIndices.size) {
@@ -189,19 +219,19 @@ class AbilityRegistry private constructor(
                     continue
                 }
                 val slotIdx = activatedSlotIndices[idx]
-                if (slotIdx < abilityIds.size) saMap[sa.id] = abilityIds[slotIdx].first
+                if (slotIdx < abilityIds.size) saMap[sa.definitionId] = abilityIds[slotIdx].first
                 idx++
             }
         }
 
         private fun nonManaActivatedAbilities(card: Card): List<SpellAbility> {
             val abilities = card.spellAbilities.toMutableList()
-            val seen = abilities.map { it.id }.toMutableSet()
+            val seen = abilities.map { it.definitionId }.toMutableSet()
             for (sa in card.allSpellAbilities.orEmpty()) {
-                if (sa.id in seen) continue
+                if (sa.definitionId in seen) continue
                 if (sa.isActivatedAbility && !sa.isManaAbility()) {
                     abilities.add(sa)
-                    seen.add(sa.id)
+                    seen.add(sa.definitionId)
                 }
             }
             return abilities
@@ -212,7 +242,7 @@ class AbilityRegistry private constructor(
             saMap: MutableMap<Int, Int>,
         ) {
             for (sa in card.allSpellAbilities.orEmpty()) {
-                if (isReconfigureUnattach(sa)) saMap[sa.id] = KeywordAbilityIds.RECONFIGURE_UNATTACH
+                if (isReconfigureUnattach(sa)) saMap[sa.definitionId] = KeywordAbilityIds.RECONFIGURE_UNATTACH
             }
         }
 
@@ -229,7 +259,7 @@ class AbilityRegistry private constructor(
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
                 val slotIdx = manaSlotIndices.getOrNull(idx)
                 val grpId = if (slotIdx != null && slotIdx < abilityIds.size) abilityIds[slotIdx].first else fallbackGrpId
-                saMap.putIfAbsent(sa.id, grpId)
+                saMap.putIfAbsent(sa.definitionId, grpId)
                 idx++
             }
         }
@@ -248,7 +278,7 @@ class AbilityRegistry private constructor(
             if (cardData.abilityKinds.size != abilityIds.size) return
             val triggers =
                 card.triggers
-                    ?.filter { it.isIntrinsic && it.id !in triggerMap }
+                    ?.filter { it.isIntrinsic && it.definitionId !in triggerMap }
                     .orEmpty()
             if (triggers.isEmpty()) return
             val intrinsicSlots =
@@ -257,7 +287,7 @@ class AbilityRegistry private constructor(
                 }
             if (intrinsicSlots.size != triggers.size) return
             for ((trig, slotIdx) in triggers.zip(intrinsicSlots)) {
-                triggerMap[trig.id] = abilityIds[slotIdx].first
+                triggerMap[trig.definitionId] = abilityIds[slotIdx].first
             }
         }
 
@@ -273,7 +303,7 @@ class AbilityRegistry private constructor(
             if (cardData.abilityKinds.size != abilityIds.size) return
             val statics =
                 card.staticAbilities
-                    ?.filter { it.id !in staticMap }
+                    ?.filter { it.definitionId !in staticMap }
                     .orEmpty()
             if (statics.isEmpty()) return
             val intrinsicSlots =
@@ -282,7 +312,7 @@ class AbilityRegistry private constructor(
                 }
             if (intrinsicSlots.size != statics.size) return
             for ((staticAbility, slotIdx) in statics.zip(intrinsicSlots)) {
-                staticMap[staticAbility.id] = abilityIds[slotIdx].first
+                staticMap[staticAbility.definitionId] = abilityIds[slotIdx].first
             }
         }
 
@@ -298,7 +328,7 @@ class AbilityRegistry private constructor(
             if (cardData.abilityKinds.size == abilityIds.size) return
             val statics =
                 card.staticAbilities
-                    ?.filter { it.id !in staticMap }
+                    ?.filter { it.definitionId !in staticMap }
                     .orEmpty()
             if (statics.isEmpty()) return
             val activatedCount =
@@ -307,7 +337,7 @@ class AbilityRegistry private constructor(
             val staticSlots = (keywordCount until abilityIds.size).drop(activatedCount)
             if (staticSlots.size != statics.size) return
             for ((staticAbility, slotIdx) in statics.zip(staticSlots)) {
-                staticMap[staticAbility.id] = abilityIds[slotIdx].first
+                staticMap[staticAbility.definitionId] = abilityIds[slotIdx].first
             }
         }
 
@@ -320,11 +350,11 @@ class AbilityRegistry private constructor(
         ) {
             for (st in card.staticAbilities ?: emptyList()) {
                 if (!st.isIntrinsic) continue
-                staticMap.putIfAbsent(st.id, fallbackGrpId)
+                staticMap.putIfAbsent(st.definitionId, fallbackGrpId)
             }
             for (trig in card.triggers ?: emptyList()) {
                 if (!trig.isIntrinsic) continue
-                triggerMap.putIfAbsent(trig.id, fallbackGrpId)
+                triggerMap.putIfAbsent(trig.definitionId, fallbackGrpId)
             }
         }
 
@@ -338,6 +368,8 @@ class AbilityRegistry private constructor(
             return rulesText.startsWith(kwName, ignoreCase = true)
         }
 
+        private fun keywordFamily(keyword: KeywordInterface): AbilityKeywordFamily? = KEYWORD_FAMILIES[keyword.keyword]
+
         private fun reconfigureUnattachSlot(card: Card): List<SlotEntry> =
             if (card.allSpellAbilities.orEmpty().any { isReconfigureUnattach(it) }) {
                 listOf(SlotEntry(KeywordAbilityIds.RECONFIGURE_UNATTACH, 0, SlotKind.Activated))
@@ -349,5 +381,11 @@ class AbilityRegistry private constructor(
             sa.api == ApiType.Unattach && sa.getParam("PrecostDesc") == "Reconfigure"
 
         private const val STATION_THRESHOLD_ABILITY_ID_FLOOR = 60_000
+
+        private val KEYWORD_FAMILIES =
+            mapOf(
+                Keyword.BACKUP to AbilityKeywordFamily.Backup,
+                Keyword.MENTOR to AbilityKeywordFamily.Mentor,
+            )
     }
 }

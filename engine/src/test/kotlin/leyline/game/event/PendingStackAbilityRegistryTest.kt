@@ -4,7 +4,9 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ResolvedAbilityIdentity
 
 class PendingStackAbilityRegistryTest :
     FunSpec({
@@ -13,7 +15,8 @@ class PendingStackAbilityRegistryTest :
         test("trigger context is visible until consumed") {
             val registry = PendingStackAbilityRegistry()
 
-            registry.recordTrigger(7, ForgeCardId(42), abilityGrpId = 101)
+            val identity = ResolvedAbilityIdentity(AbilityDefinitionRef.Trigger(5), 101)
+            registry.recordTrigger(7, ForgeCardId(42), identity)
 
             assertSoftly {
                 registry.isTriggerResolving(7) shouldBe true
@@ -21,7 +24,7 @@ class PendingStackAbilityRegistryTest :
                     PendingStackAbilityContext(
                         kind = PendingStackAbilityKind.Trigger,
                         sourceCardId = ForgeCardId(42),
-                        abilityGrpId = 101,
+                        identity = identity,
                     )
                 registry.isTriggerResolving(7) shouldBe false
                 registry.consume(7) shouldBe null
@@ -31,7 +34,8 @@ class PendingStackAbilityRegistryTest :
         test("activation context preserves ability grpId") {
             val registry = PendingStackAbilityRegistry()
 
-            registry.recordActivation(9, ForgeCardId(77), abilityGrpId = 202)
+            val identity = ResolvedAbilityIdentity(AbilityDefinitionRef.SpellAbility(6), 202)
+            registry.recordActivation(9, ForgeCardId(77), identity)
 
             assertSoftly {
                 registry.isTriggerResolving(9) shouldBe false
@@ -39,7 +43,7 @@ class PendingStackAbilityRegistryTest :
                     PendingStackAbilityContext(
                         kind = PendingStackAbilityKind.Activation,
                         sourceCardId = ForgeCardId(77),
-                        abilityGrpId = 202,
+                        identity = identity,
                     )
             }
         }
@@ -47,9 +51,26 @@ class PendingStackAbilityRegistryTest :
         test("ability lookup can stay trigger-only") {
             val registry = PendingStackAbilityRegistry()
 
-            registry.recordActivation(8, ForgeCardId(42), abilityGrpId = 777)
-            registry.recordTrigger(9, ForgeCardId(42), abilityGrpId = 777)
+            val activation = ResolvedAbilityIdentity(AbilityDefinitionRef.SpellAbility(5), 777)
+            val trigger = ResolvedAbilityIdentity(AbilityDefinitionRef.Trigger(5), 777)
+            registry.recordActivation(8, ForgeCardId(42), activation)
+            registry.recordTrigger(9, ForgeCardId(42), trigger)
 
             registry.abilityIdFor(ForgeCardId(42), 777, PendingStackAbilityKind.Trigger) shouldBe 9
+        }
+
+        test("repeated trigger firings keep distinct runtime ids and one definition identity") {
+            val registry = PendingStackAbilityRegistry()
+            val identity = ResolvedAbilityIdentity(AbilityDefinitionRef.Trigger(5), 101)
+
+            registry.recordTrigger(7, ForgeCardId(42), identity)
+            registry.recordTrigger(8, ForgeCardId(42), identity)
+
+            assertSoftly {
+                registry.contextFor(7)?.identity shouldBe identity
+                registry.contextFor(8)?.identity shouldBe identity
+                registry.consume(7)?.identity shouldBe identity
+                registry.contextFor(8)?.identity shouldBe identity
+            }
         }
     })

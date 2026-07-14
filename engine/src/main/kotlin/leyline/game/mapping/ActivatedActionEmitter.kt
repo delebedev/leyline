@@ -79,7 +79,7 @@ internal object ActivatedActionEmitter {
             val actionGrpId = grpId()
             val actionCardData = cardData(actionGrpId)
             val registry = abilityRegistryLookup(card, actionCardData)
-            val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+            val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
@@ -156,7 +156,7 @@ internal object ActivatedActionEmitter {
         val registry = abilityRegistryLookup(card, cardData)
         val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
         return abilities.mapIndexedNotNull { abilityIndex, sa ->
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
+            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
             val colors = producedManaColors(sa)
             if (colors.isEmpty()) return@mapIndexedNotNull null
 
@@ -233,7 +233,7 @@ internal object ActivatedActionEmitter {
         return card.manaAbilities.mapNotNull { sa ->
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
+            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
             val actionBuilder =
                 Action
                     .newBuilder()

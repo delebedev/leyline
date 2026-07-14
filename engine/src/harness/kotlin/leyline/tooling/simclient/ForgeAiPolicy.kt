@@ -160,13 +160,8 @@ class ForgeAiPolicy(
 
         val hostCard = sa.hostCard ?: return null
         val cardData = harness.bridge.cardRepository.findByGrpId(grpId) ?: return null
-        val abilityGrpId = harness.bridge.abilityRegistryFor(hostCard, cardData)?.forSpellAbility(sa.id) ?: return null
-        return promptActions.firstOrNull {
-            it.actionType == ActionType.Activate_add3 &&
-                it.instanceId == mappedInstanceId &&
-                it.abilityGrpId == abilityGrpId &&
-                !it.isSkippedBy(skipFingerprints)
-        }
+        val registry = harness.bridge.abilityRegistryFor(hostCard, cardData) ?: return null
+        return chooseActivatedAction(sa, registry, mappedInstanceId, promptActions, skipFingerprints)
     }
 
     private fun chooseCastVariant(

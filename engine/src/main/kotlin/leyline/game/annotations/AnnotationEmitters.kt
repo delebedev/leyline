@@ -145,7 +145,7 @@ internal fun buildAbilityExhaustedAnnotations(
                 card.manaAbilities.orEmpty() +
                 getNonManaActivatedAbilities(card, player)
         exhaustedAbilities(abilities).mapNotNull { ability ->
-            val abilityGrpId = registry.forSpellAbility(ability.id).takeIf { it != 0 } ?: return@mapNotNull null
+            val abilityGrpId = registry.forSpellAbility(ability.definitionId).takeIf { it != 0 } ?: return@mapNotNull null
             val usesRemaining = remainingUses(card, ability, player)
             AnnotationBuilder.abilityExhausted(
                 instanceId = frameIds.cardIid(bound.forgeCardId),

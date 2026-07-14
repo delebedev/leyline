@@ -234,7 +234,7 @@ object AnnotationPipeline {
                         val abilityIid = ctx.stackAbilityIid(cast.abilityForgeId, cast.cardId)
                         val grpId =
                             cast.abilityGrpId.takeIf { it != 0 }
-                                ?: ctx.abilityGrpIdForSource(cast.cardId, cast.abilityForgeId)
+                                ?: ctx.abilityGrpIdForSource(cast.cardId)
                         abilityIid to grpId
                     }
             } else {
@@ -467,7 +467,7 @@ object AnnotationPipeline {
                     sourceZoneAtCreate = sourceZone,
                     abilityGrpId =
                         cast.abilityGrpId.takeIf { it != 0 }
-                            ?: ctx.abilityGrpIdForSource(cast.cardId, cast.abilityForgeId),
+                            ?: ctx.abilityGrpIdForSource(cast.cardId),
                 ),
             )
             annotations.add(
@@ -504,7 +504,7 @@ object AnnotationPipeline {
                     sourceZoneAtCreate = sourceZone,
                     abilityGrpId =
                         cast.abilityGrpId.takeIf { it != 0 }
-                            ?: ctx.abilityGrpIdForSource(cast.cardId, cast.abilityForgeId),
+                            ?: ctx.abilityGrpIdForSource(cast.cardId),
                 ),
             )
             annotations.add(
@@ -537,7 +537,7 @@ object AnnotationPipeline {
             val abilityGrpId =
                 lineage?.abilityGrpId?.takeIf { it != 0 }
                     ?: resolved.abilityGrpId.takeIf { it != 0 }
-                    ?: ctx.abilityGrpIdForSource(resolved.cardId, resolved.abilityForgeId)
+                    ?: ctx.abilityGrpIdForSource(resolved.cardId)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))

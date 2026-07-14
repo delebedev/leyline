@@ -139,7 +139,6 @@ class ActionPerformer(
                 Tap.actionResult(action.actionType, action.instanceId, cast.cardId, submitted)
             }
             ActionType.Activate_add3 -> {
-                offer.stackAbilityGrpId?.let { grpId -> offer.forgeAbilityId?.let { bridge.recordStackAbilityGrpId(it, grpId) } }
                 val activate = command as? PlayerAction.ActivateAbility ?: return
                 val submitted = seatBridge.action.submitAction(pending.actionId, activate)
                 Tap.actionResult(action.actionType, action.instanceId, activate.cardId, submitted)
