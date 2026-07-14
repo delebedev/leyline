@@ -46,19 +46,19 @@ object SourceAbilityResolverFactory {
 
             // Continuous effects: use AbilityRegistry for precise lookup
             val registry = bridge.abilityRegistryFor(card, cardData) ?: return@resolver null
-            registry.forStaticAbility(staticId.toInt())?.let { return@resolver GrpId(it) }
+            val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() }
+            sourceStatic?.let { registry.forStaticAbility(it.definitionId)?.let { grpId -> return@resolver GrpId(grpId) } }
 
             // Keyword fallback: temporary statics from keyword triggers
-            val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() }
             val parentKeyword = sourceStatic?.keyword ?: return@resolver null
             for (sa in parentKeyword.abilities) {
-                registry.forSpellAbility(sa.id)?.let { return@resolver GrpId(it) }
+                registry.forSpellAbility(sa.definitionId)?.let { return@resolver GrpId(it) }
             }
             for (trig in parentKeyword.triggers) {
-                registry.forTrigger(trig.id)?.let { return@resolver GrpId(it) }
+                registry.forTrigger(trig.definitionId)?.let { return@resolver GrpId(it) }
             }
             for (st in parentKeyword.staticAbilities) {
-                registry.forStaticAbility(st.id)?.let { return@resolver GrpId(it) }
+                registry.forStaticAbility(st.definitionId)?.let { return@resolver GrpId(it) }
             }
             null
         }

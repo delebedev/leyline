@@ -1,6 +1,11 @@
 package leyline.game.state
 
+import forge.game.Game
 import forge.game.ability.ApiType
+import forge.game.card.Card
+import forge.game.cost.Cost
+import forge.game.keyword.Keyword
+import forge.game.spellability.AbilityActivated
 import forge.game.staticability.StaticAbilityMode
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -8,6 +13,9 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import leyline.bridge.types.AbilityDefinitionRef
+import leyline.bridge.types.AbilityKeywordFamily
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
@@ -278,6 +286,79 @@ class AbilityRegistryTest :
                 registry.forSpellAbility(activatedAbilities[0].id) shouldBe 152784
                 registry.forSpellAbility(activatedAbilities[1].id) shouldBe 152785
                 registry.forSpellAbility(activatedAbilities[2].id) shouldBe 152786
+            }
+        }
+
+        test("typed definition references resolve spell trigger and static namespaces") {
+            val (b, _, _) = startWithBoard { _, _, _ -> }
+            val bondwarden = TestCardInjector.inject(b, 1, "Enduring Bondwarden", ZoneType.Battlefield).card
+            val ninja = TestCardInjector.inject(b, 1, "Ninja of the Deep Hours", ZoneType.Hand).card
+            val pacifism = TestCardInjector.inject(b, 1, "Pacifism", ZoneType.Battlefield).card
+            val activated = ninja.spellAbilities.single { it.isActivatedAbility && !it.isManaAbility() }
+            val backupTrigger =
+                bondwarden
+                    .getKeywords()
+                    .first { it.keyword == Keyword.BACKUP }
+                    .triggers
+                    .single()
+            val restriction =
+                pacifism.staticAbilities.single {
+                    it.checkMode(StaticAbilityMode.CantAttack) && it.checkMode(StaticAbilityMode.CantBlock)
+                }
+            val bondwardenRegistry = AbilityRegistry.build(bondwarden, CardDataDeriver.fromForgeCard(bondwarden, bondwarden.name))
+            val ninjaRegistry = AbilityRegistry.build(ninja, CardDataDeriver.fromForgeCard(ninja, ninja.name))
+            val pacifismRegistry = AbilityRegistry.build(pacifism, CardDataDeriver.fromForgeCard(pacifism, pacifism.name))
+
+            assertSoftly {
+                ninjaRegistry.resolve(AbilityDefinitionRef.SpellAbility(activated.definitionId))?.definition shouldBe
+                    AbilityDefinitionRef.SpellAbility(activated.definitionId)
+                bondwardenRegistry.resolve(AbilityDefinitionRef.Trigger(backupTrigger.definitionId))?.keywordFamily shouldBe
+                    AbilityKeywordFamily.Backup
+                pacifismRegistry.resolve(AbilityDefinitionRef.StaticAbility(restriction.definitionId))?.abilityGrpId shouldBe 1083
+                bondwardenRegistry.resolve(AbilityDefinitionRef.StaticAbility(backupTrigger.definitionId)) shouldBe null
+            }
+        }
+
+        test("copied same-shape activated abilities resolve by definition") {
+            val card = Card(999, null as Game?)
+            card.name = "Same Shape"
+
+            fun ability(): AbilityActivated =
+                object : AbilityActivated(card, Cost("1", true), null) {
+                    override fun resolve() = Unit
+                }.also {
+                    it.api = ApiType.Draw
+                    card.addSpellAbility(it)
+                }
+            val first = ability()
+            val second = ability()
+            val firstCopy = first.copy()
+            val secondCopy = second.copy()
+            val cardData =
+                CardData(
+                    grpId = 9000,
+                    titleId = 0,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = listOf(9001 to 0, 9002 to 0),
+                    abilityKinds = listOf(SlotKind.Activated, SlotKind.Activated),
+                    manaCost = emptyList(),
+                )
+            val registry = AbilityRegistry.build(card, cardData)
+
+            assertSoftly {
+                first.api shouldBe second.api
+                first.payCosts.toSimpleString() shouldBe second.payCosts.toSimpleString()
+                firstCopy.id shouldNotBe first.id
+                secondCopy.id shouldNotBe second.id
+                firstCopy.definitionId shouldBe first.definitionId
+                secondCopy.definitionId shouldBe second.definitionId
+                registry.resolve(AbilityDefinitionRef.SpellAbility(firstCopy.definitionId))?.abilityGrpId shouldBe 9001
+                registry.resolve(AbilityDefinitionRef.SpellAbility(secondCopy.definitionId))?.abilityGrpId shouldBe 9002
             }
         }
     })

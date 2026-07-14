@@ -1016,7 +1016,7 @@ object StateMapper {
                 val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
-                        ?: ctx.abilityGrpIdForSource(ev.cardId, ev.abilityForgeId)
+                        ?: ctx.abilityGrpIdForSource(ev.cardId)
                 if (ev.isTrigger && cleanupGrpId != null && abilityGrpId == KeywordAbilityIds.DECAYED) {
                     bridge.recordDecayedCleanupSource(ev.cardId)
                     visibleThisGsm.add(ev.cardId)
@@ -1026,7 +1026,7 @@ object StateMapper {
                 val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
-                        ?: ctx.abilityGrpIdForSource(ev.cardId, ev.abilityForgeId)
+                        ?: ctx.abilityGrpIdForSource(ev.cardId)
                 if (ev.isTrigger && cleanupGrpId != null && abilityGrpId == cleanupGrpId) {
                     bridge.clearDecayedCleanupSource(ev.cardId)
                     if (ev.cardId !in addedThisGsm) visibleThisGsm.remove(ev.cardId)

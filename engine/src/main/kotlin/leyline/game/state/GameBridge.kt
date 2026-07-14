@@ -7,6 +7,7 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.player.PlayerView
+import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
@@ -18,11 +19,13 @@ import leyline.bridge.coord.GameLoopController
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PrioritySignal
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.config.MatchConfig
@@ -105,18 +108,21 @@ class GameBridge(
 
     private val pendingSpellCasts = PendingSpellEventRegistry<GameEvent.SpellCast>()
     private val pendingSpellResolutions = PendingSpellEventRegistry<GameEvent.SpellResolved>()
-    private val stackAbilityGrpIdsByForgeAbilityId = ConcurrentHashMap<Int, Int>()
+    private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
-    fun recordStackAbilityGrpId(
-        forgeAbilityId: Int,
-        abilityGrpId: Int,
+    fun recordStackAbilityIdentity(
+        runtimeAbilityId: Int,
+        identity: ResolvedAbilityIdentity,
     ) {
-        if (forgeAbilityId != 0 && abilityGrpId != 0) {
-            stackAbilityGrpIdsByForgeAbilityId[forgeAbilityId] = abilityGrpId
+        if (runtimeAbilityId != 0) {
+            stackAbilityIdentitiesByRuntimeId[runtimeAbilityId] = identity
         }
     }
 
-    fun stackAbilityGrpId(forgeAbilityId: Int): Int? = stackAbilityGrpIdsByForgeAbilityId[forgeAbilityId]
+    fun stackAbilityIdentity(runtimeAbilityId: Int): ResolvedAbilityIdentity? = stackAbilityIdentitiesByRuntimeId[runtimeAbilityId]
+
+    fun consumeStackAbilityIdentity(runtimeAbilityId: Int): ResolvedAbilityIdentity? =
+        stackAbilityIdentitiesByRuntimeId.remove(runtimeAbilityId)
 
     fun recordPendingSpellCasts(events: List<GameEvent>) {
         events
@@ -205,6 +211,7 @@ class GameBridge(
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
+                it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolveAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[1] =
@@ -272,6 +279,7 @@ class GameBridge(
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
+                it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolveAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
@@ -919,6 +927,25 @@ class GameBridge(
         return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
     }
 
+    fun resolveAbilityIdentity(
+        card: Card,
+        ability: SpellAbility,
+    ): ResolvedAbilityIdentity? =
+        resolveAbilityIdentity(
+            card,
+            ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
+                ?: AbilityDefinitionRef.SpellAbility(ability.definitionId),
+        )
+
+    fun resolveAbilityIdentity(
+        card: Card,
+        definition: AbilityDefinitionRef,
+    ): ResolvedAbilityIdentity? {
+        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        return abilityRegistryFor(card, cardData)?.resolve(definition)
+    }
+
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
     fun evictAbilityRegistry(forgeCardId: Int) {
         abilityRegistries.remove(forgeCardId)
@@ -1272,7 +1299,7 @@ class GameBridge(
         reconfigureEffects.clear()
         mutateMergeEffects.clear()
         abilityRegistries.clear()
-        stackAbilityGrpIdsByForgeAbilityId.clear()
+        stackAbilityIdentitiesByRuntimeId.clear()
         tokenRegistry.clear()
         revealProxies.clear()
 
@@ -1688,7 +1715,7 @@ class GameBridge(
         val registry = abilityRegistryFor(card, cardData) ?: return null
 
         val crewSa = card.spellAbilities?.firstOrNull { it.isCrew } ?: return null
-        return registry.forSpellAbility(crewSa.id)
+        return registry.forSpellAbility(crewSa.definitionId)
     }
 
     // --- Internal ---

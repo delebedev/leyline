@@ -644,7 +644,7 @@ object ActionMapper {
                 val canPay = canPayManaCost(ability, player)
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
-                val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+                val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
                 ActivatedActionEmitter.emitActivatedAbilityAction(
                     builder = builder,
                     instanceId = instanceId,
@@ -1390,7 +1390,7 @@ object ActionMapper {
         turnFaceUpSa.setActivatingPlayer(player)
         val canPay = canPayManaCost(turnFaceUpSa, player)
         val registry = abilityRegistryLookup(card, cardData)
-        val alternativeGrpId = registry?.forSpellAbility(turnFaceUpSa.id) ?: fallbackAlternativeGrpId
+        val alternativeGrpId = registry?.forSpellAbility(turnFaceUpSa.definitionId) ?: fallbackAlternativeGrpId
         if (alternativeGrpId == 0) return
         val actionBuilder =
             Action

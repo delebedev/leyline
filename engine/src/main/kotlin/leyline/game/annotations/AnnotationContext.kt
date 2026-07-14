@@ -133,53 +133,21 @@ class AnnotationContext(
         }
     }
 
-    /** Look up the outbound ability grpId for a triggered source. For known
-     *  keyword triggers (Mobilize, …) this resolves to the per-card keyword
-     *  ability grpId — e.g. 188698 for a Mobilize 1 source — so
-     *  `ResolutionStart`/`Complete` carry the keyword row id rather than the
-     *  source card's grpId. Falls back to the source card's grpId for triggers
-     *  whose keyword isn't in [leyline.game.data.KeywordAbilityIds] yet. */
-    fun abilityGrpIdForSource(
-        cardId: ForgeCardId,
-        abilityForgeId: Int,
-    ): Int {
+    /** Source-card fallback for synthetic events without resolved ability identity. */
+    fun abilityGrpIdForSource(cardId: ForgeCardId): Int {
         val bound = snap.boundCards[cardId] ?: return 0
-        if (abilityForgeId != 0) {
-            val card = bridge.findCard(cardId)
-            val registry = if (card != null) bridge.abilityRegistryFor(card, bound.data) else null
-            registry?.forSpellAbility(abilityForgeId)?.takeIf { it != 0 }?.let { return it }
-            registry?.forTrigger(abilityForgeId)?.takeIf { it != 0 }?.let { return it }
-        }
-        for (keywordId in keywordTriggerIds) {
-            bridge.cardRepository.findKeywordAbilityGrpId(bound.snapshot.grpId, keywordId)?.let { return it }
-            bound.altCost(keywordId)?.abilityGrpId?.let { return it }
-            bridge.cardRepository.findKeywordAbilityGrpId(bound.snapshot.grpId, keywordId)?.let { return it }
-        }
         return bound.snapshot.grpId
     }
 
     fun targetSpecAbilityGrpId(spec: InteractivePromptBridge.PendingTarget): Int {
-        spec.abilityGrpId?.let { return it }
-        if (spec.forgeAbilityId != 0) {
-            val resolved = abilityGrpIdForSource(ForgeCardId(spec.spellForgeCardId), spec.forgeAbilityId)
-            if (resolved != 0) return resolved
-        }
+        spec.abilityIdentity
+            ?.abilityGrpId
+            ?.takeIf { it != 0 }
+            ?.let { return it }
         return bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0
     }
 
     companion object {
-        /** Keywords whose triggers we want to surface on the wire as
-         *  `ResolutionStart`/`Complete grpid = <keyword ability id>`. Extend as new
-         *  combat/ETB/state-trigger keywords ship and need precise grpId fidelity. */
-        private val keywordTriggerIds =
-            listOf(
-                KeywordAbilityIds.BACKUP,
-                KeywordAbilityIds.MENTOR,
-                KeywordAbilityIds.MOBILIZE,
-                KeywordAbilityIds.DECAYED,
-                KeywordAbilityIds.ENLIST,
-            )
-
         private val counterAffectingKeywordTriggerIds =
             setOf(KeywordAbilityIds.BACKUP, KeywordAbilityIds.MENTOR, KeywordAbilityIds.TRAINING)
 

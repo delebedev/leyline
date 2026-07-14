@@ -10,6 +10,7 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
@@ -335,14 +336,22 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): TargetPromptShape? {
-        val sa = prompt.targetingSa ?: return null
-        if (isMentorTrigger(sa)) {
-            return TargetPromptShape(
-                outerAbilityGrpId = KeywordAbilityIds.MENTOR,
-                targetingAbilityGrpId = KeywordAbilityIds.MENTOR,
-                promptId = PromptIds.MENTOR_TARGET,
-            )
+        val identity = prompt.abilityIdentity
+        when (identity?.keywordFamily) {
+            AbilityKeywordFamily.Mentor ->
+                return TargetPromptShape(
+                    outerAbilityGrpId = identity.abilityGrpId,
+                    targetingAbilityGrpId = KeywordAbilityIds.MENTOR,
+                    promptId = PromptIds.MENTOR_TARGET,
+                )
+            AbilityKeywordFamily.Backup ->
+                return TargetPromptShape(
+                    outerAbilityGrpId = identity.abilityGrpId,
+                    targetingAbilityGrpId = KeywordAbilityIds.BACKUP,
+                )
+            null -> Unit
         }
+        val sa = prompt.targetingSa ?: return null
         val cardName = sa.hostCard?.name ?: return null
         val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return null
         return when {
@@ -353,22 +362,9 @@ object RequestBuilder {
                     promptId = PromptIds.MUTATE_TARGET,
                     targetSourceZoneId = ZoneIds.BATTLEFIELD,
                 )
-            isBackupTrigger(sa) ->
-                bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.BACKUP)?.let { backupGrpId ->
-                    TargetPromptShape(
-                        outerAbilityGrpId = backupGrpId,
-                        targetingAbilityGrpId = KeywordAbilityIds.BACKUP,
-                    )
-                }
             else -> null
         }
     }
-
-    private fun isBackupTrigger(sa: forge.game.spellability.SpellAbility): Boolean =
-        sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true
-
-    private fun isMentorTrigger(sa: forge.game.spellability.SpellAbility): Boolean =
-        sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
 
     /**
      * Check whether [candidate] is still a legal target for [sa] given that
@@ -444,24 +440,22 @@ object RequestBuilder {
         if (source.instanceId != 0) {
             selBuilder.prompt = promptWithCardId(PromptIds.SELECT_TARGETS, source.instanceId)
         }
-        val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt.targetingSa, source.grpId, bridge)
+        val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt, source.grpId, bridge)
         if (targetingAbilityGrpId != 0) selBuilder.targetingAbilityGrpId = targetingAbilityGrpId
         val sourceZoneId = targetSourceZoneId(prompt.request.candidateRefs, bridge, chooserSeatId)
         if (sourceZoneId != 0) selBuilder.targetSourceZoneId = sourceZoneId
     }
 
     private fun resolveTargetingAbilityGrpId(
-        sa: SpellAbility?,
+        prompt: InteractivePromptBridge.PendingPrompt,
         sourceGrpId: Int,
         bridge: GameBridge,
     ): Int {
-        val host = sa?.hostCard ?: return 0
-        val data = sourceGrpId.takeIf { it != 0 }?.let { bridge.cardRepository.findByGrpId(it) }
-        bridge
-            .abilityRegistryFor(host, data)
-            ?.forSpellAbility(sa.id)
+        prompt.abilityIdentity
+            ?.abilityGrpId
             ?.takeIf { it != 0 }
             ?.let { return it }
+        val data = sourceGrpId.takeIf { it != 0 }?.let { bridge.cardRepository.findByGrpId(it) }
         return data
             ?.abilityIds
             ?.firstOrNull { (abilityGrpId, _) ->

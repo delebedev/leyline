@@ -32,10 +32,10 @@ internal object ManaSnapshotCapture {
             val sourceGrpId = bridge.resolveGrpId(source, srcInstanceId)
             val cardData = bridge.cardRepository.findByGrpId(sourceGrpId)
             val manaAbility = mana.manaAbility
-            val abilityId = manaAbility?.sourceSA?.id ?: 0
+            val abilityDefinitionId = manaAbility?.sourceSA?.definitionId ?: 0
             val abilityGrpId =
-                if (abilityId != 0) {
-                    bridge.abilityRegistryFor(source, cardData)?.forSpellAbility(abilityId) ?: 0
+                if (abilityDefinitionId != 0) {
+                    bridge.abilityRegistryFor(source, cardData)?.forSpellAbility(abilityDefinitionId) ?: 0
                 } else {
                     0
                 }.takeIf { it != 0 }

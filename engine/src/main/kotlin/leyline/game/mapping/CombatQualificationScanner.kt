@@ -174,13 +174,13 @@ object CombatQualificationScanner {
         val host = staticAbility.hostCard
         val hostData = cardData(host, snap, bridge)
         val hostRegistry = bridge.abilityRegistryFor(host, hostData)
-        hostRegistry?.forStaticAbility(staticAbility.id)?.let { return GrpId(it) }
+        hostRegistry?.forStaticAbility(staticAbility.definitionId)?.let { return GrpId(it) }
 
         val sourceAbility = host.getEffectSourceAbility()
         if (sourceAbility != null) {
             val sourceData = cardData(sourceParent, snap, bridge)
             val sourceRegistry = bridge.abilityRegistryFor(sourceParent, sourceData)
-            sourceRegistry?.forSpellAbility(sourceAbility.id)?.let { return GrpId(it) }
+            sourceRegistry?.forSpellAbility(sourceAbility.definitionId)?.let { return GrpId(it) }
         }
 
         return null

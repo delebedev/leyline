@@ -326,7 +326,7 @@ object AbilityWordTriggerRecognizers {
                     if (lifeGained <= 0) return emptyList()
                     val abilityGrpId =
                         triggerWithAbilityWordPrefix(card, "Infusion")
-                            ?.let { registry?.forTrigger(it.id)?.takeIf { id -> id > 0 } }
+                            ?.let { registry?.forTrigger(it.definitionId)?.takeIf { id -> id > 0 } }
                     return listOf(
                         AbilityWordScanner.AbilityWordEntry(
                             instanceId = iid,

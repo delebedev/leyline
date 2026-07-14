@@ -4,6 +4,7 @@ import forge.card.CardStateName
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 
 /**
@@ -125,6 +126,7 @@ sealed interface GameEvent {
         val abilityForgeId: Int = 0,
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
         /**
          * Triggering object override for linked-cost triggers. Most triggers point
          * at their source card; Enlist points at the creature tapped to pay the cost.
@@ -181,6 +183,7 @@ sealed interface GameEvent {
         val abilityForgeId: Int = 0,
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** True when the resolved spell is a Paradigm copy cast from exile. */
         val isParadigmCopy: Boolean = false,
         /** Stack iid allocated when the Paradigm copy was cast. */

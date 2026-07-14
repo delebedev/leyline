@@ -30,13 +30,13 @@ import leyline.bridge.interaction.shouldAutoResolve
 import leyline.bridge.interaction.shouldReturnAll
 import leyline.bridge.interaction.sourceEntityId
 import leyline.bridge.interaction.unfilteredRefs
+import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
-import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
@@ -730,7 +730,13 @@ class TargetingCoordinator(
             } else {
                 bridge.forgeIidResolver?.invoke(ForgeCardId(spellCard.id))?.value ?: 0
             }
-        val targetSpecShape = targetSpecShape(sa)
+        val abilityIdentity = bridge.resolveAbilityIdentity(sa)
+        val promptId =
+            when {
+                abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
+                sa.isMutate -> PromptIds.MUTATE_TARGET
+                else -> null
+            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
@@ -740,25 +746,12 @@ class TargetingCoordinator(
                 targetForgeCardId = targetCardId,
                 targetSeatId = targetSeatId,
                 isTriggeredAbility = isTrigger,
-                abilityGrpId = targetSpecShape?.abilityGrpId ?: if (sa.isMutate) 0 else null,
-                promptId = targetSpecShape?.promptId ?: if (sa.isMutate) PromptIds.MUTATE_TARGET else null,
+                promptId = promptId,
+                abilityIdentity = abilityIdentity,
                 forgeAbilityId = sa.id,
             ),
         )
     }
-
-    private data class TargetSpecShape(
-        val abilityGrpId: Int,
-        val promptId: Int?,
-    )
-
-    private fun targetSpecShape(sa: SpellAbility): TargetSpecShape? =
-        when {
-            isMentorTrigger(sa) -> TargetSpecShape(KeywordAbilityIds.MENTOR, PromptIds.MENTOR_TARGET)
-            else -> null
-        }
-
-    private fun isMentorTrigger(sa: SpellAbility): Boolean = sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
 
     private fun arrangeTopNCards(
         topN: CardCollection,
