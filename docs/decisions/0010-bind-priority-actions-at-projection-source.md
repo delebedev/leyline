@@ -115,9 +115,8 @@ is blocked at the same priority window. The catalog is discarded when that
 window completes or is superseded. Do not retain mutable Forge objects in
 session history or across arbitrary game progress.
 
-This is the action-side ability-identity rule. Broader stack, event, and prompt
-identity consolidation is outside this ADR and should be evaluated after action
-reconstruction is gone.
+This is the action-side ability-identity rule. Stack, event, and prompt identity
+continue in [ADR 0011](0011-preserve-ability-definition-identity.md).
 
 ## Migration
 
