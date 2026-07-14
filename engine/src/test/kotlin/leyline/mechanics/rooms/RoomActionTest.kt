@@ -8,9 +8,10 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.RoomDoorCastDescriptors
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -172,16 +173,7 @@ class RoomActionTest :
             roomOffersForIid(actions.inactiveActionsList, iid).shouldBeEmpty()
         }
 
-        test("room door descriptors use the same hand SA for offer and accept") {
-            // Regression: ActionPerformer's CastRightRoom accept arm originally
-            // looked up `card.getUnlockAbility(state)` and matched by reference
-            // in `getAllCastableAbilities`. From hand the unlock SA's canPlay
-            // returns false (zone restriction), so the filter dropped it,
-            // indexOfFirst returned -1, abilityIndex was null, and PlayerAction
-            // .CastSpell(cardId, null) fell through to candidates.first() —
-            // always the LeftSplit SpellPermanent. CastRightRoom silently cast
-            // the LEFT door. pickRoomDoorSa now picks the per-door SpellPermanent
-            // from getSpells() so the offer side and accept side agree.
+        test("room door offers retain their exact hand abilities") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     repeat(5) { addCard("Plains", human, ZoneType.Battlefield) }
@@ -190,20 +182,27 @@ class RoomActionTest :
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
-            val offers = roomOffersForIid(actions.actionsList, iid)
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val offers = roomOffersForIid(projection.actions.actionsList, iid)
 
             val castable = leyline.bridge.getAllCastableAbilities(card, human)
             offers.map { it.actionType } shouldContainExactlyInAnyOrder
                 listOf(ActionType.CastLeftRoom, ActionType.CastRightRoom)
             assertSoftly {
                 offers.forEach { offer ->
-                    val descriptor = RoomDoorCastDescriptors.forActionType(offer.actionType)!!
-                    val selected = descriptor.pickSpellAbility(card)
-                    selected shouldNotBe null
-                    // The accept resolver must point back to the exact SA the
-                    // offer descriptor selected.
-                    descriptor.resolveAbilityIndex(card, human) shouldBe castable.indexOfFirst { it === selected }
+                    val command =
+                        projection.offers
+                            .single { it.action == offer }
+                            .command
+                            .shouldBeInstanceOf<PlayerAction.CastSpell>()
+                    command.ability shouldNotBe null
+                    command.abilityId shouldBe castable.indexOfFirst { it === command.ability }
+                    command.ability?.cardStateName shouldBe
+                        if (offer.actionType == ActionType.CastLeftRoom) {
+                            forge.card.CardStateName.LeftSplit
+                        } else {
+                            forge.card.CardStateName.RightSplit
+                        }
                 }
             }
         }

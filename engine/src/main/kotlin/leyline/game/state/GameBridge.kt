@@ -954,6 +954,20 @@ class GameBridge(
         awaitPriorityWithTimeout(priorityWaitMs)
     }
 
+    /** Wait specifically for this seat's next executable priority window. */
+    fun awaitActionPriority(seatId: SeatId): Boolean {
+        val deadline = System.currentTimeMillis() + priorityWaitMs
+        val actionBridge = seat(seatId).action
+        while (true) {
+            if (actionBridge.getPending() != null) return true
+            val g = game
+            if (g == null || g.isGameOver) return false
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) return false
+            prioritySignal.awaitSignal(remaining)
+        }
+    }
+
     /**
      * Block until the engine reaches a priority stop, an interactive prompt
      * is pending, or the game ends.
@@ -1004,7 +1018,10 @@ class GameBridge(
 
     private fun hasPendingInteraction(): Boolean =
         actionBridges.values.any { it.getPending() != null } ||
-            promptBridges.values.any { it.getPendingPrompt() != null } ||
+            hasPendingNonActionInteraction()
+
+    fun hasPendingNonActionInteraction(): Boolean =
+        promptBridges.values.any { it.getPendingPrompt() != null } ||
             humanController?.pendingDamageAssignment != null ||
             humanController?.pendingOptionalAction != null ||
             humanController?.pendingNumericInput != null

@@ -116,7 +116,7 @@ class PuzzleHandlerTest :
                             GREMessageType.ActionsAvailableReq_695e,
                         )
                     gre.first { it.hasGameStateMessage() }.gameStateMessage.actionsCount shouldBe 4
-                    sink.messages.size shouldBe 3
+                    sink.messages.size shouldBe 0
                     session.gameBridge shouldBeSameInstanceAs bridge
                 }
                 channel.close()

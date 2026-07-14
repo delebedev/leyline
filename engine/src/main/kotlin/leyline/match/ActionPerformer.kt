@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
@@ -65,7 +66,7 @@ class ActionPerformer(
         val pending =
             seatBridge.action.getPending() ?: run {
                 log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-                sink.sendRealGameState(bridge)
+                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.game, counters.counter))
                 return
             }
         if (!seatBridge.action.acceptsResponse(pending, clientGsId)) {
@@ -92,7 +93,11 @@ class ActionPerformer(
         }
         val offer =
             seatBridge.action.resolveOfferedAction(pending, clientGsId, action) ?: run {
-                log.warn("ActionPerformer: action is absent from pending offer catalog")
+                log.warn(
+                    "ActionPerformer: action is absent from pending offer catalog: response={}, offers={}",
+                    ActionResponseKey.from(action),
+                    pending.actionCatalog?.keys,
+                )
                 return
             }
         val command = offer.command

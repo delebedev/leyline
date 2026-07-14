@@ -459,6 +459,9 @@ scenarios:
       - cast: Lightning Bolt
       - target: opponent
       - resolve_stack: {}
+      - pass_until:
+          phase: Main2
+          max_passes: 8
       - expect:
           all:
             - annotation_seen: ManaDetails

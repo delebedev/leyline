@@ -23,10 +23,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *    Disturb, Escape, Jump-start.
  *
  * `ActionMapper.addZoneCastActionsFromSnap` iterates the zone-cast buckets;
- * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket;
- * `ActionOfferCatalog` looks rails up by keyword while binding the offer
- * BaseId or universal-149 and uses [CastRail.saPredicate] to find the
- * matching SA index in `getAllCastableAbilities`.
+ * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket and binds
+ * each projected action to the matching candidate.
  *
  * Adding a new alt-cost keyword:
  *  1. Add an [AltCostKind] entry with the keyword's `KeywordAbilityIds`
@@ -381,8 +379,7 @@ object CastRails {
             ),
         )
 
-    /** All rails — used by [leyline.match.ActionOfferCatalog] when binding alt-cost offers.
-     *  to enumerate candidates by keyword BaseId. */
+    /** All cast rails across supported source zones. */
     val all: List<CastRail> = fromExile + fromGraveyard + handWithAltCost
 }
 

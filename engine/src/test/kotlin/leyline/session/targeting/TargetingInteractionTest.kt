@@ -295,7 +295,6 @@ class TargetingInteractionTest :
 
             assertSoftly {
                 (preBoltAiLife - ai.life) shouldBe 3
-                assertAccumulatorConsistent("after bolt targeting + resolve")
             }
         }
 

@@ -31,7 +31,10 @@ class DrawUpdateTypeShapeTest :
             // AI goes first on this seed. After connectAndKeep + auto-pass through
             // the AI's turn 1, the human reaches turn 2 Main1 — having just drawn
             // their turn-boundary card during the draw step.
-            startGame(seed = AI_FIRST_SEED)
+            // Keep the opening hand free of legal-but-unaffordable spells. Those
+            // intentionally stop phase skipping now; this test only exercises the
+            // turn-boundary draw update shape.
+            startGame(seed = AI_FIRST_SEED, deckList = "60 Mountain")
 
             assertSoftly {
                 isGameOver() shouldBe false
