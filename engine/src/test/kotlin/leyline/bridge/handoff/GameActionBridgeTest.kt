@@ -226,6 +226,49 @@ class GameActionBridgeTest :
             engineThread.join(2000)
         }
 
+        test("catalog resolves distinct executable variants by exact action payload") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val ready = CountDownLatch(1)
+            val engineThread =
+                Thread {
+                    ready.countDown()
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            engineThread.isDaemon = true
+            engineThread.start()
+            ready.await(2, TimeUnit.SECONDS)
+
+            val pending = pollForPending(bridge).shouldNotBeNull()
+            val activate =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Activate_add3)
+                    .setInstanceId(14)
+                    .setAbilityGrpId(44)
+                    .build()
+            val first = activate.toBuilder().addManaCost(ManaRequirement.newBuilder().setCount(1)).build()
+            val second = activate.toBuilder().addManaCost(ManaRequirement.newBuilder().setCount(2)).build()
+            bridge.bindActionCatalog(
+                pending.actionId,
+                12,
+                listOf(
+                    GameActionBridge.ActionOffer(first, PlayerAction.PlayLand(ForgeCardId(1))),
+                    GameActionBridge.ActionOffer(second, PlayerAction.PlayLand(ForgeCardId(2))),
+                ),
+            ) shouldBe true
+
+            assertSoftly {
+                bridge.resolveOfferedAction(pending, 12, first)?.command shouldBe PlayerAction.PlayLand(ForgeCardId(1))
+                bridge.resolveOfferedAction(pending, 12, second)?.command shouldBe PlayerAction.PlayLand(ForgeCardId(2))
+                bridge.resolveOfferedAction(pending, 12, activate).shouldBeNull()
+            }
+
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            engineThread.join(2000)
+        }
+
         test("catalog cannot bind an action request without a live priority wait") {
             val bridge = GameActionBridge(timeoutMs = 5000)
             val pass = Action.newBuilder().setActionType(ActionType.Pass).build()

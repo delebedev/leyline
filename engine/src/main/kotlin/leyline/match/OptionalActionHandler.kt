@@ -86,8 +86,9 @@ class OptionalActionHandler(
         if (commanderReturn != null) {
             bridge.retireToLimbo(InstanceId(commanderReturn.promptInstanceId))
         }
+        bridge.prioritySignal.markPromptResolved()
         prompt.future.complete(accepted)
-        bridge.awaitPriority()
+        bridge.awaitActionPriority(counters.seatId)
         if (commanderReturn != null) {
             sendCommanderPromptCleanup(commanderReturn)
             sink.sendRealGameState(bridge)

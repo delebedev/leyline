@@ -2,6 +2,7 @@ package leyline.match
 
 import forge.game.player.GameLossReason
 import leyline.bridge.PriorityActionCandidates
+import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
@@ -233,14 +234,13 @@ class MatchSession(
 
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
-            preparePuzzleStart()
-            gameBridge.awaitPriority()
+            if (!preparePuzzleStart()) return@synchronized
 
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()
         }
 
-    internal fun preparePuzzleStart() {
+    internal fun preparePuzzleStart(): Boolean {
         // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
         // path only fires for MatchSession. Warn if somehow called for a non-human
         // MatchSession — it would consume the human seat's pending priority via the
@@ -248,7 +248,7 @@ class MatchSession(
         val humanSeat = gameBridge.seating.humanSeat
         if (seatId != humanSeat) {
             log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
-            return
+            return false
         }
 
         log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
@@ -258,6 +258,7 @@ class MatchSession(
         // needs a matching snapshot for the first Diff to be correct.
         val snap2 = SnapshotCapture.run(ctx.game, ctx.bridge, matchId, counter.currentGsId())
         bundleBuilder.cursor.lastSent = snap2
+        return true
     }
 
     /**
@@ -531,7 +532,21 @@ class MatchSession(
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) = sendPriorityState(bridge, revealForSeat, null)
+    ) {
+        val game =
+            bridge.getGame() ?: run {
+                log.warn("MatchSession: sendRealGameState but game is null")
+                return
+            }
+        if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
+            bridge.awaitActionPriority(seatId)
+        }
+        if (bridge.seat(seatId).action.getPending() == null) {
+            sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
+            return
+        }
+        sendPriorityState(bridge, revealForSeat, null)
+    }
 
     override fun sendPriorityState(
         bridge: GameBridge,
@@ -726,7 +741,15 @@ class MatchSession(
         val actionBridge = gameBridge.seat(seatId).action
         val pending = checkNotNull(actionBridge.getPending()) { "Cannot expose priority actions without a pending window" }
         check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
-            "Cannot bind priority actions to pending window ${pending.actionId.take(8)}"
+            val current = actionBridge.getPending()
+            val duplicateSelectors =
+                offers
+                    .groupBy { ActionResponseKey.from(it.action) }
+                    .filterValues { it.size > 1 }
+                    .mapValues { (_, variants) -> variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) } }
+            "Cannot bind priority actions to pending window ${pending.actionId.take(8)} " +
+                "(current=${current?.actionId?.take(8)}, completed=${pending.future.isDone}, offers=${offers.size}, " +
+                "duplicates=$duplicateSelectors)"
         }
     }
 

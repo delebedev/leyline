@@ -93,7 +93,7 @@ class GameActionBridge(
         val state: PendingActionState,
         val future: CompletableFuture<PlayerAction>,
         @Volatile var promptGameStateId: Int? = null,
-        @Volatile var actionCatalog: Map<ActionResponseKey, ActionOffer>? = null,
+        @Volatile var actionCatalog: Map<ActionResponseKey, List<ActionOffer>>? = null,
     )
 
     private val pending = AtomicReference<PendingAction?>(null)
@@ -213,25 +213,37 @@ class GameActionBridge(
         gameStateId: Int,
         offers: List<ActionOffer>,
     ): Boolean {
-        // Payment/auto-tap variants may share a canonical response key only
-        // when they retain one exact execution identity.
         val groupedOffers = offers.groupBy { ActionResponseKey.from(it.action) }
         val hasAmbiguousKey =
             groupedOffers.values.any { variants ->
-                variants
-                    .map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }
-                    .distinct()
-                    .size > 1
+                val identities = variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct()
+                identities.size > 1 && variants.map { it.action }.distinct().size == 1
             }
         if (hasAmbiguousKey) {
-            log.warn("Refusing ambiguous action catalog with duplicate response keys")
+            log.warn(
+                "Refusing ambiguous action catalog with duplicate response keys: {}",
+                groupedOffers.filterValues { variants ->
+                    variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct().size > 1
+                },
+            )
             return false
         }
-        val catalog = groupedOffers.mapValues { (_, variants) -> variants.first() }
+        val catalog = groupedOffers
 
-        val current = pending.get() ?: return false
+        val current =
+            pending.get() ?: run {
+                log.warn("Cannot bind action catalog: no pending action")
+                return false
+            }
         synchronized(current) {
-            if (current.actionId != actionId || current.future.isDone) return false
+            if (current.actionId != actionId) {
+                log.warn("Cannot bind action catalog: pending window was superseded")
+                return false
+            }
+            if (current.future.isDone) {
+                log.warn("Cannot bind action catalog: pending window already completed")
+                return false
+            }
             current.actionCatalog = catalog
             current.promptGameStateId = gameStateId
             return true
@@ -246,9 +258,34 @@ class GameActionBridge(
     ): ActionOffer? {
         if (!acceptsResponse(pendingAction, responseGameStateId)) return null
         val catalog = pendingAction.actionCatalog ?: return null
-        catalog[ActionResponseKey.from(action)]?.let { return it }
-        return catalog.values.singleOrNull { offer -> matchesPartialResponse(offer.action, action) }
+        val keyedMatches = catalog[ActionResponseKey.from(action)].orEmpty()
+        chooseExecutionIdentity(keyedMatches, action)?.let { return it }
+        val partialMatches = catalog.values.flatten().filter { offer -> matchesPartialResponse(offer.action, action) }
+        return chooseExecutionIdentity(partialMatches, action)
     }
+
+    private fun chooseExecutionIdentity(
+        offers: List<ActionOffer>,
+        response: Action,
+    ): ActionOffer? {
+        val identities = offers.distinctBy { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }
+        val exactPayloadMatches = identities.filter { it.action == response }
+        if (exactPayloadMatches.size == 1) return exactPayloadMatches.single()
+        if (identities.size == 1) return identities.first()
+
+        val bestScore = identities.maxOfOrNull { selectorMatchScore(it.action, response) } ?: return null
+        return identities.filter { selectorMatchScore(it.action, response) == bestScore }.singleOrNull()
+    }
+
+    private fun selectorMatchScore(
+        offer: Action,
+        response: Action,
+    ): Int =
+        listOf(
+            offer.grpId to response.grpId,
+            offer.abilityGrpId to response.abilityGrpId,
+            offer.alternativeGrpId to response.alternativeGrpId,
+        ).count { (offered, returned) -> offered != 0 && returned != 0 && offered == returned }
 
     private fun matchesPartialResponse(
         offer: Action,

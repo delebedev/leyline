@@ -88,7 +88,7 @@ class PuzzleHandler(
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
         output.send(bundleMsg)
 
-        session.preparePuzzleStart()
+        check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
         bridge.awaitPriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }

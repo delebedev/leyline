@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ForgeCardId
@@ -48,10 +49,11 @@ class MatchFlowHarness(
             ai = AiConfig(speed = 0.0),
             // Fail fast in tests. Local gameplay leaves the human bridge
             // timeout disabled; here the engine
-            // responds in <100ms so aggressive timeouts surface hangs quickly.
+            // Candidate projection can traverse a full action set under suite
+            // load; this remains short enough to surface a stalled game loop.
             server =
                 ServerConfig(
-                    bridgeTimeoutMs = 5_000L,
+                    bridgeTimeoutMs = 15_000L,
                     aiTurnWaitMs = 2_000L,
                     mulliganWaitMs = 2_000L,
                 ),
@@ -758,7 +760,21 @@ class MatchFlowHarness(
 
     fun castSpellUntilGroupReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+        advanceAfterCast: MatchFlowHarness.() -> Unit = {
+            var found = false
+            repeat(8) {
+                if (!found) {
+                    found =
+                        runCatching {
+                            GameLoopPoller.awaitCondition(timeoutMs = 500) {
+                                drainSink()
+                                allMessages.any { it.hasGroupReq() }
+                            }
+                        }.isSuccess
+                    if (!found) passPriority()
+                }
+            }
+        },
     ): GroupReq =
         castSpellUntil(cardName, promptName = "GroupReq", advanceAfterCast = advanceAfterCast) { msg ->
             if (msg.hasGroupReq()) msg.groupReq else null

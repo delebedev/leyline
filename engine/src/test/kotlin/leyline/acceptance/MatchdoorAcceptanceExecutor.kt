@@ -359,14 +359,14 @@ private class ScenarioRun(
 
     private fun resolveStack() {
         repeat(12) { index ->
-            if (index > 0 && harness.game().stackZone.size() == 0) return
+            if (index > 0 && harness.game().stack.isEmpty) return
             if (harness.isGameOver()) return
             harness.passPriority()
             if (harness.bridge.humanController?.pendingOptionalAction != null) return
-            if (harness.game().stackZone.size() == 0) return
+            if (harness.game().stack.isEmpty) return
         }
         error(
-            "$context did not resolve stack; stack size=${harness.game().stackZone.size()}",
+            "$context did not resolve stack; stack size=${harness.game().stack.size()}",
         )
     }
 
