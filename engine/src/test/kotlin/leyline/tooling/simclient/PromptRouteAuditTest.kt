@@ -6,9 +6,10 @@ import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderRouteKind
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
-import leyline.game.bundle.PromptRouteFamily
-import leyline.game.bundle.PromptSemanticRouteMetadata
+import leyline.bridge.handoff.ResolvedPromptRoute
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 @Suppress("MissingAssertSoftly")
@@ -16,7 +17,7 @@ class PromptRouteAuditTest :
     FunSpec({
         tags(UnitTag)
 
-        test("flags generic order prompts when no OrderReq is emitted") {
+        test("bound AutoResolve route is not reclassified from diagnostic prompt text") {
             val audit =
                 PromptRouteAuditor.audit(
                     history =
@@ -31,19 +32,17 @@ class PromptRouteAuditTest :
                 )
 
             audit.requestsByKind shouldContainExactly mapOf("order|Generic" to 1)
-            audit.findings shouldHaveSize 1
-            audit.findings.single().bucket shouldBe "swallowed_auto_resolve"
-            audit.findings.single().expectedGreType shouldBe "OrderReq"
+            audit.findings shouldHaveSize 0
         }
 
-        test("flags Forge library-order choose-cards prompts as missing OrderReq") {
+        test("audit consumes the bound route even when its diagnostic semantic is Generic") {
             val audit =
                 PromptRouteAuditor.audit(
                     history =
                         listOf(
                             promptRecord(
                                 promptType = "choose_cards",
-                                semantic = PromptSemantic.Generic,
+                                route = ResolvedPromptRoute.Order(PromptSemantic.Generic, OrderRouteKind.Bottom),
                                 message = "Order cards being put into library",
                                 outcome = InteractivePromptBridge.PromptCallStatus.RESPONDED,
                             ),
@@ -75,7 +74,7 @@ class PromptRouteAuditTest :
         }
 
         test("accepts routed SelectN semantics when SelectNReq is emitted") {
-            PromptSemanticRouteMetadata.route(PromptSemantic.SelectNResolution)?.family shouldBe PromptRouteFamily.SelectN
+            (PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) is ResolvedPromptRoute.SelectN) shouldBe true
 
             val audit =
                 PromptRouteAuditor.audit(
@@ -174,13 +173,14 @@ private fun statsWithFindings(findings: List<PromptRouteFinding>): GameStats =
 
 private fun promptRecord(
     promptType: String,
-    semantic: PromptSemantic,
+    semantic: PromptSemantic = PromptSemantic.Generic,
+    route: ResolvedPromptRoute = PromptRouteResolver.resolve(semantic),
     message: String = "choose cards",
     outcome: InteractivePromptBridge.PromptCallStatus,
 ): InteractivePromptBridge.PromptRecord =
     InteractivePromptBridge.PromptRecord(
         promptType = promptType,
-        semantic = semantic,
+        route = route,
         message = message,
         options = listOf("A", "B"),
         min = 1,

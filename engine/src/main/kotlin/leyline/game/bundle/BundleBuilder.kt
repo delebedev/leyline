@@ -5,7 +5,8 @@ import forge.game.phase.PhaseType
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.OrderRouteKind
+import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
@@ -295,10 +296,16 @@ class BundleBuilder(
     }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
-    fun buildSelectNReq(prompt: InteractivePromptBridge.PendingPrompt): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
+    fun buildSelectNReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        route: SelectNPromptRoute,
+    ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge, route)
 
     /** Build an [OrderReq] from a pending ordering prompt. */
-    fun buildOrderReq(prompt: InteractivePromptBridge.PendingPrompt): Pair<OrderReq, Prompt> = RequestBuilder.buildOrderReq(prompt, bridge)
+    fun buildOrderReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
+    ): Pair<OrderReq, Prompt> = RequestBuilder.buildOrderReq(prompt, bridge, kind)
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
@@ -605,10 +612,11 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
+        route: SelectNPromptRoute,
         envelopeForReq: (SelectNReq) -> SelectNEnvelope,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        return selectNBundleFromDiff(diff, counter, envelopeForReq(buildSelectNReq(prompt)))
+        return selectNBundleFromDiff(diff, counter, envelopeForReq(buildSelectNReq(prompt, route)))
     }
 
     fun selectNBundle(
@@ -653,12 +661,13 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
         val snap = diff.snap
         val stagedMove = stagePendingOrderZoneMove(diff.result.gsm, snap, prompt)
-        val (req, promptProto) = buildOrderReq(prompt)
-        val baseOrderGsm = stagedMove?.gsm ?: attachOrderGameObjects(diff.result.gsm, req, snap, prompt.request.semantic)
+        val (req, promptProto) = buildOrderReq(prompt, kind)
+        val baseOrderGsm = stagedMove?.gsm ?: attachOrderGameObjects(diff.result.gsm, req, snap)
         val gs =
             baseOrderGsm
                 .toBuilder()
@@ -674,7 +683,7 @@ class BundleBuilder(
             it.orderReq = req
             it.setPrompt(promptProto)
             it.allowCancel = AllowCancel.No_a526
-            if (prompt.request.semantic == PromptSemantic.OrderForTop) {
+            if (kind == OrderRouteKind.Top) {
                 it.allowUndo = true
             }
         }
@@ -870,10 +879,8 @@ class BundleBuilder(
         gsm: GameStateMessage,
         req: OrderReq,
         snap: GsmSnapshot,
-        semantic: PromptSemantic,
     ): GameStateMessage {
         if (req.idsList.isEmpty()) return gsm
-        if (semantic != PromptSemantic.OrderForTop && semantic != PromptSemantic.OrderForBottom) return gsm
 
         val gsBuilder = gsm.toBuilder()
         val existingByIid = gsBuilder.gameObjectsList.withIndex().associate { (idx, obj) -> obj.instanceId to idx }

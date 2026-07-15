@@ -6,7 +6,9 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -35,24 +37,21 @@ class RequestBuilderStaticChoiceTest :
             )
 
         test("static choice routes pin outer prompt ids and choice domains") {
-            val color = SelectNPromptRoutes.staticChoice(PromptSemantic.StaticColorChoice)!!
-            val subtype = SelectNPromptRoutes.staticChoice(PromptSemantic.StaticSubtypeChoice)!!
-            val parity = SelectNPromptRoutes.staticChoice(PromptSemantic.StaticParityChoice)!!
+            val color = selectNRoute(PromptSemantic.StaticColorChoice)
+            val subtype = selectNRoute(PromptSemantic.StaticSubtypeChoice)
+            val parity = selectNRoute(PromptSemantic.StaticParityChoice)
             val selectNReq = SelectNReq.newBuilder().setSourceId(123).build()
 
             assertSoftly {
-                color.outerPromptId shouldBe PromptIds.CHOOSE_COLOR
-                color.choiceDomain shouldBe 6
-                SelectNPromptRoutes.staticChoiceEnvelope(PromptSemantic.StaticColorChoice, selectNReq).prompt.promptId shouldBe
-                    PromptIds.CHOOSE_COLOR
-                subtype.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
-                subtype.choiceDomain shouldBe 5
-                SelectNPromptRoutes.staticChoiceEnvelope(PromptSemantic.StaticSubtypeChoice, selectNReq).prompt.promptId shouldBe
-                    PromptIds.CHOOSE_TYPE
-                parity.outerPromptId shouldBe PromptIds.CHOOSE_TYPE
-                parity.choiceDomain shouldBe StaticList.Parities.number
-                SelectNPromptRoutes.staticChoiceEnvelope(PromptSemantic.StaticParityChoice, selectNReq).prompt.promptId shouldBe
-                    PromptIds.CHOOSE_TYPE
+                color.staticChoiceOuterPromptId() shouldBe PromptIds.CHOOSE_COLOR
+                color.staticChoice?.choiceDomain shouldBe 6
+                color.envelope(selectNReq) { error("unused") }.prompt.promptId shouldBe PromptIds.CHOOSE_COLOR
+                subtype.staticChoiceOuterPromptId() shouldBe PromptIds.CHOOSE_TYPE
+                subtype.staticChoice?.choiceDomain shouldBe 5
+                subtype.envelope(selectNReq) { error("unused") }.prompt.promptId shouldBe PromptIds.CHOOSE_TYPE
+                parity.staticChoiceOuterPromptId() shouldBe PromptIds.CHOOSE_TYPE
+                parity.staticChoice?.choiceDomain shouldBe StaticList.Parities.number
+                parity.envelope(selectNReq) { error("unused") }.prompt.promptId shouldBe PromptIds.CHOOSE_TYPE
             }
         }
 
@@ -66,7 +65,7 @@ class RequestBuilderStaticChoiceTest :
                             promptType = "choose_colors",
                             message = "Choose a color",
                             options = listOf("White", "Blue", "Black", "Red", "Green"),
-                            semantic = PromptSemantic.StaticColorChoice,
+                            route = PromptRouteResolver.resolve(PromptSemantic.StaticColorChoice),
                             sourceEntityId = 100,
                             staticList = StaticList.Colors,
                             staticOptionIds = listOf(1, 2, 3, 4, 5),
@@ -98,7 +97,7 @@ class RequestBuilderStaticChoiceTest :
                             promptType = "choose_type",
                             message = "Choose a creature type",
                             options = listOf("Goblin", "Human", "Kithkin"),
-                            semantic = PromptSemantic.StaticSubtypeChoice,
+                            route = PromptRouteResolver.resolve(PromptSemantic.StaticSubtypeChoice),
                             sourceEntityId = 100,
                             staticList = StaticList.SubTypes,
                             staticOptionIds = staticIds,
@@ -129,7 +128,7 @@ class RequestBuilderStaticChoiceTest :
                             promptType = "confirm",
                             message = "Odd or even",
                             options = listOf("Odd", "Even"),
-                            semantic = PromptSemantic.StaticParityChoice,
+                            route = PromptRouteResolver.resolve(PromptSemantic.StaticParityChoice),
                             sourceEntityId = 100,
                             staticList = StaticList.Parities,
                             staticOptionIds = listOf(2, 1),
@@ -163,7 +162,7 @@ class RequestBuilderStaticChoiceTest :
                             options = listOf("Target Creature"),
                             min = 1,
                             max = 1,
-                            semantic = PromptSemantic.SuspectChoice,
+                            route = PromptRouteResolver.resolve(PromptSemantic.SuspectChoice),
                             candidateRefs =
                                 listOf(
                                     PromptCandidateRefDto(
@@ -178,7 +177,7 @@ class RequestBuilderStaticChoiceTest :
                     ),
                     bridge,
                 )
-            val envelope = SelectNPromptRoutes.route(PromptSemantic.SuspectChoice)!!.envelope(req) { error("unused") }
+            val envelope = selectNRoute(PromptSemantic.SuspectChoice).envelope(req) { error("unused") }
 
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
@@ -201,3 +200,5 @@ class RequestBuilderStaticChoiceTest :
             }
         }
     })
+
+private fun selectNRoute(semantic: PromptSemantic) = (PromptRouteResolver.resolve(semantic) as ResolvedPromptRoute.SelectN).descriptor

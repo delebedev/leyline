@@ -5,6 +5,7 @@ import forge.game.player.PlayerController.BinaryChoiceType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.StaticChoiceIds
 import org.slf4j.LoggerFactory
@@ -29,7 +30,16 @@ class StaticChoiceCoordinator(
                     min = 1,
                     max = 1,
                     defaultIndex = 0,
-                    semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
+                    route =
+                        PromptRouteResolver.resolve(
+                            if (parityIds !=
+                                null
+                            ) {
+                                PromptSemantic.StaticParityChoice
+                            } else {
+                                PromptSemantic.Generic
+                            },
+                        ),
                     sourceEntityId = sourceEntityId?.takeIf { it > 0 },
                     staticList = if (parityIds != null) StaticList.Parities else null,
                     staticOptionIds = parityIds.orEmpty(),
@@ -55,7 +65,16 @@ class StaticChoiceCoordinator(
                     min = 1,
                     max = 1,
                     defaultIndex = if (defaultVal != false) 0 else 1,
-                    semantic = if (parityIds != null) PromptSemantic.StaticParityChoice else PromptSemantic.Generic,
+                    route =
+                        PromptRouteResolver.resolve(
+                            if (parityIds !=
+                                null
+                            ) {
+                                PromptSemantic.StaticParityChoice
+                            } else {
+                                PromptSemantic.Generic
+                            },
+                        ),
                     sourceEntityId = sourceEntityId(sa),
                     staticList = if (parityIds != null) StaticList.Parities else null,
                     staticOptionIds = parityIds.orEmpty(),
@@ -86,7 +105,7 @@ class StaticChoiceCoordinator(
                     min = 1,
                     max = 1,
                     defaultIndex = 0,
-                    semantic = PromptSemantic.StaticColorChoice,
+                    route = PromptRouteResolver.resolve(PromptSemantic.StaticColorChoice),
                     sourceEntityId = sourceEntityId(sa),
                     staticList = StaticList.Colors,
                     staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
@@ -117,7 +136,7 @@ class StaticChoiceCoordinator(
                     min = min,
                     max = max,
                     defaultIndex = 0,
-                    semantic = PromptSemantic.StaticColorChoice,
+                    route = PromptRouteResolver.resolve(PromptSemantic.StaticColorChoice),
                     sourceEntityId = sourceEntityId(sa),
                     staticList = StaticList.Colors,
                     staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
@@ -149,7 +168,7 @@ class StaticChoiceCoordinator(
                         min = if (isOptional) 0 else 1,
                         max = 1,
                         defaultIndex = 0,
-                        semantic = PromptSemantic.StaticSubtypeChoice,
+                        route = PromptRouteResolver.resolve(PromptSemantic.StaticSubtypeChoice),
                         sourceEntityId = sourceEntityId(sa),
                         staticList = StaticList.SubTypes,
                         staticOptionIds = choices.map { it.second },

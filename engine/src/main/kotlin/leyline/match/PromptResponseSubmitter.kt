@@ -3,12 +3,11 @@ package leyline.match
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptResponseMapper
-import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.SelectNPromptRoutes
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 
@@ -23,7 +22,7 @@ internal class PromptResponseSubmitter(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ) {
-        val pendingPrompt = pendingPromptOrWarn("SelectNResp") ?: return
+        val pendingPrompt = pendingPromptOrWarn("SelectNResp", PromptResponseKind.SelectN) ?: return
         val selectedIds = greMsg.selectNResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
 
@@ -37,7 +36,7 @@ internal class PromptResponseSubmitter(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ) {
-        val pendingPrompt = pendingPromptOrWarn("OrderResp") ?: return
+        val pendingPrompt = pendingPromptOrWarn("OrderResp", PromptResponseKind.Order) ?: return
         val orderedIds = greMsg.orderResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(orderedIds, pendingPrompt)
 
@@ -50,10 +49,11 @@ internal class PromptResponseSubmitter(
         autoPass: () -> Unit,
         clearManaSourcePayment: (String) -> Unit,
     ) {
-        val pendingPrompt = pendingPromptOrWarn("EffectCostResp") ?: return
+        val pendingPrompt = pendingPromptOrWarn("EffectCostResp", PromptResponseKind.PayCosts) ?: return
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
-        if (isManaSourcePaymentSemantic(pendingPrompt.request.semantic)) {
+        val route = pendingPrompt.request.route as? ResolvedPromptRoute.PayCosts
+        if (route?.descriptor?.manaSourcePayment != null) {
             clearManaSourcePayment(pendingPrompt.promptId)
         }
 
@@ -61,7 +61,10 @@ internal class PromptResponseSubmitter(
         submit(pendingPrompt, selectedIndices, autoPass)
     }
 
-    private fun pendingPromptOrWarn(label: String): InteractivePromptBridge.PendingPrompt? {
+    private fun pendingPromptOrWarn(
+        label: String,
+        responseKind: PromptResponseKind,
+    ): InteractivePromptBridge.PendingPrompt? {
         val pendingPrompt =
             ctx.bridge
                 .seat(counters.seatId)
@@ -70,6 +73,11 @@ internal class PromptResponseSubmitter(
         if (pendingPrompt == null) {
             log.warn("PromptResponseSubmitter: {} but no pending prompt (likely timeout race)", label)
             DevCheck.failOnAutoPass { "$label but no pending prompt" }
+        }
+        if (pendingPrompt != null && !pendingPrompt.request.route.accepts(responseKind)) {
+            log.warn("PromptResponseSubmitter: {} does not match bound route {}", label, pendingPrompt.request.route)
+            DevCheck.failOnAutoPass { "$label does not match bound route ${pendingPrompt.request.route}" }
+            return null
         }
         return pendingPrompt
     }
@@ -110,11 +118,6 @@ internal class PromptResponseSubmitter(
     }
 
     companion object {
-        fun isManaSourcePaymentSemantic(semantic: PromptSemantic): Boolean =
-            semantic == PromptSemantic.WaterbendCost ||
-                semantic == PromptSemantic.ConvokeCost ||
-                semantic == PromptSemantic.ImproviseCost
-
         fun mapSelectNIdsToPromptIndices(
             selectedIds: List<Int>,
             pendingPrompt: InteractivePromptBridge.PendingPrompt,
@@ -127,18 +130,9 @@ internal class PromptResponseSubmitter(
             chooserSeatId: SeatId,
         ): List<PromptSideEffect.ChoiceResult> {
             val source = pendingPrompt.request.sourceEntityId ?: return emptyList()
-            val semantic = pendingPrompt.request.semantic
-            val (choiceDomain, sentiment) =
-                when (val staticChoice = SelectNPromptRoutes.staticChoice(semantic)) {
-                    null ->
-                        when {
-                            semantic == PromptSemantic.SelectNDiscard ||
-                                semantic == PromptSemantic.SelectNSacrificeEffect -> null to 1
-                            semantic == PromptSemantic.SuspectChoice -> null to 2
-                            else -> return emptyList()
-                        }
-                    else -> staticChoice.choiceDomain to 2
-                }
+            val route = (pendingPrompt.request.route as? ResolvedPromptRoute.SelectN)?.descriptor ?: return emptyList()
+            val sentiment = route.choiceResultSentiment ?: return emptyList()
+            val choiceDomain = route.staticChoice?.choiceDomain
             return selectedIds.map { value ->
                 PromptSideEffect.ChoiceResult(
                     sourceForgeCardId = ForgeCardId(source),

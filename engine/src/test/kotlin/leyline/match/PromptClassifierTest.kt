@@ -6,11 +6,10 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
-import leyline.game.bundle.PromptRouteFamily
-import leyline.game.bundle.PromptSemanticRouteMetadata
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 
@@ -33,8 +32,8 @@ class PromptClassifierTest :
                             promptType = promptType,
                             message = message,
                             options = listOf("A", "B"),
-                            semantic = semantic,
                             candidateRefs = candidateRefs,
+                            route = PromptRouteResolver.resolve(semantic, candidateRefs.isNotEmpty()),
                         ),
                     future = CompletableFuture(),
                 )
@@ -44,8 +43,6 @@ class PromptClassifierTest :
         val cardRef = PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 42)
 
         test("surveil prompt classifies as grouping before generic targeting") {
-            PromptSemanticRouteMetadata.route(PromptSemantic.GroupingSurveil)?.family shouldBe PromptRouteFamily.Grouping
-
             val result =
                 classify(
                     promptType = "confirm",
@@ -147,7 +144,7 @@ class PromptClassifierTest :
                     message = "Choose permanents",
                     semantic = PromptSemantic.SelectNCostSacrifice,
                     candidateRefs = listOf(cardRef),
-                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+                ).shouldBeInstanceOf<ClassifiedPrompt.PayCosts>()
 
             result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNCostSacrifice
         }
@@ -171,7 +168,7 @@ class PromptClassifierTest :
                     message = "Tap a creature to add charge counters",
                     semantic = PromptSemantic.StationTapCost,
                     candidateRefs = listOf(cardRef),
-                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+                ).shouldBeInstanceOf<ClassifiedPrompt.PayCosts>()
 
             result.pendingPrompt.request.semantic shouldBe PromptSemantic.StationTapCost
         }
@@ -183,7 +180,7 @@ class PromptClassifierTest :
                     message = "Exile cards with total mana value 6 or greater",
                     semantic = PromptSemantic.SelectNCostCollectEvidence,
                     candidateRefs = listOf(cardRef),
-                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+                ).shouldBeInstanceOf<ClassifiedPrompt.PayCosts>()
 
             result.pendingPrompt.request.semantic shouldBe PromptSemantic.SelectNCostCollectEvidence
         }
@@ -195,7 +192,7 @@ class PromptClassifierTest :
                     message = "Return an unblocked attacker",
                     semantic = PromptSemantic.ReturnUnblockedAttackerCost,
                     candidateRefs = listOf(cardRef),
-                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+                ).shouldBeInstanceOf<ClassifiedPrompt.PayCosts>()
 
             result.pendingPrompt.request.semantic shouldBe PromptSemantic.ReturnUnblockedAttackerCost
         }
@@ -207,7 +204,7 @@ class PromptClassifierTest :
                     message = "Choose creatures to tap for convoke",
                     semantic = PromptSemantic.ConvokeCost,
                     candidateRefs = listOf(cardRef),
-                ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+                ).shouldBeInstanceOf<ClassifiedPrompt.PayCosts>()
 
             result.pendingPrompt.request.semantic shouldBe PromptSemantic.ConvokeCost
         }

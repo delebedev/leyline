@@ -1,7 +1,7 @@
 ---
 summary: "ADR: resolve each prompt route once and carry the typed route through request emission and response handling."
 read_when:
-  - "working in PromptRequest, PromptClassifier, PromptRouteMetadata, SelectNPromptRoutes, or prompt response handling"
+  - "working in PromptRequest, PromptRouteResolver, ResolvedPromptRoute, PromptClassifier, or prompt response handling"
   - "adding or changing a PromptSemantic or GRE prompt route"
   - "deciding where prompt-family routing belongs"
 ---
@@ -9,7 +9,7 @@ read_when:
 
 ## Status
 
-Accepted for implementation.
+Accepted and implemented.
 
 ## Context
 
@@ -242,6 +242,19 @@ recovery path, repeated route lookups, and several semantic subset predicates.
 `PromptRequest` still has optional family-specific payload fields after this
 decision. Route binding removes the larger correctness hazard first and gives
 a later payload-typing change a stable family discriminator.
+
+## Implementation
+
+`ResolvedPromptRoute` and `PromptRouteResolver` live in the bridge handoff
+package. `PromptRequest` stores the resolved route and derives `semantic` from
+it for diagnostics. The resolver is exhaustive over `PromptSemantic`; Generic
+resolves once from candidate presence.
+
+`ResolvedPromptRoute.SelectN` carries `SelectNPromptRoute`, while
+`ResolvedPromptRoute.PayCosts` carries `PayCostsPromptRoute`. The descriptors
+contain immutable request-shape and response-policy data. Match lifecycle
+handlers and request builders consume those descriptors; builder behavior
+remains in the game bundle package.
 
 ## Alternatives Considered
 

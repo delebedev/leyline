@@ -2,17 +2,18 @@ package leyline.match
 
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder
 import leyline.game.bundle.RequestBuilder
-import leyline.game.bundle.SelectNPromptRoute
-import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.bundle.envelope
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
@@ -114,6 +115,11 @@ class TargetingHandler(
                 DevCheck.failOnAutoPass { "SelectTargetsResp but no pending prompt" }
                 return
             }
+        if (!pendingPrompt.request.route.accepts(PromptResponseKind.Targeting)) {
+            log.warn("TargetingHandler: SelectTargetsResp does not match bound route {}", pendingPrompt.request.route)
+            DevCheck.failOnAutoPass { "SelectTargetsResp does not match bound route ${pendingPrompt.request.route}" }
+            return
+        }
 
         // Client sends one tap per SelectTargetsResp (Select_a1ad = add, Unselect = remove).
         // Accumulate across taps until SubmitTargetsReq finalizes the selection.
@@ -381,6 +387,7 @@ class TargetingHandler(
                 is ClassifiedPrompt.Grouping,
                 is ClassifiedPrompt.ModalChoice,
                 is ClassifiedPrompt.Order,
+                is ClassifiedPrompt.PayCosts,
                 is ClassifiedPrompt.Search,
                 is ClassifiedPrompt.SelectN,
                 is ClassifiedPrompt.Targeting,
@@ -412,7 +419,12 @@ class TargetingHandler(
             }
 
             is ClassifiedPrompt.SelectN -> {
-                sendSelectNPrompt(classified.pendingPrompt)
+                sendSelectNReq(classified.pendingPrompt, classified.route)
+                true
+            }
+
+            is ClassifiedPrompt.PayCosts -> {
+                payCostsInteractionHandler.sendPayCostsReq(classified.pendingPrompt, classified.route)
                 true
             }
 
@@ -427,24 +439,12 @@ class TargetingHandler(
             }
 
             is ClassifiedPrompt.Order -> {
-                sendOrderReq(classified.pendingPrompt)
+                sendOrderReq(classified.pendingPrompt, classified.kind)
                 true
             }
 
             is ClassifiedPrompt.AutoResolve -> false
         }
-    }
-
-    private fun sendSelectNPrompt(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)?.let { route ->
-            payCostsInteractionHandler.sendPayCostsReq(pendingPrompt, route)
-            return
-        }
-
-        val route =
-            SelectNPromptRoutes.route(pendingPrompt.request.semantic)
-                ?: error("missing SelectN route for ${pendingPrompt.request.semantic}")
-        sendSelectNReq(pendingPrompt, route)
     }
 
     /**
@@ -469,6 +469,11 @@ class TargetingHandler(
                 DevCheck.failOnAutoPass { "GroupResp but no pending prompt" }
                 return
             }
+        if (!pendingPrompt.request.route.accepts(PromptResponseKind.Group)) {
+            log.warn("TargetingHandler: GroupResp does not match bound route {}", pendingPrompt.request.route)
+            DevCheck.failOnAutoPass { "GroupResp does not match bound route ${pendingPrompt.request.route}" }
+            return
+        }
 
         val groups = greMsg.groupResp.groupsList
         val req = pendingPrompt.request
@@ -505,6 +510,7 @@ class TargetingHandler(
                 is ClassifiedPrompt.AutoResolve,
                 is ClassifiedPrompt.ModalChoice,
                 is ClassifiedPrompt.Order,
+                is ClassifiedPrompt.PayCosts,
                 is ClassifiedPrompt.Search,
                 is ClassifiedPrompt.SelectN,
                 is ClassifiedPrompt.Targeting,
@@ -748,6 +754,12 @@ class TargetingHandler(
         val bridge = ctx.bridge
         when (val pending = pendingInteraction) {
             is PendingClientInteraction.ModalChoice -> {
+                val prompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
+                if (prompt == null || !prompt.request.route.accepts(PromptResponseKind.ModalChoice)) {
+                    log.warn("TargetingHandler: CastingTimeOptionsResp modal does not match bound route")
+                    DevCheck.failOnAutoPass { "CastingTimeOptionsResp modal does not match bound route" }
+                    return
+                }
                 val resp = greMsg.castingTimeOptionsResp
                 val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
 
@@ -829,13 +841,17 @@ class TargetingHandler(
                 game,
                 counters.counter,
                 pendingPrompt,
+                route,
             ) { req -> route.envelope(req) { learnPromptId(pendingPrompt) } }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
-    private fun sendOrderReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val result = bundles.bundleBuilder.orderBundle(ctx.game, counters.counter, pendingPrompt)
+    private fun sendOrderReq(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
+    ) {
+        val result = bundles.bundleBuilder.orderBundle(ctx.game, counters.counter, pendingPrompt, kind)
         Tap.outboundTemplate("OrderReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }

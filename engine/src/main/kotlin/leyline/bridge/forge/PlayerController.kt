@@ -68,6 +68,7 @@ import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ClientAutoPassState
@@ -1052,8 +1053,8 @@ class PlayerController(
                 min = 0,
                 max = optionList.size,
                 defaultIndex = 0,
-                semantic = PromptSemantic.SelectNCostCollectEvidence,
                 candidateRefs = optionList.toCandidateRefs(),
+                route = PromptRouteResolver.resolve(PromptSemantic.SelectNCostCollectEvidence),
                 costSelectionWeights = optionList.map { it.getCMC().coerceAtLeast(0) },
                 minSelectionWeight = total,
                 sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
@@ -1392,7 +1393,7 @@ class PlayerController(
                 min = min,
                 max = num,
                 defaultIndex = 0,
-                semantic = PromptSemantic.ModalChoice,
+                route = PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
                 modalSourceCardName = sa.hostCard.name,
                 sourceEntityId = sa.hostCard.id,
                 isTriggeredAbility = sa.isTrigger,

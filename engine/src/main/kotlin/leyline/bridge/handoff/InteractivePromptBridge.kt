@@ -182,7 +182,8 @@ class InteractivePromptBridge(
 
     data class PromptRecord(
         val promptType: String,
-        val semantic: PromptSemantic,
+        /** Exact route used by the pending prompt; diagnostics must not resolve it again. */
+        val route: ResolvedPromptRoute,
         val message: String,
         val options: List<String>,
         val min: Int,
@@ -194,6 +195,8 @@ class InteractivePromptBridge(
         val costSelectionWeights: List<Int> = emptyList(),
         val minSelectionWeight: Int? = null,
     ) {
+        val semantic: PromptSemantic get() = route.semantic
+
         override fun toString(): String =
             "[$outcome] $promptType/$semantic: \"$message\" opts=$options result=$result\n  ${callerFrames.joinToString("\n  ")}"
     }
@@ -222,7 +225,7 @@ class InteractivePromptBridge(
             _history.addLast(
                 PromptRecord(
                     promptType = request.promptType,
-                    semantic = request.semantic,
+                    route = request.route,
                     message = request.message,
                     options = request.options,
                     min = request.min,
@@ -603,7 +606,7 @@ enum class PromptSemantic {
  * response back to indices in [options].
  */
 data class PromptRequest(
-    /** Coarse source shape from the Forge API override; routing should prefer [semantic]. */
+    /** Coarse source shape from the Forge API override; diagnostic only. */
     val promptType: String,
     /** Source/debug text from Forge. MTGA UI text is selected by outbound GRE Prompt.promptId + parameters. */
     val message: String,
@@ -611,8 +614,9 @@ data class PromptRequest(
     val min: Int = 1,
     val max: Int = 1,
     val defaultIndex: Int = 0,
-    val semantic: PromptSemantic = PromptSemantic.Generic,
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
+    /** Sole route authority; data-class copies used for re-prompts retain this value. */
+    val route: ResolvedPromptRoute = PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty()),
     /** Per-candidate selection weights for weighted cost-payment prompts. */
     val costSelectionWeights: List<Int> = emptyList(),
     /** Minimum total selected weight for weighted cost-payment prompts. */
@@ -677,7 +681,10 @@ data class PromptRequest(
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */
     val waterbendCostString: String? = null,
-)
+) {
+    /** Diagnostic identity derived from the immutable route. */
+    val semantic: PromptSemantic get() = route.semantic
+}
 
 /** Convert a pending engine prompt into its wire DTO. */
 fun InteractivePromptBridge.PendingPrompt.toChoiceDto(): PromptChoiceDto {

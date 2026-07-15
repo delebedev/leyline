@@ -9,8 +9,11 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -777,12 +780,12 @@ class BundleBuilderTest :
                             promptType = "order_cards",
                             message = "Order cards",
                             options = emptyList(),
-                            semantic = PromptSemantic.OrderForTop,
+                            route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val result = bundleBuilder(b).orderBundle(game, counter, prompt)
+            val result = bundleBuilder(b).orderBundle(game, counter, prompt, OrderRouteKind.Top)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -795,7 +798,7 @@ class BundleBuilderTest :
             }
         }
 
-        test("discard SelectNReq uses Resolution context and Dynamic listType (#175)") {
+        test("effect SelectN route uses Resolution context and Dynamic listType (#175)") {
             val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Mountain", human, ZoneType.Hand)
@@ -822,11 +825,12 @@ class BundleBuilderTest :
                                 handCards.mapIndexed { i, c ->
                                     PromptCandidateRefDto(i, PromptCandidateKind.Card, c.id, "Hand")
                                 },
+                            route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val req = RequestBuilder.buildSelectNReq(prompt, b)
+            val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
 
             assertSoftly {
                 req.context shouldBe Messages.SelectionContext.Resolution_a163
@@ -864,11 +868,12 @@ class BundleBuilderTest :
                             min = 1,
                             max = 1,
                             candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creature.id, "Battlefield")),
+                            route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val req = RequestBuilder.buildSelectNReq(prompt, b)
+            val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
 
             assertSoftly {
                 req.context shouldBe Messages.SelectionContext.Resolution_a163
@@ -1022,3 +1027,5 @@ class BundleBuilderTest :
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
         }
     })
+
+private fun InteractivePromptBridge.PendingPrompt.selectNRoute() = (request.route as ResolvedPromptRoute.SelectN).descriptor
