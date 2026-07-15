@@ -486,3 +486,13 @@ sealed interface GameEvent {
         val step: Int,
     ) : GameEvent
 }
+
+/** Returns the event's combat source fact, or null when the event is not damage. */
+internal fun GameEvent.combatDamageFact(): Boolean? =
+    if (this is GameEvent.DamageDealtToCard) {
+        combat
+    } else if (this is GameEvent.DamageDealtToPlayer) {
+        combat
+    } else {
+        null
+    }
