@@ -13,6 +13,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder
+import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.RequestBuilder
 import leyline.game.bundle.envelope
 import leyline.game.mapping.FrameIdResolver
@@ -53,6 +54,11 @@ class TargetingHandler(
             selectedIds: List<Int>,
             chooserSeatId: SeatId,
         ): List<PromptSideEffect.ChoiceResult> = PromptResponseSubmitter.choiceResultSideEffects(pendingPrompt, selectedIds, chooserSeatId)
+
+        internal fun mapModalGrpIdsToPromptIndices(
+            selectedGrpIds: List<Int>,
+            childGrpIds: List<Int>,
+        ): List<Int> = selectedGrpIds.mapNotNull { grpId -> childGrpIds.indexOf(grpId).takeIf { it >= 0 } }
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -638,46 +644,40 @@ class TargetingHandler(
         // mode), translate via card-DB childGrpIds — keeps the modal ordering
         // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
         // (legacy Charm-with-all-modes-legal path).
-        val possibleFullIndices = req.modalChoicePossibleFullIndices
-        val excludedFullIndices = req.excludedModalFullIndices
-        val effectiveChildGrpIds: List<Int>
-        val effectiveModalCosts: List<List<Pair<ManaColor, Int>>>?
-        val effectiveExcludedGrpIds: List<Int>
-        val effectiveExcludedCosts: List<List<Pair<ManaColor, Int>>>
-        if (possibleFullIndices != null && possibleFullIndices.all { it in modalInfo.childGrpIds.indices }) {
-            effectiveChildGrpIds = possibleFullIndices.map { modalInfo.childGrpIds[it] }
-            effectiveModalCosts = req.modalCosts
-            effectiveExcludedGrpIds =
-                excludedFullIndices
-                    ?.filter { it in modalInfo.childGrpIds.indices }
-                    ?.map { modalInfo.childGrpIds[it] }
-                    ?: emptyList()
-            effectiveExcludedCosts = req.excludedModalCosts ?: emptyList()
+        val modalChoice = req.modalChoice
+        val modalOptions: List<ModalOptionSpec>
+        val excludedOptions: List<ModalOptionSpec>
+        if (modalChoice != null && modalChoice.possible.all { it.fullIndex in modalInfo.childGrpIds.indices }) {
+            modalOptions =
+                modalChoice.possible.map { option ->
+                    ModalOptionSpec(modalInfo.childGrpIds[option.fullIndex], option.cost)
+                }
+            excludedOptions =
+                modalChoice.excluded
+                    .filter { it.fullIndex in modalInfo.childGrpIds.indices }
+                    .map { option -> ModalOptionSpec(modalInfo.childGrpIds[option.fullIndex], option.cost) }
         } else {
             // Silent fallback: bridge populated full-list indices but they fell
             // outside card-DB childGrpIds (Forge SVar count vs. card-DB
             // modalChildIds count drift). Modal-cost picked-mode mapping will
             // regress here. Loud in tests, soft in prod.
-            if (possibleFullIndices != null) {
+            if (modalChoice != null) {
                 DevCheck.fail {
                     "modal full-list indices out of card-DB range: " +
-                        "indices=$possibleFullIndices childCount=${modalInfo.childGrpIds.size} " +
+                        "indices=${modalChoice.possible.map { it.fullIndex }} " +
+                        "childCount=${modalInfo.childGrpIds.size} " +
                         "card='$cardName' grpId=$cardGrpId"
                 }
             }
-            effectiveChildGrpIds = modalInfo.childGrpIds
-            effectiveModalCosts = null
-            effectiveExcludedGrpIds = emptyList()
-            effectiveExcludedCosts = emptyList()
+            modalOptions = modalInfo.childGrpIds.map(::ModalOptionSpec)
+            excludedOptions = emptyList()
         }
 
         val ctoReq =
             CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                 parentGrpId = modalInfo.parentGrpId,
-                childGrpIds = effectiveChildGrpIds,
-                modalCosts = effectiveModalCosts,
-                excludedGrpIds = effectiveExcludedGrpIds,
-                excludedCosts = effectiveExcludedCosts,
+                modalOptions = modalOptions,
+                excludedOptions = excludedOptions,
                 minSel = req.min,
                 maxSel = req.max,
                 sourceInstanceId = sourceInstanceId,
@@ -692,7 +692,7 @@ class TargetingHandler(
         pendingInteraction =
             PendingClientInteraction.ModalChoice(
                 pendingPrompt.promptId,
-                effectiveChildGrpIds,
+                modalOptions.map { it.grpId },
                 stackAbilityInstanceId = sourceInstanceId.takeIf { isTriggered && it > 0 },
             )
 
@@ -739,10 +739,7 @@ class TargetingHandler(
                 val resp = greMsg.castingTimeOptionsResp
                 val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
 
-                val selectedIndices =
-                    chosenGrpIds.mapNotNull { grpId ->
-                        pending.childGrpIds.indexOf(grpId).takeIf { it >= 0 }
-                    }
+                val selectedIndices = mapModalGrpIdsToPromptIndices(chosenGrpIds, pending.childGrpIds)
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 

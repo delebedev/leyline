@@ -5,6 +5,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 
 /** Pure proto builders for CastingTimeOptionsReq prompt variants. */
 object CastingTimeOptionsBuilder {
+    /** A modal option's emitted grpId and its `+ {cost}`; empty cost means free. */
+    data class ModalOptionSpec(
+        val grpId: Int,
+        val cost: List<Pair<ManaColor, Int>> = emptyList(),
+    )
+
     data class ManaRequirementSpec(
         val colors: List<ManaColor>,
         val count: Int = 1,
@@ -16,10 +22,8 @@ object CastingTimeOptionsBuilder {
      * Per-mode `modeCost` and `excludedOptions` are populated when supplied.
      *
      * @param parentGrpId the abilityGrpId of the modal ability
-     * @param childGrpIds the grpIds for each modal option, in render order
-     * @param modalCosts optional per-mode `+ {cost}` parallel to childGrpIds; null = all free
-     * @param excludedGrpIds modes that exist on the card but aren't pickable now
-     * @param excludedCosts costs parallel to excludedGrpIds; same shape as modalCosts
+     * @param modalOptions pickable modal options in render order
+     * @param excludedOptions modes that exist on the card but aren't pickable now
      * @param sourceInstanceId the instanceId for affectedId/affectorId
      * @param grpId the grpId for the CTO entry (card grpId for spells, ability grpId for triggers)
      * @param ctoId CTO identifier (1-2 for spell-time, 3 for triggered abilities)
@@ -28,16 +32,14 @@ object CastingTimeOptionsBuilder {
     @Suppress("LongParameterList") // Each param maps to one explicit proto field; bundling into a struct just renames the bag.
     fun buildModalCastingTimeOptionsReq(
         parentGrpId: Int,
-        childGrpIds: List<Int>,
+        modalOptions: List<ModalOptionSpec>,
         minSel: Int,
         maxSel: Int,
         sourceInstanceId: Int,
         grpId: Int,
         ctoId: Int = 2,
         playerIdToPrompt: Int? = null,
-        modalCosts: List<List<Pair<ManaColor, Int>>>? = null,
-        excludedGrpIds: List<Int> = emptyList(),
-        excludedCosts: List<List<Pair<ManaColor, Int>>> = emptyList(),
+        excludedOptions: List<ModalOptionSpec> = emptyList(),
     ): CastingTimeOptionsReq {
         val modalReq =
             ModalReq
@@ -46,16 +48,16 @@ object CastingTimeOptionsBuilder {
                 .setMinSel(minSel)
                 .setMaxSel(maxSel)
         var modeCostId = 1
-        for ((i, childGrpId) in childGrpIds.withIndex()) {
-            val opt = ModalOption.newBuilder().setGrpId(childGrpId)
-            modalCosts?.getOrNull(i)?.forEach { (color, count) ->
+        for (option in modalOptions) {
+            val opt = ModalOption.newBuilder().setGrpId(option.grpId)
+            option.cost.forEach { (color, count) ->
                 opt.addModeCost(buildManaCost(color, count, modeCostId++))
             }
             modalReq.addModalOptions(opt)
         }
-        for ((i, exGrpId) in excludedGrpIds.withIndex()) {
-            val opt = ModalOption.newBuilder().setGrpId(exGrpId)
-            excludedCosts.getOrNull(i)?.forEach { (color, count) ->
+        for (option in excludedOptions) {
+            val opt = ModalOption.newBuilder().setGrpId(option.grpId)
+            option.cost.forEach { (color, count) ->
                 opt.addModeCost(buildManaCost(color, count, modeCostId++))
             }
             modalReq.addExcludedOptions(opt)

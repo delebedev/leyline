@@ -425,7 +425,14 @@ class ForgeAiPolicy(
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
         val pending = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
         val sa = pending.targetingSa ?: return null
-        val possible = modalPossibleAbilities(sa, pending.request.modalChoicePossibleFullIndices, modalGrpIds.size) ?: return null
+        val possible =
+            modalPossibleAbilities(
+                sa,
+                pending.request.modalChoice
+                    ?.possible
+                    ?.map { it.fullIndex },
+                modalGrpIds.size,
+            ) ?: return null
         modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
         modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
         val previousSub = sa.subAbility
