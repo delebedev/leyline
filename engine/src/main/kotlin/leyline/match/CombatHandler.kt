@@ -174,8 +174,8 @@ open class CombatHandler(
                 lastDeclaredDamageRecipients = lastDeclaredAttackerIds.associateWith { defaultAttackRecipient() }
                 log.info("CombatHandler: Attack All — selected all {} pending attackers", lastDeclaredAttackerIds.size)
             } else {
-                // XOR toggle: selectedAttackers contains the clicked attacker option.
-                // Same option toggles off; a different alternativeGrpId switches the option.
+                // A recipient-bearing entry selects or updates an attacker. An entry
+                // without a recipient deselects an attacker that was already selected.
                 val current =
                     lastDeclaredAttackerIds
                         .associateWith { id ->
@@ -186,26 +186,30 @@ open class CombatHandler(
                         }.toMutableMap()
                 for (attacker in resp.selectedAttackersList) {
                     val id = attacker.attackerInstanceId
-                    val selection =
-                        AttackSelection(
-                            alternativeGrpId = attacker.alternativeGrpId,
-                            damageRecipient =
-                                if (attacker.hasSelectedDamageRecipient()) {
-                                    attacker.selectedDamageRecipient
-                                } else {
-                                    defaultAttackRecipient()
-                                },
-                        )
-                    if (current[id] == selection) {
-                        current.remove(id)
+                    if (attacker.hasSelectedDamageRecipient()) {
+                        current[id] =
+                            AttackSelection(
+                                alternativeGrpId = attacker.alternativeGrpId,
+                                damageRecipient = attacker.selectedDamageRecipient,
+                            )
+                    } else if (id in current) {
+                        current -= id
                     } else {
-                        current[id] = selection
+                        log.warn("CombatHandler: attacker {} omitted selectedDamageRecipient", id)
+                        ResponseEnvelopeGuard.reject(
+                            greMsg,
+                            FailureReason.UnexpectedMessage,
+                            counters.counter,
+                            sink,
+                        )
+                        sendAttackerEchoBack()
+                        return
                     }
                 }
                 lastDeclaredAttackAlternatives = current.mapValues { it.value.alternativeGrpId }
                 lastDeclaredDamageRecipients = current.mapValues { it.value.damageRecipient }
                 lastDeclaredAttackerIds = current.keys.toList()
-                log.info("CombatHandler: toggle {} → committed {}", resp.selectedAttackersList, lastDeclaredAttackAlternatives)
+                log.info("CombatHandler: selection {} → committed {}", resp.selectedAttackersList, lastDeclaredAttackAlternatives)
             }
             // Echo back GSM with creature objects (no combat state) + DeclareAttackersReq.
             sendAttackerEchoBack()

@@ -34,6 +34,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
@@ -94,6 +95,34 @@ class TargetingInteractionTest :
                     .cards
                     .filter { it.name == "Giant Growth" } shouldHaveSize 1
             }
+        }
+
+        test("target selection requires the projected target group index") {
+            startPuzzleFile("puzzles/pump-spell.pzl")
+            val creatureIid = humanBattlefieldCreatures().first().first
+            castSpellByName("Giant Growth").shouldBeTrue()
+            selectTargetsIterative(listOf(creatureIid))
+            val initialPromptMsgId = harness.latestPromptMsgId()
+            val before = messageSnapshot()
+
+            harness.session.onSelectTargets(
+                harness.submitWithGsId(leyline.testkit.selectTargetsResp(listOf(creatureIid), targetIdx = 0)),
+            )
+            harness.drainSink()
+
+            val messages = messagesSince(before)
+            messages.none { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe true
+            val rePrompt = messages.last { it.hasSelectTargetsReq() }
+            assertSoftly {
+                rePrompt.msgId shouldBeGreaterThan initialPromptMsgId
+                rePrompt.selectTargetsReq.targetsList
+                    .single()
+                    .selectedTargets shouldBe 1
+            }
+
+            submitTargets()
+            passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
+            (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
         }
 
         test("targeting prompt rejects mismatched response families without consuming the pending route") {
@@ -540,18 +569,20 @@ class TargetingInteractionTest :
             // Pick Grizzly, then tap it again with legalAction=Unselect — accumulation clears.
             selectTargetsIterative(listOf(humanBearsIid))
             harness.session.onSelectTargets(
-                clientMessage(ClientMessageType.SelectTargetsResp_097b) {
-                    setSelectTargetsResp(
-                        SelectTargetsResp.newBuilder().setTarget(
-                            TargetSelection.newBuilder().addTargets(
-                                ProtoTarget
-                                    .newBuilder()
-                                    .setTargetInstanceId(humanBearsIid)
-                                    .setLegalAction(SelectAction.Unselect),
+                harness.submitWithGsId(
+                    clientMessage(ClientMessageType.SelectTargetsResp_097b) {
+                        setSelectTargetsResp(
+                            SelectTargetsResp.newBuilder().setTarget(
+                                TargetSelection.newBuilder().setTargetIdx(1).addTargets(
+                                    ProtoTarget
+                                        .newBuilder()
+                                        .setTargetInstanceId(humanBearsIid)
+                                        .setLegalAction(SelectAction.Unselect),
+                                ),
                             ),
-                        ),
-                    )
-                },
+                        )
+                    },
+                ),
             )
             harness.drainSink()
 

@@ -158,8 +158,12 @@ class MatchDoorMulliganFlowTest :
             return local to familiar
         }
 
-        fun chooseStartingPlayer(seatId: Int = 1): ClientToGREMessage =
+        fun chooseStartingPlayer(
+            respId: Int,
+            seatId: Int = 1,
+        ): ClientToGREMessage =
             greMessage(2, ClientMessageType.ChooseStartingPlayerResp_097b) {
+                setRespId(respId)
                 setChooseStartingPlayerResp(
                     ChooseStartingPlayerResp
                         .newBuilder()
@@ -169,8 +173,12 @@ class MatchDoorMulliganFlowTest :
                 )
             }
 
-        fun mulliganDecision(decision: MulliganOption): ClientToGREMessage =
+        fun mulliganDecision(
+            decision: MulliganOption,
+            respId: Int,
+        ): ClientToGREMessage =
             greMessage(1, ClientMessageType.MulliganResp_097b) {
+                setRespId(respId)
                 setMulliganResp(MulliganResp.newBuilder().setDecision(decision))
             }
 
@@ -180,10 +188,31 @@ class MatchDoorMulliganFlowTest :
             val (local, familiar) = connectPair(registry, matchId)
 
             try {
-                familiar.writeInbound(greServiceMessage(chooseStartingPlayer(), 5))
+                familiar.writeInbound(
+                    greServiceMessage(
+                        chooseStartingPlayer(
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge.messageCounter
+                                .lastPromptMsgId(),
+                        ),
+                        5,
+                    ),
+                )
                 val mulliganPrompt = greOutbound(local).map { it.type }
 
-                local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.AcceptHand), 6))
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.AcceptHand,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge.messageCounter
+                                .lastPromptMsgId(),
+                        ),
+                        6,
+                    ),
+                )
                 val postKeep = greOutbound(local).map { it.type }
 
                 assertSoftly {
@@ -214,18 +243,50 @@ class MatchDoorMulliganFlowTest :
             val (local, familiar) = connectPair(registry, matchId, deckList = mixedDeck)
 
             try {
-                familiar.writeInbound(greServiceMessage(chooseStartingPlayer(), 5))
+                familiar.writeInbound(
+                    greServiceMessage(
+                        chooseStartingPlayer(
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge.messageCounter
+                                .lastPromptMsgId(),
+                        ),
+                        5,
+                    ),
+                )
                 greOutbound(local)
                 val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
                 val firstHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
-                local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.Mulligan), 6))
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.Mulligan,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge.messageCounter
+                                .lastPromptMsgId(),
+                        ),
+                        6,
+                    ),
+                )
                 val redrawPrompt = greOutbound(local)
                 val redrawTypes = redrawPrompt.map { it.type }
                 val redrawMulligan = redrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }.mulliganReq
                 val redrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
-                local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.AcceptHand), 7))
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.AcceptHand,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge.messageCounter
+                                .lastPromptMsgId(),
+                        ),
+                        7,
+                    ),
+                )
                 val postKeep = greOutbound(local).map { it.type }
 
                 assertSoftly {

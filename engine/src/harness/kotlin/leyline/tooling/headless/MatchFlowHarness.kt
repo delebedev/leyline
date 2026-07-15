@@ -527,6 +527,8 @@ class MatchFlowHarness(
         damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): List<GREToClientMessage> = combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives, damageRecipients)
 
+    fun deselectAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> = combatDriver.deselectAttackers(attackerInstanceIds)
+
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.
      *
@@ -1026,22 +1028,26 @@ class MatchFlowHarness(
      */
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
+    fun latestPromptMsgId(): Int = messageLog.latestPromptMsgId()
+
     /**
-     * Reflect the latest prompt gsId onto a client message before it enters
-     * the session, mirroring real-client behaviour. Pass-through when the
-     * message already carries an explicit non-zero gsId (used by tests that
-     * need to drive a stale or pre-handshake submission deliberately).
+     * Reflect the latest prompt ids onto a client response before it enters
+     * the session. Explicit non-zero ids remain unchanged so tests can submit
+     * stale values deliberately.
      *
      * `internal` so cross-package drivers in the same module (notably
      * [leyline.tooling.simclient.SimClientDriver]) can route their direct
      * `session.on*` calls through it instead of bypassing reflection.
      */
-    internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage =
-        if (msg.gameStateId == 0) {
-            msg.toBuilder().setGameStateId(latestPromptGsId()).build()
-        } else {
-            msg
+    internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage {
+        val prompt = messageLog.latestPrompt() ?: return msg
+        val builder = msg.toBuilder()
+        if (msg.gameStateId == 0) builder.gameStateId = prompt.gameStateId
+        if (msg.respId == 0 && msg.type in leyline.match.CORRELATED_CLIENT_MESSAGE_TYPES) {
+            builder.respId = prompt.msgId
         }
+        return builder.build()
+    }
 
     /**
      * Walk a deck list and ask Forge's static data to load every unique card

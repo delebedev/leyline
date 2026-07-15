@@ -267,86 +267,93 @@ class MatchSession(
      * and context resolver.
      */
     override fun onPerformAction(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             actionPerformer.perform(greMsg)
         }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             combatHandler.onDeclareAttackers(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             combatHandler.onDeclareBlockers(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
     override fun onAssignDamage(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             combatHandler.onAssignDamage(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             optionalActionHandler.onOptionalActionResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle NumericInputResp — delegates to [NumericInputHandler]. */
     override fun onNumericInputResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             numericInputHandler.onNumericInputResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onSelectTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onSubmitTargets { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onSelectN(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onCastingTimeOptions(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
             targetingHandler.onSearchResp(itemsFound) { autoPassEngine.autoPassAndAdvance() }
         }
+
+    private fun withValidResponse(
+        greMsg: ClientToGREMessage,
+        block: () -> Unit,
+    ) = synchronized(sessionLock) {
+        if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
+    }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -688,7 +695,7 @@ class MatchSession(
     private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-            markIfPrompt(counter, m.type, m.gameStateId)
+            markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)

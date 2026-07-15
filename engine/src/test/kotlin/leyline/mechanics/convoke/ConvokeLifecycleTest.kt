@@ -234,20 +234,24 @@ private fun assertConvokePaymentActions(
 
 private fun SessionTest.respondToConvokeMakePayment(instanceId: Int) {
     harness.session.onPerformAction(
-        performAction {
-            actionType = ActionType.MakePayment
-            this.instanceId = instanceId
-        }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+        harness.submitWithGsId(
+            performAction {
+                actionType = ActionType.MakePayment
+                this.instanceId = instanceId
+            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+        ),
     )
     harness.drainSink()
 }
 
 private fun SessionTest.respondToConvokePaymentDone() {
     harness.session.onPerformAction(
-        performAction { actionType = ActionType.Pass }
-            .toBuilder()
-            .setGameStateId(harness.latestPromptGsId())
-            .build(),
+        harness.submitWithGsId(
+            performAction { actionType = ActionType.Pass }
+                .toBuilder()
+                .setGameStateId(harness.latestPromptGsId())
+                .build(),
+        ),
     )
     harness.drainSink()
 }

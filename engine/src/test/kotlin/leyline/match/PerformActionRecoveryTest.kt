@@ -36,7 +36,13 @@ class PerformActionRecoveryTest :
                     paceDelayMs = 0,
                 )
 
-            session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
+            session.counter.markPromptMsgId(7)
+            session.onPerformAction(
+                performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass }
+                    .toBuilder()
+                    .setRespId(7)
+                    .build(),
+            )
 
             // The state-only resync emits content + echo GSMs and no action request.
             // autoPassAndAdvance would iterate phases, emitting multiple bundles.

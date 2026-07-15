@@ -260,20 +260,24 @@ private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
 
 private fun SessionTest.respondToWaterbendMakePayment(instanceId: Int) {
     harness.session.onPerformAction(
-        performAction {
-            actionType = ActionType.MakePayment
-            this.instanceId = instanceId
-        }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+        harness.submitWithGsId(
+            performAction {
+                actionType = ActionType.MakePayment
+                this.instanceId = instanceId
+            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+        ),
     )
     harness.drainSink()
 }
 
 private fun SessionTest.respondToWaterbendPaymentDone() {
     harness.session.onPerformAction(
-        performAction { actionType = ActionType.Pass }
-            .toBuilder()
-            .setGameStateId(harness.latestPromptGsId())
-            .build(),
+        harness.submitWithGsId(
+            performAction { actionType = ActionType.Pass }
+                .toBuilder()
+                .setGameStateId(harness.latestPromptGsId())
+                .build(),
+        ),
     )
     harness.drainSink()
 }

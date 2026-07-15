@@ -256,6 +256,8 @@ abstract class SessionTest(
         damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): List<GREToClientMessage> = harness.toggleAttackers(attackerInstanceIds, attackerAlternatives, damageRecipients)
 
+    fun deselectAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> = harness.deselectAttackers(attackerInstanceIds)
+
     // --- Combat: declare blockers ---
 
     fun declareBlockers(assignments: Map<Int, Int>) = harness.declareBlockers(assignments)
