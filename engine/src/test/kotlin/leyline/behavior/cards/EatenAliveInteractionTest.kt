@@ -55,9 +55,11 @@ class EatenAliveInteractionTest :
 
         fun submitAction(action: Action) {
             harness.session.onPerformAction(
-                performAction {
-                    mergeFrom(action)
-                },
+                harness.submitWithGsId(
+                    performAction {
+                        mergeFrom(action)
+                    },
+                ),
             )
             harness.drainSink()
         }

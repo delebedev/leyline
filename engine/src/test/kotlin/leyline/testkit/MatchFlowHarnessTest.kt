@@ -244,6 +244,7 @@ class MatchFlowHarnessTest :
                     performAction { actionType = ActionType.Pass }
                         .toBuilder()
                         .setGameStateId(h.latestPromptGsId() - delta)
+                        .setRespId(h.latestPromptMsgId())
                         .build()
                 h.session.onPerformAction(stalePass)
                 h.drainSink()
@@ -262,6 +263,7 @@ class MatchFlowHarnessTest :
                 performAction { actionType = ActionType.Pass }
                     .toBuilder()
                     .setGameStateId(h.latestPromptGsId())
+                    .setRespId(h.latestPromptMsgId())
                     .build()
 
             h.session.onPerformAction(freshPass)
@@ -294,6 +296,7 @@ class MatchFlowHarnessTest :
                 performAction { actionType = ActionType.Pass }
                     .toBuilder()
                     .setGameStateId(oldPromptGsId)
+                    .setRespId(h.latestPromptMsgId())
                     .build()
             h.session.onPerformAction(latePass)
             h.drainSink()

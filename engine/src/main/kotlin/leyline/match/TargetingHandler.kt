@@ -128,14 +128,20 @@ class TargetingHandler(
             return
         }
 
-        // Client sends one tap per SelectTargetsResp (Select_a1ad = add, Unselect = remove).
-        // Accumulate across taps until SubmitTargetsReq finalizes the selection.
         val existing =
             (pendingInteraction as? PendingClientInteraction.TargetSelection)
                 ?.takeIf { it.promptId == pendingPrompt.promptId }
                 ?.selectedInstanceIds
                 .orEmpty()
 
+        if (resp.target.targetIdx != 1) {
+            log.warn("TargetingHandler: SelectTargetsResp targetIdx={} expected=1", resp.target.targetIdx)
+            sendTargetRePrompt(pendingPrompt, existing)
+            return
+        }
+
+        // Client sends one tap per SelectTargetsResp (Select_a1ad = add, Unselect = remove).
+        // Accumulate across taps until SubmitTargetsReq finalizes the selection.
         val accumulated = existing.toMutableList()
         for (target in resp.target.targetsList) {
             val iid = target.targetInstanceId
@@ -177,7 +183,14 @@ class TargetingHandler(
             return
         }
 
-        // Echo-back: actions-only GSM diff + re-prompt with selection reflected
+        sendTargetRePrompt(pendingPrompt, selectedInstanceIds)
+    }
+
+    private fun sendTargetRePrompt(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        selectedInstanceIds: List<Int>,
+    ) {
+        val bridge = ctx.bridge
         val echoDiff = bundles.bundleBuilder.buildEchoDiffGsm(counters.counter)
         val gsId = counters.counter.currentGsId()
         val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, counters.seatId.value)

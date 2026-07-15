@@ -74,7 +74,7 @@ class AdventurePuzzleTest :
                     instanceId = adventureAction.instanceId
                     grpId = adventureAction.grpId
                 }
-            harness.session.onPerformAction(castMsg)
+            harness.session.onPerformAction(harness.submitWithGsId(castMsg))
             harness.drainSink()
 
             // --- Step 3: Pass priority until adventure resolves (tokens appear) ---

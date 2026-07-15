@@ -5,6 +5,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.markPrompts
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
@@ -107,7 +108,7 @@ class PuzzleHandler(
                 projection.actions,
             )
         session.counter.setMsgId(nextMsgId2)
-        session.counter.markPromptGsId(gsId)
+        markPrompts(session.counter, actionsMsg)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         output.send(actionsMsg)

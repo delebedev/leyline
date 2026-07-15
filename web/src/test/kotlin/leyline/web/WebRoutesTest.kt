@@ -497,6 +497,11 @@ class WebRoutesTest :
                 connect(engineA, matchA)
                 connect(engineB, matchB)
                 val beforePass = framesA.size
+                val actionPrompt =
+                    framesA
+                        .map(MatchServiceToClientMessage::parseFrom)
+                        .flatMap { it.greToClientEvent.greToClientMessagesList }
+                        .last { it.hasActionsAvailableReq() }
                 engineA.receiveFromBrowser(
                     ClientToMatchServiceMessage
                         .newBuilder()
@@ -506,6 +511,8 @@ class WebRoutesTest :
                                 .newBuilder()
                                 .setSystemSeatId(1)
                                 .setType(ClientMessageType.PerformActionResp_097b)
+                                .setGameStateId(actionPrompt.gameStateId)
+                                .setRespId(actionPrompt.msgId)
                                 .setPerformActionResp(
                                     PerformActionResp
                                         .newBuilder()

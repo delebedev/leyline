@@ -1,6 +1,7 @@
 package leyline.game.bundle
 
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 
 /**
  * GRE message types that carry a prompt — i.e. the server is asking the
@@ -21,11 +22,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
  *   not a staleness-checked handler)
  * - `EdictalMessage`, `TimerStateMessage`, `UIMessage`, `MatchCompletedEvent`
  *   (informational; no awaited response)
- * - `MulliganReq_aa0d`, `ChooseStartingPlayerReq_695e` — these *do* solicit
- *   a response, but [leyline.match.MulliganHandler] doesn't run the staleness
- *   predicate against them (the mulligan / coin-flip flow has its own
- *   sequencing). If a future change adds a staleness check to those
- *   handlers, add the types to this set then.
  */
 val PROMPT_GRE_TYPES: Set<GREMessageType> =
     setOf(
@@ -42,13 +38,31 @@ val PROMPT_GRE_TYPES: Set<GREMessageType> =
         GREMessageType.PromptReq,
         GREMessageType.OptionalActionMessage_695e,
         GREMessageType.AssignDamageReq_695e,
+        GREMessageType.NumericInputReq_695e,
+        GREMessageType.MulliganReq_aa0d,
+        GREMessageType.ChooseStartingPlayerReq_695e,
     )
 
-/** Mark [gsId] on [counter] when [type] is in [PROMPT_GRE_TYPES]. No-op otherwise. */
+/** Mark prompt correlation ids on [counter] when [type] is in [PROMPT_GRE_TYPES]. */
 fun markIfPrompt(
     counter: MessageCounter,
     type: GREMessageType,
     gsId: Int,
+    msgId: Int,
 ) {
-    if (type in PROMPT_GRE_TYPES) counter.markPromptGsId(gsId)
+    if (type in PROMPT_GRE_TYPES) {
+        counter.markPromptGsId(gsId)
+        counter.markPromptMsgId(msgId)
+    }
+}
+
+/** Mark every prompt contained in a match-service wrapper. */
+fun markPrompts(
+    counter: MessageCounter,
+    message: MatchServiceToClientMessage,
+) {
+    if (!message.hasGreToClientEvent()) return
+    for (prompt in message.greToClientEvent.greToClientMessagesList) {
+        markIfPrompt(counter, prompt.type, prompt.gameStateId, prompt.msgId)
+    }
 }

@@ -3,6 +3,7 @@ package leyline.tooling.headless
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
 import leyline.game.state.GameBridge
 import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
@@ -30,7 +31,7 @@ internal class MatchFlowCombatDriver(
     }
 
     fun declareAttackers(attackerInstanceIds: List<Int>) {
-        declareAttackers(attackerInstanceIds, emptyMap())
+        declareAttackers(attackerInstanceIds, defaultDamageRecipients(attackerInstanceIds))
     }
 
     fun declareAttackers(
@@ -58,17 +59,27 @@ internal class MatchFlowCombatDriver(
     fun toggleAttackers(
         attackerInstanceIds: List<Int>,
         attackerAlternatives: Map<Int, Int> = emptyMap(),
-        damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+        damageRecipients: Map<Int, DamageRecipient> = defaultDamageRecipients(attackerInstanceIds),
     ): List<GREToClientMessage> {
+        val recipients = damageRecipients.ifEmpty { defaultDamageRecipients(attackerInstanceIds) }
         val snap = messageSnapshot()
         session().onDeclareAttackers(
             submitWithGsId(
                 declareAttackersResp(
                     attackers = attackerInstanceIds,
                     attackerAlternatives = attackerAlternatives,
-                    damageRecipients = damageRecipients,
+                    damageRecipients = recipients,
                 ),
             ),
+        )
+        drainSink()
+        return messagesSince(snap)
+    }
+
+    fun deselectAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> {
+        val snap = messageSnapshot()
+        session().onDeclareAttackers(
+            submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)),
         )
         drainSink()
         return messagesSince(snap)
@@ -124,4 +135,13 @@ internal class MatchFlowCombatDriver(
         session().onAssignDamage(submitWithGsId(assignDamageResp(assigners)))
         drainSink()
     }
+
+    private fun defaultDamageRecipients(attackerInstanceIds: List<Int>): Map<Int, DamageRecipient> =
+        attackerInstanceIds.associateWith {
+            DamageRecipient
+                .newBuilder()
+                .setType(wotc.mtgo.gre.external.messaging.Messages.DamageRecType.Player_a0e5)
+                .setPlayerSystemSeatId(seatId.opponent.value)
+                .build()
+        }
 }
