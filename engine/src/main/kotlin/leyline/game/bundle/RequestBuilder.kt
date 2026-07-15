@@ -9,7 +9,11 @@ import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.OrderRouteKind
+import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.handoff.SelectNEnvelopeKind
+import leyline.bridge.handoff.SelectNPromptRoute
+import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -190,6 +194,7 @@ object RequestBuilder {
     fun buildOrderReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+        kind: OrderRouteKind,
     ): Pair<OrderReq, Prompt> {
         val ids =
             prompt.request.candidateRefs
@@ -200,13 +205,13 @@ object RequestBuilder {
                 .newBuilder()
                 .addAllIds(ids)
                 .apply {
-                    if (prompt.request.semantic == PromptSemantic.OrderForBottom) {
+                    if (kind == OrderRouteKind.Bottom) {
                         setOrderingContext(OrderingContext.OrderingForBottom)
                     }
                 }.build()
         val sourceInstanceId = orderSourceInstanceId(prompt, bridge)
         val promptProto =
-            promptWithCardId(orderPromptId(prompt.request.semantic), sourceInstanceId)
+            promptWithCardId(orderPromptId(kind), sourceInstanceId)
         return orderReq to promptProto
     }
 
@@ -269,13 +274,10 @@ object RequestBuilder {
             .build()
     }
 
-    private fun orderPromptId(semantic: PromptSemantic): Int =
-        if (semantic == PromptSemantic.OrderForBottom) {
-            PromptIds.ORDER_LIBRARY_BOTTOM
-        } else if (semantic == PromptSemantic.OrderForTop) {
-            PromptIds.ORDER_LIBRARY_TOP
-        } else {
-            error("Not an order semantic: $semantic")
+    private fun orderPromptId(kind: OrderRouteKind): Int =
+        when (kind) {
+            OrderRouteKind.Bottom -> PromptIds.ORDER_LIBRARY_BOTTOM
+            OrderRouteKind.Top -> PromptIds.ORDER_LIBRARY_TOP
         }
 
     private fun orderSourceInstanceId(
@@ -502,10 +504,10 @@ object RequestBuilder {
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+        route: SelectNPromptRoute,
     ): SelectNReq {
-        val semantic = prompt.request.semantic
         val staticList = prompt.request.staticList
-        val shape = selectNShape(semantic)
+        val shape = route.shape
         val builder =
             SelectNReq
                 .newBuilder()
@@ -526,48 +528,31 @@ object RequestBuilder {
 
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
-        if (semantic != PromptSemantic.RevealChoose || hasValidChoices) {
-            builder.setMinSel(selectNMinSel(prompt, semantic))
+        if (route.envelopeKind != SelectNEnvelopeKind.RevealChoose || hasValidChoices) {
+            builder.setMinSel(selectNMinSel(prompt, route))
             builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
         }
 
-        builder.addSelectNIds(prompt, bridge)
-        builder.configureSelectNPrompt(prompt, bridge, semantic)
+        builder.addSelectNIds(prompt, bridge, route)
+        route.configureInnerPrompt(builder, prompt, bridge)
         return builder.build()
     }
 
-    private fun selectNShape(semantic: PromptSemantic): SelectNShape = SelectNPromptRoutes.route(semantic)?.shape ?: defaultSelectNShape()
-
-    private fun defaultSelectNShape(): SelectNShape =
-        SelectNShape(
-            SelectionContext.Resolution_a163,
-            SelectionListType.Dynamic,
-            OptionContext.Resolution_a9d7,
-        )
-
-    private fun SelectNReq.Builder.configureSelectNPrompt(
+    fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-        semantic: PromptSemantic,
-    ) {
-        SelectNPromptRoutes.route(semantic)?.let { route ->
-            route.configureInnerPrompt(this, prompt, bridge)
-            return
-        }
-
-        when {
-            else -> {
-                setSourceIdIfPresent(prompt, bridge)
-                setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
-            }
-        }
+    ): SelectNReq {
+        val route =
+            (prompt.request.route as? ResolvedPromptRoute.SelectN)?.descriptor
+                ?: error("SelectN builder requires a bound SelectN route")
+        return buildSelectNReq(prompt, bridge, route)
     }
 
     private fun selectNMinSel(
         prompt: InteractivePromptBridge.PendingPrompt,
-        semantic: PromptSemantic,
+        route: SelectNPromptRoute,
     ): Int =
-        if (semantic == PromptSemantic.LearnLesson && prompt.request.candidateRefs.isNotEmpty()) {
+        if (route.envelopeKind == SelectNEnvelopeKind.LearnLesson && prompt.request.candidateRefs.isNotEmpty()) {
             1
         } else {
             prompt.request.min
@@ -576,9 +561,10 @@ object RequestBuilder {
     private fun SelectNReq.Builder.addSelectNIds(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+        route: SelectNPromptRoute,
     ) {
         if (prompt.request.staticList != null) {
-            if (prompt.request.semantic == PromptSemantic.StaticSubtypeChoice) {
+            if (route.staticChoice?.kind == StaticChoiceKind.Subtype) {
                 prompt.request.staticOptionIds.forEach { addIds(it) }
             }
             return

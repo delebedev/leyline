@@ -11,7 +11,9 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -286,7 +288,7 @@ class RevealTest :
                     sourceEntityId = 999,
                 )
 
-            val req = RequestBuilder.buildSelectNReq(prompt, board.bridge)
+            val req = RequestBuilder.buildSelectNReq(prompt, board.bridge, prompt.selectNRoute())
 
             assertSoftly {
                 req.idsList shouldHaveSize 1
@@ -323,7 +325,7 @@ class RevealTest :
                     max = 0,
                 )
 
-            val req = RequestBuilder.buildSelectNReq(prompt, board.bridge)
+            val req = RequestBuilder.buildSelectNReq(prompt, board.bridge, prompt.selectNRoute())
 
             assertSoftly {
                 req.idsList.shouldBeEmpty()
@@ -372,8 +374,8 @@ class RevealTest :
                         options = candidateRefs.map { "card" },
                         min = min,
                         max = max,
-                        semantic = PromptSemantic.RevealChoose,
                         candidateRefs = candidateRefs,
+                        route = PromptRouteResolver.resolve(PromptSemantic.RevealChoose),
                         unfilteredRefs = unfilteredRefs,
                         sourceEntityId = sourceEntityId,
                     ),
@@ -381,3 +383,5 @@ class RevealTest :
             )
     }
 }
+
+private fun InteractivePromptBridge.PendingPrompt.selectNRoute() = (request.route as ResolvedPromptRoute.SelectN).descriptor

@@ -9,8 +9,11 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -18,6 +21,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.RequestBuilder
 import leyline.game.event.GameEvent
@@ -117,7 +121,7 @@ class BundleBuilderTest :
             val req =
                 CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                     parentGrpId = 200001,
-                    childGrpIds = listOf(101, 102, 103),
+                    modalOptions = listOf(101, 102, 103).map(::ModalOptionSpec),
                     minSel = 1,
                     maxSel = 1,
                     sourceInstanceId = 555,
@@ -142,18 +146,19 @@ class BundleBuilderTest :
             val req =
                 CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                     parentGrpId = 173717,
-                    childGrpIds = listOf(171803, 171804),
-                    modalCosts =
+                    modalOptions =
                         listOf(
-                            listOf(Messages.ManaColor.Generic to 3),
-                            listOf(Messages.ManaColor.Generic to 2),
+                            ModalOptionSpec(171803, listOf(Messages.ManaColor.Generic to 3)),
+                            ModalOptionSpec(171804, listOf(Messages.ManaColor.Generic to 2)),
                         ),
-                    excludedGrpIds = listOf(171802),
-                    excludedCosts =
+                    excludedOptions =
                         listOf(
-                            listOf(
-                                Messages.ManaColor.Generic to 1,
-                                Messages.ManaColor.Blue_afc9 to 1,
+                            ModalOptionSpec(
+                                171802,
+                                listOf(
+                                    Messages.ManaColor.Generic to 1,
+                                    Messages.ManaColor.Blue_afc9 to 1,
+                                ),
                             ),
                         ),
                     minSel = 1,
@@ -216,14 +221,16 @@ class BundleBuilderTest :
             val req =
                 CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                     parentGrpId = 189137,
-                    childGrpIds = listOf(189134, 189135, 189136),
-                    modalCosts =
+                    modalOptions =
                         listOf(
-                            listOf(Messages.ManaColor.Generic to 0),
-                            listOf(Messages.ManaColor.Generic to 2),
-                            listOf(
-                                Messages.ManaColor.Generic to 5,
-                                Messages.ManaColor.Blue_afc9 to 1,
+                            ModalOptionSpec(189134, listOf(Messages.ManaColor.Generic to 0)),
+                            ModalOptionSpec(189135, listOf(Messages.ManaColor.Generic to 2)),
+                            ModalOptionSpec(
+                                189136,
+                                listOf(
+                                    Messages.ManaColor.Generic to 5,
+                                    Messages.ManaColor.Blue_afc9 to 1,
+                                ),
                             ),
                         ),
                     minSel = 1,
@@ -384,32 +391,6 @@ class BundleBuilderTest :
                 ids shouldBe emptyList<Int>()
                 req.castingTimeOptionReqCount shouldBe 1
                 req.getCastingTimeOptionReq(0).castingTimeOptionType shouldBe Messages.CastingTimeOptionType.Done
-            }
-        }
-
-        test("buildModalCastingTimeOptionsReq — modalCosts shorter than childGrpIds drops late costs") {
-            // Documents the parallel-list invariant: caller is expected to pass
-            // a modalCosts of equal length to childGrpIds; shorter silently drops.
-            val req =
-                CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
-                    parentGrpId = 1,
-                    childGrpIds = listOf(10, 20, 30),
-                    modalCosts =
-                        listOf(
-                            listOf(Messages.ManaColor.Generic to 1),
-                            listOf(Messages.ManaColor.Generic to 2),
-                            // mode 30 has no entry — emitted with no cost
-                        ),
-                    minSel = 1,
-                    maxSel = 1,
-                    sourceInstanceId = 1,
-                    grpId = 1,
-                )
-            val mr = req.getCastingTimeOptionReq(0).modalReq
-            assertSoftly {
-                mr.getModalOptions(0).modeCostCount shouldBe 1
-                mr.getModalOptions(1).modeCostCount shouldBe 1
-                mr.getModalOptions(2).modeCostCount shouldBe 0
             }
         }
 
@@ -777,12 +758,12 @@ class BundleBuilderTest :
                             promptType = "order_cards",
                             message = "Order cards",
                             options = emptyList(),
-                            semantic = PromptSemantic.OrderForTop,
+                            route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val result = bundleBuilder(b).orderBundle(game, counter, prompt)
+            val result = bundleBuilder(b).orderBundle(game, counter, prompt, OrderRouteKind.Top)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -795,7 +776,7 @@ class BundleBuilderTest :
             }
         }
 
-        test("discard SelectNReq uses Resolution context and Dynamic listType (#175)") {
+        test("effect SelectN route uses Resolution context and Dynamic listType (#175)") {
             val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Mountain", human, ZoneType.Hand)
@@ -822,11 +803,12 @@ class BundleBuilderTest :
                                 handCards.mapIndexed { i, c ->
                                     PromptCandidateRefDto(i, PromptCandidateKind.Card, c.id, "Hand")
                                 },
+                            route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val req = RequestBuilder.buildSelectNReq(prompt, b)
+            val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
 
             assertSoftly {
                 req.context shouldBe Messages.SelectionContext.Resolution_a163
@@ -864,11 +846,12 @@ class BundleBuilderTest :
                             min = 1,
                             max = 1,
                             candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creature.id, "Battlefield")),
+                            route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         ),
                     future = java.util.concurrent.CompletableFuture(),
                 )
 
-            val req = RequestBuilder.buildSelectNReq(prompt, b)
+            val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
 
             assertSoftly {
                 req.context shouldBe Messages.SelectionContext.Resolution_a163
@@ -1022,3 +1005,5 @@ class BundleBuilderTest :
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
         }
     })
+
+private fun InteractivePromptBridge.PendingPrompt.selectNRoute() = (request.route as ResolvedPromptRoute.SelectN).descriptor

@@ -27,12 +27,12 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  *
  * Stock Up is `SP$ Dig | DigNum$ 5 | ChangeNum$ 2` — look at the top 5 cards,
  * put 2 into your hand. Pre-fix `TargetingCoordinator.chooseEntities` left
- * `PromptSemantic` unset, so `PromptClassifier` fell back to `Targeting` and
+ * `PromptSemantic` unset, so route resolution fell back to `Targeting` and
  * engine emitted `SelectTargetsReq` instead of `SelectNReq`. The cast
  * looped 10 SelectTargetsReq with no GS updates between them, leaving the
  * game stuck.
  *
- * Post-fix: `chooseEntities` tags `SelectNResolution`, classifier routes to
+ * Post-fix: `chooseEntities` tags `SelectNResolution`, route resolution selects
  * `SelectN(Reason.Resolution)`, the full look-and-pick wire shape emits with
  * the five candidate iids materialized as private-but-viewer gameObjects in
  * the pre-prompt GSM. Player picks 2; resolution moves them to hand.

@@ -96,6 +96,31 @@ class TargetingInteractionTest :
             }
         }
 
+        test("targeting prompt rejects mismatched response families without consuming the pending route") {
+            startPuzzleFile("puzzles/pump-spell.pzl")
+            val creatureIid = humanBattlefieldCreatures().first().first
+            castSpellByName("Giant Growth").shouldBeTrue()
+            val promptBefore =
+                harness.bridge
+                    .promptBridge(SeatId(1))
+                    .getPendingPrompt()
+                    .shouldNotBeNull()
+
+            harness.respondToSelectN(emptyList())
+            harness.respondToOrder(emptyList())
+            harness.respondToSearch(emptyList())
+            harness.respondModalChoice(emptyList())
+            harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
+
+            harness.bridge
+                .promptBridge(SeatId(1))
+                .getPendingPrompt()
+                ?.promptId shouldBe promptBefore.promptId
+            selectTargets(listOf(creatureIid))
+            passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
+            (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
+        }
+
         test("Giant Growth — invariants hold across targeting flow") {
             startPuzzleFile("puzzles/pump-spell.pzl")
             val creatureIid = humanBattlefieldCreatures().first().first

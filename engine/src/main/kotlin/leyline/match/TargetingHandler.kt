@@ -2,17 +2,20 @@ package leyline.match
 
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder
+import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.RequestBuilder
-import leyline.game.bundle.SelectNPromptRoute
-import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.bundle.envelope
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
@@ -51,6 +54,11 @@ class TargetingHandler(
             selectedIds: List<Int>,
             chooserSeatId: SeatId,
         ): List<PromptSideEffect.ChoiceResult> = PromptResponseSubmitter.choiceResultSideEffects(pendingPrompt, selectedIds, chooserSeatId)
+
+        internal fun mapModalGrpIdsToPromptIndices(
+            selectedGrpIds: List<Int>,
+            childGrpIds: List<Int>,
+        ): List<Int> = selectedGrpIds.mapNotNull { grpId -> childGrpIds.indexOf(grpId).takeIf { it >= 0 } }
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -114,6 +122,11 @@ class TargetingHandler(
                 DevCheck.failOnAutoPass { "SelectTargetsResp but no pending prompt" }
                 return
             }
+        if (!pendingPrompt.request.route.accepts(PromptResponseKind.Targeting)) {
+            log.warn("TargetingHandler: SelectTargetsResp does not match bound route {}", pendingPrompt.request.route)
+            DevCheck.failOnAutoPass { "SelectTargetsResp does not match bound route ${pendingPrompt.request.route}" }
+            return
+        }
 
         // Client sends one tap per SelectTargetsResp (Select_a1ad = add, Unselect = remove).
         // Accumulate across taps until SubmitTargetsReq finalizes the selection.
@@ -288,18 +301,12 @@ class TargetingHandler(
      *   "resolve my stack effects" — skips the stack prompt when the player has
      *   no meaningful responses, matching client behavior (#92).
      */
-    @Suppress(
-        "ReturnCount",
-        // Sacrifice/ExileFromGrave route to PayCostsReq; everything else falls
-        // through to SelectNReq. Exhaustive when would block adding new
-        // Reason variants gracefully.
-        "ElseCaseInsteadOfExhaustiveWhen",
-    )
+    @Suppress("ReturnCount")
     fun handlePostCastPrompt(clientAutoResolve: Boolean = false): Boolean {
         val bridge = ctx.bridge
         val game = ctx.game
         val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        if (pendingPrompt != null && sendClassifiedPrompt(PromptClassifier.classify(pendingPrompt), PromptDispatchContext.POST_CAST)) {
+        if (pendingPrompt != null && sendPrompt(pendingPrompt, PromptDispatchContext.POST_CAST)) {
             return true
         }
         if (!game.stack.isEmpty) {
@@ -336,20 +343,17 @@ class TargetingHandler(
      */
     fun checkPendingPrompt(): PromptResult {
         val bridge = ctx.bridge
-        val game = ctx.game
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
-        val classified = PromptClassifier.classify(pendingPrompt)
-
-        return if (sendClassifiedPrompt(classified, PromptDispatchContext.PENDING_CHECK)) {
+        return if (sendPrompt(pendingPrompt, PromptDispatchContext.PENDING_CHECK)) {
             PromptResult.SENT_TO_CLIENT
         } else {
-            when (classified) {
-                is ClassifiedPrompt.AutoResolve -> {
+            when (pendingPrompt.request.route) {
+                is ResolvedPromptRoute.AutoResolve -> {
                     val req = pendingPrompt.request
                     // Multi-option generic prompts are real gameplay choices (for
                     // example, odd/even effects) unless a narrower semantic has
-                    // classified them. Keep known safe defaults quiet, but make this
+                    // resolved them. Keep known safe defaults quiet, but make this
                     // path visible so simclient runs do not silently swallow decisions.
                     if (req.semantic == PromptSemantic.Generic && req.options.size > 1) {
                         log.warn(
@@ -378,12 +382,13 @@ class TargetingHandler(
                     PromptResult.AUTO_RESOLVED
                 }
 
-                is ClassifiedPrompt.Grouping,
-                is ClassifiedPrompt.ModalChoice,
-                is ClassifiedPrompt.Order,
-                is ClassifiedPrompt.Search,
-                is ClassifiedPrompt.SelectN,
-                is ClassifiedPrompt.Targeting,
+                is ResolvedPromptRoute.Grouping,
+                is ResolvedPromptRoute.ModalChoice,
+                is ResolvedPromptRoute.Order,
+                is ResolvedPromptRoute.PayCosts,
+                is ResolvedPromptRoute.Search,
+                is ResolvedPromptRoute.SelectN,
+                is ResolvedPromptRoute.Targeting,
                 -> PromptResult.NONE
             }
         }
@@ -394,57 +399,49 @@ class TargetingHandler(
         PENDING_CHECK,
     }
 
-    private fun sendClassifiedPrompt(
-        classified: ClassifiedPrompt,
+    private fun sendPrompt(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
         context: PromptDispatchContext,
     ): Boolean {
-        val pendingPrompt = classified.pendingPrompt
-        return when (classified) {
-            is ClassifiedPrompt.Grouping -> {
+        return when (val route = pendingPrompt.request.route) {
+            is ResolvedPromptRoute.Grouping -> {
                 if (context != PromptDispatchContext.PENDING_CHECK) return false
-                sendGroupReqForSurveilScry(classified.pendingPrompt, classified.context)
+                sendGroupReqForSurveilScry(pendingPrompt, route.context)
                 true
             }
 
-            is ClassifiedPrompt.ModalChoice -> {
-                sendCastingTimeOptionsReq(classified.pendingPrompt)
+            is ResolvedPromptRoute.ModalChoice -> {
+                sendCastingTimeOptionsReq(pendingPrompt)
                 true
             }
 
-            is ClassifiedPrompt.SelectN -> {
-                sendSelectNPrompt(classified.pendingPrompt)
+            is ResolvedPromptRoute.SelectN -> {
+                sendSelectNReq(pendingPrompt, route.descriptor)
                 true
             }
 
-            is ClassifiedPrompt.Targeting -> {
-                sendSelectTargetsReq(classified.pendingPrompt)
+            is ResolvedPromptRoute.PayCosts -> {
+                payCostsInteractionHandler.sendPayCostsReq(pendingPrompt, route.descriptor)
                 true
             }
 
-            is ClassifiedPrompt.Search -> {
-                sendSearchReq(classified.pendingPrompt)
+            is ResolvedPromptRoute.Targeting -> {
+                sendSelectTargetsReq(pendingPrompt)
                 true
             }
 
-            is ClassifiedPrompt.Order -> {
-                sendOrderReq(classified.pendingPrompt)
+            is ResolvedPromptRoute.Search -> {
+                sendSearchReq(pendingPrompt)
                 true
             }
 
-            is ClassifiedPrompt.AutoResolve -> false
+            is ResolvedPromptRoute.Order -> {
+                sendOrderReq(pendingPrompt, route.kind)
+                true
+            }
+
+            is ResolvedPromptRoute.AutoResolve -> false
         }
-    }
-
-    private fun sendSelectNPrompt(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)?.let { route ->
-            payCostsInteractionHandler.sendPayCostsReq(pendingPrompt, route)
-            return
-        }
-
-        val route =
-            SelectNPromptRoutes.route(pendingPrompt.request.semantic)
-                ?: error("missing SelectN route for ${pendingPrompt.request.semantic}")
-        sendSelectNReq(pendingPrompt, route)
     }
 
     /**
@@ -469,46 +466,37 @@ class TargetingHandler(
                 DevCheck.failOnAutoPass { "GroupResp but no pending prompt" }
                 return
             }
+        if (!pendingPrompt.request.route.accepts(PromptResponseKind.Group)) {
+            log.warn("TargetingHandler: GroupResp does not match bound route {}", pendingPrompt.request.route)
+            DevCheck.failOnAutoPass { "GroupResp does not match bound route ${pendingPrompt.request.route}" }
+            return
+        }
 
         val groups = greMsg.groupResp.groupsList
         val req = pendingPrompt.request
-        val classified = PromptClassifier.classify(pendingPrompt)
-
+        val route = pendingPrompt.request.route as ResolvedPromptRoute.Grouping
+        val topIds = groups.getOrNull(0)?.idsList.orEmpty()
+        val awayIds = groups.getOrNull(1)?.idsList.orEmpty()
+        bridge.recordLibraryArrangement(counters.seatId, route.context, topIds, awayIds)
         val selectedIndices =
-            when (classified) {
-                is ClassifiedPrompt.Grouping -> {
-                    val topIds = groups.getOrNull(0)?.idsList.orEmpty()
-                    val awayIds = groups.getOrNull(1)?.idsList.orEmpty()
-                    bridge.recordLibraryArrangement(counters.seatId, classified.context, topIds, awayIds)
-
-                    if (req.max == 1 && req.options.size == 2) {
-                        // Single-card surveil/scry: "Top of library" (0) vs "Graveyard"/"Bottom" (1)
-                        // Group 1 (away zone) has the card → user chose "away" → index 1
-                        if (awayIds.isNotEmpty()) {
-                            listOf(1) // away (graveyard for surveil, bottom for scry)
-                        } else {
-                            listOf(0) // keep on top
-                        }
-                    } else {
-                        // Multi-card surveil/scry: away group IDs → indices into options
-                        awayIds
-                            .mapNotNull { iid ->
-                                val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
-                                // Cards may be zoneless during surveil — use game.findById
-                                // instead of player.allCards (which only sees zoned cards).
-                                val card = ctx.game.findById(cardId.value) ?: return@mapNotNull null
-                                req.options.indexOf(card.name)
-                            }.filter { it >= 0 }
-                    }
+            if (req.max == 1 && req.options.size == 2) {
+                // Single-card surveil/scry: "Top of library" (0) vs "Graveyard"/"Bottom" (1)
+                // Group 1 (away zone) has the card → user chose "away" → index 1
+                if (awayIds.isNotEmpty()) {
+                    listOf(1) // away (graveyard for surveil, bottom for scry)
+                } else {
+                    listOf(0) // keep on top
                 }
-
-                is ClassifiedPrompt.AutoResolve,
-                is ClassifiedPrompt.ModalChoice,
-                is ClassifiedPrompt.Order,
-                is ClassifiedPrompt.Search,
-                is ClassifiedPrompt.SelectN,
-                is ClassifiedPrompt.Targeting,
-                -> listOf(req.defaultIndex)
+            } else {
+                // Multi-card surveil/scry: away group IDs → indices into options
+                awayIds
+                    .mapNotNull { iid ->
+                        val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
+                        // Cards may be zoneless during surveil — use game.findById
+                        // instead of player.allCards (which only sees zoned cards).
+                        val card = ctx.game.findById(cardId.value) ?: return@mapNotNull null
+                        req.options.indexOf(card.name)
+                    }.filter { it >= 0 }
             }
 
         log.info("TargetingHandler: GroupResp → prompt indices={}", selectedIndices)
@@ -656,46 +644,40 @@ class TargetingHandler(
         // mode), translate via card-DB childGrpIds — keeps the modal ordering
         // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
         // (legacy Charm-with-all-modes-legal path).
-        val possibleFullIndices = req.modalChoicePossibleFullIndices
-        val excludedFullIndices = req.excludedModalFullIndices
-        val effectiveChildGrpIds: List<Int>
-        val effectiveModalCosts: List<List<Pair<ManaColor, Int>>>?
-        val effectiveExcludedGrpIds: List<Int>
-        val effectiveExcludedCosts: List<List<Pair<ManaColor, Int>>>
-        if (possibleFullIndices != null && possibleFullIndices.all { it in modalInfo.childGrpIds.indices }) {
-            effectiveChildGrpIds = possibleFullIndices.map { modalInfo.childGrpIds[it] }
-            effectiveModalCosts = req.modalCosts
-            effectiveExcludedGrpIds =
-                excludedFullIndices
-                    ?.filter { it in modalInfo.childGrpIds.indices }
-                    ?.map { modalInfo.childGrpIds[it] }
-                    ?: emptyList()
-            effectiveExcludedCosts = req.excludedModalCosts ?: emptyList()
+        val modalChoice = req.modalChoice
+        val modalOptions: List<ModalOptionSpec>
+        val excludedOptions: List<ModalOptionSpec>
+        if (modalChoice != null && modalChoice.possible.all { it.fullIndex in modalInfo.childGrpIds.indices }) {
+            modalOptions =
+                modalChoice.possible.map { option ->
+                    ModalOptionSpec(modalInfo.childGrpIds[option.fullIndex], option.cost)
+                }
+            excludedOptions =
+                modalChoice.excluded
+                    .filter { it.fullIndex in modalInfo.childGrpIds.indices }
+                    .map { option -> ModalOptionSpec(modalInfo.childGrpIds[option.fullIndex], option.cost) }
         } else {
             // Silent fallback: bridge populated full-list indices but they fell
             // outside card-DB childGrpIds (Forge SVar count vs. card-DB
             // modalChildIds count drift). Modal-cost picked-mode mapping will
             // regress here. Loud in tests, soft in prod.
-            if (possibleFullIndices != null) {
+            if (modalChoice != null) {
                 DevCheck.fail {
                     "modal full-list indices out of card-DB range: " +
-                        "indices=$possibleFullIndices childCount=${modalInfo.childGrpIds.size} " +
+                        "indices=${modalChoice.possible.map { it.fullIndex }} " +
+                        "childCount=${modalInfo.childGrpIds.size} " +
                         "card='$cardName' grpId=$cardGrpId"
                 }
             }
-            effectiveChildGrpIds = modalInfo.childGrpIds
-            effectiveModalCosts = null
-            effectiveExcludedGrpIds = emptyList()
-            effectiveExcludedCosts = emptyList()
+            modalOptions = modalInfo.childGrpIds.map(::ModalOptionSpec)
+            excludedOptions = emptyList()
         }
 
         val ctoReq =
             CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
                 parentGrpId = modalInfo.parentGrpId,
-                childGrpIds = effectiveChildGrpIds,
-                modalCosts = effectiveModalCosts,
-                excludedGrpIds = effectiveExcludedGrpIds,
-                excludedCosts = effectiveExcludedCosts,
+                modalOptions = modalOptions,
+                excludedOptions = excludedOptions,
                 minSel = req.min,
                 maxSel = req.max,
                 sourceInstanceId = sourceInstanceId,
@@ -710,7 +692,7 @@ class TargetingHandler(
         pendingInteraction =
             PendingClientInteraction.ModalChoice(
                 pendingPrompt.promptId,
-                effectiveChildGrpIds,
+                modalOptions.map { it.grpId },
                 stackAbilityInstanceId = sourceInstanceId.takeIf { isTriggered && it > 0 },
             )
 
@@ -748,13 +730,16 @@ class TargetingHandler(
         val bridge = ctx.bridge
         when (val pending = pendingInteraction) {
             is PendingClientInteraction.ModalChoice -> {
+                val prompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
+                if (prompt == null || !prompt.request.route.accepts(PromptResponseKind.ModalChoice)) {
+                    log.warn("TargetingHandler: CastingTimeOptionsResp modal does not match bound route")
+                    DevCheck.failOnAutoPass { "CastingTimeOptionsResp modal does not match bound route" }
+                    return
+                }
                 val resp = greMsg.castingTimeOptionsResp
                 val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
 
-                val selectedIndices =
-                    chosenGrpIds.mapNotNull { grpId ->
-                        pending.childGrpIds.indexOf(grpId).takeIf { it >= 0 }
-                    }
+                val selectedIndices = mapModalGrpIdsToPromptIndices(chosenGrpIds, pending.childGrpIds)
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 
@@ -829,13 +814,17 @@ class TargetingHandler(
                 game,
                 counters.counter,
                 pendingPrompt,
+                route,
             ) { req -> route.envelope(req) { learnPromptId(pendingPrompt) } }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 
-    private fun sendOrderReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val result = bundles.bundleBuilder.orderBundle(ctx.game, counters.counter, pendingPrompt)
+    private fun sendOrderReq(
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
+    ) {
+        val result = bundles.bundleBuilder.orderBundle(ctx.game, counters.counter, pendingPrompt, kind)
         Tap.outboundTemplate("OrderReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }

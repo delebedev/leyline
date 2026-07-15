@@ -139,11 +139,18 @@ When an upstream Forge event lacks the payload needed for protocol translation, 
 
 ## 9. Prompt Semantics
 
-`PromptRequest.semantic` is the contract between an engine callback and a protocol prompt shape.
+`PromptSemantic` is the planner-facing contract between an engine callback and
+a protocol prompt shape. A producer resolves it through `PromptRouteResolver`
+when constructing `PromptRequest`; the request stores one immutable
+`ResolvedPromptRoute` for the full pending interaction. Its `semantic`
+accessor is diagnostic data derived from that route.
 
 Use an explicit semantic when the Forge callback does not uniquely imply the wire type. Avoid relying on fallback classification by message text or by "candidate refs exist" unless the prompt is truly generic targeting.
 
-Adding a semantic means updating the enum, the classifier, the handler path that emits the prompt, and the mapping docs that describe the Forge callback to protocol prompt relation.
+Adding a semantic means updating the enum and the resolver's exhaustive route
+catalog, then the mapping docs that describe the Forge callback to protocol
+prompt relation. Classifiers, builders, re-prompts, and response handlers
+consume the bound route rather than maintaining semantic lookup tables.
 
 ## 10. Identity
 

@@ -38,7 +38,10 @@ internal class SearchPromptInteractionHandler(
 
         val seatBridge = bridge.seat(counters.seatId)
         val prompt = seatBridge.prompt.getPendingPrompt()
-        if (prompt != null && prompt.promptId == pending.promptId) {
+        if (prompt != null &&
+            prompt.promptId == pending.promptId &&
+            prompt.request.route.accepts(PromptResponseKind.Search)
+        ) {
             val responseIndices = responseIndices(itemsFound, prompt)
             seatBridge.prompt.submitResponse(pending.promptId, responseIndices)
             bridge.awaitPriority()
