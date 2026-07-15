@@ -115,7 +115,7 @@ class TargetSpecAnnotationTest :
                 .snapshotPendingTargetSpecs()
                 .size shouldBe 1
 
-            b.applyMutations(result.mutations)
+            b.applyMutations(result.finalizeAnnotations().mutations)
 
             b
                 .seat(SeatId(1))
@@ -174,7 +174,7 @@ class TargetSpecAnnotationTest :
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true
-            b.applyMutations(gs1.mutations)
+            b.applyMutations(gs1.finalizeAnnotations().mutations)
 
             // Second GSM: pending consumed, no new targets → TargetSpec removed
             val snapTs2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)

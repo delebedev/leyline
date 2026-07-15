@@ -65,7 +65,10 @@ class SpectatorSimClientDriver(
             val game = checkNotNull(bridge.getGame()) { "AI-vs-AI game missing after start" }
             val gsId = session.counter.nextGsId()
             val snap = GsmSnapshot.capture(game, bridge, matchId, gsId)
-            val full = StateMapper.buildFromSnapshot(snap, gsId, matchId, bridge, viewingSeatId = 1)
+            val full =
+                StateMapper
+                    .buildFromSnapshot(snap, gsId, matchId, bridge, viewingSeatId = 1)
+                    .finalizeAnnotations()
             bridge.applyMutations(full.mutations)
             bridge.bundleCursor.lastSent = snap
             val initial = greMessage(session.counter.nextMsgId(), full.gsm)

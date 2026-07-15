@@ -27,6 +27,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.clientMessage
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
+import leyline.testkit.findZoneTransfer
 import leyline.testkit.firstWithTransferCategory
 import leyline.testkit.gsm
 import leyline.testkit.persistentAnnotationsOfType
@@ -394,6 +395,7 @@ class TargetingInteractionTest :
                 pst.affectorId shouldBe HUMAN_SEAT
                 pst.affectedIdsList shouldContain stackIid
                 pst.detailsCount shouldBe 0
+                pstFrame.findZoneTransfer(stackIid)?.category shouldBe "CastSpell"
             }
 
             // Submit + drive the engine to the next frame; PSuT lands on the

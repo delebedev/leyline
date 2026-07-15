@@ -265,6 +265,28 @@ Migration may temporarily derive compatibility values from the draft or
 finalized result. It must not leave two independently writable annotation
 lists or counters.
 
+## Implementation Inventory
+
+The first migration covers every `StateMapper`-backed state frame. Normal
+bundle assembly adds target-selection, target-submission, and new-turn riders
+to the draft. The staged order-zone move also joins the draft because it adds
+identity-change and zone-transfer annotations to a mapped frame. The initial
+puzzle and headless Full-state builders finalize explicitly with no riders.
+
+The remaining direct builders already know their complete annotation list and
+retain one numbering authority:
+
+- deal-hand, mulligan, phase-transition, and game-over lifecycle GSMs in
+  `GsmBuilder` and `BundleBuilder`;
+- combat toggle echoes, reveal/group helpers, and other request-specific
+  synthetic GSMs that do not start from a `StateMapper` annotation list;
+- commander-choice cleanup GSMs in `OptionalActionHandler`, whose local
+  identity-change and zone-transfer pair is complete before construction.
+
+These paths remain outside the state-frame finalizer. A future migration is
+appropriate only if one of them gains a late annotation producer; uniform use
+of the finalizer is not an objective.
+
 ## Required Invariants
 
 - All state-diff delivery riders are present before finalization.

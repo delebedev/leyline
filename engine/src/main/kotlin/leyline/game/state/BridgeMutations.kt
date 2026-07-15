@@ -40,7 +40,8 @@ data class BridgeMutations(
     val zoneRecordings: List<Pair<InstanceId, Int>>,
     val persistentBatch: PersistentAnnotationStore.BatchResult,
     val consumedTargetSpecs: List<PendingTargetSpecRecord> = emptyList(),
-    val nextAnnotationId: Int,
+    /** Null until the complete transient frame has been finalized. */
+    val nextAnnotationId: Int?,
     val holderBatch: HolderBatch,
     /** Extra object deletions emitted in this Diff GSM, without bridge-state writes. */
     val diffDeletedInstanceIds: List<InstanceId> = emptyList(),

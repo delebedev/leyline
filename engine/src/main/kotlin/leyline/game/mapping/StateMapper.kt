@@ -7,6 +7,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationContext
+import leyline.game.annotations.AnnotationFrameFinalizer
 import leyline.game.annotations.AnnotationPipeline
 import leyline.game.annotations.CombatAnnotationResult
 import leyline.game.annotations.ConvokeContributor
@@ -42,12 +43,13 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * ## Purity boundary
  *
- * Single contract: both [buildFromSnapshot] and [buildDiff] return
- * [leyline.game.state.BridgeMutations] as data; callers apply via [leyline.game.state.GameBridge.applyMutations].
+ * Single contract: both [buildFromSnapshot] and [buildDiff] return an annotation
+ * frame draft plus [leyline.game.state.BridgeMutations]. Callers finalize the
+ * complete transient list, then apply via [leyline.game.state.GameBridge.applyMutations].
  * No inline writes during compute, no mode flags. Ordering-sensitive writes
  * (id reallocations, limbo retires, zone recordings, persistent annotation
- * batch, nextAnnotationId, delayed-trigger holder lifecycle) flow exclusively
- * through the returned mutations.
+ * batch and delayed-trigger holder lifecycle) flow through the returned
+ * mutations. The finalizer supplies `nextAnnotationId` before application.
  *
  * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
  * `events: FrameEventLog`. Outputs are pure: `GameStateMessage` + [leyline.game.state.BridgeMutations].
@@ -110,12 +112,38 @@ object StateMapper {
             ZoneIds.P2_GRAVEYARD,
         )
 
-    /** Result of [buildFromSnapshot] / [buildDiff] — GSM plus metadata for message framing. */
+    data class AnnotationFrameDraft(
+        val firstAnnotationId: Int,
+        val idResolver: FrameIdResolver,
+    )
+
+    /** Result of [buildFromSnapshot] / [buildDiff] — GSM draft plus deferred mutations. */
     data class BuildResult(
         val gsm: GameStateMessage,
         /** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */
-        val mutations: BridgeMutations = BridgeMutations.Companion.EMPTY,
-    )
+        val mutations: BridgeMutations,
+        val annotationFrameDraft: AnnotationFrameDraft?,
+    ) {
+        fun finalizeAnnotations(riders: List<AnnotationInfo> = emptyList()): BuildResult {
+            val draft = checkNotNull(annotationFrameDraft) { "Annotation frame is already finalized" }
+            val finalized =
+                AnnotationFrameFinalizer.finalize(
+                    gsm.annotationsList + riders,
+                    draft.firstAnnotationId,
+                )
+            val frozenGsm =
+                gsm
+                    .toBuilder()
+                    .clearAnnotations()
+                    .addAllAnnotations(finalized.annotations)
+                    .build()
+            return copy(
+                gsm = frozenGsm,
+                mutations = mutations.copy(nextAnnotationId = finalized.nextId),
+                annotationFrameDraft = null,
+            )
+        }
+    }
 
     /**
      * Build a Full [GameStateMessage] from an immutable [leyline.game.snapshot.GsmSnapshot].
@@ -440,7 +468,6 @@ object StateMapper {
                 effectDiff,
                 persistSnapshot,
                 startPersistentId,
-                startAnnotationId,
                 frameContext,
                 keywordDiff,
                 combatResult,
@@ -476,12 +503,16 @@ object StateMapper {
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
                 persistentBatch = remaining.batch,
                 consumedTargetSpecs = remaining.consumedTargetSpecs,
-                nextAnnotationId = remaining.nextAnnotationId,
+                nextAnnotationId = null,
                 holderBatch = holderBatch,
                 diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
             )
 
-        return BuildResult(built, mutations)
+        return BuildResult(
+            gsm = built,
+            mutations = mutations,
+            annotationFrameDraft = AnnotationFrameDraft(startAnnotationId, frameIds),
+        )
     }
 
     private fun recordParadigmSourceStackIids(
@@ -810,7 +841,7 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return BuildResult(built, fullResult.mutations)
+        return BuildResult(built, fullResult.mutations, fullResult.annotationFrameDraft)
     }
 
     private fun redactOpponentSideboardZone(
@@ -882,7 +913,7 @@ object StateMapper {
                 .addAllPlayers(listOf(player1, player2))
                 .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId }.map(ZoneMapper::clientOrderedZone))
                 .addAllGameObjects(transferResult.patchedObjects)
-                .addAllAnnotations(remaining.numbered)
+                .addAllAnnotations(remaining.transient)
                 .addAllPersistentAnnotations(remaining.persistent)
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(updateType)
