@@ -68,7 +68,7 @@ while preserving existing owners for classification and GRE construction.
 
 The target boundary is:
 
-- `PromptClassifier` continues to classify pending prompts.
+- `TargetingHandler` dispatches pending prompts from their bound route.
 - `RequestBuilder` and `BundleBuilder` continue to own GRE request and bundle construction.
 - `TargetingHandler` remains the session-facing coordinator and public entry point used by `MatchSession` / action performers.
 - Extracted handlers own only coherent response lifecycles and their lifecycle-local state.
@@ -111,7 +111,7 @@ It does not own:
 
 It does not own:
 
-- `PromptClassifier` search detection.
+- Bound-route search detection.
 - Generic library visibility policy outside the SearchReq lifecycle.
 - Non-search pending interactions.
 

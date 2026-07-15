@@ -184,7 +184,7 @@ Prompt-shape misroute:
 
 - Symptom: an ordinary choice becomes a `SelectTargetsReq`, often with `sourceId=0` or no real card source.
 - Stats: `promptRequestsByKind` shows generic/select prompts while `promptHistogram` shows targeting.
-- Fix seam: `PromptSemantic` assignment or `PromptClassifier` fallback.
+- Fix seam: `PromptSemantic` assignment or bound-route fallback.
 
 Target submit mismatch:
 

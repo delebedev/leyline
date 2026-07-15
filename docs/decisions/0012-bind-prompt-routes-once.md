@@ -1,7 +1,7 @@
 ---
 summary: "ADR: resolve each prompt route once and carry the typed route through request emission and response handling."
 read_when:
-  - "working in PromptRequest, PromptRouteResolver, ResolvedPromptRoute, PromptClassifier, or prompt response handling"
+  - "working in PromptRequest, PromptRouteResolver, ResolvedPromptRoute, TargetingHandler, or prompt response handling"
   - "adding or changing a PromptSemantic or GRE prompt route"
   - "deciding where prompt-family routing belongs"
 ---
@@ -132,8 +132,7 @@ This decision preserves the existing boundaries:
 - `bridge.interaction` planners own Forge callback classification and prompt
   policy before `PromptRequest` construction.
 - The handoff layer owns immutable pending prompt values.
-- `PromptClassifier` performs session dispatch using the already-resolved
-  route; it does not maintain another semantic catalog.
+- `TargetingHandler` performs session dispatch directly from the already-resolved route.
 - Match-layer lifecycle handlers continue to own sequencing, local state,
   response submission, and prompt-journal effects.
 - `RequestBuilder` and focused protocol builders continue to own pure GRE
@@ -164,8 +163,8 @@ explicit planner routes without changing this ADR.
    matrix with table-driven tests before deleting either table.
 3. Attach the resolved route to the pending prompt handoff. Keep any temporary
    `semantic` field derived from the route, never independently writable.
-4. Give `ClassifiedPrompt` distinct `SelectN` and `PayCosts` variants carrying
-   their concrete route descriptors.
+4. Dispatch directly from distinct `ResolvedPromptRoute.SelectN` and
+   `ResolvedPromptRoute.PayCosts` variants carrying their concrete descriptors.
 5. Pass the bound route into `RequestBuilder` and Pay-Costs builders; remove
    route lookups from request construction and re-prompt paths.
 6. Use the bound route in response submission and Pay-Costs interaction loops;
