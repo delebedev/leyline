@@ -13,6 +13,8 @@ import leyline.game.state.GameBridge
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.IsolatedBoardLifecycle
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -59,7 +61,12 @@ class PureDiffReplayTest :
             val events: FrameEventLog,
             val gameStateId: Int,
             val diff: GameStateMessage,
-        )
+        ) {
+            fun riders(): List<AnnotationInfo> =
+                diff.annotationsList
+                    .filter { annotation -> annotation.typeList.any { it in DELIVERY_RIDER_TYPES } }
+                    .map { it.toBuilder().clearId().build() }
+        }
 
         test("one-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
             withBase {
@@ -89,16 +96,17 @@ class PureDiffReplayTest :
                     liveRun.map { step ->
                         val updateType = step.diff.update
                         val replayResult =
-                            StateMapper.buildDiff(
-                                prev = step.prev,
-                                cur = step.cur,
-                                events = step.events,
-                                gameStateId = step.gameStateId,
-                                matchId = Board.TEST_MATCH_ID,
-                                bridge = replayBridge,
-                                updateType = updateType,
-                                viewingSeatId = SEAT_ID,
-                            )
+                            StateMapper
+                                .buildDiff(
+                                    prev = step.prev,
+                                    cur = step.cur,
+                                    events = step.events,
+                                    gameStateId = step.gameStateId,
+                                    matchId = Board.TEST_MATCH_ID,
+                                    bridge = replayBridge,
+                                    updateType = updateType,
+                                    viewingSeatId = SEAT_ID,
+                                ).finalizeAnnotations(step.riders())
                         replayBridge.applyMutations(replayResult.mutations)
                         replayResult.gsm.toByteArray().toList()
                     }
@@ -133,16 +141,17 @@ class PureDiffReplayTest :
                     liveRun.map { step ->
                         val updateType = step.diff.update
                         val replayResult =
-                            StateMapper.buildDiff(
-                                prev = step.prev,
-                                cur = step.cur,
-                                events = step.events,
-                                gameStateId = step.gameStateId,
-                                matchId = Board.TEST_MATCH_ID,
-                                bridge = replayBridge,
-                                updateType = updateType,
-                                viewingSeatId = SEAT_ID,
-                            )
+                            StateMapper
+                                .buildDiff(
+                                    prev = step.prev,
+                                    cur = step.cur,
+                                    events = step.events,
+                                    gameStateId = step.gameStateId,
+                                    matchId = Board.TEST_MATCH_ID,
+                                    bridge = replayBridge,
+                                    updateType = updateType,
+                                    viewingSeatId = SEAT_ID,
+                                ).finalizeAnnotations(step.riders())
                         replayBridge.applyMutations(replayResult.mutations)
                         replayResult.gsm.toByteArray().toList()
                     }
@@ -175,7 +184,7 @@ class PureDiffReplayTest :
                 // commit), then the NEW id post-apply.
                 var exercisedRealloc = false
                 for (step in captured) {
-                    val result =
+                    val draft =
                         StateMapper.buildDiff(
                             prev = step.prev,
                             cur = step.cur,
@@ -186,6 +195,9 @@ class PureDiffReplayTest :
                             updateType = step.diff.update,
                             viewingSeatId = SEAT_ID,
                         )
+                    draft.mutations.nextAnnotationId shouldBe null
+                    draft.gsm.annotationsList.all { it.id == 0 } shouldBe true
+                    val result = draft.finalizeAnnotations(step.riders())
                     val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
                     for (r in nonTrivial) {
                         val fid =
@@ -230,16 +242,17 @@ class PureDiffReplayTest :
                 val activeBefore = replayBridge.delayedTriggerHolders.activeIids()
                 val step = captured.first()
                 val replayResult =
-                    StateMapper.buildDiff(
-                        prev = step.prev,
-                        cur = step.cur,
-                        events = step.events,
-                        gameStateId = step.gameStateId,
-                        matchId = Board.TEST_MATCH_ID,
-                        bridge = replayBridge,
-                        updateType = step.diff.update,
-                        viewingSeatId = SEAT_ID,
-                    )
+                    StateMapper
+                        .buildDiff(
+                            prev = step.prev,
+                            cur = step.cur,
+                            events = step.events,
+                            gameStateId = step.gameStateId,
+                            matchId = Board.TEST_MATCH_ID,
+                            bridge = replayBridge,
+                            updateType = step.diff.update,
+                            viewingSeatId = SEAT_ID,
+                        ).finalizeAnnotations(step.riders())
 
                 assertSoftly("holder deletion is compute-time only until mutations apply") {
                     replayBridge.delayedTriggerHolders.activeIids() shouldBe activeBefore
@@ -257,6 +270,13 @@ class PureDiffReplayTest :
         private fun FrameEventLog.toList(): FrameEventLog = this
 
         private const val SEAT_ID = 1
+
+        private val DELIVERY_RIDER_TYPES =
+            setOf(
+                AnnotationType.PlayerSelectingTargets,
+                AnnotationType.PlayerSubmittedTargets,
+                AnnotationType.NewTurnStarted,
+            )
     }
 }
 

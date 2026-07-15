@@ -37,8 +37,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Two entry points feed [StateMapper.buildFromSnapshot]:
  * - [computeAnnotations] — stages 1-3: transfer + combat + trigger-lifecycle
  *   assembly into a transient/persistent [AnnotationPipelineResult].
- * - [computeRemainingAnnotations] — stages 4-5: mechanic + effect annotations,
- *   persistent-store batch computation, and final numbering.
+ * - [computeRemainingAnnotations] — stages 4-5: mechanic + effect annotations
+ *   and persistent-store batch computation.
  *
  * The shared annotation-time resolvers live on [AnnotationContext]; the
  * per-mechanic emitters live behind the [contributors] registry.
@@ -92,12 +92,11 @@ object AnnotationPipeline {
     private val deathTransferCategories =
         setOf(TransferCategory.Destroy, TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch)
 
-    /** Result of stages 4-5 + persistent annotation computation. */
+    /** Unfinalized transients plus persistent annotation computation. */
     internal data class RemainingAnnotationsResult(
-        val numbered: List<AnnotationInfo>,
+        val transient: List<AnnotationInfo>,
         val persistent: List<AnnotationInfo>,
         val batch: PersistentAnnotationStore.BatchResult,
-        val nextAnnotationId: Int,
         val consumedTargetSpecs: List<PendingTargetSpecRecord>,
     )
 
@@ -615,7 +614,7 @@ object AnnotationPipeline {
             }
         }
 
-    /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
+    /** Stages 4-5: mechanic + effect annotations and persistent computation. */
     @Suppress("LongParameterList", "LongMethod")
     internal fun computeRemainingAnnotations(
         ctx: AnnotationContext,
@@ -625,7 +624,6 @@ object AnnotationPipeline {
         effectDiff: EffectTracker.DiffResult,
         persistSnapshot: Map<Int, AnnotationInfo>,
         startPersistentId: Int,
-        startAnnotationId: Int,
         frameContext: FrameContext,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
@@ -839,14 +837,10 @@ object AnnotationPipeline {
         bridge.annotations.addSteals(mechanicResult.controllerChangedEffects.map { it.forgeCardId })
         bridge.annotations.removeSteals(mechanicResult.controllerRevertedForgeCardIds)
 
-        val ordered = AnnotationOrderEnforcer.enforce(annotations)
-        var annId = startAnnotationId
-        val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
         return RemainingAnnotationsResult(
-            numbered = numbered,
+            transient = annotations.toList(),
             persistent = batch.allAnnotations,
             batch = batch,
-            nextAnnotationId = annId,
             consumedTargetSpecs = pendingTargetSpecs,
         )
     }

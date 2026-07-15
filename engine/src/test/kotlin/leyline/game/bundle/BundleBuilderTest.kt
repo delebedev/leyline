@@ -3,6 +3,7 @@ package leyline.game.bundle
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -19,14 +20,19 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.RequestBuilder
+import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
+import leyline.game.iid
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateMapper
+import leyline.game.seedDiffBaseline
 import leyline.game.sid
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
@@ -35,6 +41,7 @@ import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
@@ -647,6 +654,149 @@ class BundleBuilderTest :
             }
         }
 
+        test("select-target rider is finalized with the paired state frame") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "target-finalization",
+                    request =
+                        PromptRequest(
+                            promptType = "choose_cards",
+                            message = "Choose target",
+                            options = listOf("Target A"),
+                            min = 1,
+                            max = 1,
+                            candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, 999, "Battlefield")),
+                            sourceEntityId = source.id,
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val result = bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
+            val gsm = result.messages.first().gameStateMessage
+            val rider = gsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
+
+            assertSoftly {
+                rider.affectedIdsList shouldBe listOf(b.getOrAllocInstanceId(ForgeCardId(source.id)).value)
+                gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
+                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+            }
+        }
+
+        test("submitted-target rider leads the finalized frame with ascending ids") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            builder.cursor.queuePSuT(777.iid, SeatId(1))
+
+            val result = builder.stateOnlyDiff(game, counter)
+            val gsm = result.messages.first().gameStateMessage
+
+            assertSoftly {
+                gsm.annotationsList.first().typeList shouldBe listOf(AnnotationType.PlayerSubmittedTargets)
+                gsm.annotationsList.first().affectedIdsList shouldBe listOf(777)
+                gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
+                builder.cursor.pendingPSuT() shouldBe null
+                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+            }
+        }
+
+        test("new-turn rider is numbered with the remote state frame") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+
+            val result = bundleBuilder(b).remoteActionDiff(game, counter, turnStarted = true)
+            val gsm = result.messages.first().gameStateMessage
+            val rider = gsm.annotationsList.single { AnnotationType.NewTurnStarted in it.typeList }
+
+            assertSoftly {
+                rider.affectedIdsList shouldBe listOf(1)
+                gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
+                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+            }
+        }
+
+        test("failed finalization preserves pending submitted targets and annotation counter for retry") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
+            builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val snap = checkNotNull(builder.cursor.lastSent)
+            val draft =
+                StateMapper.buildDiff(
+                    prev = snap,
+                    cur = snap,
+                    events = FrameEventLog.EMPTY,
+                    gameStateId = counter.nextGsId(),
+                    matchId = "test-match",
+                    bridge = b,
+                )
+            val startId = b.annotations.currentAnnotationId()
+            val invalidDraft =
+                draft.copy(
+                    annotationFrameDraft =
+                        checkNotNull(draft.annotationFrameDraft).copy(firstAnnotationId = 0),
+                )
+            val rider = AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
+
+            shouldThrow<IllegalArgumentException> {
+                builder.finalizeStateFrame(invalidDraft, listOf(rider), pending)
+            }
+            assertSoftly {
+                builder.cursor.pendingPSuT() shouldBe pending
+                b.annotations.currentAnnotationId() shouldBe startId
+            }
+
+            val retried = builder.finalizeStateFrame(draft, listOf(rider), pending)
+            assertSoftly {
+                retried.gsm.annotationsList
+                    .first()
+                    .typeList shouldBe listOf(AnnotationType.PlayerSubmittedTargets)
+                builder.cursor.pendingPSuT() shouldBe null
+                b.annotations.currentAnnotationId() shouldBe retried.gsm.annotationsList
+                    .last()
+                    .id + 1
+            }
+        }
+
+        test("replaced submitted-target rider aborts before bridge mutations commit") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val expected = BundleCursor.PSuTPending(777.iid, SeatId(1))
+            builder.cursor.queuePSuT(expected.spellInstanceId, expected.casterSeatId)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val snap = checkNotNull(builder.cursor.lastSent)
+            val draft =
+                StateMapper.buildDiff(
+                    prev = snap,
+                    cur = snap,
+                    events = FrameEventLog.EMPTY,
+                    gameStateId = counter.nextGsId(),
+                    matchId = "test-match",
+                    bridge = b,
+                )
+            val startId = b.annotations.currentAnnotationId()
+            val replacement = BundleCursor.PSuTPending(888.iid, SeatId(1))
+            builder.cursor.queuePSuT(replacement.spellInstanceId, replacement.casterSeatId)
+            val rider = AnnotationBuilder.playerSubmittedTargets(expected.spellInstanceId, expected.casterSeatId)
+
+            shouldThrow<IllegalStateException> {
+                builder.finalizeStateFrame(draft, listOf(rider), expected)
+            }
+
+            assertSoftly {
+                builder.cursor.pendingPSuT() shouldBe replacement
+                b.annotations.currentAnnotationId() shouldBe startId
+            }
+        }
+
         test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
@@ -773,6 +923,61 @@ class BundleBuilderTest :
                 result.messages[1].prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
                 result.messages[1].allowCancel shouldBe Messages.AllowCancel.No_a526
                 result.messages[1].allowUndo shouldBe true
+            }
+        }
+
+        test("staged order annotations join the state frame before numbering") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            val orderedCard =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val candidate = ForgeCardId(orderedCard.id)
+            b.promptBridge(SeatId(1)).recordPendingOrderZoneMove(
+                InteractivePromptBridge.PendingOrderZoneMove(
+                    seatId = SeatId(1),
+                    forgeCardIds = listOf(candidate),
+                    putOnTop = true,
+                ),
+            )
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "staged-order-finalization",
+                    request =
+                        PromptRequest(
+                            promptType = "order_cards",
+                            message = "Order cards",
+                            options = listOf(orderedCard.name),
+                            candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, orderedCard.id, "Hand")),
+                            sourceEntityId = source.id,
+                            route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+
+            val result = bundleBuilder(b).orderBundle(game, counter, prompt, OrderRouteKind.Top)
+            val gsm = result.messages.first().gameStateMessage
+            val stagedTypes =
+                gsm.annotationsList
+                    .filter { annotation ->
+                        AnnotationType.ObjectIdChanged in annotation.typeList ||
+                            AnnotationType.ZoneTransfer_af5a in annotation.typeList
+                    }.map { it.typeList.first() }
+
+            assertSoftly {
+                stagedTypes shouldBe listOf(AnnotationType.ObjectIdChanged, AnnotationType.ZoneTransfer_af5a)
+                gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
+                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
             }
         }
 

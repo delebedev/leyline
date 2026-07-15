@@ -13,11 +13,11 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
@@ -80,9 +80,10 @@ class BundleBuilder(
         val snap: GsmSnapshot,
         val result: StateMapper.BuildResult,
         val events: FrameEventLog,
+        val previousSnap: GsmSnapshot?,
     )
 
-    private fun buildFrameDiff(
+    private fun buildFrameDraft(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
@@ -93,7 +94,7 @@ class BundleBuilder(
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
         val previousSnap = cursor.lastSent
-        val result =
+        val draft =
             StateMapper.buildDiff(
                 previousSnap,
                 snap,
@@ -105,10 +106,64 @@ class BundleBuilder(
                 viewingSeatId = seatId,
                 revealForSeat = revealForSeat,
             )
-        bridge.applyMutations(result.mutations)
-        bridge.diffListener?.invoke(previousSnap, snap, events, nextGs, result.gsm)
-        return FrameDiff(nextGs, snap, result, events)
+        return FrameDiff(nextGs, snap, draft, events, previousSnap)
     }
+
+    private fun buildFrameDiff(
+        game: Game,
+        counter: MessageCounter,
+        revealForSeat: Int? = null,
+        eventsOverride: FrameEventLog? = null,
+        includePendingPlayerSubmittedTargets: Boolean = false,
+        annotationRiders: (GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo> = { _, _ -> emptyList() },
+        updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
+    ): FrameDiff {
+        val frame = buildFrameDraft(game, counter, revealForSeat, eventsOverride, updateType)
+        val pendingSubmittedTargets =
+            if (includePendingPlayerSubmittedTargets) {
+                cursor.pendingPSuT()
+            } else {
+                null
+            }
+        val frameDraft = checkNotNull(frame.result.annotationFrameDraft)
+        val riders = annotationRiders(frame.snap, frameDraft.idResolver).toMutableList()
+        pendingSubmittedTargets?.let { pending ->
+            riders += AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
+        }
+        return finalizeFrameDiff(frame, riders, pendingSubmittedTargets)
+    }
+
+    private fun finalizeFrameDiff(
+        frame: FrameDiff,
+        riders: List<AnnotationInfo>,
+        pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
+    ): FrameDiff {
+        val result = finalizeStateFrame(frame.result, riders, pendingSubmittedTargets)
+        bridge.diffListener?.invoke(frame.previousSnap, frame.snap, frame.events, frame.gameStateId, result.gsm)
+        return frame.copy(result = result)
+    }
+
+    internal fun finalizeStateFrame(
+        draft: StateMapper.BuildResult,
+        riders: List<AnnotationInfo>,
+        pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
+    ): StateMapper.BuildResult {
+        if (pendingSubmittedTargets == null) return commitFinalizedStateFrame(draft, riders)
+
+        return synchronized(cursor) {
+            check(cursor.pendingPSuT() == pendingSubmittedTargets) {
+                "Pending PlayerSubmittedTargets changed during frame assembly"
+            }
+            commitFinalizedStateFrame(draft, riders).also {
+                cursor.consumePSuT(pendingSubmittedTargets)
+            }
+        }
+    }
+
+    private fun commitFinalizedStateFrame(
+        draft: StateMapper.BuildResult,
+        riders: List<AnnotationInfo>,
+    ): StateMapper.BuildResult = draft.finalizeAnnotations(riders).also { bridge.applyMutations(it.mutations) }
 
     /**
      * Post-action state bundle:
@@ -122,7 +177,12 @@ class BundleBuilder(
         priorityCandidates: PriorityActionCandidates? = null,
     ): BundleResult {
         val diff =
-            buildFrameDiff(game, counter, revealForSeat = revealForSeat) { snap, events ->
+            buildFrameDiff(
+                game,
+                counter,
+                revealForSeat = revealForSeat,
+                includePendingPlayerSubmittedTargets = true,
+            ) { snap, events ->
                 if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
                     GameStateUpdate.SendHiFi
                 } else {
@@ -141,10 +201,7 @@ class BundleBuilder(
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.
 
-        // Re-embed stripped actions into the GSM, then drain any pending
-        // PlayerSubmittedTargets so it lands on the first post-submit frame.
-        val gsWithActions = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
-        val gs = appendPendingPlayerSubmittedTargets(gsWithActions)
+        val gs = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
 
         // Stop at ActionsAvailableReq for human-priority prompts. A trailing
         // empty GSM advances the visual state after the prompt and can clear
@@ -176,11 +233,14 @@ class BundleBuilder(
         counter: MessageCounter,
     ): BundleResult =
         synchronized(counter) {
-            val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+            val diff =
+                buildFrameDiff(game, counter, includePendingPlayerSubmittedTargets = true) { snap, _ ->
+                    StateMapper.resolveUpdateType(snap, seatId)
+                }
             val nextGs = diff.gameStateId
             val snap = diff.snap
             val result = diff.result
-            val gs = appendPendingPlayerSubmittedTargets(result.gsm)
+            val gs = result.gsm
 
             // State-only updates still use the content GSM + echo envelope. Human-priority
             // postAction bundles stop at ActionsAvailableReq instead.
@@ -214,37 +274,30 @@ class BundleBuilder(
         eventsOverride: FrameEventLog? = null,
     ): BundleResult =
         synchronized(counter) {
-            val diff = buildFrameDiff(game, counter, eventsOverride = eventsOverride) { _, _ -> GameStateUpdate.SendHiFi }
+            val diff =
+                buildFrameDiff(
+                    game,
+                    counter,
+                    eventsOverride = eventsOverride,
+                    includePendingPlayerSubmittedTargets = true,
+                    annotationRiders = { snap, _ ->
+                        if (turnStarted) {
+                            listOf(AnnotationBuilder.newTurnStarted(snap.phase.activePlayer))
+                        } else {
+                            emptyList()
+                        }
+                    },
+                ) { _, _ -> GameStateUpdate.SendHiFi }
             val nextGs = diff.gameStateId
             val snap = diff.snap
-            val frame = GsmFrame.from(snap)
             // Build state first (triggers instanceId realloc), then actions with new IDs
             val gsBase = diff.result.gsm
             // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
             // Client expects human's potential actions embedded during AI turn.
             val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-            // Inject turn-start annotation when applicable. PhaseOrStepModified is now
-            // emitted event-driven in Stage 2b (inside buildDiff above).
-            val gsWithAnnotations =
-                if (turnStarted) {
-                    gsBase
-                        .toBuilder()
-                        .apply {
-                            addAnnotations(
-                                AnnotationBuilder
-                                    .newTurnStarted(SeatId(frame.activeSeat))
-                                    .toBuilder()
-                                    .setId(bridge.nextAnnotationId())
-                                    .build(),
-                            )
-                        }.build()
-                } else {
-                    gsBase
-                }
-
             // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
-            val gsBuilder = gsWithAnnotations.toBuilder()
+            val gsBuilder = gsBase.toBuilder()
             for (action in actions.actionsList) {
                 gsBuilder.addActions(
                     ActionInfo
@@ -253,7 +306,7 @@ class BundleBuilder(
                         .setAction(ActionMapper.stripActionForGsm(action)),
                 )
             }
-            val gs = appendPendingPlayerSubmittedTargets(gsBuilder.build())
+            val gs = gsBuilder.build()
 
             val content =
                 makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
@@ -591,9 +644,22 @@ class BundleBuilder(
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
     ): BundleResult {
-        // Build diff first — triggers instanceId reallocs for zone transfers
-        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val gs = appendPlayerSelectingTargets(diff.result.gsm, prompt)
+        val diff =
+            buildFrameDiff(
+                game,
+                counter,
+                annotationRiders = { _, frameIds ->
+                    prompt.request.sourceEntityId?.let { sourceEntityId ->
+                        listOf(
+                            AnnotationBuilder.playerSelectingTargets(
+                                frameIds.cardIid(ForgeCardId(sourceEntityId)),
+                                SeatId(seatId),
+                            ),
+                        )
+                    } ?: emptyList()
+                },
+            ) { _, _ -> GameStateUpdate.Send }
+        val gs = diff.result.gsm
         // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
         val req = RequestBuilder.buildSelectTargetsReq(prompt, bridge, seatId)
         return promptRequestBundle(diff, counter, gs, GREMessageType.SelectTargetsReq_695e) {
@@ -663,11 +729,16 @@ class BundleBuilder(
         prompt: InteractivePromptBridge.PendingPrompt,
         kind: OrderRouteKind,
     ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val snap = diff.snap
-        val stagedMove = stagePendingOrderZoneMove(diff.result.gsm, snap, prompt)
+        val frameDraft = buildFrameDraft(game, counter) { _, _ -> GameStateUpdate.Send }
+        val snap = frameDraft.snap
+        val stagedMove = stagePendingOrderZoneMove(frameDraft.result.gsm, snap, prompt)
+        val augmentedDraft =
+            stagedMove?.let { move ->
+                frameDraft.copy(result = frameDraft.result.copy(gsm = move.gsm))
+            } ?: frameDraft
+        val diff = finalizeFrameDiff(augmentedDraft, emptyList())
         val (req, promptProto) = buildOrderReq(prompt, kind)
-        val baseOrderGsm = stagedMove?.gsm ?: attachOrderGameObjects(diff.result.gsm, req, snap)
+        val baseOrderGsm = if (stagedMove != null) diff.result.gsm else attachOrderGameObjects(diff.result.gsm, req, snap)
         val gs =
             baseOrderGsm
                 .toBuilder()
@@ -815,17 +886,11 @@ class BundleBuilder(
             builder.addGameObjects(orderMoveObject(cardSnap, staged.newId, destZoneId, move.seatId.value))
             builder.addAnnotations(
                 AnnotationBuilder
-                    .objectIdChanged(staged.oldId, staged.newId, sourceIid)
-                    .toBuilder()
-                    .setId(bridge.annotations.nextAnnotationId())
-                    .build(),
+                    .objectIdChanged(staged.oldId, staged.newId, sourceIid),
             )
             builder.addAnnotations(
                 AnnotationBuilder
-                    .zoneTransfer(staged.newId, sourceZoneId, destZoneId, "Put", affectorId = sourceIid)
-                    .toBuilder()
-                    .setId(bridge.annotations.nextAnnotationId())
-                    .build(),
+                    .zoneTransfer(staged.newId, sourceZoneId, destZoneId, "Put", affectorId = sourceIid),
             )
         }
         return builder.build()
@@ -1569,53 +1634,6 @@ class BundleBuilder(
     }
 
     /** Build a single GRE message. */
-
-    /**
-     * Append PlayerSelectingTargets to the GSM that pairs with SelectTargetsReq.
-     * No-op if the prompt has no source entity (defensive — should not happen
-     * for a real targeting prompt). Source iid resolution mirrors
-     * [RequestBuilder.buildSelectTargetsReq].
-     */
-    private fun appendPlayerSelectingTargets(
-        gsm: GameStateMessage,
-        prompt: InteractivePromptBridge.PendingPrompt,
-    ): GameStateMessage {
-        val sourceEntityId = prompt.request.sourceEntityId ?: return gsm
-        val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId))
-        val annotation =
-            AnnotationBuilder
-                .playerSelectingTargets(sourceIid, SeatId(seatId))
-                .toBuilder()
-                .setId(bridge.nextAnnotationId())
-                .build()
-        return gsm.toBuilder().addAnnotations(annotation).build()
-    }
-
-    /**
-     * Drain a queued PlayerSubmittedTargets into the GSM. The diff's annotations
-     * are already enforced and numbered when this runs, so the merged list goes
-     * through the ordering kernel again and the frame's existing id pool is
-     * reassigned positionally — PSuT leads the post-submit frame with ascending
-     * ids intact, matching the canonical slot ordering.
-     */
-    private fun appendPendingPlayerSubmittedTargets(gsm: GameStateMessage): GameStateMessage {
-        val pending = cursor.drainPSuT() ?: return gsm
-        val annotation =
-            AnnotationBuilder
-                .playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
-                .toBuilder()
-                .setId(bridge.nextAnnotationId())
-                .build()
-        val merged = gsm.annotationsList + annotation
-        val ids = merged.map { it.id }.sorted()
-        val ordered = AnnotationOrderEnforcer.enforce(merged)
-        val renumbered = ordered.mapIndexed { i, ann -> ann.toBuilder().setId(ids[i]).build() }
-        return gsm
-            .toBuilder()
-            .clearAnnotations()
-            .addAllAnnotations(renumbered)
-            .build()
-    }
 
     private fun makeGRE(
         type: GREMessageType,

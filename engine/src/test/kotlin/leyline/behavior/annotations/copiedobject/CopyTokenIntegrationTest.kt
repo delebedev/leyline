@@ -155,7 +155,7 @@ class CopyTokenIntegrationTest :
             // First GSM — establishes baseline (apply mutations so recordZone fires)
             val snapCopy3 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
             val baselineResult = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", harness.bridge, viewingSeatId = 1)
-            harness.bridge.applyMutations(baselineResult.mutations)
+            harness.bridge.applyMutations(baselineResult.finalizeAnnotations().mutations)
 
             // Trigger a state change (pass priority) so a diff is generated
             passPriority()

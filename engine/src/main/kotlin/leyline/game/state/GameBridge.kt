@@ -594,12 +594,16 @@ class GameBridge(
      * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
      */
     fun applyMutations(m: BridgeMutations) {
+        val nextAnnotationId =
+            checkNotNull(m.nextAnnotationId) {
+                "Cannot apply bridge mutations before annotation frame finalization"
+            }
         for (r in m.idReallocations) ids.applyRealloc(r)
         for (id in m.retiredIds) retireToLimbo(id)
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
         annotations.applyBatchResult(m.persistentBatch)
         consumePendingTargetSpecs(m.consumedTargetSpecs)
-        annotations.setAnnotationId(m.nextAnnotationId)
+        annotations.setAnnotationId(nextAnnotationId)
         delayedTriggerHolders.apply(m.holderBatch)
     }
 

@@ -28,7 +28,7 @@ fun GameBridge.seedDiffBaseline(
     gameStateId: Int = 0,
 ): GsmSnapshot {
     val snap = GsmSnapshot.capture(game, this, "", gameStateId)
-    val result = StateMapper.buildFromSnapshot(snap, gameStateId, "", this)
+    val result = StateMapper.buildFromSnapshot(snap, gameStateId, "", this).finalizeAnnotations()
     applyMutations(result.mutations)
     bundleCursor.lastSent = snap
     return snap
