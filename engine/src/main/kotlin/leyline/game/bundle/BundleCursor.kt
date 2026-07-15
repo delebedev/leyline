@@ -44,6 +44,7 @@ class BundleCursor {
      * [BundleBuilder] method that builds a diff. One-shot — only the first
      * subsequent bundle picks it up.
      */
+    @Synchronized
     fun queuePSuT(
         spellInstanceId: InstanceId,
         casterSeatId: SeatId,
@@ -52,9 +53,11 @@ class BundleCursor {
     }
 
     /** Read the queued PSuT without consuming it during frame assembly. */
+    @Synchronized
     fun pendingPSuT(): PSuTPending? = pendingPSuT
 
     /** Consume the PSuT only after the frame carrying it has committed. */
+    @Synchronized
     fun consumePSuT(expected: PSuTPending) {
         check(pendingPSuT == expected) { "Pending PlayerSubmittedTargets changed during frame assembly" }
         pendingPSuT = null

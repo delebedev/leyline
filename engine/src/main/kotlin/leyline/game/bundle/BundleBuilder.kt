@@ -148,11 +148,22 @@ class BundleBuilder(
         riders: List<AnnotationInfo>,
         pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
     ): StateMapper.BuildResult {
-        val finalized = draft.finalizeAnnotations(riders)
-        bridge.applyMutations(finalized.mutations)
-        pendingSubmittedTargets?.let(cursor::consumePSuT)
-        return finalized
+        if (pendingSubmittedTargets == null) return commitFinalizedStateFrame(draft, riders)
+
+        return synchronized(cursor) {
+            check(cursor.pendingPSuT() == pendingSubmittedTargets) {
+                "Pending PlayerSubmittedTargets changed during frame assembly"
+            }
+            commitFinalizedStateFrame(draft, riders).also {
+                cursor.consumePSuT(pendingSubmittedTargets)
+            }
+        }
     }
+
+    private fun commitFinalizedStateFrame(
+        draft: StateMapper.BuildResult,
+        riders: List<AnnotationInfo>,
+    ): StateMapper.BuildResult = draft.finalizeAnnotations(riders).also { bridge.applyMutations(it.mutations) }
 
     /**
      * Post-action state bundle:

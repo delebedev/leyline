@@ -766,6 +766,37 @@ class BundleBuilderTest :
             }
         }
 
+        test("replaced submitted-target rider aborts before bridge mutations commit") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val expected = BundleCursor.PSuTPending(777.iid, SeatId(1))
+            builder.cursor.queuePSuT(expected.spellInstanceId, expected.casterSeatId)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val snap = checkNotNull(builder.cursor.lastSent)
+            val draft =
+                StateMapper.buildDiff(
+                    prev = snap,
+                    cur = snap,
+                    events = FrameEventLog.EMPTY,
+                    gameStateId = counter.nextGsId(),
+                    matchId = "test-match",
+                    bridge = b,
+                )
+            val startId = b.annotations.currentAnnotationId()
+            val replacement = BundleCursor.PSuTPending(888.iid, SeatId(1))
+            builder.cursor.queuePSuT(replacement.spellInstanceId, replacement.casterSeatId)
+            val rider = AnnotationBuilder.playerSubmittedTargets(expected.spellInstanceId, expected.casterSeatId)
+
+            shouldThrow<IllegalStateException> {
+                builder.finalizeStateFrame(draft, listOf(rider), expected)
+            }
+
+            assertSoftly {
+                builder.cursor.pendingPSuT() shouldBe replacement
+                b.annotations.currentAnnotationId() shouldBe startId
+            }
+        }
+
         test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
