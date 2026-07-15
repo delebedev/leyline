@@ -143,8 +143,10 @@ class PuzzleMatchDoorFlowTest :
                 .flatMap { it.greToClientEvent.greToClientMessagesList }
                 .toList()
 
-        fun passPriority(): ClientToGREMessage =
+        fun passPriority(prompt: GREToClientMessage): ClientToGREMessage =
             greMessage(1, ClientMessageType.PerformActionResp_097b) {
+                setGameStateId(prompt.gameStateId)
+                setRespId(prompt.msgId)
                 setPerformActionResp(
                     PerformActionResp
                         .newBuilder()
@@ -173,9 +175,12 @@ class PuzzleMatchDoorFlowTest :
                 greOutbound(channel)
 
                 channel.writeInbound(connect(matchId, seatId = 1, requestId = 2))
-                val connectTypes = greOutbound(channel).map { it.type }
+                val connectMessages = greOutbound(channel)
+                val connectTypes = connectMessages.map { it.type }
 
-                channel.writeInbound(greServiceMessage(passPriority(), 3))
+                channel.writeInbound(
+                    greServiceMessage(passPriority(connectMessages.last { it.hasActionsAvailableReq() }), 3),
+                )
                 val postPassTypes = greOutbound(channel).map { it.type }
 
                 assertSoftly {
@@ -253,7 +258,8 @@ class PuzzleMatchDoorFlowTest :
                 channel.writeInbound(auth("web-player", 1))
                 greOutbound(channel)
                 channel.writeInbound(connect(matchId, seatId = 1, requestId = 2))
-                val firstConnectTypes = greOutbound(channel).map { it.type }
+                val firstConnectMessages = greOutbound(channel)
+                val firstConnectTypes = firstConnectMessages.map { it.type }
 
                 // A reconnect (page reload, retried websocket, duplicate attach) replays
                 // the handshake on the SAME shared engine instance.
@@ -262,9 +268,15 @@ class PuzzleMatchDoorFlowTest :
                     generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
 
                 channel.writeInbound(connect(matchId, seatId = 1, requestId = 4))
-                val reconnectConnectTypes = greOutbound(channel).map { it.type }
+                val reconnectConnectMessages = greOutbound(channel)
+                val reconnectConnectTypes = reconnectConnectMessages.map { it.type }
 
-                channel.writeInbound(greServiceMessage(passPriority(), 5))
+                channel.writeInbound(
+                    greServiceMessage(
+                        passPriority(reconnectConnectMessages.last { it.hasActionsAvailableReq() }),
+                        5,
+                    ),
+                )
                 val postReconnectTypes = greOutbound(channel).map { it.type }
 
                 assertSoftly {
