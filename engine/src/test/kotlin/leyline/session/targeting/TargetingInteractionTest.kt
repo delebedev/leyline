@@ -108,7 +108,6 @@ class TargetingInteractionTest :
 
             harness.respondToSelectN(emptyList())
             harness.respondToOrder(emptyList())
-            harness.respondToEffectCost(emptyList())
             harness.respondToSearch(emptyList())
             harness.respondModalChoice(emptyList())
             harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())

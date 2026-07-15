@@ -7,7 +7,7 @@ internal enum class PromptResponseKind {
     Group,
     ModalChoice,
     SelectN,
-    PayCosts,
+    EffectCost,
     Search,
     Order,
     Targeting,
@@ -19,7 +19,10 @@ internal fun ResolvedPromptRoute.accepts(response: PromptResponseKind): Boolean 
         PromptResponseKind.Group -> this is ResolvedPromptRoute.Grouping
         PromptResponseKind.ModalChoice -> this is ResolvedPromptRoute.ModalChoice
         PromptResponseKind.SelectN -> this is ResolvedPromptRoute.SelectN
-        PromptResponseKind.PayCosts -> this is ResolvedPromptRoute.PayCosts
+        PromptResponseKind.EffectCost ->
+            this is ResolvedPromptRoute.PayCosts ||
+                this is ResolvedPromptRoute.SelectN ||
+                this is ResolvedPromptRoute.Targeting
         PromptResponseKind.Search -> this is ResolvedPromptRoute.Search
         PromptResponseKind.Order -> this is ResolvedPromptRoute.Order
         PromptResponseKind.Targeting -> this is ResolvedPromptRoute.Targeting

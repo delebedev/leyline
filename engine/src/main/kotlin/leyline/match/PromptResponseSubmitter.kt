@@ -49,7 +49,7 @@ internal class PromptResponseSubmitter(
         autoPass: () -> Unit,
         clearManaSourcePayment: (String) -> Unit,
     ) {
-        val pendingPrompt = pendingPromptOrWarn("EffectCostResp", PromptResponseKind.PayCosts) ?: return
+        val pendingPrompt = pendingPromptOrWarn("EffectCostResp", PromptResponseKind.EffectCost) ?: return
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
         val route = pendingPrompt.request.route as? ResolvedPromptRoute.PayCosts

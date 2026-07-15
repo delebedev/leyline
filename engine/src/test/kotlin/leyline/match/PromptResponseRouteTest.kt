@@ -10,27 +10,49 @@ class PromptResponseRouteTest :
     FunSpec({
         tags(UnitTag)
 
+        val representativeRoutes =
+            mapOf(
+                PromptSemantic.GroupingSurveil to PromptRouteResolver.resolve(PromptSemantic.GroupingSurveil),
+                PromptSemantic.ModalChoice to PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
+                PromptSemantic.SelectNResolution to PromptRouteResolver.resolve(PromptSemantic.SelectNResolution),
+                PromptSemantic.SelectNDiscard to PromptRouteResolver.resolve(PromptSemantic.SelectNDiscard),
+                PromptSemantic.SelectNCostSacrifice to PromptRouteResolver.resolve(PromptSemantic.SelectNCostSacrifice),
+                PromptSemantic.Search to PromptRouteResolver.resolve(PromptSemantic.Search),
+                PromptSemantic.OrderForBottom to PromptRouteResolver.resolve(PromptSemantic.OrderForBottom),
+                PromptSemantic.Generic to PromptRouteResolver.resolve(PromptSemantic.Generic, hasCandidateRefs = true),
+            )
         val acceptedRoutes =
             mapOf(
-                PromptResponseKind.Group to PromptRouteResolver.resolve(PromptSemantic.GroupingSurveil),
-                PromptResponseKind.ModalChoice to PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
-                PromptResponseKind.SelectN to PromptRouteResolver.resolve(PromptSemantic.SelectNResolution),
-                PromptResponseKind.PayCosts to PromptRouteResolver.resolve(PromptSemantic.SelectNCostSacrifice),
-                PromptResponseKind.Search to PromptRouteResolver.resolve(PromptSemantic.Search),
-                PromptResponseKind.Order to PromptRouteResolver.resolve(PromptSemantic.OrderForBottom),
-                PromptResponseKind.Targeting to PromptRouteResolver.resolve(PromptSemantic.Generic, hasCandidateRefs = true),
+                PromptResponseKind.Group to setOf(representativeRoutes.getValue(PromptSemantic.GroupingSurveil)),
+                PromptResponseKind.ModalChoice to setOf(representativeRoutes.getValue(PromptSemantic.ModalChoice)),
+                PromptResponseKind.SelectN to
+                    setOf(
+                        representativeRoutes.getValue(PromptSemantic.SelectNResolution),
+                        representativeRoutes.getValue(PromptSemantic.SelectNDiscard),
+                    ),
+                PromptResponseKind.EffectCost to
+                    setOf(
+                        representativeRoutes.getValue(PromptSemantic.SelectNCostSacrifice),
+                        representativeRoutes.getValue(PromptSemantic.SelectNResolution),
+                        representativeRoutes.getValue(PromptSemantic.SelectNDiscard),
+                        representativeRoutes.getValue(PromptSemantic.Generic),
+                    ),
+                PromptResponseKind.Search to setOf(representativeRoutes.getValue(PromptSemantic.Search)),
+                PromptResponseKind.Order to setOf(representativeRoutes.getValue(PromptSemantic.OrderForBottom)),
+                PromptResponseKind.Targeting to setOf(representativeRoutes.getValue(PromptSemantic.Generic)),
             )
 
         test("each client response family accepts its bound route") {
-            acceptedRoutes.forEach { (response, route) ->
-                route.accepts(response) shouldBe true
+            acceptedRoutes.forEach { (response, routes) ->
+                routes.forEach { route -> route.accepts(response) shouldBe true }
             }
         }
 
         test("each client response family rejects every other bound route") {
-            acceptedRoutes.forEach { (response, acceptedRoute) ->
-                acceptedRoutes.values
-                    .filterNot { it == acceptedRoute }
+            acceptedRoutes.forEach { (response, accepted) ->
+                representativeRoutes.values
+                    .toSet()
+                    .filterNot { it in accepted }
                     .forEach { route -> route.accepts(response) shouldBe false }
             }
         }
