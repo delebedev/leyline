@@ -5,6 +5,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.toWireId
 import leyline.game.event.GameEvent
+import leyline.game.event.combatDamageFact
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -151,7 +152,10 @@ object CombatAnnotations {
 
         return CombatAnnotationResult(
             annotations = annotations,
-            hasCombatDamage = true,
+            hasCombatDamage =
+                events
+                    .mapNotNull { it.combatDamageFact() }
+                    .let { damageFacts -> damageFacts.isNotEmpty() && damageFacts.all { it } },
             damageStep = events.combatDamageStep(),
             damagedThisTurnPersistent = damagedThisTurnPersistent,
             clearDamagedThisTurn = clearOnUpkeep,
@@ -165,7 +169,7 @@ object CombatAnnotations {
                 if (event.step == Step.FirstStrikeDamage_a2cb.number) currentDamageStep = Step.FirstStrikeDamage_a2cb
                 if (event.step == Step.CombatDamage_a2cb.number) currentDamageStep = Step.CombatDamage_a2cb
             }
-            if (event is GameEvent.DamageDealtToCard || event is GameEvent.DamageDealtToPlayer) {
+            if (event.combatDamageFact() == true) {
                 return currentDamageStep
             }
         }

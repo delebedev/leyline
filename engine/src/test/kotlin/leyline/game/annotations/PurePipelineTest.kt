@@ -337,6 +337,64 @@ class PurePipelineTest :
             damageAnnotation.affectedIdsList shouldContain 1020
         }
 
+        test("combatAnnotations does not report noncombat-only damage as combat") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(10),
+                        targetCardId = ForgeCardId(20),
+                        amount = 3,
+                        combat = false,
+                    ),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(30),
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        combat = false,
+                    ),
+                )
+
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
+                    currentLifeTotals = mapOf(1 to 20, 2 to 18),
+                )
+
+            result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
+            result.hasCombatDamage shouldBe false
+        }
+
+        test("combatAnnotations does not apply combat frame shape to mixed damage") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        combat = true,
+                    ),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(30),
+                        targetSeatId = SeatId(2),
+                        amount = 3,
+                        combat = false,
+                    ),
+                )
+
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
+                    currentLifeTotals = mapOf(1 to 20, 2 to 15),
+                )
+
+            result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
+            result.hasCombatDamage shouldBe false
+        }
+
         test("combatAnnotations can keep pre-transfer battlefield ids for lethal combat") {
             val events =
                 listOf(
