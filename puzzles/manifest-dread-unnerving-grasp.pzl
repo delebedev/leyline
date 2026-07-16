@@ -1,0 +1,34 @@
+# Design Narrative
+# Mechanic: Manifest Dread top-two choice, face-down projection, and mana-cost turn-face-up action.
+# Forcing: Centaur Courser is only lethal after it is selected, manifested, and turned face up from 2/2 to 3/3.
+# AI behavior: Human performs every meaningful action; Unnerving Grasp removes the AI's only blocker before combat.
+# Failure modes:
+#   WIN = choice, zone split, face-down state, turn-up action, and combat result all worked.
+#   LOSE = one of those steps failed before exact-lethal combat completed.
+#   TIMEOUT = the resolution choice or turn-face-up interaction did not complete.
+# Card roles:
+#   Unnerving Grasp — creates the Manifest Dread resolution and removes the blocker.
+#   Centaur Courser — selected creature; 3 power makes turning face up mandatory for lethal.
+#   Island — unselected top card that must move to the graveyard.
+#   Fervor — lets the newly manifested creature attack this turn.
+#   Grizzly Bears — blocks the lethal attack unless Unnerving Grasp resolves its first effect.
+# Protocol path: Cast/SelectTargetsReq, SelectNReq 13125, Library zone split, FaceDown REASON=8, SpecialTurnFaceUp action.
+
+[metadata]
+Name:Manifest Dread Unnerving Grasp
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Manifest Centaur Courser, turn it face up, and attack for exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Unnerving Grasp
+humanbattlefield=Fervor;Island;Island;Island;Forest;Forest;Forest;Forest;Plains
+humanlibrary=Centaur Courser;Island;Plains
+aibattlefield=Grizzly Bears
+ailibrary=Forest

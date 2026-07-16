@@ -243,6 +243,7 @@ object KeywordAbilityIds {
     const val BLITZ = 240
     const val DASH = 274
     const val DISGUISE = 307
+    const val MANIFEST_DREAD = 351
     const val IMPENDING = 352
     const val HARMONIZE = 362
     const val PLOT = 328

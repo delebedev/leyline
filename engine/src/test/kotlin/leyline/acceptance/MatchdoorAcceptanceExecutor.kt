@@ -348,13 +348,22 @@ private class ScenarioRun(
                 .cards
                 .firstOrNull { it.name.equals(step.card, ignoreCase = true) || it.isFaceDown }
                 ?: error("$context could not find ${step.card} or a face-down card on battlefield")
-        submitAction(
-            Action
-                .newBuilder()
-                .setActionType(ActionType.SpecialTurnFaceUp_add3)
-                .setInstanceId(harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
-                .build(),
-        )
+        val instanceId = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val action =
+            harness.accumulator.actions
+                ?.actionsList
+                .orEmpty()
+                .firstOrNull {
+                    it.actionType == ActionType.SpecialTurnFaceUp_add3 &&
+                        it.instanceId == instanceId
+                } ?: error("$context no turn-face-up action for ${step.card} iid=$instanceId")
+        submitAction(action)
+        require(!card.isFaceDown) {
+            "$context turn-face-up action did not resolve; " +
+                "action=${actionSummary(action)}; " +
+                "latest prompt=${latestPromptNameWithId() ?: "none"}; " +
+                "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}"
+        }
     }
 
     private fun resolveStack() {

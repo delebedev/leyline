@@ -813,6 +813,34 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Forum Familiar }
             - battlefield_stats_at_least: { side: ours, card: Forum Familiar, power: 2, toughness: 2 }
             - stack_empty: true
+  - id: manifest-dread-unnerving-grasp
+    puzzle: manifest-dread-unnerving-grasp
+    web:
+      skip: Web runner does not yet activate this face-down action path.
+    run: bounce the blocker, manifest Centaur Courser, then turn it face up for its mana cost
+    expect: Manifest Dread resolves a face-down 2/2 and its creature turn-face-up action reveals Centaur Courser
+    steps:
+      - expect:
+          action: { type: cast, card: Unnerving Grasp }
+      - cast: Unnerving Grasp
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 13125 }
+          max_passes: 8
+      - select_card: { side: ours, zone: library, card: Centaur Courser }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Island }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - annotation_seen: FaceDown
+            - stack_empty: true
+          max_passes: 8
+      - turn_face_up: Centaur Courser
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Centaur Courser }
+            - battlefield_stats: { side: ours, card: Centaur Courser, power: 3, toughness: 3 }
+            - stack_empty: true
   - id: prepared-honorbound-page
     puzzle: honorbound-page-prepare
     run: cast Honorbound Page, then cast the prepared Forum's Favor copy from exile

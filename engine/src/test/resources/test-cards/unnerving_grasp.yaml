@@ -1,0 +1,8 @@
+name: "Unnerving Grasp"
+grpId: 92152
+titleId: 812540
+abilities:
+  - id: 174363
+    textId: 812541
+    category: 4
+expansionCode: "DSK"

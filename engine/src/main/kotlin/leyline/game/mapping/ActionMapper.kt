@@ -217,7 +217,7 @@ object ActionMapper {
                     envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                     autoTapSolution = { cost -> autoTapForCost(player, cost) },
-                    skipDisguiseTurnFaceUp = true,
+                    skipSpecialTurnFaceUp = true,
                     abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
                     onActive = { action, abilityIndex, ability, abilityGrpId ->
                         bindOffer(
@@ -257,8 +257,8 @@ object ActionMapper {
             }
         }
 
-        // --- Battlefield: Special_TurnFaceUp for face-down disguise creatures ---
-        // A controller's face-down disguise permanent surfaces a dedicated
+        // --- Battlefield: Special_TurnFaceUp for supported face-down creatures ---
+        // A controller's supported face-down permanent surfaces a dedicated
         // Special_TurnFaceUp_add3 action carrying the per-card "Turn face up"
         // ability grpId on `alternativeGrpId` and the printed disguise cost
         // as `manaCost`. Distinct from `Activate_add3` — the client routes
@@ -266,7 +266,7 @@ object ActionMapper {
         for (fid in battlefield) {
             val cardSnap = snap.objects[fid] ?: continue
             if (cardSnap.controller.value != seatId) continue
-            if (!cardSnap.isFaceDownDisguise) continue
+            val faceDownKind = cardSnap.faceDownKind ?: continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
             val cardData = snap.boundCards[fid]?.data
@@ -277,10 +277,15 @@ object ActionMapper {
                 instanceId = instanceId,
                 cardData = cardData,
                 fallbackAlternativeGrpId =
-                    bridge.cardRepository.findKeywordAbilityGrpId(
-                        cardSnap.grpId,
-                        leyline.game.data.KeywordAbilityIds.DISGUISE,
-                    ) ?: 0,
+                    when (faceDownKind) {
+                        leyline.game.snapshot.FaceDownKind.Disguise ->
+                            bridge.cardRepository.findKeywordAbilityGrpId(
+                                cardSnap.grpId,
+                                leyline.game.data.KeywordAbilityIds.DISGUISE,
+                            ) ?: 0
+                        leyline.game.snapshot.FaceDownKind.ManifestDread ->
+                            leyline.game.data.KeywordAbilityIds.MANIFEST_DREAD
+                    },
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                 builder = builder,
                 abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
@@ -1385,7 +1390,7 @@ object ActionMapper {
         abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
         onActive: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
     ) {
-        val abilityIndex = abilities.indexOfFirst { it.isDisguiseUp }
+        val abilityIndex = abilities.indexOfFirst { it.isTurnFaceUp }
         val turnFaceUpSa = abilities.getOrNull(abilityIndex) ?: return
         turnFaceUpSa.setActivatingPlayer(player)
         val canPay = canPayManaCost(turnFaceUpSa, player)

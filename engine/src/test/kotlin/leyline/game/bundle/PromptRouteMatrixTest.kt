@@ -59,6 +59,12 @@ class PromptRouteMatrixTest :
                             SelectNInnerPrompt.SelectNInnerParameter,
                             SelectNEnvelopeKind.Resolution,
                         ),
+                    PromptSemantic.ManifestDread to
+                        selectN(
+                            PromptSemantic.ManifestDread,
+                            SelectNInnerPrompt.ManifestDreadInnerParameter,
+                            SelectNEnvelopeKind.ManifestDread,
+                        ),
                     PromptSemantic.SuspectChoice to
                         selectN(
                             PromptSemantic.SuspectChoice,

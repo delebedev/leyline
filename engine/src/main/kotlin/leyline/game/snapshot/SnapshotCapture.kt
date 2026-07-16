@@ -519,7 +519,7 @@ object SnapshotCapture {
             isSaddled = onBf && card.isSaddled,
             isSuspected = onBf && card.isSuspected,
             isForetold = Foretell.isForetold(card),
-            isFaceDownDisguise = Disguise.isFaceDownDisguise(card),
+            faceDownKind = FaceDown.kind(card),
             isCommander = card.isCommander,
             commanderTax = commanderTax(card),
             commanderColorIdentity = commanderColorIdentity(card),

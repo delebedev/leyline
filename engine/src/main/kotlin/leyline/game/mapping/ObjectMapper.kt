@@ -184,13 +184,13 @@ object ObjectMapper {
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         parentLinkage: ParentLinkage? = null,
     ): GameObjectInfo {
-        // Face-down disguise creatures get a synthetic stencil envelope —
+        // Supported face-down creatures get a synthetic stencil envelope —
         // the per-card identity (name, subtypes, color, abilities) is
         // suppressed in favor of the universal face-down stencil (overlay
         // grpId=3, ability=141939). Mechanic-agnostic so Morph / Manifest /
         // Cloak can ride the same projection once their snapshot
         // recognizers land.
-        if (cardSnap.isFaceDownDisguise) {
+        if (cardSnap.faceDownKind != null) {
             return cardProto
                 .buildFaceDownObjectInfo(cardSnap.grpId)
                 .setInstanceId(instanceId)

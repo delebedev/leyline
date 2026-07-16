@@ -518,6 +518,9 @@ enum class PromptSemantic {
      */
     SelectNResolution,
 
+    /** Manifest Dread's mandatory top-two resolution choice. */
+    ManifestDread,
+
     /** Triggered resolution choice that suspects one of the triggering cards. */
     SuspectChoice,
 

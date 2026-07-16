@@ -1128,10 +1128,9 @@ object AnnotationBuilder {
             .build()
 
     /** Persistent FaceDown annotation for a face-down permanent on the
-     *  battlefield (Disguise / Morph / Manifest / Cloak). Carries the
-     *  mechanic discriminator on `REASON` (Disguise=6, Manifest=5, Morph=8)
-     *  and the keyword's BaseId on `abilityGrpId` (Disguise=307,
-     *  Foretell=208 etc.).
+     *  battlefield. Carries the mechanic discriminator on `REASON`
+     *  (Disguise=6, Manifest Dread=8) and the corresponding ability identity
+     *  on `abilityGrpId` (Disguise=307, Manifest Dread=351).
      *
      *  affector / affectedIds both = the face-down card's instance id.
      *  Lives across many GSMs; deleted via diff-tracking when the card

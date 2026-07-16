@@ -25,6 +25,7 @@ import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.FaceDownDisguiseKind
+import leyline.game.state.FaceDownManifestDreadKind
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
 import leyline.game.state.LinkInfoChoiceKind
@@ -85,6 +86,7 @@ internal object PersistentFeedBuilder {
         val designations = buildDesignationAnnotations(snap, context)
         val dayNightDesignation = buildDayNightDesignationAnnotations(snap)
         val faceDownDisguise = buildFaceDownDisguiseAnnotations(snap, frameIds)
+        val faceDownManifestDread = buildFaceDownManifestDreadAnnotations(snap, frameIds)
         val colorProduction = buildColorProductionAnnotations(snap, frameIds)
         val linkInfo = buildLinkInfoAnnotations(snap, frameIds, bridge)
 
@@ -99,6 +101,7 @@ internal object PersistentFeedBuilder {
                             AbilityWordActiveKind to abilityWord,
                             DayNightDesignationKind to dayNightDesignation,
                             FaceDownDisguiseKind to faceDownDisguise,
+                            FaceDownManifestDreadKind to faceDownManifestDread,
                             ColorProductionKind to colorProduction,
                             LinkInfoChoiceKind to linkInfo,
                         ) + designations,
@@ -356,11 +359,25 @@ internal object PersistentFeedBuilder {
     ): List<AnnotationInfo> =
         snap.boundCards.values
             .mapNotNull { bound ->
-                if (!bound.snapshot.isFaceDownDisguise) return@mapNotNull null
+                if (bound.snapshot.faceDownKind != leyline.game.snapshot.FaceDownKind.Disguise) return@mapNotNull null
                 AnnotationBuilder.faceDownPersistent(
                     instanceId = frameIds.cardIid(bound.forgeCardId),
                     reason = AnnotationConstants.FACEDOWN_REASON_DISGUISE,
                     abilityGrpId = GrpId(KeywordAbilityIds.DISGUISE),
+                )
+            }
+
+    private fun buildFaceDownManifestDreadAnnotations(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.boundCards.values
+            .mapNotNull { bound ->
+                if (bound.snapshot.faceDownKind != leyline.game.snapshot.FaceDownKind.ManifestDread) return@mapNotNull null
+                AnnotationBuilder.faceDownPersistent(
+                    instanceId = frameIds.cardIid(bound.forgeCardId),
+                    reason = AnnotationConstants.FACEDOWN_REASON_MANIFEST_DREAD,
+                    abilityGrpId = GrpId(KeywordAbilityIds.MANIFEST_DREAD),
                 )
             }
 
