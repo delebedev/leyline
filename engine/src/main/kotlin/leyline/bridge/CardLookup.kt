@@ -226,10 +226,16 @@ fun getNonManaActivatedAbilities(
             sourceIds.add(ability.id)
         }
     }
+    for (ability in card.getAllPossibleAbilities(player, false)) {
+        if (ability.id !in sourceIds && ability.isTurnFaceUp) {
+            sourceAbilities.add(ability)
+            sourceIds.add(ability.id)
+        }
+    }
     for (ability in sourceAbilities) {
         ability.setActivatingPlayer(player)
         val isSpecialTurnFaceUp =
-            ability.isDisguiseUp && card.isFaceDown && card.isInZone(ZoneType.Battlefield)
+            ability.isTurnFaceUp && card.isFaceDown && card.isInZone(ZoneType.Battlefield)
         if (!ability.isActivatedAbility && !isSpecialTurnFaceUp) continue
         if (ability.isManaAbility()) continue
         if (isReconfigureAttach(ability) && card.isAttachedToEntity) continue

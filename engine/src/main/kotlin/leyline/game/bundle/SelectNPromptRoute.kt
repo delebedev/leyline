@@ -22,6 +22,7 @@ internal fun SelectNPromptRoute.envelope(
         SelectNEnvelopeKind.LegendRule -> SelectNEnvelope.legendRule(req)
         SelectNEnvelopeKind.RevealChoose -> SelectNEnvelope.revealChoose(req)
         SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
+        SelectNEnvelopeKind.ManifestDread -> SelectNEnvelope.manifestDread(req)
         SelectNEnvelopeKind.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
         SelectNEnvelopeKind.SuspectChoice -> SelectNEnvelope.suspectChoice(req)
         SelectNEnvelopeKind.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
@@ -78,6 +79,10 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
         SelectNInnerPrompt.SelectNInnerParameter -> {
             builder.setSourceIdIfPresent(prompt, bridge)
             builder.setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
+        }
+        SelectNInnerPrompt.ManifestDreadInnerParameter -> {
+            builder.setSourceIdIfPresent(prompt, bridge)
+            builder.setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
         }
         SelectNInnerPrompt.LearnInnerParameter -> {
             builder.setSourceIdIfPresent(prompt, bridge)

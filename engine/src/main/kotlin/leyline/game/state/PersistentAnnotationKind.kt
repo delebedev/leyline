@@ -390,6 +390,24 @@ data object FaceDownDisguiseKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+data object FaceDownManifestDreadKind : PersistentAnnotationKind {
+    override val name = "FaceDownManifestDread"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean {
+        if (AnnotationType.FaceDown !in ann.typeList) return false
+        val reason =
+            ann.detailsList
+                .firstOrNull { it.key == leyline.game.codes.DetailKeys.REASON_UPPER }
+                ?.valueInt32List
+                ?.firstOrNull() ?: return false
+        return reason == AnnotationConstants.FACEDOWN_REASON_MANIFEST_DREAD
+    }
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 /**
  * Game-scope Day/Night state designation. Single row per game — Day and Night
  * are mutually exclusive, and the row carries a running `ActivePlayerSpellCount`
@@ -577,6 +595,7 @@ object PersistentAnnotationKinds {
             ManaCreatureDesignationKind,
             DayNightDesignationKind,
             FaceDownDisguiseKind,
+            FaceDownManifestDreadKind,
         )
 
     /** Lifecycle-only kinds — pass through pure-append in the transfer pipeline,

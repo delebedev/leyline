@@ -72,6 +72,7 @@ enum class SelectNInnerPrompt {
     DiscardCost,
     GenericSelectN,
     SelectNInnerParameter,
+    ManifestDreadInnerParameter,
     LearnInnerParameter,
 }
 
@@ -80,6 +81,7 @@ enum class SelectNEnvelopeKind {
     LegendRule,
     RevealChoose,
     Resolution,
+    ManifestDread,
     LibraryPutback,
     SuspectChoice,
     MutateTopBottom,
@@ -175,6 +177,13 @@ object PromptRouteResolver {
                 selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.GenericSelectN, SelectNEnvelopeKind.RevealChoose)
             PromptSemantic.SelectNResolution ->
                 selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.SelectNInnerParameter, SelectNEnvelopeKind.Resolution)
+            PromptSemantic.ManifestDread ->
+                selectN(
+                    semantic,
+                    dynamicResolutionShape,
+                    SelectNInnerPrompt.ManifestDreadInnerParameter,
+                    SelectNEnvelopeKind.ManifestDread,
+                )
             PromptSemantic.SuspectChoice ->
                 selectN(
                     semantic,

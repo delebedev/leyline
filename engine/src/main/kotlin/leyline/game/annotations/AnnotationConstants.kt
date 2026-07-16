@@ -63,8 +63,9 @@ object AnnotationConstants {
     /** `DesignationType` enum value for an Earthbend-animated mana creature. */
     const val DESIGNATION_TYPE_MANA_CREATURE: Int = 23
 
-    /** `REASON` value on the persistent `FaceDown` annotation for cards
-     *  put face-down by the `Disguise` keyword. Other observed REASON
-     *  values: 5 = Manifest, 8 = Morph; both out of scope for v1. */
+    /** `REASON` value on the persistent `FaceDown` annotation for Disguise. */
     const val FACEDOWN_REASON_DISGUISE: Int = 6
+
+    /** `REASON` value on the persistent `FaceDown` annotation for Manifest Dread. */
+    const val FACEDOWN_REASON_MANIFEST_DREAD: Int = 8
 }

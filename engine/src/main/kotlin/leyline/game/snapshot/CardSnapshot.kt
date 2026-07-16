@@ -136,19 +136,8 @@ data class CardSnapshot(
      * additional structural variants).
      */
     val isForetold: Boolean = false,
-    /**
-     * True when this card is currently face-down on the battlefield as a
-     * Disguise creature. Drives the face-down envelope projection (overlay
-     * grpId=3, suppressed name/subtypes/color, 2/2 stats, single
-     * "Turn face up" ability) and the persistent
-     * `FaceDown { REASON=6, abilityGrpId=307 }` annotation.
-     *
-     * Filtered to `isOnBattlefield || isOnStack` at construction —
-     * `Card.isFaceDown()` lingers on retired stack/limbo states and Forge's
-     * face-down stack state matches the same projection envelope as the bf
-     * face-down state.
-     */
-    val isFaceDownDisguise: Boolean = false,
+    /** Supported face-down battlefield/stack mechanic, when present. */
+    val faceDownKind: FaceDownKind? = null,
     /** True when this card is one of its owner's commanders. */
     val isCommander: Boolean = false,
     /** Commander tax currently exposed to the client, in generic mana. */

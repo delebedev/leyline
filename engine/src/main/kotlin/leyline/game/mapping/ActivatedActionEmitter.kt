@@ -60,13 +60,13 @@ internal object ActivatedActionEmitter {
         envelope: Envelope,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
         autoTapSolution: (ManaCost) -> AutoTapSolution? = { null },
-        skipDisguiseTurnFaceUp: Boolean = false,
+        skipSpecialTurnFaceUp: Boolean = false,
         onActive: (Action, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
         abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
     ) {
         for ((abilityIndex, ability) in abilities.withIndex()) {
             if (!ability.canPlay()) continue
-            if (skipDisguiseTurnFaceUp && ability.isDisguiseUp) continue
+            if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
             val canPay = ActionManaCosts.canPayManaCost(ability, player)
             val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
             val autoTap =

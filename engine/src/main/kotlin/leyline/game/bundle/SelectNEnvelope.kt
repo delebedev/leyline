@@ -53,6 +53,14 @@ data class SelectNEnvelope(
                 gameStateAugmentation = GameStateAugmentation.LookAndPick,
             )
 
+        fun manifestDread(req: SelectNReq): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt = promptWithSourceAndCount(PromptIds.MANIFEST_DREAD, req),
+                allowCancel = AllowCancel.No_a526,
+                gameStateAugmentation = GameStateAugmentation.LookAndPick,
+            )
+
         fun libraryPutback(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,

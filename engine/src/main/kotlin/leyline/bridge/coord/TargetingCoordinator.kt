@@ -106,6 +106,7 @@ class TargetingCoordinator(
         }
 
         val labels = optionList.map { it.entityLabel() }
+        val candidateRefs = buildCandidateRefs(optionList)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -114,7 +115,8 @@ class TargetingCoordinator(
                 min = plan.min,
                 max = plan.max,
                 defaultIndex = 0,
-                candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(optionList)),
+                candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
+                unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )

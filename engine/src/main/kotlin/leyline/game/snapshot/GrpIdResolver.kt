@@ -177,10 +177,9 @@ object GrpIdResolver {
                 ?: GameBridge.FALLBACK_GRPID
         }
 
-        // Disguise spells/permanents are face-down on stack and battlefield: the
-        // current Forge state has an empty name by rules, but Arena still carries
-        // the underlying card grpId while ObjectMapper suppresses visible identity.
-        if (Disguise.isFaceDownDisguise(card)) {
+        // Supported face-down cards retain their underlying grpId while their
+        // visible identity is suppressed by ObjectMapper.
+        if (FaceDown.kind(card) != null) {
             val originalName =
                 card.getOriginalState(forge.card.CardStateName.Original)?.name ?: card.name
             return resolveByName(originalName, cards)
