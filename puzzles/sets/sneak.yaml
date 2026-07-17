@@ -1,0 +1,25 @@
+name: sneak
+description: Sneak alternate-cost cast, return payment, and combat continuation.
+scenarios:
+  - id: splinter-tapped-attacking
+    puzzle: sneak-splinter
+    run: attack with Raging Goblin, then cast Splinter for Sneak by returning it
+    expect: Splinter enters attacking and deals combat damage
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 5
+      - attack: { cards: [Raging Goblin] }
+      - pass_until:
+          action: { type: cast, card: "Splinter, Hamato Yoshi", alt_cost: sneak }
+          max_passes: 5
+      - cast: { card: "Splinter, Hamato Yoshi", alt_cost: sneak }
+      - select_cost: { zone: battlefield, cards: [Raging Goblin] }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Raging Goblin }
+            - zone_contains: { side: ours, zone: battlefield, card: "Splinter, Hamato Yoshi" }
+          max_passes: 10
+      - pass_until:
+          opponent_life: 19
+          max_passes: 10

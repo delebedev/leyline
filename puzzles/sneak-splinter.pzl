@@ -1,0 +1,18 @@
+[metadata]
+Name:Sneak - Splinter
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Cast Splinter for its Sneak cost after Raging Goblin goes unblocked.
+
+[state]
+ActivePlayer=Human
+ActivePhase=COMBAT_DECLARE_ATTACKERS
+HumanLife=20
+AILife=20
+
+humanhand=Splinter, Hamato Yoshi
+humanbattlefield=Swamp;Raging Goblin
+humanlibrary=Swamp;Swamp;Swamp
+aibattlefield=
+ailibrary=Swamp;Swamp;Swamp
