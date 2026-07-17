@@ -29,6 +29,7 @@ class GsmSnapshot internal constructor(
     val phase: PhaseSnapshot,
     val combat: CombatSnapshot?,
     val abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry>,
+    val pendingTriggers: List<PendingTriggerSnapshot>,
     val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
     /** Game-scope Day/Night state, mirroring `forge.game.Game.getDayTime()`.
@@ -67,6 +68,7 @@ class GsmSnapshot internal constructor(
             phase == other.phase &&
             combat == other.combat &&
             abilityWordEntries == other.abilityWordEntries &&
+            pendingTriggers == other.pendingTriggers &&
             persistentAnnotationState == other.persistentAnnotationState &&
             dayTime == other.dayTime &&
             activePlayerSpellsCastThisTurn == other.activePlayerSpellsCastThisTurn
@@ -82,6 +84,7 @@ class GsmSnapshot internal constructor(
         h = 31 * h + phase.hashCode()
         h = 31 * h + (combat?.hashCode() ?: 0)
         h = 31 * h + abilityWordEntries.hashCode()
+        h = 31 * h + pendingTriggers.hashCode()
         h = 31 * h + persistentAnnotationState.hashCode()
         h = 31 * h + (dayTime?.hashCode() ?: 0)
         h = 31 * h + activePlayerSpellsCastThisTurn
@@ -117,6 +120,7 @@ class GsmSnapshot internal constructor(
                 ),
             combat: CombatSnapshot? = null,
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
+            pendingTriggers: List<PendingTriggerSnapshot> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
             dayTime: Boolean? = null,
@@ -135,6 +139,7 @@ class GsmSnapshot internal constructor(
                 phase,
                 combat,
                 abilityWordEntries,
+                pendingTriggers,
                 persistentAnnotationState,
                 capturedAt,
                 dayTime,

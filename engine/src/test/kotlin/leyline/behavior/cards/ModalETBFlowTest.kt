@@ -3,11 +3,13 @@ package leyline.behavior.cards
 import forge.game.card.CounterEnumType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -39,10 +41,30 @@ class ModalETBFlowTest :
         // Charming Prince modal ability ids — match `charming_prince.yaml` fixture.
         val princeAbilityGrpId = 136341
         val princeLifeModeGrpId = 26167
+        val princeFlickerModeGrpId = 136340
+        val princeReturnGrpId = 136220
+
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+            val repo = TestCardRegistry.repo
+            val grpId = TestCardRegistry.ensureCardRegistered("Charming Prince")
+            val data = repo.findByGrpId(grpId)!!
+            repo.registerData(
+                data.copy(hiddenAbilityIds = listOf(princeReturnGrpId to 897_415)),
+                "Charming Prince",
+            )
+            repo.registerAbilityInfo(
+                princeReturnGrpId,
+                leyline.game.data.AbilityInfo(baseId = 0, manaCost = emptyList(), category = 2),
+            )
+        }
 
         fun setupTrufflesnout() = startPuzzleFile("puzzles/modal-etb.pzl", validating = true)
 
         fun setupPrince() = startPuzzleFile("puzzles/prince-etb.pzl", validating = true)
+
+        fun setupPrinceFlicker() = startPuzzleFile("puzzles/prince-flicker.pzl", validating = true)
 
         test("modal ETB emits CastingTimeOptionsReq") {
             setupTrufflesnout()
@@ -230,5 +252,111 @@ class ModalETBFlowTest :
             harness.respondModalChoice(listOf(princeLifeModeGrpId))
 
             (human.life - startLife) shouldBe 3
+        }
+
+        test("Charming Prince flicker exposes and retires pending trigger visuals") {
+            setupPrinceFlicker()
+            val targetIid = human.battlefield.iid("Grizzly Bears")
+
+            harness.castSpellUntilCastingTimeOptionsReq("Charming Prince")
+            harness.respondModalChoice(listOf(princeFlickerModeGrpId))
+            selectTargets(listOf(targetIid))
+            passUntilResolved()
+
+            val gameStates = allMessages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            val holder =
+                gameStates
+                    .flatMap { it.gameObjectsList }
+                    .last {
+                        it.type == GameObjectType.TriggerHolder &&
+                            it.objectSourceGrpId == princeFlickerModeGrpId
+                    }
+            val persistent = gameStates.flatMap { it.persistentAnnotationsList }
+            val delayedAffectees =
+                persistent.last {
+                    AnnotationType.DelayedTriggerAffectees in it.typeList && it.affectorId == holder.instanceId
+                }
+            val exiledIid = delayedAffectees.affectedIdsList.single()
+            val displayCardUnderCard =
+                persistent.last {
+                    AnnotationType.DisplayCardUnderCard in it.typeList && it.affectorId == holder.instanceId
+                }
+            assertSoftly {
+                holder.zoneId shouldBe leyline.game.mapping.ZoneIds.LIMBO
+                holder.uniqueAbilitiesList.map { it.grpId } shouldContain princeReturnGrpId
+                delayedAffectees.also { ann ->
+                    ann.affectedIdsList shouldContain exiledIid
+                    ann.detailsList.none { it.key == "removes_from_zone" }.shouldBeTrue()
+                }
+                persistent
+                    .last {
+                        AnnotationType.TemporaryPermanent in it.typeList && it.affectorId == holder.instanceId
+                    }.affectedIdsList shouldContain exiledIid
+                displayCardUnderCard.affectedIdsList shouldContain exiledIid
+            }
+
+            harness.bridge.phaseStopProfile?.setEnabled(human.id, forge.game.phase.PhaseType.END_OF_TURN, true)
+            harness
+                .passUntil(maxPasses = 30) {
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .any { it.type == GameObjectType.Ability && it.grpId == princeReturnGrpId }
+                }.shouldBeTrue()
+            val firingState =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .last { state ->
+                        state.gameObjectsList.any { it.type == GameObjectType.Ability && it.grpId == princeReturnGrpId }
+                    }
+            val returnAbility =
+                firingState.gameObjectsList.single { it.type == GameObjectType.Ability && it.grpId == princeReturnGrpId }
+            assertSoftly {
+                firingState.diffDeletedInstanceIdsList shouldContain holder.instanceId
+                firingState.persistentAnnotationsList
+                    .single { it.id == delayedAffectees.id }
+                    .affectorId shouldBe returnAbility.instanceId
+                firingState.persistentAnnotationsList
+                    .single { it.id == displayCardUnderCard.id }
+                    .affectorId shouldBe returnAbility.instanceId
+                firingState.persistentAnnotationsList
+                    .none {
+                        AnnotationType.TemporaryPermanent in it.typeList && exiledIid in it.affectedIdsList
+                    }.shouldBeTrue()
+            }
+
+            assertSoftly {
+                harness
+                    .passUntil(maxPasses = 30) {
+                        human.getZone(forge.game.zone.ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
+                    }.shouldBeTrue()
+                val resolutionState =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .map { it.gameStateMessage }
+                        .last { state ->
+                            state.annotationsList.any { annotation ->
+                                AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                                    annotation.detailsList.any {
+                                        it.key == "zone_src" &&
+                                            it.getValueInt32(0) == leyline.game.mapping.ZoneIds.EXILE
+                                    } &&
+                                    annotation.detailsList.any {
+                                        it.key == "zone_dest" &&
+                                            it.getValueInt32(0) == leyline.game.mapping.ZoneIds.BATTLEFIELD
+                                    }
+                            }
+                        }
+                resolutionState.diffDeletedPersistentAnnotationIdsList shouldContain displayCardUnderCard.id
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .any { holder.instanceId in it.gameStateMessage.diffDeletedInstanceIdsList }
+                    .shouldBeTrue()
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .any { displayCardUnderCard.id in it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
+                    .shouldBeTrue()
+            }
         }
     })

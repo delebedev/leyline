@@ -52,6 +52,7 @@ object SnapshotCapture {
         val phase = capturePhase(game, bridge)
         val stack = captureStack(game, bridge)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
+        val pendingTriggers = PendingTriggerCapture.run(game, bridge)
         val persistentAnnotationState =
             PersistentAnnotationState(
                 activeAnnotations = bridge.annotations.snapshot(),
@@ -72,6 +73,7 @@ object SnapshotCapture {
             phase = phase,
             stack = stack,
             abilityWordEntries = abilityWordEntries,
+            pendingTriggers = pendingTriggers,
             persistentAnnotationState = persistentAnnotationState,
             capturedAt =
                 CaptureMarker(
@@ -212,7 +214,10 @@ object SnapshotCapture {
             val ownerSeat = bridge.seatOf(sourceCard.owner) ?: SeatId(1)
             val controllerSeat = bridge.seatOf(controller) ?: ownerSeat
             val sourceCardGrpId = resolveStackSourceCardGrpId(sourceCard, bridge.cardRepository)
-            val grpId = StackAbilityGrpIdResolver.resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
+            val runtimeTriggerId = entry.spellAbility.trigger?.id ?: 0
+            val grpId =
+                bridge.pendingTriggerCleanupAbilityGrpId(runtimeTriggerId)
+                    ?: StackAbilityGrpIdResolver.resolveEntryAbilityGrpId(entry, sourceCard, sourceCardGrpId, bridge)
             val targets = entry.targetChoices?.targetCards?.map { ForgeCardId(it.id) } ?: emptyList()
             entries.add(
                 StackEntry(
@@ -224,6 +229,7 @@ object SnapshotCapture {
                     isSpell = entry.isSpell,
                     targets = targets,
                     forgeAbilityId = entry.spellAbility?.id ?: 0,
+                    runtimeTriggerId = runtimeTriggerId,
                 ),
             )
         }

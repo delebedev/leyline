@@ -157,6 +157,40 @@ class GameBridge(
     private fun grpIdFor(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
     private val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
+    private val selectedModalAbilityGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
+    private val pendingTriggerAbilityGrpIds = ConcurrentHashMap<Int, Int>()
+    private val pendingTriggerCleanupGrpIds = ConcurrentHashMap<Int, Int>()
+
+    fun recordSelectedModalAbilityGrpId(
+        source: ForgeCardId,
+        abilityGrpId: Int,
+    ) {
+        selectedModalAbilityGrpIds[source] = abilityGrpId
+    }
+
+    fun resolvePendingTriggerAbilityIdentity(
+        triggerId: Int,
+        source: ForgeCardId,
+        fallback: () -> Int?,
+    ): Int? =
+        pendingTriggerAbilityGrpIds[triggerId]
+            ?: (selectedModalAbilityGrpIds.remove(source) ?: fallback())?.also { resolved ->
+                pendingTriggerAbilityGrpIds[triggerId] = resolved
+            }
+
+    fun retainPendingTriggerAbilityIdentities(triggerIds: Set<Int>) {
+        pendingTriggerAbilityGrpIds.keys.removeIf { it !in triggerIds }
+        pendingTriggerCleanupGrpIds.keys.removeIf { it !in triggerIds }
+    }
+
+    fun recordPendingTriggerCleanupIdentity(
+        triggerId: Int,
+        cleanupAbilityGrpId: Int,
+    ) {
+        pendingTriggerCleanupGrpIds[triggerId] = cleanupAbilityGrpId
+    }
+
+    fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = pendingTriggerCleanupGrpIds[triggerId]
 
     fun recordParadigmSourceStackIid(
         fid: ForgeCardId,
@@ -645,6 +679,12 @@ class GameBridge(
          *  `TemporaryPermanent.affectorId` reference. Picked above any plausible
          *  real or stack-ability forge id range so it doesn't collide. */
         const val DELAYED_TRIGGER_HOLDER_FORGE_OFFSET = 90_000_000
+
+        /** Synthetic identity range for engine-level pending trigger records. */
+        const val PENDING_TRIGGER_HOLDER_FORGE_OFFSET = 91_000_000
+
+        /** Separate range for recurring-effect holders whose card ids may overlap trigger ids. */
+        const val PARADIGM_TRIGGER_HOLDER_FORGE_OFFSET = 92_000_000
 
         /** Default deck when no decklist is provided (tests, puzzles without decks). */
         private const val FALLBACK_DECK = """
@@ -1303,6 +1343,10 @@ class GameBridge(
         reconfigureEffects.clear()
         mutateMergeEffects.clear()
         abilityRegistries.clear()
+        paradigmSourceStackIids.clear()
+        selectedModalAbilityGrpIds.clear()
+        pendingTriggerAbilityGrpIds.clear()
+        pendingTriggerCleanupGrpIds.clear()
         stackAbilityIdentitiesByRuntimeId.clear()
         tokenRegistry.clear()
         revealProxies.clear()

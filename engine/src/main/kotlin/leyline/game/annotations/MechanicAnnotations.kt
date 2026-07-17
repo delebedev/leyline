@@ -96,6 +96,7 @@ object MechanicAnnotations {
         stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
         castSpellTransferCardIds: Set<ForgeCardId> = emptySet(),
         convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
+        delayedTriggerHolderResolver: (ForgeCardId) -> InstanceId? = { null },
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -311,7 +312,7 @@ object MechanicAnnotations {
                 is GameEvent.CardExiled -> {
                     val sourceId = ev.sourceCardId
                     if (sourceId != null) {
-                        val sourceIid = idResolver(sourceId)
+                        val sourceIid = delayedTriggerHolderResolver(ev.cardId) ?: idResolver(sourceId)
                         val exiledIid = idResolver(ev.cardId)
                         persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))
                         log.debug("mechanic: displayCardUnderCard source={} exiled={}", sourceIid.value, exiledIid.value)

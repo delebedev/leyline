@@ -36,6 +36,11 @@ data class FrameContext(
      *  this set lets lifecycle pruning still delete TriggeringObject in the
      *  resolution GSM. */
     val resolvingStackIids: Set<Int> = emptySet(),
+    /** Authoritative set of legal DisplayCardUnderCard affectors for this frame.
+     *  Null disables this lifecycle check for unit callers without a full frame. */
+    val displayCardAffectors: Set<Int>? = null,
+    /** Pending-holder iid to live stack-ability iid transitions for delayed effects. */
+    val delayedTriggerAffectorReplacements: Map<Int, Int> = emptyMap(),
 ) {
     companion object {
         /** No-op context — phase=null, empty battlefield, empty stack, empty
@@ -562,6 +567,21 @@ data object TriggeringObjectKind : PersistentAnnotationKind {
     ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
 }
 
+data object DisplayCardUnderCardKind : PersistentAnnotationKind {
+    override val name = "DisplayCardUnderCard"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.DisplayCardUnderCard in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = frame.displayCardAffectors?.let { ann.affectorId !in it } ?: false
+}
+
 object PersistentAnnotationKinds {
     /**
      * Upsert-path kinds — rows are identity-keyed, dispatched by
@@ -604,6 +624,7 @@ object PersistentAnnotationKinds {
         listOf(
             EnteredZoneThisTurnKind,
             TriggeringObjectKind,
+            DisplayCardUnderCardKind,
         )
 
     /** All kinds — iterated by the lifecycle expiry pass at the top of computeBatch. */

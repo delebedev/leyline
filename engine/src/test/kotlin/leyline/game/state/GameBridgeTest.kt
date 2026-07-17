@@ -602,4 +602,16 @@ class GameBridgeTest :
                 gs.turnInfo.turnNumber shouldBeGreaterThanOrEqualTo 1
             }
         }
+
+        test("modal identity is consumed once and retained by trigger") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            val source = ForgeCardId(42)
+
+            b.recordSelectedModalAbilityGrpId(source, 1001)
+            b.resolvePendingTriggerAbilityIdentity(51, source) { 2001 } shouldBe 1001
+            b.resolvePendingTriggerAbilityIdentity(51, source) { 2001 } shouldBe 1001
+
+            b.recordSelectedModalAbilityGrpId(source, 1002)
+            b.resolvePendingTriggerAbilityIdentity(52, source) { 2002 } shouldBe 1002
+        }
     })

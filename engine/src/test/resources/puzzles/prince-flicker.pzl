@@ -1,0 +1,18 @@
+[metadata]
+Name:Prince Flicker
+Goal:Win
+Turns:10
+Difficulty:Easy
+Description:Exile another creature with Charming Prince and return it at the next end step.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains;Plains;Grizzly Bears
+humanhand=Charming Prince
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

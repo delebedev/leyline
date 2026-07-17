@@ -707,6 +707,7 @@ class TargetingHandler(
                 pendingPrompt.promptId,
                 modalOptions.map { it.grpId },
                 stackAbilityInstanceId = sourceInstanceId.takeIf { isTriggered && it > 0 },
+                sourceForgeCardId = req.sourceEntityId?.let(::ForgeCardId),
             )
 
         // For triggered abilities, pass the source card's instanceId and grpId so the
@@ -753,6 +754,10 @@ class TargetingHandler(
                 val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
 
                 val selectedIndices = mapModalGrpIdsToPromptIndices(chosenGrpIds, pending.childGrpIds)
+
+                pending.sourceForgeCardId?.let { source ->
+                    chosenGrpIds.singleOrNull()?.let { bridge.recordSelectedModalAbilityGrpId(source, it) }
+                }
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 

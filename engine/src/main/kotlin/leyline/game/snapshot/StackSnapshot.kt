@@ -57,4 +57,6 @@ data class StackEntry(
      * paths where the SA id is not surfaced).
      */
     val forgeAbilityId: Int = 0,
+    /** Forge trigger identity when this stack item came from a trigger. */
+    val runtimeTriggerId: Int = 0,
 )

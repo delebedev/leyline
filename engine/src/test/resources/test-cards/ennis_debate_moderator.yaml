@@ -1,0 +1,8 @@
+name: "Ennis, Debate Moderator"
+grpId: 102473
+titleId: 1110871
+abilities:
+  - id: 204302
+    textId: 1110872
+    category: 2
+expansionCode: "SOS"

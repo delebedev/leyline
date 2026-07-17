@@ -847,6 +847,7 @@ class BundleBuilder(
             phase = snap.phase,
             combat = snap.combat,
             abilityWordEntries = snap.abilityWordEntries,
+            pendingTriggers = snap.pendingTriggers,
             persistentAnnotationState = snap.persistentAnnotationState,
             capturedAt = snap.capturedAt,
             dayTime = snap.dayTime,

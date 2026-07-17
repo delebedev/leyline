@@ -8,6 +8,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.PersistentFeedBuilder
 import leyline.game.mapping.PersistentFeedSet
 import leyline.game.mapping.SourceAbilityResolverFactory
 import leyline.game.mapping.ZoneIds
@@ -697,6 +698,11 @@ object AnnotationPipeline {
                 stackInstanceResolver = { ev -> stackInstanceForEvent(ctx, castStackIidsByCard, ev) },
                 castSpellTransferCardIds = castSpellTransferCardIds,
                 convokePaymentsBySource = convokePaymentsBySource,
+                delayedTriggerHolderResolver = { affected ->
+                    snap.pendingTriggers
+                        .firstOrNull { it.displaysAffectedCards && affected in it.affectedCardIds }
+                        ?.let { pending -> PersistentFeedBuilder.pendingTriggerHolderInstanceId(pending.holderForgeId, bridge) }
+                },
             )
         val earthbend = EarthbendEmitter.emit(bridge, snap)
         annotations.addAll(earthbend.destroyed)

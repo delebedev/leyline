@@ -139,6 +139,12 @@ class PersistentAnnotationStore {
             val deletions = mutableListOf<Int>()
             var nextId = startPersistentId
 
+            // Delayed effects keep their persistent annotation IDs while ownership
+            // moves from the pending holder to the live stack ability.
+            remapDelayedTriggerAffectors(active, frame.delayedTriggerAffectorReplacements)
+            val delayedTriggerAffectorsAtFrameStart =
+                active.values.filter(DelayedTriggerAffecteesKind::matches).mapTo(mutableSetOf()) { it.affectorId }
+
             // 0. Lifecycle expiry — drop rows whose shouldExpire fires this frame.
             //    EZTT clears at the controller's Upkeep; ColorProduction clears
             //    when its source iid leaves the battlefield. See per-kind
@@ -223,6 +229,7 @@ class PersistentAnnotationStore {
                         mechanicResult.perKindPersistent[kind] ?: emptyList(),
                     )
             }
+            cleanupFinishedDelayedTriggerDisplays(active, deletions, delayedTriggerAffectorsAtFrameStart)
 
             // 3h. DamagedThisTurn — grow-in-place / clear (single annotation,
             //     not a per-iid upsert; can't fold into the registry).
@@ -246,6 +253,38 @@ class PersistentAnnotationStore {
                 )
 
             return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts)
+        }
+
+        private fun remapDelayedTriggerAffectors(
+            active: MutableMap<Int, AnnotationInfo>,
+            replacements: Map<Int, Int>,
+        ) {
+            if (replacements.isEmpty()) return
+            for ((id, annotation) in active.toMap()) {
+                val replacement = replacements[annotation.affectorId] ?: continue
+                if (DelayedTriggerAffecteesKind.matches(annotation) || DisplayCardUnderCardKind.matches(annotation)) {
+                    active[id] = annotation.toBuilder().setAffectorId(replacement).build()
+                }
+            }
+        }
+
+        private fun cleanupFinishedDelayedTriggerDisplays(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            delayedTriggerAffectorsAtFrameStart: Set<Int>,
+        ) {
+            val liveDelayedTriggerAffectors =
+                active.values.filter(DelayedTriggerAffecteesKind::matches).mapTo(mutableSetOf()) { it.affectorId }
+            val finishedAffectors = delayedTriggerAffectorsAtFrameStart - liveDelayedTriggerAffectors
+            val staleDisplayIds =
+                active.entries
+                    .filter { (_, annotation) ->
+                        DisplayCardUnderCardKind.matches(annotation) && annotation.affectorId in finishedAffectors
+                    }.map { it.key }
+            for (id in staleDisplayIds) {
+                active.remove(id)
+                deletions.add(id)
+            }
         }
 
         /**
