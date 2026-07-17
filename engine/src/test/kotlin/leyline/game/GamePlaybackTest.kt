@@ -10,6 +10,7 @@ import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.MessageCounter
+import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -115,7 +116,8 @@ class GamePlaybackTest :
                         sourceCardId = ForgeCardId(10),
                         targetSeatId = SeatId(2),
                         amount = 3,
-                        combat = false,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
                     ),
                 )
 
@@ -129,7 +131,7 @@ class GamePlaybackTest :
                         sourceCardId = ForgeCardId(10),
                         targetCardId = ForgeCardId(20),
                         amount = 2,
-                        combat = false,
+                        sourceKind = DamageSourceKind.Fight,
                     ),
                 )
 
@@ -143,7 +145,8 @@ class GamePlaybackTest :
                         sourceCardId = ForgeCardId(10),
                         targetSeatId = SeatId(2),
                         amount = 3,
-                        combat = true,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
                     ),
                 )
 
@@ -157,13 +160,15 @@ class GamePlaybackTest :
                         sourceCardId = ForgeCardId(10),
                         targetSeatId = SeatId(2),
                         amount = 2,
-                        combat = true,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
                     ),
                     GameEvent.DamageDealtToPlayer(
                         sourceCardId = ForgeCardId(30),
                         targetSeatId = SeatId(2),
                         amount = 3,
-                        combat = false,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
                     ),
                 )
 
@@ -176,7 +181,8 @@ class GamePlaybackTest :
                     sourceCardId = ForgeCardId(10),
                     targetSeatId = SeatId(2),
                     amount = 3,
-                    combat = false,
+                    sourceKind = DamageSourceKind.SpellOrAbility,
+                    changesLife = true,
                 )
 
             val resolving = GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false)
@@ -206,13 +212,15 @@ class GamePlaybackTest :
                         sourceCardId = ForgeCardId(10),
                         targetSeatId = SeatId(2),
                         amount = 2,
-                        combat = true,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
                     ),
                     GameEvent.DamageDealtToPlayer(
                         sourceCardId = ForgeCardId(30),
                         targetSeatId = SeatId(2),
                         amount = 3,
-                        combat = false,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
                     ),
                 )
 

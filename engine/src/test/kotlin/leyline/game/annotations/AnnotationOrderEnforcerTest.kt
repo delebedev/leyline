@@ -8,6 +8,7 @@ import leyline.bridge.types.toWireId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.eid
+import leyline.game.event.DamageSourceKind
 import leyline.game.grp
 import leyline.game.iid
 import leyline.game.mapping.ZoneIds
@@ -251,7 +252,13 @@ class AnnotationOrderEnforcerTest :
 
         test("Rule 2: DamageDealt before LayeredEffectCreated on same card") {
             val cardId = 500.iid
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = cardId.toWireId(), amount = 3)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 100.iid,
+                    targetId = cardId.toWireId(),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = cardId)
 
             // Correct order
@@ -265,7 +272,13 @@ class AnnotationOrderEnforcerTest :
 
         test("Rule 2: reorders LayeredEffectCreated before DamageDealt on same card") {
             val cardId = 500.iid
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = cardId.toWireId(), amount = 3)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 100.iid,
+                    targetId = cardId.toWireId(),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = cardId)
 
             // Wrong order: effect before damage
@@ -292,7 +305,13 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("Rule 2: no-op when annotations affect different cards") {
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = 500.wid, amount = 3)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 100.iid,
+                    targetId = 500.wid,
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = 600.iid)
 
             // Different cards — no constraint, original order preserved
@@ -319,7 +338,13 @@ class AnnotationOrderEnforcerTest :
 
         test("Rules 1+2: ObjectIdChanged + DamageDealt + LayeredEffectCreated") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 500.iid)
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 200.iid, targetId = 500.wid, amount = 2)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 200.iid,
+                    targetId = 500.wid,
+                    amount = 2,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = 500.iid)
 
             // Correct order

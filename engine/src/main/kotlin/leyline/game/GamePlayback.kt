@@ -7,6 +7,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.Zone
 import leyline.game.event.combatDamageFact
@@ -503,7 +504,7 @@ class GamePlayback(
         events
             .firstNotNullOfOrNull { event ->
                 (event as? LeylineGameEvent.DamageDealtToPlayer)
-                    ?.takeIf { it.combat }
+                    ?.takeIf { it.sourceKind == DamageSourceKind.Combat }
                     ?.targetSeatId
                     ?.value
             }?.let { defenderSeat ->
@@ -514,8 +515,8 @@ class GamePlayback(
         val sourceId =
             events.firstNotNullOfOrNull { event ->
                 when (event) {
-                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId.takeIf { event.combat }
-                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId.takeIf { event.combat }
+                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
+                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
                     else -> null
                 }
             } ?: return null

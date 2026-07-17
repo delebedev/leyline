@@ -284,6 +284,7 @@ object AnnotationPipeline {
         // and the resolve-side from resolve events independently — guarding
         // against double-emission when the snap-diff also caught the
         // appearance/disappearance.
+        var damageResidualLifeAnnotations = emptyList<AnnotationInfo>()
         if (bridge != null && snap != null) {
             val ctx = AnnotationContext(bridge, snap, frameIds ?: FrameIdResolver(bridge), events)
             emitTriggerLifecycleAnnotations(
@@ -294,7 +295,7 @@ object AnnotationPipeline {
                 annotations = annotations,
                 transferPersistent = transferPersistent,
             )
-            insertResolutionEventAnnotations(ctx, annotations)
+            damageResidualLifeAnnotations = insertResolutionEventAnnotations(ctx, annotations)
         }
         for (d in transferResult.stackAbilityDisappearances) {
             val lineage = abilityLineage?.consume(d.abilityInstanceId)
@@ -310,6 +311,7 @@ object AnnotationPipeline {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
         }
         annotations.addAll(combatResult.annotations)
+        annotations.addAll(damageResidualLifeAnnotations)
         for (transfer in deferredTransfers) emitTransfer(transfer)
         return annotations to transferPersistent
     }
@@ -317,10 +319,12 @@ object AnnotationPipeline {
     private fun insertResolutionEventAnnotations(
         ctx: AnnotationContext,
         annotations: MutableList<AnnotationInfo>,
-    ) {
+    ): List<AnnotationInfo> {
         val events = ctx.events
         val payloadsByAffector = linkedMapOf<Int, MutableList<AnnotationInfo>>()
         val unmatched = mutableListOf<AnnotationInfo>()
+        val damageResiduals = mutableListOf<AnnotationInfo>()
+        val unclaimedDamageBySeat = mutableMapOf<Int, Int>()
 
         fun addPayload(
             affectorId: Int,
@@ -335,6 +339,8 @@ object AnnotationPipeline {
 
         events.forEachIndexed { index, event ->
             when (event) {
+                is GameEvent.DamageDealtToPlayer if event.changesLife ->
+                    unclaimedDamageBySeat.merge(event.targetSeatId.value, event.amount, Int::plus)
                 is GameEvent.CoinFlipped -> {
                     val affector = ctx.stackAbilityIid(event.abilityForgeId, event.sourceCardId)
                     addPayload(
@@ -343,8 +349,9 @@ object AnnotationPipeline {
                     )
                 }
                 is GameEvent.LifeChanged -> {
-                    val delta = event.newLife - event.oldLife
-                    if (delta == 0 || isCoveredByDamageEvent(event, events)) return@forEachIndexed
+                    val coverage = consumeDamageOwnedLifeDelta(event, unclaimedDamageBySeat)
+                    val delta = coverage.uncoveredDelta
+                    if (delta == 0) return@forEachIndexed
                     val resolved = nextResolvedAbility(events, index)
                     val affector =
                         resolved?.let { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) }
@@ -352,16 +359,19 @@ object AnnotationPipeline {
                                 ctx.stackAbilityIid(it.abilityForgeId, it.cardId)
                             }
                             ?: 0
-                    addPayload(
-                        affector,
-                        AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(affector).takeIf { affector != 0 }),
-                    )
+                    val annotation =
+                        AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(affector).takeIf { affector != 0 })
+                    if (coverage.coveredLoss > 0) {
+                        damageResiduals.add(annotation)
+                    } else {
+                        addPayload(affector, annotation)
+                    }
                 }
                 else -> Unit
             }
         }
 
-        if (payloadsByAffector.isEmpty() && unmatched.isEmpty()) return
+        if (payloadsByAffector.isEmpty() && unmatched.isEmpty()) return damageResiduals
         val ordered = mutableListOf<AnnotationInfo>()
         for (annotation in annotations) {
             ordered.add(annotation)
@@ -373,6 +383,7 @@ object AnnotationPipeline {
         ordered.addAll(unmatched)
         annotations.clear()
         annotations.addAll(ordered)
+        return damageResiduals
     }
 
     private fun nextResolvedAbility(
@@ -395,15 +406,23 @@ object AnnotationPipeline {
             .filterIsInstance<GameEvent.SpellCast>()
             .lastOrNull { it.isAbility || it.isTrigger }
 
-    private fun isCoveredByDamageEvent(
+    private data class DamageCoverage(
+        val uncoveredDelta: Int,
+        val coveredLoss: Int,
+    )
+
+    private fun consumeDamageOwnedLifeDelta(
         life: GameEvent.LifeChanged,
-        events: List<GameEvent>,
-    ): Boolean =
-        events.any { event ->
-            event is GameEvent.DamageDealtToPlayer &&
-                event.targetSeatId == life.seatId &&
-                life.oldLife - life.newLife == event.amount
-        }
+        unclaimedDamageBySeat: MutableMap<Int, Int>,
+    ): DamageCoverage {
+        val delta = life.newLife - life.oldLife
+        if (delta >= 0) return DamageCoverage(delta, coveredLoss = 0)
+        val seat = life.seatId.value
+        val unclaimedDamage = unclaimedDamageBySeat[seat] ?: 0
+        val coveredLoss = minOf(-delta, unclaimedDamage)
+        unclaimedDamageBySeat[seat] = unclaimedDamage - coveredLoss
+        return DamageCoverage(delta + coveredLoss, coveredLoss)
+    }
 
     /**
      * Emit AbilityInstanceCreated / TriggeringObject / ResolutionStart-Complete /

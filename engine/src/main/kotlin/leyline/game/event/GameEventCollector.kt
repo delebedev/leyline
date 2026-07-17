@@ -28,6 +28,7 @@ import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.ConcurrentHashMap
+import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
 
 /**
  * Subscribes to the Forge engine's Guava EventBus and converts rich Java
@@ -790,7 +791,7 @@ class GameEventCollector(
                 targetCardId = ForgeCardId(ev.card().id),
                 amount = ev.amount(),
                 deathtouch = ev.type() == GameEventCardDamaged.DamageType.Deathtouch,
-                combat = ev.isCombat,
+                sourceKind = ev.sourceKind().toLeyline(),
             ),
         )
     }
@@ -803,7 +804,8 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(source.id),
                 targetSeatId = seat,
                 amount = ev.amount(),
-                combat = ev.combat(),
+                sourceKind = ev.sourceKind().toLeyline(),
+                changesLife = !ev.infect(),
             ),
         )
     }
@@ -818,6 +820,13 @@ class GameEventCollector(
             ),
         )
     }
+
+    private fun ForgeDamageSourceKind.toLeyline(): DamageSourceKind =
+        when (this) {
+            ForgeDamageSourceKind.Combat -> DamageSourceKind.Combat
+            ForgeDamageSourceKind.SpellOrAbility -> DamageSourceKind.SpellOrAbility
+            ForgeDamageSourceKind.Fight -> DamageSourceKind.Fight
+        }
 
     override fun visit(ev: GameEventFlipCoin) {
         val flipperView = ev.player() ?: return

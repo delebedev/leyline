@@ -2,13 +2,14 @@ package leyline.session.targeting
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -95,7 +96,11 @@ class BushwhackFightTest :
             passUntilResolved()
 
             // DamageDealt fires twice for fight (each creature deals to the other).
-            allMessages.annotationsOfType(AnnotationType.DamageDealt_af5a).size shouldBeGreaterThanOrEqual 2
+            val damage = allMessages.annotationsOfType(AnnotationType.DamageDealt_af5a)
+            assertSoftly {
+                damage.shouldHaveSize(2)
+                damage.map { it.detailInt("type") } shouldBe listOf(3, 3)
+            }
 
             // Bushwhack moved Stack→GY, not countered.
             assertSoftly {

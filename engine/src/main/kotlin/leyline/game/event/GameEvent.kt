@@ -75,6 +75,9 @@ enum class Zone {
 /** Why a permanent was destroyed — selects the wire transfer category. */
 enum class DestructionCause { Effect, LethalDamage, Deathtouch }
 
+/** Rules source that selects the DamageDealt presentation type. */
+enum class DamageSourceKind { Combat, SpellOrAbility, Fight }
+
 sealed interface GameEvent {
     /** A land was played from hand to battlefield.
      *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
@@ -209,15 +212,13 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** Damage was dealt to a creature. [deathtouch] = source had deathtouch,
-     *  so any nonzero amount marks the target for the deathtouch destroy SBA.
-     *  [combat] = combat damage step vs spell/ability damage; selects the
-     *  DamageDealt wire type. */
+     *  so any nonzero amount marks the target for the deathtouch destroy SBA. */
     data class DamageDealtToCard(
         val sourceCardId: ForgeCardId,
         val targetCardId: ForgeCardId,
         val amount: Int,
         val deathtouch: Boolean = false,
-        val combat: Boolean = true,
+        val sourceKind: DamageSourceKind,
     ) : GameEvent
 
     /** Damage was dealt to a player. */
@@ -225,7 +226,8 @@ sealed interface GameEvent {
         val sourceCardId: ForgeCardId,
         val targetSeatId: SeatId,
         val amount: Int,
-        val combat: Boolean,
+        val sourceKind: DamageSourceKind,
+        val changesLife: Boolean,
     ) : GameEvent
 
     /** A player's life total changed. */
@@ -490,9 +492,9 @@ sealed interface GameEvent {
 /** Returns the event's combat source fact, or null when the event is not damage. */
 internal fun GameEvent.combatDamageFact(): Boolean? =
     if (this is GameEvent.DamageDealtToCard) {
-        combat
+        sourceKind == DamageSourceKind.Combat
     } else if (this is GameEvent.DamageDealtToPlayer) {
-        combat
+        sourceKind == DamageSourceKind.Combat
     } else {
         null
     }

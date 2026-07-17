@@ -13,6 +13,7 @@ import leyline.game.codes.CounterTypes
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.game.eid
+import leyline.game.event.DamageSourceKind
 import leyline.game.grp
 import leyline.game.iid
 import leyline.game.mapping.ZoneIds
@@ -460,6 +461,7 @@ class AnnotationBuilderTest :
                     sourceInstanceId = 1000.iid,
                     targetId = 2.wid, // player seat
                     amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
                 )
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.DamageDealt_af5a
@@ -483,18 +485,26 @@ class AnnotationBuilderTest :
                     sourceInstanceId = 1000.iid,
                     targetId = 2.wid,
                     amount = 3,
-                    combat = true,
+                    sourceKind = DamageSourceKind.Combat,
                 )
             val noncombat =
                 AnnotationBuilder.damageDealt(
                     sourceInstanceId = 1000.iid,
                     targetId = 2.wid,
                     amount = 3,
-                    combat = false,
+                    sourceKind = DamageSourceKind.SpellOrAbility,
+                )
+            val fight =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 1000.iid,
+                    targetId = 2.wid,
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Fight,
                 )
             assertSoftly {
                 combat.detailInt("type") shouldBe 1
                 noncombat.detailInt("type") shouldBe 2
+                fight.detailInt("type") shouldBe 3
             }
         }
 

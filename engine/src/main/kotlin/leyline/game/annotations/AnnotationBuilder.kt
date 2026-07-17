@@ -7,6 +7,7 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.WireId
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
+import leyline.game.event.DamageSourceKind
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -50,10 +51,10 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 object AnnotationBuilder {
     private const val MANA_SPEC_DOES_NOT_EMPTY_VALUE = 14695
 
-    /** DamageDealt `type` wire values: 1 = combat damage, 2 = spell/ability damage.
-     *  Fight damage (3) is not derived yet and rides the noncombat value. */
+    /** DamageDealt `type` values: 1 = combat, 2 = spell/ability, 3 = fight. */
     private const val COMBAT_DAMAGE_TYPE = 1
     private const val NONCOMBAT_DAMAGE_TYPE = 2
+    private const val FIGHT_DAMAGE_TYPE = 3
 
     /** DamageDealt `markDamage` flag — always 1; the client requires the detail key present. */
     private const val MARK_DAMAGE_FLAG = 1
@@ -370,10 +371,7 @@ object AnnotationBuilder {
             .build()
 
     /**
-     * Combat damage dealt by a creature. Client uses this for damage flash animation.
-     * Emits `type=1` (combat) and `markDamage=1` (flag, not amount); the client
-     * requires both detail keys to be present. Non-combat damage isn't exercised
-     * yet; add a parameter if/when a non-combat call site appears.
+     * Damage dealt by a card. Client uses this for damage presentation.
      *
      * [targetId] is polymorphic — creatures pass their [InstanceId.toWireId]; player damage
      * passes their [SeatId.toWireId].
@@ -382,7 +380,7 @@ object AnnotationBuilder {
         sourceInstanceId: InstanceId,
         targetId: WireId,
         amount: Int,
-        combat: Boolean = true,
+        sourceKind: DamageSourceKind,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -390,8 +388,16 @@ object AnnotationBuilder {
             .setAffectorId(sourceInstanceId.value)
             .addAffectedIds(targetId.value)
             .addDetails(int32Detail(DetailKeys.DAMAGE, amount))
-            .addDetails(int32Detail(DetailKeys.TYPE, if (combat) COMBAT_DAMAGE_TYPE else NONCOMBAT_DAMAGE_TYPE))
-            .addDetails(int32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
+            .addDetails(
+                int32Detail(
+                    DetailKeys.TYPE,
+                    when (sourceKind) {
+                        DamageSourceKind.Combat -> COMBAT_DAMAGE_TYPE
+                        DamageSourceKind.SpellOrAbility -> NONCOMBAT_DAMAGE_TYPE
+                        DamageSourceKind.Fight -> FIGHT_DAMAGE_TYPE
+                    },
+                ),
+            ).addDetails(int32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
