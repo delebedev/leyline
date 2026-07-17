@@ -84,6 +84,7 @@ object AcceptanceSuiteLoader {
             "play_land" -> PlayLandStep(value.asString("$context.play_land"))
             "play_mdfc" -> PlayMdfcStep(value.asString("$context.play_mdfc"))
             "cast" -> parseCast(value, "$context.cast")
+            "cast_adventure" -> CastAdventureStep(value.asString("$context.cast_adventure"))
             "cast_mdfc" -> CastMdfcStep(value.asString("$context.cast_mdfc"))
             "resolve_stack" -> ResolveStackStep
             "attack_all" -> AttackAllStep

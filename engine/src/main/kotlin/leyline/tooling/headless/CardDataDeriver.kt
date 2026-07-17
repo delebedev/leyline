@@ -92,6 +92,7 @@ object CardDataDeriver {
             abilityCategories = abilityCategories,
             manaCost = manaCost,
             tokenGrpIds = identity.tokens,
+            linkedFaceType = identity.linkedFaceType,
             linkedFaceGrpIds = identity.linkedFaces,
         )
     }

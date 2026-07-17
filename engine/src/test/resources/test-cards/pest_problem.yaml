@@ -8,6 +8,7 @@ abilities:
 expansionCode: "WOE"
 tokens:
   "168862": 87031
+linkedFaceType: 7
 linkedFaces:
   - 86845
 isPrimaryCard: false

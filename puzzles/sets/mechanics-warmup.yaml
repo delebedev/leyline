@@ -1,6 +1,24 @@
 name: mechanics-warmup
 description: Small arena-driven mechanic smoke suite focused on client-accepted mechanic surfaces.
 scenarios:
+  - id: adventure-lifecycle
+    puzzle: adventure-test
+    run: cast Pest Problem, then cast Ratcatcher Trainee from exile
+    expect: two Rats and Ratcatcher Trainee reach the battlefield
+    steps:
+      - cast_adventure: Ratcatcher Trainee
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: battlefield, count: 9 }
+            - zone_contains: { side: ours, zone: exile, card: Ratcatcher Trainee }
+      - cast: { card: Ratcatcher Trainee, zone: exile }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Ratcatcher Trainee }
+            - zone_not_contains: { side: ours, zone: exile, card: Ratcatcher Trainee }
+            - stack_empty: true
   - id: kicker-burst
     puzzle: mechanic-kicker-burst
     run: cast Burst Lightning, choose kicker, target opponent

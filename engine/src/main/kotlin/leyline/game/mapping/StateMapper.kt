@@ -502,6 +502,8 @@ object StateMapper {
                 transferResult = transferResult,
             )
 
+        transferResult = AdventureCompanionProjector.append(transferResult, snap, bridge, frameIds)
+
         // ═══ ASSEMBLE: build the GSM proto ═══
         val built =
             assembleGsm(
@@ -660,6 +662,11 @@ object StateMapper {
                 events = events,
             )
         val current = fullResult.gsm
+        val currentAdventureIds =
+            current.gameObjectsList
+                .filter { it.type == GameObjectType.Adventure_a4aa }
+                .mapTo(mutableSetOf()) { it.instanceId }
+        val previousAdventureIds = AdventureCompanionProjector.instanceIds(prev, bridge, viewingSeatId)
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
         val changedZoneIds =
@@ -737,6 +744,14 @@ object StateMapper {
         val prevDisturbBackSourceFids = projectedDisturbBackSourceFids(prev)
         val curDisturbBackSourceFids = projectedDisturbBackSourceFids(cur)
         val changedFids = cardSnapshotChangedFids + zoneMovedFids
+        val currentParentIds =
+            changedFids.mapTo(mutableSetOf()) { fid ->
+                checkNotNull(fullResult.annotationFrameDraft).idResolver.cardIid(fid).value
+            }
+        val changedAdventureIds =
+            current.gameObjectsList
+                .filter { it.type == GameObjectType.Adventure_a4aa && it.parentId in currentParentIds }
+                .mapTo(mutableSetOf()) { it.instanceId }
         val changedDisturbBackIds =
             disturbBackInstanceIds(
                 changedFids.filter { it in prevDisturbBackSourceFids || it in curDisturbBackSourceFids },
@@ -745,13 +760,15 @@ object StateMapper {
         val changedInstanceIds =
             changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet() +
                 changedDisturbBackIds +
+                changedAdventureIds +
                 fullResult.objectRefreshInstanceIds
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
         val prevInstanceIds =
             prev.objects.keys
                 .map { bridge.getOrAllocInstanceId(it).value }
                 .toSet() +
-                disturbBackInstanceIds(prevDisturbBackSourceFids, bridge)
+                disturbBackInstanceIds(prevDisturbBackSourceFids, bridge) +
+                previousAdventureIds
         val changedObjects =
             current.gameObjectsList.filter { obj ->
                 // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
@@ -790,9 +807,13 @@ object StateMapper {
         val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
         val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
         val deletedDisturbBackIds = disturbBackInstanceIds(prevDisturbBackSourceFids - curDisturbBackSourceFids, bridge)
+        val deletedAdventureIds = previousAdventureIds - currentAdventureIds
         val deletedIds =
-            ((prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } + deletedDisturbBackIds)
-                .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
+            (
+                (prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } +
+                    deletedDisturbBackIds +
+                    deletedAdventureIds
+            ).filter { it !in currentObjIds && it !in currentZoneTrackedIds }
 
         val previousTurnInfo = GsmFrame.Companion.from(prev).turnInfo()
         val includeTurnInfo =

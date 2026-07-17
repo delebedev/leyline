@@ -5,6 +5,7 @@ import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.CardProtoBuilder
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
+import leyline.game.snapshot.LinkedFaceDescriptor
 import leyline.game.snapshot.ParentLinkage
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.EffectTracker
@@ -274,6 +275,28 @@ object ObjectMapper {
             .setParentId(parentInstanceId)
             .setOthersideGrpId(cardSnap.grpId)
             .build()
+
+    /** Build the Adventure face companion attached to [parent]. */
+    fun buildAdventureObject(
+        face: LinkedFaceDescriptor,
+        instanceId: Int,
+        parent: GameObjectInfo,
+        cardProto: CardProtoBuilder,
+    ): GameObjectInfo =
+        cardProto
+            .buildObjectInfo(face.grpId)
+            .setInstanceId(instanceId)
+            .setType(GameObjectType.Adventure_a4aa)
+            .setZoneId(parent.zoneId)
+            .setVisibility(parent.visibility)
+            .setOwnerSeatId(parent.ownerSeatId)
+            .setControllerSeatId(parent.controllerSeatId)
+            .setParentId(parent.instanceId)
+            .addAllViewers(
+                parent.viewersList.ifEmpty {
+                    listOf(parent.ownerSeatId).takeIf { parent.visibility == Visibility.Private }.orEmpty()
+                },
+            ).build()
 
     /**
      * Apply live game state from [cardSnap] onto a [GameObjectInfo.Builder].

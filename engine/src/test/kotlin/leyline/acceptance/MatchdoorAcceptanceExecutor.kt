@@ -125,6 +125,7 @@ private class ScenarioRun(
             is PlayLandStep -> requireAction { harness.playLand(step.card) }
             is PlayMdfcStep -> submitNamedAction(ActionType.PlayMdfc, step.card)
             is CastStep -> cast(step)
+            is CastAdventureStep -> submitNamedAction(ActionType.CastAdventure, step.card)
             is CastMdfcStep -> submitNamedAction(ActionType.CastMdfc, step.card)
             ResolveStackStep -> resolveStack()
             AttackAllStep -> {
@@ -158,7 +159,7 @@ private class ScenarioRun(
             candidates.firstOrNull { actionCardName(it).equals(card, ignoreCase = true) }
                 ?: candidates
                     .singleOrNull()
-                    ?.takeIf { actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc) }
+                    ?.takeIf { actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc, ActionType.CastAdventure) }
                 ?: error("$context no named ${actionType.name} action for $card")
         submitAction(action)
     }
@@ -576,6 +577,7 @@ private class ScenarioRun(
                 AcceptanceActionType.PlayMdfc -> ActionType.PlayMdfc
                 AcceptanceActionType.Cast -> ActionType.Cast
                 AcceptanceActionType.CastMdfc -> ActionType.CastMdfc
+                AcceptanceActionType.CastAdventure -> ActionType.CastAdventure
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
             }
         val candidates =
@@ -590,7 +592,12 @@ private class ScenarioRun(
                     (condition.altCost == null || actionMatchesAltCost(action, condition.altCost))
             }
         if (namedMatch) return true
-        return condition.type in listOf(AcceptanceActionType.PlayMdfc, AcceptanceActionType.CastMdfc) &&
+        return condition.type in
+            listOf(
+                AcceptanceActionType.PlayMdfc,
+                AcceptanceActionType.CastMdfc,
+                AcceptanceActionType.CastAdventure,
+            ) &&
             condition.altCost == null &&
             candidates.size == 1
     }
