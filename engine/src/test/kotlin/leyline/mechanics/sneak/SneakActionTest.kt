@@ -19,14 +19,10 @@ import leyline.testkit.offerAltCost
 /**
  * Sneak hand-cast-with-alternate-cost path.
  *
- * Structural parity with WarpActionTest. The positive `canPay → offer appears` case
- * for Sneak can't be cheaply exercised here because Sneak's additional cost
- * (Return an unblocked attacker you control) requires a declared-blockers
- * combat state with an unblocked attacker — too much harness ceremony for the
- * tight scope of this change. We verify:
- *  - Forge exposes the Sneak alt-cost SA on the hand card (plumbing ready to
- *    cast once combat predicates are met — same machinery used by WarpActionTest's
- *    positive case).
+ * Board-level structural and negative coverage, parallel to WarpActionTest.
+ * SneakLifecycleTest owns the positive combat flow because Sneak's additional
+ * cost requires a declared-blockers state with an unblocked attacker. Here we verify:
+ *  - Forge exposes the Sneak alt-cost SA on the hand card.
  *  - Negative guards: insufficient mana → no alt-cost Cast offer.
  *  - Wrong-zone guards: graveyard / library → no alt-cost Cast offer.
  *
@@ -34,14 +30,14 @@ import leyline.testkit.offerAltCost
  */
 @Suppress(
     // Structural guards assert absence/presence of offer shapes — boolean predicates over
-    // ActionsAvailableReq lists are the native idiom. Once combat-state harness lands
-    // (leyline-2g6d), positive cast tests will carry equality-shape assertions.
+    // ActionsAvailableReq lists are the native idiom. SneakLifecycleTest carries the
+    // positive cast and equality-shape assertions.
     "WeakAssertionOnly",
 )
 class SneakActionTest :
     BoardTest({
 
-        test("Forge surfaces the Sneak alt-cost SA on a hand card (plumbing ready)") {
+        test("Forge surfaces the Sneak alt-cost SA on a hand card") {
             val (_, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Swamp", human, ZoneType.Battlefield)
@@ -80,8 +76,8 @@ class SneakActionTest :
         test("ActionMapper.buildFromSnapshot does not crash and does not emit bogus offer without attackers") {
             // Sneak's payCost includes "Return an unblocked attacker", so without a
             // combat state canPayManaCost returns false and no alt-cost offer should
-            // appear. This pins the snapshot path shape — the same rail the live puzzle
-            // runtime exercises — against the Sneak keyword.
+            // appear. This pins the snapshot path shape — the same rail
+            // SneakLifecycleTest exercises — against the Sneak keyword.
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Swamp", human, ZoneType.Battlefield)
