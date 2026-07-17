@@ -75,6 +75,24 @@ class AdventureCompanionTest :
             gsm.gameObjectsList.count { it.type == GameObjectType.Adventure_a4aa } shouldBe 0
         }
 
+        test("opponent hidden Adventure card has no face companion") {
+            val board =
+                startWithBoard { _, _, ai ->
+                    addCard("Ratcatcher Trainee", ai, ZoneType.Hand)
+                }
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        SnapshotCapture.run(board.game, board.bridge, "test", 1),
+                        1,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                    ).gsm
+
+            gsm.gameObjectsList.count { it.type == GameObjectType.Adventure_a4aa } shouldBe 0
+        }
+
         test("parent reallocation deletes and recreates Adventure companion") {
             val board =
                 startWithBoard { _, human, _ ->
