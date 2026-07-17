@@ -11,6 +11,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
+import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
 
 /**
  * Destruction-cause classification and damage-flag mapping in
@@ -133,9 +134,19 @@ class GameEventCollectorDestructionTest :
                     true,
                 ),
             )
+            game.fireEvent(
+                GameEventCardDamaged(
+                    CardView.get(creature),
+                    CardView.get(source),
+                    1,
+                    GameEventCardDamaged.DamageType.Normal,
+                    ForgeDamageSourceKind.Fight,
+                ),
+            )
 
             val damaged = collector.closeFrame().events.filterIsInstance<GameEvent.DamageDealtToCard>()
-            damaged.map { it.combat } shouldContainExactly listOf(false, true)
+            damaged.map { it.sourceKind } shouldContainExactly
+                listOf(DamageSourceKind.SpellOrAbility, DamageSourceKind.Combat, DamageSourceKind.Fight)
         }
 
         test("destroy with a causing source stays an effect destruction") {

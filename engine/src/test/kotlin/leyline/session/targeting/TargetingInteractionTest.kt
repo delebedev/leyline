@@ -650,6 +650,8 @@ class TargetingInteractionTest :
                 damageAnn.affectorId shouldBe dealerIid
                 // Damage amount = dealer power (Grizzly Bears = 2)
                 damageAnn.detailInt("damage") shouldBe 2
+                // Bite Down is one-sided spell damage, not the Fight keyword action.
+                damageAnn.detailInt("type") shouldBe 2
                 // affectedIds = reallocated target iid
                 damageAnn.affectedIdsCount shouldBe 1
                 damageAnn.getAffectedIds(0) shouldBeGreaterThan 0

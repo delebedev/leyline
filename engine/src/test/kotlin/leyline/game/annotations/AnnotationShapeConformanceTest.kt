@@ -8,6 +8,7 @@ import leyline.UnitTag
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.eid
+import leyline.game.event.DamageSourceKind
 import leyline.game.grp
 import leyline.game.iid
 import leyline.game.sid
@@ -41,7 +42,13 @@ class AnnotationShapeConformanceTest :
         // =======================================================================
 
         test("DamageDealt shape: {damage, type, markDamage}") {
-            val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1.iid, targetId = 2.wid, amount = 3)
+            val ann =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 1.iid,
+                    targetId = 2.wid,
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             detailKeys(ann) shouldBe setOf("damage", "type", "markDamage")
         }
 
@@ -293,7 +300,7 @@ class AnnotationShapeConformanceTest :
                 "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1.iid, 1.grp)),
                 "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1.iid, 1.grp)),
                 "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1.sid)),
-                "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1.iid, 2.wid, 3)),
+                "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1.iid, 2.wid, 3, DamageSourceKind.Combat)),
                 "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1.iid)),
                 "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1.iid)),
                 "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1.sid, -3)),

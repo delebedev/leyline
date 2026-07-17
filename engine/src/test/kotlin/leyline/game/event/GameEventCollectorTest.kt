@@ -485,8 +485,32 @@ class GameEventCollectorTest :
                 dmg[0].sourceCardId shouldBe ForgeCardId(creature.id)
                 dmg[0].targetSeatId shouldBe SeatId(1)
                 dmg[0].amount shouldBe 3
-                dmg[0].combat.shouldBeTrue()
+                dmg[0].sourceKind shouldBe DamageSourceKind.Combat
+                dmg[0].changesLife shouldBe true
             }
+        }
+
+        test("infect damage is not classified as a life change") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            val creature =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.isCreature }
+
+            game.fireEvent(GameEventPlayerDamaged(PlayerView.get(game.humanPlayer), CardView.get(creature), 3, true, true))
+
+            collector
+                .closeFrame()
+                .events
+                .filterIsInstance<GameEvent.DamageDealtToPlayer>()
+                .single()
+                .changesLife shouldBe false
         }
 
         // -- LifeChanged --

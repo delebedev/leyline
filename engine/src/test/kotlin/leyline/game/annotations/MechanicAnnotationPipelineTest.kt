@@ -10,6 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.MechanicAnnotations
+import leyline.game.event.DamageSourceKind
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.testkit.detailInt
@@ -356,7 +357,13 @@ class MechanicAnnotationPipelineTest :
                     GameEvent.ZoneChanged(cardId = ForgeCardId(1), from = Zone.Hand, to = Zone.Battlefield),
                     GameEvent.LandPlayed(cardId = ForgeCardId(1), seatId = SeatId(1)),
                     GameEvent.CardDestroyed(cardId = ForgeCardId(2), seatId = SeatId(1)),
-                    GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(4), targetSeatId = SeatId(1), amount = 3, combat = true),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(4),
+                        targetSeatId = SeatId(1),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
+                    ),
                 )
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.transient.shouldBeEmpty()

@@ -109,7 +109,9 @@ object CombatAnnotations {
         for (ev in cardDamage) {
             val sourceIid = idResolver(ev.sourceCardId)
             val targetIid = idResolver(ev.targetCardId)
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount, combat = ev.combat))
+            annotations.add(
+                AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount, sourceKind = ev.sourceKind),
+            )
         }
 
         // --- DamageDealt: creature → player ---
@@ -117,7 +119,9 @@ object CombatAnnotations {
         var playerDamageSeat: SeatId? = null
         for (ev in playerDamage) {
             val sourceIid = idResolver(ev.sourceCardId)
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount, combat = ev.combat))
+            annotations.add(
+                AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount, sourceKind = ev.sourceKind),
+            )
             if (firstPlayerDamageAttacker == null) firstPlayerDamageAttacker = sourceIid
             playerDamageSeat = ev.targetSeatId
         }
@@ -130,7 +134,7 @@ object CombatAnnotations {
         // --- ModifiedLife from combat damage in this frame ---
         val playerDamageBySeat = playerDamage.groupBy { it.targetSeatId.value }
         for ((seat, eventsForSeat) in playerDamageBySeat) {
-            val delta = -eventsForSeat.sumOf { it.amount }
+            val delta = -eventsForSeat.filter { it.changesLife }.sumOf { it.amount }
             if (delta != 0) {
                 annotations.add(
                     AnnotationBuilder.modifiedLife(

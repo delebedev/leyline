@@ -10,6 +10,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.WireId
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.event.DamageSourceKind
 import leyline.tooling.headless.actionsMessage
 import leyline.tooling.headless.greMessage
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -97,6 +98,7 @@ class PlayerLogWriterTest :
                                 InstanceId(100),
                                 targetId = WireId(2),
                                 amount = 3,
+                                sourceKind = DamageSourceKind.Combat,
                             ),
                         )
                         addAnnotations(
