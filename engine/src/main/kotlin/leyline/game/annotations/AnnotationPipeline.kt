@@ -285,6 +285,7 @@ object AnnotationPipeline {
         // against double-emission when the snap-diff also caught the
         // appearance/disappearance.
         var damageResidualLifeAnnotations = emptyList<AnnotationInfo>()
+        var resolutionOwnedDamageInserted = false
         if (bridge != null && snap != null) {
             val ctx = AnnotationContext(bridge, snap, frameIds ?: FrameIdResolver(bridge), events)
             emitTriggerLifecycleAnnotations(
@@ -296,6 +297,13 @@ object AnnotationPipeline {
                 transferPersistent = transferPersistent,
             )
             damageResidualLifeAnnotations = insertResolutionEventAnnotations(ctx, annotations)
+            resolutionOwnedDamageInserted =
+                insertResolutionOwnedDamageAnnotations(
+                    ctx = ctx,
+                    annotations = annotations,
+                    damageAnnotations = combatResult.resolutionOwnedAnnotations,
+                    transfers = patchedTransfers,
+                )
         }
         for (d in transferResult.stackAbilityDisappearances) {
             val lineage = abilityLineage?.consume(d.abilityInstanceId)
@@ -310,10 +318,51 @@ object AnnotationPipeline {
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
         }
-        annotations.addAll(combatResult.annotations)
+        if (!resolutionOwnedDamageInserted) annotations.addAll(combatResult.annotations)
         annotations.addAll(damageResidualLifeAnnotations)
         for (transfer in deferredTransfers) emitTransfer(transfer)
         return annotations to transferPersistent
+    }
+
+    /**
+     * Inserts homogeneous noncombat damage into its unique resolving source bracket.
+     *
+     * A resolving card spell is identified by its Stack-origin Resolve transfer;
+     * triggered and activated abilities use their stack-ability lifecycle identity.
+     * Frames without exactly one owner retain the existing append behavior rather
+     * than guessing across mixed or unrelated damage.
+     */
+    private fun insertResolutionOwnedDamageAnnotations(
+        ctx: AnnotationContext,
+        annotations: MutableList<AnnotationInfo>,
+        damageAnnotations: List<AnnotationInfo>,
+        transfers: List<AppliedTransfer>,
+    ): Boolean {
+        if (damageAnnotations.isEmpty()) return false
+
+        val ownerIids =
+            buildSet {
+                transfers
+                    .asSequence()
+                    .filter { it.category == TransferCategory.Resolve && it.srcZoneId == ZoneIds.STACK }
+                    .mapTo(this) { it.origId }
+                ctx.events
+                    .asSequence()
+                    .filterIsInstance<GameEvent.SpellResolved>()
+                    .filter { it.isTrigger || it.isAbility }
+                    .mapTo(this) { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) }
+            }
+        if (ownerIids.size != 1) return false
+
+        val ownerIid = ownerIids.single()
+        val completeIndex =
+            annotations.indexOfFirst { annotation ->
+                AnnotationType.ResolutionComplete in annotation.typeList && annotation.affectorId == ownerIid
+            }
+        if (completeIndex < 0) return false
+
+        annotations.addAll(completeIndex, damageAnnotations)
+        return true
     }
 
     private fun insertResolutionEventAnnotations(

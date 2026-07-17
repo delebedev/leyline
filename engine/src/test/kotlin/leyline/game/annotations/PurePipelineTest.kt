@@ -336,6 +336,7 @@ class PurePipelineTest :
                 )
 
             result.hasCombatDamage shouldBe true
+            result.resolutionOwnedAnnotations.shouldBeEmpty()
 
             // DamageDealt is now first (PhaseOrStepModified handled elsewhere)
             val firstType = result.annotations.first().getType(0)
@@ -372,8 +373,11 @@ class PurePipelineTest :
                     currentLifeTotals = mapOf(1 to 20, 2 to 18),
                 )
 
-            result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
-            result.hasCombatDamage shouldBe false
+            assertSoftly {
+                result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
+                result.resolutionOwnedAnnotations shouldBe result.annotations
+                result.hasCombatDamage shouldBe false
+            }
         }
 
         test("combatAnnotations does not apply combat frame shape to mixed damage") {
@@ -403,8 +407,11 @@ class PurePipelineTest :
                     currentLifeTotals = mapOf(1 to 20, 2 to 15),
                 )
 
-            result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
-            result.hasCombatDamage shouldBe false
+            assertSoftly {
+                result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
+                result.resolutionOwnedAnnotations.shouldBeEmpty()
+                result.hasCombatDamage shouldBe false
+            }
         }
 
         test("combatAnnotations can keep pre-transfer battlefield ids for lethal combat") {

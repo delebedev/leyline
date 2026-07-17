@@ -2,7 +2,6 @@ package leyline.tooling.simclient
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -88,7 +87,7 @@ class SimClientE2ETest :
             }
         }
 
-        test("bolt-face keeps combat-phase noncombat damage inside its resolution GSM") {
+        test("bolt-face orders noncombat damage inside its resolution lifecycle before stack exit") {
             val harness = MatchFlowHarness(seed = 42L)
             val tempLog = Files.createTempFile("simclient-bolt-face-", ".log").toFile()
             val writer = tempLog.bufferedWriter()
@@ -113,10 +112,12 @@ class SimClientE2ETest :
                 val types = damageGsm.annotationsList.flatMap { it.typeList }
 
                 assertSoftly {
-                    types shouldContainAll
+                    types shouldBe
                         listOf(
                             AnnotationType.ResolutionStart,
                             AnnotationType.DamageDealt_af5a,
+                            AnnotationType.SyntheticEvent,
+                            AnnotationType.ModifiedLife,
                             AnnotationType.ResolutionComplete,
                             AnnotationType.ZoneTransfer_af5a,
                         )
