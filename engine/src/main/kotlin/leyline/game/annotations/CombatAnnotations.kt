@@ -23,6 +23,12 @@ import kotlin.collections.iterator
  */
 data class CombatAnnotationResult(
     val annotations: List<AnnotationInfo>,
+    /**
+     * Homogeneous noncombat damage owned by the frame's resolving spell or ability.
+     * The annotation pipeline inserts this bundle inside that source's RS/RC bracket.
+     * Mixed and ambiguous damage windows deliberately leave this empty.
+     */
+    val resolutionOwnedAnnotations: List<AnnotationInfo> = emptyList(),
     val hasCombatDamage: Boolean = false,
     val damageStep: Step = Step.CombatDamage_a2cb,
     val damagedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
@@ -154,12 +160,11 @@ object CombatAnnotations {
                 emptyList()
             }
 
+        val damageFacts = events.mapNotNull { it.combatDamageFact() }
         return CombatAnnotationResult(
             annotations = annotations,
-            hasCombatDamage =
-                events
-                    .mapNotNull { it.combatDamageFact() }
-                    .let { damageFacts -> damageFacts.isNotEmpty() && damageFacts.all { it } },
+            resolutionOwnedAnnotations = annotations.takeIf { damageFacts.isNotEmpty() && damageFacts.none { it } }.orEmpty(),
+            hasCombatDamage = damageFacts.isNotEmpty() && damageFacts.all { it },
             damageStep = events.combatDamageStep(),
             damagedThisTurnPersistent = damagedThisTurnPersistent,
             clearDamagedThisTurn = clearOnUpkeep,
