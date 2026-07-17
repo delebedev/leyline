@@ -808,6 +808,14 @@ object AnnotationPipeline {
         }
 
         val sourceAbilityResolver = SourceAbilityResolverFactory.build(bridge)
+        val keywordAffectorResolver =
+            SourceAbilityResolverFactory.buildKeywordAffector(bridge) {
+                events
+                    .filterIsInstance<GameEvent.SpellResolved>()
+                    .lastOrNull()
+                    ?.let { bridge.getOrAllocInstanceId(it.cardId) }
+                    ?: leyline.bridge.types.InstanceId(0)
+            }
         val suspectedIids =
             snap.boundCards.values
                 .asSequence()
@@ -819,15 +827,7 @@ object AnnotationPipeline {
                 diff = effectDiff,
                 sourceAbilityResolver = sourceAbilityResolver,
                 keywordDiff = keywordDiff,
-                keywordAffectorResolver = { _, _, _ ->
-                    // Best-effort: use most recent SpellResolved event's instanceId as affector.
-                    // Full resolver (tracing spell → keyword grant) comes later.
-                    events
-                        .filterIsInstance<GameEvent.SpellResolved>()
-                        .lastOrNull()
-                        ?.let { bridge.getOrAllocInstanceId(it.cardId) }
-                        ?: leyline.bridge.types.InstanceId(0)
-                },
+                keywordAffectorResolver = keywordAffectorResolver,
                 boostAffectorResolver = { effect, sourceAbilityGrpId ->
                     if (sourceAbilityGrpId?.value == KeywordAbilityIds.ENLIST) {
                         events

@@ -29,9 +29,9 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(425, 1L, 5L), "Trample"),
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(432, 1L, 5L), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L, "Trample"), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(425, 1L, 5L, "Trample"), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(432, 1L, 5L, "Trample"), "Trample"),
                         ),
                     destroyed = emptyList(),
                 )
@@ -61,7 +61,7 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(119, 1L, 5L), "Menace"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(119, 1L, 5L, "Menace"), "Menace"),
                         ),
                     destroyed = emptyList(),
                 )
@@ -99,7 +99,7 @@ class KeywordGrantAnnotationTest :
                     created = emptyList(),
                     destroyed =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L, "Trample"), "Trample"),
                         ),
                 )
             val (transient, _) =
@@ -115,7 +115,7 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Flanking"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L, "Flanking"), "Flanking"),
                         ),
                     destroyed = emptyList(),
                 )
@@ -134,8 +134,8 @@ class KeywordGrantAnnotationTest :
                     created =
                         listOf(
                             // Two creatures get Flying from the same static ability (ts=2, staticId=10)
-                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(100, 2L, 10L), "Flying"),
-                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(200, 2L, 10L), "Flying"),
+                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(100, 2L, 10L, "Flying"), "Flying"),
+                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(200, 2L, 10L, "Flying"), "Flying"),
                         ),
                     destroyed = emptyList(),
                 )
@@ -179,7 +179,7 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(100, 1L, 5L), "Trample"),
+                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(100, 1L, 5L, "Trample"), "Trample"),
                         ),
                     destroyed = emptyList(),
                 )

@@ -60,6 +60,7 @@ class EffectTracker {
         val cardInstanceId: Int,
         val timestamp: Long,
         val staticId: Long,
+        val keyword: String,
     )
 
     data class TrackedKeywordEffect(
@@ -116,7 +117,9 @@ class EffectTracker {
             diffLifecycle(
                 currentByCard = currentKeywords,
                 active = activeKeywordEffects,
-                fingerprintOf = { cardIid, entry -> KeywordFingerprint(cardIid, entry.timestamp, entry.staticId) },
+                fingerprintOf = { cardIid, entry ->
+                    KeywordFingerprint(cardIid, entry.timestamp, entry.staticId, entry.keyword)
+                },
                 createTracked = { fp, entry -> TrackedKeywordEffect(nextEffectId(), fp, entry.keyword) },
             )
         return KeywordDiffResult(diff.created, diff.destroyed)

@@ -1,0 +1,19 @@
+[metadata]
+Name:Creature Death Emeritus
+Goal:Demo
+Turns:3
+Difficulty:Easy
+Description:Destroy two creatures. NumberOfCreaturesDiedThisTurn tracks the end-step preparation threshold.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Emeritus of Woe;Mountain;Mountain;Mountain;Mountain
+humanhand=Shock;Shock
+aibattlefield=Soul Warden;Soul Warden
+humanlibrary=Mountain
+ailibrary=Forest

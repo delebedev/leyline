@@ -1,0 +1,13 @@
+name: "Emeritus of Woe"
+grpId: 102539
+titleId: 1111062
+abilities:
+  - id: 204300
+    textId: 1110865
+    category: 3
+  - id: 204360
+    textId: 1111064
+    category: 2
+expansionCode: "SOS"
+linkedGrpIds:
+  - 104072

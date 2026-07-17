@@ -3,6 +3,8 @@ package leyline.game.annotations
 import forge.game.CardTraitBase
 import forge.game.ability.AbilityUtils
 import forge.game.card.Card
+import forge.game.card.CardLists
+import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.state.AbilityRegistry
@@ -46,6 +48,30 @@ object AbilityWordValueRecognizers {
                     trait.getParam("Phase") == "BeginCombat" &&
                     expression == "Count\$ThisTurnCast_Card.YouCtrl" &&
                     comparator == "GE2"
+            },
+            ValueFamily("NumberOfCreaturesDiedThisTurn") { kind, trait, expression, comparator ->
+                kind == TraitKind.TRIGGER &&
+                    trait.getParam("Mode") == "Phase" &&
+                    trait.getParam("Phase") == "End of Turn" &&
+                    expression == "Count\$ThisTurnEntered_Graveyard_from_Battlefield_Creature" &&
+                    comparator == "GE2"
+            },
+        )
+
+    private data class PresentFamily(
+        val abilityWordName: String,
+        val matches: (TraitKind, CardTraitBase, String, String) -> Boolean,
+    )
+
+    private val presentFamilies =
+        listOf(
+            PresentFamily("NumberOfEnchantmentYouControl") { kind, trait, restriction, comparator ->
+                kind == TraitKind.STATIC &&
+                    trait.getParam("Mode") == "Continuous" &&
+                    trait.getParam("Affected") == "Creature.YouCtrl" &&
+                    trait.getParam("AddKeyword") == "Flying & Vigilance" &&
+                    restriction == "Enchantment.YouCtrl" &&
+                    comparator == "GE7"
             },
         )
 
@@ -102,18 +128,46 @@ object AbilityWordValueRecognizers {
         card: Card,
         trait: CardTraitBase,
         kind: TraitKind,
+    ): Projection? = checkSVarProjection(card, trait, kind) ?: presentProjection(card, trait, kind)
+
+    private fun checkSVarProjection(
+        card: Card,
+        trait: CardTraitBase,
+        kind: TraitKind,
     ): Projection? {
         val checkSVar = trait.getParam("CheckSVar") ?: return null
         val expression = trait.getSVar(checkSVar)
         val comparator = trait.getParamOrDefault("SVarCompare", "GE1")
         val family = families.firstOrNull { it.matches(kind, trait, expression, comparator) } ?: return null
-        val threshold =
-            COMPARISON_THRESHOLD
-                .matchEntire(comparator)
-                ?.groupValues
-                ?.get(1)
-                ?.toIntOrNull() ?: return null
+        val threshold = comparisonThreshold(comparator) ?: return null
         val value = AbilityUtils.calculateAmount(card, checkSVar, trait)
         return Projection(family.abilityWordName, value, threshold)
     }
+
+    private fun presentProjection(
+        card: Card,
+        trait: CardTraitBase,
+        kind: TraitKind,
+    ): Projection? {
+        val restriction = trait.getParam("IsPresent") ?: return null
+        val comparator = trait.getParamOrDefault("PresentCompare", "GE1")
+        val family = presentFamilies.firstOrNull { it.matches(kind, trait, restriction, comparator) } ?: return null
+        val threshold = comparisonThreshold(comparator) ?: return null
+        val value =
+            CardLists.getValidCardCount(
+                card.game.getCardsIn(ZoneType.Battlefield),
+                restriction,
+                card.controller,
+                card,
+                trait,
+            )
+        return Projection(family.abilityWordName, value, threshold)
+    }
+
+    private fun comparisonThreshold(comparator: String): Int? =
+        COMPARISON_THRESHOLD
+            .matchEntire(comparator)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
 }

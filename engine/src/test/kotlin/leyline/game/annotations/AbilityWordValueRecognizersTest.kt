@@ -166,4 +166,71 @@ class AbilityWordValueRecognizersTest :
                 ).filter { it.abilityWordName == "NumberOfSpellsCast" }
                 .shouldBeEmpty()
         }
+
+        test("creature-death tracker crosses two and resets at cleanup") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Emeritus of Woe", human, ZoneType.Battlefield)
+                    addCard("Soul Warden", ai, ZoneType.Battlefield)
+                    addCard("Soul Warden", ai, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            val ai = board.game.registeredPlayers.first { it != human }
+
+            fun deathCount(): AbilityWordScanner.AbilityWordEntry =
+                AbilityWordScanner
+                    .scan(
+                        battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                        instanceIdResolver = { board.bridge.getOrAllocInstanceId(it) },
+                        registryResolver = { card ->
+                            val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                            board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                        },
+                    ).first { it.abilityWordName == "NumberOfCreaturesDiedThisTurn" }
+
+            assertSoftly {
+                deathCount().value shouldBe 0
+                deathCount().threshold shouldBe 2
+                deathCount().abilityGrpId shouldBe 204360
+            }
+            val victims = ai.getZone(ZoneType.Battlefield).cards.toList()
+            board.game.action.moveToGraveyard(victims[0], null)
+            deathCount().value shouldBe 1
+            board.game.action.moveToGraveyard(victims[1], null)
+            deathCount().value shouldBe 2
+            board.game.onCleanupPhase()
+            deathCount().value shouldBe 0
+        }
+
+        test("enchantment-count tracker crosses seven") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Hallowed Haunting", human, ZoneType.Battlefield)
+                    repeat(5) { addCard("Pacifism", human, ZoneType.Battlefield) }
+                    addCard("Hallowed Haunting", human, ZoneType.Hand)
+                }
+            val human = board.game.humanPlayer
+
+            fun enchantmentCount(): AbilityWordScanner.AbilityWordEntry =
+                AbilityWordScanner
+                    .scan(
+                        battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                        instanceIdResolver = { board.bridge.getOrAllocInstanceId(it) },
+                        registryResolver = { card ->
+                            val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                            board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                        },
+                    ).first { it.abilityWordName == "NumberOfEnchantmentYouControl" }
+
+            assertSoftly {
+                enchantmentCount().value shouldBe 6
+                enchantmentCount().threshold shouldBe 7
+                enchantmentCount().abilityGrpId shouldBe 146545
+            }
+            val enchantment = human.getZone(ZoneType.Hand).cards.first { it.name == "Hallowed Haunting" }
+            board.game.action.moveToPlay(enchantment, null, AbilityKey.newMap())
+            enchantmentCount().value shouldBe 7
+            board.game.action.moveToGraveyard(enchantment, null)
+            enchantmentCount().value shouldBe 6
+        }
     })

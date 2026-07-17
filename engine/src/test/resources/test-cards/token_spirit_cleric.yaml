@@ -1,0 +1,20 @@
+name: "Spirit Cleric"
+grpId: 79100
+titleId: 261625
+abilities:
+  - id: 89458
+    textId: 955464
+    category: 3
+expansionCode: "VOW"
+isToken: true
+isPrimaryCard: false
+power: "*"
+toughness: "*"
+colors: []
+types:
+  - 2
+subtypes:
+  - 68
+  - 16
+supertypes: []
+manaCost: ""

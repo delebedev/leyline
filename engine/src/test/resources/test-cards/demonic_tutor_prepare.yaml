@@ -1,0 +1,11 @@
+name: "Demonic Tutor"
+grpId: 104072
+titleId: 12194
+abilities:
+  - id: 1084
+    textId: 487521
+    category: 4
+expansionCode: "SOS"
+linkedGrpIds:
+  - 102539
+isPrimaryCard: false

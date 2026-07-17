@@ -563,6 +563,47 @@ scenarios:
                 details: { AbilityWordName: NumberOfSpellsCast, value: 2, threshold: 2, AbilityGrpId: 188817 }
             - battlefield_stats: { side: ours, card: Reverberating Summons, power: 3, toughness: 3 }
             - stack_empty: true
+  - id: creature-death-emeritus
+    puzzle: creature-death-emeritus
+    run: cast two Shocks to destroy two opposing creatures
+    expect: NumberOfCreaturesDiedThisTurn reaches two and both creatures are in the graveyard
+    steps:
+      - cast: Shock
+      - target: { side: opponent, zone: battlefield, card: Soul Warden }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: NumberOfCreaturesDiedThisTurn, value: 1, threshold: 2, AbilityGrpId: 204360 }
+            - zone_count_at_least: { side: opponent, zone: graveyard, count: 1 }
+            - stack_empty: true
+      - cast: Shock
+      - target: { side: opponent, zone: battlefield, card: Soul Warden }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: NumberOfCreaturesDiedThisTurn, value: 2, threshold: 2, AbilityGrpId: 204360 }
+            - zone_count_at_least: { side: opponent, zone: graveyard, count: 2 }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Soul Warden }
+            - stack_empty: true
+  - id: enchantment-count-hallowed-haunting
+    puzzle: enchantment-count-hallowed-haunting
+    run: cast the seventh enchantment and target the opposing creature
+    expect: NumberOfEnchantmentYouControl reaches seven
+    steps:
+      - cast: Pacifism
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: NumberOfEnchantmentYouControl, value: 7, threshold: 7, AbilityGrpId: 146545 }
+            - zone_contains: { side: ours, zone: battlefield, card: Pacifism }
+            - stack_empty: true
   - id: earthbend-earthbending-lesson
     puzzle: earthbend-earthbending-lesson
     run: cast Earthbending Lesson and target Forest for Earthbend 4
