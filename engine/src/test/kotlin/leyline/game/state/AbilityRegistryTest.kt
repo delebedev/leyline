@@ -248,6 +248,23 @@ class AbilityRegistryTest :
             }
         }
 
+        test("raw intrinsic categories separate mixed static and trigger slots") {
+            val cardName = "Heliod, Sun-Crowned"
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val card = TestCardInjector.inject(bridge, 1, cardName, ZoneType.Battlefield).card
+            val cardData = CardDataDeriver.fromForgeCard(card, cardName)
+            val devotionStatic = card.staticAbilities.single { it.getParam("CheckSVar") == "X" }
+            val lifeGainTrigger = card.triggers.single { it.mode == forge.game.trigger.TriggerType.LifeGained }
+
+            val registry = AbilityRegistry.build(card, cardData)
+
+            assertSoftly {
+                cardData.abilityCategories shouldBe listOf(3, 3, 2, 1)
+                registry.forStaticAbility(devotionStatic.id) shouldBe 100654
+                registry.forTrigger(lifeGainTrigger.id) shouldBe 136666
+            }
+        }
+
         test("mana slot interleaved before activated land ability does not shift mapping") {
             val cardName = "Racers' Ring"
             val (b, _, _) = startWithBoard { _, _, _ -> }

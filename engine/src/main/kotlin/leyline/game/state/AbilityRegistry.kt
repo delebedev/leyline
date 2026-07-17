@@ -283,7 +283,12 @@ class AbilityRegistry private constructor(
             if (triggers.isEmpty()) return
             val intrinsicSlots =
                 abilityIds.indices.filter { idx ->
-                    idx >= keywordCount && cardData.abilityKinds[idx] == SlotKind.Intrinsic
+                    idx >= keywordCount &&
+                        if (cardData.abilityCategories.size == abilityIds.size) {
+                            cardData.abilityCategories[idx] == TRIGGER_CATEGORY
+                        } else {
+                            cardData.abilityKinds[idx] == SlotKind.Intrinsic
+                        }
                 }
             if (intrinsicSlots.size != triggers.size) return
             for ((trig, slotIdx) in triggers.zip(intrinsicSlots)) {
@@ -308,7 +313,12 @@ class AbilityRegistry private constructor(
             if (statics.isEmpty()) return
             val intrinsicSlots =
                 abilityIds.indices.filter { idx ->
-                    idx >= keywordCount && cardData.abilityKinds[idx] == SlotKind.Intrinsic
+                    idx >= keywordCount &&
+                        if (cardData.abilityCategories.size == abilityIds.size) {
+                            cardData.abilityCategories[idx] >= STATIC_CATEGORY_FLOOR
+                        } else {
+                            cardData.abilityKinds[idx] == SlotKind.Intrinsic
+                        }
                 }
             if (intrinsicSlots.size != statics.size) return
             for ((staticAbility, slotIdx) in statics.zip(intrinsicSlots)) {
@@ -381,6 +391,8 @@ class AbilityRegistry private constructor(
             sa.api == ApiType.Unattach && sa.getParam("PrecostDesc") == "Reconfigure"
 
         private const val STATION_THRESHOLD_ABILITY_ID_FLOOR = 60_000
+        private const val TRIGGER_CATEGORY = 2
+        private const val STATIC_CATEGORY_FLOOR = 3
 
         private val KEYWORD_FAMILIES =
             mapOf(

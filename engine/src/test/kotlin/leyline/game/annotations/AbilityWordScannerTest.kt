@@ -229,6 +229,67 @@ class AbilityWordScannerTest :
             }
         }
 
+        test("Expend permanent emits spent mana value and source ability identity below threshold") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Roughshod Duo", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            human.expentThisTurn = 3
+            val duo = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Roughshod Duo" }
+            val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                    instanceIdResolver = { fid -> board.bridge.getOrAllocInstanceId(fid) },
+                    registryResolver = { card ->
+                        val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                        board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                    },
+                )
+
+            val expend = results.firstOrNull { it.abilityWordName == "ExpendedMana" }
+            assertSoftly {
+                expend.shouldNotBeNull()
+                expend.instanceId shouldBe duoIid
+                expend.value shouldBe 3
+                expend.threshold shouldBe 4
+                expend.abilityGrpId shouldBe 174034
+            }
+        }
+
+        test("Expend value reaches threshold and resets with the turn counter") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Teapot Slinger", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+
+            fun expendValue(): AbilityWordScanner.AbilityWordEntry {
+                val results =
+                    AbilityWordScanner.scan(
+                        battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                        instanceIdResolver = { fid -> board.bridge.getOrAllocInstanceId(fid) },
+                        registryResolver = { card ->
+                            val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                            board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                        },
+                    )
+                return results.first { it.abilityWordName == "ExpendedMana" }
+            }
+
+            human.expentThisTurn = 4
+            assertSoftly {
+                expendValue().value shouldBe 4
+                expendValue().threshold shouldBe 4
+                expendValue().abilityGrpId shouldBe 174043
+            }
+
+            human.expentThisTurn = 0
+            expendValue().value shouldBe 0
+        }
+
         test("Flurry card with 2 spells cast this turn emits value=2") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->

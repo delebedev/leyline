@@ -1,0 +1,13 @@
+name: "Hallowed Haunting"
+grpId: 78795
+titleId: 545590
+abilities:
+  - id: 146545
+    textId: 545591
+    category: 3
+  - id: 146547
+    textId: 955465
+    category: 2
+expansionCode: "VOW"
+tokens:
+  146547: 79100

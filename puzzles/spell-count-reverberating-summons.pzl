@@ -1,0 +1,18 @@
+[metadata]
+Name:Spell Count Reverberating Summons
+Goal:Demo
+Turns:3
+Difficulty:Easy
+Description:Cast two spells, then advance to combat. Reverberating Summons becomes a 3/3 Monk with haste while NumberOfSpellsCast tracks the threshold.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Reverberating Summons;Plains;Plains
+humanhand=Soul Warden;Savannah Lions
+humanlibrary=Plains
+ailibrary=Forest

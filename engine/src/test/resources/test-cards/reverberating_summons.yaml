@@ -1,0 +1,12 @@
+name: "Reverberating Summons"
+grpId: 95637
+titleId: 927015
+abilities:
+  - id: 188817
+    textId: 927016
+    category: 2
+  - id: 188818
+    textId: 927017
+    category: 1
+    mana: "o1oR"
+expansionCode: "TDM"

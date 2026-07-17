@@ -6,6 +6,7 @@ import forge.game.card.CardUtil
 import forge.game.card.CounterEnumType
 import forge.game.keyword.Keyword
 import forge.game.player.Player
+import forge.game.trigger.TriggerType
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -176,6 +177,21 @@ object AbilityWordScanner {
 
             // Phase 2: Triggers with named params (Threshold$ True) or CheckSVar$ <ConditionName>
             for (trigger in card.triggers ?: emptyList()) {
+                if (trigger.mode == TriggerType.ManaExpend) {
+                    val threshold = trigger.getParam("Amount")?.toIntOrNull()
+                    if (threshold != null) {
+                        results.add(
+                            AbilityWordEntry(
+                                instanceId = iid,
+                                abilityWordName = "ExpendedMana",
+                                value = controller.expentThisTurn,
+                                threshold = threshold,
+                                abilityGrpId = registryForCard()?.forTrigger(trigger.id)?.takeIf { it > 0 },
+                            ),
+                        )
+                    }
+                }
+
                 val matchedConditions = mutableSetOf<String>()
                 for (paramName in NAMED_PARAM_CONDITIONS) {
                     if (trigger.hasParam(paramName)) matchedConditions.add(paramName)
@@ -239,7 +255,16 @@ object AbilityWordScanner {
             }
         }
 
-        // Phase 4: trigger-pattern ability words (Flurry, Infusion, Raid, Coven, …)
+        // Phase 4: quantitative CheckSVar comparison families (Devotion, Descend, …)
+        results.addAll(
+            AbilityWordValueRecognizers.scan(
+                battlefieldCards = battlefieldCards,
+                instanceIdResolver = instanceIdResolver,
+                registryResolver = registryResolver,
+            ),
+        )
+
+        // Phase 5: trigger-pattern ability words (Flurry, Infusion, Raid, Coven, …)
         results.addAll(
             AbilityWordTriggerRecognizers.scan(
                 battlefieldCards = battlefieldCards,

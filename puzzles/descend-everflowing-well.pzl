@@ -1,0 +1,19 @@
+[metadata]
+Name:Descend Everflowing Well
+Goal:Demo
+Turns:4
+Difficulty:Easy
+Description:Discard the eighth permanent card, then advance to the next upkeep. Descend 8 transforms The Everflowing Well into The Myriad Pools.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=The Everflowing Well;Swamp;Swamp;Swamp
+humanhand=Mardu Outrider;Llanowar Elves
+humangraveyard=Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Island;Island
+ailibrary=Forest;Forest

@@ -1,0 +1,14 @@
+name: "Muerra, Trash Tactician"
+grpId: 91763
+titleId: 811795
+abilities:
+  - id: 174142
+    textId: 811796
+    category: 2
+  - id: 174143
+    textId: 811797
+    category: 2
+  - id: 174144
+    textId: 811798
+    category: 2
+expansionCode: "BLB"

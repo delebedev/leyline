@@ -1,0 +1,15 @@
+name: "Wolf"
+grpId: 70136
+titleId: 866
+abilities: []
+isToken: true
+isPrimaryCard: false
+power: "2"
+toughness: "2"
+colors: []
+types:
+  - 2
+subtypes:
+  - 79
+supertypes: []
+manaCost: ""

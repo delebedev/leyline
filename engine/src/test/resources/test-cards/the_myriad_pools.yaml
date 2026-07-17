@@ -1,0 +1,14 @@
+name: "The Myriad Pools"
+grpId: 87195
+titleId: 737246
+abilities:
+  - id: 1002
+    textId: 227604
+    category: 1
+  - id: 169502
+    textId: 737248
+    category: 2
+expansionCode: "LCI"
+linkedFaces:
+  - 87194
+isPrimaryCard: false

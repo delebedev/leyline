@@ -1,0 +1,13 @@
+name: "The Everflowing Well"
+grpId: 87194
+titleId: 737240
+abilities:
+  - id: 169500
+    textId: 865990
+    category: 2
+  - id: 169501
+    textId: 737244
+    category: 2
+expansionCode: "LCI"
+linkedFaces:
+  - 87195

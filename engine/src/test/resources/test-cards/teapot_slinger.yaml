@@ -1,0 +1,11 @@
+name: "Teapot Slinger"
+grpId: 91693
+titleId: 811516
+abilities:
+  - id: 142
+    textId: 102
+    category: 3
+  - id: 174043
+    textId: 971436
+    category: 2
+expansionCode: "BLB"

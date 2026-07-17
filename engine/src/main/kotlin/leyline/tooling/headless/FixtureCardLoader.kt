@@ -116,6 +116,7 @@ object FixtureCardLoader {
         val rules = requireNotNull(fixture.rules)
         val abilityIds = identity.abilities.map { it.id to it.textId }
         val abilityKinds = identity.abilities.map { ab -> SlotKind.fromAbilityInfo(ab.category, ab.subCategory) }
+        val abilityCategories = identity.abilities.map { it.category }
         return CardData(
             grpId = identity.grpId,
             titleId = identity.titleId,
@@ -127,6 +128,7 @@ object FixtureCardLoader {
             supertypes = rules.supertypes,
             abilityIds = abilityIds,
             abilityKinds = abilityKinds,
+            abilityCategories = abilityCategories,
             manaCost = rules.manaCost,
             tokenGrpIds = identity.tokens,
             linkedFaceGrpIds = identity.linkedFaces,

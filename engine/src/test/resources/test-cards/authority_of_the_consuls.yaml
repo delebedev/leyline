@@ -1,0 +1,11 @@
+name: "Authority of the Consuls"
+grpId: 97593
+titleId: 50920
+abilities:
+  - id: 15979
+    textId: 828484
+    category: 3
+  - id: 76694
+    textId: 828485
+    category: 2
+expansionCode: "FIC"

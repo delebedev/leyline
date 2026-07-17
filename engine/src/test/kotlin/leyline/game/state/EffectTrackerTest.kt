@@ -167,6 +167,22 @@ class EffectTrackerTest :
             diff2.created.shouldBeEmpty()
         }
 
+        test("diffKeywords keeps distinct keywords from one static ability") {
+            val tracker = EffectTracker()
+            val input =
+                mapOf(
+                    100 to
+                        listOf(
+                            EffectTracker.KeywordEntry(1L, 7L, "Flying"),
+                            EffectTracker.KeywordEntry(1L, 7L, "Vigilance"),
+                        ),
+                )
+
+            val diff = tracker.diffKeywords(input)
+
+            diff.created.map { it.keyword }.toSet() shouldBe setOf("Flying", "Vigilance")
+        }
+
         test("keyword and boost effects share the same ID counter") {
             val tracker = EffectTracker()
             tracker.nextEffectId() // simulate a boost taking the first ID

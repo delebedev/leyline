@@ -1,0 +1,18 @@
+[metadata]
+Name:Expend Roughshod Duo
+Goal:Demo
+Turns:5
+Difficulty:Easy
+Description:Cast Teapot Slinger to expend four mana. Roughshod Duo targets Grizzly Bears, giving it +1/+1 and trample until end of turn while ExpendedMana tracks the threshold.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Roughshod Duo;Grizzly Bears;Mountain;Mountain;Mountain;Mountain
+humanhand=Teapot Slinger
+ailibrary=Forest
+humanlibrary=Mountain

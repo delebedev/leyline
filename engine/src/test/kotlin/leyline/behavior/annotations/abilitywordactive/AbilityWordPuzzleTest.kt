@@ -87,6 +87,151 @@ class AbilityWordPuzzleTest :
             aw2.detailInt("value") shouldBe 6
         }
 
+        test("Expend annotation projects current mana, threshold, and ability identity") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Roughshod Duo", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            val duo = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Roughshod Duo" }
+            val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
+
+            human.expentThisTurn = 4
+            board.snapshotDiff {}
+
+            val expend =
+                board.bridge.annotations.snapshot().values.single {
+                    AnnotationType.AbilityWordActive in it.typeList &&
+                        it.detailString("AbilityWordName") == "ExpendedMana"
+                }
+            assertSoftly {
+                expend.affectorId shouldBe duoIid
+                expend.affectedIdsList shouldBe listOf(duoIid)
+                expend.detailInt("value") shouldBe 4
+                expend.detailInt("threshold") shouldBe 4
+                expend.detailInt("AbilityGrpId") shouldBe 174034
+            }
+        }
+
+        test("multi-threshold Expend source retains one persistent row per trigger ability") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Muerra, Trash Tactician", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+
+            fun expendRows() =
+                board.bridge.annotations.snapshot().values.filter {
+                    AnnotationType.AbilityWordActive in it.typeList &&
+                        it.detailString("AbilityWordName") == "ExpendedMana"
+                }
+
+            assertSoftly {
+                expendRows() shouldHaveSize 2
+                expendRows().map { it.detailInt("threshold") }.toSet() shouldBe setOf(4, 8)
+                expendRows().map { it.detailInt("AbilityGrpId") }.toSet() shouldBe setOf(174143, 174144)
+                expendRows().map { it.detailInt("value") }.toSet() shouldBe setOf(0)
+            }
+
+            human.expentThisTurn = 4
+            board.snapshotDiff {}
+            assertSoftly {
+                expendRows() shouldHaveSize 2
+                expendRows().map { it.detailInt("threshold") }.toSet() shouldBe setOf(4, 8)
+                expendRows().map { it.detailInt("value") }.toSet() shouldBe setOf(4)
+            }
+        }
+
+        test("Devotion persistent row updates across the five-symbol threshold") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Heliod, Sun-Crowned", human, ZoneType.Battlefield)
+                    repeat(3) { addCard("Savannah Lions", human, ZoneType.Battlefield) }
+                    addCard("Savannah Lions", human, ZoneType.Hand)
+                }
+            val human = board.game.humanPlayer
+
+            fun devotionRow() =
+                board.bridge.annotations.snapshot().values.single {
+                    AnnotationType.AbilityWordActive in it.typeList && it.detailString("AbilityWordName") == "Devotion"
+                }
+
+            assertSoftly {
+                devotionRow().detailInt("value") shouldBe 4
+                devotionRow().detailInt("threshold") shouldBe 5
+                devotionRow().detailInt("AbilityGrpId") shouldBe 100654
+            }
+
+            val lion = human.getZone(ZoneType.Hand).cards.first { it.name == "Savannah Lions" }
+            board.snapshotDiff {
+                board.game.action.moveToPlay(
+                    lion,
+                    null,
+                    forge.game.ability.AbilityKey
+                        .newMap(),
+                )
+            }
+            devotionRow().detailInt("value") shouldBe 5
+        }
+
+        test("Descend persistent row updates with permanent cards in graveyard") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("The Everflowing Well", human, ZoneType.Battlefield)
+                    repeat(7) { addCard("Plains", human, ZoneType.Graveyard) }
+                    addCard("Plains", human, ZoneType.Hand)
+                }
+            val human = board.game.humanPlayer
+
+            fun descendRow() =
+                board.bridge.annotations.snapshot().values.single {
+                    AnnotationType.AbilityWordActive in it.typeList && it.detailString("AbilityWordName") == "Descend"
+                }
+
+            assertSoftly {
+                descendRow().detailInt("value") shouldBe 7
+                descendRow().detailInt("threshold") shouldBe 8
+                descendRow().detailInt("AbilityGrpId") shouldBe 169501
+            }
+
+            val plains = human.getZone(ZoneType.Hand).cards.first { it.name == "Plains" }
+            board.snapshotDiff { board.game.action.moveToGraveyard(plains, null) }
+            descendRow().detailInt("value") shouldBe 8
+        }
+
+        test("spell-count persistent row crosses two and resets") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Reverberating Summons", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            val source = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Reverberating Summons" }
+            val castAbility = source.firstSpellAbility.also { it.activatingPlayer = human }
+
+            fun spellCountRow() =
+                board.bridge.annotations.snapshot().values.single {
+                    AnnotationType.AbilityWordActive in it.typeList &&
+                        it.detailString("AbilityWordName") == "NumberOfSpellsCast"
+                }
+
+            assertSoftly {
+                spellCountRow().detailInt("value") shouldBe 0
+                spellCountRow().detailInt("threshold") shouldBe 2
+                spellCountRow().detailInt("AbilityGrpId") shouldBe 188817
+            }
+
+            board.snapshotDiff {
+                board.game.stack.spellsCastThisTurn
+                    .addAll(listOf(castAbility, castAbility))
+            }
+            spellCountRow().detailInt("value") shouldBe 2
+            board.snapshotDiff {
+                board.game.stack.spellsCastThisTurn
+                    .clear()
+            }
+            spellCountRow().detailInt("value") shouldBe 0
+        }
+
         test("Morbid pAnn has seatId affectorId and morbid permanents in affectedIds") {
             val board =
                 startWithBoard { _, human, ai ->

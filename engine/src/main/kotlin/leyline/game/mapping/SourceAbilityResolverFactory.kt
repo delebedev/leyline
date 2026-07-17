@@ -1,7 +1,9 @@
 package leyline.game.mapping
 
 import forge.game.Game
+import forge.game.zone.ZoneType
 import leyline.bridge.findCard
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.data.KeywordAbilityIds
@@ -61,6 +63,27 @@ object SourceAbilityResolverFactory {
                 registry.forStaticAbility(st.definitionId)?.let { return@resolver GrpId(it) }
             }
             null
+        }
+    }
+
+    /** Resolves a continuous keyword grant to the permanent that owns its Forge static ability. */
+    fun buildKeywordAffector(
+        bridge: GameBridge,
+        fallback: () -> InstanceId,
+    ): (String, Long, Long) -> InstanceId {
+        val game = bridge.getGame() ?: return { _, _, _ -> fallback() }
+        return resolver@{ _, _, staticId ->
+            if (staticId in 1..Int.MAX_VALUE.toLong()) {
+                val source =
+                    game.players
+                        .asSequence()
+                        .flatMap { it.getZone(ZoneType.Battlefield).cards.asSequence() }
+                        .firstOrNull { card -> card.staticAbilities?.any { it.id == staticId.toInt() } == true }
+                if (source != null) {
+                    return@resolver bridge.getOrAllocInstanceId(ForgeCardId(source.id))
+                }
+            }
+            fallback()
         }
     }
 }

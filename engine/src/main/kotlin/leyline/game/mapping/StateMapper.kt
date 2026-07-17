@@ -125,6 +125,8 @@ object StateMapper {
         /** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */
         val mutations: BridgeMutations,
         val annotationFrameDraft: AnnotationFrameDraft?,
+        /** Existing objects that must be re-emitted for state projected outside [CardSnapshot]. */
+        val objectRefreshInstanceIds: Set<Int>,
     ) {
         fun finalizeAnnotations(riders: List<AnnotationInfo> = emptyList()): BuildResult {
             val draft = checkNotNull(annotationFrameDraft) { "Annotation frame is already finalized" }
@@ -536,6 +538,10 @@ object StateMapper {
             gsm = built,
             mutations = mutations,
             annotationFrameDraft = AnnotationFrameDraft(startAnnotationId, frameIds),
+            objectRefreshInstanceIds =
+                (keywordDiff.created + keywordDiff.destroyed)
+                    .map { it.cardInstanceId }
+                    .toSet(),
         )
     }
 
@@ -737,7 +743,9 @@ object StateMapper {
                 bridge,
             )
         val changedInstanceIds =
-            changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet() + changedDisturbBackIds
+            changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet() +
+                changedDisturbBackIds +
+                fullResult.objectRefreshInstanceIds
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
         val prevInstanceIds =
             prev.objects.keys
@@ -864,7 +872,12 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return BuildResult(built, fullResult.mutations, fullResult.annotationFrameDraft)
+        return BuildResult(
+            gsm = built,
+            mutations = fullResult.mutations,
+            annotationFrameDraft = fullResult.annotationFrameDraft,
+            objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
+        )
     }
 
     private fun redactOpponentSideboardZone(
