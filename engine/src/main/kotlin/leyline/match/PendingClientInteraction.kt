@@ -16,6 +16,7 @@ sealed interface PendingClientInteraction {
         val promptId: String,
         val childGrpIds: List<Int>,
         val stackAbilityInstanceId: Int? = null,
+        val sourceForgeCardId: ForgeCardId? = null,
     ) : PendingClientInteraction
 
     data class TargetSelection(

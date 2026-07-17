@@ -1,0 +1,8 @@
+name: "Nine-Lives Familiar"
+grpId: 93779
+titleId: 950196
+abilities:
+  - id: 175823
+    textId: 950197
+    category: 2
+expansionCode: "FDN"

@@ -1,6 +1,25 @@
 name: modal-warmup
 description: Modal, optional-cost, optional-action, and static-choice prompt smoke.
 scenarios:
+  - id: charming-prince-flicker
+    puzzle: charming-prince-flicker
+    run: cast Charming Prince and choose its exile mode; Grizzly Bears is the only legal target
+    expect: Grizzly Bears waits in exile with a visible next-end-step return indicator
+    steps:
+      - expect:
+          action: { type: cast, card: Charming Prince }
+      - cast: Charming Prince
+      - pass_until:
+          prompt: CastingTimeOptionsReq
+      - modal_choice: { index: 2, count: 3 }
+      - expect:
+          all:
+            - annotation_seen: DisplayCardUnderCard
+            - annotation_seen: DelayedTriggerAffectees
+            - annotation_seen: TemporaryPermanent
+            - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Charming Prince }
+            - stack_empty: true
   - id: cleave-path-of-peril
     puzzle: cleave-path-of-peril
     run: cast Path of Peril with Cleave

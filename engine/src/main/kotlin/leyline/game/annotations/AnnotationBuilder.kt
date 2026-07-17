@@ -1590,14 +1590,14 @@ object AnnotationBuilder {
      *   trigger fires.
      * @param abilityGrpId the cleanup-trigger ability's grpId (e.g. 189931 for
      *   Mobilize 1's "Sacrifice them at the beginning of the next end step").
-     * @param removesFromZone 1 for triggers that remove the affected from the
-     *   battlefield (Mobilize sacrifice, exile-and-return Warps); 0 otherwise.
+     * @param removesFromZone optional zone-removal marker. Omitted for return
+     *   triggers; set to 1 for cleanup triggers such as Mobilize sacrifice.
      */
     fun delayedTriggerAffectees(
         triggerHolderId: InstanceId,
         tokenInstanceIds: List<InstanceId>,
         abilityGrpId: GrpId,
-        removesFromZone: Int = 1,
+        removesFromZone: Int? = 1,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1605,7 +1605,7 @@ object AnnotationBuilder {
             .setAffectorId(triggerHolderId.value)
             .also { b -> tokenInstanceIds.forEach { b.addAffectedIds(it.value) } }
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
-            .addDetails(int32Detail(DetailKeys.REMOVES_FROM_ZONE, removesFromZone))
+            .also { b -> removesFromZone?.let { b.addDetails(int32Detail(DetailKeys.REMOVES_FROM_ZONE, it)) } }
             .build()
 
     /** Card in hidden zone revealed to opponent. Persistent badge. client type 75. */

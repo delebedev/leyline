@@ -1,5 +1,7 @@
 package leyline.game.state
 
+import leyline.bridge.types.ForgeCardId
+
 /**
  * Cross-GSM lifecycle tracker for transient `TriggerHolder` gameObjects (proto
  * `GameObjectType.TriggerHolder`, grpId=5). Each holder represents a
@@ -52,6 +54,11 @@ class DelayedTriggerHolderTracker {
      *  GSM and dropping the iid would orphan the cached object). */
     fun activeIids(): Set<Int> = active.keys.toSet()
 
+    fun activeRecords(): List<HolderRecord> = active.values.toList()
+
+    /** Holder rows for iids leaving the pending state in the current frame. */
+    fun records(iids: Collection<Int>): List<HolderRecord> = iids.mapNotNull(active::get)
+
     /** Wipe all tracked state. Called from [leyline.game.state.GameBridge.resetForPuzzle]
      *  so a hot-swapped puzzle doesn't inherit holders from the previous match. */
     fun resetAll() {
@@ -84,6 +91,8 @@ data class HolderRecord(
     val objectSourceGrpId: Int,
     val parentIid: Int,
     val cleanupGrpId: Int,
+    val sourceForgeCardId: ForgeCardId? = null,
+    val runtimeTriggerId: Int? = null,
 )
 
 /** Diff result from [DelayedTriggerHolderTracker.computeBatch]. */
