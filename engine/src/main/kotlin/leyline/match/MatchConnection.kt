@@ -319,6 +319,9 @@ class MatchConnection(
     private fun processGREMessage(greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
 
+        val activeSession = session
+        if (activeSession != null && ResponseEnvelopeGuard.rejectMismatch(greMsg, activeSession.counter, activeSession)) return
+
         // Pre-session messages drive the handshake/mulligan flow, which read session
         // state defensively through providers. Everything else is a post-handshake
         // game action that requires a live session — dispatched against Connected.
@@ -462,6 +465,7 @@ class MatchConnection(
             )
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
+        leyline.game.bundle.markPrompts(s.counter, msg)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
         output.send(msg)

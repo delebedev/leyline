@@ -71,6 +71,15 @@ class ParadigmLifecycleTest :
                 .cards
                 .any { it.name == "Germination Practicum" }
                 .shouldBeTrue()
+            val pendingHolder =
+                gsms()
+                    .flatMap { it.gameObjectsList }
+                    .firstOrNull {
+                        it.type == GameObjectType.TriggerHolder &&
+                            it.objectSourceGrpId == GERMINATION_PRACTICUM &&
+                            it.uniqueAbilitiesList.any { ability -> ability.grpId == PARADIGM_COPY_TRIGGER }
+                    }
+            pendingHolder shouldNotBe null
 
             val sawFreeCopyCast =
                 harness.passUntil(maxPasses = 30) {
@@ -115,6 +124,8 @@ class ParadigmLifecycleTest :
 
                 triggerObject shouldNotBe null
                 triggerObject?.parentId shouldBe originalStackIid
+                pendingHolder?.parentId shouldBe originalStackIid
+                allGsms.none { pendingHolder?.instanceId in it.diffDeletedInstanceIdsList }.shouldBeTrue()
 
                 allAnnotations
                     .firstOrNull {

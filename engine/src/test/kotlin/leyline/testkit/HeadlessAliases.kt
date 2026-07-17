@@ -73,7 +73,10 @@ fun submitBlockersReq(seatId: Int = 1): ClientToGREMessage = leyline.tooling.hea
 fun assignDamageResp(assigners: List<Pair<Int, List<Pair<Int, Int>>>>): ClientToGREMessage =
     leyline.tooling.headless.assignDamageResp(assigners)
 
-fun selectTargetsResp(targets: List<Int>): ClientToGREMessage = leyline.tooling.headless.selectTargetsResp(targets)
+fun selectTargetsResp(
+    targets: List<Int>,
+    targetIdx: Int = 1,
+): ClientToGREMessage = leyline.tooling.headless.selectTargetsResp(targets, targetIdx)
 
 fun cancelActionReq(): ClientToGREMessage = leyline.tooling.headless.cancelActionReq()
 

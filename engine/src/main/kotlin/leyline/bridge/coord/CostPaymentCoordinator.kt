@@ -15,6 +15,7 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.interaction.ConvokeOrImproviseCostPlan
 import leyline.bridge.interaction.ConvokeOrImproviseCostPlanner
@@ -106,6 +107,7 @@ class CostPaymentCoordinator(
     ): PromptRequest {
         val includeManaFields = plan.manaFieldsPolicy.shouldInclude
         val displayedCost = if (includeManaFields) manaCost.toColorCounts() else emptyList()
+        val candidateRefs = plan.candidateRefsPolicy.candidateRefs(untappedCards.toCandidateRefs())
         return PromptRequest(
             promptType = "choose_cards",
             message = "Choose cards to tap for ${plan.keyword}",
@@ -113,8 +115,8 @@ class CostPaymentCoordinator(
             min = 0,
             max = plan.maxSelection,
             defaultIndex = 0,
-            semantic = plan.semantic,
-            candidateRefs = plan.candidateRefsPolicy.candidateRefs(untappedCards.toCandidateRefs()),
+            candidateRefs = candidateRefs,
+            route = PromptRouteResolver.resolve(plan.semantic, candidateRefs.isNotEmpty()),
             sourceEntityId = sa.hostCard?.id,
             sourceCardName = sa.hostCard?.name,
             waterbendManaCost = displayedCost,

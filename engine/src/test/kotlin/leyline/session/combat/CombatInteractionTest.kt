@@ -30,6 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
 import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
@@ -674,6 +675,7 @@ class CombatInteractionTest :
             // Echo should also contain a fresh DeclareAttackersReq
             val echoReq = echoMsgs.firstOrNull { it.hasDeclareAttackersReq() }
             echoReq.shouldNotBeNull()
+            echoReq.msgId shouldBeGreaterThan echoMsgs.first { it.hasGameStateMessage() }.msgId
 
             // Conformance: committed attackers have selectedDamageRecipient set
             val echoAttacker =
@@ -692,19 +694,39 @@ class CombatInteractionTest :
             echoReq.declareAttackersReq.manaCostCount shouldBeGreaterThan 0
         }
 
+        test("unselected attacker without a damage recipient is rejected") {
+            val attackerIid = setupSingleAttacker()
+            passPriority()
+            val before = messageSnapshot()
+
+            harness.session.onDeclareAttackers(
+                harness.submitWithGsId(leyline.testkit.declareAttackersResp(attackers = listOf(attackerIid))),
+            )
+            harness.drainSink()
+
+            val messages = messagesSince(before)
+            val rejection = messages.single { it.type == GREMessageType.IllegalRequest }
+            rejection.illegalRequestMessage.reason shouldBe FailureReason.UnexpectedMessage
+            val rePrompt = messages.last { it.hasDeclareAttackersReq() }
+            rePrompt.declareAttackersReq.attackersList
+                .first { it.attackerInstanceId == attackerIid }
+                .hasSelectedDamageRecipient()
+                .shouldBeFalse()
+        }
+
         test("echo back deselect clears selectedDamageRecipient") {
             val attackerIid = setupSingleAttacker()
 
             passPriority() // advance to combat
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // Toggle ON (XOR: not committed → committed)
+            // Select with an explicit damage recipient.
             val onMsgs = toggleAttackers(listOf(attackerIid))
             val onReq = onMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             onReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(true)
 
-            // Toggle OFF (XOR same ID: committed → deselected)
-            val offMsgs = toggleAttackers(listOf(attackerIid))
+            // Deselect by omitting selectedDamageRecipient.
+            val offMsgs = deselectAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             offReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(false)
         }
@@ -718,8 +740,8 @@ class CombatInteractionTest :
             // Toggle ON
             toggleAttackers(listOf(attackerIid))
 
-            // Toggle OFF (XOR same ID → deselects)
-            val echoMsgs = toggleAttackers(listOf(attackerIid))
+            // Deselect by omitting selectedDamageRecipient.
+            val echoMsgs = deselectAttackers(listOf(attackerIid))
 
             val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
             echoGsm.shouldNotBeNull()
@@ -743,13 +765,12 @@ class CombatInteractionTest :
             passPriority() // advance to combat
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // XOR toggle semantics
-            // Toggle A on: {} XOR {A} → {A}
+            // Select A.
             toggleAttackers(listOf(iidA))
-            // Toggle B on: {A} XOR {B} → {A, B}
+            // Select B while retaining A.
             toggleAttackers(listOf(iidB))
-            // Toggle A off: {A, B} XOR {A} → {B}
-            toggleAttackers(listOf(iidA))
+            // Deselect A.
+            deselectAttackers(listOf(iidA))
 
             // Submit with B only
             submitAttackers()

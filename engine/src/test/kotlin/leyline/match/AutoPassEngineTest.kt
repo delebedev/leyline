@@ -11,9 +11,14 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.PendingActionState
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
+import leyline.bridge.types.SeatId
+import leyline.game.state.GameBridge
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.NumericInputHandler
@@ -26,7 +31,31 @@ import leyline.testkit.settingsMessage
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
+import kotlin.concurrent.thread
 import kotlin.time.Duration.Companion.seconds
+
+private fun openPriorityWindow(bridge: GameBridge): GameActionBridge.PendingAction {
+    val actionBridge = bridge.actionBridge(SeatId(1))
+    thread(isDaemon = true, name = "auto-pass-test-priority") {
+        actionBridge.awaitAction(
+            PendingActionState(
+                phase = "Main1",
+                turn = 1,
+                activePlayerId = 1,
+                priorityPlayerId = 1,
+            ),
+        )
+    }
+    bridge.awaitPriority()
+    return checkNotNull(actionBridge.getPending())
+}
+
+private fun closePriorityWindow(
+    bridge: GameBridge,
+    pending: GameActionBridge.PendingAction,
+) {
+    bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
+}
 
 /**
  * Unit tests for [AutoPassEngine] decision logic.
@@ -102,7 +131,7 @@ class AutoPassEngineTest :
             }
         }
 
-        test("shouldCheckHumanActions — AI turn waits for pending human priority") {
+        test("shouldCheckHumanActions waits for a pending priority window on either turn") {
             val (bridge, game, counter) =
                 startWithBoard { _, human, ai ->
                     addCard("Burst Lightning", human, ZoneType.Hand)
@@ -125,7 +154,10 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            engine.shouldCheckHumanActions(isAiTurn = true) shouldBe false
+            assertSoftly {
+                engine.shouldCheckHumanActions(isAiTurn = true) shouldBe false
+                engine.shouldCheckHumanActions(isAiTurn = false) shouldBe false
+            }
         }
 
         test("checkHumanActions — AI turn with only sorcery-speed hand actions skips") {
@@ -445,6 +477,7 @@ class AutoPassEngineTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
+            val pending = openPriorityWindow(bridge)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -463,10 +496,12 @@ class AutoPassEngineTest :
 
             ops.sendRealGameStateCount shouldBe 1
             ops.sendGameOverCount shouldBe 0
+            closePriorityWindow(bridge, pending)
         }
 
         test("autoPassAndAdvance — full control grants priority on empty board") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
+            val pending = openPriorityWindow(bridge)
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -487,6 +522,7 @@ class AutoPassEngineTest :
             engine.autoPassAndAdvance()
 
             ops.sendRealGameStateCount shouldBe 1
+            closePriorityWindow(bridge, pending)
         }
 
         // --- autoPassAndAdvance: combat signal tests ---
@@ -536,6 +572,7 @@ class AutoPassEngineTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
+            val pending = openPriorityWindow(bridge)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =
@@ -570,10 +607,16 @@ class AutoPassEngineTest :
             // Human turn + real actions → sendRealGameState from SEND_STATE path
             ops.sendRealGameStateCount shouldBe 1
             ops.sendGameOverCount shouldBe 0
+            closePriorityWindow(bridge, pending)
         }
 
-        test("autoPassAndAdvance — SEND_STATE with pass-only actions emits state-only bundle") {
-            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
+        test("autoPassAndAdvance — SEND_STATE without a pending window emits state only") {
+            val (bridge, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
 
             val stubCombat =

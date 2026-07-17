@@ -1,0 +1,16 @@
+name: "Splinter, Hamato Yoshi"
+grpId: 100536
+titleId: 1104573
+abilities:
+  - id: 203130
+    textId: 1104567
+    category: 8
+    baseId: 394
+    mana: "oB"
+  - id: 142
+    textId: 102
+    category: 3
+  - id: 203133
+    textId: 1104575
+    category: 3
+expansionCode: "TMT"

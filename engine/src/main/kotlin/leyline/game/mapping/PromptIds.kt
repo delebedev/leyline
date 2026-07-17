@@ -90,6 +90,12 @@ object PromptIds {
      */
     const val SELECT_N_STOCK_UP = 2490
 
+    /** Manifest Dread: choose one of the top two cards to manifest. */
+    const val MANIFEST_DREAD = 13125
+
+    /** Inner prompt parameter used by Manifest Dread's resolution picker. */
+    const val MANIFEST_DREAD_INNER_PARAMETER = 1
+
     /** Brainstorm-style putback prompt: choose cards to put into your library before ordering. */
     const val SELECT_N_LIBRARY_PUTBACK = 2035
 

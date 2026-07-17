@@ -3,6 +3,7 @@ package leyline.game.mapping
 import forge.card.mana.ManaCost
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.SpellAbility
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.game.data.BasicLandAbilities
@@ -42,6 +43,12 @@ internal object ActivatedActionEmitter {
         ABILITY_ONLY(includesSourceIdentity = false, activeShouldStop = false, activeManaCost = true),
     }
 
+    data class ManaAction(
+        val action: Action,
+        val abilityIndex: Int,
+        val ability: SpellAbility,
+    )
+
     @Suppress("LongParameterList")
     fun emitPlayableNonManaActivatedAbilities(
         builder: ActionsAvailableReq.Builder,
@@ -53,11 +60,13 @@ internal object ActivatedActionEmitter {
         envelope: Envelope,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
         autoTapSolution: (ManaCost) -> AutoTapSolution? = { null },
-        skipDisguiseTurnFaceUp: Boolean = false,
+        skipSpecialTurnFaceUp: Boolean = false,
+        onActive: (Action, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
+        abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
     ) {
-        for (ability in getNonManaActivatedAbilities(card, player)) {
+        for ((abilityIndex, ability) in abilities.withIndex()) {
             if (!ability.canPlay()) continue
-            if (skipDisguiseTurnFaceUp && ability.isDisguiseUp) continue
+            if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
             val canPay = ActionManaCosts.canPayManaCost(ability, player)
             val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
             val autoTap =
@@ -70,7 +79,7 @@ internal object ActivatedActionEmitter {
             val actionGrpId = grpId()
             val actionCardData = cardData(actionGrpId)
             val registry = abilityRegistryLookup(card, actionCardData)
-            val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+            val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
@@ -81,10 +90,12 @@ internal object ActivatedActionEmitter {
                 autoTapSolution = autoTap,
                 canPay = canPay,
                 envelope = envelope,
+                onActive = { action -> onActive(action, abilityIndex, ability, abilityGrpId) },
             )
         }
     }
 
+    @Suppress("LongParameterList") // protocol identity, cost, and exact-source callback form one action emission.
     fun emitActivatedAbilityAction(
         builder: ActionsAvailableReq.Builder,
         instanceId: Int,
@@ -95,6 +106,7 @@ internal object ActivatedActionEmitter {
         autoTapSolution: AutoTapSolution? = null,
         canPay: Boolean,
         envelope: Envelope,
+        onActive: (Action) -> Unit = {},
     ) {
         val actionBuilder =
             Action
@@ -116,7 +128,9 @@ internal object ActivatedActionEmitter {
         }
         autoTapSolution?.let(actionBuilder::setAutoTapSolution)
         if (canPay) {
-            builder.addActions(actionBuilder)
+            val action = actionBuilder.build()
+            builder.addActions(action)
+            onActive(action)
         } else {
             builder.addInactiveActions(actionBuilder)
         }
@@ -128,14 +142,23 @@ internal object ActivatedActionEmitter {
         grpId: Int,
         cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): List<Action> {
+    ): List<Action> = buildActivateManaActions(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup).map { it.action }
+
+    fun buildActivateManaActions(
+        card: Card,
+        instanceId: Int,
+        grpId: Int,
+        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+        abilities: List<SpellAbility> = getPlayableManaAbilities(card, card.controller),
+    ): List<ManaAction> {
         val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
         val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
-        return getPlayableManaAbilities(card, card.controller).mapNotNull { sa ->
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
+        return abilities.mapIndexedNotNull { abilityIndex, sa ->
+            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
             val colors = producedManaColors(sa)
-            if (colors.isEmpty()) return@mapNotNull null
+            if (colors.isEmpty()) return@mapIndexedNotNull null
 
             val actionBuilder =
                 Action
@@ -186,7 +209,7 @@ internal object ActivatedActionEmitter {
             }
             actionBuilder.addManaSelections(selection)
 
-            actionBuilder.build()
+            ManaAction(actionBuilder.build(), abilityIndex, sa)
         }
     }
 
@@ -210,7 +233,7 @@ internal object ActivatedActionEmitter {
         return card.manaAbilities.mapNotNull { sa ->
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: basicLandAbilityGrpId(card)
+            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
             val actionBuilder =
                 Action
                     .newBuilder()

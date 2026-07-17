@@ -58,16 +58,28 @@ class ChooseSingleEntityPlannerTest :
                 planFor(changeZoneSa(), hiddenLibrarySelection = false).semantic shouldBe PromptSemantic.SelectNResolution
                 planFor(genericSa(), hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
                 planFor(learnSa()).semantic shouldBe PromptSemantic.LearnLesson
+                planFor(manifestDreadSa()).semantic shouldBe PromptSemantic.ManifestDread
                 planFor(genericSa()).semantic shouldBe PromptSemantic.SelectNResolution
             }
         }
 
-        test("Learn is the only regular path that includes source id") {
+        test("source-aware paths include the host card id") {
             assertSoftly {
                 planFor(learnSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                planFor(manifestDreadSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
                 planFor(legendRuleSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
                 planFor(changeZoneSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
                 planFor(genericSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
+            }
+        }
+
+        test("Manifest Dread includes selectable and unfiltered candidates") {
+            val plan = planFor(manifestDreadSa())
+
+            assertSoftly(plan) {
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                candidateRefsPolicy.candidateRefs(refs) shouldBe refs
+                candidateRefsPolicy.unfilteredRefs(refs, semantic) shouldBe refs
             }
         }
 
@@ -116,6 +128,8 @@ private fun legendRuleSa(): SpellAbility = abilitySub(ApiType.InternalLegendaryR
 private fun changeZoneSa(): SpellAbility = abilitySub(ApiType.ChangeZone)
 
 private fun learnSa(): SpellAbility = abilitySub(ApiType.Learn)
+
+private fun manifestDreadSa(): SpellAbility = abilitySub(ApiType.ManifestDread)
 
 private fun genericSa(): SpellAbility = abilitySub(ApiType.ChooseCard)
 

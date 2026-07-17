@@ -15,13 +15,12 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
-import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
-import leyline.game.codes.SlotKind
-import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
@@ -29,6 +28,7 @@ import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.ConcurrentHashMap
+import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
 
 /**
  * Subscribes to the Forge engine's Guava EventBus and converts rich Java
@@ -252,7 +252,33 @@ class GameEventCollector(
         // The SA's Forge id is needed for both triggered and activated abilities;
         // both surface through the AbilityInstance lifecycle path keyed on it.
         val abilityForgeId = if (isTrigger || isAbility) spellAbilityId else 0
-        val abilityGrpId = if ((isTrigger || isAbility) && realCard != null) abilityGrpIdFor(realCard, topSa, isTrigger) else 0
+        val abilityDefinition =
+            when {
+                !isTrigger && !isAbility -> null
+                isTrigger ->
+                    topSa?.trigger?.definitionId?.let { AbilityDefinitionRef.Trigger(it) }
+                        ?: ev
+                            .sa()
+                            .sourceTriggerDefinitionId
+                            .takeIf { it > 0 }
+                            ?.let { AbilityDefinitionRef.Trigger(it) }
+                else -> AbilityDefinitionRef.SpellAbility(topSa?.definitionId ?: ev.sa().definitionId)
+            }
+        val abilityIdentity =
+            if (realCard != null && abilityDefinition != null) {
+                abilityIdentityFor(realCard, topSa, abilityDefinition, isTrigger)
+            } else {
+                null
+            }
+        val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
+        if ((isTrigger || isAbility) && abilityIdentity == null) {
+            log.warn(
+                "ability identity unresolved at cast card={} runtimeId={} definition={}",
+                card.name,
+                abilityForgeId,
+                abilityDefinition,
+            )
+        }
         val triggeringObjectCardId =
             if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
                 enlistTriggerObjectFor(ForgeCardId(card.id), topSa)
@@ -270,11 +296,11 @@ class GameEventCollector(
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
         }
         if (isTrigger && abilityForgeId != 0) {
-            pendingStackAbilities.recordTrigger(abilityForgeId, ForgeCardId(card.id), abilityGrpId)
+            pendingStackAbilities.recordTrigger(abilityForgeId, ForgeCardId(card.id), abilityIdentity)
         } else if (isAbility && abilityForgeId != 0) {
-            pendingStackAbilities.recordActivation(abilityForgeId, ForgeCardId(card.id), abilityGrpId)
+            pendingStackAbilities.recordActivation(abilityForgeId, ForgeCardId(card.id), abilityIdentity)
         }
-        bridge.recordStackAbilityGrpId(abilityForgeId, abilityGrpId)
+        abilityIdentity?.let { bridge.recordStackAbilityIdentity(abilityForgeId, it) }
         // Activation zone: only meaningful for activated abilities (cycling →
         // Hand=31; unearth → Graveyard=33; …). Triggered abilities' "source
         // zone" is wherever the source card lives, computed elsewhere.
@@ -300,6 +326,7 @@ class GameEventCollector(
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
                 abilityGrpId = abilityGrpId,
+                abilityIdentity = abilityIdentity,
                 triggeringObjectCardId = triggeringObjectCardId,
                 triggeringObjectInstanceId = triggeringObjectInstanceId,
                 activationZoneId = activationZoneId,
@@ -339,83 +366,25 @@ class GameEventCollector(
             else -> null
         }
 
-    private fun abilityGrpIdFor(
+    private fun abilityIdentityFor(
         card: Card,
         sa: SpellAbility?,
+        definition: AbilityDefinitionRef,
         isTrigger: Boolean,
-    ): Int {
-        if (sa == null) return 0
+    ): ResolvedAbilityIdentity? {
         if (isTrigger &&
+            sa != null &&
             card.hasKeyword("Enlist") &&
             enlistTriggerObjectFor(ForgeCardId(card.id), sa, consumePending = false) != null
         ) {
-            return KeywordAbilityIds.ENLIST
+            return ResolvedAbilityIdentity(definition, KeywordAbilityIds.ENLIST)
         }
-        return specialAbilityGrpIdFor(card, sa)
-            ?: decayedAbilityGrpIdFor(card, sa)
-            ?: namedAbilityGrpIdFor(card, sa)
+        if (sa != null) {
+            specialAbilityGrpIdFor(card, sa)?.let { return ResolvedAbilityIdentity(definition, it) }
+            decayedAbilityGrpIdFor(card, sa)?.let { return ResolvedAbilityIdentity(definition, it) }
+        }
+        return bridge.resolveAbilityIdentity(card, definition)
     }
-
-    private fun namedAbilityGrpIdFor(
-        card: Card,
-        sa: SpellAbility,
-    ): Int {
-        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return 0
-        if (isBackupTrigger(sa)) {
-            return bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.BACKUP) ?: 0
-        }
-        if (isMentorTrigger(sa)) return KeywordAbilityIds.MENTOR
-        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return 0
-        val registry = bridge.abilityRegistryFor(card, cardData)
-        sa.trigger?.id?.let { triggerId ->
-            registry?.forTrigger(triggerId)?.takeIf { it != 0 }?.let { return it }
-        }
-        registry?.forSpellAbility(sa.id)?.takeIf { it != 0 }?.let { return it }
-        return activatedGrpIdByShape(card, sa, cardData)
-    }
-
-    private fun activatedGrpIdByShape(
-        card: Card,
-        sa: SpellAbility,
-        cardData: CardData,
-    ): Int {
-        val player = card.controller ?: return 0
-        val activated = getNonManaActivatedAbilities(card, player)
-        val activatedSlotGrpIds = activatedSlotGrpIds(cardData)
-        if (activated.isEmpty() || activated.size != activatedSlotGrpIds.size) return 0
-        val matches =
-            activated.mapIndexedNotNull { index, ability ->
-                val sameShape =
-                    ability.api == sa.api &&
-                        ability.payCosts?.toSimpleString() == sa.payCosts?.toSimpleString()
-                if (sameShape) index else null
-            }
-        val index =
-            matches.singleOrNull() ?: run {
-                log.debug(
-                    "activated event ability grpId unresolved by shape card={} saId={} api={} cost={} matches={} activatedSlots={}",
-                    card.name,
-                    sa.id,
-                    sa.api,
-                    sa.payCosts?.toSimpleString(),
-                    matches,
-                    activatedSlotGrpIds,
-                )
-                return 0
-            }
-        return activatedSlotGrpIds.getOrNull(index) ?: 0
-    }
-
-    private fun activatedSlotGrpIds(cardData: CardData): List<Int> =
-        cardData.abilityIds.mapIndexedNotNull { index, (grpId, _) ->
-            val kind = cardData.abilityKinds.getOrNull(index)
-            if (kind == SlotKind.Activated || (cardData.abilityKinds.isEmpty() && index >= 0)) grpId else null
-        }
-
-    private fun isBackupTrigger(sa: SpellAbility): Boolean =
-        sa.isBackup || sa.trigger?.getParam("TriggerDescription")?.startsWith("Backup ") == true
-
-    private fun isMentorTrigger(sa: SpellAbility): Boolean = sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
 
     private fun specialAbilityGrpIdFor(
         card: Card,
@@ -648,28 +617,11 @@ class GameEventCollector(
         val context = pendingStackAbilities.consume(saId)
         val isTrigger = context?.kind == PendingStackAbilityKind.Trigger
         val isAbility = context?.kind == PendingStackAbilityKind.Activation
-        val abilityGrpId = context?.abilityGrpId ?: 0
+        val bridgedIdentity = bridge.consumeStackAbilityIdentity(saId)
+        val abilityIdentity = context?.identity ?: bridgedIdentity
+        val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
         val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
-        val liveCard = bridge.findCard(ForgeCardId(card.id))
-        val liveSa = findLiveSaOnCard(card.id, saId)
-        if (!ev.hasFizzled() && liveSa?.api == ApiType.Earthbend && liveCard != null) {
-            val targetIds =
-                liveSa.targets
-                    ?.targetCards
-                    ?.map { ForgeCardId(it.id) }
-                    .orEmpty()
-            val earthbendAbilityGrpId =
-                abilityGrpId.takeIf { it != 0 }
-                    ?: abilityGrpIdFor(liveCard, liveSa, isTrigger = false).takeIf { it != 0 }
-                    ?: bridge.cardRepository.findGrpIdByName(card.name)
-                    ?: 0
-            bridge.recordEarthbendResolution(
-                sourceCardId = ForgeCardId(card.id),
-                sourceAbilityGrpId = earthbendAbilityGrpId,
-                abilityForgeId = if (isTrigger || isAbility) saId else 0,
-                targetCardIds = targetIds,
-            )
-        }
+        recordEarthbendResolution(card, saId, isTrigger || isAbility, abilityGrpId, ev.hasFizzled())
         frame.add(
             GameEvent.SpellResolved(
                 cardId = ForgeCardId(card.id),
@@ -678,6 +630,7 @@ class GameEventCollector(
                 isAbility = isAbility,
                 abilityForgeId = if (isTrigger || isAbility) saId else 0,
                 abilityGrpId = if (isTrigger || isAbility) abilityGrpId else 0,
+                abilityIdentity = if (isTrigger || isAbility) abilityIdentity else null,
                 isParadigmCopy = !isTrigger && !isAbility && paradigmCopyStackIid != 0,
                 stackInstanceId = paradigmCopyStackIid,
                 rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,
@@ -691,6 +644,40 @@ class GameEventCollector(
             isTrigger,
             isAbility,
             if (isTrigger || isAbility) saId else 0,
+        )
+    }
+
+    private fun recordEarthbendResolution(
+        card: CardView,
+        runtimeAbilityId: Int,
+        isStackAbility: Boolean,
+        abilityGrpId: Int,
+        hasFizzled: Boolean,
+    ) {
+        if (hasFizzled) return
+        val liveCard = bridge.findCard(ForgeCardId(card.id))
+        val liveSa = findLiveSaOnCard(card.id, runtimeAbilityId)
+        if (liveSa?.api != ApiType.Earthbend || liveCard == null) return
+        val targetIds =
+            liveSa.targets
+                ?.targetCards
+                ?.map { ForgeCardId(it.id) }
+                .orEmpty()
+        val earthbendAbilityGrpId =
+            abilityGrpId.takeIf { it != 0 }
+                ?: abilityIdentityFor(
+                    liveCard,
+                    liveSa,
+                    AbilityDefinitionRef.SpellAbility(liveSa.definitionId),
+                    isTrigger = false,
+                )?.abilityGrpId
+                ?: bridge.cardRepository.findGrpIdByName(card.name)
+                ?: 0
+        bridge.recordEarthbendResolution(
+            sourceCardId = ForgeCardId(card.id),
+            sourceAbilityGrpId = earthbendAbilityGrpId,
+            abilityForgeId = runtimeAbilityId.takeIf { isStackAbility } ?: 0,
+            targetCardIds = targetIds,
         )
     }
 
@@ -803,6 +790,8 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(ev.source().id),
                 targetCardId = ForgeCardId(ev.card().id),
                 amount = ev.amount(),
+                deathtouch = ev.type() == GameEventCardDamaged.DamageType.Deathtouch,
+                sourceKind = ev.sourceKind().toLeyline(),
             ),
         )
     }
@@ -815,7 +804,8 @@ class GameEventCollector(
                 sourceCardId = ForgeCardId(source.id),
                 targetSeatId = seat,
                 amount = ev.amount(),
-                combat = ev.combat(),
+                sourceKind = ev.sourceKind().toLeyline(),
+                changesLife = !ev.infect(),
             ),
         )
     }
@@ -830,6 +820,13 @@ class GameEventCollector(
             ),
         )
     }
+
+    private fun ForgeDamageSourceKind.toLeyline(): DamageSourceKind =
+        when (this) {
+            ForgeDamageSourceKind.Combat -> DamageSourceKind.Combat
+            ForgeDamageSourceKind.SpellOrAbility -> DamageSourceKind.SpellOrAbility
+            ForgeDamageSourceKind.Fight -> DamageSourceKind.Fight
+        }
 
     override fun visit(ev: GameEventFlipCoin) {
         val flipperView = ev.player() ?: return
@@ -906,9 +903,34 @@ class GameEventCollector(
                 seatId = seat,
                 sourceCardId = sourceId?.let(::ForgeCardId),
                 sourceAbilityForgeId = cause?.abilityId() ?: 0,
+                destruction = destructionCause(ev, ForgeCardId(card.id)),
             ),
         )
         log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
+    }
+
+    /**
+     * A destroy with no causing ability and no activator is the lethal-damage /
+     * deathtouch state-based action — but only when damage evidence exists.
+     * The state-effects pass consumes the card's deathtouch flag before the
+     * destroy event fires, so the same-frame damage events are the signal:
+     * damage lands and the SBA destroy fires inside one event frame. A
+     * deathtouch destroy split across frames would downgrade to LethalDamage —
+     * the marked-damage fallback has no cross-frame deathtouch counterpart.
+     */
+    private fun destructionCause(
+        ev: GameEventCardDestroyed,
+        cardId: ForgeCardId,
+    ): DestructionCause {
+        if (ev.cause() != null || ev.activator() != null) return DestructionCause.Effect
+        val frameDamage =
+            frame.filterIsInstance<GameEvent.DamageDealtToCard>().filter { it.targetCardId == cardId }
+        return when {
+            frameDamage.any { it.deathtouch } -> DestructionCause.Deathtouch
+            frameDamage.isNotEmpty() || (bridge.findCard(cardId)?.damage ?: 0) > 0 ->
+                DestructionCause.LethalDamage
+            else -> DestructionCause.Effect
+        }
     }
 
     // -- Group A+: attachment events --

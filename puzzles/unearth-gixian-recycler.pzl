@@ -12,7 +12,7 @@ HumanLife=20
 AILife=20
 
 humanhand=Gixian Recycler;Lightning Bolt
-humanbattlefield=Swamp;Swamp;Mountain;Mountain;Mountain
+humanbattlefield=Mountain;Mountain;Mountain;Swamp;Swamp;Swamp
 humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
 aibattlefield=Mountain
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

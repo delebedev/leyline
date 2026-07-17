@@ -19,7 +19,8 @@ import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PayCostsRouteKind
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -160,13 +161,8 @@ class ForgeAiPolicy(
 
         val hostCard = sa.hostCard ?: return null
         val cardData = harness.bridge.cardRepository.findByGrpId(grpId) ?: return null
-        val abilityGrpId = harness.bridge.abilityRegistryFor(hostCard, cardData)?.forSpellAbility(sa.id) ?: return null
-        return promptActions.firstOrNull {
-            it.actionType == ActionType.Activate_add3 &&
-                it.instanceId == mappedInstanceId &&
-                it.abilityGrpId == abilityGrpId &&
-                !it.isSkippedBy(skipFingerprints)
-        }
+        val registry = harness.bridge.abilityRegistryFor(hostCard, cardData) ?: return null
+        return chooseActivatedAction(sa, registry, mappedInstanceId, promptActions, skipFingerprints)
     }
 
     private fun chooseCastVariant(
@@ -340,7 +336,8 @@ class ForgeAiPolicy(
         if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
         val bridge = runCatching { harness.bridge }.getOrNull() ?: return null
         val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
-        if (pending.request.semantic != PromptSemantic.SelectNCostSacrifice) return null
+        val route = pending.request.route as? ResolvedPromptRoute.PayCosts ?: return null
+        if (route.descriptor.kind != PayCostsRouteKind.Sacrifice) return null
         val sa = pending.targetingSa ?: return null
         val costPart =
             sa.payCosts
@@ -428,7 +425,14 @@ class ForgeAiPolicy(
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
         val pending = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
         val sa = pending.targetingSa ?: return null
-        val possible = modalPossibleAbilities(sa, pending.request.modalChoicePossibleFullIndices, modalGrpIds.size) ?: return null
+        val possible =
+            modalPossibleAbilities(
+                sa,
+                pending.request.modalChoice
+                    ?.possible
+                    ?.map { it.fullIndex },
+                modalGrpIds.size,
+            ) ?: return null
         modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
         modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
         val previousSub = sa.subAbility

@@ -6,6 +6,7 @@ import leyline.UnitTag
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptResponseMapper
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
@@ -32,7 +33,7 @@ class TargetingHandlerSelectNTest :
                         promptType = "choose_type",
                         message = "Choose a creature type",
                         options = listOf("Goblin", "Human", "Kithkin"),
-                        semantic = PromptSemantic.StaticSubtypeChoice,
+                        route = PromptRouteResolver.resolve(PromptSemantic.StaticSubtypeChoice),
                         staticOptionIds = listOf(34, 39, 176),
                     ),
                 )
@@ -123,7 +124,7 @@ class TargetingHandlerSelectNTest :
                         options = listOf("A", "B"),
                         min = 2,
                         max = 2,
-                        semantic = PromptSemantic.SelectNSacrificeEffect,
+                        route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         sourceEntityId = 77,
                         candidateRefs =
                             listOf(
@@ -161,7 +162,7 @@ class TargetingHandlerSelectNTest :
                         promptType = "choose_cards",
                         message = "Choose a creature",
                         options = listOf("A"),
-                        semantic = PromptSemantic.SuspectChoice,
+                        route = PromptRouteResolver.resolve(PromptSemantic.SuspectChoice),
                         sourceEntityId = 77,
                     ),
                 )
@@ -187,7 +188,7 @@ class TargetingHandlerSelectNTest :
                         promptType = "confirm",
                         message = "Odd or even",
                         options = listOf("Odd", "Even"),
-                        semantic = PromptSemantic.StaticParityChoice,
+                        route = PromptRouteResolver.resolve(PromptSemantic.StaticParityChoice),
                         sourceEntityId = 77,
                         staticOptionIds = listOf(2, 1),
                     ),

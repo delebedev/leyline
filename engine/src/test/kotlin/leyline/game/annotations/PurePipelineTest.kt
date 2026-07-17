@@ -18,6 +18,7 @@ import leyline.game.annotations.CombatAnnotations
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
 import leyline.game.annotations.ZoneTransferDetector
+import leyline.game.event.DamageSourceKind
 import leyline.game.event.GameEvent
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -316,7 +317,15 @@ class PurePipelineTest :
         // Test 2: creature-to-creature damage → DamageDealt
         // (PhaseOrStepModified is now emitted event-driven in Stage 2b, not by combatAnnotations)
         test("combatAnnotations produces DamageDealt for creature-to-creature") {
-            val events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3))
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(10),
+                        targetCardId = ForgeCardId(20),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
+                )
 
             val result =
                 CombatAnnotations.combatAnnotations(
@@ -327,6 +336,7 @@ class PurePipelineTest :
                 )
 
             result.hasCombatDamage shouldBe true
+            result.resolutionOwnedAnnotations.shouldBeEmpty()
 
             // DamageDealt is now first (PhaseOrStepModified handled elsewhere)
             val firstType = result.annotations.first().getType(0)
@@ -337,11 +347,88 @@ class PurePipelineTest :
             damageAnnotation.affectedIdsList shouldContain 1020
         }
 
+        test("combatAnnotations does not report noncombat-only damage as combat") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(10),
+                        targetCardId = ForgeCardId(20),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                    ),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(30),
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
+                    ),
+                )
+
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
+                    currentLifeTotals = mapOf(1 to 20, 2 to 18),
+                )
+
+            assertSoftly {
+                result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
+                result.resolutionOwnedAnnotations shouldBe result.annotations
+                result.hasCombatDamage shouldBe false
+            }
+        }
+
+        test("combatAnnotations does not apply combat frame shape to mixed damage") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
+                    ),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(30),
+                        targetSeatId = SeatId(2),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
+                    ),
+                )
+
+            val result =
+                CombatAnnotations.combatAnnotations(
+                    events = events,
+                    idResolver = { fid -> InstanceId(fid.value + 1000) },
+                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
+                    currentLifeTotals = mapOf(1 to 20, 2 to 15),
+                )
+
+            assertSoftly {
+                result.annotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBe 2
+                result.resolutionOwnedAnnotations.shouldBeEmpty()
+                result.hasCombatDamage shouldBe false
+            }
+        }
+
         test("combatAnnotations can keep pre-transfer battlefield ids for lethal combat") {
             val events =
                 listOf(
-                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
-                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(20), targetCardId = ForgeCardId(10), amount = 2),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(10),
+                        targetCardId = ForgeCardId(20),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(20),
+                        targetCardId = ForgeCardId(10),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
                 )
 
             val result =
@@ -371,7 +458,13 @@ class PurePipelineTest :
         test("combatAnnotations produces ModifiedLife when life changes") {
             val events =
                 listOf(
-                    GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(10), targetSeatId = SeatId(2), amount = 5, combat = true),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 5,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
+                    ),
                 )
 
             val result =
@@ -411,7 +504,12 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events =
                         listOf(
-                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
+                            GameEvent.DamageDealtToCard(
+                                sourceCardId = ForgeCardId(10),
+                                targetCardId = ForgeCardId(20),
+                                amount = 3,
+                                sourceKind = DamageSourceKind.Combat,
+                            ),
                         ),
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
                     previousLifeTotals = emptyMap(),
@@ -422,7 +520,12 @@ class PurePipelineTest :
                 AnnotationPipeline.assembleTransferAndCombatAnnotations(
                     events =
                         listOf(
-                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3),
+                            GameEvent.DamageDealtToCard(
+                                sourceCardId = ForgeCardId(10),
+                                targetCardId = ForgeCardId(20),
+                                amount = 3,
+                                sourceKind = DamageSourceKind.Combat,
+                            ),
                         ),
                     transferResult = transferResult,
                     actingSeat = 1,
@@ -466,7 +569,12 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events =
                         listOf(
-                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3),
+                            GameEvent.DamageDealtToCard(
+                                sourceCardId = ForgeCardId(10),
+                                targetCardId = ForgeCardId(99),
+                                amount = 3,
+                                sourceKind = DamageSourceKind.Combat,
+                            ),
                         ),
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
                     previousLifeTotals = emptyMap(),
@@ -477,7 +585,12 @@ class PurePipelineTest :
                 AnnotationPipeline.assembleTransferAndCombatAnnotations(
                     events =
                         listOf(
-                            GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(99), amount = 3),
+                            GameEvent.DamageDealtToCard(
+                                sourceCardId = ForgeCardId(10),
+                                targetCardId = ForgeCardId(99),
+                                amount = 3,
+                                sourceKind = DamageSourceKind.Combat,
+                            ),
                         ),
                     transferResult = transferResult,
                     actingSeat = 1,
@@ -533,8 +646,18 @@ class PurePipelineTest :
                 )
             val events =
                 listOf(
-                    GameEvent.DamageDealtToCard(sourceCardId = attackerFid, targetCardId = blockerFid, amount = 3),
-                    GameEvent.DamageDealtToCard(sourceCardId = blockerFid, targetCardId = attackerFid, amount = 5),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = attackerFid,
+                        targetCardId = blockerFid,
+                        amount = 3,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = blockerFid,
+                        targetCardId = attackerFid,
+                        amount = 5,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
                 )
 
             val pipeline = AnnotationPipeline.computeAnnotations(events, transferResult, actingSeat = 1, bridge = bridge)

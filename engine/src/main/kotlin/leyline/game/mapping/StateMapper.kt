@@ -7,6 +7,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationContext
+import leyline.game.annotations.AnnotationFrameFinalizer
 import leyline.game.annotations.AnnotationPipeline
 import leyline.game.annotations.CombatAnnotationResult
 import leyline.game.annotations.ConvokeContributor
@@ -20,9 +21,11 @@ import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.BridgeMutations
+import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
+import leyline.game.state.HolderRecord
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -42,12 +45,13 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * ## Purity boundary
  *
- * Single contract: both [buildFromSnapshot] and [buildDiff] return
- * [leyline.game.state.BridgeMutations] as data; callers apply via [leyline.game.state.GameBridge.applyMutations].
+ * Single contract: both [buildFromSnapshot] and [buildDiff] return an annotation
+ * frame draft plus [leyline.game.state.BridgeMutations]. Callers finalize the
+ * complete transient list, then apply via [leyline.game.state.GameBridge.applyMutations].
  * No inline writes during compute, no mode flags. Ordering-sensitive writes
  * (id reallocations, limbo retires, zone recordings, persistent annotation
- * batch, nextAnnotationId, delayed-trigger holder lifecycle) flow exclusively
- * through the returned mutations.
+ * batch and delayed-trigger holder lifecycle) flow through the returned
+ * mutations. The finalizer supplies `nextAnnotationId` before application.
  *
  * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
  * `events: FrameEventLog`. Outputs are pure: `GameStateMessage` + [leyline.game.state.BridgeMutations].
@@ -110,12 +114,38 @@ object StateMapper {
             ZoneIds.P2_GRAVEYARD,
         )
 
-    /** Result of [buildFromSnapshot] / [buildDiff] — GSM plus metadata for message framing. */
+    data class AnnotationFrameDraft(
+        val firstAnnotationId: Int,
+        val idResolver: FrameIdResolver,
+    )
+
+    /** Result of [buildFromSnapshot] / [buildDiff] — GSM draft plus deferred mutations. */
     data class BuildResult(
         val gsm: GameStateMessage,
         /** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */
-        val mutations: BridgeMutations = BridgeMutations.Companion.EMPTY,
-    )
+        val mutations: BridgeMutations,
+        val annotationFrameDraft: AnnotationFrameDraft?,
+    ) {
+        fun finalizeAnnotations(riders: List<AnnotationInfo> = emptyList()): BuildResult {
+            val draft = checkNotNull(annotationFrameDraft) { "Annotation frame is already finalized" }
+            val finalized =
+                AnnotationFrameFinalizer.finalize(
+                    gsm.annotationsList + riders,
+                    draft.firstAnnotationId,
+                )
+            val frozenGsm =
+                gsm
+                    .toBuilder()
+                    .clearAnnotations()
+                    .addAllAnnotations(finalized.annotations)
+                    .build()
+            return copy(
+                gsm = frozenGsm,
+                mutations = mutations.copy(nextAnnotationId = finalized.nextId),
+                annotationFrameDraft = null,
+            )
+        }
+    }
 
     /**
      * Build a Full [GameStateMessage] from an immutable [leyline.game.snapshot.GsmSnapshot].
@@ -364,12 +394,47 @@ object StateMapper {
                 decayedCleanupSourcesThisGsm = decayedCleanupSourcesThisGsm,
                 transferResult = transferResult,
             )
-        val holderBatch = bridge.delayedTriggerHolders.computeBatch(persistentFeedResult.currentHolders)
+        val carriedHolders =
+            delayedTriggerHoldersAwaitingLiveAbility(
+                activeHolders = bridge.delayedTriggerHolders.activeRecords(),
+                currentHolders = persistentFeedResult.currentHolders,
+                activeAnnotations = snap.persistentAnnotationState.activeAnnotations.values,
+                snap = snap,
+                bridge = bridge,
+            )
+        val currentHolders = persistentFeedResult.currentHolders + carriedHolders
+        val holderBatch = bridge.delayedTriggerHolders.computeBatch(currentHolders)
+        val removedHolderRecords = bridge.delayedTriggerHolders.records(holderBatch.removed)
+        val delayedTriggerAffectorReplacements =
+            delayedTriggerAffectorReplacements(removedHolderRecords, snap, frameIds)
         val postDiffActiveIids =
             (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) -
                 holderBatch.removed.toSet()
         transferResult = transferResult.withDelayedTriggerHolders(holderBatch, postDiffActiveIids, bridge)
-        val persistentFeeds = persistentFeedResult.feeds
+        // Stack contents (cards) plus stack-resident Ability gameObjects — both
+        // can own persistent trigger relations.
+        val stackIids: Set<Int> = frameIds.stackInstanceIds(snap)
+        val resolvingStackIids: Set<Int> =
+            (
+                transferResult.transfers
+                    .filter { it.srcZoneId == ZoneIds.STACK }
+                    .map { it.origId } +
+                    eventsMutable
+                        .filterIsInstance<GameEvent.SpellResolved>()
+                        .filter { it.isTrigger || it.isAbility }
+                        .map { AnnotationContext.stackAbilityIid(it.abilityForgeId, it.cardId, frameIds) }
+            ).toSet()
+        val persistentFeeds =
+            PersistentFeedBuilder.remapDelayedTriggerAffectees(
+                feeds =
+                    PersistentFeedBuilder.retainDelayedTriggerAffectees(
+                        feeds = persistentFeedResult.feeds,
+                        activeAnnotations = snap.persistentAnnotationState.activeAnnotations.values,
+                        holderIids = carriedHolders.map { it.iid }.toSet() + (stackIids - resolvingStackIids),
+                    ),
+                activeAnnotations = snap.persistentAnnotationState.activeAnnotations.values,
+                affectorReplacements = delayedTriggerAffectorReplacements,
+            )
         // Transient gain/lose Designation annotations — diff prev vs cur on the
         // `Source on battlefield with isPrepared` set. Gains insert before the
         // Stack→Battlefield Resolve ZoneTransfer for the same source iid to match
@@ -400,21 +465,6 @@ object StateMapper {
 
         // Stages 4-5 + persistent computation
         val battlefieldIids: Set<Int> = frameIds.battlefieldInstanceIds(snap)
-        // Stack contents (cards) plus stack-resident Ability gameObjects — both
-        // can be the affector of a TriggeringObject. The Ability instance ids
-        // are synthesised against [FrameIdResolver.stackAbilityForgeId] and
-        // don't appear in the snapshot's zone contents.
-        val stackIids: Set<Int> = frameIds.stackInstanceIds(snap)
-        val resolvingStackIids: Set<Int> =
-            (
-                transferResult.transfers
-                    .filter { it.srcZoneId == ZoneIds.STACK }
-                    .map { it.origId } +
-                    eventsMutable
-                        .filterIsInstance<GameEvent.SpellResolved>()
-                        .filter { it.isTrigger || it.isAbility }
-                        .map { AnnotationContext.stackAbilityIid(it.abilityForgeId, it.cardId, frameIds) }
-            ).toSet()
         val controllerOf: Map<Int, SeatId> =
             snap.boundCards.values.associate { bound ->
                 bridge.getOrAllocInstanceId(bound.forgeCardId).value to bound.snapshot.controller
@@ -427,6 +477,8 @@ object StateMapper {
                 controllerOf = controllerOf,
                 stackIids = stackIids,
                 resolvingStackIids = resolvingStackIids,
+                displayCardAffectors = battlefieldIids + postDiffActiveIids + (stackIids - resolvingStackIids),
+                delayedTriggerAffectorReplacements = delayedTriggerAffectorReplacements,
             )
         // Stage-4-5 context deliberately omits transferResult — only the
         // transfer-stage Convoke emission (convokeCtx above) diffs zone transfers.
@@ -440,7 +492,6 @@ object StateMapper {
                 effectDiff,
                 persistSnapshot,
                 startPersistentId,
-                startAnnotationId,
                 frameContext,
                 keywordDiff,
                 combatResult,
@@ -476,12 +527,16 @@ object StateMapper {
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
                 persistentBatch = remaining.batch,
                 consumedTargetSpecs = remaining.consumedTargetSpecs,
-                nextAnnotationId = remaining.nextAnnotationId,
+                nextAnnotationId = null,
                 holderBatch = holderBatch,
                 diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
             )
 
-        return BuildResult(built, mutations)
+        return BuildResult(
+            gsm = built,
+            mutations = mutations,
+            annotationFrameDraft = AnnotationFrameDraft(startAnnotationId, frameIds),
+        )
     }
 
     private fun recordParadigmSourceStackIids(
@@ -756,14 +811,13 @@ object StateMapper {
                 .addAllZones(changedZones.sortedBy { it.zoneId })
                 .addAllGameObjects(changedObjects)
                 .addAllAnnotations(current.annotationsList)
-                // Emit only newly-added persistent annotations: the client accumulates
-                // across diffs and removes via diffDeletedPersistentAnnotationIds. IDs
-                // already present before this bundle's computeBatch are carried on the
-                // client; re-sending them is redundant wire traffic that diverges from
-                // the protocol spec. Baseline is cur's captured state (taken before
-                // computeBatch ran), not prev's — prev predates the last apply.
+                // Emit new and in-place-updated persistent annotations. The client
+                // accumulates unchanged rows by id and removes them through the
+                // deletion list. Baseline is cur's state at frame entry.
                 .addAllPersistentAnnotations(
-                    current.persistentAnnotationsList.filter { it.id !in cur.persistentAnnotationState.activeAnnotations.keys },
+                    current.persistentAnnotationsList.filter { annotation ->
+                        cur.persistentAnnotationState.activeAnnotations[annotation.id] != annotation
+                    },
                 )
                 // Drain THIS frame's deletions directly from the just-computed batch.
                 // Reading from a queue populated by the prior frame's applyMutations
@@ -810,7 +864,7 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return BuildResult(built, fullResult.mutations)
+        return BuildResult(built, fullResult.mutations, fullResult.annotationFrameDraft)
     }
 
     private fun redactOpponentSideboardZone(
@@ -882,7 +936,7 @@ object StateMapper {
                 .addAllPlayers(listOf(player1, player2))
                 .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId }.map(ZoneMapper::clientOrderedZone))
                 .addAllGameObjects(transferResult.patchedObjects)
-                .addAllAnnotations(remaining.numbered)
+                .addAllAnnotations(remaining.transient)
                 .addAllPersistentAnnotations(remaining.persistent)
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(updateType)
@@ -1016,7 +1070,7 @@ object StateMapper {
                 val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
-                        ?: ctx.abilityGrpIdForSource(ev.cardId, ev.abilityForgeId)
+                        ?: ctx.abilityGrpIdForSource(ev.cardId)
                 if (ev.isTrigger && cleanupGrpId != null && abilityGrpId == KeywordAbilityIds.DECAYED) {
                     bridge.recordDecayedCleanupSource(ev.cardId)
                     visibleThisGsm.add(ev.cardId)
@@ -1026,7 +1080,7 @@ object StateMapper {
                 val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
-                        ?: ctx.abilityGrpIdForSource(ev.cardId, ev.abilityForgeId)
+                        ?: ctx.abilityGrpIdForSource(ev.cardId)
                 if (ev.isTrigger && cleanupGrpId != null && abilityGrpId == cleanupGrpId) {
                     bridge.clearDecayedCleanupSource(ev.cardId)
                     if (ev.cardId !in addedThisGsm) visibleThisGsm.remove(ev.cardId)
@@ -1056,6 +1110,66 @@ object StateMapper {
     ) {
         bridge.clearDecayedCleanupSource(sourceForgeId)
         if (sourceForgeId !in addedThisGsm) visibleThisGsm.remove(sourceForgeId)
+    }
+
+    private fun delayedTriggerAffectorReplacements(
+        removedHolders: List<HolderRecord>,
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): Map<Int, Int> {
+        val available =
+            snap.stack.entries
+                .filterNot { it.isSpell }
+                .toMutableList()
+        return buildMap {
+            for (holder in removedHolders) {
+                val matchIndex =
+                    available.indexOfFirst { entry ->
+                        if (holder.runtimeTriggerId != null) {
+                            entry.runtimeTriggerId == holder.runtimeTriggerId
+                        } else {
+                            holder.sourceForgeCardId != null &&
+                                entry.forgeCardId == holder.sourceForgeCardId &&
+                                entry.grpId == holder.cleanupGrpId
+                        }
+                    }
+                if (matchIndex < 0) continue
+                val entry = available.removeAt(matchIndex)
+                val abilityIid =
+                    if (entry.forgeAbilityId != 0) {
+                        frameIds.triggerStackAbilityIid(entry.forgeAbilityId)
+                    } else {
+                        frameIds.stackAbilityIid(entry.forgeCardId)
+                    }
+                put(holder.iid, abilityIid.value)
+            }
+        }
+    }
+
+    private fun delayedTriggerHoldersAwaitingLiveAbility(
+        activeHolders: List<HolderRecord>,
+        currentHolders: List<HolderRecord>,
+        activeAnnotations: Collection<AnnotationInfo>,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+    ): List<HolderRecord> {
+        val currentIids = currentHolders.map { it.iid }.toSet()
+        val battlefieldCards =
+            snap.zones[ZoneIds.BATTLEFIELD]
+                ?.contents
+                .orEmpty()
+                .toSet()
+        return activeHolders.filter { holder ->
+            if (holder.iid in currentIids || holder.runtimeTriggerId == null) return@filter false
+            val liveAbilityPresent = snap.stack.entries.any { it.runtimeTriggerId == holder.runtimeTriggerId }
+            if (liveAbilityPresent) return@filter false
+            activeAnnotations
+                .firstOrNull {
+                    DelayedTriggerAffecteesKind.matches(it) && it.affectorId == holder.iid
+                }?.affectedIdsList
+                ?.mapNotNull { iid -> bridge.getForgeCardId(InstanceId(iid)) }
+                ?.any { it !in battlefieldCards } == true
+        }
     }
 
     /**

@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
@@ -59,7 +60,7 @@ class RequestBuilderEscapeCostTest :
                     options = candidateForgeIds.map { "Card$it" },
                     min = 0, // upstream callers pass 0 for non-mandatory; builder must coerce
                     max = 3,
-                    semantic = PromptSemantic.SelectNCostExileFromGrave,
+                    route = PromptRouteResolver.resolve(PromptSemantic.SelectNCostExileFromGrave),
                     candidateRefs =
                         candidateForgeIds.mapIndexed { idx, forgeId ->
                             PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)
@@ -176,7 +177,7 @@ class RequestBuilderEscapeCostTest :
                     options = listOf("Creature"),
                     min = 1,
                     max = 1,
-                    semantic = PromptSemantic.StationTapCost,
+                    route = PromptRouteResolver.resolve(PromptSemantic.StationTapCost),
                     candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creatureForgeId)),
                     sourceEntityId = stationAbilityForgeId,
                 )
@@ -215,7 +216,7 @@ class RequestBuilderEscapeCostTest :
                     options = listOf("Creature"),
                     min = 1,
                     max = 1,
-                    semantic = PromptSemantic.EnlistCost,
+                    route = PromptRouteResolver.resolve(PromptSemantic.EnlistCost),
                     candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, enlistedForgeId)),
                     sourceEntityId = attackerForgeId,
                 )
@@ -253,7 +254,7 @@ class RequestBuilderEscapeCostTest :
                     options = candidateForgeIds.map { "Creature$it" },
                     min = 1,
                     max = candidateForgeIds.size,
-                    semantic = PromptSemantic.TeamworkCost,
+                    route = PromptRouteResolver.resolve(PromptSemantic.TeamworkCost),
                     candidateRefs =
                         candidateForgeIds.mapIndexed { idx, forgeId ->
                             PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)
@@ -312,7 +313,7 @@ class RequestBuilderEscapeCostTest :
                     options = listOf(blueCreature.name, greenCreature.name),
                     min = 0,
                     max = 2,
-                    semantic = PromptSemantic.ConvokeCost,
+                    route = PromptRouteResolver.resolve(PromptSemantic.ConvokeCost),
                     candidateRefs =
                         listOf(
                             PromptCandidateRefDto(0, PromptCandidateKind.Card, blueCreature.id, ZoneType.Battlefield.name),
@@ -377,7 +378,7 @@ class RequestBuilderEscapeCostTest :
                     options = candidateForgeIds.map { "Card$it" },
                     min = 0,
                     max = candidateForgeIds.size,
-                    semantic = PromptSemantic.SelectNCostCollectEvidence,
+                    route = PromptRouteResolver.resolve(PromptSemantic.SelectNCostCollectEvidence),
                     candidateRefs =
                         candidateForgeIds.mapIndexed { idx, forgeId ->
                             PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeId)

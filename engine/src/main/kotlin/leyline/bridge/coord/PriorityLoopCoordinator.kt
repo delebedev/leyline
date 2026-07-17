@@ -8,7 +8,7 @@ import forge.game.combat.Combat
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
-import leyline.bridge.PlayableActionQuery
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.findCard
 import leyline.bridge.handoff.DamageAssignmentGate
 import leyline.bridge.handoff.GameActionBridge
@@ -85,7 +85,7 @@ class PriorityLoopCoordinator(
         if (smartSkipAllowed &&
             handler.playerTurn?.id == player.id &&
             game.stack.isEmpty &&
-            !PlayableActionQuery.hasPlayableNonManaAction(game, player)
+            !PriorityActionCandidates.hasLegalNonManaAction(game, player)
         ) {
             owner.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
             return null

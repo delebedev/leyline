@@ -7,6 +7,7 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.WireId
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
+import leyline.game.event.DamageSourceKind
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -50,8 +51,10 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 object AnnotationBuilder {
     private const val MANA_SPEC_DOES_NOT_EMPTY_VALUE = 14695
 
-    /** DamageDealt `type` wire value for combat damage. Non-combat (0) isn't exercised yet. */
+    /** DamageDealt `type` values: 1 = combat, 2 = spell/ability, 3 = fight. */
     private const val COMBAT_DAMAGE_TYPE = 1
+    private const val NONCOMBAT_DAMAGE_TYPE = 2
+    private const val FIGHT_DAMAGE_TYPE = 3
 
     /** DamageDealt `markDamage` flag — always 1; the client requires the detail key present. */
     private const val MARK_DAMAGE_FLAG = 1
@@ -368,10 +371,7 @@ object AnnotationBuilder {
             .build()
 
     /**
-     * Combat damage dealt by a creature. Client uses this for damage flash animation.
-     * Emits `type=1` (combat) and `markDamage=1` (flag, not amount); the client
-     * requires both detail keys to be present. Non-combat damage isn't exercised
-     * yet; add a parameter if/when a non-combat call site appears.
+     * Damage dealt by a card. Client uses this for damage presentation.
      *
      * [targetId] is polymorphic — creatures pass their [InstanceId.toWireId]; player damage
      * passes their [SeatId.toWireId].
@@ -380,6 +380,7 @@ object AnnotationBuilder {
         sourceInstanceId: InstanceId,
         targetId: WireId,
         amount: Int,
+        sourceKind: DamageSourceKind,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -387,8 +388,16 @@ object AnnotationBuilder {
             .setAffectorId(sourceInstanceId.value)
             .addAffectedIds(targetId.value)
             .addDetails(int32Detail(DetailKeys.DAMAGE, amount))
-            .addDetails(int32Detail(DetailKeys.TYPE, COMBAT_DAMAGE_TYPE))
-            .addDetails(int32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
+            .addDetails(
+                int32Detail(
+                    DetailKeys.TYPE,
+                    when (sourceKind) {
+                        DamageSourceKind.Combat -> COMBAT_DAMAGE_TYPE
+                        DamageSourceKind.SpellOrAbility -> NONCOMBAT_DAMAGE_TYPE
+                        DamageSourceKind.Fight -> FIGHT_DAMAGE_TYPE
+                    },
+                ),
+            ).addDetails(int32Detail(DetailKeys.MARK_DAMAGE, MARK_DAMAGE_FLAG))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
@@ -1125,10 +1134,9 @@ object AnnotationBuilder {
             .build()
 
     /** Persistent FaceDown annotation for a face-down permanent on the
-     *  battlefield (Disguise / Morph / Manifest / Cloak). Carries the
-     *  mechanic discriminator on `REASON` (Disguise=6, Manifest=5, Morph=8)
-     *  and the keyword's BaseId on `abilityGrpId` (Disguise=307,
-     *  Foretell=208 etc.).
+     *  battlefield. Carries the mechanic discriminator on `REASON`
+     *  (Disguise=6, Manifest Dread=8) and the corresponding ability identity
+     *  on `abilityGrpId` (Disguise=307, Manifest Dread=351).
      *
      *  affector / affectedIds both = the face-down card's instance id.
      *  Lives across many GSMs; deleted via diff-tracking when the card
@@ -1588,14 +1596,14 @@ object AnnotationBuilder {
      *   trigger fires.
      * @param abilityGrpId the cleanup-trigger ability's grpId (e.g. 189931 for
      *   Mobilize 1's "Sacrifice them at the beginning of the next end step").
-     * @param removesFromZone 1 for triggers that remove the affected from the
-     *   battlefield (Mobilize sacrifice, exile-and-return Warps); 0 otherwise.
+     * @param removesFromZone optional zone-removal marker. Omitted for return
+     *   triggers; set to 1 for cleanup triggers such as Mobilize sacrifice.
      */
     fun delayedTriggerAffectees(
         triggerHolderId: InstanceId,
         tokenInstanceIds: List<InstanceId>,
         abilityGrpId: GrpId,
-        removesFromZone: Int = 1,
+        removesFromZone: Int? = 1,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1603,7 +1611,7 @@ object AnnotationBuilder {
             .setAffectorId(triggerHolderId.value)
             .also { b -> tokenInstanceIds.forEach { b.addAffectedIds(it.value) } }
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
-            .addDetails(int32Detail(DetailKeys.REMOVES_FROM_ZONE, removesFromZone))
+            .also { b -> removesFromZone?.let { b.addDetails(int32Detail(DetailKeys.REMOVES_FROM_ZONE, it)) } }
             .build()
 
     /** Card in hidden zone revealed to opponent. Persistent badge. client type 75. */

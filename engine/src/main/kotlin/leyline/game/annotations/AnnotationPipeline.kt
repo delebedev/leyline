@@ -8,6 +8,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.PersistentFeedBuilder
 import leyline.game.mapping.PersistentFeedSet
 import leyline.game.mapping.SourceAbilityResolverFactory
 import leyline.game.mapping.ZoneIds
@@ -37,8 +38,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Two entry points feed [StateMapper.buildFromSnapshot]:
  * - [computeAnnotations] — stages 1-3: transfer + combat + trigger-lifecycle
  *   assembly into a transient/persistent [AnnotationPipelineResult].
- * - [computeRemainingAnnotations] — stages 4-5: mechanic + effect annotations,
- *   persistent-store batch computation, and final numbering.
+ * - [computeRemainingAnnotations] — stages 4-5: mechanic + effect annotations
+ *   and persistent-store batch computation.
  *
  * The shared annotation-time resolvers live on [AnnotationContext]; the
  * per-mechanic emitters live behind the [contributors] registry.
@@ -88,12 +89,15 @@ object AnnotationPipeline {
             VehicleAttachContributor,
         )
 
-    /** Result of stages 4-5 + persistent annotation computation. */
+    /** Death categories whose transfers defer behind same-frame DamageDealt emission. */
+    private val deathTransferCategories =
+        setOf(TransferCategory.Destroy, TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch)
+
+    /** Unfinalized transients plus persistent annotation computation. */
     internal data class RemainingAnnotationsResult(
-        val numbered: List<AnnotationInfo>,
+        val transient: List<AnnotationInfo>,
         val persistent: List<AnnotationInfo>,
         val batch: PersistentAnnotationStore.BatchResult,
-        val nextAnnotationId: Int,
         val consumedTargetSpecs: List<PendingTargetSpecRecord>,
     )
 
@@ -205,7 +209,7 @@ object AnnotationPipeline {
             }
         val (deferredTransfers, immediateTransfers) =
             patchedTransfers.partition { transfer ->
-                transfer.category == TransferCategory.Destroy &&
+                transfer.category in deathTransferCategories &&
                     transfer.forgeCardId != null &&
                     transfer.forgeCardId in lethalDamageVictims
             }
@@ -230,7 +234,7 @@ object AnnotationPipeline {
                         val abilityIid = ctx.stackAbilityIid(cast.abilityForgeId, cast.cardId)
                         val grpId =
                             cast.abilityGrpId.takeIf { it != 0 }
-                                ?: ctx.abilityGrpIdForSource(cast.cardId, cast.abilityForgeId)
+                                ?: ctx.abilityGrpIdForSource(cast.cardId)
                         abilityIid to grpId
                     }
             } else {
@@ -280,6 +284,8 @@ object AnnotationPipeline {
         // and the resolve-side from resolve events independently — guarding
         // against double-emission when the snap-diff also caught the
         // appearance/disappearance.
+        var damageResidualLifeAnnotations = emptyList<AnnotationInfo>()
+        var resolutionOwnedDamageInserted = false
         if (bridge != null && snap != null) {
             val ctx = AnnotationContext(bridge, snap, frameIds ?: FrameIdResolver(bridge), events)
             emitTriggerLifecycleAnnotations(
@@ -290,7 +296,14 @@ object AnnotationPipeline {
                 annotations = annotations,
                 transferPersistent = transferPersistent,
             )
-            insertResolutionEventAnnotations(ctx, annotations)
+            damageResidualLifeAnnotations = insertResolutionEventAnnotations(ctx, annotations)
+            resolutionOwnedDamageInserted =
+                insertResolutionOwnedDamageAnnotations(
+                    ctx = ctx,
+                    annotations = annotations,
+                    damageAnnotations = combatResult.resolutionOwnedAnnotations,
+                    transfers = patchedTransfers,
+                )
         }
         for (d in transferResult.stackAbilityDisappearances) {
             val lineage = abilityLineage?.consume(d.abilityInstanceId)
@@ -305,18 +318,62 @@ object AnnotationPipeline {
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
         }
-        annotations.addAll(combatResult.annotations)
+        if (!resolutionOwnedDamageInserted) annotations.addAll(combatResult.annotations)
+        annotations.addAll(damageResidualLifeAnnotations)
         for (transfer in deferredTransfers) emitTransfer(transfer)
         return annotations to transferPersistent
+    }
+
+    /**
+     * Inserts homogeneous noncombat damage into its unique resolving source bracket.
+     *
+     * A resolving card spell is identified by its Stack-origin Resolve transfer;
+     * triggered and activated abilities use their stack-ability lifecycle identity.
+     * Frames without exactly one owner retain the existing append behavior rather
+     * than guessing across mixed or unrelated damage.
+     */
+    private fun insertResolutionOwnedDamageAnnotations(
+        ctx: AnnotationContext,
+        annotations: MutableList<AnnotationInfo>,
+        damageAnnotations: List<AnnotationInfo>,
+        transfers: List<AppliedTransfer>,
+    ): Boolean {
+        if (damageAnnotations.isEmpty()) return false
+
+        val ownerIids =
+            buildSet {
+                transfers
+                    .asSequence()
+                    .filter { it.category == TransferCategory.Resolve && it.srcZoneId == ZoneIds.STACK }
+                    .mapTo(this) { it.origId }
+                ctx.events
+                    .asSequence()
+                    .filterIsInstance<GameEvent.SpellResolved>()
+                    .filter { it.isTrigger || it.isAbility }
+                    .mapTo(this) { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) }
+            }
+        if (ownerIids.size != 1) return false
+
+        val ownerIid = ownerIids.single()
+        val completeIndex =
+            annotations.indexOfFirst { annotation ->
+                AnnotationType.ResolutionComplete in annotation.typeList && annotation.affectorId == ownerIid
+            }
+        if (completeIndex < 0) return false
+
+        annotations.addAll(completeIndex, damageAnnotations)
+        return true
     }
 
     private fun insertResolutionEventAnnotations(
         ctx: AnnotationContext,
         annotations: MutableList<AnnotationInfo>,
-    ) {
+    ): List<AnnotationInfo> {
         val events = ctx.events
         val payloadsByAffector = linkedMapOf<Int, MutableList<AnnotationInfo>>()
         val unmatched = mutableListOf<AnnotationInfo>()
+        val damageResiduals = mutableListOf<AnnotationInfo>()
+        val unclaimedDamageBySeat = mutableMapOf<Int, Int>()
 
         fun addPayload(
             affectorId: Int,
@@ -331,6 +388,8 @@ object AnnotationPipeline {
 
         events.forEachIndexed { index, event ->
             when (event) {
+                is GameEvent.DamageDealtToPlayer if event.changesLife ->
+                    unclaimedDamageBySeat.merge(event.targetSeatId.value, event.amount, Int::plus)
                 is GameEvent.CoinFlipped -> {
                     val affector = ctx.stackAbilityIid(event.abilityForgeId, event.sourceCardId)
                     addPayload(
@@ -339,8 +398,9 @@ object AnnotationPipeline {
                     )
                 }
                 is GameEvent.LifeChanged -> {
-                    val delta = event.newLife - event.oldLife
-                    if (delta == 0 || isCoveredByDamageEvent(event, events)) return@forEachIndexed
+                    val coverage = consumeDamageOwnedLifeDelta(event, unclaimedDamageBySeat)
+                    val delta = coverage.uncoveredDelta
+                    if (delta == 0) return@forEachIndexed
                     val resolved = nextResolvedAbility(events, index)
                     val affector =
                         resolved?.let { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) }
@@ -348,16 +408,19 @@ object AnnotationPipeline {
                                 ctx.stackAbilityIid(it.abilityForgeId, it.cardId)
                             }
                             ?: 0
-                    addPayload(
-                        affector,
-                        AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(affector).takeIf { affector != 0 }),
-                    )
+                    val annotation =
+                        AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(affector).takeIf { affector != 0 })
+                    if (coverage.coveredLoss > 0) {
+                        damageResiduals.add(annotation)
+                    } else {
+                        addPayload(affector, annotation)
+                    }
                 }
                 else -> Unit
             }
         }
 
-        if (payloadsByAffector.isEmpty() && unmatched.isEmpty()) return
+        if (payloadsByAffector.isEmpty() && unmatched.isEmpty()) return damageResiduals
         val ordered = mutableListOf<AnnotationInfo>()
         for (annotation in annotations) {
             ordered.add(annotation)
@@ -369,6 +432,7 @@ object AnnotationPipeline {
         ordered.addAll(unmatched)
         annotations.clear()
         annotations.addAll(ordered)
+        return damageResiduals
     }
 
     private fun nextResolvedAbility(
@@ -391,15 +455,23 @@ object AnnotationPipeline {
             .filterIsInstance<GameEvent.SpellCast>()
             .lastOrNull { it.isAbility || it.isTrigger }
 
-    private fun isCoveredByDamageEvent(
+    private data class DamageCoverage(
+        val uncoveredDelta: Int,
+        val coveredLoss: Int,
+    )
+
+    private fun consumeDamageOwnedLifeDelta(
         life: GameEvent.LifeChanged,
-        events: List<GameEvent>,
-    ): Boolean =
-        events.any { event ->
-            event is GameEvent.DamageDealtToPlayer &&
-                event.targetSeatId == life.seatId &&
-                life.oldLife - life.newLife == event.amount
-        }
+        unclaimedDamageBySeat: MutableMap<Int, Int>,
+    ): DamageCoverage {
+        val delta = life.newLife - life.oldLife
+        if (delta >= 0) return DamageCoverage(delta, coveredLoss = 0)
+        val seat = life.seatId.value
+        val unclaimedDamage = unclaimedDamageBySeat[seat] ?: 0
+        val coveredLoss = minOf(-delta, unclaimedDamage)
+        unclaimedDamageBySeat[seat] = unclaimedDamage - coveredLoss
+        return DamageCoverage(delta + coveredLoss, coveredLoss)
+    }
 
     /**
      * Emit AbilityInstanceCreated / TriggeringObject / ResolutionStart-Complete /
@@ -463,7 +535,7 @@ object AnnotationPipeline {
                     sourceZoneAtCreate = sourceZone,
                     abilityGrpId =
                         cast.abilityGrpId.takeIf { it != 0 }
-                            ?: ctx.abilityGrpIdForSource(cast.cardId, cast.abilityForgeId),
+                            ?: ctx.abilityGrpIdForSource(cast.cardId),
                 ),
             )
             annotations.add(
@@ -500,7 +572,7 @@ object AnnotationPipeline {
                     sourceZoneAtCreate = sourceZone,
                     abilityGrpId =
                         cast.abilityGrpId.takeIf { it != 0 }
-                            ?: ctx.abilityGrpIdForSource(cast.cardId, cast.abilityForgeId),
+                            ?: ctx.abilityGrpIdForSource(cast.cardId),
                 ),
             )
             annotations.add(
@@ -533,7 +605,7 @@ object AnnotationPipeline {
             val abilityGrpId =
                 lineage?.abilityGrpId?.takeIf { it != 0 }
                     ?: resolved.abilityGrpId.takeIf { it != 0 }
-                    ?: ctx.abilityGrpIdForSource(resolved.cardId, resolved.abilityForgeId)
+                    ?: ctx.abilityGrpIdForSource(resolved.cardId)
 
             annotations.add(AnnotationBuilder.resolutionStart(InstanceId(abilityIid), GrpId(abilityGrpId)))
             annotations.add(AnnotationBuilder.resolutionComplete(InstanceId(abilityIid), GrpId(abilityGrpId)))
@@ -611,7 +683,7 @@ object AnnotationPipeline {
             }
         }
 
-    /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
+    /** Stages 4-5: mechanic + effect annotations and persistent computation. */
     @Suppress("LongParameterList", "LongMethod")
     internal fun computeRemainingAnnotations(
         ctx: AnnotationContext,
@@ -621,7 +693,6 @@ object AnnotationPipeline {
         effectDiff: EffectTracker.DiffResult,
         persistSnapshot: Map<Int, AnnotationInfo>,
         startPersistentId: Int,
-        startAnnotationId: Int,
         frameContext: FrameContext,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
@@ -695,6 +766,11 @@ object AnnotationPipeline {
                 stackInstanceResolver = { ev -> stackInstanceForEvent(ctx, castStackIidsByCard, ev) },
                 castSpellTransferCardIds = castSpellTransferCardIds,
                 convokePaymentsBySource = convokePaymentsBySource,
+                delayedTriggerHolderResolver = { affected ->
+                    snap.pendingTriggers
+                        .firstOrNull { it.displaysAffectedCards && affected in it.affectedCardIds }
+                        ?.let { pending -> PersistentFeedBuilder.pendingTriggerHolderInstanceId(pending.holderForgeId, bridge) }
+                },
             )
         val earthbend = EarthbendEmitter.emit(bridge, snap)
         annotations.addAll(earthbend.destroyed)
@@ -835,14 +911,10 @@ object AnnotationPipeline {
         bridge.annotations.addSteals(mechanicResult.controllerChangedEffects.map { it.forgeCardId })
         bridge.annotations.removeSteals(mechanicResult.controllerRevertedForgeCardIds)
 
-        val ordered = AnnotationOrderEnforcer.enforce(annotations)
-        var annId = startAnnotationId
-        val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
         return RemainingAnnotationsResult(
-            numbered = numbered,
+            transient = annotations.toList(),
             persistent = batch.allAnnotations,
             batch = batch,
-            nextAnnotationId = annId,
             consumedTargetSpecs = pendingTargetSpecs,
         )
     }

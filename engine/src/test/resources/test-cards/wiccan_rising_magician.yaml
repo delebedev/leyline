@@ -1,0 +1,8 @@
+name: "Wiccan, Rising Magician"
+grpId: 104978
+titleId: 1118070
+abilities:
+  - id: 206147
+    textId: 1118071
+    category: 2
+expansionCode: "MSH"

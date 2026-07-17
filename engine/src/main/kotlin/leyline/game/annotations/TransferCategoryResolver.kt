@@ -1,6 +1,7 @@
 package leyline.game.annotations
 
 import leyline.bridge.types.ForgeCardId
+import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 
@@ -14,8 +15,10 @@ object TransferCategoryResolver {
     fun categoryFromEvents(
         forgeCardId: ForgeCardId,
         events: List<GameEvent>,
-    ): TransferCategory? =
-        when {
+    ): TransferCategory? {
+        val destruction =
+            events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == forgeCardId }?.destruction
+        return when {
             events.has<GameEvent.LandPlayed>(forgeCardId) -> TransferCategory.PlayLand
             events.hasSpellCast(forgeCardId) -> TransferCategory.CastSpell
             events.hasFizzledResolution(forgeCardId) -> TransferCategory.Countered
@@ -28,12 +31,22 @@ object TransferCategoryResolver {
             events.has<GameEvent.CardMilled>(forgeCardId) -> TransferCategory.Mill
             events.has<GameEvent.SpellCountered>(forgeCardId) -> TransferCategory.Countered
             events.has<GameEvent.CardSacrificed>(forgeCardId) -> TransferCategory.Sacrifice
-            events.has<GameEvent.CardDestroyed>(forgeCardId) -> TransferCategory.Destroy
+            destruction != null -> destructionCategory(destruction)
             else ->
                 events
                     .filterIsInstance<GameEvent.ZoneChanged>()
                     .firstOrNull { it.cardId == forgeCardId }
                     ?.let { categoryFromZonePair(it.from, it.to) }
+        }
+    }
+
+    /** Wire category for a destroyed permanent: destroy effects and the
+     *  lethal-damage / deathtouch state-based actions carry distinct labels. */
+    fun destructionCategory(cause: DestructionCause): TransferCategory =
+        when (cause) {
+            DestructionCause.Effect -> TransferCategory.Destroy
+            DestructionCause.LethalDamage -> TransferCategory.SbaDamage
+            DestructionCause.Deathtouch -> TransferCategory.SbaDeathtouch
         }
 
     @Suppress("CyclomaticComplexMethod") // Exhaustive transfer matrix is clearest as one table.

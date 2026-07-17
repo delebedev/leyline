@@ -25,6 +25,7 @@ import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.FaceDownDisguiseKind
+import leyline.game.state.FaceDownManifestDreadKind
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderRecord
 import leyline.game.state.LinkInfoChoiceKind
@@ -39,6 +40,16 @@ internal data class PersistentFeedSet(
     val perKind: Map<PersistentAnnotationKind, List<AnnotationInfo>> = emptyMap(),
 ) {
     operator fun get(kind: PersistentAnnotationKind): List<AnnotationInfo> = perKind[kind].orEmpty()
+
+    fun withAdditional(
+        kind: PersistentAnnotationKind,
+        annotations: List<AnnotationInfo>,
+    ): PersistentFeedSet =
+        if (annotations.isEmpty()) {
+            this
+        } else {
+            PersistentFeedSet(perKind + (kind to (get(kind) + annotations)))
+        }
 }
 
 internal data class PersistentFeedBuildResult(
@@ -85,6 +96,7 @@ internal object PersistentFeedBuilder {
         val designations = buildDesignationAnnotations(snap, context)
         val dayNightDesignation = buildDayNightDesignationAnnotations(snap)
         val faceDownDisguise = buildFaceDownDisguiseAnnotations(snap, frameIds)
+        val faceDownManifestDread = buildFaceDownManifestDreadAnnotations(snap, frameIds)
         val colorProduction = buildColorProductionAnnotations(snap, frameIds)
         val linkInfo = buildLinkInfoAnnotations(snap, frameIds, bridge)
 
@@ -99,6 +111,7 @@ internal object PersistentFeedBuilder {
                             AbilityWordActiveKind to abilityWord,
                             DayNightDesignationKind to dayNightDesignation,
                             FaceDownDisguiseKind to faceDownDisguise,
+                            FaceDownManifestDreadKind to faceDownManifestDread,
                             ColorProductionKind to colorProduction,
                             LinkInfoChoiceKind to linkInfo,
                         ) + designations,
@@ -165,29 +178,31 @@ internal object PersistentFeedBuilder {
                 frameIds,
                 transferResult,
             )
+        val pendingTriggerFeeds = buildPendingTriggerAnnotations(snap, bridge, frameIds)
         val temporaryPermanent =
-            eotTokens.map { token ->
-                val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
-                val sourceForgeId = tokenSources[token]
-                val mobilizeCleanup =
-                    sourceForgeId?.let { source ->
-                        mobilizeCleanupGrpIdForSource(source, snap)?.let { cleanupGrpId -> source to cleanupGrpId }
-                    }
-                // Holder iid is the per-trigger affector for Mobilize. Generic
-                // EOT-sacrifice copies keep the token iid affector until their
-                // delayed-trigger holder shape is modeled.
-                val affectorIid =
-                    if (mobilizeCleanup != null) {
-                        holderInstanceIdFor(mobilizeCleanup.first, bridge)
-                    } else {
-                        tokenIid
-                    }
-                AnnotationBuilder.temporaryPermanent(
-                    tokenInstanceId = tokenIid,
-                    abilityGrpId = mobilizeCleanup?.second?.let { GrpId(it) } ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
-                    affectorId = affectorIid,
-                )
-            } +
+            pendingTriggerFeeds.temporaryPermanent +
+                eotTokens.map { token ->
+                    val tokenIid = bridge.getOrAllocInstanceId(token.forgeCardId)
+                    val sourceForgeId = tokenSources[token]
+                    val mobilizeCleanup =
+                        sourceForgeId?.let { source ->
+                            mobilizeCleanupGrpIdForSource(source, snap)?.let { cleanupGrpId -> source to cleanupGrpId }
+                        }
+                    // Holder iid is the per-trigger affector for Mobilize. Generic
+                    // EOT-sacrifice copies keep the token iid affector until their
+                    // delayed-trigger holder shape is modeled.
+                    val affectorIid =
+                        if (mobilizeCleanup != null) {
+                            holderInstanceIdFor(mobilizeCleanup.first, bridge)
+                        } else {
+                            tokenIid
+                        }
+                    AnnotationBuilder.temporaryPermanent(
+                        tokenInstanceId = tokenIid,
+                        abilityGrpId = mobilizeCleanup?.second?.let { GrpId(it) } ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+                        affectorId = affectorIid,
+                    )
+                } +
                 decayedCleanupHolders.map { holder ->
                     AnnotationBuilder.temporaryPermanent(
                         tokenInstanceId = InstanceId(holder.parentIid),
@@ -195,40 +210,107 @@ internal object PersistentFeedBuilder {
                         affectorId = InstanceId(holder.iid),
                     )
                 }
-        val currentHolders = mutableListOf<HolderRecord>()
+        val currentHolders = pendingTriggerFeeds.currentHolders.toMutableList()
         currentHolders.addAll(decayedCleanupHolders)
         val delayedTriggerAffectees =
-            eotTokens
-                .groupBy { tokenSources[it] to it.controller.value }
-                .filterValues { it.isNotEmpty() }
-                .mapNotNull { (key, tokens) ->
-                    val (rawSourceForgeId, seat) = key
-                    val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
-                    val cleanupGrpId = mobilizeCleanupGrpIdForSource(sourceForgeId, snap) ?: return@mapNotNull null
-                    val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
-                    val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
-                    val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, snap) ?: 0
-                    val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
-                    currentHolders.add(
-                        HolderRecord(
-                            iid = holderIid.value,
-                            ownerSeat = seat,
-                            objectSourceGrpId = keywordGrpId,
-                            parentIid = sourceIid,
-                            cleanupGrpId = cleanupGrpId,
-                        ),
-                    )
-                    AnnotationBuilder.delayedTriggerAffectees(
-                        triggerHolderId = holderIid,
-                        tokenInstanceIds = tokenIds,
-                        abilityGrpId = GrpId(cleanupGrpId),
+            pendingTriggerFeeds.delayedTriggerAffectees +
+                eotTokens
+                    .groupBy { tokenSources[it] to it.controller.value }
+                    .filterValues { it.isNotEmpty() }
+                    .mapNotNull { (key, tokens) ->
+                        val (rawSourceForgeId, seat) = key
+                        val sourceForgeId = rawSourceForgeId ?: return@mapNotNull null
+                        val cleanupGrpId = mobilizeCleanupGrpIdForSource(sourceForgeId, snap) ?: return@mapNotNull null
+                        val tokenIds = tokens.map { bridge.getOrAllocInstanceId(it.forgeCardId) }
+                        val holderIid = holderInstanceIdFor(sourceForgeId, bridge)
+                        val keywordGrpId = mobilizeKeywordGrpIdForSource(sourceForgeId, snap) ?: 0
+                        val sourceIid = bridge.getOrAllocInstanceId(sourceForgeId).value
+                        currentHolders.add(
+                            HolderRecord(
+                                iid = holderIid.value,
+                                ownerSeat = seat,
+                                objectSourceGrpId = keywordGrpId,
+                                parentIid = sourceIid,
+                                cleanupGrpId = cleanupGrpId,
+                            ),
+                        )
+                        AnnotationBuilder.delayedTriggerAffectees(
+                            triggerHolderId = holderIid,
+                            tokenInstanceIds = tokenIds,
+                            abilityGrpId = GrpId(cleanupGrpId),
+                        )
+                    }
+        return TemporaryPermanentFeedResult(temporaryPermanent, delayedTriggerAffectees, currentHolders)
+    }
+
+    private fun buildPendingTriggerAnnotations(
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): TemporaryPermanentFeedResult {
+        val holders =
+            snap.pendingTriggers.map { pending ->
+                HolderRecord(
+                    iid = pendingTriggerHolderInstanceId(pending.holderForgeId, bridge).value,
+                    ownerSeat = pending.owner.value,
+                    objectSourceGrpId = pending.sourceAbilityGrpId,
+                    parentIid = pending.parentInstanceId,
+                    cleanupGrpId = pending.cleanupAbilityGrpId,
+                    sourceForgeCardId = pending.sourceForgeCardId,
+                    runtimeTriggerId = pending.runtimeTriggerId,
+                )
+            }
+        val affectees =
+            snap.pendingTriggers.filter { it.affectedCardIds.isNotEmpty() }.map { pending ->
+                AnnotationBuilder.delayedTriggerAffectees(
+                    triggerHolderId = pendingTriggerHolderInstanceId(pending.holderForgeId, bridge),
+                    tokenInstanceIds = pending.affectedCardIds.map(frameIds::cardIid),
+                    abilityGrpId = GrpId(pending.cleanupAbilityGrpId),
+                    removesFromZone = null,
+                )
+            }
+        val temporaryPermanents =
+            snap.pendingTriggers.flatMap { pending ->
+                val holderIid = pendingTriggerHolderInstanceId(pending.holderForgeId, bridge)
+                pending.affectedCardIds.map { affected ->
+                    AnnotationBuilder.temporaryPermanent(
+                        tokenInstanceId = frameIds.cardIid(affected),
+                        abilityGrpId = GrpId(pending.cleanupAbilityGrpId),
+                        affectorId = holderIid,
                     )
                 }
-        return TemporaryPermanentFeedResult(
-            temporaryPermanent = temporaryPermanent,
-            delayedTriggerAffectees = delayedTriggerAffectees,
-            currentHolders = currentHolders,
-        )
+            }
+        return TemporaryPermanentFeedResult(temporaryPermanents, affectees, holders)
+    }
+
+    fun remapDelayedTriggerAffectees(
+        feeds: PersistentFeedSet,
+        activeAnnotations: Collection<AnnotationInfo>,
+        affectorReplacements: Map<Int, Int>,
+    ): PersistentFeedSet {
+        val remapped =
+            activeAnnotations
+                .filter { DelayedTriggerAffecteesKind.matches(it) && it.affectorId in affectorReplacements }
+                .map { annotation ->
+                    annotation
+                        .toBuilder()
+                        .setId(0)
+                        .setAffectorId(affectorReplacements.getValue(annotation.affectorId))
+                        .build()
+                }
+        return feeds.withAdditional(DelayedTriggerAffecteesKind, remapped)
+    }
+
+    fun retainDelayedTriggerAffectees(
+        feeds: PersistentFeedSet,
+        activeAnnotations: Collection<AnnotationInfo>,
+        holderIids: Set<Int>,
+    ): PersistentFeedSet {
+        val retained =
+            activeAnnotations.filter { annotation ->
+                DelayedTriggerAffecteesKind.matches(annotation) && annotation.affectorId in holderIids
+            }
+        return feeds.withAdditional(DelayedTriggerAffecteesKind, retained)
     }
 
     private fun buildAbilityWordAnnotations(
@@ -356,11 +438,25 @@ internal object PersistentFeedBuilder {
     ): List<AnnotationInfo> =
         snap.boundCards.values
             .mapNotNull { bound ->
-                if (!bound.snapshot.isFaceDownDisguise) return@mapNotNull null
+                if (bound.snapshot.faceDownKind != leyline.game.snapshot.FaceDownKind.Disguise) return@mapNotNull null
                 AnnotationBuilder.faceDownPersistent(
                     instanceId = frameIds.cardIid(bound.forgeCardId),
                     reason = AnnotationConstants.FACEDOWN_REASON_DISGUISE,
                     abilityGrpId = GrpId(KeywordAbilityIds.DISGUISE),
+                )
+            }
+
+    private fun buildFaceDownManifestDreadAnnotations(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> =
+        snap.boundCards.values
+            .mapNotNull { bound ->
+                if (bound.snapshot.faceDownKind != leyline.game.snapshot.FaceDownKind.ManifestDread) return@mapNotNull null
+                AnnotationBuilder.faceDownPersistent(
+                    instanceId = frameIds.cardIid(bound.forgeCardId),
+                    reason = AnnotationConstants.FACEDOWN_REASON_MANIFEST_DREAD,
+                    abilityGrpId = GrpId(KeywordAbilityIds.MANIFEST_DREAD),
                 )
             }
 
@@ -570,6 +666,11 @@ internal object PersistentFeedBuilder {
         val holderForge = ForgeCardId(sourceForgeId.value + GameBridge.DELAYED_TRIGGER_HOLDER_FORGE_OFFSET)
         return bridge.getOrAllocInstanceId(holderForge)
     }
+
+    internal fun pendingTriggerHolderInstanceId(
+        holderForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): InstanceId = bridge.getOrAllocInstanceId(holderForgeId)
 
     internal fun decayedCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,

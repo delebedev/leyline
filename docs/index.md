@@ -22,6 +22,10 @@ Start here for the public technical docs.
 - [`decisions/0006-single-backbone-core-and-heads.md`](decisions/0006-single-backbone-core-and-heads.md) — leyline as a single backbone: a domain core + engine with native and web protocol heads
 - [`decisions/0008-forge-zone-operation-context.md`](decisions/0008-forge-zone-operation-context.md) — immutable Forge cause identity on ordered zone moves, with observable snapshot fallback
 - [`decisions/0009-reuse-forge-human-cost-decisions.md`](decisions/0009-reuse-forge-human-cost-decisions.md) — shared Forge human cost rules with frontend-specific controller choice hooks
+- [`decisions/0010-bind-priority-actions-at-projection-source.md`](decisions/0010-bind-priority-actions-at-projection-source.md) — executable priority commands bound beside their protocol actions, without reverse reconstruction
+- [`decisions/0011-preserve-ability-definition-identity.md`](decisions/0011-preserve-ability-definition-identity.md) — stable ability definitions separated from unique runtime invocations across events, stack projection, and prompts
+- [`decisions/0012-bind-prompt-routes-once.md`](decisions/0012-bind-prompt-routes-once.md) — `ResolvedPromptRoute` bound once and carried through emission, re-prompting, and response handling
+- [`decisions/0013-finalize-annotation-frames-once.md`](decisions/0013-finalize-annotation-frames-once.md) — collect all state-frame annotation inputs before one ordering and transient-ID finalization pass
 
 ## Setup
 

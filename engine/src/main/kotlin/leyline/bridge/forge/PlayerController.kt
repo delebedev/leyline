@@ -21,6 +21,7 @@ import forge.game.cost.Cost
 import forge.game.cost.CostDecisionMakerBase
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostEnlist
+import forge.game.cost.CostExile
 import forge.game.cost.CostForage
 import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
@@ -28,6 +29,8 @@ import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
+import forge.game.cost.CostTapType
+import forge.game.cost.CostTeamwork
 import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
@@ -58,6 +61,8 @@ import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.ModalChoiceOption
+import leyline.bridge.handoff.ModalChoicePayload
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputGate
 import leyline.bridge.handoff.NumericInputPrompt
@@ -65,6 +70,7 @@ import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ClientAutoPassState
@@ -982,7 +988,7 @@ class PlayerController(
     override fun chooseCardsForCost(
         optionList: CardCollectionView,
         sa: SpellAbility,
-        cpl: CostPartWithList,
+        cpl: CostPart,
         amount: Int,
         isOptional: Boolean,
         prompt: String,
@@ -1000,6 +1006,10 @@ class PlayerController(
                     }
                 is CostSacrifice -> PromptSemantic.SelectNCostSacrifice
                 is CostEnlist -> PromptSemantic.EnlistCost
+                // Fixed-count Station taps (tapXType<1/...>) pay through the
+                // exact-count seam, not chooseCardsForTapCost.
+                is CostTapType ->
+                    if (sa.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic
                 is CostForage ->
                     if (optionList.all { it.isInPlay }) {
                         PromptSemantic.SelectNCostSacrifice
@@ -1045,8 +1055,8 @@ class PlayerController(
                 min = 0,
                 max = optionList.size,
                 defaultIndex = 0,
-                semantic = PromptSemantic.SelectNCostCollectEvidence,
                 candidateRefs = optionList.toCandidateRefs(),
+                route = PromptRouteResolver.resolve(PromptSemantic.SelectNCostCollectEvidence),
                 costSelectionWeights = optionList.map { it.getCMC().coerceAtLeast(0) },
                 minSelectionWeight = total,
                 sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
@@ -1071,6 +1081,65 @@ class PlayerController(
         sameColor: Boolean,
         prompt: String,
     ): CardCollectionView = chooseCardsForCost(optionList, sa, cost, amount, optional, prompt)
+
+    override fun chooseCardsForTapCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        cost: CostTapType,
+        min: Int,
+        max: Int,
+        totalPowerNeeded: Int?,
+        prompt: String,
+    ): CardCollectionView {
+        val teamwork = cost is CostTeamwork
+        val semantic =
+            when {
+                teamwork -> PromptSemantic.TeamworkCost
+                sa.isKeyword(Keyword.STATION) -> PromptSemantic.StationTapCost
+                else -> PromptSemantic.Generic
+            }
+        return targetingCoordinator.chooseCardsViaBridge(
+            cards = optionList,
+            min = maxOf(min, 1),
+            max = max,
+            message = prompt,
+            semantic = semantic,
+            candidateRefs = optionList.toCandidateRefs(),
+            sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            // Any-number taps (Station) prompt even with a single candidate;
+            // total-power taps keep the auto-take shortcut for a forced list.
+            forcePrompt = totalPowerNeeded == null,
+            costSelectionWeights =
+                if (teamwork) optionList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
+            minSelectionWeight = totalPowerNeeded.takeIf { teamwork },
+        )
+    }
+
+    // Aggregate exile prompts project plain min/max Generic selections;
+    // no weight/threshold envelope is defined for these costs yet.
+    @Suppress("LongParameterList") // mirrors the Forge hook's flat contract
+    override fun chooseCardsForExileCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        cost: CostExile,
+        min: Int,
+        max: Int,
+        aggregateHint: String?,
+        aggregateGoal: Int?,
+        sharedCardType: Boolean,
+        cancelAllowed: Boolean,
+        prompt: String,
+    ): CardCollectionView =
+        targetingCoordinator.chooseCardsViaBridge(
+            cards = optionList,
+            min = min,
+            max = max,
+            message = prompt,
+            semantic = PromptSemantic.Generic,
+            candidateRefs = optionList.toCandidateRefs(),
+            sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+            forcePrompt = cancelAllowed,
+        )
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
     // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on
@@ -1296,23 +1365,16 @@ class PlayerController(
     ): List<AbilitySub> {
         if (possible.isEmpty()) return emptyList()
 
-        // Derive structural data the session layer needs to resolve grpIds.
-        // PlayerController doesn't import the card-DB layer (bridge → game
-        // dependency violation), so we provide:
-        //   - possibleFullIndices: where each possible[i] sits in the full
-        //     Choices list. Lets TargetingHandler index into card-DB childGrpIds
-        //     without re-deriving the filter.
-        //   - excludedFullIndices: full-list positions Forge pruned for legality.
-        //     Maps to ModalReq.excludedOptions[].
-        //   - modalCosts / excludedCosts: per-mode `+ {cost}` parsed from
-        //     `getParam("ModeCost")` (empty for cost-free Charm modes).
+        // PlayerController cannot resolve card-DB grpIds across the bridge → game
+        // boundary, so it binds each possible/excluded full-list index to its
+        // parsed mode cost for the session layer to resolve later.
         // Without this, the CastingTimeOptionsReq's ModalOption list reflects
         // the unfiltered card-DB ordering, which gets out of sync with
         // `possible` when modes are pruned (e.g. Spree's counter mode with no
         // stack target) — response indices then map to the wrong AbilitySub.
-        val shape = deriveModalChoiceShape(sa, possible)
+        val modalChoice = deriveModalChoicePayload(sa, possible)
 
-        if (!allowRepeat && min == num && num == possible.size && shape.excludedFullIndices.orEmpty().isEmpty()) {
+        if (!allowRepeat && min == num && num == possible.size && modalChoice?.excluded.orEmpty().isEmpty()) {
             return possible
         }
 
@@ -1326,15 +1388,12 @@ class PlayerController(
                 min = min,
                 max = num,
                 defaultIndex = 0,
-                semantic = PromptSemantic.ModalChoice,
+                route = PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
                 modalSourceCardName = sa.hostCard.name,
                 sourceEntityId = sa.hostCard.id,
                 isTriggeredAbility = sa.isTrigger,
                 forgeAbilityId = if (sa.isTrigger) sa.id else 0,
-                modalChoicePossibleFullIndices = shape.possibleFullIndices,
-                modalCosts = shape.modalCosts,
-                excludedModalFullIndices = shape.excludedFullIndices,
-                excludedModalCosts = shape.excludedCosts,
+                modalChoice = modalChoice,
             )
         val result = bridge.requestChoice(request, targetingSa = sa)
         return result.mapNotNull { idx -> possible.getOrNull(idx) }
@@ -1343,7 +1402,7 @@ class PlayerController(
     /**
      * For an SP$ Charm SA (Charm, Spree, Tiered), compute possible/excluded mappings
      * into the unfiltered Choices list plus per-mode costs parsed from Forge's
-     * `ModeCost$` SVar. Returns `(null, null, null, null)` when:
+     * `ModeCost$` SVar. Returns null when:
      *   - the SA has no `getAdditionalAbilityList("Choices")` (not a Charm)
      *   - any element of `possible` isn't in the full list (defensive)
      *
@@ -1351,34 +1410,30 @@ class PlayerController(
      * unfiltered childGrpIds) — preserves existing behavior for non-modal
      * paths and minimizes blast radius.
      */
-    private fun deriveModalChoiceShape(
+    private fun deriveModalChoicePayload(
         sa: SpellAbility,
         possible: List<AbilitySub>,
-    ): ModalChoiceShape {
-        val fullList = sa.getAdditionalAbilityList("Choices") ?: return ModalChoiceShape.EMPTY
-        if (fullList.isEmpty()) return ModalChoiceShape.EMPTY
+    ): ModalChoicePayload? {
+        val fullList = sa.getAdditionalAbilityList("Choices") ?: return null
+        if (fullList.isEmpty()) return null
 
         val possibleSet = possible.toSet()
-        val possibleFullIndices = mutableListOf<Int>()
-        val modalCosts = mutableListOf<List<Pair<ManaColor, Int>>>()
-        val excludedFullIndices = mutableListOf<Int>()
-        val excludedCosts = mutableListOf<List<Pair<ManaColor, Int>>>()
+        val possibleOptions = mutableListOf<ModalChoiceOption>()
+        val excludedOptions = mutableListOf<ModalChoiceOption>()
 
         for (sub in possible) {
             val fullIdx = fullList.indexOf(sub)
             // Defensive: shouldn't happen with CharmEffect.makePossibleOptions,
             // but bail to legacy if a mode in `possible` isn't in `fullList`.
-            if (fullIdx < 0) return ModalChoiceShape.EMPTY
-            possibleFullIndices += fullIdx
-            modalCosts += parseForgeModeCost(sub.getParam("ModeCost"))
+            if (fullIdx < 0) return null
+            possibleOptions += ModalChoiceOption(fullIdx, parseForgeModeCost(sub.getParam("ModeCost")))
         }
         for ((idx, sub) in fullList.withIndex()) {
             if (sub in possibleSet) continue
-            excludedFullIndices += idx
-            excludedCosts += parseForgeModeCost(sub.getParam("ModeCost"))
+            excludedOptions += ModalChoiceOption(idx, parseForgeModeCost(sub.getParam("ModeCost")))
         }
 
-        return ModalChoiceShape(possibleFullIndices, modalCosts, excludedFullIndices, excludedCosts)
+        return ModalChoicePayload(possibleOptions, excludedOptions)
     }
 
     /**
@@ -1399,17 +1454,6 @@ class PlayerController(
             counts.merge(pair.first, pair.second, Int::plus)
         }
         return counts.toList()
-    }
-
-    private data class ModalChoiceShape(
-        val possibleFullIndices: List<Int>?,
-        val modalCosts: List<List<Pair<ManaColor, Int>>>?,
-        val excludedFullIndices: List<Int>?,
-        val excludedCosts: List<List<Pair<ManaColor, Int>>>?,
-    ) {
-        companion object {
-            val EMPTY = ModalChoiceShape(null, null, null, null)
-        }
     }
 
     // -- Mulligan / starting player ----------------------------------------

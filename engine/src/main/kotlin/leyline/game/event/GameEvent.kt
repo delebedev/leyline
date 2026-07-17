@@ -4,6 +4,7 @@ import forge.card.CardStateName
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 
 /**
@@ -70,6 +71,13 @@ enum class Zone {
  * instead of correlating summary events with zone changes after the fact.
  * Consider extending Forge when a new mechanic needs per-card category resolution.
  */
+
+/** Why a permanent was destroyed — selects the wire transfer category. */
+enum class DestructionCause { Effect, LethalDamage, Deathtouch }
+
+/** Rules source that selects the DamageDealt presentation type. */
+enum class DamageSourceKind { Combat, SpellOrAbility, Fight }
+
 sealed interface GameEvent {
     /** A land was played from hand to battlefield.
      *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
@@ -121,6 +129,7 @@ sealed interface GameEvent {
         val abilityForgeId: Int = 0,
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
         /**
          * Triggering object override for linked-cost triggers. Most triggers point
          * at their source card; Enlist points at the creature tapped to pay the cost.
@@ -177,6 +186,7 @@ sealed interface GameEvent {
         val abilityForgeId: Int = 0,
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** True when the resolved spell is a Paradigm copy cast from exile. */
         val isParadigmCopy: Boolean = false,
         /** Stack iid allocated when the Paradigm copy was cast. */
@@ -201,11 +211,14 @@ sealed interface GameEvent {
         val affectorCardId: ForgeCardId? = null,
     ) : GameEvent
 
-    /** Damage was dealt to a creature. */
+    /** Damage was dealt to a creature. [deathtouch] = source had deathtouch,
+     *  so any nonzero amount marks the target for the deathtouch destroy SBA. */
     data class DamageDealtToCard(
         val sourceCardId: ForgeCardId,
         val targetCardId: ForgeCardId,
         val amount: Int,
+        val deathtouch: Boolean = false,
+        val sourceKind: DamageSourceKind,
     ) : GameEvent
 
     /** Damage was dealt to a player. */
@@ -213,7 +226,8 @@ sealed interface GameEvent {
         val sourceCardId: ForgeCardId,
         val targetSeatId: SeatId,
         val amount: Int,
-        val combat: Boolean,
+        val sourceKind: DamageSourceKind,
+        val changesLife: Boolean,
     ) : GameEvent
 
     /** A player's life total changed. */
@@ -247,12 +261,15 @@ sealed interface GameEvent {
     ) : GameEvent
 
     /** A permanent was destroyed (BF→GY, not sacrifice).
-     *  [sourceCardId] = host card of the ability that caused the destruction (for affectorId). */
+     *  [sourceCardId] = host card of the ability that caused the destruction (for affectorId).
+     *  [destruction] = destroy effect vs lethal-damage/deathtouch state-based action;
+     *  drives the wire transfer category (`Destroy` vs `SBA_Damage`/`SBA_Deathtouch`). */
     data class CardDestroyed(
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val sourceCardId: ForgeCardId? = null,
         val sourceAbilityForgeId: Int = 0,
+        val destruction: DestructionCause = DestructionCause.Effect,
     ) : GameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */
@@ -471,3 +488,13 @@ sealed interface GameEvent {
         val step: Int,
     ) : GameEvent
 }
+
+/** Returns the event's combat source fact, or null when the event is not damage. */
+internal fun GameEvent.combatDamageFact(): Boolean? =
+    if (this is GameEvent.DamageDealtToCard) {
+        sourceKind == DamageSourceKind.Combat
+    } else if (this is GameEvent.DamageDealtToPlayer) {
+        sourceKind == DamageSourceKind.Combat
+    } else {
+        null
+    }

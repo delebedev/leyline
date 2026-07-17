@@ -98,6 +98,7 @@ object TransferAnnotations {
             TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
             TransferCategory.Foretell,
             TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
+            TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch,
             TransferCategory.SbaLegendRule, TransferCategory.SbaUnattachedAura,
             TransferCategory.ZoneTransfer,
             -> {

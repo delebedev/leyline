@@ -2,7 +2,7 @@
 summary: "ADR: centralize Forge prompt classification in callback-specific planners before building PromptRequests."
 read_when:
   - "adding or changing PromptSemantic routing"
-  - "working in PlayerController, TargetingCoordinator, CostDecision, StaticChoiceCoordinator, PromptClassifier, or TargetingHandler"
+  - "working in PlayerController, TargetingCoordinator, CostDecision, StaticChoiceCoordinator, or TargetingHandler"
   - "deciding where Forge callback classification logic belongs"
 ---
 # ADR 0001: Callback-Specific Prompt Interaction Planners
@@ -26,9 +26,8 @@ The prompt path is roughly:
 ```text
 Forge callback
 -> PlayerController / CostDecision / coordinator
--> PromptRequest(semantic = ...)
+-> PromptRequest(route = ...)
 -> InteractivePromptBridge
--> PromptClassifier
 -> TargetingHandler / RequestBuilder
 -> GRE request
 -> MatchSession response handler
@@ -63,7 +62,7 @@ The package owns the decision stage between Forge callbacks and `PromptRequest` 
 The boundary is:
 
 ```text
-Forge callback context -> callback-specific planner -> typed prompt plan -> PromptRequest -> existing routing
+Forge callback context -> callback-specific planner -> typed prompt plan -> PromptRequest -> bound-route dispatch
 ```
 
 Planners may depend on Forge types and bridge handoff types. They must not depend on `match`, `game.bundle`, protobuf builders, or session response handlers.
@@ -125,7 +124,7 @@ Migrate incrementally. Each step should preserve existing behavior and add plann
 1. Add `bridge.interaction` with one planner for the next prompt-routing change.
 2. Start with `chooseCardsForEffect`, then migrate `chooseEntitiesForEffect` and `chooseSingleEntityForEffect` rules.
 3. Move reusable `SpellAbility` shape predicates into small helpers such as `SpellAbilityShapes`.
-4. Keep `PromptRequest`, `PromptSemantic`, `PromptClassifier`, `TargetingHandler`, and route APIs stable while the boundary proves itself.
+4. Keep `PromptRequest`, `PromptSemantic`, `TargetingHandler`, and route APIs stable while the boundary proves itself.
 5. Migrate cost-specific prompt decisions only after the first planner shape has proven stable.
 6. Stop after each coherent slice if the new boundary is not paying for itself.
 

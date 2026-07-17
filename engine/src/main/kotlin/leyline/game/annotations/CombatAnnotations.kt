@@ -5,6 +5,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.toWireId
 import leyline.game.event.GameEvent
+import leyline.game.event.combatDamageFact
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -22,6 +23,12 @@ import kotlin.collections.iterator
  */
 data class CombatAnnotationResult(
     val annotations: List<AnnotationInfo>,
+    /**
+     * Homogeneous noncombat damage owned by the frame's resolving spell or ability.
+     * The annotation pipeline inserts this bundle inside that source's RS/RC bracket.
+     * Mixed and ambiguous damage windows deliberately leave this empty.
+     */
+    val resolutionOwnedAnnotations: List<AnnotationInfo> = emptyList(),
     val hasCombatDamage: Boolean = false,
     val damageStep: Step = Step.CombatDamage_a2cb,
     val damagedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
@@ -108,7 +115,9 @@ object CombatAnnotations {
         for (ev in cardDamage) {
             val sourceIid = idResolver(ev.sourceCardId)
             val targetIid = idResolver(ev.targetCardId)
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount))
+            annotations.add(
+                AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount, sourceKind = ev.sourceKind),
+            )
         }
 
         // --- DamageDealt: creature → player ---
@@ -116,7 +125,9 @@ object CombatAnnotations {
         var playerDamageSeat: SeatId? = null
         for (ev in playerDamage) {
             val sourceIid = idResolver(ev.sourceCardId)
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount))
+            annotations.add(
+                AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount, sourceKind = ev.sourceKind),
+            )
             if (firstPlayerDamageAttacker == null) firstPlayerDamageAttacker = sourceIid
             playerDamageSeat = ev.targetSeatId
         }
@@ -129,7 +140,7 @@ object CombatAnnotations {
         // --- ModifiedLife from combat damage in this frame ---
         val playerDamageBySeat = playerDamage.groupBy { it.targetSeatId.value }
         for ((seat, eventsForSeat) in playerDamageBySeat) {
-            val delta = -eventsForSeat.sumOf { it.amount }
+            val delta = -eventsForSeat.filter { it.changesLife }.sumOf { it.amount }
             if (delta != 0) {
                 annotations.add(
                     AnnotationBuilder.modifiedLife(
@@ -149,9 +160,11 @@ object CombatAnnotations {
                 emptyList()
             }
 
+        val damageFacts = events.mapNotNull { it.combatDamageFact() }
         return CombatAnnotationResult(
             annotations = annotations,
-            hasCombatDamage = true,
+            resolutionOwnedAnnotations = annotations.takeIf { damageFacts.isNotEmpty() && damageFacts.none { it } }.orEmpty(),
+            hasCombatDamage = damageFacts.isNotEmpty() && damageFacts.all { it },
             damageStep = events.combatDamageStep(),
             damagedThisTurnPersistent = damagedThisTurnPersistent,
             clearDamagedThisTurn = clearOnUpkeep,
@@ -165,7 +178,7 @@ object CombatAnnotations {
                 if (event.step == Step.FirstStrikeDamage_a2cb.number) currentDamageStep = Step.FirstStrikeDamage_a2cb
                 if (event.step == Step.CombatDamage_a2cb.number) currentDamageStep = Step.CombatDamage_a2cb
             }
-            if (event is GameEvent.DamageDealtToCard || event is GameEvent.DamageDealtToPlayer) {
+            if (event.combatDamageFact() == true) {
                 return currentDamageStep
             }
         }

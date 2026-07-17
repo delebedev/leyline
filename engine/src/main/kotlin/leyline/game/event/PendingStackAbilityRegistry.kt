@@ -1,6 +1,7 @@
 package leyline.game.event
 
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ResolvedAbilityIdentity
 import java.util.concurrent.ConcurrentHashMap
 
 internal enum class PendingStackAbilityKind {
@@ -11,8 +12,10 @@ internal enum class PendingStackAbilityKind {
 internal data class PendingStackAbilityContext(
     val kind: PendingStackAbilityKind,
     val sourceCardId: ForgeCardId,
-    val abilityGrpId: Int,
-)
+    val identity: ResolvedAbilityIdentity?,
+) {
+    val abilityGrpId: Int get() = identity?.abilityGrpId ?: 0
+}
 
 internal class PendingStackAbilityRegistry {
     private val pending = ConcurrentHashMap<Int, PendingStackAbilityContext>()
@@ -20,14 +23,14 @@ internal class PendingStackAbilityRegistry {
     fun recordTrigger(
         forgeAbilityId: Int,
         sourceCardId: ForgeCardId,
-        abilityGrpId: Int,
-    ) = record(forgeAbilityId, sourceCardId, abilityGrpId, PendingStackAbilityKind.Trigger)
+        identity: ResolvedAbilityIdentity?,
+    ) = record(forgeAbilityId, sourceCardId, identity, PendingStackAbilityKind.Trigger)
 
     fun recordActivation(
         forgeAbilityId: Int,
         sourceCardId: ForgeCardId,
-        abilityGrpId: Int,
-    ) = record(forgeAbilityId, sourceCardId, abilityGrpId, PendingStackAbilityKind.Activation)
+        identity: ResolvedAbilityIdentity?,
+    ) = record(forgeAbilityId, sourceCardId, identity, PendingStackAbilityKind.Activation)
 
     fun isTriggerResolving(forgeAbilityId: Int): Boolean = pending[forgeAbilityId]?.kind == PendingStackAbilityKind.Trigger
 
@@ -50,7 +53,7 @@ internal class PendingStackAbilityRegistry {
     private fun record(
         forgeAbilityId: Int,
         sourceCardId: ForgeCardId,
-        abilityGrpId: Int,
+        identity: ResolvedAbilityIdentity?,
         kind: PendingStackAbilityKind,
     ) {
         if (forgeAbilityId == 0) return
@@ -58,7 +61,7 @@ internal class PendingStackAbilityRegistry {
             PendingStackAbilityContext(
                 kind = kind,
                 sourceCardId = sourceCardId,
-                abilityGrpId = abilityGrpId,
+                identity = identity,
             )
     }
 }

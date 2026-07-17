@@ -1,0 +1,8 @@
+name: "Portable Hole"
+grpId: 81684
+titleId: 498343
+abilities:
+  - id: 143605
+    textId: 951024
+    category: 2
+expansionCode: "HBG"

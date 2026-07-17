@@ -22,9 +22,14 @@ import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.match.PuzzleHandler
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.io.File
 
 class PuzzleHandlerTest :
@@ -107,6 +112,22 @@ class PuzzleHandlerTest :
                     )
                 handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-bolt-face", 1)
                 val gre = outbound(channel).flatMap(::greMessages)
+                val actionPrompt = gre.last { it.hasActionsAvailableReq() }
+                session.counter.lastPromptMsgId() shouldBe actionPrompt.msgId
+
+                session.onPerformAction(
+                    ClientToGREMessage
+                        .newBuilder()
+                        .setType(ClientMessageType.PerformActionResp_097b)
+                        .setSystemSeatId(1)
+                        .setGameStateId(actionPrompt.gameStateId)
+                        .setRespId(actionPrompt.msgId)
+                        .setPerformActionResp(
+                            PerformActionResp
+                                .newBuilder()
+                                .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                        ).build(),
+                )
 
                 assertSoftly {
                     gre.map { it.type }.take(3) shouldBe
@@ -116,7 +137,7 @@ class PuzzleHandlerTest :
                             GREMessageType.ActionsAvailableReq_695e,
                         )
                     gre.first { it.hasGameStateMessage() }.gameStateMessage.actionsCount shouldBe 4
-                    sink.messages.size shouldBe 3
+                    sink.messages.none { it.type == GREMessageType.IllegalRequest } shouldBe true
                     session.gameBridge shouldBeSameInstanceAs bridge
                 }
                 channel.close()

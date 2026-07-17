@@ -10,6 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.event.ZoneMove
@@ -58,6 +59,20 @@ class ZoneMoveLedgerTest :
                     Zone.Graveyard,
                     TransferCategory.Destroy,
                     events = listOf(GameEvent.CardDestroyed(cardId, seat)),
+                ),
+                Case(
+                    "lethal damage death",
+                    Zone.Battlefield,
+                    Zone.Graveyard,
+                    TransferCategory.SbaDamage,
+                    events = listOf(GameEvent.CardDestroyed(cardId, seat, destruction = DestructionCause.LethalDamage)),
+                ),
+                Case(
+                    "deathtouch death",
+                    Zone.Battlefield,
+                    Zone.Graveyard,
+                    TransferCategory.SbaDeathtouch,
+                    events = listOf(GameEvent.CardDestroyed(cardId, seat, destruction = DestructionCause.Deathtouch)),
                 ),
                 Case(
                     "sacrifice",

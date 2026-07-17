@@ -3,14 +3,15 @@ package leyline.match
 import forge.card.mana.ManaCostShard
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ManaSourcePaymentKind
+import leyline.bridge.handoff.PayCostsPromptRoute
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ManaCostText
-import leyline.game.bundle.PayCostsPromptRoute
-import leyline.game.bundle.SelectNPromptRoutes
+import leyline.game.bundle.build
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -44,7 +45,8 @@ internal class PayCostsInteractionHandler(
 
         val bridge = ctx.bridge
         val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt() ?: return false
-        if (!PromptResponseSubmitter.isManaSourcePaymentSemantic(pendingPrompt.request.semantic)) return false
+        val route = pendingPrompt.payCostsRoute() ?: return false
+        val paymentKind = route.manaSourcePayment ?: return false
 
         val selectedIds =
             actions
@@ -64,23 +66,22 @@ internal class PayCostsInteractionHandler(
         if (actions.any { it.actionType == ActionType.Pass }) {
             val ids = manaSourcePaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
             convokePaymentSelections.remove(pendingPrompt.promptId)
-            submitManaSourcePayment(pendingPrompt, ids, autoPass)
+            submitManaSourcePayment(pendingPrompt, paymentKind, ids, autoPass)
             return true
         }
 
         if (newSelectedIds.isNotEmpty()) {
-            val convokeSelections = recordConvokeSelections(pendingPrompt, newSelectedIds)
+            val convokeSelections = recordConvokeSelections(pendingPrompt, paymentKind, newSelectedIds)
             log.info(
                 "PayCostsInteractionHandler: {} MakePayment ids={} accumulated={}",
-                manaSourceLabel(pendingPrompt.request.semantic),
+                manaSourceLabel(paymentKind),
                 newSelectedIds,
                 selectedSet,
             )
             recordPendingConvokePayments(pendingPrompt, convokeSelections)
             sendPayCostsReq(
-                adjustManaSourcePaymentPrompt(pendingPrompt, selectedSet.toList(), convokeSelections),
-                SelectNPromptRoutes.payCosts(pendingPrompt.request.semantic)
-                    ?: error("missing PayCosts route for ${pendingPrompt.request.semantic}"),
+                adjustManaSourcePaymentPrompt(pendingPrompt, paymentKind, selectedSet.toList(), convokeSelections),
+                route,
             )
             return true
         }
@@ -97,16 +98,16 @@ internal class PayCostsInteractionHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         autoPass: () -> Unit,
     ): Boolean {
-        if (!PromptResponseSubmitter.isManaSourcePaymentSemantic(pendingPrompt.request.semantic)) return false
+        val paymentKind = pendingPrompt.payCostsRoute()?.manaSourcePayment ?: return false
         val ids = manaSourcePaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
         convokePaymentSelections.remove(pendingPrompt.promptId)
         if (ids.isEmpty()) return false
         log.info(
             "PayCostsInteractionHandler: CancelActionReq — completing {} payment ids={}",
-            manaSourceLabel(pendingPrompt.request.semantic),
+            manaSourceLabel(paymentKind),
             ids,
         )
-        submitManaSourcePayment(pendingPrompt, ids, autoPass)
+        submitManaSourcePayment(pendingPrompt, paymentKind, ids, autoPass)
         return true
     }
 
@@ -129,13 +130,14 @@ internal class PayCostsInteractionHandler(
 
     private fun submitManaSourcePayment(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        paymentKind: ManaSourcePaymentKind,
         selectedIds: List<Int>,
         autoPass: () -> Unit,
     ) {
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
         log.info(
             "PayCostsInteractionHandler: {} payment ids={} indices={}",
-            manaSourceLabel(pendingPrompt.request.semantic),
+            manaSourceLabel(paymentKind),
             selectedIds,
             selectedIndices,
         )
@@ -149,6 +151,7 @@ internal class PayCostsInteractionHandler(
 
     private fun adjustManaSourcePaymentPrompt(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        paymentKind: ManaSourcePaymentKind,
         selectedIds: List<Int>,
         convokeSelections: List<ConvokePaymentSelection> = emptyList(),
     ): InteractivePromptBridge.PendingPrompt {
@@ -157,7 +160,7 @@ internal class PayCostsInteractionHandler(
         val remainingRefs = pendingPrompt.request.candidateRefs.filterNot { it.isCard() && it.entityId in selectedForgeIds }
         val remainingOptions = remainingRefs.map { ref -> pendingPrompt.request.options.getOrNull(ref.index) ?: "" }
         val remainingManaCost =
-            if (pendingPrompt.request.semantic == PromptSemantic.ConvokeCost) {
+            if (paymentKind == ManaSourcePaymentKind.Convoke) {
                 reduceConvokeManaCost(pendingPrompt.request.waterbendManaCost, convokeSelections)
             } else {
                 pendingPrompt.request.waterbendManaCost.reduceGenericBy(selectedIds.size)
@@ -176,15 +179,14 @@ internal class PayCostsInteractionHandler(
 
     private fun recordConvokeSelections(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        paymentKind: ManaSourcePaymentKind,
         selectedIds: List<Int>,
     ): List<ConvokePaymentSelection> {
-        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost &&
-            pendingPrompt.request.semantic != PromptSemantic.ImproviseCost
-        ) {
+        if (paymentKind == ManaSourcePaymentKind.Waterbend) {
             return emptyList()
         }
         val existing = convokePaymentSelections[pendingPrompt.promptId].orEmpty()
-        val newSelections = chooseConvokePaymentSelections(pendingPrompt, existing, selectedIds)
+        val newSelections = chooseConvokePaymentSelections(pendingPrompt, paymentKind, existing, selectedIds)
         val next = existing + newSelections
         convokePaymentSelections[pendingPrompt.promptId] = next
         return next
@@ -194,11 +196,8 @@ internal class PayCostsInteractionHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selections: List<ConvokePaymentSelection>,
     ) {
-        if (pendingPrompt.request.semantic != PromptSemantic.ConvokeCost &&
-            pendingPrompt.request.semantic != PromptSemantic.ImproviseCost
-        ) {
-            return
-        }
+        val paymentKind = pendingPrompt.payCostsRoute()?.manaSourcePayment ?: return
+        if (paymentKind == ManaSourcePaymentKind.Waterbend) return
         if (selections.isEmpty()) return
         val source =
             pendingPrompt.request.sourceEntityId ?: ctx.game.stack
@@ -218,8 +217,8 @@ internal class PayCostsInteractionHandler(
                             PromptSideEffect.ConvokePayment(
                                 paymentForgeCardId = selection.forgeCardId,
                                 color = ManaColorMapping.paymentWireColor(selection.shard).number,
-                                substitutionGrpId = paymentKeywordGrpId(pendingPrompt.request.semantic),
-                                paymentAbilityGrpId = paymentAbilityGrpId(pendingPrompt.request.semantic),
+                                substitutionGrpId = paymentKeywordGrpId(paymentKind),
+                                paymentAbilityGrpId = paymentAbilityGrpId(paymentKind),
                             )
                         },
                 ),
@@ -228,12 +227,13 @@ internal class PayCostsInteractionHandler(
 
     private fun chooseConvokePaymentSelections(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        paymentKind: ManaSourcePaymentKind,
         existing: List<ConvokePaymentSelection>,
         selectedIds: List<Int>,
     ): List<ConvokePaymentSelection> {
         if (selectedIds.isEmpty()) return emptyList()
         val remainingCost =
-            if (pendingPrompt.request.semantic == PromptSemantic.ConvokeCost) {
+            if (paymentKind == ManaSourcePaymentKind.Convoke) {
                 reduceConvokeManaCost(pendingPrompt.request.waterbendManaCost, existing)
             } else {
                 pendingPrompt.request.waterbendManaCost.reduceGenericBy(existing.size)
@@ -244,7 +244,7 @@ internal class PayCostsInteractionHandler(
             val forgeId = ctx.bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
             val card = ctx.bridge.findCard(forgeId) ?: return@mapNotNull null
             val shard =
-                if (pendingPrompt.request.semantic == PromptSemantic.ConvokeCost) {
+                if (paymentKind == ManaSourcePaymentKind.Convoke) {
                     plan[forgeId] ?: fallbackConvokeShard(card.color, remainingCost)
                 } else {
                     ManaCostShard.GENERIC
@@ -300,25 +300,29 @@ internal class PayCostsInteractionHandler(
             ctx.bridge.getForgeCardId(InstanceId(instanceId))
         }
 
-    private fun manaSourceLabel(semantic: PromptSemantic): String =
-        when {
-            semantic == PromptSemantic.ConvokeCost -> "Convoke"
-            semantic == PromptSemantic.ImproviseCost -> "Improvise"
-            semantic == PromptSemantic.WaterbendCost -> "Waterbend"
-            else -> "ManaSource"
+    private fun manaSourceLabel(kind: ManaSourcePaymentKind): String =
+        when (kind) {
+            ManaSourcePaymentKind.Convoke -> "Convoke"
+            ManaSourcePaymentKind.Improvise -> "Improvise"
+            ManaSourcePaymentKind.Waterbend -> "Waterbend"
         }
 
-    private fun paymentKeywordGrpId(semantic: PromptSemantic): Int =
-        when {
-            semantic == PromptSemantic.ImproviseCost -> KeywordAbilityIds.IMPROVISE
-            else -> KeywordAbilityIds.CONVOKE
+    private fun paymentKeywordGrpId(kind: ManaSourcePaymentKind): Int =
+        when (kind) {
+            ManaSourcePaymentKind.Improvise -> KeywordAbilityIds.IMPROVISE
+            ManaSourcePaymentKind.Convoke -> KeywordAbilityIds.CONVOKE
+            ManaSourcePaymentKind.Waterbend -> error("Waterbend has no convoke payment annotation")
         }
 
-    private fun paymentAbilityGrpId(semantic: PromptSemantic): Int =
-        when {
-            semantic == PromptSemantic.ImproviseCost -> KeywordAbilityIds.IMPROVISE
-            else -> KeywordAbilityIds.CONVOKE_PAYMENT
+    private fun paymentAbilityGrpId(kind: ManaSourcePaymentKind): Int =
+        when (kind) {
+            ManaSourcePaymentKind.Improvise -> KeywordAbilityIds.IMPROVISE
+            ManaSourcePaymentKind.Convoke -> KeywordAbilityIds.CONVOKE_PAYMENT
+            ManaSourcePaymentKind.Waterbend -> error("Waterbend has no convoke payment annotation")
         }
+
+    private fun InteractivePromptBridge.PendingPrompt.payCostsRoute(): PayCostsPromptRoute? =
+        (request.route as? ResolvedPromptRoute.PayCosts)?.descriptor
 
     private fun List<Pair<ManaColor, Int>>.reduceGenericBy(count: Int): List<Pair<ManaColor, Int>> {
         var remainingReduction = count

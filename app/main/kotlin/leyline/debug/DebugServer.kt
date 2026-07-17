@@ -17,7 +17,6 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
-import leyline.match.ActionOfferCatalog
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -455,6 +454,9 @@ class DebugServer(
             }
 
         val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
+        bridge.awaitPriority()
+        val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
+        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }
 
         val counter = newSession.counter
         val gsId = counter.nextGsId()
@@ -473,7 +475,8 @@ class DebugServer(
                     viewingSeatId = newSession.seatId.value,
                 ).gsm
 
-        val actions = ActionMapper.buildFromSnapshot(newSession.seatId.value, snap, bridge)
+        val projection = ActionMapper.buildProjectionFromSnapshot(newSession.seatId.value, snap, bridge)
+        val actions = projection.actions
         val fullGsmWithActions =
             GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = newSession.seatId.value)
 
@@ -505,15 +508,8 @@ class DebugServer(
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
-        val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
-        val pending = actionBridge.getPending()
-        val offers = ActionOfferCatalog.build(actions, newSession.gameBridge, newSession.seatId.value)
-        val bound =
-            pending != null &&
-                offers.size == actions.actionsCount &&
-                actionBridge.bindActionCatalog(pending.actionId, gsId, offers)
-        if (!bound) {
-            log.warn("Puzzle hot-swap emitted ActionsAvailableReq gsId={} without a pending action", gsId)
+        check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
+            "Puzzle hot-swap could not bind priority actions"
         }
 
         newSession.sendBundledGRE(listOf(greGsm, greActions))

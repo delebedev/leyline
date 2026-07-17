@@ -1,6 +1,9 @@
 package leyline.match
 
 import forge.game.player.GameLossReason
+import leyline.bridge.PriorityActionCandidates
+import leyline.bridge.handoff.ActionResponseKey
+import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
@@ -12,6 +15,7 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markIfPrompt
 import leyline.game.mapping.StopTypeMapping
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -230,27 +234,32 @@ class MatchSession(
 
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
-            // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
-            // path only fires for MatchSession. Warn if somehow called for a non-human
-            // MatchSession — it would consume the human seat's pending priority via the
-            // shared ActionBridge, advancing the engine past Main1.
-            val humanSeat = gameBridge.seating.humanSeat
-            if (seatId != humanSeat) {
-                log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
-                return
-            }
-
-            log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
-
-            // Seed state snapshot for subsequent diff computation.
-            // The puzzle initial bundle already sent the Full GSM, so the cursor
-            // needs a matching snapshot for the first Diff to be correct.
-            val snap2 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-            bundleBuilder.cursor.lastSent = snap2
+            if (!preparePuzzleStart()) return@synchronized
 
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()
         }
+
+    internal fun preparePuzzleStart(): Boolean {
+        // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
+        // path only fires for MatchSession. Warn if somehow called for a non-human
+        // MatchSession — it would consume the human seat's pending priority via the
+        // shared ActionBridge, advancing the engine past Main1.
+        val humanSeat = gameBridge.seating.humanSeat
+        if (seatId != humanSeat) {
+            log.warn("MatchSession: onPuzzleStart called for seat {} — expected humanSeat {}", seatId.value, humanSeat.value)
+            return false
+        }
+
+        log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
+
+        // Seed state snapshot for subsequent diff computation.
+        // The puzzle initial bundle already sent the Full GSM, so the cursor
+        // needs a matching snapshot for the first Diff to be correct.
+        val snap2 = SnapshotCapture.run(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+        bundleBuilder.cursor.lastSent = snap2
+        return true
+    }
 
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
@@ -258,86 +267,93 @@ class MatchSession(
      * and context resolver.
      */
     override fun onPerformAction(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             actionPerformer.perform(greMsg)
         }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             combatHandler.onDeclareAttackers(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             combatHandler.onDeclareBlockers(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
     override fun onAssignDamage(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             combatHandler.onAssignDamage(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             optionalActionHandler.onOptionalActionResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle NumericInputResp — delegates to [NumericInputHandler]. */
     override fun onNumericInputResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             numericInputHandler.onNumericInputResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onSelectTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onSubmitTargets { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onSelectN(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             targetingHandler.onCastingTimeOptions(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
-        synchronized(sessionLock) {
+        withValidResponse(greMsg) {
             val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
             targetingHandler.onSearchResp(itemsFound) { autoPassEngine.autoPassAndAdvance() }
         }
+
+    private fun withValidResponse(
+        greMsg: ClientToGREMessage,
+        block: () -> Unit,
+    ) = synchronized(sessionLock) {
+        if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
+    }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -529,9 +545,34 @@ class MatchSession(
                 log.warn("MatchSession: sendRealGameState but game is null")
                 return
             }
+        if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
+            bridge.awaitActionPriority(seatId)
+        }
+        if (bridge.seat(seatId).action.getPending() == null) {
+            sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
+            return
+        }
+        sendPriorityState(bridge, revealForSeat, null)
+    }
+
+    override fun sendPriorityState(
+        bridge: GameBridge,
+        candidates: PriorityActionCandidates,
+    ) = sendPriorityState(bridge, null, candidates)
+
+    private fun sendPriorityState(
+        bridge: GameBridge,
+        revealForSeat: Int?,
+        candidates: PriorityActionCandidates?,
+    ) {
+        val game =
+            bridge.getGame() ?: run {
+                log.warn("MatchSession: sendRealGameState but game is null")
+                return
+            }
 
         val bb = bundleBuilder
-        val result = bb.postAction(game, counter, revealForSeat)
+        val result = bb.postAction(game, counter, revealForSeat, candidates)
 
         // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
         val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
@@ -549,6 +590,7 @@ class MatchSession(
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {
+        bindActionOffers(result.actionGameStateId, result.actionOffers)
         for (gre in result.messages) {
             if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
             if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
@@ -653,9 +695,8 @@ class MatchSession(
     private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-            markIfPrompt(counter, m.type, m.gameStateId)
+            markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
         }
-        bindPendingActionPrompt(messages)
         recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)
@@ -698,24 +739,24 @@ class MatchSession(
         autoAdvanceExecutor.shutdownNow()
     }
 
-    private fun bindPendingActionPrompt(messages: List<GREToClientMessage>) {
-        val prompt = messages.firstOrNull { it.hasActionsAvailableReq() } ?: return
+    private fun bindActionOffers(
+        gameStateId: Int?,
+        offers: List<GameActionBridge.ActionOffer>,
+    ) {
+        if (gameStateId == null && offers.isEmpty()) return
+        val promptGameStateId = checkNotNull(gameStateId) { "Action offers require a game-state id" }
         val actionBridge = gameBridge.seat(seatId).action
-        val pending = actionBridge.getPending()
-        val offers = ActionOfferCatalog.build(prompt.actionsAvailableReq, gameBridge, seatId.value)
-        val bound =
-            pending != null &&
-                offers.size == prompt.actionsAvailableReq.actionsCount &&
-                actionBridge.bindActionCatalog(pending.actionId, prompt.gameStateId, offers)
-        if (!bound) {
-            log.warn(
-                "MatchSession: refusing unbound ActionsAvailableReq gsId={} pending={} offers={}/{} types={}",
-                prompt.gameStateId,
-                pending?.actionId?.take(8),
-                offers.size,
-                prompt.actionsAvailableReq.actionsCount,
-                prompt.actionsAvailableReq.actionsList.map { it.actionType },
-            )
+        val pending = checkNotNull(actionBridge.getPending()) { "Cannot expose priority actions without a pending window" }
+        check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
+            val current = actionBridge.getPending()
+            val duplicateSelectors =
+                offers
+                    .groupBy { ActionResponseKey.from(it.action) }
+                    .filterValues { it.size > 1 }
+                    .mapValues { (_, variants) -> variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) } }
+            "Cannot bind priority actions to pending window ${pending.actionId.take(8)} " +
+                "(current=${current?.actionId?.take(8)}, completed=${pending.future.isDone}, offers=${offers.size}, " +
+                "duplicates=$duplicateSelectors)"
         }
     }
 

@@ -29,6 +29,8 @@ enum class TransferCategory(
     Put("Put"),
     Surveil("Surveil"),
     Foretell("Foretell"),
+    SbaDamage("SBA_Damage"),
+    SbaDeathtouch("SBA_Deathtouch"),
     SbaLegendRule("SBA_LegendRule"),
     SbaUnattachedAura("SBA_UnattachedAura"),
     ZoneTransfer("ZoneTransfer"),

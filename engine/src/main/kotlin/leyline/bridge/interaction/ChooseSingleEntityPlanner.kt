@@ -43,6 +43,7 @@ object ChooseSingleEntityPlanner {
                 isLegendRule -> PromptSemantic.SelectNLegendRule
                 isLearn -> PromptSemantic.LearnLesson
                 isSearch -> PromptSemantic.Search
+                context.sa?.api == ApiType.ManifestDread -> PromptSemantic.ManifestDread
                 else -> PromptSemantic.SelectNResolution
             }
         val route =
@@ -60,11 +61,20 @@ object ChooseSingleEntityPlanner {
             max = 1,
             candidateRefsPolicy =
                 if (route == ChooseSingleEntityRoutePolicy.Prompt) {
-                    CandidateRefsPolicy.Selectable
+                    if (semantic == PromptSemantic.ManifestDread) {
+                        CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                    } else {
+                        CandidateRefsPolicy.Selectable
+                    }
                 } else {
                     CandidateRefsPolicy.None
                 },
-            sourceIdPolicy = if (isLearn) SourceIdPolicy.HostCard else SourceIdPolicy.None,
+            sourceIdPolicy =
+                if (isLearn || semantic == PromptSemantic.ManifestDread) {
+                    SourceIdPolicy.HostCard
+                } else {
+                    SourceIdPolicy.None
+                },
             isSearch = isSearch,
             isLearn = isLearn,
             isLegendRule = isLegendRule,

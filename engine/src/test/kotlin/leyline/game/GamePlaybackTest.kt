@@ -1,12 +1,20 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.bundle.MessageCounter
+import leyline.game.event.DamageSourceKind
+import leyline.game.event.FrameEventLog
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
+import leyline.game.event.ZoneMove
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -99,5 +107,123 @@ class GamePlaybackTest :
 
             playback.drainQueueBeforeMsgId(msgId = 749, maxGsId = 568).shouldBeEmpty()
             playback.drainQueue() shouldBe listOf(futureGsEarlierMsg)
+        }
+
+        test("noncombat spell damage does not activate combat splitting") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
+                    ),
+                )
+
+            events.shouldSplitCombatDamageWindow() shouldBe false
+        }
+
+        test("fight damage does not activate combat splitting") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(10),
+                        targetCardId = ForgeCardId(20),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Fight,
+                    ),
+                )
+
+            events.shouldSplitCombatDamageWindow() shouldBe false
+        }
+
+        test("genuine combat damage activates combat splitting") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
+                    ),
+                )
+
+            events.shouldSplitCombatDamageWindow() shouldBe true
+        }
+
+        test("mixed damage window stays on the unsplit causal path") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
+                    ),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(30),
+                        targetSeatId = SeatId(2),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
+                    ),
+                )
+
+            events.shouldSplitCombatDamageWindow() shouldBe false
+        }
+
+        test("noncombat damage waits for its resolution boundary") {
+            val damage =
+                GameEvent.DamageDealtToPlayer(
+                    sourceCardId = ForgeCardId(10),
+                    targetSeatId = SeatId(2),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.SpellOrAbility,
+                    changesLife = true,
+                )
+
+            val resolving = GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false)
+            assertSoftly {
+                FrameEventLog(listOf(damage)).shouldAwaitResolutionBoundary() shouldBe false
+                FrameEventLog(listOf(damage, resolving)).shouldAwaitResolutionBoundary() shouldBe true
+                FrameEventLog(
+                    events = listOf(damage, resolving),
+                    zoneMoves =
+                        listOf(
+                            ZoneMove(
+                                order = 1,
+                                cardId = ForgeCardId(10),
+                                from = Zone.Stack,
+                                to = Zone.Graveyard,
+                                cause = null,
+                            ),
+                        ),
+                ).shouldAwaitResolutionBoundary() shouldBe false
+            }
+        }
+
+        test("ambiguous mixed damage emits without waiting for an unrelated resolution") {
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(10),
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Combat,
+                        changesLife = true,
+                    ),
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = ForgeCardId(30),
+                        targetSeatId = SeatId(2),
+                        amount = 3,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
+                    ),
+                )
+
+            FrameEventLog(events).shouldAwaitResolutionBoundary() shouldBe false
         }
     })

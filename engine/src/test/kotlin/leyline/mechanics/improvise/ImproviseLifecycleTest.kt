@@ -95,20 +95,24 @@ class ImproviseLifecycleTest :
 
 private fun SessionTest.respondToMakePayment(instanceId: Int) {
     harness.session.onPerformAction(
-        performAction {
-            actionType = ActionType.MakePayment
-            this.instanceId = instanceId
-        }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+        harness.submitWithGsId(
+            performAction {
+                actionType = ActionType.MakePayment
+                this.instanceId = instanceId
+            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+        ),
     )
     harness.drainSink()
 }
 
 private fun SessionTest.respondToPaymentDone() {
     harness.session.onPerformAction(
-        performAction { actionType = ActionType.Pass }
-            .toBuilder()
-            .setGameStateId(harness.latestPromptGsId())
-            .build(),
+        harness.submitWithGsId(
+            performAction { actionType = ActionType.Pass }
+                .toBuilder()
+                .setGameStateId(harness.latestPromptGsId())
+                .build(),
+        ),
     )
     harness.drainSink()
 }

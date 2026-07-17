@@ -6,6 +6,9 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.Board
@@ -194,6 +197,65 @@ class ActionMapperSnapshotTest :
                 fromSnap.actionsList.any { it.actionType == ActionType.ActivateMana }.shouldBeTrue()
                 fromSnap.actionsList.any { it.actionType == ActionType.Pass }.shouldBeTrue()
                 fromSnap.actionsList.any { it.actionType == ActionType.FloatMana }.shouldBeTrue()
+            }
+        }
+
+        test("priority projection binds every active family to its originating Forge candidate") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Tavern Swindler", human, ZoneType.Battlefield)
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Hand)
+                }
+
+            val projection =
+                ActionMapper.buildProjectionFromSnapshot(
+                    1,
+                    SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                    board.bridge,
+                )
+
+            projection.offers.map { it.action } shouldBe projection.actions.actionsList
+            val cast =
+                projection.offers
+                    .single { it.action.actionType == ActionType.Cast }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.CastSpell>()
+            val land =
+                projection.offers
+                    .single { it.action.actionType == ActionType.Play_add3 }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.PlayLand>()
+            val activate =
+                projection.offers
+                    .first { it.action.actionType == ActionType.Activate_add3 }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.ActivateAbility>()
+            val mana =
+                projection.offers
+                    .first { it.action.actionType == ActionType.ActivateMana }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.ActivateMana>()
+
+            assertSoftly {
+                cast.ability shouldNotBe null
+                cast.ability?.hostCard?.name shouldBe "Llanowar Elves"
+                land.cardId shouldBe
+                    ForgeCardId(
+                        board.human
+                            .getZone(ZoneType.Hand)
+                            .cards
+                            .single { it.name == "Island" }
+                            .id,
+                    )
+                activate.ability shouldNotBe null
+                activate.ability?.hostCard?.name shouldBe "Tavern Swindler"
+                mana.ability shouldNotBe null
+                mana.ability?.hostCard?.name shouldBe "Forest"
+                projection.offers
+                    .filter { it.action.actionType == ActionType.Pass || it.action.actionType == ActionType.FloatMana }
+                    .map { it.command } shouldBe listOf(PlayerAction.PassPriority, PlayerAction.PassPriority)
             }
         }
 

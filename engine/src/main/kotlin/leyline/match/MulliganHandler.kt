@@ -3,6 +3,7 @@ package leyline.match
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
+import leyline.game.bundle.markPrompts
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
@@ -139,6 +140,7 @@ class MulliganHandler(
         val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId)
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
+        markPrompts(s.counter, msg)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=0")
         ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
         output.send(msg)
@@ -157,6 +159,7 @@ class MulliganHandler(
         val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId, diffDeletedInstanceIds)
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
+        markPrompts(s.counter, msg)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=${diffDeletedInstanceIds.size}")
         ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
         output.send(msg)
@@ -185,6 +188,7 @@ class MulliganHandler(
             )
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
+        markPrompts(s.counter, msg)
         Tap.outboundTemplate("MulliganReq seat=${seatId.value} mulliganCount=$reportedMulliganCount numCards=$numCards")
         ProtoDump.dump(msg, "MulliganReq-seat${seatId.value}")
         output.send(msg)
@@ -198,6 +202,7 @@ class MulliganHandler(
         val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.counter.currentMsgId(), gsId, bridge)
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
+        markPrompts(s.counter, msg)
         Tap.outboundTemplate("DealHand+MulliganReq seat=${seatId.value}")
         ProtoDump.dump(msg, "DealHand+MullReq-seat${seatId.value}")
         output.send(msg)

@@ -491,7 +491,7 @@ class GameBridgeTest :
             // Build initial state to seed previousZones
             val snapGb2 = GsmSnapshot.capture(game, b, "test-match", 1)
             val seedResult = StateMapper.buildFromSnapshot(snapGb2, 1, "test-match", b)
-            b.applyMutations(seedResult.mutations)
+            b.applyMutations(seedResult.finalizeAnnotations().mutations)
 
             // Play a land
             val player = b.getPlayer(SeatId(1))!!
@@ -601,5 +601,17 @@ class GameBridgeTest :
                 gs.hasTurnInfo().shouldBeTrue()
                 gs.turnInfo.turnNumber shouldBeGreaterThanOrEqualTo 1
             }
+        }
+
+        test("modal identity is consumed once and retained by trigger") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            val source = ForgeCardId(42)
+
+            b.recordSelectedModalAbilityGrpId(source, 1001)
+            b.resolvePendingTriggerAbilityIdentity(51, source) { 2001 } shouldBe 1001
+            b.resolvePendingTriggerAbilityIdentity(51, source) { 2001 } shouldBe 1001
+
+            b.recordSelectedModalAbilityGrpId(source, 1002)
+            b.resolvePendingTriggerAbilityIdentity(52, source) { 2002 } shouldBe 1002
         }
     })

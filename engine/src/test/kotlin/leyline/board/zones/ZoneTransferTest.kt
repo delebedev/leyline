@@ -3,6 +3,7 @@ package leyline.board.zones
 import forge.game.ability.AbilityKey
 import forge.game.card.CardView
 import forge.game.card.CounterEnumType
+import forge.game.event.GameEventCardDamaged
 import forge.game.event.GameEventSpellResolved
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -256,7 +257,7 @@ class ZoneTransferTest :
             checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
         }
 
-        test("SBA: lethal damage → Destroy") {
+        test("SBA: lethal damage → SBA_Damage") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -265,20 +266,29 @@ class ZoneTransferTest :
                 board.transferCard("Grizzly Bears", checkSba = true) { card, _ ->
                     card.damage = card.netToughness
                 }
-            checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
+            checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "SBA_Damage"
         }
 
-        test("SBA: deathtouch damage → Destroy") {
+        test("SBA: deathtouch damage → SBA_Deathtouch") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val (gsm, newId) =
-                board.transferCard("Grizzly Bears", checkSba = true) { card, _ ->
+                board.transferCard("Grizzly Bears", checkSba = true) { card, g ->
                     card.damage = 1
                     card.setHasBeenDealtDeathtouchDamage(true)
+                    g.fireEvent(
+                        GameEventCardDamaged(
+                            CardView.get(card),
+                            CardView.get(card),
+                            1,
+                            GameEventCardDamaged.DamageType.Deathtouch,
+                            false,
+                        ),
+                    )
                 }
-            checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
+            checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "SBA_Deathtouch"
         }
 
         // ===================================================================

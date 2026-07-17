@@ -169,7 +169,7 @@ object AbilityWordScanner {
                             abilityWordName = condition,
                             value = spec.value?.invoke(controller, card),
                             threshold = spec.threshold,
-                            abilityGrpId = registryForCard()?.forStaticAbility(sa.id)?.takeIf { it > 0 },
+                            abilityGrpId = registryForCard()?.forStaticAbility(sa.definitionId)?.takeIf { it > 0 },
                         ),
                     )
                 }
@@ -221,7 +221,7 @@ object AbilityWordScanner {
                                 abilityWordName = conditionName,
                                 value = spec.value?.invoke(controller, card),
                                 threshold = spec.threshold,
-                                abilityGrpId = registryForCard()?.forTrigger(trigger.id)?.takeIf { it > 0 },
+                                abilityGrpId = registryForCard()?.forTrigger(trigger.definitionId)?.takeIf { it > 0 },
                             ),
                         )
                     }
@@ -300,7 +300,7 @@ object AbilityWordScanner {
                 abilityWordName = "StationLevelThreshold",
                 value = chargeCount,
                 threshold = threshold,
-                abilityGrpId = registry?.forStaticAbility(staticAbility.id)?.takeIf { it > 0 },
+                abilityGrpId = registry?.forStaticAbility(staticAbility.definitionId)?.takeIf { it > 0 },
             )
         }
     }

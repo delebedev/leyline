@@ -17,6 +17,7 @@ import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.CombatAnnotationResult
 import leyline.game.annotations.CombatAnnotations
 import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.event.DamageSourceKind
 import leyline.game.event.GameEvent
 import leyline.game.iid
 import leyline.game.state.EffectTracker
@@ -41,7 +42,12 @@ class DamagedThisTurnPipelineTest :
         test("combatAnnotations emits DamagedThisTurn to persistent bucket, not transient") {
             val events =
                 listOf(
-                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(1), targetCardId = ForgeCardId(2), amount = 2),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(1),
+                        targetCardId = ForgeCardId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
                 )
             val result =
                 CombatAnnotations.combatAnnotations(
@@ -68,8 +74,18 @@ class DamagedThisTurnPipelineTest :
         test("combatAnnotations collapses multiple victims into a single annotation") {
             val events =
                 listOf(
-                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(1), targetCardId = ForgeCardId(2), amount = 2),
-                    GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(3), targetCardId = ForgeCardId(4), amount = 1),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(1),
+                        targetCardId = ForgeCardId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
+                    GameEvent.DamageDealtToCard(
+                        sourceCardId = ForgeCardId(3),
+                        targetCardId = ForgeCardId(4),
+                        amount = 1,
+                        sourceKind = DamageSourceKind.Combat,
+                    ),
                 )
             val result =
                 CombatAnnotations.combatAnnotations(

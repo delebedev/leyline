@@ -380,6 +380,7 @@ enum class AcceptanceAltCost(
     Retrace("retrace", KeywordAbilityIds.RETRACE),
     Plot("plot", KeywordAbilityIds.PLOT),
     Warp("warp", KeywordAbilityIds.WARP),
+    Sneak("sneak", KeywordAbilityIds.SNEAK),
     Enlist("enlist", KeywordAbilityIds.ENLIST),
     Airbend("airbend", KeywordAbilityIds.AIRBEND),
     ;

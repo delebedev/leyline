@@ -16,6 +16,7 @@ import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.interaction.ChooseCardsForEffectContext
@@ -30,13 +31,13 @@ import leyline.bridge.interaction.shouldAutoResolve
 import leyline.bridge.interaction.shouldReturnAll
 import leyline.bridge.interaction.sourceEntityId
 import leyline.bridge.interaction.unfilteredRefs
+import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
-import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
@@ -105,6 +106,7 @@ class TargetingCoordinator(
         }
 
         val labels = optionList.map { it.entityLabel() }
+        val candidateRefs = buildCandidateRefs(optionList)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -113,8 +115,9 @@ class TargetingCoordinator(
                 min = plan.min,
                 max = plan.max,
                 defaultIndex = 0,
-                semantic = plan.semantic,
-                candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(optionList)),
+                candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
+                unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
+                route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )
         val indices = bridge.requestChoice(request)
@@ -198,8 +201,8 @@ class TargetingCoordinator(
                 min = if (isOptional) 0 else 1,
                 max = 1,
                 defaultIndex = targetIndex.takeIf { it >= 0 } ?: 0,
-                semantic = PromptSemantic.MutateTopBottom,
                 candidateRefs = buildCandidateRefs(optionList),
+                route = PromptRouteResolver.resolve(PromptSemantic.MutateTopBottom),
                 sourceEntityId = sa.hostCard?.id,
             )
         val idx = bridge.requestChoice(request).firstOrNull()
@@ -244,8 +247,8 @@ class TargetingCoordinator(
                 min = plan.effectiveMin,
                 max = plan.effectiveMax,
                 defaultIndex = 0,
-                semantic = plan.semantic,
                 candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
+                route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             )
@@ -521,8 +524,8 @@ class TargetingCoordinator(
                 min = cards.size,
                 max = cards.size,
                 defaultIndex = 0,
-                semantic = semantic,
                 candidateRefs = buildCandidateRefs(cards),
+                route = PromptRouteResolver.resolve(semantic, hasCandidateRefs = true),
                 sourceEntityId = sa?.hostCard?.id,
             )
         val indices = bridge.requestChoice(request)
@@ -730,7 +733,13 @@ class TargetingCoordinator(
             } else {
                 bridge.forgeIidResolver?.invoke(ForgeCardId(spellCard.id))?.value ?: 0
             }
-        val targetSpecShape = targetSpecShape(sa)
+        val abilityIdentity = bridge.resolveAbilityIdentity(sa)
+        val promptId =
+            when {
+                abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
+                sa.isMutate -> PromptIds.MUTATE_TARGET
+                else -> null
+            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
@@ -740,25 +749,12 @@ class TargetingCoordinator(
                 targetForgeCardId = targetCardId,
                 targetSeatId = targetSeatId,
                 isTriggeredAbility = isTrigger,
-                abilityGrpId = targetSpecShape?.abilityGrpId ?: if (sa.isMutate) 0 else null,
-                promptId = targetSpecShape?.promptId ?: if (sa.isMutate) PromptIds.MUTATE_TARGET else null,
+                promptId = promptId,
+                abilityIdentity = abilityIdentity,
                 forgeAbilityId = sa.id,
             ),
         )
     }
-
-    private data class TargetSpecShape(
-        val abilityGrpId: Int,
-        val promptId: Int?,
-    )
-
-    private fun targetSpecShape(sa: SpellAbility): TargetSpecShape? =
-        when {
-            isMentorTrigger(sa) -> TargetSpecShape(KeywordAbilityIds.MENTOR, PromptIds.MENTOR_TARGET)
-            else -> null
-        }
-
-    private fun isMentorTrigger(sa: SpellAbility): Boolean = sa.trigger?.getParam("TriggerDescription")?.startsWith("Mentor") == true
 
     private fun arrangeTopNCards(
         topN: CardCollection,
@@ -783,8 +779,8 @@ class TargetingCoordinator(
                     min = 1,
                     max = 1,
                     defaultIndex = 0,
-                    semantic = groupingSemantic,
                     candidateRefs = refs,
+                    route = PromptRouteResolver.resolve(groupingSemantic),
                 )
             val result = bridge.requestChoice(request)
             return if (result.firstOrNull() == 1) {
@@ -802,8 +798,8 @@ class TargetingCoordinator(
                 min = 0,
                 max = topN.size,
                 defaultIndex = 0,
-                semantic = groupingSemantic,
                 candidateRefs = refs,
+                route = PromptRouteResolver.resolve(groupingSemantic),
             )
         val awayIndices = bridge.requestChoice(request)
         val toAway = CardCollection()
@@ -821,8 +817,8 @@ class TargetingCoordinator(
                     min = toTop.size,
                     max = toTop.size,
                     defaultIndex = 0,
-                    semantic = PromptSemantic.OrderForTop,
                     candidateRefs = buildCandidateRefs(toTop),
+                    route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
                 )
             val ordering = bridge.requestChoice(orderReq)
             val ordered = orderedCards(toTop, ordering)
@@ -840,6 +836,7 @@ class TargetingCoordinator(
      * shares the same protocol shape — but conceptually a cost-payment override, so
      * it lives on [leyline.bridge.forge.PlayerController].
      */
+    @Suppress("LongParameterList") // mirrors PromptRequest's cost-selection surface
     fun chooseCardsViaBridge(
         cards: CardCollectionView,
         min: Int,
@@ -849,6 +846,8 @@ class TargetingCoordinator(
         candidateRefs: List<PromptCandidateRefDto> = emptyList(),
         sourceEntityId: Int? = null,
         forcePrompt: Boolean = false,
+        costSelectionWeights: List<Int> = emptyList(),
+        minSelectionWeight: Int? = null,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
@@ -863,9 +862,11 @@ class TargetingCoordinator(
                 min = effectiveMin,
                 max = effectiveMax,
                 defaultIndex = 0,
-                semantic = semantic,
                 candidateRefs = candidateRefs,
+                route = PromptRouteResolver.resolve(semantic, candidateRefs.isNotEmpty()),
                 sourceEntityId = sourceEntityId,
+                costSelectionWeights = costSelectionWeights,
+                minSelectionWeight = minSelectionWeight,
             )
         val indices = bridge.requestChoice(request)
         val result = CardCollection()
@@ -905,8 +906,8 @@ class TargetingCoordinator(
                     min = effectiveMin,
                     max = effectiveMax.coerceAtLeast(effectiveMin),
                     defaultIndex = 0,
-                    semantic = PromptSemantic.RevealChoose,
                     candidateRefs = candidateRefs,
+                    route = PromptRouteResolver.resolve(PromptSemantic.RevealChoose),
                     unfilteredRefs = unfilteredRefs,
                     sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
                 )

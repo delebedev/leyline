@@ -247,11 +247,14 @@ fun assignDamageResp(assigners: List<Pair<Int, List<Pair<Int, Int>>>>): ClientTo
  *
  * All targets get [SelectAction.Select_a1ad] (the standard "select" action).
  */
-fun selectTargetsResp(targets: List<Int>): ClientToGREMessage =
+fun selectTargetsResp(
+    targets: List<Int>,
+    targetIdx: Int = 1,
+): ClientToGREMessage =
     clientMessage(ClientMessageType.SelectTargetsResp_097b) {
         setSelectTargetsResp(
             SelectTargetsResp.newBuilder().setTarget(
-                TargetSelection.newBuilder().apply {
+                TargetSelection.newBuilder().setTargetIdx(targetIdx).apply {
                     for (iid in targets) {
                         addTargets(
                             ProtoTarget

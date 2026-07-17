@@ -8,6 +8,7 @@ import leyline.bridge.types.toWireId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.eid
+import leyline.game.event.DamageSourceKind
 import leyline.game.grp
 import leyline.game.iid
 import leyline.game.mapping.ZoneIds
@@ -59,6 +60,75 @@ class AnnotationOrderEnforcerTest :
                     AnnotationType.ObjectIdChanged,
                     AnnotationType.ZoneTransfer_af5a,
                 )
+        }
+
+        test("reorders PlayerSubmittedTargets before mana payment and cast confirm") {
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
+
+            // Deliberately wrong order: payment and confirm before target submission
+            val result = AnnotationOrderEnforcer.enforce(listOf(mp, uat, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.ManaPaid,
+                    AnnotationType.UserActionTaken,
+                )
+        }
+
+        test("PlayerSubmittedTargets leads the frame; mana bracket keeps its order") {
+            val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 104.iid, affectorId = 101.iid)
+            val tup = AnnotationBuilder.tappedUntappedPermanent(permanentId = 101.iid, abilityId = 104.iid)
+            val uatMana = AnnotationBuilder.userActionTaken(instanceId = 104.iid, seatId = 1.sid, actionType = ActionType.ActivateMana)
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 105.iid, landInstanceId = 101.iid)
+            val aid = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = 104.iid, affectorId = 101.iid)
+            val uatCast = AnnotationBuilder.userActionTaken(instanceId = 105.iid, seatId = 1.sid, actionType = ActionType.Cast)
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 105.iid, casterSeatId = 1.sid)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(aic, tup, uatMana, mp, aid, uatCast, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.AbilityInstanceCreated,
+                    AnnotationType.TappedUntappedPermanent,
+                    AnnotationType.UserActionTaken,
+                    AnnotationType.ManaPaid,
+                    AnnotationType.AbilityInstanceDeleted,
+                    AnnotationType.UserActionTaken,
+                )
+        }
+
+        test("PlayerSubmittedTargets and same-frame ObjectIdChanged for another card do not cycle") {
+            val oic = AnnotationBuilder.objectIdChanged(origId = 106.iid, newId = 112.iid)
+            val zt =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 112.iid,
+                    srcZoneId = 28,
+                    destZoneId = 33,
+                    category = "SBA_Damage",
+                )
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 105.iid, casterSeatId = 1.sid)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, psut))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.PlayerSubmittedTargets,
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                )
+        }
+
+        test("no-op when PlayerSubmittedTargets already leads payment and confirm") {
+            val psut = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
+            val mp = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
+
+            val input = listOf(psut, mp, uat)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
         }
 
         test("no-op when no ObjectIdChanged present") {
@@ -182,7 +252,13 @@ class AnnotationOrderEnforcerTest :
 
         test("Rule 2: DamageDealt before LayeredEffectCreated on same card") {
             val cardId = 500.iid
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = cardId.toWireId(), amount = 3)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 100.iid,
+                    targetId = cardId.toWireId(),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = cardId)
 
             // Correct order
@@ -196,7 +272,13 @@ class AnnotationOrderEnforcerTest :
 
         test("Rule 2: reorders LayeredEffectCreated before DamageDealt on same card") {
             val cardId = 500.iid
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = cardId.toWireId(), amount = 3)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 100.iid,
+                    targetId = cardId.toWireId(),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = cardId)
 
             // Wrong order: effect before damage
@@ -223,7 +305,13 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("Rule 2: no-op when annotations affect different cards") {
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = 500.wid, amount = 3)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 100.iid,
+                    targetId = 500.wid,
+                    amount = 3,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = 600.iid)
 
             // Different cards — no constraint, original order preserved
@@ -250,7 +338,13 @@ class AnnotationOrderEnforcerTest :
 
         test("Rules 1+2: ObjectIdChanged + DamageDealt + LayeredEffectCreated") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 500.iid)
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 200.iid, targetId = 500.wid, amount = 2)
+            val damage =
+                AnnotationBuilder.damageDealt(
+                    sourceInstanceId = 200.iid,
+                    targetId = 500.wid,
+                    amount = 2,
+                    sourceKind = DamageSourceKind.Combat,
+                )
             val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = 500.iid)
 
             // Correct order

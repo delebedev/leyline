@@ -13,8 +13,10 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.PromptChoiceDto
 import leyline.bridge.types.PromptOptionDto
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -63,6 +65,9 @@ class InteractivePromptBridge(
     var instanceIdReservoir: (() -> InstanceId)? = null
 
     @Volatile
+    var abilityIdentityResolver: ((SpellAbility) -> ResolvedAbilityIdentity?)? = null
+
+    @Volatile
     var timeoutListener: (() -> Unit)? = null
 
     /**
@@ -103,9 +108,9 @@ class InteractivePromptBridge(
      * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
      * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      *
-     * [forgeAbilityId] is the Forge `SpellAbility.id` for the targeting
-     * spell/ability. It drives TargetSpec abilityGrpId resolution; for
-     * triggered abilities it also drives stack-ability iid resolution when
+     * [abilityIdentity] fixes the definition and client row while the callback
+     * still owns the exact Forge ability. [forgeAbilityId] is the runtime
+     * `SpellAbility.id`; for triggered abilities it drives stack-ability iid resolution when
      * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
      *
      * [affectorInstanceIdAtRecord] is the spell/ability iid as it stood at
@@ -125,8 +130,8 @@ class InteractivePromptBridge(
         val targetForgeCardId: Int? = null,
         val targetSeatId: Int? = null,
         val isTriggeredAbility: Boolean = false,
-        val abilityGrpId: Int? = null,
         val promptId: Int? = null,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** Forge `SpellAbility.id` for the targeting spell/ability. */
         val forgeAbilityId: Int = 0,
     )
@@ -164,6 +169,8 @@ class InteractivePromptBridge(
          * Null for non-targeting prompts.
          */
         val targetingSa: SpellAbility? = null,
+        /** Stable definition and client row fixed at prompt creation. */
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
     )
 
     // ── Call history ────────────────────────────────────────────────────────
@@ -176,7 +183,8 @@ class InteractivePromptBridge(
 
     data class PromptRecord(
         val promptType: String,
-        val semantic: PromptSemantic,
+        /** Exact route used by the pending prompt; diagnostics must not resolve it again. */
+        val route: ResolvedPromptRoute,
         val message: String,
         val options: List<String>,
         val min: Int,
@@ -185,7 +193,11 @@ class InteractivePromptBridge(
         val outcome: PromptCallStatus,
         val result: List<Int>,
         val callerFrames: List<String>,
+        val costSelectionWeights: List<Int> = emptyList(),
+        val minSelectionWeight: Int? = null,
     ) {
+        val semantic: PromptSemantic get() = route.semantic
+
         override fun toString(): String =
             "[$outcome] $promptType/$semantic: \"$message\" opts=$options result=$result\n  ${callerFrames.joinToString("\n  ")}"
     }
@@ -214,7 +226,7 @@ class InteractivePromptBridge(
             _history.addLast(
                 PromptRecord(
                     promptType = request.promptType,
-                    semantic = request.semantic,
+                    route = request.route,
                     message = request.message,
                     options = request.options,
                     min = request.min,
@@ -223,6 +235,8 @@ class InteractivePromptBridge(
                     outcome = outcome,
                     result = result,
                     callerFrames = frames,
+                    costSelectionWeights = request.costSelectionWeights,
+                    minSelectionWeight = request.minSelectionWeight,
                 ),
             )
         }
@@ -363,7 +377,7 @@ class InteractivePromptBridge(
 
         val promptId = UUID.randomUUID().toString()
         val future = CompletableFuture<List<Int>>()
-        val prompt = PendingPrompt(promptId, request, future, targetingSa)
+        val prompt = PendingPrompt(promptId, request, future, targetingSa, targetingSa?.let { resolveAbilityIdentity(it) })
 
         if (!pending.compareAndSet(null, prompt)) {
             if (strict) {
@@ -448,6 +462,8 @@ class InteractivePromptBridge(
         return if (p.future.isDone) null else p
     }
 
+    fun resolveAbilityIdentity(ability: SpellAbility): ResolvedAbilityIdentity? = abilityIdentityResolver?.invoke(ability)
+
     /**
      * Block until a prompt becomes pending (poll-based).
      * Replaces hand-rolled poll loops in tests.
@@ -501,6 +517,9 @@ enum class PromptSemantic {
      * `SelectTargetsReq`.
      */
     SelectNResolution,
+
+    /** Manifest Dread's mandatory top-two resolution choice. */
+    ManifestDread,
 
     /** Triggered resolution choice that suspects one of the triggering cards. */
     SuspectChoice,
@@ -579,6 +598,25 @@ enum class PromptSemantic {
     StaticParityChoice,
 }
 
+/** One modal choice in the original, unfiltered Forge `Choices` index space. */
+data class ModalChoiceOption(
+    val fullIndex: Int,
+    /** Empty means the option is free. */
+    val cost: List<Pair<ManaColor, Int>>,
+)
+
+/**
+ * Modal choice metadata handed from the Forge controller to the session.
+ *
+ * [possible] remains in the same order as [PromptRequest.options]; [fullIndex]
+ * addresses the original full mode list so legality filtering cannot shift the
+ * child grpId selected for an option.
+ */
+data class ModalChoicePayload(
+    val possible: List<ModalChoiceOption>,
+    val excluded: List<ModalChoiceOption>,
+)
+
 /**
  * Engine-thread request for one blocking Forge choice.
  *
@@ -586,12 +624,12 @@ enum class PromptSemantic {
  * session layer. It is not the client protocol prompt. Producers fill in the
  * source choice shape, option labels, selection cardinality, semantic route,
  * and optional entity metadata while the engine is blocked in [requestChoice].
- * The session layer classifies the request, emits the appropriate GRE request
- * (`SelectNReq`, `SelectTargetsReq`, `PayCostsReq`, etc.), then maps the client
- * response back to indices in [options].
+ * The session layer emits the appropriate GRE request (`SelectNReq`,
+ * `SelectTargetsReq`, `PayCostsReq`, etc.), then maps the client response back
+ * to indices in [options].
  */
 data class PromptRequest(
-    /** Coarse source shape from the Forge API override; routing should prefer [semantic]. */
+    /** Coarse source shape from the Forge API override; diagnostic only. */
     val promptType: String,
     /** Source/debug text from Forge. MTGA UI text is selected by outbound GRE Prompt.promptId + parameters. */
     val message: String,
@@ -599,8 +637,9 @@ data class PromptRequest(
     val min: Int = 1,
     val max: Int = 1,
     val defaultIndex: Int = 0,
-    val semantic: PromptSemantic = PromptSemantic.Generic,
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
+    /** Sole route authority; data-class copies used for re-prompts retain this value. */
+    val route: ResolvedPromptRoute = PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty()),
     /** Per-candidate selection weights for weighted cost-payment prompts. */
     val costSelectionWeights: List<Int> = emptyList(),
     /** Minimum total selected weight for weighted cost-payment prompts. */
@@ -630,42 +669,16 @@ data class PromptRequest(
     val staticList: StaticList? = null,
     /** Per-option static enum ids. Used to map SelectNResp.ids back to option indices. */
     val staticOptionIds: List<Int> = emptyList(),
-    /**
-     * For each `options[i]`, its position in the unfiltered Choices list (the
-     * ability's full mode list before Forge legality-filtering). When set,
-     * `TargetingHandler.sendCastingTimeOptionsReq` uses these to index into
-     * the card-DB childGrpIds — keeps the modal index space aligned with
-     * `possible[]` when modes are pruned (e.g. Spree counter mode with no
-     * stack target).
-     */
-    val modalChoicePossibleFullIndices: List<Int>? = null,
-    /**
-     * Per-`options` mode costs (`+ {cost}` portion only; base spell cost is
-     * separate). One entry per mode in the same order as `options`. Empty
-     * inner list = free mode (Charm). Non-empty = cost-bearing mode (Spree).
-     *
-     * When non-null, MUST have exactly `modalChoicePossibleFullIndices.size`
-     * entries (== `options.size`); shorter lists silently drop costs from
-     * later modes. Use empty inner list, not omission, for free modes.
-     */
-    val modalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
-    /**
-     * Full-list positions of modes Forge legality-filtered out (parallel to
-     * `excludedModalCosts`). Resolves to `ModalReq.excludedOptions[]` on the
-     * outbound CastingTimeOptionsReq — client renders them greyed-out so the
-     * player sees what's not pickable.
-     */
-    val excludedModalFullIndices: List<Int>? = null,
-    /**
-     * Costs parallel to `excludedModalFullIndices`. Same shape and parallel-list
-     * invariants as `modalCosts`.
-     */
-    val excludedModalCosts: List<List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>>>? = null,
+    /** Modal index/cost metadata; null preserves the unfiltered, all-free fallback. */
+    val modalChoice: ModalChoicePayload? = null,
     /** Waterbend mana component carried into its PayCostsReq payment envelope. */
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */
     val waterbendCostString: String? = null,
-)
+) {
+    /** Diagnostic identity derived from the immutable route. */
+    val semantic: PromptSemantic get() = route.semantic
+}
 
 /** Convert a pending engine prompt into its wire DTO. */
 fun InteractivePromptBridge.PendingPrompt.toChoiceDto(): PromptChoiceDto {

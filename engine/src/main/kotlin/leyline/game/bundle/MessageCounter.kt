@@ -30,12 +30,14 @@ class MessageCounter(
         val currentGsId: Int,
         val currentMsgId: Int,
         val lastPromptGsId: Int,
+        val lastPromptMsgId: Int,
         val lastGameStateGsId: Int,
     )
 
     private val gsId = AtomicInteger(initialGsId)
     private val msgId = AtomicInteger(initialMsgId)
     private val lastPromptGsId = AtomicInteger(0)
+    private val lastPromptMsgId = AtomicInteger(0)
     private val lastGameStateGsId = AtomicInteger(0)
 
     /** Advance gsId and return the new value. */
@@ -97,6 +99,9 @@ class MessageCounter(
      */
     fun lastPromptGsId(): Int = lastPromptGsId.get()
 
+    /** msgId that a response to the most recent prompt must echo in `respId`. */
+    fun lastPromptMsgId(): Int = lastPromptMsgId.get()
+
     /**
      * Record [gsId] as the gsId of a freshly-emitted prompt-bearing GRE.
      * Auto-called from `makeGRE` for prompt types in [PROMPT_GRE_TYPES];
@@ -108,6 +113,11 @@ class MessageCounter(
      */
     fun markPromptGsId(gsId: Int) {
         markMonotonic(lastPromptGsId, gsId)
+    }
+
+    /** Record the msgId of a freshly emitted prompt-bearing GRE. */
+    fun markPromptMsgId(msgId: Int) {
+        markMonotonic(lastPromptMsgId, msgId)
     }
 
     /**
@@ -149,12 +159,14 @@ class MessageCounter(
             currentGsId = gsId.get(),
             currentMsgId = msgId.get(),
             lastPromptGsId = lastPromptGsId.get(),
+            lastPromptMsgId = lastPromptMsgId.get(),
             lastGameStateGsId = lastGameStateGsId.get(),
         )
 
     override fun toString(): String =
         snapshot().let {
             "MessageCounter(gsId=${it.currentGsId}, msgId=${it.currentMsgId}, " +
-                "lastPromptGsId=${it.lastPromptGsId}, lastGameStateGsId=${it.lastGameStateGsId})"
+                "lastPromptGsId=${it.lastPromptGsId}, lastPromptMsgId=${it.lastPromptMsgId}, " +
+                "lastGameStateGsId=${it.lastGameStateGsId})"
         }
 }

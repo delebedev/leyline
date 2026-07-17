@@ -3,10 +3,14 @@ package leyline.game
 import com.google.common.eventbus.Subscribe
 import forge.game.event.*
 import forge.game.phase.PhaseType
+import forge.game.zone.ZoneType
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
+import leyline.game.event.Zone
+import leyline.game.event.combatDamageFact
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -61,6 +65,9 @@ class GamePlayback(
 
     /** Thread-safe queue of GRE message batches for the handler to drain. */
     private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
+
+    /** Noncombat damage held until its resolving stack object or ability reaches its completion boundary. */
+    private var pendingResolutionFrame: FrameEventLog? = null
 
     /**
      * Guards the build-and-enqueue window. Message ids are allocated while the
@@ -126,6 +133,11 @@ class GamePlayback(
                 )
         if (!isRemoteActing() && !splitLocalStackObject) return
         captureAndPause(RESOLVE_DELAY)
+    }
+
+    override fun visit(ev: GameEventCardChangeZone) {
+        if (pendingResolutionFrame == null || ev.from()?.zoneType != ZoneType.Stack) return
+        captureAndPause(0)
     }
 
     override fun visit(ev: GameEventCardCounters) {
@@ -260,17 +272,33 @@ class GamePlayback(
         try {
             val messageCount =
                 synchronized(queueLock) {
-                    val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
-                    if (eventsOverride == null && events.events.hasCombatDamage()) {
-                        captureSplitCombatDamage(game, events.events)
-                        2
-                    } else {
-                        val messages = buildDiffMessages(game, turnStarted, events)
-                        queue.add(messages)
-                        if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                            bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                    val closedEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
+                    val events =
+                        if (eventsOverride == null) {
+                            pendingResolutionFrame?.merge(closedEvents) ?: closedEvents
+                        } else {
+                            closedEvents
                         }
-                        messages.size
+                    if (eventsOverride == null && events.shouldAwaitResolutionBoundary()) {
+                        pendingResolutionFrame = events
+                        0
+                    } else {
+                        val count =
+                            if (eventsOverride == null && events.events.shouldSplitCombatDamageWindow()) {
+                                captureSplitCombatDamage(game, events.events)
+                                2
+                            } else {
+                                val messages = buildDiffMessages(game, turnStarted, events)
+                                queue.add(messages)
+                                if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
+                                    bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                                }
+                                messages.size
+                            }
+                        if (eventsOverride == null) {
+                            pendingResolutionFrame = null
+                        }
+                        count
                     }
                 }
 
@@ -334,8 +362,7 @@ class GamePlayback(
 
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
-    private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean =
-        any { it is LeylineGameEvent.DamageDealtToCard || it is LeylineGameEvent.DamageDealtToPlayer }
+    private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean = any { it.combatDamageFact() == true }
 
     private data class CombatDamageFrame(
         val events: List<LeylineGameEvent>,
@@ -391,15 +418,16 @@ class GamePlayback(
     private fun List<LeylineGameEvent>.canSafelySplitCombatDamage(): Boolean {
         var inDamageStep = false
         for (event in this) {
+            val damageFact = event.combatDamageFact()
             if (event is LeylineGameEvent.PhaseChanged) {
                 if (event.isDamageStep()) inDamageStep = true
-            } else if (event is LeylineGameEvent.DamageDealtToPlayer ||
-                event is LeylineGameEvent.LifeChanged ||
+            } else if (damageFact != null) {
+                if (!damageFact || !inDamageStep) return false
+                if (event is LeylineGameEvent.DamageDealtToCard) return false
+            } else if (event is LeylineGameEvent.LifeChanged ||
                 event == LeylineGameEvent.CombatEnded
             ) {
                 if (!inDamageStep) return false
-            } else if (event is LeylineGameEvent.DamageDealtToCard) {
-                return false
             } else {
                 if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
             }
@@ -465,7 +493,7 @@ class GamePlayback(
                         currentDamageStep = event.step
                     }
                 }
-                if (event is LeylineGameEvent.DamageDealtToCard || event is LeylineGameEvent.DamageDealtToPlayer) {
+                if (event.combatDamageFact() == true) {
                     return@run currentDamageStep
                 }
             }
@@ -475,7 +503,10 @@ class GamePlayback(
     private fun combatDamageSourceSeat(events: List<LeylineGameEvent>): Int? {
         events
             .firstNotNullOfOrNull { event ->
-                (event as? LeylineGameEvent.DamageDealtToPlayer)?.targetSeatId?.value
+                (event as? LeylineGameEvent.DamageDealtToPlayer)
+                    ?.takeIf { it.sourceKind == DamageSourceKind.Combat }
+                    ?.targetSeatId
+                    ?.value
             }?.let { defenderSeat ->
                 val otherSeats = bridge.gameSeatIds() - defenderSeat
                 if (otherSeats.size == 1) return otherSeats.single()
@@ -484,8 +515,8 @@ class GamePlayback(
         val sourceId =
             events.firstNotNullOfOrNull { event ->
                 when (event) {
-                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId
-                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId
+                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
+                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
                     else -> null
                 }
             } ?: return null
@@ -552,3 +583,21 @@ class GamePlayback(
         return consumed
     }
 }
+
+/** Split only source-homogeneous combat windows; mixed damage keeps causal frame ownership. */
+internal fun List<LeylineGameEvent>.shouldSplitCombatDamageWindow(): Boolean {
+    val damageFacts = mapNotNull { it.combatDamageFact() }
+    return damageFacts.isNotEmpty() && damageFacts.all { it }
+}
+
+internal fun FrameEventLog.shouldAwaitResolutionBoundary(): Boolean {
+    if (events.none { it.combatDamageFact() == false }) return false
+    return events
+        .filterIsInstance<LeylineGameEvent.SpellResolved>()
+        .filterNot { resolved -> resolved.isAbility || resolved.isTrigger }
+        .any { resolved ->
+            zoneMoves.none { move -> move.cardId == resolved.cardId && move.from == Zone.Stack }
+        }
+}
+
+private fun FrameEventLog.merge(next: FrameEventLog): FrameEventLog = FrameEventLog(events + next.events, zoneMoves + next.zoneMoves)

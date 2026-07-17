@@ -82,6 +82,7 @@ class MessageCounterTest :
         test("snapshot exposes counter and horizon state") {
             val c = MessageCounter(initialGsId = 2, initialMsgId = 5)
             c.markPromptGsId(7)
+            c.markPromptMsgId(9)
             c.markGameStateGsId(4)
 
             c.snapshot() shouldBe
@@ -89,6 +90,7 @@ class MessageCounterTest :
                     currentGsId = 2,
                     currentMsgId = 5,
                     lastPromptGsId = 7,
+                    lastPromptMsgId = 9,
                     lastGameStateGsId = 4,
                 )
         }
@@ -130,24 +132,28 @@ class MessageCounterTest :
         test("markIfPrompt bumps the horizon for prompt-bearing GRE types") {
             val c = MessageCounter()
             assertSoftly {
-                markIfPrompt(c, GREMessageType.ActionsAvailableReq_695e, 5)
+                markIfPrompt(c, GREMessageType.ActionsAvailableReq_695e, 5, 11)
                 c.lastPromptGsId() shouldBe 5
+                c.lastPromptMsgId() shouldBe 11
 
-                markIfPrompt(c, GREMessageType.SelectTargetsReq_695e, 7)
+                markIfPrompt(c, GREMessageType.SelectTargetsReq_695e, 7, 13)
                 c.lastPromptGsId() shouldBe 7
+                c.lastPromptMsgId() shouldBe 13
 
-                markIfPrompt(c, GREMessageType.DeclareAttackersReq_695e, 9)
+                markIfPrompt(c, GREMessageType.DeclareAttackersReq_695e, 9, 15)
                 c.lastPromptGsId() shouldBe 9
+                c.lastPromptMsgId() shouldBe 15
             }
         }
 
         test("markIfPrompt is a no-op for non-prompt GRE types") {
             val c = MessageCounter()
             assertSoftly {
-                markIfPrompt(c, GREMessageType.GameStateMessage_695e, 5)
+                markIfPrompt(c, GREMessageType.GameStateMessage_695e, 5, 11)
                 c.lastPromptGsId() shouldBe 0
+                c.lastPromptMsgId() shouldBe 0
 
-                markIfPrompt(c, GREMessageType.QueuedGameStateMessage, 7)
+                markIfPrompt(c, GREMessageType.QueuedGameStateMessage, 7, 13)
                 c.lastPromptGsId() shouldBe 0
             }
         }
@@ -155,8 +161,9 @@ class MessageCounterTest :
         test("markIfPrompt covers the full PROMPT_GRE_TYPES set") {
             for (type in PROMPT_GRE_TYPES) {
                 val c = MessageCounter()
-                markIfPrompt(c, type, 42)
+                markIfPrompt(c, type, 42, 84)
                 c.lastPromptGsId() shouldBe 42
+                c.lastPromptMsgId() shouldBe 84
             }
         }
     })

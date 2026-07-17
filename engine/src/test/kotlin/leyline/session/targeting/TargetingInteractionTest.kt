@@ -27,6 +27,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.clientMessage
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
+import leyline.testkit.findZoneTransfer
 import leyline.testkit.firstWithTransferCategory
 import leyline.testkit.gsm
 import leyline.testkit.persistentAnnotationsOfType
@@ -34,6 +35,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
@@ -94,6 +96,59 @@ class TargetingInteractionTest :
                     .cards
                     .filter { it.name == "Giant Growth" } shouldHaveSize 1
             }
+        }
+
+        test("target selection requires the projected target group index") {
+            startPuzzleFile("puzzles/pump-spell.pzl")
+            val creatureIid = humanBattlefieldCreatures().first().first
+            castSpellByName("Giant Growth").shouldBeTrue()
+            selectTargetsIterative(listOf(creatureIid))
+            val initialPromptMsgId = harness.latestPromptMsgId()
+            val before = messageSnapshot()
+
+            harness.session.onSelectTargets(
+                harness.submitWithGsId(leyline.testkit.selectTargetsResp(listOf(creatureIid), targetIdx = 0)),
+            )
+            harness.drainSink()
+
+            val messages = messagesSince(before)
+            messages.none { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe true
+            val rePrompt = messages.last { it.hasSelectTargetsReq() }
+            assertSoftly {
+                rePrompt.msgId shouldBeGreaterThan initialPromptMsgId
+                rePrompt.selectTargetsReq.targetsList
+                    .single()
+                    .selectedTargets shouldBe 1
+            }
+
+            submitTargets()
+            passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
+            (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
+        }
+
+        test("targeting prompt rejects mismatched response families without consuming the pending route") {
+            startPuzzleFile("puzzles/pump-spell.pzl")
+            val creatureIid = humanBattlefieldCreatures().first().first
+            castSpellByName("Giant Growth").shouldBeTrue()
+            val promptBefore =
+                harness.bridge
+                    .promptBridge(SeatId(1))
+                    .getPendingPrompt()
+                    .shouldNotBeNull()
+
+            harness.respondToSelectN(emptyList())
+            harness.respondToOrder(emptyList())
+            harness.respondToSearch(emptyList())
+            harness.respondModalChoice(emptyList())
+            harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
+
+            harness.bridge
+                .promptBridge(SeatId(1))
+                .getPendingPrompt()
+                ?.promptId shouldBe promptBefore.promptId
+            selectTargets(listOf(creatureIid))
+            passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
+            (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
         }
 
         test("Giant Growth — invariants hold across targeting flow") {
@@ -295,7 +350,6 @@ class TargetingInteractionTest :
 
             assertSoftly {
                 (preBoltAiLife - ai.life) shouldBe 3
-                assertAccumulatorConsistent("after bolt targeting + resolve")
             }
         }
 
@@ -341,6 +395,7 @@ class TargetingInteractionTest :
                 pst.affectorId shouldBe HUMAN_SEAT
                 pst.affectedIdsList shouldContain stackIid
                 pst.detailsCount shouldBe 0
+                pstFrame.findZoneTransfer(stackIid)?.category shouldBe "CastSpell"
             }
 
             // Submit + drive the engine to the next frame; PSuT lands on the
@@ -359,6 +414,9 @@ class TargetingInteractionTest :
                 psut.affectorId shouldBe HUMAN_SEAT
                 psut.affectedIdsList shouldContain stackIid
                 psut.detailsCount shouldBe 0
+                // PSuT leads the post-submit frame with the frame's ids ascending
+                psutFrame.annotationsList.first().typeList shouldContain AnnotationType.PlayerSubmittedTargets
+                psutFrame.annotationsList.map { it.id } shouldBe psutFrame.annotationsList.map { it.id }.sorted()
             }
         }
 
@@ -513,18 +571,20 @@ class TargetingInteractionTest :
             // Pick Grizzly, then tap it again with legalAction=Unselect — accumulation clears.
             selectTargetsIterative(listOf(humanBearsIid))
             harness.session.onSelectTargets(
-                clientMessage(ClientMessageType.SelectTargetsResp_097b) {
-                    setSelectTargetsResp(
-                        SelectTargetsResp.newBuilder().setTarget(
-                            TargetSelection.newBuilder().addTargets(
-                                ProtoTarget
-                                    .newBuilder()
-                                    .setTargetInstanceId(humanBearsIid)
-                                    .setLegalAction(SelectAction.Unselect),
+                harness.submitWithGsId(
+                    clientMessage(ClientMessageType.SelectTargetsResp_097b) {
+                        setSelectTargetsResp(
+                            SelectTargetsResp.newBuilder().setTarget(
+                                TargetSelection.newBuilder().setTargetIdx(1).addTargets(
+                                    ProtoTarget
+                                        .newBuilder()
+                                        .setTargetInstanceId(humanBearsIid)
+                                        .setLegalAction(SelectAction.Unselect),
+                                ),
                             ),
-                        ),
-                    )
-                },
+                        )
+                    },
+                ),
             )
             harness.drainSink()
 
@@ -590,12 +650,14 @@ class TargetingInteractionTest :
                 damageAnn.affectorId shouldBe dealerIid
                 // Damage amount = dealer power (Grizzly Bears = 2)
                 damageAnn.detailInt("damage") shouldBe 2
+                // Bite Down is one-sided spell damage, not the Fight keyword action.
+                damageAnn.detailInt("type") shouldBe 2
                 // affectedIds = reallocated target iid
                 damageAnn.affectedIdsCount shouldBe 1
                 damageAnn.getAffectedIds(0) shouldBeGreaterThan 0
 
-                // Destroy zone transfer present
-                allMessages.firstWithTransferCategory("Destroy").shouldNotBeNull()
+                // Lethal fight damage death rides the damage SBA category
+                allMessages.firstWithTransferCategory("SBA_Damage").shouldNotBeNull()
 
                 // Bite Down → human GY, Grizzly Bears → ai GY
                 human

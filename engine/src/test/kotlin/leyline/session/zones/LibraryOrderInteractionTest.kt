@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.annotations
@@ -67,6 +68,29 @@ class LibraryOrderInteractionTest :
 
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
+            human
+                .getZone(ForgeZoneType.Library)
+                .cards
+                .first()
+                .name shouldBe "Grizzly Bears"
+        }
+
+        test("grouping prompt rejects SelectTargetsResp without consuming the pending route") {
+            startSurveil1()
+            val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
+            val promptBefore =
+                harness.bridge
+                    .promptBridge(SeatId(1))
+                    .getPendingPrompt()
+                    .shouldNotBeNull()
+
+            selectTargetsIterative(emptyList())
+
+            harness.bridge
+                .promptBridge(SeatId(1))
+                .getPendingPrompt()
+                ?.promptId shouldBe promptBefore.promptId
+            respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
             human
                 .getZone(ForgeZoneType.Library)
                 .cards

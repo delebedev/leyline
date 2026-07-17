@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -19,6 +20,11 @@ interface GreMessageSink {
         bridge: GameBridge,
         revealForSeat: Int? = null,
     )
+
+    fun sendPriorityState(
+        bridge: GameBridge,
+        candidates: PriorityActionCandidates,
+    ) = sendRealGameState(bridge)
 
     fun sendBundle(result: BundleBuilder.BundleResult)
 

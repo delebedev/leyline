@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ForgeCardId
@@ -48,10 +49,11 @@ class MatchFlowHarness(
             ai = AiConfig(speed = 0.0),
             // Fail fast in tests. Local gameplay leaves the human bridge
             // timeout disabled; here the engine
-            // responds in <100ms so aggressive timeouts surface hangs quickly.
+            // Candidate projection can traverse a full action set under suite
+            // load; this remains short enough to surface a stalled game loop.
             server =
                 ServerConfig(
-                    bridgeTimeoutMs = 5_000L,
+                    bridgeTimeoutMs = 15_000L,
                     aiTurnWaitMs = 2_000L,
                     mulliganWaitMs = 2_000L,
                 ),
@@ -253,7 +255,10 @@ class MatchFlowHarness(
     private fun seedInitialFull() {
         val game = bridge.getGame() ?: return
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        val fullResult = StateMapper.buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId.value)
+        val fullResult =
+            StateMapper
+                .buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId.value)
+                .finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)
         validatingSink?.seedFull(fullResult.gsm)
@@ -332,7 +337,7 @@ class MatchFlowHarness(
         val cardData = bridge.cardRepository.findByGrpId(grpId)
         val ability = getPlayableManaAbilities(card, player).getOrNull(abilityIndex) ?: return false
         val abilityGrpId =
-            bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id)
+            bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability)
                 ?: basicLandAbilityGrpId(card)
         val offer =
             ActionMapper
@@ -524,6 +529,8 @@ class MatchFlowHarness(
         attackerAlternatives: Map<Int, Int> = emptyMap(),
         damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): List<GREToClientMessage> = combatDriver.toggleAttackers(attackerInstanceIds, attackerAlternatives, damageRecipients)
+
+    fun deselectAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> = combatDriver.deselectAttackers(attackerInstanceIds)
 
     /**
      * Send SubmitAttackersReq (type=31, no payload) — the reference client's "Done" button.
@@ -758,7 +765,21 @@ class MatchFlowHarness(
 
     fun castSpellUntilGroupReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+        advanceAfterCast: MatchFlowHarness.() -> Unit = {
+            var found = false
+            repeat(8) {
+                if (!found) {
+                    found =
+                        runCatching {
+                            GameLoopPoller.awaitCondition(timeoutMs = 500) {
+                                drainSink()
+                                allMessages.any { it.hasGroupReq() }
+                            }
+                        }.isSuccess
+                    if (!found) passPriority()
+                }
+            }
+        },
     ): GroupReq =
         castSpellUntil(cardName, promptName = "GroupReq", advanceAfterCast = advanceAfterCast) { msg ->
             if (msg.hasGroupReq()) msg.groupReq else null
@@ -848,7 +869,7 @@ class MatchFlowHarness(
         val ability = bridge.getPlayer(seatId)?.let { getNonManaActivatedAbilities(card, it).getOrNull(abilityIndex) }
         val abilityGrpId =
             if (cardData != null && ability != null) {
-                bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability.id) ?: 0
+                bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability) ?: 0
             } else {
                 0
             }
@@ -1010,22 +1031,26 @@ class MatchFlowHarness(
      */
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
+    fun latestPromptMsgId(): Int = messageLog.latestPromptMsgId()
+
     /**
-     * Reflect the latest prompt gsId onto a client message before it enters
-     * the session, mirroring real-client behaviour. Pass-through when the
-     * message already carries an explicit non-zero gsId (used by tests that
-     * need to drive a stale or pre-handshake submission deliberately).
+     * Reflect the latest prompt ids onto a client response before it enters
+     * the session. Explicit non-zero ids remain unchanged so tests can submit
+     * stale values deliberately.
      *
      * `internal` so cross-package drivers in the same module (notably
      * [leyline.tooling.simclient.SimClientDriver]) can route their direct
      * `session.on*` calls through it instead of bypassing reflection.
      */
-    internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage =
-        if (msg.gameStateId == 0) {
-            msg.toBuilder().setGameStateId(latestPromptGsId()).build()
-        } else {
-            msg
+    internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage {
+        val prompt = messageLog.latestPrompt() ?: return msg
+        val builder = msg.toBuilder()
+        if (msg.gameStateId == 0) builder.gameStateId = prompt.gameStateId
+        if (msg.respId == 0 && msg.type in leyline.match.CORRELATED_CLIENT_MESSAGE_TYPES) {
+            builder.respId = prompt.msgId
         }
+        return builder.build()
+    }
 
     /**
      * Walk a deck list and ask Forge's static data to load every unique card

@@ -17,6 +17,25 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * which handles in-game state diffs.
  */
 object HandshakeMessages {
+    fun puzzleActionsReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: SeatId,
+        actions: ActionsAvailableReq,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                .build()
+        return wrapGre(gre) to (msgId + 1)
+    }
+
     /** Room state event — match room with both players. */
     fun roomState(
         matchId: String,
@@ -448,14 +467,15 @@ object HandshakeMessages {
         // Full GSM built from live game state (stage=Play, cards in zones)
         val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
         val fullResult =
-            StateMapper.buildFromSnapshot(
-                snap = snap,
-                gameStateId = gameStateId,
-                matchId = matchId,
-                bridge = bridge,
-                viewingSeatId = seatId.value,
-                events = bridge.closeBundleFrame(seatId.value),
-            )
+            StateMapper
+                .buildFromSnapshot(
+                    snap = snap,
+                    gameStateId = gameStateId,
+                    matchId = matchId,
+                    bridge = bridge,
+                    viewingSeatId = seatId.value,
+                    events = bridge.closeBundleFrame(seatId.value),
+                ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
         val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)
@@ -472,32 +492,6 @@ object HandshakeMessages {
         )
 
         return wrapGre(*messages.toTypedArray()) to msgId
-    }
-
-    /**
-     * Puzzle ActionsAvailableReq — first priority stop actions for the puzzle.
-     * Follows the Full GSM in the puzzle initial bundle.
-     */
-    fun puzzleActionsReq(
-        msgId: Int,
-        gameStateId: Int,
-        seatId: SeatId,
-        bridge: GameBridge,
-    ): Pair<MatchServiceToClientMessage, Int> {
-        val game = bridge.getGame()!!
-        val snap = GsmSnapshot.capture(game, bridge, "", 0)
-        val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .addSystemSeatIds(seatId.value)
-                .setMsgId(msgId)
-                .setGameStateId(gameStateId)
-                .setActionsAvailableReq(actions)
-                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                .build()
-        return wrapGre(gre) to (msgId + 1)
     }
 
     /** SetSettingsResp — echo client settings back. */

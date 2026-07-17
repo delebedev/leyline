@@ -2,7 +2,7 @@ package leyline.tooling.simclient
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSemantic
-import leyline.game.bundle.PromptSemanticRouteMetadata
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.tooling.simclient.PromptRouteFinding
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
@@ -71,7 +71,7 @@ object PromptRouteAuditor {
     }
 
     private fun InteractivePromptBridge.PromptRecord.expectedRoute(): ExpectedRoute? {
-        val expectedGreType = semantic.expectedGreType(this) ?: return null
+        val expectedGreType = route.expectedGreType() ?: return null
         return ExpectedRoute(
             routeKey = kindKey(),
             enginePromptType = promptType,
@@ -80,18 +80,17 @@ object PromptRouteAuditor {
         )
     }
 
-    private fun PromptSemantic.expectedGreType(record: InteractivePromptBridge.PromptRecord): String? =
-        PromptSemanticRouteMetadata.route(this)?.family?.expectedGreFamily
-            ?: if (this == PromptSemantic.Generic) {
-                when {
-                    record.promptType == "order" -> "OrderReq"
-                    record.promptType == "choose_cards" && record.message.isLibraryOrderPrompt() -> "OrderReq"
-                    record.candidateCount > 0 -> "SelectTargetsReq"
-                    else -> null
-                }
-            } else {
-                null
-            }
+    private fun ResolvedPromptRoute.expectedGreType(): String? =
+        when (this) {
+            is ResolvedPromptRoute.Grouping -> "GroupReq"
+            is ResolvedPromptRoute.ModalChoice -> "CastingTimeOptionsReq"
+            is ResolvedPromptRoute.SelectN -> "SelectNReq"
+            is ResolvedPromptRoute.PayCosts -> "PayCostsReq"
+            is ResolvedPromptRoute.Search -> "SearchReq"
+            is ResolvedPromptRoute.Order -> "OrderReq"
+            is ResolvedPromptRoute.Targeting -> "SelectTargetsReq"
+            is ResolvedPromptRoute.AutoResolve -> null
+        }
 
     private fun classifyBucket(
         expectedCount: Int,
@@ -122,8 +121,6 @@ object PromptRouteAuditor {
         }
 
     private fun String.compactSample(): String = replace(Regex("\\s+"), " ").take(160)
-
-    private fun String.isLibraryOrderPrompt(): Boolean = contains("order", ignoreCase = true) && contains("library", ignoreCase = true)
 
     private data class ExpectedRoute(
         val routeKey: String,

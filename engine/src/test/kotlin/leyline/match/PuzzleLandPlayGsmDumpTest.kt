@@ -186,6 +186,9 @@ class PuzzleLandPlayGsmDumpTest :
 
                 val performPlay =
                     greMessage(1, ClientMessageType.PerformActionResp_097b) {
+                        val prompt = connectMessages.last { it.hasActionsAvailableReq() }
+                        setGameStateId(prompt.gameStateId)
+                        setRespId(prompt.msgId)
                         setPerformActionResp(
                             PerformActionResp
                                 .newBuilder()
