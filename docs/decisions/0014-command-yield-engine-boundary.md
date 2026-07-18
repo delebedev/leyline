@@ -14,11 +14,12 @@ Accepted direction; implementation is incremental.
 ## Context
 
 Leyline adapts a synchronous, callback-driven Java rules engine to asynchronous
-client connections. The current bridge makes that work through two-thread
-coordination: the Forge loop blocks in controller callbacks while the session
-thread builds and sends responses. Playback can also build messages during
-engine events. Shared counters, a shared projection cursor, pending futures,
-signals, and an ordering-aware queue preserve coherence across those paths.
+client connections. The current bridge makes that work through cross-thread
+coordination: the Forge loop blocks in controller callbacks while serialized
+session entrants build and send responses. Playback can also build messages
+during engine events, and spectator mode drains from its own pump. Shared
+counters, a shared projection cursor, pending futures, signals, locks, and an
+ordering-aware queue preserve coherence across those paths.
 
 Those mechanisms are load-bearing in the current implementation. They also
 show that match ownership is distributed: Forge mutation, observation,
@@ -37,8 +38,10 @@ boundary.
 Converge the match runtime on the normative shape in
 [`architecture-direction.md`](../architecture-direction.md):
 
-- a supervisor owns match lifecycle and worker cleanup;
-- one serial match owner reduces client commands and engine yields;
+- a supervisor owns execution-domain lifecycle and worker cleanup after a
+  terminal match decision;
+- one serial match owner reduces client commands and engine yields, decides
+  semantic match lifecycle, and commits terminal output;
 - one engine worker exclusively owns the live Forge object graph;
 - the worker accepts typed, value-only commands and returns immutable yields;
 - a pure compiler derives frame plans and next projection state from immutable
@@ -50,6 +53,13 @@ Converge the match runtime on the normative shape in
 The command/yield contracts must not contain mutable Forge objects, callbacks,
 futures, channels, or protocol-counter references. They should be suitable for
 an eventual process boundary without requiring one now.
+
+Exact executable action handles remain in a worker-owned, priority-window table
+keyed by opaque tokens. An action yield carries a token and immutable projection
+facts; the response returns the token; the worker resolves and consumes the
+retained handle. Completion, supersession, cancellation, and failure clear the
+table. This preserves ADR 0010's exact bind-at-source command without passing a
+mutable `SpellAbility` through session or projection state.
 
 Forge remains the authority for rules, legality, costs, engine identity,
 causes, and final game state. Leyline remains the authority for interaction
@@ -106,7 +116,7 @@ engine replay would each require a separate decision and proof.
 
 ## Alternatives considered
 
-### Keep the shared two-thread bridge indefinitely
+### Keep the shared cross-thread bridge indefinitely
 
 Rejected as the target. It is correct when its full contract is preserved, but
 new projection and lifecycle work continues to depend on shared atomics,
@@ -132,8 +142,10 @@ single ownership, pure projection, or ordered delivery.
 ## Relationship to earlier decisions
 
 This decision refines the inside of the shared engine established by
-[`ADR 0006`](0006-single-backbone-core-and-heads.md). It relies on the
-producer-bound values established by [`ADR 0010`](0010-bind-priority-actions-at-projection-source.md),
+[`ADR 0006`](0006-single-backbone-core-and-heads.md). It keeps the
+bind-at-source rule from [`ADR 0010`](0010-bind-priority-actions-at-projection-source.md)
+while moving its exact executable handle into the worker-owned token table. It
+also relies on the producer-bound values established by
 [`ADR 0011`](0011-preserve-ability-definition-identity.md), and
 [`ADR 0012`](0012-bind-prompt-routes-once.md), and extends the single-finalizer
 principle from [`ADR 0013`](0013-finalize-annotation-frames-once.md) to match

@@ -28,8 +28,8 @@ the engine or repair ordering.
 ```mermaid
 flowchart LR
     H[Native or web head] -->|client command| M[Serial match owner]
-    S[Match supervisor] -. lifecycle .-> M
-    S -. starts and stops .-> W[Engine worker]
+    M -. terminal decision .-> S[Match supervisor]
+    S -. creates, observes, stops .-> W[Engine worker]
     M -->|EngineCommand| W
     W --> F[Forge object graph]
     F --> W
@@ -48,11 +48,11 @@ each match-level ordering decision.
 
 | Component | Owns | Must not own |
 |---|---|---|
-| Match supervisor | Match admission, lifecycle, worker creation, cancellation requests, cleanup, health and failure reporting | Forge state, protocol counters, frame construction |
-| Serial match owner | Command serialization, pending interaction lifecycle, projection state, protocol counters, frame commit, ordered outbox | Live Forge objects, transport channels, rules or legality |
+| Match supervisor | Match admission, execution-domain creation, resource policy, worker cancellation and cleanup after a terminal decision, health and failure reporting | Semantic match transitions, terminal frames, Forge state, protocol counters |
+| Serial match owner | Command serialization, semantic match lifecycle, pending interaction lifecycle, projection state, protocol counters, frame commit, ordered outbox | Live Forge objects, transport channels, rules or legality |
 | Engine worker | The live Forge graph, engine-thread callbacks, Forge event collection, immutable observation materialization | Protocol builders, client delivery, shared protocol counters |
 | Pure frame compiler | Deterministic conversion of an immutable yield and projection state into a frame plan and next state | I/O, locks, Forge reads, counter mutation, hidden queues |
-| Protocol heads | Connection lifecycle, decoding, authentication where applicable, enqueueing commands, flushing outbox entries | Rules, match progression, projection repair, head-specific game state |
+| Protocol heads | Channel lifecycle, decoding, authentication where applicable, reporting connection events, enqueueing commands, flushing outbox entries | Semantic match lifecycle, rules, match progression, projection repair |
 
 Forge remains the authority for rules, legality, playable abilities, cost
 candidates and payment semantics, engine identity, causes, and final game state.
@@ -87,9 +87,12 @@ frame cuts, visibility, sequencing, and delivery.
 ## Commands and yields
 
 Client heads enqueue match commands such as connect, disconnect, and decoded
-gameplay responses. The serial owner handles lifecycle commands locally and
-sends a smaller semantic command set into the engine worker. Illustrative
-engine-command families are:
+gameplay responses. The serial owner decides their semantic effect on the
+match, including terminal transitions and terminal output. The supervisor acts
+on that decision by cancelling the worker and releasing resources. The serial
+owner sends a smaller semantic command set into the engine worker.
+
+Illustrative engine-command families are:
 
 - start a match from supported initial data;
 - submit a bound priority action;
@@ -113,6 +116,16 @@ Every yield identifies its cause, command correlation, frame-cut reason, and
 the stable engine identities needed by projection. The worker materializes all
 required data while it exclusively owns Forge. The match owner must never call
 back into Forge to fill gaps after receiving a yield.
+
+Exact executable handles are the deliberate exception to copying engine state,
+but not to worker ownership. For each priority window, the worker retains a
+short-lived table from opaque action token to the exact executable Forge handle.
+The yield carries each token plus immutable projection facts. Projection binds
+the client-visible action to that token; the response returns the token; the
+worker resolves the retained handle without re-enumerating abilities. The table
+is cleared when the window completes, is superseded or cancelled, or fails.
+This preserves bind-at-source execution without sending a mutable
+`SpellAbility` across the boundary.
 
 ## State model
 
@@ -173,6 +186,12 @@ monotonic sequence and enough audience information for heads to deliver or
 adapt it. Delivery may be synchronous in the first implementation, but its
 ordering does not depend on which thread happens to call `send`.
 
+Authentication, connection negotiation, and other channel-only replies may
+remain head-local. Once a connection has joined a match, every message whose
+meaning depends on match progression—including terminal match output—comes
+from the match outbox. Heads report disconnects and delivery failures to the
+serial owner; they do not decide the semantic match transition themselves.
+
 Backpressure and disconnected clients are head concerns. They can delay,
 resume, or terminate delivery according to an explicit policy; they cannot
 advance the projection cursor independently or discard an entry while making
@@ -180,10 +199,12 @@ later entries visible.
 
 ## Supervision and worker isolation
 
-The supervisor/worker split has value even for a single game. It gives match
-startup, shutdown, timeout policy, cleanup, and failure reporting one owner
-without mixing those lifecycle concerns into Forge callbacks or transport
-handlers.
+The supervisor/worker split has value even for a single game. The serial match
+owner decides semantic startup, shutdown, timeout, and terminal transitions.
+The supervisor creates the execution domain, observes worker health, enforces
+resource policy, and performs cancellation and cleanup after the owner reaches
+a terminal decision. This keeps operational lifecycle work out of Forge
+callbacks and transport handlers without creating a second match authority.
 
 "Worker" initially means a logical execution domain and may remain one
 dedicated JVM thread. The command/yield contract should nonetheless avoid live
@@ -260,7 +281,9 @@ The runtime has reached this direction when:
 - [`ADR 0010`](decisions/0010-bind-priority-actions-at-projection-source.md),
   [`ADR 0011`](decisions/0011-preserve-ability-definition-identity.md), and
   [`ADR 0012`](decisions/0012-bind-prompt-routes-once.md) establish bound values
-  that can cross a command/yield boundary without reverse reconstruction.
+  that can cross a command/yield boundary without reverse reconstruction. ADR
+  0010's exact executable handle moves into the worker-owned token table; its
+  bind-at-source invariant remains unchanged.
 - [`ADR 0013`](decisions/0013-finalize-annotation-frames-once.md) establishes a
   single pure finalization point within one frame.
 - [`ADR 0014`](decisions/0014-command-yield-engine-boundary.md) records why this
