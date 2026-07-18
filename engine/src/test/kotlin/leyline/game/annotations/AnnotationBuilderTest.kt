@@ -1367,6 +1367,23 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("targetSpec groups affectees and aligned distributions") {
+            val ann =
+                AnnotationBuilder.targetSpec(
+                    instanceIds = listOf(293.iid, 294.iid),
+                    affectorId = 303.iid,
+                    abilityGrpId = 90088.grp,
+                    index = 1,
+                    promptId = 11869,
+                    promptParameters = 303,
+                    distributions = listOf(1, 1),
+                )
+            assertSoftly {
+                ann.affectedIdsList shouldBe listOf(293, 294)
+                ann.detailIntList("distributions") shouldBe listOf(1, 1)
+            }
+        }
+
         // --- PowerToughnessModCreated (Tier 2) ---
 
         test("powerToughnessModCreatedFields") {

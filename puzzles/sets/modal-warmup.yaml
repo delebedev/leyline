@@ -59,6 +59,24 @@ scenarios:
       - resolve_stack: {}
       - expect:
           zone_not_contains: { side: opponent, zone: battlefield, card: Serra Angel }
+  - id: bushwhack-fight
+    puzzle: bushwhack-fight
+    run: cast Bushwhack, choose Fight, and select one creature on each side
+    expect: target specifications remain visible until the opposing creature dies
+    steps:
+      - expect:
+          action: { type: cast, card: Bushwhack }
+      - cast: Bushwhack
+      - modal_choice: { index: 1 }
+      - target: { side: ours, zone: battlefield, card: Centaur Courser }
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - expect:
+          annotation_seen: TargetSpec
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true
   - id: spree-explosive-derailment
     puzzle: try-spree-explosive-derailment
     run: cast Explosive Derailment choosing the creature-damage Spree mode

@@ -10,10 +10,11 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
  * TargetSpec annotations: one persistent [TargetSpecKind] pAnn per targeted
- * spell/ability on the stack (one per card target, 1-based index per group).
+ * spell/ability target group on the stack.
  * Pure and persistent-only — no transient stream output and no effect-id
- * allocation, so its invocation position is order-independent. Pruned by the
- * store's full-replacement upsert when the spell leaves the stack.
+ * allocation, so its invocation position is order-independent. Groups remain
+ * active while their common affector is on the stack and expire together when
+ * that spell or ability resolves.
  *
  * Reads the pending target picks via a non-consuming snapshot; the spine keeps
  * its own snapshot for the consumed-spec records that flow into bridge mutations.
@@ -30,31 +31,29 @@ object TargetSpecContributor : AnnotationContributor {
         pending: List<InteractivePromptBridge.PendingTarget>,
         ctx: AnnotationContext,
     ): List<AnnotationInfo> {
-        // Read target picks recorded during selectTargetsInteractively.
+        // Read target picks after Forge completes chooseTargetsFor.
         // The spell may have already resolved by now (auto-pass), so we can't
         // rely on scanning game.getStack() — the stack is often empty.
         if (pending.isEmpty()) return emptyList()
 
         val frameIds = ctx.frameIds
-        // promptId still needs per-ability prompt-shape mapping. Fall back to
-        // 0 until a local mapping exists for the targeting prompt copy.
         return pending.mapNotNull { spec ->
             // Use the iid recorded at target-pick time for non-triggers (see
             // PendingTarget KDoc for the multi-target-spell rationale).
-            // Triggers defer to emission-time resolution via the SA id —
+            // Stack abilities defer to emission-time resolution via the SA id —
             // TargetingCoordinator always populates spec.forgeAbilityId when
-            // spec.isTriggeredAbility=true, so that branch's fallback is
+            // spec.isStackAbility=true, so that branch's fallback is
             // structurally unreachable and crashes under DevCheck.strict.
             val affectorIid =
                 if (spec.affectorInstanceIdAtRecord != 0) {
                     InstanceId(spec.affectorInstanceIdAtRecord)
-                } else if (spec.isTriggeredAbility) {
+                } else if (spec.isStackAbility) {
                     if (spec.forgeAbilityId != 0) {
-                        frameIds.triggerStackAbilityIid(spec.forgeAbilityId)
+                        ctx.targetSpecStackAbilityIid(spec)
                     } else {
                         DevCheck.fail {
-                            "PendingTarget for ${spec.spellName} marked isTriggeredAbility but missing forgeAbilityId; " +
-                                "every triggered-ability target spec must carry the SA id since stack-ability iids " +
+                            "PendingTarget for ${spec.spellName} marked isStackAbility but missing forgeAbilityId; " +
+                                "every stack-ability target spec must carry the SA id since stack-ability iids " +
                                 "are SA-id-keyed"
                         }
                         // Emit 0 rather than the source-card-keyed iid — that
@@ -67,22 +66,26 @@ object TargetSpecContributor : AnnotationContributor {
                 } else {
                     frameIds.cardIid(ForgeCardId(spec.spellForgeCardId))
                 }
-            val targetIid =
-                when {
-                    spec.targetForgeCardId != null ->
-                        frameIds.cardIid(ForgeCardId(spec.targetForgeCardId))
-                    // Player target: Arena uses seatId (1 or 2) as the iid for player entities.
-                    spec.targetSeatId != null -> InstanceId(spec.targetSeatId)
-                    else -> return@mapNotNull null
+            val targetIids =
+                spec.affectees.mapNotNull { affectee ->
+                    when {
+                        affectee.targetForgeCardId != null -> frameIds.cardIid(ForgeCardId(affectee.targetForgeCardId))
+                        affectee.targetSeatId != null -> InstanceId(affectee.targetSeatId)
+                        else -> null
+                    }
                 }
+            if (targetIids.isEmpty()) return@mapNotNull null
+            val distributions = spec.affectees.mapNotNull { it.distribution }
+            val alignedDistributions = distributions.takeIf { it.size == targetIids.size }.orEmpty()
             val abilityGrpId = ctx.targetSpecAbilityGrpId(spec)
             AnnotationBuilder.targetSpec(
-                instanceId = targetIid,
+                instanceIds = targetIids,
                 affectorId = affectorIid,
                 abilityGrpId = GrpId(abilityGrpId),
                 index = spec.index,
-                promptId = spec.promptId ?: 0,
+                promptId = spec.promptId ?: leyline.game.mapping.PromptIds.SELECT_TARGETS,
                 promptParameters = affectorIid.value,
+                distributions = alignedDistributions,
             )
         }
     }

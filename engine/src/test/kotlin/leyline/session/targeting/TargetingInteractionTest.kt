@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -29,6 +30,7 @@ import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
 import leyline.testkit.findZoneTransfer
 import leyline.testkit.firstWithTransferCategory
+import leyline.testkit.gameStateMessages
 import leyline.testkit.gsm
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -681,17 +683,28 @@ class TargetingInteractionTest :
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Bite Down").shouldBeTrue()
-            selectTargets(listOf(dealerIid))
-            selectTargets(listOf(targetIid))
-
-            val preResolve =
-                allMessages
+            val firstTargetSlice = after { selectTargets(listOf(dealerIid)) }
+            val group1 =
+                firstTargetSlice.messages
                     .persistentAnnotationsOfType(AnnotationType.TargetSpec)
-            preResolve.shouldHaveSize(2)
+                    .single { it.detailInt("index") == 1 }
+            val secondTargetSlice = after { selectTargets(listOf(targetIid)) }
+            val group2Gsm =
+                secondTargetSlice.messages
+                    .gameStateMessages()
+                    .single { gsm ->
+                        gsm.persistentAnnotationsList.any {
+                            AnnotationType.TargetSpec in it.typeList && it.detailInt("index") == 2
+                        }
+                    }
+            val group2 =
+                group2Gsm.persistentAnnotationsList.single {
+                    AnnotationType.TargetSpec in it.typeList && it.detailInt("index") == 2
+                }
+            val preResolve = listOf(group1, group2)
 
-            val group1 = preResolve.first { it.detailInt("index") == 1 }
-            val group2 = preResolve.first { it.detailInt("index") == 2 }
             assertSoftly {
+                group2Gsm.diffDeletedPersistentAnnotationIdsList shouldNotContain group1.id
                 group1.getAffectedIds(0) shouldNotBe group2.getAffectedIds(0)
                 group1.detailInt("abilityGrpId") shouldBe group2.detailInt("abilityGrpId")
                 group1.detailInt("abilityGrpId") shouldBeGreaterThan 0

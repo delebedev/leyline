@@ -146,7 +146,33 @@ class AnnotationContext(
             ?.abilityGrpId
             ?.takeIf { it != 0 }
             ?.let { return it }
-        return bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0
+        val cardGrpId = bridge.cardRepository.findGrpIdByName(spec.spellName) ?: return 0
+        val card = bridge.cardRepository.findByGrpId(cardGrpId) ?: return cardGrpId
+        return card.abilityIds
+            .firstOrNull { (abilityGrpId, _) -> bridge.cardRepository.findAbilityInfo(abilityGrpId)?.category == 4 }
+            ?.first
+            ?: card.abilityIds.firstOrNull()?.first
+            ?: cardGrpId
+    }
+
+    /** Resolve the stack object for a completed non-spell target group. */
+    fun targetSpecStackAbilityIid(spec: InteractivePromptBridge.PendingTarget): InstanceId {
+        val sourceCardId = ForgeCardId(spec.spellForgeCardId)
+        val abilityGrpId = targetSpecAbilityGrpId(spec)
+        val stackEntries = snap.stack.entries.filter { !it.isSpell && it.forgeCardId == sourceCardId }
+        val stackEntry =
+            stackEntries.firstOrNull { spec.forgeAbilityId != 0 && it.forgeAbilityId == spec.forgeAbilityId }
+                ?: stackEntries.firstOrNull { abilityGrpId != 0 && it.grpId == abilityGrpId }
+                ?: stackEntries.singleOrNull()
+        val resolvedEvents =
+            events
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .filter { it.cardId == sourceCardId }
+        val resolvedEvent =
+            resolvedEvents.lastOrNull { spec.forgeAbilityId != 0 && it.abilityForgeId == spec.forgeAbilityId }
+                ?: resolvedEvents.lastOrNull { abilityGrpId == 0 || it.abilityGrpId == abilityGrpId }
+        val stackForgeAbilityId = stackEntry?.forgeAbilityId ?: resolvedEvent?.abilityForgeId ?: spec.forgeAbilityId
+        return frameIds.triggerStackAbilityIid(stackForgeAbilityId)
     }
 
     companion object {

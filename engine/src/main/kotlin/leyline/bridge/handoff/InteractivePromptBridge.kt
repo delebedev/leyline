@@ -23,7 +23,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 internal class StrictPromptRefusalException(
@@ -99,23 +98,21 @@ class InteractivePromptBridge(
         return match
     }
 
-    // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
+    // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
 
     /**
-     * Pending target record: spell/ability source ID + name, the targeted entity, 1-based group index.
-     *
-     * Exactly one of [targetForgeCardId] (card target) or [targetSeatId] (player target) is non-null.
-     * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
+     * Pending target group: spell/ability source, ordered affectees, and 1-based group index.
+     * [isStackAbility] flips the affector iid from the spell card's iid to the synthesised
      * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      *
      * [abilityIdentity] fixes the definition and client row while the callback
-     * still owns the exact Forge ability. [forgeAbilityId] is the runtime
-     * `SpellAbility.id`; for triggered abilities it drives stack-ability iid resolution when
-     * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
+     * still owns the exact Forge ability. [forgeAbilityId] is the pre-stack
+     * `SpellAbility.id`; stack and resolution state provide the canonical id,
+     * with this value retained as a defensive fallback.
      *
      * [affectorInstanceIdAtRecord] is the spell/ability iid as it stood at
-     * record time (when the player picked targets and the spell was on the
-     * stack). Multi-target spells (e.g. Bite Down) emit one TargetSpec per
+     * record time (after the target group is finalized while the spell is on
+     * the stack). Multi-target spells (e.g. Bite Down) emit one TargetSpec per
      * group across multiple GSM drains; the spell's live iid changes when it
      * resolves Stack→Graveyard, so re-deriving the affector iid at emission
      * time would split the per-group TargetSpecs across two iids. Freezing
@@ -127,23 +124,25 @@ class InteractivePromptBridge(
         val spellName: String,
         val index: Int,
         val affectorInstanceIdAtRecord: Int,
-        val targetForgeCardId: Int? = null,
-        val targetSeatId: Int? = null,
-        val isTriggeredAbility: Boolean = false,
+        val affectees: List<TargetAffectee>,
+        val isStackAbility: Boolean = false,
         val promptId: Int? = null,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** Forge `SpellAbility.id` for the targeting spell/ability. */
         val forgeAbilityId: Int = 0,
-    )
+    ) {
+        data class TargetAffectee(
+            val targetForgeCardId: Int? = null,
+            val targetSeatId: Int? = null,
+            val distribution: Int? = null,
+        )
+    }
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()
-    private val targetSpecIndexCounter = AtomicInteger(0)
 
     fun addPendingTargetSpec(spec: PendingTarget) {
         pendingTargetSpecs.add(spec)
     }
-
-    fun nextTargetSpecIndex(): Int = targetSpecIndexCounter.incrementAndGet()
 
     fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.toList()
 
@@ -303,7 +302,6 @@ class InteractivePromptBridge(
         revealQueue.clear()
         pendingOrderZoneMoves.clear()
         pendingTargetSpecs.clear()
-        targetSpecIndexCounter.set(0)
         journal.resetForPuzzle()
         pending.set(null)
     }
@@ -646,6 +644,10 @@ data class PromptRequest(
     val minSelectionWeight: Int? = null,
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
+    /** One-based target-group index within the spell or ability. */
+    val targetIndex: Int = 1,
+    /** Target-group prompt localization id, shared with TargetSpec. */
+    val targetPromptId: Int? = null,
     /** Source card name when the live Forge id no longer resolves to card data. */
     val sourceCardName: String? = null,
     /** Card name for modal ETB prompts — session layer resolves grpId from this. */

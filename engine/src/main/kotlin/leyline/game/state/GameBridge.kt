@@ -245,7 +245,7 @@ class GameBridge(
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
-                it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolveAbilityIdentity(card, sa) } }
+                it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[1] =
@@ -313,7 +313,7 @@ class GameBridge(
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = { ids.reserveNextInstanceId() }
-                it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolveAbilityIdentity(card, sa) } }
+                it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
@@ -980,6 +980,18 @@ class GameBridge(
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
                 ?: AbilityDefinitionRef.SpellAbility(ability.definitionId),
         )
+
+    private fun resolvePromptAbilityIdentity(
+        card: Card,
+        ability: SpellAbility,
+    ): ResolvedAbilityIdentity? {
+        val identity = resolveAbilityIdentity(card, ability)
+        val modalGrpId = selectedModalAbilityGrpIds[ForgeCardId(card.id)] ?: return identity
+        val definition =
+            ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
+                ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
+        return identity?.copy(abilityGrpId = modalGrpId) ?: ResolvedAbilityIdentity(definition, modalGrpId)
+    }
 
     fun resolveAbilityIdentity(
         card: Card,

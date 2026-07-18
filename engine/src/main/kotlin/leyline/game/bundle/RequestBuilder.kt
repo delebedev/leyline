@@ -73,7 +73,7 @@ object RequestBuilder {
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
         val builder = SelectTargetsReq.newBuilder()
         val selBuilder = TargetSelection.newBuilder()
-        selBuilder.setTargetIdx(1)
+        selBuilder.setTargetIdx(prompt.request.targetIndex)
         selBuilder.setTargetingPlayer(chooserSeatId)
 
         // sourceId: map the spell's entity ID to its client instanceId
@@ -125,7 +125,7 @@ object RequestBuilder {
     ): SelectTargetsReq {
         val builder = SelectTargetsReq.newBuilder()
         val selBuilder = TargetSelection.newBuilder()
-        selBuilder.setTargetIdx(1)
+        selBuilder.setTargetIdx(prompt.request.targetIndex)
         selBuilder.setTargetingPlayer(chooserSeatId)
         selBuilder.setMinTargets(prompt.request.min)
         selBuilder.setMaxTargets(prompt.request.max)
@@ -440,7 +440,7 @@ object RequestBuilder {
         chooserSeatId: Int,
     ) {
         if (source.instanceId != 0) {
-            selBuilder.prompt = promptWithCardId(PromptIds.SELECT_TARGETS, source.instanceId)
+            selBuilder.prompt = promptWithCardId(prompt.request.targetPromptId ?: PromptIds.SELECT_TARGETS, source.instanceId)
         }
         val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt, source.grpId, bridge)
         if (targetingAbilityGrpId != 0) selBuilder.targetingAbilityGrpId = targetingAbilityGrpId

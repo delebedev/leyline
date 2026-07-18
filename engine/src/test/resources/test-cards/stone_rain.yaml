@@ -1,0 +1,8 @@
+name: "Stone Rain"
+grpId: 77524
+titleId: 423
+abilities:
+  - id: 23503
+    textId: 424
+    category: 4
+expansionCode: "STA"
