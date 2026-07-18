@@ -5,6 +5,10 @@ import org.gradle.api.tasks.testing.Test
 fun Test.configureTestDefaults() {
     useJUnitPlatform()
     maxHeapSize = "1280m"
+    if (project.hasProperty("forceTests")) {
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
     if (project.findProperty("noJacoco") == "true") {
         extensions.findByType(org.gradle.testing.jacoco.plugins.JacocoTaskExtension::class.java)?.isEnabled = false
     }
