@@ -68,7 +68,6 @@ dependencies {
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
-    testImplementation(libs.kotest.datatest)
     testImplementation(libs.archunit)
     testImplementation(libs.kotlin.reflect)
     testImplementation(harness.output)
@@ -115,23 +114,28 @@ val integrationForks =
             .div(4)
             .coerceIn(1, 4)
 
-val testUnit =
-    tasks.register<Test>("testUnit") {
-        configureTestDefaults()
-        systemProperty("kotest.tags", "UnitTag")
-        systemProperty("kotest.framework.parallelism", "8")
-    }
+fun registerEngineTest(
+    name: String,
+    configure: Test.() -> Unit,
+) = tasks.register<Test>(name) {
+    configureTestDefaults()
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    configure()
+}
 
-val testBoard =
-    tasks.register<Test>("testBoard") {
-        configureTestDefaults()
-        systemProperty("kotest.tags", "BoardTag")
-        systemProperty("kotest.framework.parallelism", "8")
-    }
+registerEngineTest("testUnit") {
+    systemProperty("kotest.tags", "UnitTag")
+    systemProperty("kotest.framework.parallelism", "8")
+}
+
+registerEngineTest("testBoard") {
+    systemProperty("kotest.tags", "BoardTag")
+    systemProperty("kotest.framework.parallelism", "8")
+}
 
 val testGate =
-    tasks.register<Test>("testGate") {
-        configureTestDefaults()
+    registerEngineTest("testGate") {
         systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
         // Default 1: measured on the ARM CI runners, parallelism=4 made this step
         // 37-66% slower (283-345s at 1 vs 444/535s at 4) — no in-JVM parallel
@@ -141,15 +145,13 @@ val testGate =
     }
 
 val testIntegration =
-    tasks.register<Test>("testIntegration") {
-        configureTestDefaults()
+    registerEngineTest("testIntegration") {
         systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
         maxParallelForks = integrationForks
     }
 
 val testIntegrationStrict =
-    tasks.register<Test>("testIntegrationStrict") {
-        configureTestDefaults()
+    registerEngineTest("testIntegrationStrict") {
         (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
         systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
         maxParallelForks = integrationForks
@@ -157,28 +159,17 @@ val testIntegrationStrict =
         outputs.upToDateWhen { false }
     }
 
-val testAcceptance =
-    tasks.register<Test>("testAcceptance") {
-        configureTestDefaults()
-        systemProperty("kotest.tags", "AcceptanceTag")
-        (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
-        (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
-        maxParallelForks = 1
-        inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
-    }
+registerEngineTest("testAcceptance") {
+    systemProperty("kotest.tags", "AcceptanceTag")
+    (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
+    (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
+    maxParallelForks = 1
+    inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
+}
 
-val testSimClient =
-    tasks.register<Test>("testSimClient") {
-        configureTestDefaults()
-        systemProperty("kotest.tags", "SimClientTag")
-        systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
-    }
-
-listOf(testUnit, testBoard, testGate, testIntegration, testIntegrationStrict, testAcceptance, testSimClient).forEach {
-    it.configure {
-        testClassesDirs = sourceSets["test"].output.classesDirs
-        classpath = sourceSets["test"].runtimeClasspath
-    }
+registerEngineTest("testSimClient") {
+    systemProperty("kotest.tags", "SimClientTag")
+    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
 }
 
 testIntegration.configure { mustRunAfter(testGate) }

@@ -2,14 +2,9 @@
 # Resolves a bare test class simple name to its fully-qualified name by
 # locating the single matching source file under <module>/src/test/kotlin.
 #
-# Why this exists: Gradle's `--tests` glob matching (`--tests "*ClassName"`)
-# silently matches zero tests for kotest specs on this project's Gradle/kotest
-# combo — the class's own tests run and pass inside kotest, but the result
-# never reaches Gradle's reporting layer, so `just test-one` failed loud for
-# every class including valid ones. A fully-qualified `--tests` pattern (no
-# wildcard) is the one shape proven to work reliably and to fail loud (via
-# Gradle's own "No tests found for given includes") when nothing matches.
-# See .claude/rules/leyline-tests.md "Running tests" for the full writeup.
+# Resolving before Gradle runs rejects missing or ambiguous simple names one by
+# one. This matters for `test-many`, where one valid selector could otherwise
+# hide a misspelled sibling selector.
 set -euo pipefail
 
 class="${1:?usage: resolve-test-fqcn.sh <ClassName> <module> <project-dir>}"
