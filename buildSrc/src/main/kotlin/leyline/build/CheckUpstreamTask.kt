@@ -34,10 +34,7 @@ abstract class CheckUpstreamTask : DefaultTask() {
             throw GradleException("Upstream JARs not installed. Run: just install-forge")
         }
         val stampHash = stamp.readText().trim()
-        val upstreamHash = git(
-            "-C", forgeDir.get(), "log", "-1", "--format=%H", "--",
-            "forge-core/src", "forge-game/src", "forge-ai/src", "forge-gui/src", "pom.xml",
-        )
+        val upstreamHash = git("-C", forgeDir.get(), "rev-parse", "HEAD")
         if (stampHash != upstreamHash) {
             throw GradleException(
                 "Upstream sources changed. Run: just install-forge\n" +
