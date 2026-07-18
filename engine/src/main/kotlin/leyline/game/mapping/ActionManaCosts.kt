@@ -231,12 +231,12 @@ internal object ActionManaCosts {
         val hostCard = sa.hostCard
         val originalActivator = sa.activatingPlayer
         if (originalActivator == null) sa.setActivatingPlayer(player)
-        val originalCastFrom = hostCard?.castFrom
+        val originalCastFrom = hostCard.castFrom
         val seededCastFrom =
-            hostCard?.isCommander == true &&
+            hostCard.isCommander &&
                 originalCastFrom == null &&
                 hostCard.zone?.zoneType == ForgeZoneType.Command
-        if (seededCastFrom) hostCard?.setCastFrom(hostCard.zone)
+        if (seededCastFrom) hostCard.setCastFrom(hostCard.zone)
         try {
             // Quiet scope: cost adjustment consults the controller for
             // payment-time reductions (Delve, Convoke, Waterbend, Offering).
@@ -254,7 +254,7 @@ internal object ActionManaCosts {
                 }
             }
         } finally {
-            if (seededCastFrom) hostCard?.setCastFrom(originalCastFrom)
+            if (seededCastFrom) hostCard.setCastFrom(originalCastFrom)
             if (originalActivator == null) sa.setActivatingPlayer(null)
         }
     }

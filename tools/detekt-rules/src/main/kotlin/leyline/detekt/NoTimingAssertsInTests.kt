@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtExpression
@@ -24,13 +21,10 @@ import org.jetbrains.kotlin.psi.KtExpression
  * Heuristic: infix `shouldBe{Less,Greater}Than[OrEqual]` where any identifier
  * in the receiver chain matches timing vocabulary (`elapsed`, `duration`, etc.).
  */
-class NoTimingAssertsInTests(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "NoTimingAssertsInTests",
-        severity = Severity.Defect,
-        description = "Wall-clock timing asserts flake. Use a benchmark harness for perf gates.",
-        debt = Debt.TEN_MINS,
-    )
+class NoTimingAssertsInTests(config: Config) : Rule(
+    config,
+    description = "Wall-clock timing asserts flake. Use a benchmark harness for perf gates.",
+) {
 
     private val timingNames = setOf("elapsed", "duration", "ms", "nanos", "millis", "took")
     private val ops = setOf(
@@ -46,8 +40,7 @@ class NoTimingAssertsInTests(config: Config) : Rule(config) {
         val left = expression.left ?: return
         if (!containsTimingIdentifier(left)) return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "Wall-clock timing assert ('${left.text} $op ...') — use a benchmark harness, not a test assertion.",
             ),

@@ -140,11 +140,13 @@ class FranticScapegoatSuspectedTest :
                 bearQualificationGrpIds shouldContain AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID.value
                 bearQualificationTypes shouldContain QualificationType.CombatKeyword.wireValue
                 bearQualificationTypes shouldContain QualificationType.CantBlock.wireValue
-                transferResolution.shouldNotBeNull()
-                gainBear!!.affectorId shouldBe transferResolution!!.affectorId
-                gainBear!!.affectedIdsList shouldContain bearIid
-                loseScapegoat!!.affectorId shouldBe transferResolution.affectorId
-                loseScapegoat!!.affectedIdsList shouldContain scapegoatIid
+                val resolution = transferResolution.shouldNotBeNull()
+                val bearGain = gainBear.shouldNotBeNull()
+                val scapegoatLoss = loseScapegoat.shouldNotBeNull()
+                bearGain.affectorId shouldBe resolution.affectorId
+                bearGain.affectedIdsList shouldContain bearIid
+                scapegoatLoss.affectorId shouldBe resolution.affectorId
+                scapegoatLoss.affectedIdsList shouldContain scapegoatIid
             }
         }
     })

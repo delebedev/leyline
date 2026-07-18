@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtElement
@@ -19,13 +16,10 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
  * actual check. Helper calls that internally assert will mask this rule;
  * the tradeoff is accepted since the most common failure mode is inline.
  */
-class EmptyAssertion(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "EmptyAssertion",
-        severity = Severity.Defect,
-        description = "Kotest test block contains no should*/assert*/fail call — likely missing its assertion.",
-        debt = Debt.TEN_MINS,
-    )
+class EmptyAssertion(config: Config) : Rule(
+    config,
+    description = "Kotest test block contains no should*/assert*/fail call — likely missing its assertion.",
+) {
 
     override fun visitCallExpression(expression: KtCallExpression) {
         super.visitCallExpression(expression)
@@ -34,8 +28,7 @@ class EmptyAssertion(config: Config) : Rule(config) {
         val body = lambda.bodyExpression ?: return
         if (containsAssertion(body)) return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "Kotest test(\"...\") body has no should*/assert*/fail call. Add an assertion or delete the test.",
             ),

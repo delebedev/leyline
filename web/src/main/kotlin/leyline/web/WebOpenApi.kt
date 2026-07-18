@@ -4,6 +4,7 @@
 package leyline.web
 
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.StructureKind
@@ -327,35 +328,35 @@ object WebOpenApi {
 
     private fun schemas(): JsonObject =
         buildJsonObject {
-            component("StartDraftRequest", StartDraftRequest.serializer())
-            component("PickDraftRequest", PickDraftRequest.serializer())
-            component("SubmitDeckRequest", SubmitDeckRequest.serializer())
-            component("PlayDraftRequest", PlayDraftRequest.serializer())
-            component("GreStartRequest", GreStartRequest.serializer())
-            component("WebDeckCard", WebDeckCard.serializer())
-            component("DraftSessionView", DraftSessionView.serializer())
-            component("CourseView", CourseView.serializer())
-            component("DraftPlayResponse", DraftPlayResponse.serializer())
-            component("PublicSpectatorResponse", PublicSpectatorResponse.serializer())
-            component("PublicSeatView", PublicSeatView.serializer())
-            component("ViewerCountView", ViewerCountView.serializer())
-            component("CreateDeckRequest", CreateDeckRequest.serializer())
-            component("DeckView", DeckView.serializer())
-            component("CollectionView", CollectionView.serializer())
-            component("LimitedSetView", LimitedSetView.serializer())
-            component("LimitedSetArchetypeView", LimitedSetArchetypeView.serializer())
-            component("AuthView", AuthView.serializer())
-            component("PuzzleSummaryView", PuzzleSummaryView.serializer())
-            component("RequestLoginCodeRequest", RequestLoginCodeRequest.serializer())
-            component("VerifyLoginCodeRequest", VerifyLoginCodeRequest.serializer())
-            component("LoginResponse", LoginResponse.serializer())
-            component("CardMetadataView", CardMetadataView.serializer())
-            component("CardMetadataEntry", CardMetadataEntry.serializer())
-            component("GreCardMetaDto", GreCardMetaDto.serializer())
-            component("DraftCardDto", DraftCardDto.serializer())
-            component("ParseDecklistRequest", ParseDecklistRequest.serializer())
-            component("ParsedCardDto", ParsedCardDto.serializer())
-            component("ParseDecklistResponse", ParseDecklistResponse.serializer())
+            component("StartDraftRequest", serializer<StartDraftRequest>())
+            component("PickDraftRequest", serializer<PickDraftRequest>())
+            component("SubmitDeckRequest", serializer<SubmitDeckRequest>())
+            component("PlayDraftRequest", serializer<PlayDraftRequest>())
+            component("GreStartRequest", serializer<GreStartRequest>())
+            component("WebDeckCard", serializer<WebDeckCard>())
+            component("DraftSessionView", serializer<DraftSessionView>())
+            component("CourseView", serializer<CourseView>())
+            component("DraftPlayResponse", serializer<DraftPlayResponse>())
+            component("PublicSpectatorResponse", serializer<PublicSpectatorResponse>())
+            component("PublicSeatView", serializer<PublicSeatView>())
+            component("ViewerCountView", serializer<ViewerCountView>())
+            component("CreateDeckRequest", serializer<CreateDeckRequest>())
+            component("DeckView", serializer<DeckView>())
+            component("CollectionView", serializer<CollectionView>())
+            component("LimitedSetView", serializer<LimitedSetView>())
+            component("LimitedSetArchetypeView", serializer<LimitedSetArchetypeView>())
+            component("AuthView", serializer<AuthView>())
+            component("PuzzleSummaryView", serializer<PuzzleSummaryView>())
+            component("RequestLoginCodeRequest", serializer<RequestLoginCodeRequest>())
+            component("VerifyLoginCodeRequest", serializer<VerifyLoginCodeRequest>())
+            component("LoginResponse", serializer<LoginResponse>())
+            component("CardMetadataView", serializer<CardMetadataView>())
+            component("CardMetadataEntry", serializer<CardMetadataEntry>())
+            component("GreCardMetaDto", serializer<GreCardMetaDto>())
+            component("DraftCardDto", serializer<DraftCardDto>())
+            component("ParseDecklistRequest", serializer<ParseDecklistRequest>())
+            component("ParsedCardDto", serializer<ParsedCardDto>())
+            component("ParseDecklistResponse", serializer<ParseDecklistResponse>())
         }
 
     private fun <T> JsonObjectBuilder.component(

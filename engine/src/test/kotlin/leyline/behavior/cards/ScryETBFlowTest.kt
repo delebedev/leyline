@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
-import leyline.testkit.assertConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detail

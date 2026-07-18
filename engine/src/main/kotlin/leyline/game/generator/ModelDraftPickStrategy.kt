@@ -7,6 +7,7 @@ import forge.item.PaperCard
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.zip.GZIPInputStream
@@ -122,8 +123,8 @@ class PickModelBundle(
         ): PickModelBundle {
             require(weightsFile.isFile) { "missing ${weightsFile.name}" }
             require(metaFile.isFile) { "missing ${metaFile.name}" }
-            val weights = json.decodeFromString(WeightsJson.serializer(), weightsFile.readMaybeGzipText())
-            val meta = json.decodeFromString(CardMetaJson.serializer(), metaFile.readText())
+            val weights = json.decodeFromString(serializer<WeightsJson>(), weightsFile.readMaybeGzipText())
+            val meta = json.decodeFromString(serializer<CardMetaJson>(), metaFile.readText())
             require(weights.nCards == meta.nCards) {
                 "weights n_cards=${weights.nCards} differs from metadata n_cards=${meta.nCards}"
             }

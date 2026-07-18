@@ -1,6 +1,7 @@
 import leyline.build.SyncProtoTask
 import leyline.build.configureTestDefaults
 import org.gradle.api.tasks.JavaExec
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -21,17 +22,14 @@ repositories {
     }
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 // Test-support code (headless match harness, simclient tooling) that must not
 // ship in the engine jar but needs main's classes and dependencies to compile.
 // Consumed by: engine tests, and the simclient/simref JavaExec tasks below.
-val harness by sourceSets.creating {
-    compileClasspath += sourceSets.main.get().output + configurations["compileClasspath"]
-    runtimeClasspath += sourceSets.main.get().output + configurations["runtimeClasspath"]
-}
+val harness =
+    sourceSets.create("harness") {
+        compileClasspath += sourceSets.main.get().output + configurations["compileClasspath"]
+        runtimeClasspath += sourceSets.main.get().output + configurations["runtimeClasspath"]
+    }
 
 // Harness needs to see main's `internal` declarations (e.g. ActionMapper helpers),
 // same as the built-in test <-> main friend relationship.
@@ -51,6 +49,7 @@ kotlin.target.compilations
     .associateWith(kotlin.target.compilations.getByName("harness"))
 
 dependencies {
+    implementation(platform(libs.netty.bom))
     implementation(project(":domain"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
@@ -75,12 +74,13 @@ dependencies {
     testImplementation(harness.output)
 }
 
-val syncProto by tasks.registering(SyncProtoTask::class) {
-    description = "Generate messages.proto from upstream submodule + rename map"
-    sedFile.set(rootProject.layout.projectDirectory.file("proto/rename-map.sed"))
-    upstream.set(rootProject.layout.projectDirectory.file("proto/upstream/messages.proto"))
-    outputFile.set(layout.projectDirectory.file("src/main/proto/messages.proto"))
-}
+val syncProto =
+    tasks.register<SyncProtoTask>("syncProto") {
+        description = "Generate messages.proto from upstream submodule + rename map"
+        sedFile.set(rootProject.layout.projectDirectory.file("proto/rename-map.sed"))
+        upstream.set(rootProject.layout.projectDirectory.file("proto/upstream/messages.proto"))
+        outputFile.set(layout.projectDirectory.file("src/main/proto/messages.proto"))
+    }
 
 tasks.named("extractProto") {
     dependsOn(syncProto)
@@ -115,87 +115,104 @@ val integrationForks =
             .div(4)
             .coerceIn(1, 4)
 
-val testUnit by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag")
-    systemProperty("kotest.framework.parallelism", "8")
-}
+val testUnit =
+    tasks.register<Test>("testUnit") {
+        configureTestDefaults()
+        systemProperty("kotest.tags", "UnitTag")
+        systemProperty("kotest.framework.parallelism", "8")
+    }
 
-val testBoard by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "BoardTag")
-    systemProperty("kotest.framework.parallelism", "8")
-}
+val testBoard =
+    tasks.register<Test>("testBoard") {
+        configureTestDefaults()
+        systemProperty("kotest.tags", "BoardTag")
+        systemProperty("kotest.framework.parallelism", "8")
+    }
 
-val testGate by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
-    // Default 1: measured on the ARM CI runners, parallelism=4 made this step
-    // 37-66% slower (283-345s at 1 vs 444/535s at 4) — no in-JVM parallel
-    // headroom under job co-tenancy. Override with -PkotestParallelism for
-    // local experiments.
-    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
-}
+val testGate =
+    tasks.register<Test>("testGate") {
+        configureTestDefaults()
+        systemProperty("kotest.tags", "(UnitTag | BoardTag) & !SimClientTag")
+        // Default 1: measured on the ARM CI runners, parallelism=4 made this step
+        // 37-66% slower (283-345s at 1 vs 444/535s at 4) — no in-JVM parallel
+        // headroom under job co-tenancy. Override with -PkotestParallelism for
+        // local experiments.
+        systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
+    }
 
-val testIntegration by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
-    maxParallelForks = integrationForks
-}
+val testIntegration =
+    tasks.register<Test>("testIntegration") {
+        configureTestDefaults()
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
+        maxParallelForks = integrationForks
+    }
 
-val testIntegrationStrict by tasks.registering(Test::class) {
-    configureTestDefaults()
-    (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-    systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
-    maxParallelForks = integrationForks
-    outputs.cacheIf { false }
-    outputs.upToDateWhen { false }
-}
+val testIntegrationStrict =
+    tasks.register<Test>("testIntegrationStrict") {
+        configureTestDefaults()
+        (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
+        maxParallelForks = integrationForks
+        outputs.cacheIf { false }
+        outputs.upToDateWhen { false }
+    }
 
-val testAcceptance by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "AcceptanceTag")
-    (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
-    (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
-    maxParallelForks = 1
-    inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
-}
+val testAcceptance =
+    tasks.register<Test>("testAcceptance") {
+        configureTestDefaults()
+        systemProperty("kotest.tags", "AcceptanceTag")
+        (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
+        (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
+        maxParallelForks = 1
+        inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
+    }
 
-val testSimClient by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "SimClientTag")
-    systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
+val testSimClient =
+    tasks.register<Test>("testSimClient") {
+        configureTestDefaults()
+        systemProperty("kotest.tags", "SimClientTag")
+        systemProperty("kotest.framework.parallelism", (project.findProperty("kotestParallelism") as String? ?: "1"))
+    }
+
+listOf(testUnit, testBoard, testGate, testIntegration, testIntegrationStrict, testAcceptance, testSimClient).forEach {
+    it.configure {
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+    }
 }
 
 testIntegration.configure { mustRunAfter(testGate) }
 testIntegrationStrict.configure { mustRunAfter(testGate) }
 
-val simclient by tasks.registering(JavaExec::class) {
-    group = "simclient"
-    (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-    description = "Run standalone simclient deck/puzzle matrices"
-    dependsOn(tasks.named("harnessClasses"))
-    classpath = sourceSets["harness"].runtimeClasspath
-    mainClass.set("leyline.tooling.simclient.SimClientToolKt")
-    workingDir = rootProject.projectDir
-    args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
-    outputs.upToDateWhen { false }
-    outputs.cacheIf { false }
-}
+val simclient =
+    tasks.register<JavaExec>("simclient") {
+        group = "simclient"
+        (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
+        description = "Run standalone simclient deck/puzzle matrices"
+        dependsOn(tasks.named("harnessClasses"))
+        classpath = sourceSets["harness"].runtimeClasspath
+        mainClass.set("leyline.tooling.simclient.SimClientToolKt")
+        workingDir = rootProject.projectDir
+        args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
 
-val simref by tasks.registering(JavaExec::class) {
-    group = "simclient"
-    (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-    description = "Run direct Forge AI deck/puzzle matrices"
-    dependsOn(tasks.named("harnessClasses"))
-    classpath = sourceSets["harness"].runtimeClasspath
-    mainClass.set("leyline.tooling.simclient.SimRefToolKt")
-    workingDir = rootProject.projectDir
-    args((project.findProperty("simrefArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
-    outputs.upToDateWhen { false }
-    outputs.cacheIf { false }
-}
+val simref =
+    tasks.register<JavaExec>("simref") {
+        group = "simclient"
+        (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
+        description = "Run direct Forge AI deck/puzzle matrices"
+        dependsOn(tasks.named("harnessClasses"))
+        classpath = sourceSets["harness"].runtimeClasspath
+        mainClass.set("leyline.tooling.simclient.SimRefToolKt")
+        workingDir = rootProject.projectDir
+        args((project.findProperty("simrefArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
 
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =
         listOf(

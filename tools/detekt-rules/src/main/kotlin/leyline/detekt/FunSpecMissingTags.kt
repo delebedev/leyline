@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtElement
@@ -23,13 +20,10 @@ import org.jetbrains.kotlin.psi.psiUtil.collectDescendantsOfType
  * alongside the lane tag, but a Spec/file with zero or multiple lane tags makes
  * gate membership ambiguous.
  */
-class FunSpecMissingTags(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "FunSpecMissingTags",
-        severity = Severity.Defect,
-        description = "Kotest Spec class must declare exactly one lane tag so CI can bucket the test correctly.",
-        debt = Debt.FIVE_MINS,
-    )
+class FunSpecMissingTags(config: Config) : Rule(
+    config,
+    description = "Kotest Spec class must declare exactly one lane tag so CI can bucket the test correctly.",
+) {
 
     override fun visitKtFile(file: KtFile) {
         super.visitKtFile(file)
@@ -46,8 +40,7 @@ class FunSpecMissingTags(config: Config) : Rule(config) {
         if (fileLaneTags.size <= 1) return
 
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(file),
                 "Test file mixes lane tags ${fileLaneTags.sorted()}. Split direct Spec classes by lane.",
             ),
@@ -70,8 +63,7 @@ class FunSpecMissingTags(config: Config) : Rule(config) {
             }
 
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(classOrObject),
                 message,
             ),
@@ -84,7 +76,7 @@ class FunSpecMissingTags(config: Config) : Rule(config) {
             .firstOrNull { superTypeName(it) in KOTEST_SPECS }
 
     private fun superTypeName(entry: KtSuperTypeCallEntry): String =
-        entry.typeAsUserType?.referencedName ?: entry.calleeExpression?.text ?: ""
+        entry.typeAsUserType?.referencedName ?: entry.calleeExpression.text
 
     private fun laneTagsIn(element: KtElement): Set<String> {
         val laneTags = mutableSetOf<String>()

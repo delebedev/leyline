@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>DoubleMutabilityForCollection:FrontDoorHandlerTest.kt:&lt;no name provided&gt;$private var remaining = packs.map { it.toMutableList() }.toMutableList()</ID>
+  </CurrentIssues>
+</SmellBaseline>

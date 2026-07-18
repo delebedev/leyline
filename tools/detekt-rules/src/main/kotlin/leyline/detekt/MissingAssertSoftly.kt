@@ -1,12 +1,10 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
+import dev.detekt.api.config
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
@@ -21,15 +19,12 @@ import org.jetbrains.kotlin.psi.KtExpression
  * one problem per run. Wrapping in `assertSoftly` collects them all, which is
  * almost always what the author wanted.
  */
-class MissingAssertSoftly(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "MissingAssertSoftly",
-        severity = Severity.Style,
-        description = "Consecutive should*/assert* statements should be wrapped in assertSoftly { ... } so all failures are reported.",
-        debt = Debt.FIVE_MINS,
-    )
+class MissingAssertSoftly(config: Config) : Rule(
+    config,
+    description = "Consecutive should*/assert* statements should be wrapped in assertSoftly { ... } so all failures are reported.",
+) {
 
-    private val threshold: Int = valueOrDefault("threshold", DEFAULT_THRESHOLD)
+    private val threshold: Int by config(DEFAULT_THRESHOLD)
 
     override fun visitBlockExpression(expression: KtBlockExpression) {
         super.visitBlockExpression(expression)
@@ -53,8 +48,7 @@ class MissingAssertSoftly(config: Config) : Rule(config) {
     private fun flushRun(length: Int, start: KtExpression?) {
         if (length < threshold || start == null) return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(start),
                 "$length consecutive assertions without assertSoftly — first failure hides the rest. " +
                     "Wrap in `assertSoftly { ... }` or split into separate tests.",

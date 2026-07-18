@@ -17,10 +17,6 @@ import org.jupnp.UpnpServiceConfiguration
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
-import java.lang.Byte
-import java.lang.Double
-import java.lang.Long
-import java.lang.Short
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.net.URISyntaxException
@@ -349,14 +345,14 @@ class HeadlessGuiBase(
         val handler =
             InvocationHandler { _, method, _ ->
                 when {
-                    method.returnType == java.lang.Boolean.TYPE -> false
-                    method.returnType == Integer.TYPE -> 0
-                    method.returnType == Long.TYPE -> 0L
-                    method.returnType == java.lang.Float.TYPE -> 0f
-                    method.returnType == Double.TYPE -> 0.0
-                    method.returnType == Short.TYPE -> 0.toShort()
-                    method.returnType == Byte.TYPE -> 0.toByte()
-                    method.returnType == Character.TYPE -> '\u0000'
+                    method.returnType == Boolean::class.javaPrimitiveType -> false
+                    method.returnType == Int::class.javaPrimitiveType -> 0
+                    method.returnType == Long::class.javaPrimitiveType -> 0L
+                    method.returnType == Float::class.javaPrimitiveType -> 0f
+                    method.returnType == Double::class.javaPrimitiveType -> 0.0
+                    method.returnType == Short::class.javaPrimitiveType -> 0.toShort()
+                    method.returnType == Byte::class.javaPrimitiveType -> 0.toByte()
+                    method.returnType == Char::class.javaPrimitiveType -> '\u0000'
                     method.returnType == Void.TYPE -> null
                     List::class.java.isAssignableFrom(method.returnType) -> emptyList<Any>()
                     Map::class.java.isAssignableFrom(method.returnType) -> emptyMap<Any, Any>()

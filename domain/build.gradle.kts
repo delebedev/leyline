@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
@@ -9,10 +11,6 @@ repositories {
     mavenCentral()
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
@@ -22,6 +20,7 @@ dependencies {
     testImplementation(libs.kotest.assertions)
 }
 
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =
         listOf(

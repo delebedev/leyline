@@ -1,5 +1,40 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
-  <ManuallySuppressedIssues></ManuallySuppressedIssues>
-  <CurrentIssues></CurrentIssues>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>AbstractClassCanBeConcreteClass:BoardTest.kt:BoardTest$BoardTest</ID>
+    <ID>AbstractClassCanBeConcreteClass:SessionTest.kt:SessionTest$SessionTest</ID>
+    <ID>MapGetWithNotNullAssertionOperator:ClientAccumulatorTest.kt:ClientAccumulatorTest$acc.zones[10]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:DiffDiagnosticTest.kt:DiffDiagnosticTest$acc.zones[ZoneIds.BATTLEFIELD]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:LandManaTest.kt:LandManaTest$acc.zones[ZoneIds.BATTLEFIELD]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:LandManaTest.kt:LandManaTest$acc.zones[ZoneIds.LIMBO]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:MutateMechanicTest.kt:harness.accumulator.zones[ZoneIds.BATTLEFIELD]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:MutateMechanicTest.kt:harness.accumulator.zones[ZoneIds.SUPPRESSED]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.P1_SIDEBOARD]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.P2_SIDEBOARD]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.PENDING]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.SUPPRESSED]!!</ID>
+    <ID>UnnecessaryFilter:CombatInteractionTest.kt:CombatInteractionTest$filter { it.isCreature }</ID>
+    <ID>UnnecessaryFilter:InvariantCheckerTest.kt:InvariantCheckerTest$filter { it.check == "resolution_transfer_ordering" }</ID>
+    <ID>UnnecessaryFilter:TransferAnnotationPipelineTest.kt:TransferAnnotationPipelineTest$filter { AnnotationType.ManaPaid in it.typeList }</ID>
+    <ID>UnnecessaryNotNullOperator:LearnLessonTest.kt:LearnLessonTest$sideboardToHand!!</ID>
+    <ID>UnnecessaryNotNullOperator:ReconfigureLifecycleTest.kt:ReconfigureLifecycleTest$removeAttachment!!</ID>
+    <ID>UnnecessaryNotNullOperator:SaddleLifecycleTest.kt:SaddleLifecycleTest$saddledAnn!!</ID>
+    <ID>UnnecessarySafeCall:BoundCardParityTest.kt:BoundCardParityTest$bound.data?.grpId</ID>
+    <ID>UnnecessarySafeCall:BoundCardParityTest.kt:BoundCardParityTest$realBound.data?.grpId</ID>
+    <ID>UnusedVariable:AbilityRegistryTest.kt:AbilityRegistryTest$game</ID>
+    <ID>UnusedVariable:AiTurnConformanceTest.kt:AiTurnConformanceTest$i</ID>
+    <ID>UnusedVariable:AutoPassEngineTest.kt:AutoPassEngineTest$game</ID>
+    <ID>UnusedVariable:CombatInteractionTest.kt:CombatInteractionTest$val attackerIid = setupWithAiBlocker()</ID>
+    <ID>UnusedVariable:EffectLifecycleTest.kt:EffectLifecycleTest$val gsm1 = StateMapper.buildFromSnapshot(snapEff2, 1, "test", b).gsm</ID>
+    <ID>UnusedVariable:EndureLifecycleTest.kt:EndureLifecycleTest$val oam = endureOams.single()</ID>
+    <ID>UnusedVariable:GameBridgeTest.kt:GameBridgeTest$val game = b.getGame()!!</ID>
+    <ID>UnusedVariable:GamePlaybackTest.kt:GamePlaybackTest$@Suppress("UnusedPrivateProperty") val pb = createMinimalPlayback(counter)</ID>
+    <ID>UnusedVariable:LearnLessonTest.kt:LearnLessonTest$val req = castSpellUntilSelectNReq("Cram Session")</ID>
+    <ID>UnusedVariable:MatchRegistryTest.kt:MatchRegistryTest$val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)</ID>
+    <ID>UnusedVariable:NaiveActionsLandTest.kt:NaiveActionsLandTest$game</ID>
+    <ID>UnusedVariable:PuzzleBridgeTest.kt:PuzzleBridgeTest$val game = b.getGame()!!</ID>
+    <ID>UnusedVariable:TransferAnnotationPipelineTest.kt:TransferAnnotationPipelineTest$persistent</ID>
+    <ID>UseAnyOrNoneInsteadOfFind:ImpendingLifecycleTest.kt:ImpendingLifecycleTest$lastOrNull { it.hasDeclareAttackersReq() }</ID>
+  </CurrentIssues>
 </SmellBaseline>

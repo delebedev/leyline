@@ -403,7 +403,7 @@ class TargetingCoordinator(
         visibleToChooser: CardCollectionView,
     ): PromptSideEffect.RevealStarted? {
         if (visibleToChooser.isEmpty()) return null
-        val visibleIds = visibleToChooser.mapNotNull { (it as? Card)?.let { card -> ForgeCardId(card.id) } }
+        val visibleIds = visibleToChooser.map { ForgeCardId(it.id) }
         if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
         val ownerSeat = if (discarder.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
         return PromptSideEffect.RevealStarted(visibleIds, ownerSeat)
@@ -466,7 +466,7 @@ class TargetingCoordinator(
         owner: Player,
     ) {
         if (cards.isEmpty()) return
-        val cardIds = cards.mapNotNull { card -> (card as? Card)?.let { ForgeCardId(it.id) } }
+        val cardIds = cards.map { ForgeCardId(it.id) }
         val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
         bridge.recordReveal(
             cardIds,

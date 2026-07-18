@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtFile
 
 /**
@@ -21,13 +18,10 @@ import org.jetbrains.kotlin.psi.KtFile
  * `conformance/` is retired: old mixed files must be split by tier before
  * landing in a durable package.
  */
-class TestLayoutCheck(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "TestLayoutCheck",
-        severity = Severity.Defect,
-        description = "Test package does not match its Board/Session/mechanics lane.",
-        debt = Debt.TEN_MINS,
-    )
+class TestLayoutCheck(config: Config) : Rule(
+    config,
+    description = "Test package does not match its Board/Session/mechanics lane.",
+) {
 
     override fun visitKtFile(file: KtFile) {
         super.visitKtFile(file)
@@ -83,7 +77,7 @@ class TestLayoutCheck(config: Config) : Rule(config) {
         file: KtFile,
         message: String,
     ) {
-        report(CodeSmell(issue, Entity.from(file), message))
+        report(Finding(Entity.from(file), message))
     }
 
     private companion object {

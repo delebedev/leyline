@@ -1,8 +1,8 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
-  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>WeakAssertionOnly:FormatValidationIntegrationTest.kt$FormatValidationIntegrationTest$test("Standard rejects a card not in Standard") { val deck = DeckLoader.parseDeckList(nonStandardDeck) val error = FormatService.validateDeck(deck, "Standard") error.shouldNotBeNull() error.shouldNotBeBlank() }</ID>
-    <ID>WeakAssertionOnly:FormatValidationIntegrationTest.kt$FormatValidationIntegrationTest$test("mapArenaFormat + resolve round-trip") { val format = FormatService.resolve( EventRegistry.mapArenaFormat("TraditionalStandard"), ) format.shouldNotBeNull() }</ID>
+    <ID>WeakAssertionOnly:FormatValidationIntegrationTest.kt:FormatValidationIntegrationTest$test("Standard rejects a card not in Standard") { val deck = DeckLoader.parseDeckList(nonStandardDeck) val error = FormatService.validateDeck(deck, "Standard") error.shouldNotBeNull() error.shouldNotBeBlank() }</ID>
+    <ID>WeakAssertionOnly:FormatValidationIntegrationTest.kt:FormatValidationIntegrationTest$test("mapArenaFormat + resolve round-trip") { val format = FormatService.resolve( EventRegistry.mapArenaFormat("TraditionalStandard"), ) format.shouldNotBeNull() }</ID>
   </CurrentIssues>
 </SmellBaseline>

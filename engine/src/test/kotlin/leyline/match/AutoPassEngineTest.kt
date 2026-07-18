@@ -95,8 +95,7 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             assertSoftly {
-                decision.shouldBeInstanceOf<PriorityDecision.Skip>()
-                (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
+                decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
             }
         }
 
@@ -126,8 +125,7 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             assertSoftly {
-                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
             }
         }
 
@@ -213,8 +211,7 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             assertSoftly {
-                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
             }
         }
 
@@ -242,8 +239,7 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             assertSoftly {
-                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
             }
         }
 
@@ -271,8 +267,7 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             assertSoftly {
-                decision.shouldBeInstanceOf<PriorityDecision.Skip>()
-                (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.ClientAutoPass
+                decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.ClientAutoPass
             }
         }
 
@@ -303,8 +298,7 @@ class AutoPassEngineTest :
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             assertSoftly {
-                decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-                (decision as PriorityDecision.Grant).phase shouldBe "MAIN1"
+                decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
             }
         }
 
@@ -328,8 +322,7 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Skip>()
-            (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
+            decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
         }
 
         test("checkHumanActions — real actions → Grant with correct phase") {
@@ -355,8 +348,7 @@ class AutoPassEngineTest :
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
-            decision.shouldBeInstanceOf<PriorityDecision.Grant>()
-            val grant = decision as PriorityDecision.Grant
+            val grant = decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             grant.phase shouldBe "MAIN1"
         }
 
