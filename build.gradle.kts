@@ -1,3 +1,4 @@
+import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 import dev.detekt.gradle.Detekt
 import leyline.build.CheckUpstreamTask
 import leyline.build.VerifyWebProfilePostureTask
@@ -21,6 +22,18 @@ plugins {
     alias(libs.plugins.versions)
     id("leyline.test-conventions")
     application
+}
+
+private val stableVersionPattern = Regex("^[0-9,.v-]+(-r)?$")
+
+private fun String.isStableVersion(): Boolean =
+    stableVersionPattern.matches(this) ||
+        listOf("RELEASE", "FINAL", "GA").any { marker -> uppercase().contains(marker) }
+
+tasks.withType<DependencyUpdatesTask>().configureEach {
+    revision = "release"
+    gradleReleaseChannel = "current"
+    rejectVersionIf { !candidate.version.isStableVersion() }
 }
 
 // Ktlint: applied to root + all subprojects. `.editorconfig` owns all rule config.

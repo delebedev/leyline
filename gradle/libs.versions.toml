@@ -18,7 +18,7 @@ forge = "2.0.14-SNAPSHOT"
 detekt = "2.0.0-alpha.5"
 ktlint-gradle = "12.1.2"
 protobuf-plugin = "0.10.0"
-versions = "0.53.0"
+versions = "0.54.0"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
