@@ -1,0 +1,17 @@
+name: "Wildgrowth Archaic"
+grpId: 102627
+titleId: 1111337
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 13
+    textId: 143
+    category: 3
+  - id: 102527
+    textId: 974186
+    category: 3
+  - id: 204438
+    textId: 1111338
+    category: 2
+expansionCode: "SOS"

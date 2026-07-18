@@ -1,0 +1,11 @@
+name: "Tackle Artist"
+grpId: 102592
+titleId: 1111232
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 204413
+    textId: 1111235
+    category: 2
+expansionCode: "SOS"

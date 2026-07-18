@@ -1,0 +1,17 @@
+[metadata]
+Name:Ability Word Colors Spent To Cast
+Goal:Demo
+Turns:3
+Difficulty:Easy
+Description:Spend green and red mana on Woodland Wanderer so Converge gives it two +1/+1 counters.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Forest;Mountain;Mountain;Mountain
+humanhand=Woodland Wanderer
+humanlibrary=Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest

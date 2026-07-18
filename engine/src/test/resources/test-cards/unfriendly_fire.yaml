@@ -1,0 +1,8 @@
+name: "Unfriendly Fire"
+grpId: 66309
+titleId: 173870
+abilities:
+  - id: 2200
+    textId: 238387
+    category: 4
+expansionCode: "XLN"

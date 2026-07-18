@@ -305,6 +305,12 @@ object AbilityWordTriggerRecognizers {
             controller.hasRevolt()
         }
 
+        // Void is a game-wide turn condition. Emit one marker per controller and
+        // aggregate only that controller's resident Void sources.
+        registerPerController("Void") { controller ->
+            controller.game.isVoid
+        }
+
         // Infusion — per-controller marker across hand + battlefield, gated on life gained
         // this turn (the Infusion condition); plus a per-source LifeGainedThisTurn quantitative
         // helper. The helper rides the Infusion ability id (looked up via registry from the

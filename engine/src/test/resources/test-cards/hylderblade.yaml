@@ -1,0 +1,16 @@
+name: "Hylderblade"
+grpId: 96680
+titleId: 1055795
+abilities:
+  - id: 8283
+    textId: 10273
+    category: 3
+  - id: 190960
+    textId: 1055797
+    category: 2
+  - id: 2792
+    textId: 9653
+    category: 1
+    baseId: 5
+    mana: "o4"
+expansionCode: "EOE"

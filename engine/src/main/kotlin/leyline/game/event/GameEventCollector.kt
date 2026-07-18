@@ -2,6 +2,7 @@ package leyline.game.event
 
 import com.google.common.eventbus.Subscribe
 import forge.card.CardStateName
+import forge.game.ability.AbilityKey
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardView
@@ -21,6 +22,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
@@ -247,6 +249,25 @@ class GameEventCollector(
         // not expose either flag.
         val isTrigger = ev.si()?.isTrigger ?: false
         val isAbility = ev.si()?.isAbility ?: false
+        val colorsSpentToCast =
+            if (realCard?.hasConverge() == true) {
+                val colorMasks =
+                    if (!isAbility && !isTrigger) {
+                        payments.map { it.color }
+                    } else {
+                        realCard.castSA
+                            ?.payingMana
+                            .orEmpty()
+                            .map { it.color.toInt() }
+                    }
+                colorMasks
+                    .flatMap(WubrgColorMapping::manaColorNumbersFromMagicMask)
+                    .distinct()
+                    .sorted()
+            } else {
+                emptyList()
+            }
+        val cardId = ForgeCardId(card.id)
         val spellAbilityId = ev.cause()?.abilityId() ?: ev.sa()?.id ?: 0
         val paradigmCopyStackIid = paradigmCopyStackIid(isParadigmCopyCast, spellAbilityId, ForgeCardId(card.id))
         // The SA's Forge id is needed for both triggered and activated abilities;
@@ -279,20 +300,26 @@ class GameEventCollector(
                 abilityDefinition,
             )
         }
+        val forgeTriggeringCard = topSa?.getTriggeringObject(AbilityKey.Card) as? Card
+        val opusActive =
+            isTrigger &&
+                topSa?.trigger?.getParam("TriggerDescription")?.startsWith("Opus —") == true &&
+                (forgeTriggeringCard?.castSA?.totalManaSpent ?: 0) >= 5
         val triggeringObjectCardId =
-            if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
-                enlistTriggerObjectFor(ForgeCardId(card.id), topSa)
-            } else {
-                null
+            when {
+                !isTrigger -> null
+                abilityGrpId == KeywordAbilityIds.ENLIST -> enlistTriggerObjectFor(ForgeCardId(card.id), topSa)
+                else -> forgeTriggeringCard?.let { ForgeCardId(it.id) }
             }
         val triggeringObjectInstanceId =
-            if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
-                pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
-                    ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
-            } else {
-                null
+            when {
+                !isTrigger -> null
+                abilityGrpId == KeywordAbilityIds.ENLIST ->
+                    pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
+                        ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
+                else -> triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
             }
-        if (triggeringObjectCardId != null) {
+        if (abilityGrpId == KeywordAbilityIds.ENLIST && triggeringObjectCardId != null) {
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
         }
         if (isTrigger && abilityForgeId != 0) {
@@ -313,9 +340,11 @@ class GameEventCollector(
         val castingTimeOptionState = readCastingTimeOptionState(topSa, card)
         frame.add(
             GameEvent.SpellCast(
-                cardId = ForgeCardId(card.id),
+                cardId = cardId,
                 seatId = seat,
                 manaPayments = payments,
+                colorsSpentToCast = colorsSpentToCast,
+                opusActive = opusActive,
                 isAdventure = isAdventure,
                 isOmen = isOmen,
                 isMdfc = isMdfc,
@@ -621,10 +650,11 @@ class GameEventCollector(
         val abilityIdentity = context?.identity ?: bridgedIdentity
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
         val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
+        val cardId = ForgeCardId(card.id)
         recordEarthbendResolution(card, saId, isTrigger || isAbility, abilityGrpId, ev.hasFizzled())
         frame.add(
             GameEvent.SpellResolved(
-                cardId = ForgeCardId(card.id),
+                cardId = cardId,
                 hasFizzled = ev.hasFizzled(),
                 isTrigger = isTrigger,
                 isAbility = isAbility,

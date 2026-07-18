@@ -107,6 +107,10 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val manaPayments: List<ManaPayment> = emptyList(),
+        /** Distinct W/U/B/R/G ordinals retained from a Converge cast payment. */
+        val colorsSpentToCast: List<Int> = emptyList(),
+        /** Five-plus Opus trigger state retained when the stack item collapses between snapshots. */
+        val opusActive: Boolean = false,
         val isAdventure: Boolean = false,
         val isOmen: Boolean = false,
         val isMdfc: Boolean = false,
@@ -131,8 +135,9 @@ sealed interface GameEvent {
         val abilityGrpId: Int = 0,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
         /**
-         * Triggering object override for linked-cost triggers. Most triggers point
-         * at their source card; Enlist points at the creature tapped to pay the cost.
+         * Exact object that caused the trigger. Spell-cast and zone-change triggers
+         * point at that card's frame-local iid; Enlist points at the creature tapped
+         * to pay the cost. Falls back to the source only when Forge supplies no object.
          */
         val triggeringObjectCardId: ForgeCardId? = null,
         val triggeringObjectInstanceId: InstanceId? = null,

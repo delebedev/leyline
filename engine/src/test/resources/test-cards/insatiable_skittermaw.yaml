@@ -1,0 +1,11 @@
+name: "Insatiable Skittermaw"
+grpId: 96682
+titleId: 1055802
+abilities:
+  - id: 142
+    textId: 102
+    category: 3
+  - id: 190962
+    textId: 1055805
+    category: 2
+expansionCode: "EOE"
