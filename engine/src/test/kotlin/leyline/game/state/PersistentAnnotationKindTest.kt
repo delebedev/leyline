@@ -45,12 +45,16 @@ class PersistentAnnotationKindTest :
             battlefield: Set<Int> = emptySet(),
             activeSeat: SeatId = SeatId(1),
             controllerOf: Map<Int, SeatId> = emptyMap(),
+            stack: Set<Int> = emptySet(),
+            resolvingStack: Set<Int> = emptySet(),
         ): FrameContext =
             FrameContext(
                 phase = phase,
                 activePlayerSeat = activeSeat,
                 battlefieldIids = battlefield,
                 controllerOf = controllerOf,
+                stackIids = stack,
+                resolvingStackIids = resolvingStack,
             )
 
         fun emptyMechanicResult(): MechanicAnnotationResult =
@@ -80,6 +84,13 @@ class PersistentAnnotationKindTest :
                 perKindPersistent = mapOf(AbilityExhaustedKind to annotations.toList()),
             )
 
+        fun targetSpecResult(vararg annotations: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo): MechanicAnnotationResult =
+            MechanicAnnotationResult(
+                transient = emptyList(),
+                persistent = emptyList(),
+                perKindPersistent = mapOf(TargetSpecKind to annotations.toList()),
+            )
+
         fun annotationDetailInt(
             ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo,
             key: String,
@@ -99,6 +110,71 @@ class PersistentAnnotationKindTest :
             assertSoftly {
                 TargetSpecKind.identityKey(first) shouldBe TargetSpecKind.identityKey(changedTarget)
                 TargetSpecKind.identityKey(first) shouldNotBe TargetSpecKind.identityKey(nextGroup)
+            }
+        }
+
+        test("TargetSpec retains earlier groups while its affector remains on the stack") {
+            val first =
+                AnnotationBuilder
+                    .targetSpec(101.iid, 900.iid, 42.grp, 1, 10, 900)
+                    .toBuilder()
+                    .setId(7)
+                    .build()
+            val second = AnnotationBuilder.targetSpec(202.iid, 900.iid, 42.grp, 2, 11, 900)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(first.id to first),
+                    startPersistentId = 8,
+                    frame = frame(PhaseType.MAIN1, stack = setOf(900)),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = targetSpecResult(second),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds.shouldBeEmpty()
+                result.allAnnotations.map { TargetSpecKind.identityKey(it) } shouldContainExactlyInAnyOrder
+                    listOf(900 to 1, 900 to 2)
+            }
+        }
+
+        test("TargetSpec expires every group when its affector resolves") {
+            val first =
+                AnnotationBuilder
+                    .targetSpec(101.iid, 900.iid, 42.grp, 1, 10, 900)
+                    .toBuilder()
+                    .setId(7)
+                    .build()
+            val second =
+                AnnotationBuilder
+                    .targetSpec(202.iid, 900.iid, 42.grp, 2, 11, 900)
+                    .toBuilder()
+                    .setId(8)
+                    .build()
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(first.id to first, second.id to second),
+                    startPersistentId = 9,
+                    frame =
+                        frame(
+                            PhaseType.MAIN1,
+                            stack = setOf(900),
+                            resolvingStack = setOf(900),
+                        ),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = emptyMechanicResult(),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds shouldContainExactlyInAnyOrder listOf(7, 8)
+                result.allAnnotations.shouldBeEmpty()
             }
         }
 

@@ -3,6 +3,7 @@ package leyline.session.targeting
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -11,6 +12,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.detailInt
+import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -92,11 +94,15 @@ class BushwhackFightTest :
                     .shouldContain(ownIid)
             }
 
+            val secondPromptSlice = after { selectTargets(listOf(ownIid)) }
             val secondSt =
-                after { selectTargets(listOf(ownIid)) }
-                    .messages
+                secondPromptSlice.messages
                     .last { it.hasSelectTargetsReq() }
                     .selectTargetsReq
+            val firstActiveSpec =
+                secondPromptSlice.messages
+                    .persistentAnnotationsOfType(AnnotationType.TargetSpec)
+                    .single { it.detailInt("index") == 1 }
             val secondSelection = secondSt.targetsList.single()
             assertSoftly {
                 secondSt.abilityGrpId shouldBe 93928
@@ -109,12 +115,22 @@ class BushwhackFightTest :
                 secondSelection.targetsList.map { it.targetInstanceId }.shouldContain(oppIid)
             }
 
-            selectTargets(listOf(oppIid))
-            val targetSpecs = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec)
-            targetSpecs.shouldHaveSize(2)
-            val firstSpec = targetSpecs.single { it.detailInt("index") == 1 }
-            val secondSpec = targetSpecs.single { it.detailInt("index") == 2 }
+            val submittedSlice = after { selectTargets(listOf(oppIid)) }
+            val secondSpecGsm =
+                submittedSlice.messages
+                    .gameStateMessages()
+                    .single { gsm ->
+                        gsm.persistentAnnotationsList.any {
+                            AnnotationType.TargetSpec in it.typeList && it.detailInt("index") == 2
+                        }
+                    }
+            val secondSpec =
+                secondSpecGsm.persistentAnnotationsList.single {
+                    AnnotationType.TargetSpec in it.typeList && it.detailInt("index") == 2
+                }
+            val firstSpec = firstActiveSpec
             assertSoftly {
+                secondSpecGsm.diffDeletedPersistentAnnotationIdsList shouldNotContain firstSpec.id
                 firstSpec.affectorId shouldBe secondSpec.affectorId
                 firstSpec.affectedIdsList shouldBe listOf(ownIid)
                 secondSpec.affectedIdsList shouldBe listOf(oppIid)
