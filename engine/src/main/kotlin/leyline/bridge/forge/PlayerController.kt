@@ -1139,7 +1139,7 @@ class PlayerController(
             // total-power taps keep the auto-take shortcut for a forced list.
             forcePrompt = totalPowerNeeded == null,
             costSelectionWeights =
-                if (teamwork) optionList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
+                if (teamwork) optionList.map { it.netPower.coerceAtLeast(0) } else emptyList(),
             minSelectionWeight = totalPowerNeeded.takeIf { teamwork },
         )
     }

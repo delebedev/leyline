@@ -2,9 +2,10 @@ package leyline.native.matchdoor
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import io.netty.channel.nio.NioIoHandler
 import io.netty.handler.ssl.SslContextBuilder
-import io.netty.handler.ssl.util.SelfSignedCertificate
+import io.netty.pkitesting.CertificateBuilder
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
@@ -18,10 +19,15 @@ class NativeMatchDoorBootstrapTest :
         tags(NativeTag)
 
         test("native match bootstrap binds an active TCP channel") {
-            val bossGroup = NioEventLoopGroup(1)
-            val workerGroup = NioEventLoopGroup(1)
-            val cert = SelfSignedCertificate()
-            val ssl = SslContextBuilder.forServer(cert.certificate(), cert.privateKey()).build()
+            val bossGroup = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
+            val workerGroup = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
+            val cert =
+                CertificateBuilder()
+                    .subject("CN=localhost")
+                    .addSanDnsName("localhost")
+                    .setIsCertificateAuthority(true)
+                    .buildSelfSigned()
+            val ssl = SslContextBuilder.forServer(cert.keyPair.private, cert.certificate).build()
             val debugSink =
                 object : MatchDebugSink {
                     override var sessionProvider: (() -> Any?)? = null

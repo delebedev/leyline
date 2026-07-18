@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtImportDirective
 
 /**
@@ -17,10 +14,9 @@ import org.jetbrains.kotlin.psi.KtImportDirective
  * mutable state at a moment that earlier stages already mutated. See the
  * GsmSnapshot design spec for rationale.
  *
- * Allowed: `leyline/game/BundleBuilder.kt`, `leyline/game/snapshot/` (all files).
- * Denied: `leyline/game/mapper/` (all files), `leyline/game/StateMapper.kt`,
- * `leyline/game/AnnotationBuilder.kt`, `leyline/game/AnnotationOrderEnforcer.kt`,
- * `leyline/game/GsmBuilder.kt`.
+ * Allowed: `leyline/game/bundle/BundleBuilder.kt`, `leyline/game/snapshot/` (all files).
+ * Denied: `leyline/game/mapping/` (all files), plus `AnnotationBuilder.kt`,
+ * `AnnotationOrderEnforcer.kt`, and `GsmBuilder.kt` in their owning packages.
  *
  * **`GameEventCollector` is intentionally excluded from the denied set.**
  * It is a Guava EventBus subscriber: event-handler methods fire synchronously
@@ -31,25 +27,20 @@ import org.jetbrains.kotlin.psi.KtImportDirective
  * `bridge.getGame()` calls are scoped to stack-peek reads that are structurally
  * outside the GSM pipeline's snapshot discipline.
  */
-class NoGameInMappers(config: Config = Config.empty) : Rule(config) {
-    override val issue = Issue(
-        id = "NoGameInMappers",
-        severity = Severity.Defect,
-        description = "forge.game.Game is not allowed in GSM pipeline stages; " +
+class NoGameInMappers(config: Config = Config.empty) : Rule(
+    config,
+    description = "forge.game.Game is not allowed in GSM pipeline stages; " +
             "read state via leyline.game.snapshot.GsmSnapshot instead.",
-        debt = Debt.TWENTY_MINS,
-    )
+) {
 
     private val forbiddenImports = setOf(
         "forge.game.Game",
     )
 
-    private val deniedPathFragments = listOf(
-        "/leyline/game/mapper/",
-        "/leyline/game/StateMapper.kt",
-        "/leyline/game/AnnotationBuilder.kt",
-        "/leyline/game/AnnotationOrderEnforcer.kt",
-        "/leyline/game/GsmBuilder.kt",
+    private val deniedFiles = setOf(
+        "leyline.game.annotations" to "AnnotationBuilder.kt",
+        "leyline.game.annotations" to "AnnotationOrderEnforcer.kt",
+        "leyline.game.bundle" to "GsmBuilder.kt",
     )
 
     override fun visitImportDirective(importDirective: KtImportDirective) {
@@ -57,12 +48,13 @@ class NoGameInMappers(config: Config = Config.empty) : Rule(config) {
         val fqName = importDirective.importedFqName?.asString() ?: return
         if (fqName !in forbiddenImports) return
 
-        val path = importDirective.containingKtFile.virtualFilePath
-        if (deniedPathFragments.none { path.contains(it) }) return
+        val file = importDirective.containingKtFile
+        val packageName = file.packageFqName.asString()
+        val isDenied = packageName == "leyline.game.mapping" || packageName to file.name in deniedFiles
+        if (!isDenied) return
 
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(importDirective),
                 "Pipeline stage must not import $fqName. " +
                     "Read state via leyline.game.snapshot.GsmSnapshot instead.",

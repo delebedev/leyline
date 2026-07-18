@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtExpression
@@ -23,13 +20,10 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
  * `config { enabledIf = ... }` to skip with intent, or an explicit
  * `io.kotest.assertions.fail(...)` so a missing precondition fails loudly.
  */
-class VacuousTestSkip(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "VacuousTestSkip",
-        severity = Severity.Defect,
-        description = "Labeled return based on a .exists() check bails out of the test silently. Use Kotest enabledIf or fail() explicitly.",
-        debt = Debt.FIVE_MINS,
-    )
+class VacuousTestSkip(config: Config) : Rule(
+    config,
+    description = "Labeled return based on a .exists() check bails out of the test silently. Use Kotest enabledIf or fail() explicitly.",
+) {
 
     override fun visitIfExpression(expression: KtIfExpression) {
         super.visitIfExpression(expression)
@@ -39,8 +33,7 @@ class VacuousTestSkip(config: Config) : Rule(config) {
         val hasLabeledReturn = thenBranch.hasLabeledReturn()
         if (!hasLabeledReturn) return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "Test bails out silently when a precondition is missing. Use Kotest `config { enabledIf = ... }` " +
                     "to skip with intent, or call `fail(\"...\")` so a missing precondition is a loud failure.",

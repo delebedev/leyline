@@ -89,7 +89,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
           cache: '' # disable on self-hosted runners
 
       - name: Setup Maven
@@ -152,7 +152,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
           cache: '' # disable on self-hosted runners
 
       - name: Setup Maven

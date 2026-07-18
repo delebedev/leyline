@@ -584,7 +584,7 @@ class MatchConnection(
         }
         val deckId = coordinator?.selectedDeckId
         if (deckId != null) {
-            val cardsJson = coordinator?.resolveDeckJson(deckId)
+            val cardsJson = coordinator.resolveDeckJson(deckId)
             if (cardsJson != null) {
                 log.info("Match Door: seat 1 deck from DB deckId={}", deckId)
                 return convertArenaCardsToDeckText(cardsJson)

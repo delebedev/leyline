@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
@@ -23,13 +20,10 @@ import org.jetbrains.kotlin.psi.KtParenthesizedExpression
  * "expected true, got false" with no actual values — rewrite using a direct
  * matcher so failures print what the values actually were.
  */
-class BooleanAssertion(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "BooleanAssertion",
-        severity = Severity.Style,
-        description = "shouldBeTrue()/shouldBeFalse() on a comparison hides failure detail. Use a direct Kotest matcher.",
-        debt = Debt.FIVE_MINS,
-    )
+class BooleanAssertion(config: Config) : Rule(
+    config,
+    description = "shouldBeTrue()/shouldBeFalse() on a comparison hides failure detail. Use a direct Kotest matcher.",
+) {
 
     override fun visitDotQualifiedExpression(expression: KtDotQualifiedExpression) {
         super.visitDotQualifiedExpression(expression)
@@ -42,8 +36,7 @@ class BooleanAssertion(config: Config) : Rule(config) {
         }
         val suggestion = suggestionFor(expression.receiverExpression.unwrapParens(), assertTrue) ?: return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "$calleeName() on a comparison hides failure detail. Use: $suggestion",
             ),
@@ -62,8 +55,7 @@ class BooleanAssertion(config: Config) : Rule(config) {
         val left = expression.left?.unwrapParens() ?: return
         val suggestion = suggestionFor(left, assertTrue) ?: return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "`shouldBe $rightLiteral` on a comparison hides failure detail. Use: $suggestion",
             ),

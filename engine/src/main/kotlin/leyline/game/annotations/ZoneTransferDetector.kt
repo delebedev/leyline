@@ -1328,7 +1328,7 @@ object ZoneTransferDetector {
                     ?.takeIf { it != 0 }
                     ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
-                if (isActivated) matchingCast?.activationZoneId ?: 0 else 0
+                if (isActivated) matchingCast.activationZoneId else 0
 
             appearances.add(
                 StackAbilityAppearance(

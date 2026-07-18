@@ -21,7 +21,6 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
 import leyline.testkit.ClientAccumulator
 import leyline.testkit.annotation
-import leyline.testkit.assertConsistent
 import leyline.testkit.assertLimboContains
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
@@ -99,7 +98,7 @@ class LandManaTest :
                 zt.affectorId shouldBe 0
 
                 val uat = gsm.annotation(AnnotationType.UserActionTaken)
-                uat.affectorId.toInt() shouldBe SEAT_ID
+                uat.affectorId shouldBe SEAT_ID
                 uat.affectedIdsList.shouldContain(newId)
                 uat.detailInt("actionType") shouldBe ActionType.Play_add3.number
 

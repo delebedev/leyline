@@ -1,7 +1,7 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.test.lint
+import dev.detekt.api.Config
+import dev.detekt.test.lint
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 
@@ -20,7 +20,6 @@ class EmptyAssertionTest : FunSpec({
             }
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "EmptyAssertion",
             messageContains = "body has no should*/assert*/fail call",
         )
     }
@@ -37,7 +36,6 @@ class EmptyAssertionTest : FunSpec({
             }
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "EmptyAssertion",
             messageContains = "body has no should*/assert*/fail call",
         )
     }
@@ -145,7 +143,6 @@ class EmptyAssertionTest : FunSpec({
             }
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "EmptyAssertion",
             messageContains = "body has no should*/assert*/fail call",
         )
     }

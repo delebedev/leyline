@@ -46,7 +46,7 @@ just bootstrap   # submodules + forge + build + seed DB
 just serve        # server on :30003 + :30010
 ```
 
-**Requires:** JDK 17+, [just](https://github.com/casey/just), macOS or Linux.
+**Requires:** JDK 21+, [just](https://github.com/casey/just), macOS or Linux.
 Client installed locally for card data lookup at runtime; not distributed.
 End-to-end client runs need local client setup. See [docs/local-client-setup.md](docs/local-client-setup.md).
 

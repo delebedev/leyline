@@ -1,8 +1,8 @@
 [versions]
-kotlin = "2.2.20"
+kotlin = "2.4.0"
 serialization = "1.9.0"
 protobuf = "3.25.5"
-netty = "4.1.101.Final"
+netty = "4.2.16.Final"
 ktor = "3.2.0"
 logback = "1.5.13"
 slf4j = "2.0.16"
@@ -15,9 +15,9 @@ sqlite = "3.45.1.0"
 kotest = "5.9.1"
 archunit = "1.4.1"
 forge = "2.0.14-SNAPSHOT"
-detekt = "1.23.7"
+detekt = "2.0.0-alpha.5"
 ktlint-gradle = "12.1.2"
-protobuf-plugin = "0.9.4"
+protobuf-plugin = "0.10.0"
 versions = "0.53.0"
 
 [libraries]
@@ -32,6 +32,8 @@ exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "e
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 netty-handler = { module = "io.netty:netty-handler", version.ref = "netty" }
 netty-codec = { module = "io.netty:netty-codec", version.ref = "netty" }
+netty-pkitesting = { module = "io.netty:netty-pkitesting", version.ref = "netty" }
+netty-bom = { module = "io.netty:netty-bom", version.ref = "netty" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
@@ -59,5 +61,5 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 kotlin-power-assert = { id = "org.jetbrains.kotlin.plugin.power-assert", version.ref = "kotlin" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }
-detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
 versions = { id = "com.github.ben-manes.versions", version.ref = "versions" }

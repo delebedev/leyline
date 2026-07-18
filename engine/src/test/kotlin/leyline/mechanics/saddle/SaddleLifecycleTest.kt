@@ -70,8 +70,9 @@ class SaddleLifecycleTest :
                 helper.isTapped.shouldBeTrue()
                 saddledDesignation.shouldNotBeNull()
                 gainSaddled.shouldNotBeNull()
-                saddledAnn!!.affectedIdsList shouldBe listOf(human.battlefield.iid(helper))
-                saddledAnn!!.affectedIdsList shouldContain human.battlefield.iid(helper)
+                val saddled = saddledAnn.shouldNotBeNull()
+                saddled.affectedIdsList shouldBe listOf(human.battlefield.iid(helper))
+                saddled.affectedIdsList shouldContain human.battlefield.iid(helper)
             }
         }
 

@@ -1,6 +1,16 @@
+import dev.detekt.gradle.Detekt
 import leyline.build.CheckUpstreamTask
 import leyline.build.VerifyWebProfilePostureTask
 import leyline.build.WriteClasspathTask
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.tasks.JavaExec
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.testing.Test
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -30,17 +40,49 @@ subprojects {
 group = "leyline"
 version = "0.1.0-SNAPSHOT"
 
+allprojects {
+    pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
+        extensions.configure<KotlinJvmProjectExtension> {
+            jvmToolchain(21)
+            compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+        }
+        extensions.configure<JavaPluginExtension> {
+            toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+        }
+
+        val java21Launcher =
+            extensions.getByType<JavaToolchainService>().launcherFor {
+                languageVersion.set(JavaLanguageVersion.of(21))
+            }
+        tasks.withType<JavaCompile>().configureEach {
+            options.release.set(21)
+        }
+        tasks.withType<Test>().configureEach {
+            javaLauncher.set(java21Launcher)
+        }
+        tasks.withType<JavaExec>().configureEach {
+            javaLauncher.set(java21Launcher)
+        }
+    }
+}
+
 subprojects {
     // Skip the implicit `:tools` container project and the custom-rules module
     // itself (can't depend on itself, and it doesn't need detekt's scrutiny).
     if (path == ":tools" || path == ":tools:detekt-rules") return@subprojects
-    apply(plugin = "io.gitlab.arturbosch.detekt")
+    apply(plugin = "dev.detekt")
     repositories { mavenCentral() }
-    configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
+    configure<dev.detekt.gradle.extensions.DetektExtension> {
         buildUponDefaultConfig = true
         config.setFrom(rootProject.files("gradle/detekt.yml"))
         baseline = file("detekt-baseline.xml")
         parallel = true
+    }
+    tasks.withType<Detekt>().configureEach {
+        when (name) {
+            "detektMain" -> baseline.set(layout.projectDirectory.file("detekt-baseline-main.xml"))
+            "detektTest" -> baseline.set(layout.projectDirectory.file("detekt-baseline-test.xml"))
+        }
     }
     dependencies {
         "detektPlugins"(project(":tools:detekt-rules"))
@@ -57,11 +99,8 @@ repositories {
     }
 }
 
-kotlin {
-    jvmToolchain(17)
-    compilerOptions {
-        freeCompilerArgs.add("-Xjsr305=strict")
-    }
+kotlin.compilerOptions {
+    freeCompilerArgs.add("-Xjsr305=strict")
 }
 
 // Root module sources live in app/ (not default src/) so modules group visually in the tree.
@@ -88,6 +127,7 @@ configurations.all {
 
 dependencies {
     detektPlugins(project(":tools:detekt-rules"))
+    implementation(platform(libs.netty.bom))
     implementation(project(":domain"))
     implementation(project(":engine"))
     implementation(project(":native"))
@@ -100,6 +140,7 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
+    implementation(libs.netty.pkitesting)
     implementation(libs.ktor.server.netty)
 
     implementation(libs.logback.classic)
@@ -109,10 +150,11 @@ dependencies {
     testImplementation(libs.kotest.assertions)
 }
 
-val webProfileRuntimeClasspath by configurations.creating {
-    isCanBeResolved = true
-    isCanBeConsumed = false
-}
+val webProfileRuntimeClasspath =
+    configurations.create("webProfileRuntimeClasspath") {
+        isCanBeResolved = true
+        isCanBeConsumed = false
+    }
 
 dependencies {
     webProfileRuntimeClasspath(sourceSets.main.get().output)
@@ -133,12 +175,13 @@ dependencies {
 
 // --- Upstream JAR freshness check ---
 
-val checkUpstream by tasks.registering(CheckUpstreamTask::class) {
-    description = "Verify forge submodule JARs are installed and current"
-    stampFile.set(layout.projectDirectory.file(".forge-commit-installed"))
-    rootDir.set(rootProject.projectDir.absolutePath)
-    forgeDir.set(rootProject.file("forge").absolutePath)
-}
+val checkUpstream =
+    tasks.register<CheckUpstreamTask>("checkUpstream") {
+        description = "Verify forge submodule JARs are installed and current"
+        stampFile.set(layout.projectDirectory.file(".forge-commit-installed"))
+        rootDir.set(rootProject.projectDir.absolutePath)
+        forgeDir.set(rootProject.file("forge").absolutePath)
+    }
 
 tasks.named("compileKotlin") {
     dependsOn(checkUpstream)
@@ -149,6 +192,7 @@ tasks.named("compileKotlin") {
 // Ktlint: the plugin is applied to root + all subprojects above.
 // All rule config lives in `.editorconfig` — no Kotlin-side overrides.
 
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =
         listOf(
@@ -170,6 +214,13 @@ detekt {
     baseline = file("gradle/detekt-baseline.xml")
     parallel = true
     source.setFrom(files("app/main/kotlin", "app/test/kotlin"))
+}
+
+tasks.withType<Detekt>().configureEach {
+    when (name) {
+        "detektMain" -> baseline.set(layout.projectDirectory.file("gradle/detekt-baseline-main.xml"))
+        "detektTest" -> baseline.set(layout.projectDirectory.file("gradle/detekt-baseline-test.xml"))
+    }
 }
 
 // `./gradlew detekt` alone runs the non-TR task, which doesn't use the
@@ -215,22 +266,25 @@ application {
 
 // --- Classpath file (for justfile launch helpers) ---
 
-val writeClasspath by tasks.registering(WriteClasspathTask::class) {
-    classpath.set(configurations.runtimeClasspath.map { it.asPath })
-    outputFile.set(layout.projectDirectory.file("target/classpath.txt"))
-}
+val writeClasspath =
+    tasks.register<WriteClasspathTask>("writeClasspath") {
+        classpath.set(configurations.runtimeClasspath.map { it.asPath })
+        outputFile.set(layout.projectDirectory.file("target/classpath.txt"))
+    }
 
-val writeWebProfileClasspath by tasks.registering(WriteClasspathTask::class) {
-    classpath.set(providers.provider { webProfileRuntimeClasspath.asPath })
-    outputFile.set(layout.projectDirectory.file("target/web-classpath.txt"))
-}
+val writeWebProfileClasspath =
+    tasks.register<WriteClasspathTask>("writeWebProfileClasspath") {
+        classpath.set(providers.provider { webProfileRuntimeClasspath.asPath })
+        outputFile.set(layout.projectDirectory.file("target/web-classpath.txt"))
+    }
 
-val verifyWebProfilePosture by tasks.registering(VerifyWebProfilePostureTask::class) {
-    group = "verification"
-    description = "Verify the web profile classpath excludes the native client head."
-    dependsOn(writeWebProfileClasspath)
-    classpath.from(webProfileRuntimeClasspath)
-}
+val verifyWebProfilePosture =
+    tasks.register<VerifyWebProfilePostureTask>("verifyWebProfilePosture") {
+        group = "verification"
+        description = "Verify the web profile classpath excludes the native client head."
+        dependsOn(writeWebProfileClasspath)
+        classpath.from(webProfileRuntimeClasspath)
+    }
 
 tasks.named("classes") {
     finalizedBy(writeClasspath, writeWebProfileClasspath)

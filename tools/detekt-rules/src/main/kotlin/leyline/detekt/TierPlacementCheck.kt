@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtClass
 
 /**
@@ -25,13 +22,10 @@ import org.jetbrains.kotlin.psi.KtClass
  * False positives exist (e.g. tests that intentionally assert pure post-connect
  * state). Baseline existing violations; enforce on new tests.
  */
-class TierPlacementCheck(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "TierPlacementCheck",
-        severity = Severity.Warning,
-        description = "Session-tier test that never drives the game loop — candidate for Bridge tier (BoardTest + bundleBuilder).",
-        debt = Debt.TWENTY_MINS,
-    )
+class TierPlacementCheck(config: Config) : Rule(
+    config,
+    description = "Session-tier test that never drives the game loop — candidate for Bridge tier (BoardTest + bundleBuilder).",
+) {
 
     private val sessionMarkers = listOf("MatchFlowHarness", "SessionTest")
     private val connectMarkers = listOf("connectAndKeep")
@@ -64,8 +58,7 @@ class TierPlacementCheck(config: Config) : Rule(config) {
         if (connectMarkers.none { it in text }) return
         if (loopDrivers.any { it in text }) return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(klass),
                 "Session-tier setup but no game-loop interaction — consider demoting to BoardTest + bundleBuilder(b).buildActions(). See CostReductionTest migration (commit 8e298f6).",
             ),

@@ -10,7 +10,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.IntegrationTag
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.TestCardRegistry
-import leyline.testkit.assertConsistent
 import leyline.testkit.humanPlayer
 
 /**
@@ -71,11 +70,11 @@ class SagaCreatureTypeTest :
                         .getZone(ZoneType.Battlefield)
                         .cards
                         .firstOrNull { it.name == "Summon: Brynhildr" }
-                saga.shouldNotBeNull()
+                        .shouldNotBeNull()
 
                 // Core assertion: live Forge card type view carries BOTH types.
                 val types =
-                    saga!!
+                    saga
                         .type.coreTypes
                         .map { it.name }
                         .toSet()
@@ -95,9 +94,8 @@ class SagaCreatureTypeTest :
                         .firstOrNull {
                             it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.Card &&
                                 it.grpId == TestCardRegistry.repo.findGrpIdByName("Summon: Brynhildr")
-                        }
-                sagaAccObj.shouldNotBeNull()
-                val accTypes = sagaAccObj!!.cardTypesList.map { it.name }
+                        }.shouldNotBeNull()
+                val accTypes = sagaAccObj.cardTypesList.map { it.name }
                 assertSoftly {
                     accTypes shouldContain "Enchantment"
                     accTypes shouldContain "Creature"

@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 
@@ -18,13 +15,10 @@ import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
  * Alternatives: Kotest `eventually { }`, `MatchFlowHarness.passUntil`, explicit
  * state polling with a terminal assertion.
  */
-class NoThreadSleepInTests(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "NoThreadSleepInTests",
-        severity = Severity.Defect,
-        description = "Thread.sleep in tests causes flakes. Use eventually{}, passUntil, or state polling.",
-        debt = Debt.FIVE_MINS,
-    )
+class NoThreadSleepInTests(config: Config) : Rule(
+    config,
+    description = "Thread.sleep in tests causes flakes. Use eventually{}, passUntil, or state polling.",
+) {
 
     override fun visitCallExpression(expression: KtCallExpression) {
         super.visitCallExpression(expression)
@@ -39,8 +33,7 @@ class NoThreadSleepInTests(config: Config) : Rule(config) {
         val receiver = parent.receiverExpression.text
         if (receiver != "Thread" && receiver != "java.lang.Thread") return
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "Thread.sleep in tests is a flake. Use Kotest eventually{} or state polling with a terminal assertion.",
             ),

@@ -7,7 +7,6 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
 import leyline.testkit.SessionTest
-import leyline.testkit.assertConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.*

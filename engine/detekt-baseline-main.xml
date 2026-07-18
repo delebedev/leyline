@@ -1,39 +1,42 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
-  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>CanBeNonNullable:PlayerController.kt$PlayerController$private val priorityLoopCoordinator: PriorityLoopCoordinator? = actionBridge?.let { ab -&gt; PriorityLoopCoordinator( owner = this, game = game, player = player, actionBridge = ab, phaseStopProfile = phaseStopProfile, smartPhaseSkip = smartPhaseSkip, spellExecutor = spellExecutor, ) }</ID>
-    <ID>CyclomaticComplexMethod:CostDecision.kt$CostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
-    <ID>CyclomaticComplexMethod:CostDecision.kt$CostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
-    <ID>CyclomaticComplexMethod:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$fun chooseSpellAbility(): List&lt;SpellAbility&gt;?</ID>
-    <ID>CyclomaticComplexMethod:TargetingCoordinator.kt$TargetingCoordinator$fun selectTargets( validTargets: List&lt;Card&gt;, sa: SpellAbility, mandatory: Boolean, numTargets: Int?, divisionValues: Collection&lt;Int&gt;?, ): TargetSelectionResult</ID>
-    <ID>DoubleMutabilityForCollection:CombatHandler.kt$CombatHandler$var firstMap: MutableMap&lt;forge.game.card.Card?, Int&gt;? = null</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:ClientAutoPassState.kt$ClientAutoPassState$when (autoPassOption) { AutoPassOption.ResolveAll, AutoPassOption.ResolveMyStackEffects, -&gt; true else -&gt; false }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:GamePlayback.kt$GamePlayback$when (ev.phase()) { PhaseType.COMBAT_DECLARE_ATTACKERS, PhaseType.COMBAT_DECLARE_BLOCKERS, PhaseType.COMBAT_END, -&gt; COMBAT_DELAY else -&gt; PHASE_DELAY }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt$GsmBuilder$when (context) { GroupingContext.Surveil -&gt; PromptIds.GROUP_SURVEIL GroupingContext.Scry_a0f6 -&gt; PromptIds.GROUP_SCRY else -&gt; PromptIds.GROUP_SURVEIL }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt$GsmBuilder$when (context) { GroupingContext.Surveil -&gt; SubZoneType.None_a455 else -&gt; SubZoneType.Bottom }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt$GsmBuilder$when (context) { GroupingContext.Surveil -&gt; ZoneType.Graveyard else -&gt; ZoneType.Library // scry puts on bottom }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:InvariantChecker.kt$RuntimeAccumulator$when (gs.type) { GameStateType.Full -&gt; { objects.clear() zones.clear() gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } GameStateType.Diff -&gt; { gs.diffDeletedInstanceIdsList.forEach { objects.remove(it) } gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } else -&gt; {} }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:MatchHandler.kt$MatchHandler$when (msg.clientToMatchServiceMessageType) { ClientToMatchServiceMessageType.AuthenticateRequest_f487 -&gt; handleMatchAuth(ctx, msg) ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -&gt; handleMatchDoorConnect(ctx, msg) ClientToMatchServiceMessageType.ClientToGremessage -&gt; handleGREMessage(ctx, msg) ClientToMatchServiceMessageType.ClientToGreuimessage -&gt; handleGREMessage(ctx, msg) else -&gt; log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType) }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:MulliganHandler.kt$MulliganHandler$when (decision) { MulliganOption.AcceptHand -&gt; { bridge.submitKeep(seatId) bridge.awaitPriority() s.onMulliganKeep() } else -&gt; { mulliganCount++ bridge.submitMull(seatId) val deletedIds = bridge.ids.resetAll().map { it.value } seat1Hand = bridge.getHandGrpIds(SeatId(1)) sendDealHand(ctx!!, deletedIds) sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size) } }</ID>
-    <ID>ElseCaseInsteadOfExhaustiveWhen:ShouldStopEvaluator.kt$ShouldStopEvaluator$when (actionType) { ActionType.Cast, ActionType.CastLeft, ActionType.CastRight, ActionType.CastAdventure, ActionType.CastMdfc, ActionType.CastPrototype, ActionType.CastLeftRoom, ActionType.CastRightRoom, ActionType.CastOmen, ActionType.Play_add3, ActionType.PlayMdfc, ActionType.Activate_add3, ActionType.SpecialTurnFaceUp_add3, -&gt; true else -&gt; false }</ID>
-    <ID>LargeClass:CostDecision.kt$CostDecision : CostDecisionMakerBase</ID>
-    <ID>LargeClass:GameBridge.kt$GameBridge : IdMappingPlayerLookupAutoPassViewZoneTrackingAnnotationIdsEventDrain</ID>
-    <ID>LargeClass:TargetingHandler.kt$TargetingHandler</ID>
-    <ID>LongMethod:BundleBuilder.kt$BundleBuilder$fun gameOverBundle( winningTeam: Int, counter: MessageCounter, reason: ResultReason = ResultReason.Game_ae0a, losingPlayerSeatId: Int = 0, lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal, ): BundleResult</ID>
-    <ID>LongMethod:CostDecision.kt$CostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
-    <ID>MaxLineLength:StateMapper.kt$StateMapper.BuildResult$/** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */</ID>
-    <ID>NoNameShadowing:MatchSession.kt$MatchSession$filtered</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostDiscard): PaymentDecision?</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostPutCardToLib): PaymentDecision?</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostReveal): PaymentDecision?</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostSacrifice): PaymentDecision?</ID>
-    <ID>ReturnCount:CostDecision.kt$CostDecision$override fun visit(cost: CostTapType): PaymentDecision?</ID>
-    <ID>ReturnCount:PriorityLoopCoordinator.kt$PriorityLoopCoordinator$fun chooseSpellAbility(): List&lt;SpellAbility&gt;?</ID>
-    <ID>UnsafeCallOnNullableType:GameLoopController.kt$GameLoopController$gameThread!!</ID>
-    <ID>UnsafeCallOnNullableType:HandshakeMessages.kt$HandshakeMessages$bridge.getGame()!!</ID>
-    <ID>UnsafeCallOnNullableType:MulliganHandler.kt$MulliganHandler$ctx!!</ID>
+    <ID>CanBeNonNullable:MatchSession.kt:MatchSession$gameStateId: Int?</ID>
+    <ID>CyclomaticComplexMethod:PriorityLoopCoordinator.kt:PriorityLoopCoordinator$fun chooseSpellAbility: List&lt;SpellAbility&gt;?</ID>
+    <ID>DoubleMutabilityForCollection:CombatHandler.kt:CombatHandler$var firstMap: MutableMap&lt;forge.game.card.Card?, Int&gt;? = null</ID>
+    <ID>DoubleMutabilityForCollection:GamePlayback.kt:GamePlayback$var current = mutableListOf&lt;LeylineGameEvent&gt;()</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ActionMapper.kt:ActionMapper$when (rail?.grpIdMode) { ZoneCastGrpIdMode.OtherSide -&gt; cardSnap?.othersideGrpId?.takeIf { it &gt; 0 } ?: sourceGrpId else -&gt; sourceGrpId }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:AnnotationContext.kt:AnnotationContext$when (next) { is GameEvent.SpellResolved -&gt; return InstanceId(stackAbilityIid(next.abilityForgeId, next.cardId)) else -&gt; Unit }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:AnnotationPipeline.kt:AnnotationPipeline$when (event) { is GameEvent.DamageDealtToPlayer if event.changesLife -&gt; unclaimedDamageBySeat.merge(event.targetSeatId.value, event.amount, Int::plus) is GameEvent.CoinFlipped -&gt; { val affector = ctx.stackAbilityIid(event.abilityForgeId, event.sourceCardId) addPayload( affector, AnnotationBuilder.coinFlip(InstanceId(affector), event.flipperSeatId, event.result), ) } is GameEvent.LifeChanged -&gt; { val coverage = consumeDamageOwnedLifeDelta(event, unclaimedDamageBySeat) val delta = coverage.uncoveredDelta if (delta == 0) return@forEachIndexed val resolved = nextResolvedAbility(events, index) val affector = resolved?.let { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) } ?: previousActivatedAbility(events, index)?.let { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) } ?: 0 val annotation = AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(affector).takeIf { affector != 0 }) if (coverage.coveredLoss &gt; 0) { damageResiduals.add(annotation) } else { addPayload(affector, annotation) } } else -&gt; Unit }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ClientAutoPassState.kt:ClientAutoPassState$when (autoPassOption) { AutoPassOption.ResolveAll, AutoPassOption.ResolveMyStackEffects, -&gt; true else -&gt; false }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GameEventCollector.kt:GameEventCollector$when (ev) { is GameEvent.CardDiscarded -&gt; if (ev.cardId == target) return ZoneIds.handOf(seat) is GameEvent.ZoneChanged -&gt; if (ev.cardId == target) { return zoneToProtocolId(ev.from, seat) } else -&gt; {} }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GamePlayback.kt:GamePlayback$when (event) { is LeylineGameEvent.DamageDealtToCard -&gt; event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat } is LeylineGameEvent.DamageDealtToPlayer -&gt; event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat } else -&gt; null }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt:GsmBuilder$when (context) { GroupingContext.Surveil -&gt; PromptIds.GROUP_SURVEIL GroupingContext.Scry_a0f6 -&gt; PromptIds.GROUP_SCRY else -&gt; PromptIds.GROUP_SURVEIL }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt:GsmBuilder$when (context) { GroupingContext.Surveil -&gt; SubZoneType.None_a455 else -&gt; SubZoneType.Bottom }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:GsmBuilder.kt:GsmBuilder$when (context) { GroupingContext.Surveil -&gt; ZoneType.Graveyard else -&gt; ZoneType.Library // scry puts on bottom }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ManaCostText.kt:ManaCostText$when (color) { ManaColor.Generic -&gt; "o$count" ManaColor.White_afc9 -&gt; "oW".repeat(count) ManaColor.Blue_afc9 -&gt; "oU".repeat(count) ManaColor.Black_afc9 -&gt; "oB".repeat(count) ManaColor.Red_afc9 -&gt; "oR".repeat(count) ManaColor.Green_afc9 -&gt; "oG".repeat(count) else -&gt; "" }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ShouldStopEvaluator.kt:ShouldStopEvaluator$when (actionType) { ActionType.Cast, ActionType.CastLeft, ActionType.CastRight, ActionType.CastAdventure, ActionType.CastMdfc, ActionType.CastPrototype, ActionType.CastLeftRoom, ActionType.CastRightRoom, ActionType.CastOmen, ActionType.Play_add3, ActionType.PlayMdfc, ActionType.Activate_add3, ActionType.SpecialTurnFaceUp_add3, -&gt; true else -&gt; false }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:TransferCategoryResolver.kt:TransferCategoryResolver$when (event) { is GameEvent.CardMilled -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } is GameEvent.CardSurveiled -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } is GameEvent.CardDestroyed -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } is GameEvent.CardSacrificed -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } else -&gt; null }</ID>
+    <ID>ElseCaseInsteadOfExhaustiveWhen:ZoneTransferDetector.kt:ZoneTransferDetector$when (event) { is GameEvent.SpellCast -&gt; event .takeIf { event.cardId == sourceCardId &amp;&amp; (event.isAbility || event.isTrigger) }?.let { Triple(it.abilityForgeId, it.rootAbilityForgeId, it.stackAbilityForgeId) } is GameEvent.SpellResolved -&gt; event .takeIf { event.cardId == sourceCardId &amp;&amp; (event.isAbility || event.isTrigger) }?.let { Triple(it.abilityForgeId, it.rootAbilityForgeId, it.stackAbilityForgeId) } else -&gt; null }</ID>
+    <ID>ImplicitDefaultLocale:InteractivePromptBridge.kt:InteractivePromptBridge$"%.1f".format(elapsedMs / 1000.0)</ID>
+    <ID>ImplicitDefaultLocale:ProtoDump.kt:ProtoDump$"%03d-%s.bin".format(seq, tag)</ID>
+    <ID>ImplicitDefaultLocale:ProtoDump.kt:ProtoDump$"%03d-%s.txt".format(seq, tag)</ID>
+    <ID>LargeClass:GameBridge.kt:GameBridge : IdMappingPlayerLookupAutoPassViewZoneTrackingAnnotationIdsEventDrain</ID>
+    <ID>LargeClass:SnapshotCapture.kt:SnapshotCapture</ID>
+    <ID>LargeClass:TargetingHandler.kt:TargetingHandler</ID>
+    <ID>LongMethod:BundleBuilder.kt:BundleBuilder$fun gameOverBundle: BundleResult</ID>
+    <ID>MaxLineLength:StateMapper.kt:StateMapper.BuildResult$/** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */</ID>
+    <ID>NoGameInMappers:CombatQualificationScanner.kt:import forge.game.Game</ID>
+    <ID>NoGameInMappers:SourceAbilityResolverFactory.kt:import forge.game.Game</ID>
+    <ID>ReturnCount:PriorityLoopCoordinator.kt:PriorityLoopCoordinator$fun chooseSpellAbility: List&lt;SpellAbility&gt;?</ID>
+    <ID>UnnecessaryFilter:GameActionBridge.kt:GameActionBridge$filter { selectorMatchScore(it.action, response) == bestScore }</ID>
+    <ID>UnusedVariable:AnnotationPipeline.kt:AnnotationPipeline$val snap = ctx.snap</ID>
+    <ID>UnusedVariable:CombatHandler.kt:CombatHandler$val bridge = ctx.bridge</ID>
+    <ID>UnusedVariable:CombatHandler.kt:CombatHandler$val humanPlayer = bridge.getPlayer(counters.seatId) ?: return</ID>
+    <ID>UnusedVariable:GameBridge.kt:GameBridge$val source = findCard(sourceCardId) ?: return</ID>
+    <ID>UnusedVariable:MatchSession.kt:MatchSession$val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage</ID>
+    <ID>UnusedVariable:TargetingHandler.kt:TargetingHandler$val game = ctx.game</ID>
+    <ID>UselessCallOnNotNull:ClientGuiGame.kt:ClientGuiGame$choices.isNullOrEmpty()</ID>
   </CurrentIssues>
 </SmellBaseline>

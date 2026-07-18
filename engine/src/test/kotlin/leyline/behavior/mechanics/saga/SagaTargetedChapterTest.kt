@@ -8,7 +8,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import leyline.IntegrationTag
 import leyline.bridge.types.ForgeCardId
 import leyline.testkit.MatchFlowHarness
-import leyline.testkit.assertConsistent
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 

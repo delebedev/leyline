@@ -5,9 +5,9 @@
 export JAVA_HOME := env("JAVA_HOME", `
     sdkman="$HOME/.sdkman/candidates/java/current"; \
     if [ -x "$sdkman/bin/java" ]; then echo "$sdkman"; \
-    else /usr/libexec/java_home -v 17 2>/dev/null || echo ""; fi
+    else /usr/libexec/java_home -v 21 2>/dev/null || echo ""; fi
 `)
 
 [private]
 check-java:
-    @test -x "{{JAVA_HOME}}/bin/java" || { echo "JAVA_HOME not set. Install JDK 17 or let Gradle auto-provision: ./gradlew build" >&2; exit 1; }
+    @test -x "{{JAVA_HOME}}/bin/java" || { echo "JAVA_HOME not set. Install JDK 21 or let Gradle auto-provision: ./gradlew build" >&2; exit 1; }

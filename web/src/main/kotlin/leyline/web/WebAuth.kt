@@ -2,6 +2,7 @@ package leyline.web
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -69,7 +70,7 @@ class ResendEmailSender(
     override suspend fun sendLoginCode(input: LoginCodeEmail) {
         val body =
             Json.encodeToString(
-                Payload.serializer(),
+                serializer<Payload>(),
                 Payload(
                     from = from,
                     to = listOf(input.to),

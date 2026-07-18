@@ -142,7 +142,7 @@ class MulliganHandlerTest :
                     .last()
                     .prompt
                     .parametersList
-                    .map { it.numberValue.toInt() } shouldContain 6
+                    .map { it.numberValue } shouldContain 6
             }
         }
 

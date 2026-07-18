@@ -384,18 +384,18 @@ class ClientGuiGame(
 
     override fun chooseSingleEntityForEffect(
         title: String,
-        optionList: List<out GameEntityView>,
+        optionList: List<GameEntityView>,
         delayedReveal: DelayedReveal?,
         isOptional: Boolean,
     ): GameEntityView? {
         if (optionList.isEmpty()) return null
         if (optionList.size == 1 && !isOptional) return optionList[0]
-        val labels = optionList.map { it?.toString() ?: "(none)" }
+        val labels = optionList.map { it.toString() }
         val candidateRefs = targetCandidateRefs(title, optionList)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
-                message = title ?: "Choose one",
+                message = title,
                 options = labels,
                 min = if (isOptional) 0 else 1,
                 max = 1,
@@ -446,7 +446,7 @@ class ClientGuiGame(
 
     override fun chooseEntitiesForEffect(
         title: String,
-        optionList: List<out GameEntityView>,
+        optionList: List<GameEntityView>,
         min: Int,
         max: Int,
         delayedReveal: DelayedReveal?,
@@ -455,11 +455,11 @@ class ClientGuiGame(
         val effectiveMax = max.coerceAtMost(optionList.size)
         val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
         if (optionList.size <= effectiveMin) return optionList.toList()
-        val labels = optionList.map { it?.toString() ?: "(none)" }
+        val labels = optionList.map { it.toString() }
         val request =
             PromptRequest(
                 promptType = "choose_cards",
-                message = title ?: "Choose cards",
+                message = title,
                 options = labels,
                 min = effectiveMin,
                 max = effectiveMax,
@@ -476,7 +476,7 @@ class ClientGuiGame(
     ): SpellAbilityView? {
         if (abilities.isEmpty()) return null
         if (abilities.size == 1) return abilities[0]
-        val labels = abilities.map { it?.toString() ?: "(ability)" }
+        val labels = abilities.map { it.toString() }
         val request =
             PromptRequest(
                 promptType = "choose_one",

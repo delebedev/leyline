@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
@@ -15,11 +17,8 @@ repositories {
     }
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 dependencies {
+    implementation(platform(libs.netty.bom))
     implementation(project(":domain"))
     implementation(project(":engine"))
     implementation(libs.kotlin.stdlib)
@@ -39,19 +38,21 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
 }
 
-val generateOpenApi by tasks.registering(JavaExec::class) {
-    group = "build"
-    description = "Generate the web OpenAPI contract from Kotlin DTO descriptors."
-    dependsOn(tasks.named("classes"))
-    classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("leyline.web.WebOpenApiKt")
-    args(
-        layout.projectDirectory
-            .file("src/main/resources/openapi.json")
-            .asFile.absolutePath,
-    )
-}
+val generateOpenApi =
+    tasks.register<JavaExec>("generateOpenApi") {
+        group = "build"
+        description = "Generate the web OpenAPI contract from Kotlin DTO descriptors."
+        dependsOn(tasks.named("classes"))
+        classpath = sourceSets.main.get().runtimeClasspath
+        mainClass.set("leyline.web.WebOpenApiKt")
+        args(
+            layout.projectDirectory
+                .file("src/main/resources/openapi.json")
+                .asFile.absolutePath,
+        )
+    }
 
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =
         listOf(
