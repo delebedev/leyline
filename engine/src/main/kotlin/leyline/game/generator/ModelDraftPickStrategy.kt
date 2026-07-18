@@ -6,8 +6,8 @@ import forge.gamemodes.limited.DraftPickStrategy
 import forge.item.PaperCard
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+import leyline.domain.json.productionJson
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.zip.GZIPInputStream
@@ -113,7 +113,7 @@ class PickModelBundle(
 
     companion object {
         private val json =
-            Json {
+            productionJson {
                 ignoreUnknownKeys = true
             }
 

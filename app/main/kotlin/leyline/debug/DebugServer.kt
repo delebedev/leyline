@@ -4,10 +4,10 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.domain.json.productionJson
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -51,7 +51,7 @@ class DebugServer(
     private var server: HttpServer? = null
 
     private val json =
-        Json {
+        productionJson {
             prettyPrint = false
             encodeDefaults = true
         }

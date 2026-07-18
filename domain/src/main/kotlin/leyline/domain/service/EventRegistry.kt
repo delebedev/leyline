@@ -1,9 +1,9 @@
 package leyline.domain.service
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import leyline.domain.json.productionJson
 
-private val lenientJson = Json { ignoreUnknownKeys = true }
+private val lenientJson = productionJson { ignoreUnknownKeys = true }
 
 @Serializable
 data class QueueEntry(

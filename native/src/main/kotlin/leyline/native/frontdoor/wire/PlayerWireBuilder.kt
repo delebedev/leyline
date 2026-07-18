@@ -1,15 +1,15 @@
 package leyline.native.frontdoor.wire
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import leyline.domain.json.productionJson
 
 /**
  * Wire-format helpers for player-related protocol shapes.
  */
 object PlayerWireBuilder {
     private val lenientJson =
-        Json {
+        productionJson {
             ignoreUnknownKeys = true
             isLenient = true
         }
