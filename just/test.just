@@ -58,7 +58,7 @@ test-gate: docs-lint
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
     ./gradlew ktlintCheck detekt verifyWebProfilePosture :web:generateOpenApi
-    ./gradlew --rerun-tasks \
+    ./gradlew -PforceTests \
         :test \
         :domain:test \
         :engine:testGate \
@@ -78,17 +78,17 @@ test-gate: docs-lint
 # ~cores/4 (gradle-side); pass a number to override.
 [group('test')]
 test-integration forks='':
-    cd "{{project_dir}}" && ./gradlew --rerun-tasks -PintegrationForks={{forks}} :engine:testIntegration :engine:jacocoTestReport
+    cd "{{project_dir}}" && ./gradlew -PforceTests -PintegrationForks={{forks}} :engine:testIntegration :engine:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
 [group('test')]
 test-acceptance:
-    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testAcceptance
+    cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testAcceptance
 
 # sim-client E2E suite — synthetic GRE log generation, drives full games (slow)
 [group('test')]
 test-simclient:
-    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testSimClient
+    cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testSimClient
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
@@ -131,7 +131,7 @@ slice-verify:
     echo "  COMBAT_DECK:    $deck_hash"
     echo "  forge-gui jar:  $jar_hash"
     echo
-    ./gradlew --rerun-tasks :engine:testIntegrationStrict --console=plain
+    ./gradlew -PforceTests :engine:testIntegrationStrict --console=plain
 
 # JaCoCo coverage report (per-module, merged summary)
 [group('test')]
