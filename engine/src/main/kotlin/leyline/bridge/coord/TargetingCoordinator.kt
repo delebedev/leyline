@@ -567,7 +567,15 @@ class TargetingCoordinator(
         }
 
     private fun isLibraryBottomOrder(sa: SpellAbility?): Boolean {
-        val explicitPosition = libraryPosition(sa, "LibraryPosition2") ?: libraryPosition(sa, "LibraryPosition")
+        val explicitPosition =
+            if (sa?.api == ApiType.Dig) {
+                libraryPosition(sa, "LibraryPosition2")
+                    ?: libraryPosition(sa, "LibraryPosition")
+                    ?: libraryPosition(sa, "RevealedLibraryPosition")
+            } else {
+                libraryPosition(sa, "LibraryPosition")
+                    ?: libraryPosition(sa, "RevealedLibraryPosition")
+            }
         if (explicitPosition != null) return explicitPosition < 0
         return sa?.api == ApiType.Dig
     }
