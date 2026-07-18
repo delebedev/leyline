@@ -67,8 +67,8 @@ class OmenZoneTransferDetectorTest :
                 )
             val events =
                 listOf(
-                    GameEvent.SpellCast(cardId = ForgeCardId(42), seatId = SeatId(1), isOmen = true),
-                    GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false),
+                    GameEvent.SpellCast(cardId = ForgeCardId(42), seatId = SeatId(1), spellGrpId = 95537, isOmen = true),
+                    GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false, spellGrpId = 95537),
                 )
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
             var currentId = 100
@@ -91,6 +91,7 @@ class OmenZoneTransferDetectorTest :
                             },
                             idLookup = { fid -> InstanceId(fid.value + 1000) },
                             grpIdResolver = { GrpId(95536) },
+                            pendingSpellResolutionLookup = { events.filterIsInstance<GameEvent.SpellResolved>().single() },
                             zoneMoves =
                                 listOf(
                                     ZoneMove(0, ForgeCardId(42), Zone.Hand, Zone.Stack, null),
@@ -114,7 +115,7 @@ class OmenZoneTransferDetectorTest :
                 resolve.newId shouldBe 201
                 resolve.srcZoneId shouldBe ZoneIds.STACK
                 resolve.destZoneId shouldBe ZoneIds.P1_LIBRARY
-                resolve.grpId shouldBe 95536
+                resolve.grpId shouldBe 95537
                 resolve.ownerSeatId shouldBe 1
 
                 result.retiredIds shouldBe listOf(100, 200)
@@ -141,6 +142,44 @@ class OmenZoneTransferDetectorTest :
             val checker = InvariantChecker()
             checker.process(GREToClientMessage.newBuilder().setGameStateMessage(gsm).build())
             checker.violations.shouldBeEmpty()
+        }
+
+        test("zone-only stack-to-library resolution reallocates and preserves spell-face grpId") {
+            val resolved = GameEvent.SpellResolved(ForgeCardId(42), hasFizzled = false, spellGrpId = 95537)
+            var nextId = 200
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = emptyList(),
+                    zones =
+                        listOf(
+                            zone(ZoneIds.P1_LIBRARY, ZoneType.Library, 100),
+                            zone(ZoneIds.STACK, ZoneType.Stack),
+                            zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                        ),
+                    events = listOf(resolved),
+                    context =
+                        ZoneTransferContext(
+                            previousZones = mapOf(100 to ZoneIds.STACK),
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = {
+                                InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(nextId++))
+                            },
+                            idLookup = { InstanceId(100) },
+                            grpIdResolver = { GrpId(95536) },
+                            pendingSpellResolutionLookup = { resolved },
+                            zoneMoves = listOf(ZoneMove(0, ForgeCardId(42), Zone.Stack, Zone.Library, null)),
+                        ),
+                )
+
+            val transfer = result.transfers.single()
+            assertSoftly {
+                transfer.category shouldBe TransferCategory.Resolve
+                transfer.origId shouldBe 100
+                transfer.newId shouldBe 200
+                transfer.grpId shouldBe 95537
+                result.retiredIds shouldContain 100
+                result.patchedZones.first { it.zoneId == ZoneIds.P1_LIBRARY }.objectInstanceIdsList shouldBe listOf(200)
+            }
         }
 
         test("detectZoneTransfers expands collapsed Paradigm hand-to-exile snapshot into cast and exile transfers") {

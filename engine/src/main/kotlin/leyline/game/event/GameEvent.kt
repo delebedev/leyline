@@ -107,6 +107,8 @@ sealed interface GameEvent {
     data class SpellCast(
         val cardId: ForgeCardId,
         val seatId: SeatId,
+        /** Card-definition identity of the spell face while it is on the stack. */
+        val spellGrpId: Int = 0,
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
         val isOmen: Boolean = false,
@@ -174,6 +176,8 @@ sealed interface GameEvent {
     data class SpellResolved(
         val cardId: ForgeCardId,
         val hasFizzled: Boolean,
+        /** Card-definition identity of the resolving spell face. */
+        val spellGrpId: Int = 0,
         /** True if the resolved item was a triggered ability rather than a cast spell. */
         val isTrigger: Boolean = false,
         /**

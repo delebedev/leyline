@@ -28,6 +28,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.AltCostBinding
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.LinkedFaceRole
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -113,8 +114,9 @@ object ActionMapper {
             command: PlayerAction,
             stackAbilityGrpId: Int? = null,
             forgeAbilityId: Int? = null,
+            spellGrpId: Int? = null,
         ) {
-            offers += ActionOffer(action, command, stackAbilityGrpId, forgeAbilityId)
+            offers += ActionOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
         }
 
         fun addOffer(
@@ -122,9 +124,10 @@ object ActionMapper {
             command: PlayerAction,
             stackAbilityGrpId: Int? = null,
             forgeAbilityId: Int? = null,
+            spellGrpId: Int? = null,
         ) {
             builder.addActions(action)
-            bindOffer(action, command, stackAbilityGrpId, forgeAbilityId)
+            bindOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
         }
 
         val handZoneId = ZoneIds.handOf(seatId)
@@ -395,7 +398,11 @@ object ActionMapper {
                 // Adventure / Omen offers are independent of the main face's
                 // payability — emit them even when the main cast is unaffordable.
                 addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder, castable) { action, index, ability ->
-                    bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
+                    bindOffer(
+                        action,
+                        PlayerAction.CastSpell(fid, index, ability = ability),
+                        spellGrpId = linkedFaceGrpId(snap.boundCards[fid], action.actionType),
+                    )
                 }
                 continue
             }
@@ -432,7 +439,11 @@ object ActionMapper {
             }
 
             addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder, castable) { action, index, ability ->
-                bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
+                bindOffer(
+                    action,
+                    PlayerAction.CastSpell(fid, index, ability = ability),
+                    spellGrpId = linkedFaceGrpId(snap.boundCards[fid], action.actionType),
+                )
             }
         }
 
@@ -1293,6 +1304,19 @@ object ActionMapper {
                     ?.let { builder.addInactiveActions(it) }
             }
         }
+    }
+
+    private fun linkedFaceGrpId(
+        bound: BoundCard?,
+        actionType: ActionType,
+    ): Int? {
+        val role =
+            when {
+                actionType == ActionType.CastAdventure -> LinkedFaceRole.Adventure
+                actionType == ActionType.CastOmen -> LinkedFaceRole.Omen
+                else -> return null
+            }
+        return bound?.linkedFaces?.firstOrNull { it.role == role }?.grpId
     }
 
     /** Build a CastAdventure action for an adventure card, or null if not castable. */

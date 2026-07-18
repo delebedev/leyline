@@ -101,6 +101,9 @@ class ActionPerformer(
                 return
             }
         val command = offer.command
+        if (command is PlayerAction.CastSpell) {
+            bridge.setSelectedSpellGrpId(command.cardId, offer.spellGrpId)
+        }
 
         // Stop decision timer — client responded
         if (bridge.matchConfig.game.timer) {

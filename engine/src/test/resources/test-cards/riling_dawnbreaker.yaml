@@ -12,5 +12,6 @@ abilities:
     textId: 703506
     category: 2
 expansionCode: "TDM"
+linkedFaceType: 18
 linkedFaces:
   - 95537

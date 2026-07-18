@@ -534,22 +534,16 @@ class TargetingHandler(
      */
     fun onCancelAction(autoPass: () -> Unit) {
         val bridge = ctx.bridge
-        when (pendingInteraction) {
-            is PendingClientInteraction.OptionalCost,
-            is PendingClientInteraction.AlternateCostChoice,
-            is PendingClientInteraction.HybridManaType,
-            -> {
-                pendingInteraction = null
-                bridge
-                    .seat(counters.seatId)
-                    .prompt
-                    .journal
-                    .clearHybridManaStash()
-                log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
-                autoPass()
-                return
+        when (val interaction = pendingInteraction) {
+            is PendingClientInteraction.OptionalCost -> {
+                return cancelDeferredCast(interaction.action.cardId, autoPass)
             }
-
+            is PendingClientInteraction.AlternateCostChoice -> {
+                return cancelDeferredCast(interaction.cardId, autoPass)
+            }
+            is PendingClientInteraction.HybridManaType -> {
+                return cancelDeferredCast(interaction.action.cardId, autoPass)
+            }
             is PendingClientInteraction.ModalChoice,
             is PendingClientInteraction.Search,
             is PendingClientInteraction.TargetSelection,
@@ -574,6 +568,20 @@ class TargetingHandler(
         // Submit empty list → engine sees no targets → spell fails → unwind
         seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
         bridge.awaitPriority()
+        autoPass()
+    }
+
+    private fun cancelDeferredCast(
+        cardId: ForgeCardId,
+        autoPass: () -> Unit,
+    ) {
+        pendingInteraction = null
+        ctx.bridge.setSelectedSpellGrpId(cardId, null)
+        ctx.bridge
+            .seat(counters.seatId)
+            .prompt.journal
+            .clearHybridManaStash()
+        log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
         autoPass()
     }
 

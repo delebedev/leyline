@@ -1,6 +1,18 @@
 name: mechanics-warmup
 description: Small arena-driven mechanic smoke suite focused on client-accepted mechanic surfaces.
 scenarios:
+  - id: omen-lifecycle
+    puzzle: omen-riling-dawnbreaker
+    run: cast Signaling Roar, create a Soldier, then shuffle Riling Dawnbreaker into the library
+    expect: the Soldier reaches the battlefield and the Omen parent returns to the library
+    steps:
+      - cast_omen: Riling Dawnbreaker
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Soldier Token }
+            - zone_not_contains: { side: ours, zone: hand, card: Riling Dawnbreaker }
+            - stack_empty: true
   - id: adventure-lifecycle
     puzzle: adventure-test
     run: cast Pest Problem, then cast Ratcatcher Trainee from exile

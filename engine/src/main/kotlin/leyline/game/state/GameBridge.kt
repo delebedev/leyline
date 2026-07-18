@@ -109,6 +109,7 @@ class GameBridge(
 
     private val pendingSpellCasts = PendingSpellEventRegistry<GameEvent.SpellCast>()
     private val pendingSpellResolutions = PendingSpellEventRegistry<GameEvent.SpellResolved>()
+    private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
     fun recordStackAbilityIdentity(
@@ -125,12 +126,25 @@ class GameBridge(
     fun consumeStackAbilityIdentity(runtimeAbilityId: Int): ResolvedAbilityIdentity? =
         stackAbilityIdentitiesByRuntimeId.remove(runtimeAbilityId)
 
+    fun setSelectedSpellGrpId(
+        cardId: ForgeCardId,
+        grpId: Int?,
+    ) {
+        if (grpId == null) {
+            selectedSpellGrpIds.remove(cardId)
+        } else {
+            selectedSpellGrpIds[cardId] = grpId
+        }
+    }
+
+    fun consumeSelectedSpellGrpId(cardId: ForgeCardId): Int? = selectedSpellGrpIds.remove(cardId)
+
     fun recordPendingSpellCasts(events: List<GameEvent>) {
         events
             .filterIsInstance<GameEvent.SpellCast>()
             .filter { !it.isAbility && !it.isTrigger }
             .forEach {
-                pendingSpellCasts.record(it.cardId, grpIdFor(it.cardId), it)
+                pendingSpellCasts.record(it.cardId, it.spellGrpId.takeIf { grpId -> grpId != 0 } ?: grpIdFor(it.cardId), it)
             }
     }
 
@@ -139,7 +153,7 @@ class GameBridge(
             .filterIsInstance<GameEvent.SpellResolved>()
             .filter { !it.isAbility && !it.isTrigger }
             .forEach {
-                pendingSpellResolutions.record(it.cardId, grpIdFor(it.cardId), it)
+                pendingSpellResolutions.record(it.cardId, it.spellGrpId.takeIf { grpId -> grpId != 0 } ?: grpIdFor(it.cardId), it)
             }
     }
 
@@ -148,11 +162,11 @@ class GameBridge(
     fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? = pendingSpellResolutions.find(cardId, grpIdFor(cardId))
 
     fun consumePendingSpellCast(cardId: ForgeCardId) {
-        pendingSpellCasts.consume(cardId, grpIdFor(cardId))
+        pendingSpellCasts.consume(cardId)
     }
 
     fun consumePendingSpellResolution(cardId: ForgeCardId) {
-        pendingSpellResolutions.consume(cardId, grpIdFor(cardId))
+        pendingSpellResolutions.consume(cardId)
     }
 
     private fun grpIdFor(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
@@ -472,6 +486,10 @@ class GameBridge(
      */
     val delayedTriggerHolders = DelayedTriggerHolderTracker()
 
+    private var transientLinkedFaceFamilyIds: Set<InstanceId> = emptySet()
+
+    fun pendingTransientLinkedFaceFamilyIds(): Set<InstanceId> = transientLinkedFaceFamilyIds
+
     private val decayedCleanupSources = linkedSetOf<ForgeCardId>()
 
     fun activeDecayedCleanupSources(): Set<ForgeCardId> = decayedCleanupSources.toSet()
@@ -600,6 +618,8 @@ class GameBridge(
 
     override fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId = ids.getOrAlloc(forgeCardId)
 
+    fun peekInstanceId(forgeCardId: ForgeCardId): InstanceId? = ids.peek(forgeCardId)
+
     override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
     override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
@@ -627,7 +647,7 @@ class GameBridge(
     /**
      * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
      * Fixed order: id reallocations → limbo retires → zone recordings →
-     * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders.
+     * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
      *
      * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
      */
@@ -643,6 +663,7 @@ class GameBridge(
         consumePendingTargetSpecs(m.consumedTargetSpecs)
         annotations.setAnnotationId(nextAnnotationId)
         delayedTriggerHolders.apply(m.holderBatch)
+        transientLinkedFaceFamilyIds = m.nextTransientLinkedFaceFamilyIds
     }
 
     override fun closeFrame(): FrameEventLog = eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
@@ -1821,16 +1842,21 @@ class GameBridge(
     }
 }
 
-private class PendingSpellEventRegistry<T> {
+internal class PendingSpellEventRegistry<T> {
     private val byCardId = ConcurrentHashMap<ForgeCardId, T>()
     private val byGrpId = ConcurrentHashMap<Int, T>()
+    private val grpIdByCardId = ConcurrentHashMap<ForgeCardId, Int>()
 
     fun record(
         cardId: ForgeCardId,
         grpId: Int?,
         event: T,
     ) {
-        byCardId[cardId] = event
+        val previousEvent = byCardId.put(cardId, event)
+        val previousGrpId = if (grpId == null) grpIdByCardId.remove(cardId) else grpIdByCardId.put(cardId, grpId)
+        if (previousGrpId != null && previousGrpId != grpId && previousEvent != null) {
+            byGrpId.remove(previousGrpId, previousEvent)
+        }
         grpId?.let { byGrpId[it] = event }
     }
 
@@ -1839,11 +1865,11 @@ private class PendingSpellEventRegistry<T> {
         grpId: Int?,
     ): T? = byCardId[cardId] ?: grpId?.let { byGrpId[it] }
 
-    fun consume(
-        cardId: ForgeCardId,
-        grpId: Int?,
-    ) {
-        byCardId.remove(cardId)
-        grpId?.let { byGrpId.remove(it) }
+    fun consume(cardId: ForgeCardId) {
+        val event = byCardId.remove(cardId)
+        val recordedGrpId = grpIdByCardId.remove(cardId)
+        if (event != null && recordedGrpId != null) {
+            byGrpId.remove(recordedGrpId, event)
+        }
     }
 }

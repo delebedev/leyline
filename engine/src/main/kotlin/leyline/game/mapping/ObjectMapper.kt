@@ -276,8 +276,8 @@ object ObjectMapper {
             .setOthersideGrpId(cardSnap.grpId)
             .build()
 
-    /** Build the Adventure face companion attached to [parent]. */
-    fun buildAdventureObject(
+    /** Build a secondary-face companion attached to [parent]. */
+    fun buildLinkedFaceObject(
         face: LinkedFaceDescriptor,
         instanceId: Int,
         parent: GameObjectInfo,
@@ -286,7 +286,7 @@ object ObjectMapper {
         cardProto
             .buildObjectInfo(face.grpId)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Adventure_a4aa)
+            .setType(face.role.objectType)
             .setZoneId(parent.zoneId)
             .setVisibility(parent.visibility)
             .setOwnerSeatId(parent.ownerSeatId)

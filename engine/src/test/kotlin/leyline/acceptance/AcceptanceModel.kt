@@ -137,6 +137,12 @@ data class CastAdventureStep(
     override val label: String = "cast_adventure $card"
 }
 
+data class CastOmenStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "cast_omen $card"
+}
+
 data class SelectCostStep(
     val side: AcceptanceSide = AcceptanceSide.Ours,
     val zone: AcceptanceZone,
@@ -293,6 +299,7 @@ enum class AcceptanceActionType(
     PlayMdfc("play_mdfc"),
     Cast("cast"),
     CastAdventure("cast_adventure"),
+    CastOmen("cast_omen"),
     CastMdfc("cast_mdfc"),
     Activate("activate"),
     ;

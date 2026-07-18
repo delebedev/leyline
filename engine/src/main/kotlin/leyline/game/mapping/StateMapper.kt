@@ -508,7 +508,7 @@ object StateMapper {
                 transferResult = transferResult,
             )
 
-        transferResult = AdventureCompanionProjector.append(transferResult, snap, bridge, frameIds)
+        transferResult = LinkedFaceCompanionProjector.append(transferResult, snap, bridge, frameIds)
 
         // ═══ ASSEMBLE: build the GSM proto ═══
         val built =
@@ -540,6 +540,7 @@ object StateMapper {
                 nextAnnotationId = null,
                 holderBatch = holderBatch,
                 diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
+                nextTransientLinkedFaceFamilyIds = transferResult.transientHiddenFamilyIds.mapTo(mutableSetOf(), ::InstanceId),
             )
 
         return BuildResult(
@@ -668,11 +669,12 @@ object StateMapper {
                 events = events,
             )
         val current = fullResult.gsm
-        val currentAdventureIds =
+        val currentCompanionIds =
             current.gameObjectsList
-                .filter { it.type == GameObjectType.Adventure_a4aa }
+                .filter { LinkedFaceCompanionProjector.isCompanionType(it.type) }
                 .mapTo(mutableSetOf()) { it.instanceId }
-        val previousAdventureIds = AdventureCompanionProjector.instanceIds(prev, bridge, viewingSeatId)
+        val previousCompanionIds = LinkedFaceCompanionProjector.instanceIds(prev, bridge, viewingSeatId)
+        val previousTransientHiddenFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds().map { it.value }
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
         val changedZoneIds =
@@ -754,9 +756,9 @@ object StateMapper {
             changedFids.mapTo(mutableSetOf()) { fid ->
                 checkNotNull(fullResult.annotationFrameDraft).idResolver.cardIid(fid).value
             }
-        val changedAdventureIds =
+        val changedCompanionIds =
             current.gameObjectsList
-                .filter { it.type == GameObjectType.Adventure_a4aa && it.parentId in currentParentIds }
+                .filter { LinkedFaceCompanionProjector.isCompanionType(it.type) && it.parentId in currentParentIds }
                 .mapTo(mutableSetOf()) { it.instanceId }
         val changedDisturbBackIds =
             disturbBackInstanceIds(
@@ -766,7 +768,7 @@ object StateMapper {
         val changedInstanceIds =
             changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet() +
                 changedDisturbBackIds +
-                changedAdventureIds +
+                changedCompanionIds +
                 fullResult.objectRefreshInstanceIds
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
         val prevInstanceIds =
@@ -774,7 +776,7 @@ object StateMapper {
                 .map { bridge.getOrAllocInstanceId(it).value }
                 .toSet() +
                 disturbBackInstanceIds(prevDisturbBackSourceFids, bridge) +
-                previousAdventureIds
+                previousCompanionIds
         val changedObjects =
             current.gameObjectsList.filter { obj ->
                 // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
@@ -814,13 +816,14 @@ object StateMapper {
         val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
         val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
         val deletedDisturbBackIds = disturbBackInstanceIds(prevDisturbBackSourceFids - curDisturbBackSourceFids, bridge)
-        val deletedAdventureIds = previousAdventureIds - currentAdventureIds
+        val deletedCompanionIds = previousCompanionIds - currentCompanionIds
         val deletedIds =
             (
                 (prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } +
                     deletedDisturbBackIds +
-                    deletedAdventureIds
-            ).filter { it !in currentObjIds && it !in currentZoneTrackedIds }
+                    deletedCompanionIds
+            ).filter { it !in currentObjIds && it !in currentZoneTrackedIds } +
+                previousTransientHiddenFamilyIds
 
         val previousTurnInfo = GsmFrame.Companion.from(prev).turnInfo()
         val includeTurnInfo =

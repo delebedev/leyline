@@ -47,7 +47,8 @@ class OmenActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, snap, b)
+            val actions = projection.actions
 
             val mainCast = actions.actionsList.firstOrNull { it.actionType == ActionType.Cast && it.instanceId == iid }
             val omen = omenOffers(actions.actionsList, iid).firstOrNull()
@@ -60,6 +61,7 @@ class OmenActionTest :
                 omen.abilityGrpId shouldBe 0
                 omen.alternativeGrpId shouldBe 0
                 omen.manaCostCount shouldNotBe 0
+                projection.offers.single { it.action == omen }.spellGrpId shouldBe 95537
             }
         }
 
