@@ -1,6 +1,5 @@
 package leyline.native.frontdoor.wire
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -15,6 +14,7 @@ import leyline.domain.DeckCard
 import leyline.domain.DeckId
 import leyline.domain.Format
 import leyline.domain.PlayerId
+import leyline.domain.json.productionJson
 import org.slf4j.LoggerFactory
 
 /**
@@ -28,7 +28,7 @@ object DeckWireBuilder {
     private val log = LoggerFactory.getLogger(DeckWireBuilder::class.java)
 
     private val lenientJson =
-        Json {
+        productionJson {
             ignoreUnknownKeys = true
             isLenient = true
         }

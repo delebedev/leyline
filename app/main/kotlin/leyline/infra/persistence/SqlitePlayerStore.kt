@@ -3,7 +3,6 @@ package leyline.infra.persistence
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import leyline.domain.CollationPool
 import leyline.domain.Course
 import leyline.domain.CourseDeck
@@ -20,6 +19,7 @@ import leyline.domain.Format
 import leyline.domain.Player
 import leyline.domain.PlayerId
 import leyline.domain.Preferences
+import leyline.domain.json.productionJson
 import leyline.domain.repo.CourseRepository
 import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
@@ -144,7 +144,7 @@ class SqlitePlayerStore(
         @SerialName("Companions") val companions: List<CardEntry> = emptyList(),
     )
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = productionJson { ignoreUnknownKeys = true }
 
     // ---------- Schema bootstrap ----------
 

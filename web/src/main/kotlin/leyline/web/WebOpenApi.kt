@@ -8,18 +8,18 @@ import kotlinx.serialization.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.StructureKind
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import leyline.domain.json.productionJson
 import java.nio.file.Files
 import java.nio.file.Path
 
 object WebOpenApi {
-    private val json = Json { prettyPrint = true }
+    private val json = productionJson { prettyPrint = true }
 
     fun generate(): String = json.encodeToString(JsonElement.serializer(), document()) + "\n"
 

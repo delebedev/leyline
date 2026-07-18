@@ -83,7 +83,8 @@ lint:
 # report outdated dependencies
 [group('build')]
 deps-outdated:
-    cd "{{project_dir}}" && ./gradlew dependencyUpdates -q
+    # The versions plugin requires isolated execution on Gradle 9.
+    cd "{{project_dir}}" && ./gradlew dependencyUpdates -q --no-parallel --no-configuration-cache
 
 # build performance profile (opens HTML report)
 [group('build')]
