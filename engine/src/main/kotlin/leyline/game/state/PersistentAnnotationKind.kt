@@ -594,6 +594,26 @@ data object DisplayCardUnderCardKind : PersistentAnnotationKind {
     ): Boolean = frame.displayCardAffectors?.let { ann.affectorId !in it } ?: false
 }
 
+data object CardRevealedKind : PersistentAnnotationKind {
+    override val name = "CardRevealed"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.CardRevealed in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object InstanceRevealedToOpponentKind : PersistentAnnotationKind {
+    override val name = "InstanceRevealedToOpponent"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.InstanceRevealedToOpponent in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 object PersistentAnnotationKinds {
     /**
      * Upsert-path kinds — rows are identity-keyed, dispatched by
@@ -611,6 +631,8 @@ object PersistentAnnotationKinds {
             ModifiedTypeForCrewKind,
             TemporaryPermanentKind,
             DelayedTriggerAffecteesKind,
+            CardRevealedKind,
+            InstanceRevealedToOpponentKind,
             TargetSpecKind,
             MutateLayeredEffectKind,
             ColorProductionKind,

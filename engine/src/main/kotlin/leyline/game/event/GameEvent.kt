@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 
 /**
@@ -447,6 +448,9 @@ sealed interface GameEvent {
     data class CardsRevealed(
         val cardIds: List<ForgeCardId>,
         val ownerSeatId: SeatId,
+        val viewerSeatId: SeatId,
+        val sourceZone: RevealZone? = null,
+        val sourceCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** RevealedCard proxies removed after reveal-choose resolution. */

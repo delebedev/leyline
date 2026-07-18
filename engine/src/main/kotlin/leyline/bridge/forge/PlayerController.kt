@@ -1,6 +1,7 @@
 package leyline.bridge.forge
 
 import forge.LobbyPlayer
+import forge.ai.LobbyPlayerAi
 import forge.card.ColorSet
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
@@ -274,6 +275,7 @@ class PlayerController(
         TargetingCoordinator(
             bridge,
             seating,
+            viewerSeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
             currentSourceEntityId = ::currentSourceEntityId,
             isCastingSpell = { activeSourceIsSpell },
         )

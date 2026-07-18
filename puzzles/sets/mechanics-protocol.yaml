@@ -245,6 +245,8 @@ scenarios:
       - resolve_stack: {}
       - expect:
           all:
+            - annotation_seen: CardRevealed
+            - annotation_seen: InstanceRevealedToOpponent
             - zone_not_contains: { side: opponent, zone: hand, card: Divination }
             - zone_contains: { side: ours, zone: battlefield, card: Deep-Cavern Bat }
   - id: stock-up-bottom-order

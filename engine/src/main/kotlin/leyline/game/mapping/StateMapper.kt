@@ -482,9 +482,15 @@ object StateMapper {
                 displayCardAffectors = battlefieldIids + postDiffActiveIids + (stackIids - resolvingStackIids),
                 delayedTriggerAffectorReplacements = delayedTriggerAffectorReplacements,
             )
-        // Stage-4-5 context deliberately omits transferResult — only the
-        // transfer-stage Convoke emission (convokeCtx above) diffs zone transfers.
-        val annCtx = AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = eventsMutable)
+        // Stage-4-5 contributors may need the frame's pre-reallocation identities.
+        val annCtx =
+            AnnotationContext(
+                bridge = bridge,
+                snap = snap,
+                frameIds = frameIds,
+                events = eventsMutable,
+                transferResult = transferResult,
+            )
         val remaining =
             AnnotationPipeline.computeRemainingAnnotations(
                 annCtx,
@@ -775,7 +781,8 @@ object StateMapper {
                 if (obj.instanceId !in prevInstanceIds) {
                     // Still apply opponent-hand filter unless reveal is active
                     if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                        return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                        return@filter obj.type == GameObjectType.RevealedCard ||
+                            (hasActiveReveal && obj.visibility == Visibility.Public)
                     }
                     if (opponentSideboardZoneId != 0 && obj.zoneId == opponentSideboardZoneId) return@filter false
                     return@filter true
@@ -792,7 +799,7 @@ object StateMapper {
                     return@filter false
                 }
                 if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                    if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
+                    if (obj.type == GameObjectType.RevealedCard || (hasActiveReveal && obj.visibility == Visibility.Public)) {
                         // fall through
                     } else {
                         return@filter false
@@ -1223,11 +1230,8 @@ object StateMapper {
             }
         }
 
-    /**
-     * Synthesize RevealedCard proxy objects during active reveal-choose, or
-     * schedule proxy cleanup when the reveal ends. Modifies [zones], [gameObjects],
-     * and [events] in place.
-     */
+    /** Synthesize short-lived RevealedCard views for semantic reveal events and
+     * keep them alive while a reveal-choose prompt remains active. */
     // Nullable `activeReveal` is intentional: the function has two branches —
     // synthesize proxies when non-null, cleanup-and-clear when null.
     @Suppress("CanBeNonNullable")
@@ -1239,46 +1243,69 @@ object StateMapper {
         gameObjects: MutableList<GameObjectInfo>,
         events: MutableList<GameEvent>,
     ) {
-        if (activeReveal != null) {
-            val ownerSeat = activeReveal.ownerSeatId.value
-            val viewerSeat = SeatId(ownerSeat).opponent.value
-            val handZoneId = ZoneIds.handOf(ownerSeat)
-            val revealedZoneId = ZoneIds.revealedOf(ownerSeat)
-
-            val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
-            val revealedZoneBuilder =
-                if (revealedZoneIdx >= 0) {
-                    zones.removeAt(revealedZoneIdx).toBuilder()
-                } else {
-                    ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
-                }
-
-            // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
-            val needsAlloc = bridge.revealProxies.isEmpty
-            for (forgeCardId in activeReveal.allHandCardIds) {
-                val cardSnap = snap.objects[forgeCardId] ?: continue
-                val proxyId =
-                    if (needsAlloc) {
-                        val id = bridge.ids.allocSynthetic()
-                        bridge.revealProxies.allocate(forgeCardId, id)
-                        id
-                    } else {
-                        bridge.revealProxies.lookup(forgeCardId) ?: continue
+        val eventReveals =
+            events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }
+        val revealFacts =
+            buildList {
+                eventReveals.forEach { reveal ->
+                    reveal.cardIds.forEach {
+                        add(
+                            Triple(
+                                it,
+                                reveal.ownerSeatId.value,
+                                reveal.sourceZone?.let { zone ->
+                                    ZoneIds.revealZone(zone, reveal.ownerSeatId)
+                                },
+                            ),
+                        )
                     }
-                revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
-                gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(
-                        cardSnap,
-                        proxyId.value,
-                        handZoneId,
-                        ownerSeat,
-                        viewerSeat,
-                        bridge.cardProto,
-                        parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
-                    ),
-                )
+                }
+                activeReveal?.allHandCardIds?.forEach { cardId ->
+                    add(Triple(cardId, activeReveal.ownerSeatId.value, ZoneIds.handOf(activeReveal.ownerSeatId)))
+                }
+            }.distinctBy { it.first }
+
+        if (revealFacts.isNotEmpty()) {
+            val retiredViews = bridge.revealProxies.retain(revealFacts.mapTo(mutableSetOf()) { it.first })
+            if (retiredViews.isNotEmpty()) events.add(GameEvent.RevealProxiesDeleted(retiredViews))
+            for ((ownerSeat, ownerFacts) in revealFacts.groupBy { it.second }) {
+                val viewerSeat = SeatId(ownerSeat).opponent.value
+                val revealedZoneId = ZoneIds.revealedOf(ownerSeat)
+                val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
+                val revealedZoneBuilder =
+                    if (revealedZoneIdx >= 0) {
+                        zones.removeAt(revealedZoneIdx).toBuilder()
+                    } else {
+                        ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
+                    }
+
+                for ((forgeCardId, _, sourceZoneId) in ownerFacts) {
+                    val cardSnap = snap.objects[forgeCardId] ?: continue
+                    val proxyId =
+                        bridge.revealProxies.lookup(forgeCardId) ?: run {
+                            val id = bridge.ids.allocSynthetic()
+                            bridge.revealProxies.allocate(forgeCardId, id)
+                            id
+                        }
+                    revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
+                    gameObjects.add(
+                        ObjectMapper.buildRevealedCardProxy(
+                            cardSnap,
+                            proxyId.value,
+                            sourceZoneId
+                                ?: snap.zones.values
+                                    .firstOrNull { forgeCardId in it.contents }
+                                    ?.id
+                                ?: ZoneIds.handOf(ownerSeat),
+                            ownerSeat,
+                            viewerSeat,
+                            bridge.cardProto,
+                            parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
+                        ),
+                    )
+                }
+                zones.add(revealedZoneBuilder.build())
             }
-            zones.add(revealedZoneBuilder.build())
         } else if (!bridge.revealProxies.isEmpty) {
             // Reveal ended — emit cleanup annotations and clear tracking.
             // Diff naturally detects missing proxy objects via snapshot-compare.

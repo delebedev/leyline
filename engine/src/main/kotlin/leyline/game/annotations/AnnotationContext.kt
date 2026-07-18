@@ -21,8 +21,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Holds the four pieces of state every resolver needs — the live [bridge], the
  * frame [snap], the frame-scoped [frameIds], and this frame's [events] — so
  * call sites read `ctx.counterAffectorFor(...)` instead of threading six args.
- * [transferResult] is optional frame context, supplied only by transfer-stage
- * contributors (Convoke) that diff this frame's zone transfers.
+ * [transferResult] is optional frame context for contributors that need this
+ * frame's pre-reallocation identities or zone transfers.
  *
  * The frame-pure helpers ([stackAbilityIid], [keywordCounterResolutionForEvent])
  * are also exposed on the companion for callers that hold only a

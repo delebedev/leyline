@@ -16,6 +16,7 @@ import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
+import leyline.bridge.forge.RevealTrackingAiController
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
@@ -444,6 +445,9 @@ class GameBridge(
      *  Written on engine thread (during buildFromSnapshot), read serially — not concurrent. */
     val revealProxies: RevealProxyTracker = RevealProxyTracker()
 
+    /** Actual hidden-zone identities whose reveal remains known to the opponent. */
+    val opponentKnowledge: OpponentKnowledgeTracker = OpponentKnowledgeTracker()
+
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
 
@@ -657,7 +661,15 @@ class GameBridge(
         val frame = closeFrame()
         val events = frame.events.toMutableList()
         for (reveal in drainReveals(viewingSeatId)) {
-            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+            events.add(
+                GameEvent.CardsRevealed(
+                    reveal.forgeCardIds,
+                    reveal.ownerSeatId,
+                    reveal.viewerSeatId,
+                    reveal.sourceZone,
+                    reveal.sourceCardId,
+                ),
+            )
         }
         return FrameEventLog(events, frame.zoneMoves)
     }
@@ -760,6 +772,12 @@ class GameBridge(
             )
         humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
+        aiPlayer.addController(
+            Long.MAX_VALUE - 1,
+            aiPlayer,
+            RevealTrackingAiController(g, aiPlayer, promptBridge(seating.humanSeat), seating.familiarSeat),
+            false,
+        )
     }
 
     /**
@@ -809,8 +827,7 @@ class GameBridge(
 
         populateSeatMap(g)
 
-        // Wire PlayerController for seat 1 (human) with mulligan bridge.
-        // AI keeps its default controller — handles priority, combat, etc. natively.
+        // Wire the interactive seat and retain native AI decisions with reveal observation.
         registerHumanController(g)
 
         val loop =
@@ -889,6 +906,15 @@ class GameBridge(
         if (aiControllerFactory != null) {
             for (player in g.players) {
                 player.addController(Long.MAX_VALUE - 1, player, aiControllerFactory(g, player), false)
+            }
+        } else {
+            g.players.forEachIndexed { index, player ->
+                player.addController(
+                    Long.MAX_VALUE - 1,
+                    player,
+                    RevealTrackingAiController(g, player, promptBridge(SeatId(1)), SeatId(index + 1)),
+                    false,
+                )
             }
         }
 
@@ -1362,6 +1388,7 @@ class GameBridge(
         stackAbilityIdentitiesByRuntimeId.clear()
         tokenRegistry.clear()
         revealProxies.clear()
+        opponentKnowledge.clear()
 
         // Drain bridge state from previous game
         for (bridge in promptBridges.values) bridge.resetForPuzzle()

@@ -12,6 +12,7 @@ import leyline.game.annotations.AnnotationPipeline
 import leyline.game.annotations.ConvokeContributor
 import leyline.game.annotations.ManaDetailsContributor
 import leyline.game.annotations.MutateMergeContributor
+import leyline.game.annotations.RevealStateContributor
 import leyline.game.annotations.TargetSpecContributor
 import leyline.game.annotations.VehicleAttachContributor
 import java.nio.file.Files
@@ -105,6 +106,7 @@ class AnnotationBoundaryTest :
             contributors.shouldNotBeEmpty()
             contributors.shouldContainAll(
                 ConvokeContributor,
+                RevealStateContributor,
                 ManaDetailsContributor,
                 TargetSpecContributor,
                 MutateMergeContributor,

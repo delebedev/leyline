@@ -80,6 +80,8 @@ scenarios:
             - our_life: 24
             - zone_contains: { side: ours, zone: hand, card: Environmental Sciences }
             - zone_not_contains: { side: ours, zone: sideboard, card: Environmental Sciences }
+            - annotation_seen: CardRevealed
+            - annotation_seen: InstanceRevealedToOpponent
             - stack_empty: true
   - id: reconfigure-attach-unattach
     puzzle: reconfigure-rabbit-battery

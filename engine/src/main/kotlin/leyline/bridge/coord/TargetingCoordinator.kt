@@ -36,6 +36,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
@@ -65,6 +66,7 @@ import org.slf4j.LoggerFactory
 class TargetingCoordinator(
     private val bridge: InteractivePromptBridge,
     private val seating: Seating,
+    private val viewerSeatId: SeatId = seating.humanSeat,
     private val currentSourceEntityId: () -> Int? = { null },
     private val isCastingSpell: () -> Boolean = { false },
 ) {
@@ -185,7 +187,13 @@ class TargetingCoordinator(
         if (!isLearn || chosen !is Card || !chosen.isInZone(ZoneType.Sideboard)) return
 
         val ownerSeat = if (chosen.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordReveal(listOf(ForgeCardId(chosen.id)), ownerSeat)
+        bridge.recordReveal(
+            listOf(ForgeCardId(chosen.id)),
+            ownerSeat,
+            opposingSeat(ownerSeat),
+            RevealZone.SIDEBOARD,
+            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+        )
     }
 
     private fun <T : GameEntity> chooseMutateTopCard(
@@ -460,8 +468,14 @@ class TargetingCoordinator(
         if (cards.isEmpty()) return
         val cardIds = cards.mapNotNull { card -> (card as? Card)?.let { ForgeCardId(it.id) } }
         val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordReveal(cardIds, ownerSeat)
-        if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
+        bridge.recordReveal(
+            cardIds,
+            ownerSeat,
+            viewerSeatId,
+            revealZone(zone),
+            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+        )
+        if (viewerSeatId != ownerSeat && zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
             TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
     }
@@ -476,8 +490,14 @@ class TargetingCoordinator(
         val ownerPlayer = players.firstOrNull { owner.isLobbyPlayer(it.lobbyPlayer) } ?: return
         val cardIds = cards.map { ForgeCardId(it.id) }
         val ownerSeat = if (ownerPlayer.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordReveal(cardIds, ownerSeat)
-        if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, ownerPlayer)) {
+        bridge.recordReveal(
+            cardIds,
+            ownerSeat,
+            viewerSeatId,
+            revealZone(zone),
+            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+        )
+        if (viewerSeatId != ownerSeat && zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, ownerPlayer)) {
             TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
     }
@@ -489,6 +509,22 @@ class TargetingCoordinator(
         val handIds = owner.getZone(ZoneType.Hand).cards.map { ForgeCardId(it.id) }
         return handIds.isNotEmpty() && cardIds.size == handIds.size && cardIds.toSet() == handIds.toSet()
     }
+
+    private fun opposingSeat(ownerSeat: SeatId): SeatId = if (ownerSeat == seating.humanSeat) seating.familiarSeat else seating.humanSeat
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun revealZone(zone: ZoneType): RevealZone? =
+        when (zone) {
+            ZoneType.Hand -> RevealZone.HAND
+            ZoneType.Library -> RevealZone.LIBRARY
+            ZoneType.Sideboard -> RevealZone.SIDEBOARD
+            ZoneType.Graveyard -> RevealZone.GRAVEYARD
+            ZoneType.Battlefield -> RevealZone.BATTLEFIELD
+            ZoneType.Exile -> RevealZone.EXILE
+            ZoneType.Command -> RevealZone.COMMAND
+            ZoneType.Stack -> RevealZone.STACK
+            else -> null
+        }
 
     // -- Zone ordering ----------------------------------------------------
 

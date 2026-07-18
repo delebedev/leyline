@@ -14,6 +14,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.PromptChoiceDto
 import leyline.bridge.types.PromptOptionDto
 import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -282,6 +283,9 @@ class InteractivePromptBridge(
     data class RevealRecord(
         val forgeCardIds: List<ForgeCardId>,
         val ownerSeatId: SeatId,
+        val viewerSeatId: SeatId,
+        val sourceZone: RevealZone? = null,
+        val sourceCardId: ForgeCardId? = null,
     )
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
@@ -290,9 +294,12 @@ class InteractivePromptBridge(
     fun recordReveal(
         forgeCardIds: List<ForgeCardId>,
         ownerSeatId: SeatId,
+        viewerSeatId: SeatId,
+        sourceZone: RevealZone? = null,
+        sourceCardId: ForgeCardId? = null,
     ) {
         if (forgeCardIds.isEmpty()) return
-        revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId))
+        revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId, viewerSeatId, sourceZone, sourceCardId))
         log.debug("Reveal recorded: {} cards for seat {}", forgeCardIds.size, ownerSeatId)
     }
 
