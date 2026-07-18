@@ -28,12 +28,16 @@ class GameBridgeApiContractTest :
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             bridge.configureSyntheticSeat(SeatId(2))
 
-            bridge.promptBridge(SeatId(1)).recordReveal(listOf(ForgeCardId(101)), ownerSeatId = SeatId(1))
-            bridge.promptBridge(SeatId(2)).recordReveal(listOf(ForgeCardId(202)), ownerSeatId = SeatId(2))
+            bridge
+                .promptBridge(SeatId(1))
+                .recordReveal(listOf(ForgeCardId(101)), ownerSeatId = SeatId(2), viewerSeatId = SeatId(1))
+            bridge
+                .promptBridge(SeatId(2))
+                .recordReveal(listOf(ForgeCardId(202)), ownerSeatId = SeatId(1), viewerSeatId = SeatId(2))
 
             assertSoftly {
-                bridge.drainReveals(1).map { it.ownerSeatId } shouldBe listOf(SeatId(1))
-                bridge.drainReveals(0).map { it.ownerSeatId } shouldBe listOf(SeatId(2))
+                bridge.drainReveals(1).map { it.viewerSeatId } shouldBe listOf(SeatId(1))
+                bridge.drainReveals(0).map { it.viewerSeatId } shouldBe listOf(SeatId(2))
                 bridge.drainReveals(0) shouldBe emptyList()
             }
         }

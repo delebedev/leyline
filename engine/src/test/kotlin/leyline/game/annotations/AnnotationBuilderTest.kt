@@ -35,6 +35,22 @@ class AnnotationBuilderTest :
 
         tags(UnitTag)
 
+        test("reveal-state builders preserve distinct identities and details") {
+            val faceUp = AnnotationBuilder.cardRevealed(400.iid, 500.iid, ZoneIds.P2_LIBRARY)
+            val known = AnnotationBuilder.instanceRevealedToOpponent(600.iid)
+
+            assertSoftly {
+                faceUp.typeList shouldBe listOf(AnnotationType.CardRevealed)
+                faceUp.affectorId shouldBe 400
+                faceUp.affectedIdsList shouldBe listOf(500)
+                faceUp.detailInt(DetailKeys.SOURCE_ZONE) shouldBe ZoneIds.P2_LIBRARY
+                known.typeList shouldBe listOf(AnnotationType.InstanceRevealedToOpponent)
+                known.affectorId shouldBe 600
+                known.affectedIdsList shouldBe listOf(600)
+                known.detailsList.shouldBeEmpty()
+            }
+        }
+
         test("zoneTransferAnnotation") {
             val ann =
                 AnnotationBuilder.zoneTransfer(

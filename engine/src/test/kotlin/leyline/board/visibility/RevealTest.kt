@@ -61,16 +61,16 @@ class RevealTest :
                     .getZone(ZoneType.Hand)
                     .cards
                     .first()
-            val instanceId = board.instanceId(handCard.id)
-
             val gsm =
                 board.snapshotDiff {
-                    board.bridge.promptBridge(SeatId(1)).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1), SeatId(2))
                 }
 
             gsm
                 .annotation(AnnotationType.RevealedCardCreated)
-                .affectedIdsList shouldBe listOf(instanceId)
+                .affectedIdsList shouldBe listOf(gsm.revealedCardProxies().single().instanceId)
         }
 
         test("multi-card reveal produces one annotation per card") {
@@ -88,7 +88,9 @@ class RevealTest :
 
             val gsm =
                 board.snapshotDiff {
-                    board.bridge.promptBridge(SeatId(1)).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1), SeatId(2))
                 }
 
             gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 3
@@ -122,7 +124,7 @@ class RevealTest :
                     .activeReveal()
                     .shouldBeNull()
                 gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 1
-                gsm.revealedCardProxies().shouldBeEmpty()
+                gsm.revealedCardProxies() shouldHaveSize 1
                 gsm.zonesList.any { it.zoneId == ZoneIds.P2_HAND && it.visibility == Visibility.Public } shouldBe false
                 gsm.gameObjectsList.count {
                     it.type == GameObjectType.Card &&
@@ -354,7 +356,7 @@ class RevealTest :
             ownerSeat: SeatId,
         ) {
             TargetingCoordinator.startReveal(b.promptBridge(SeatId(1)), cardIds, ownerSeat)
-            b.promptBridge(SeatId(1)).recordReveal(cardIds, ownerSeat)
+            b.promptBridge(SeatId(1)).recordReveal(cardIds, ownerSeat, SeatId(if (ownerSeat.value == 1) 2 else 1))
         }
 
         /** Build a PendingPrompt for reveal-choose scenarios. */

@@ -141,13 +141,13 @@ object ObjectMapper {
      * Build a [GameObjectInfo] for a RevealedCard proxy from a [CardSnapshot].
      *
      * Proxy has `type = RevealedCard`, `visibility = Public`,
-     * `zoneId = handZoneId` (overlays the hand zone, NOT the Revealed zone),
+     * `zoneId = sourceZoneId` (overlays the source zone, not a synthetic zone),
      * and `viewers = [seatId-of-viewer]`. Mirrors grpId, types, P/T from snapshot.
      */
     fun buildRevealedCardProxy(
         cardSnap: CardSnapshot,
         proxyInstanceId: Int,
-        handZoneId: Int,
+        sourceZoneId: Int,
         ownerSeatId: Int,
         viewerSeatId: Int,
         cardProto: CardProtoBuilder,
@@ -157,7 +157,7 @@ object ObjectMapper {
             .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
-            .setZoneId(handZoneId)
+            .setZoneId(sourceZoneId)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)

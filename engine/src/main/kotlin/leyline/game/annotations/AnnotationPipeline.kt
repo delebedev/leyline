@@ -15,10 +15,12 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustedKind
 import leyline.game.state.AbilityWireIdentity
+import leyline.game.state.CardRevealedKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
+import leyline.game.state.InstanceRevealedToOpponentKind
 import leyline.game.state.ManaCreatureDesignationKind
 import leyline.game.state.ManaDetailsKind
 import leyline.game.state.ModifiedTypeForCrewKind
@@ -83,6 +85,7 @@ object AnnotationPipeline {
     val contributors: List<AnnotationContributor> =
         listOf(
             ConvokeContributor,
+            RevealStateContributor,
             TargetSpecContributor,
             ManaDetailsContributor,
             MutateMergeContributor,
@@ -856,6 +859,8 @@ object AnnotationPipeline {
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
+        val revealState = RevealStateContributor.contribute(ctx)
+        annotations.addAll(revealState.transient)
         val targetSpec = TargetSpecContributor.contribute(ctx)
         val manaDetails = ManaDetailsContributor.contribute(ctx)
         val mutateMerge = MutateMergeContributor.contribute(ctx)
@@ -881,6 +886,11 @@ object AnnotationPipeline {
                         put(CrewedThisTurnKind, vehicleAttach.persistent[CrewedThisTurnKind].orEmpty())
                         put(SaddledThisTurnKind, vehicleAttach.persistent[SaddledThisTurnKind].orEmpty())
                         put(ModifiedTypeForCrewKind, vehicleAttach.persistent[ModifiedTypeForCrewKind].orEmpty())
+                        put(CardRevealedKind, revealState.persistent[CardRevealedKind].orEmpty())
+                        put(
+                            InstanceRevealedToOpponentKind,
+                            revealState.persistent[InstanceRevealedToOpponentKind].orEmpty(),
+                        )
                         put(TargetSpecKind, targetSpec.persistent[TargetSpecKind].orEmpty())
                         put(MutateLayeredEffectKind, mutateMerge.persistent[MutateLayeredEffectKind].orEmpty())
                         put(ManaCreatureDesignationKind, earthbend.designations)

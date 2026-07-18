@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 
 /** Protocol zone IDs matching expected protocol layout (starting at 18). */
@@ -41,4 +42,19 @@ object ZoneIds {
     fun revealedOf(seatId: Int): Int = if (seatId == 1) REVEALED_P1 else REVEALED_P2
 
     fun revealedOf(seat: SeatId): Int = revealedOf(seat.value)
+
+    fun revealZone(
+        zone: RevealZone,
+        ownerSeat: SeatId,
+    ): Int =
+        when (zone) {
+            RevealZone.HAND -> handOf(ownerSeat)
+            RevealZone.LIBRARY -> libraryOf(ownerSeat)
+            RevealZone.SIDEBOARD -> sideboardOf(ownerSeat)
+            RevealZone.GRAVEYARD -> graveyardOf(ownerSeat)
+            RevealZone.BATTLEFIELD -> BATTLEFIELD
+            RevealZone.EXILE -> EXILE
+            RevealZone.COMMAND -> COMMAND
+            RevealZone.STACK -> STACK
+        }
 }

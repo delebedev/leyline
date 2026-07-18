@@ -27,6 +27,20 @@ class RevealProxyTracker {
         proxies[forgeCardId] = id
     }
 
+    /** Remove views outside the current reveal set, preserving allocation order. */
+    fun retain(activeCardIds: Set<ForgeCardId>): List<InstanceId> {
+        val removed = mutableListOf<InstanceId>()
+        val iterator = proxies.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.key !in activeCardIds) {
+                removed += entry.value
+                iterator.remove()
+            }
+        }
+        return removed
+    }
+
     /** Empty the tracker and return the ids that were cleared (for RevealProxiesDeleted). */
     fun drain(): List<InstanceId> {
         val out: List<InstanceId> = proxies.values.toList()

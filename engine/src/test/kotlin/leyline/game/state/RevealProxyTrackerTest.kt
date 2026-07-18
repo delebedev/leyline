@@ -39,6 +39,18 @@ class RevealProxyTrackerTest :
             }
         }
 
+        test("retain removes views outside the active card set") {
+            val tracker = RevealProxyTracker()
+            tracker.allocate(ForgeCardId(1), InstanceId(101))
+            tracker.allocate(ForgeCardId(2), InstanceId(102))
+
+            assertSoftly {
+                tracker.retain(setOf(ForgeCardId(2))) shouldBe listOf(InstanceId(101))
+                tracker.lookup(ForgeCardId(1)) shouldBe null
+                tracker.lookup(ForgeCardId(2)) shouldBe InstanceId(102)
+            }
+        }
+
         test("clear empties the tracker without returning values") {
             val tracker = RevealProxyTracker()
             tracker.allocate(ForgeCardId(1), InstanceId(101))

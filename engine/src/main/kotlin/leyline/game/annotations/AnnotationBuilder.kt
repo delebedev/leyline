@@ -597,6 +597,20 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId.value)
             .build()
 
+    /** Short-lived face-up state carried by a RevealedCard view. */
+    fun cardRevealed(
+        affectorId: InstanceId,
+        revealedCardId: InstanceId,
+        sourceZoneId: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CardRevealed)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(revealedCardId.value)
+            .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZoneId))
+            .build()
+
     // -- Group B annotation builders --
 
     /** Token was created. client type 35 (TokenCreated).
@@ -1633,6 +1647,7 @@ object AnnotationBuilder {
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.InstanceRevealedToOpponent)
+            .setAffectorId(instanceId.value)
             .addAffectedIds(instanceId.value)
             .build()
 
