@@ -70,7 +70,8 @@ jobs:
     if: needs.plan.outputs.run-heavy == 'true'
     runs-on: [self-hosted, Linux, ARM64]
     env:
-      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dkotlin.compiler.execution.strategy=in-process
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
+      LEYLINE_FORGE_M2_ROOT: /home/runner/.cache/leyline/forge-m2
     steps:
       - name: Generate app token
         id: app-token
@@ -132,7 +133,8 @@ jobs:
     if: needs.plan.outputs.run-heavy == 'true'
     runs-on: [self-hosted, Linux, ARM64]
     env:
-      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dkotlin.compiler.execution.strategy=in-process
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
+      LEYLINE_FORGE_M2_ROOT: /home/runner/.cache/leyline/forge-m2
     steps:
       - name: Generate app token
         id: app-token
