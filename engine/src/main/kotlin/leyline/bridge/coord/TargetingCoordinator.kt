@@ -35,6 +35,7 @@ import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
@@ -65,8 +66,10 @@ class TargetingCoordinator(
     private val bridge: InteractivePromptBridge,
     private val seating: Seating,
     private val currentSourceEntityId: () -> Int? = { null },
+    private val isCastingSpell: () -> Boolean = { false },
 ) {
     private val log = LoggerFactory.getLogger(TargetingCoordinator::class.java)
+    private val spellAffectorIids = mutableMapOf<Int, Int>()
 
     // -- Entity choice ---------------------------------------------------
 
@@ -673,7 +676,7 @@ class TargetingCoordinator(
                 candidateRefs = candidateRefs,
                 sourceEntityId = sa.hostCard?.id,
                 targetIndex = targetGroupIndex(sa),
-                targetPromptId = targetPromptId(sa),
+                targetPromptId = effectiveTargetPromptId(sa),
                 isTriggeredAbility = sa.isTrigger,
                 forgeAbilityId = if (sa.isTrigger) sa.id else 0,
             )
@@ -683,13 +686,13 @@ class TargetingCoordinator(
             return TargetSelectionResult(false, false)
         }
 
-        val selectedEntities = applySelectedTargets(sa, allCandidates, indices, stillNeeded)
-        if (selectedEntities.isNotEmpty()) recordPendingTargetSpec(sa, selectedEntities)
+        applySelectedTargets(sa, allCandidates, indices)
 
-        val totalTargeted = sa.targets.size
-        val done = totalTargeted >= maxTargets || indices.isEmpty()
         val chosen = indices.isNotEmpty() || minTargets == 0
-        return TargetSelectionResult(chosen, done)
+        // One bridge request represents the client's complete submitted set.
+        // Forge's desktop picker may call back once per target, but this path
+        // returns the whole group after SubmitTargetsReq.
+        return TargetSelectionResult(chosen, true)
     }
 
     // -- Private helpers --------------------------------------------------
@@ -704,7 +707,6 @@ class TargetingCoordinator(
         val target = candidates.single()
         if (target is Card && target.isInZone(ZoneType.Stack)) return false
         sa.targets.add(target)
-        recordPendingTargetSpec(sa, listOf(target))
         return true
     }
 
@@ -712,24 +714,19 @@ class TargetingCoordinator(
         sa: SpellAbility,
         candidates: List<GameEntity>,
         indices: List<Int>,
-        stillNeeded: Int,
-    ): List<GameEntity> =
-        indices.mapIndexedNotNull { selectedIndex, candidateIndex ->
-            val entity = candidates.getOrNull(candidateIndex) ?: return@mapIndexedNotNull null
-            if (sa.isDividedAsYouChoose) {
-                val remainingSelections = (stillNeeded - selectedIndex).coerceAtLeast(1)
-                sa.addDividedAllocation(entity, sa.stillToDivide / remainingSelections)
-            }
-            sa.targets.add(entity)
-            entity
-        }
-
-    private fun recordPendingTargetSpec(
-        sa: SpellAbility,
-        targets: List<forge.game.GameEntity>,
     ) {
+        indices.forEach { candidateIndex ->
+            candidates.getOrNull(candidateIndex)?.let(sa.targets::add)
+        }
+    }
+
+    /** Record a completed target group after Forge has finalized divided allocations. */
+    fun recordCompletedTargetSpec(sa: SpellAbility) {
         val spellCard = sa.hostCard ?: return
-        val isTrigger = sa.isTrigger
+        val targets = sa.targets.targetEntities.toList()
+        if (targets.isEmpty()) return
+        val groupIndex = targetGroupIndex(sa)
+        val isStackAbility = !isSpellTargeting(sa)
         val affectees =
             targets.mapNotNull { target ->
                 when (target) {
@@ -759,36 +756,55 @@ class TargetingCoordinator(
         // is unsafe for multi-target spells: per-group TargetSpecs are emitted
         // across multiple GSM drains, and the spell's iid changes when it
         // leaves the stack (e.g. Stack→Graveyard at resolve), which would
-        // split the per-group entries onto two iids. Triggered abilities use
+        // split the per-group entries onto two iids. Stack abilities use
         // a stack-ability surrogate iid that's stable across drains, resolved
         // at emission time from `forgeAbilityId` (see StateMapper).
         val affectorIid =
-            if (isTrigger) {
+            if (isStackAbility) {
                 0
             } else {
-                bridge.forgeIidResolver?.invoke(ForgeCardId(spellCard.id))?.value ?: 0
+                if (groupIndex == 1) {
+                    resolveSpellAffectorIid(spellCard.id).also { spellAffectorIids[spellCard.id] = it }
+                } else {
+                    spellAffectorIids[spellCard.id]
+                        ?: resolveSpellAffectorIid(spellCard.id).also { spellAffectorIids[spellCard.id] = it }
+                }
             }
         val abilityIdentity = bridge.resolveAbilityIdentity(sa)
-        val promptId =
-            when {
-                abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
-                sa.isMutate -> PromptIds.MUTATE_TARGET
-                else -> targetPromptId(sa)
-            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
                 spellName = spellCard.name,
-                index = targetGroupIndex(sa),
+                index = groupIndex,
                 affectorInstanceIdAtRecord = affectorIid,
                 affectees = affectees,
-                isTriggeredAbility = isTrigger,
-                promptId = promptId,
+                isStackAbility = isStackAbility,
+                promptId = effectiveTargetPromptId(sa, abilityIdentity),
                 abilityIdentity = abilityIdentity,
                 forgeAbilityId = sa.id,
             ),
         )
     }
+
+    private fun isSpellTargeting(sa: SpellAbility): Boolean {
+        if (isCastingSpell() || sa.rootAbility.isSpell) return true
+        val host = sa.hostCard ?: return false
+        return sa.activatingPlayer.game.stack.any { entry ->
+            entry.isSpell && (entry.sourceCard?.id == host.id || entry.sourceCard?.name == host.name)
+        }
+    }
+
+    private fun resolveSpellAffectorIid(spellCardId: Int): Int = bridge.forgeIidResolver?.invoke(ForgeCardId(spellCardId))?.value ?: 0
+
+    private fun effectiveTargetPromptId(
+        sa: SpellAbility,
+        abilityIdentity: ResolvedAbilityIdentity? = bridge.resolveAbilityIdentity(sa),
+    ): Int =
+        when {
+            abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
+            sa.isMutate -> PromptIds.MUTATE_TARGET
+            else -> targetPromptId(sa) ?: PromptIds.SELECT_TARGETS
+        }
 
     private fun targetGroupIndex(sa: SpellAbility): Int {
         var index = 0

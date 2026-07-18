@@ -105,6 +105,7 @@ class BushwhackFightTest :
                     .single { it.detailInt("index") == 1 }
             val secondSelection = secondSt.targetsList.single()
             assertSoftly {
+                firstActiveSpec.affectorId shouldBe firstSt.selectTargetsReq.sourceId
                 secondSt.abilityGrpId shouldBe 93928
                 secondSelection.targetIdx shouldBe 2
                 secondSelection.targetingAbilityGrpId shouldBe fightOption.grpId

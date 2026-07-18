@@ -98,21 +98,21 @@ class InteractivePromptBridge(
         return match
     }
 
-    // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
+    // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
 
     /**
      * Pending target group: spell/ability source, ordered affectees, and 1-based group index.
-     * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
+     * [isStackAbility] flips the affector iid from the spell card's iid to the synthesised
      * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      *
      * [abilityIdentity] fixes the definition and client row while the callback
-     * still owns the exact Forge ability. [forgeAbilityId] is the runtime
-     * `SpellAbility.id`; for triggered abilities it drives stack-ability iid resolution when
-     * [affectorInstanceIdAtRecord] is the deferred-resolution sentinel `0`.
+     * still owns the exact Forge ability. [forgeAbilityId] is the pre-stack
+     * `SpellAbility.id`; stack and resolution state provide the canonical id,
+     * with this value retained as a defensive fallback.
      *
      * [affectorInstanceIdAtRecord] is the spell/ability iid as it stood at
-     * record time (when the player picked targets and the spell was on the
-     * stack). Multi-target spells (e.g. Bite Down) emit one TargetSpec per
+     * record time (after the target group is finalized while the spell is on
+     * the stack). Multi-target spells (e.g. Bite Down) emit one TargetSpec per
      * group across multiple GSM drains; the spell's live iid changes when it
      * resolves Stack→Graveyard, so re-deriving the affector iid at emission
      * time would split the per-group TargetSpecs across two iids. Freezing
@@ -125,7 +125,7 @@ class InteractivePromptBridge(
         val index: Int,
         val affectorInstanceIdAtRecord: Int,
         val affectees: List<TargetAffectee>,
-        val isTriggeredAbility: Boolean = false,
+        val isStackAbility: Boolean = false,
         val promptId: Int? = null,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** Forge `SpellAbility.id` for the targeting spell/ability. */

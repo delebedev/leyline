@@ -113,6 +113,33 @@ class PersistentAnnotationKindTest :
             }
         }
 
+        test("retargeting replaces the same TargetSpec group") {
+            val original =
+                AnnotationBuilder
+                    .targetSpec(101.iid, 900.iid, 42.grp, 1, 10, 900)
+                    .toBuilder()
+                    .setId(7)
+                    .build()
+            val retargeted = AnnotationBuilder.targetSpec(202.iid, 900.iid, 42.grp, 1, 10, 900)
+
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(original.id to original),
+                    startPersistentId = 8,
+                    frame = frame(PhaseType.MAIN1, stack = setOf(900)),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult = targetSpecResult(retargeted),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                result.deletedIds shouldContainExactlyInAnyOrder listOf(original.id)
+                result.allAnnotations.single().affectedIdsList shouldBe listOf(202)
+            }
+        }
+
         test("TargetSpec retains earlier groups while its affector remains on the stack") {
             val first =
                 AnnotationBuilder

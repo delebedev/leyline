@@ -56,4 +56,93 @@ class TargetSpecConformanceTest :
                 targetSpec.detailIntList("distributions") shouldBe listOf(1, 1)
             }
         }
+
+        test("partial divided target set uses Forge's final allocation") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Twin Bolt
+                humanbattlefield=Mountain;Mountain
+                humanlibrary=Mountain
+                aibattlefield=Grizzly Bears
+                ailibrary=Mountain
+                """,
+                name = "Twin Bolt single target distribution",
+                validating = true,
+            )
+
+            castSpellByName("Twin Bolt") shouldBe true
+            selectTargets(listOf(OPPONENT_SEAT))
+
+            val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()
+            assertSoftly {
+                targetSpec.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
+                targetSpec.detailIntList("distributions") shouldBe listOf(2)
+            }
+        }
+
+        test("generic target prompt id is shared by request and TargetSpec") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Stone Rain
+                humanbattlefield=Mountain;Mountain;Mountain
+                humanlibrary=Mountain
+                aibattlefield=Forest
+                ailibrary=Mountain
+                """,
+                name = "Stone Rain target prompt",
+                validating = true,
+            )
+
+            val targetIid = ai.battlefield.iid("Forest")
+            castSpellByName("Stone Rain") shouldBe true
+            val requestPromptId =
+                allMessages
+                    .last { it.hasSelectTargetsReq() }
+                    .selectTargetsReq.targetsList
+                    .single()
+                    .prompt.promptId
+            requestPromptId shouldBe PromptIds.SELECT_TARGETS
+
+            selectTargets(listOf(targetIid))
+            val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()
+            targetSpec.detailInt("promptId") shouldBe requestPromptId
+        }
+
+        test("Forge-selected opponent still emits TargetSpec") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Pilfer
+                humanbattlefield=Swamp;Swamp
+                humanlibrary=Swamp
+                aihand=Grizzly Bears
+                aibattlefield=Mountain
+                ailibrary=Mountain
+                """,
+                name = "Pilfer automatic opponent target",
+                validating = true,
+            )
+
+            castSpellByName("Pilfer") shouldBe true
+
+            val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()
+            assertSoftly {
+                targetSpec.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
+                targetSpec.detailInt("promptId") shouldBe PromptIds.SELECT_TARGETS
+            }
+        }
     })

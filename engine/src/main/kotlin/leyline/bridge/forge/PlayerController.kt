@@ -45,6 +45,7 @@ import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import forge.game.spellability.TargetChoices
 import forge.game.staticability.StaticAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
@@ -269,10 +270,17 @@ class PlayerController(
     private val optionalActionGate = OptionalActionGate(this, actionBridge)
     private val numericInputGate = NumericInputGate(this, actionBridge)
     private val spellExecutor = SpellExecutor(game, player, bridge)
-    private val targetingCoordinator = TargetingCoordinator(bridge, seating, currentSourceEntityId = ::currentSourceEntityId)
+    private val targetingCoordinator =
+        TargetingCoordinator(
+            bridge,
+            seating,
+            currentSourceEntityId = ::currentSourceEntityId,
+            isCastingSpell = { activeSourceIsSpell },
+        )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
     private var activeSpellSourceId: Int? = null
+    private var activeSourceIsSpell: Boolean = false
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -932,6 +940,25 @@ class PlayerController(
     // TargetSelection validates candidates and zones; this method handles
     // the user interaction portion.
 
+    override fun chooseTargetsFor(currentAbility: SpellAbility): Boolean {
+        val chosen = super.chooseTargetsFor(currentAbility)
+        if (chosen) targetingCoordinator.recordCompletedTargetSpec(currentAbility)
+        return chosen
+    }
+
+    override fun chooseNewTargetsFor(
+        ability: SpellAbility,
+        filter: Predicate<GameObject>?,
+        optional: Boolean,
+    ): TargetChoices? {
+        val selected = super.chooseNewTargetsFor(ability, filter, optional)
+        if (selected != null) {
+            val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
+            targetingCoordinator.recordCompletedTargetSpec(targetAbility)
+        }
+        return selected
+    }
+
     override fun selectTargetsInteractively(
         validTargets: List<Card>,
         sa: SpellAbility,
@@ -1327,11 +1354,14 @@ class PlayerController(
         block: () -> T,
     ): T {
         val previous = activeSpellSourceId
+        val previousIsSpell = activeSourceIsSpell
         activeSpellSourceId = sa.hostCard?.id ?: previous
+        activeSourceIsSpell = sa.isSpell
         return try {
             block()
         } finally {
             activeSpellSourceId = previous
+            activeSourceIsSpell = previousIsSpell
         }
     }
 
