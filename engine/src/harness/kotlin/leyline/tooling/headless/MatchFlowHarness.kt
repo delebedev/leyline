@@ -598,7 +598,7 @@ class MatchFlowHarness(
      * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
     fun selectTargets(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds)))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
         drainSink()
         session.onSubmitTargets(submitWithGsId(submitTargetsReq()))
         drainSink()
@@ -609,9 +609,18 @@ class MatchFlowHarness(
      * Use to inspect the echo-back re-prompt before confirming.
      */
     fun selectTargetsIterative(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds)))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
         drainSink()
     }
+
+    private fun currentTargetIndex(): Int =
+        allMessages
+            .lastOrNull { it.hasSelectTargetsReq() }
+            ?.selectTargetsReq
+            ?.targetsList
+            ?.singleOrNull()
+            ?.targetIdx
+            ?: 1
 
     /** Phase 2: send SubmitTargetsReq — the client's "Done" button. */
     fun submitTargets() {

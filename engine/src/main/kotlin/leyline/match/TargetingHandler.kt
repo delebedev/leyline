@@ -134,8 +134,12 @@ class TargetingHandler(
                 ?.selectedInstanceIds
                 .orEmpty()
 
-        if (resp.target.targetIdx != 1) {
-            log.warn("TargetingHandler: SelectTargetsResp targetIdx={} expected=1", resp.target.targetIdx)
+        if (resp.target.targetIdx != pendingPrompt.request.targetIndex) {
+            log.warn(
+                "TargetingHandler: SelectTargetsResp targetIdx={} expected={}",
+                resp.target.targetIdx,
+                pendingPrompt.request.targetIndex,
+            )
             sendTargetRePrompt(pendingPrompt, existing)
             return
         }
@@ -755,8 +759,10 @@ class TargetingHandler(
 
                 val selectedIndices = mapModalGrpIdsToPromptIndices(chosenGrpIds, pending.childGrpIds)
 
-                pending.sourceForgeCardId?.let { source ->
-                    chosenGrpIds.singleOrNull()?.let { bridge.recordSelectedModalAbilityGrpId(source, it) }
+                chosenGrpIds.singleOrNull()?.let { selectedGrpId ->
+                    pending.sourceForgeCardId?.let { source ->
+                        bridge.recordSelectedModalAbilityGrpId(source, selectedGrpId)
+                    }
                 }
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)

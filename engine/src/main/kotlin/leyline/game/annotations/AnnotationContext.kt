@@ -146,7 +146,13 @@ class AnnotationContext(
             ?.abilityGrpId
             ?.takeIf { it != 0 }
             ?.let { return it }
-        return bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0
+        val cardGrpId = bridge.cardRepository.findGrpIdByName(spec.spellName) ?: return 0
+        val card = bridge.cardRepository.findByGrpId(cardGrpId) ?: return cardGrpId
+        return card.abilityIds
+            .firstOrNull { (abilityGrpId, _) -> bridge.cardRepository.findAbilityInfo(abilityGrpId)?.category == 4 }
+            ?.first
+            ?: card.abilityIds.firstOrNull()?.first
+            ?: cardGrpId
     }
 
     companion object {

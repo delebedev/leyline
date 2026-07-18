@@ -23,7 +23,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 internal class StrictPromptRefusalException(
@@ -102,9 +101,7 @@ class InteractivePromptBridge(
     // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
 
     /**
-     * Pending target record: spell/ability source ID + name, the targeted entity, 1-based group index.
-     *
-     * Exactly one of [targetForgeCardId] (card target) or [targetSeatId] (player target) is non-null.
+     * Pending target group: spell/ability source, ordered affectees, and 1-based group index.
      * [isTriggeredAbility] flips the affector iid from the spell card's iid to the synthesised
      * stack-resident-ability iid via [leyline.game.mapping.FrameIdResolver.stackAbilityForgeId].
      *
@@ -127,23 +124,25 @@ class InteractivePromptBridge(
         val spellName: String,
         val index: Int,
         val affectorInstanceIdAtRecord: Int,
-        val targetForgeCardId: Int? = null,
-        val targetSeatId: Int? = null,
+        val affectees: List<TargetAffectee>,
         val isTriggeredAbility: Boolean = false,
         val promptId: Int? = null,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
         /** Forge `SpellAbility.id` for the targeting spell/ability. */
         val forgeAbilityId: Int = 0,
-    )
+    ) {
+        data class TargetAffectee(
+            val targetForgeCardId: Int? = null,
+            val targetSeatId: Int? = null,
+            val distribution: Int? = null,
+        )
+    }
 
     private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()
-    private val targetSpecIndexCounter = AtomicInteger(0)
 
     fun addPendingTargetSpec(spec: PendingTarget) {
         pendingTargetSpecs.add(spec)
     }
-
-    fun nextTargetSpecIndex(): Int = targetSpecIndexCounter.incrementAndGet()
 
     fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.toList()
 
@@ -303,7 +302,6 @@ class InteractivePromptBridge(
         revealQueue.clear()
         pendingOrderZoneMoves.clear()
         pendingTargetSpecs.clear()
-        targetSpecIndexCounter.set(0)
         journal.resetForPuzzle()
         pending.set(null)
     }
@@ -646,6 +644,10 @@ data class PromptRequest(
     val minSelectionWeight: Int? = null,
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
+    /** One-based target-group index within the spell or ability. */
+    val targetIndex: Int = 1,
+    /** Target-group prompt localization id, shared with TargetSpec. */
+    val targetPromptId: Int? = null,
     /** Source card name when the live Forge id no longer resolves to card data. */
     val sourceCardName: String? = null,
     /** Card name for modal ETB prompts — session layer resolves grpId from this. */

@@ -10,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
  * TargetSpec annotations: one persistent [TargetSpecKind] pAnn per targeted
- * spell/ability on the stack (one per card target, 1-based index per group).
+ * spell/ability target group on the stack.
  * Pure and persistent-only — no transient stream output and no effect-id
  * allocation, so its invocation position is order-independent. Pruned by the
  * store's full-replacement upsert when the spell leaves the stack.
@@ -67,22 +67,26 @@ object TargetSpecContributor : AnnotationContributor {
                 } else {
                     frameIds.cardIid(ForgeCardId(spec.spellForgeCardId))
                 }
-            val targetIid =
-                when {
-                    spec.targetForgeCardId != null ->
-                        frameIds.cardIid(ForgeCardId(spec.targetForgeCardId))
-                    // Player target: Arena uses seatId (1 or 2) as the iid for player entities.
-                    spec.targetSeatId != null -> InstanceId(spec.targetSeatId)
-                    else -> return@mapNotNull null
+            val targetIids =
+                spec.affectees.mapNotNull { affectee ->
+                    when {
+                        affectee.targetForgeCardId != null -> frameIds.cardIid(ForgeCardId(affectee.targetForgeCardId))
+                        affectee.targetSeatId != null -> InstanceId(affectee.targetSeatId)
+                        else -> null
+                    }
                 }
+            if (targetIids.isEmpty()) return@mapNotNull null
+            val distributions = spec.affectees.mapNotNull { it.distribution }
+            val alignedDistributions = distributions.takeIf { it.size == targetIids.size }.orEmpty()
             val abilityGrpId = ctx.targetSpecAbilityGrpId(spec)
             AnnotationBuilder.targetSpec(
-                instanceId = targetIid,
+                instanceIds = targetIids,
                 affectorId = affectorIid,
                 abilityGrpId = GrpId(abilityGrpId),
                 index = spec.index,
                 promptId = spec.promptId ?: 0,
                 promptParameters = affectorIid.value,
+                distributions = alignedDistributions,
             )
         }
     }

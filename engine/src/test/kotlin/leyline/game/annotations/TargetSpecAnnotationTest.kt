@@ -52,7 +52,10 @@ class TargetSpecAnnotationTest :
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
-                    targetForgeCardId = creature.id,
+                    affectees =
+                        listOf(
+                            InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
+                        ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),
@@ -97,7 +100,10 @@ class TargetSpecAnnotationTest :
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
-                    targetForgeCardId = creature.id,
+                    affectees =
+                        listOf(
+                            InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
+                        ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),
@@ -162,7 +168,10 @@ class TargetSpecAnnotationTest :
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
-                    targetForgeCardId = creature.id,
+                    affectees =
+                        listOf(
+                            InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
+                        ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),

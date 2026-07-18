@@ -940,7 +940,7 @@ class PlayerController(
         divisionValues: Collection<Int>?,
         filter: Predicate<GameObject>?,
         mustTargetFiltered: Boolean,
-    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets, divisionValues)
+    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets)
 
     // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(

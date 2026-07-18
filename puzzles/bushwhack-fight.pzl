@@ -1,0 +1,19 @@
+[metadata]
+Name:Bushwhack Fight Mode
+Goal:Resolve Bushwhack's Fight mode
+Turns:5
+Difficulty:Easy
+Description:Choose Fight, then select one creature on each side.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanhand=Bushwhack
+humanbattlefield=Centaur Courser;Forest;Forest
+humanlibrary=Forest
+aibattlefield=Grizzly Bears
+ailibrary=Forest

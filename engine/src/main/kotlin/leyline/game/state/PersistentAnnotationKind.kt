@@ -252,11 +252,11 @@ data object DelayedTriggerAffecteesKind : PersistentAnnotationKind {
 data object TargetSpecKind : PersistentAnnotationKind {
     override val name = "TargetSpec"
     override val pruneStale = true
-    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
 
     override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.TargetSpec in ann.typeList
 
-    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
 }
 
 data object MutateLayeredEffectKind : PersistentAnnotationKind {

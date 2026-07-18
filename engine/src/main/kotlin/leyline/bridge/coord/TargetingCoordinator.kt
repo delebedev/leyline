@@ -609,7 +609,6 @@ class TargetingCoordinator(
         sa: SpellAbility,
         mandatory: Boolean,
         numTargets: Int?,
-        divisionValues: Collection<Int>?,
     ): TargetSelectionResult {
         val tgt = sa.targetRestrictions ?: return TargetSelectionResult(false, true)
         val minTargets = numTargets ?: sa.minTargets
@@ -636,15 +635,7 @@ class TargetingCoordinator(
 
         if (allCandidates.isEmpty()) return TargetSelectionResult(false, true)
 
-        // Auto-resolve: single valid target + mandatory → pick it without prompting.
-        if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
-            val target = allCandidates[0]
-            if (target !is Card || !target.isInZone(ZoneType.Stack)) {
-                sa.targets.add(target)
-                recordPendingTargetSpec(sa, target)
-                return TargetSelectionResult(true, true)
-            }
-        }
+        if (autoSelectSingleTarget(sa, allCandidates, mandatory, minTargets)) return TargetSelectionResult(true, true)
 
         val labels =
             allCandidates.map { entity ->
@@ -681,6 +672,8 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
                 sourceEntityId = sa.hostCard?.id,
+                targetIndex = targetGroupIndex(sa),
+                targetPromptId = targetPromptId(sa),
                 isTriggeredAbility = sa.isTrigger,
                 forgeAbilityId = if (sa.isTrigger) sa.id else 0,
             )
@@ -690,14 +683,8 @@ class TargetingCoordinator(
             return TargetSelectionResult(false, false)
         }
 
-        for (idx in indices) {
-            val entity = allCandidates.getOrNull(idx) ?: continue
-            if (entity is Card && sa.isDividedAsYouChoose && divisionValues != null) {
-                sa.addDividedAllocation(entity, sa.stillToDivide / (stillNeeded - indices.indexOf(idx)).coerceAtLeast(1))
-            }
-            sa.targets.add(entity)
-            recordPendingTargetSpec(sa, entity)
-        }
+        val selectedEntities = applySelectedTargets(sa, allCandidates, indices, stillNeeded)
+        if (selectedEntities.isNotEmpty()) recordPendingTargetSpec(sa, selectedEntities)
 
         val totalTargeted = sa.targets.size
         val done = totalTargeted >= maxTargets || indices.isEmpty()
@@ -707,26 +694,66 @@ class TargetingCoordinator(
 
     // -- Private helpers --------------------------------------------------
 
+    private fun autoSelectSingleTarget(
+        sa: SpellAbility,
+        candidates: List<GameEntity>,
+        mandatory: Boolean,
+        minTargets: Int,
+    ): Boolean {
+        if (candidates.size != 1 || !mandatory || minTargets < 1) return false
+        val target = candidates.single()
+        if (target is Card && target.isInZone(ZoneType.Stack)) return false
+        sa.targets.add(target)
+        recordPendingTargetSpec(sa, listOf(target))
+        return true
+    }
+
+    private fun applySelectedTargets(
+        sa: SpellAbility,
+        candidates: List<GameEntity>,
+        indices: List<Int>,
+        stillNeeded: Int,
+    ): List<GameEntity> =
+        indices.mapIndexedNotNull { selectedIndex, candidateIndex ->
+            val entity = candidates.getOrNull(candidateIndex) ?: return@mapIndexedNotNull null
+            if (sa.isDividedAsYouChoose) {
+                val remainingSelections = (stillNeeded - selectedIndex).coerceAtLeast(1)
+                sa.addDividedAllocation(entity, sa.stillToDivide / remainingSelections)
+            }
+            sa.targets.add(entity)
+            entity
+        }
+
     private fun recordPendingTargetSpec(
         sa: SpellAbility,
-        target: forge.game.GameEntity,
+        targets: List<forge.game.GameEntity>,
     ) {
         val spellCard = sa.hostCard ?: return
         val isTrigger = sa.isTrigger
-        val (targetCardId, targetSeatId) =
-            when (target) {
-                is Card -> target.id to null
-                is forge.game.player.Player -> {
-                    val seat =
-                        if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
-                            seating.familiarSeat
-                        } else {
-                            seating.humanSeat
-                        }
-                    null to seat.value
+        val affectees =
+            targets.mapNotNull { target ->
+                when (target) {
+                    is Card ->
+                        InteractivePromptBridge.PendingTarget.TargetAffectee(
+                            targetForgeCardId = target.id,
+                            distribution = sa.getDividedValue(target),
+                        )
+                    is forge.game.player.Player -> {
+                        val seat =
+                            if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
+                                seating.familiarSeat
+                            } else {
+                                seating.humanSeat
+                            }
+                        InteractivePromptBridge.PendingTarget.TargetAffectee(
+                            targetSeatId = seat.value,
+                            distribution = sa.getDividedValue(target),
+                        )
+                    }
+                    else -> null
                 }
-                else -> return
             }
+        if (affectees.isEmpty()) return
         // Resolve the spell card's iid here, while the spell is still on the
         // stack. Re-deriving from the live bridge at TargetSpec emission time
         // is unsafe for multi-target spells: per-group TargetSpecs are emitted
@@ -746,22 +773,63 @@ class TargetingCoordinator(
             when {
                 abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
                 sa.isMutate -> PromptIds.MUTATE_TARGET
-                else -> null
+                else -> targetPromptId(sa)
             }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
                 spellName = spellCard.name,
-                index = bridge.nextTargetSpecIndex(),
+                index = targetGroupIndex(sa),
                 affectorInstanceIdAtRecord = affectorIid,
-                targetForgeCardId = targetCardId,
-                targetSeatId = targetSeatId,
+                affectees = affectees,
                 isTriggeredAbility = isTrigger,
                 promptId = promptId,
                 abilityIdentity = abilityIdentity,
                 forgeAbilityId = sa.id,
             ),
         )
+    }
+
+    private fun targetGroupIndex(sa: SpellAbility): Int {
+        var index = 0
+        var current: SpellAbility? = sa.rootAbility
+        while (current != null) {
+            if (current.targetRestrictions != null) index++
+            if (current === sa) return index.coerceAtLeast(1)
+            current = current.subAbility
+        }
+        return 1
+    }
+
+    private fun targetPromptId(sa: SpellAbility): Int? {
+        val valid =
+            sa.targetRestrictions
+                ?.validTgts
+                ?.toList()
+                .orEmpty()
+        if (valid.isEmpty()) return null
+        val normalized = valid.map { it.lowercase() }
+        if (normalized == listOf("any")) return PromptIds.CHOOSE_ANY_TARGET
+        val allOpponentControlled = normalized.all { "youdontctrl" in it }
+        val targetKinds =
+            normalized
+                .flatMap { restriction ->
+                    buildList {
+                        if ("creature" in restriction) add("creature")
+                        if ("planeswalker" in restriction) add("planeswalker")
+                    }
+                }.toSet()
+        return when {
+            targetKinds == setOf("creature", "planeswalker") && allOpponentControlled ->
+                PromptIds.TARGET_CREATURE_OR_PLANESWALKER_YOU_DONT_CONTROL
+            targetKinds == setOf("creature") && normalized.all { "youctrl" in it && "youdontctrl" !in it } ->
+                PromptIds.TARGET_CREATURE_YOU_CONTROL
+            targetKinds == setOf("creature") && allOpponentControlled ->
+                PromptIds.TARGET_CREATURE_YOU_DONT_CONTROL
+            targetKinds == setOf("creature") && normalized.none { "youctrl" in it || "youdontctrl" in it } ->
+                PromptIds.TARGET_CREATURE
+            else -> null
+        }
     }
 
     private fun arrangeTopNCards(

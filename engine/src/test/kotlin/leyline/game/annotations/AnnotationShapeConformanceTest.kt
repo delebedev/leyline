@@ -181,6 +181,20 @@ class AnnotationShapeConformanceTest :
                 setOf("abilityGrpId", "index", "promptId", "promptParameters")
         }
 
+        test("TargetSpec distributions are optional") {
+            detailKeys(
+                AnnotationBuilder.targetSpec(
+                    instanceIds = listOf(1.iid, 2.iid),
+                    affectorId = 3.iid,
+                    abilityGrpId = 4.grp,
+                    index = 1,
+                    promptId = 11869,
+                    promptParameters = 3,
+                    distributions = listOf(1, 1),
+                ),
+            ) shouldBe setOf("abilityGrpId", "index", "promptId", "promptParameters", "distributions")
+        }
+
         test("PowerToughnessModCreated shape: {power, toughness}") {
             detailKeys(AnnotationBuilder.powerToughnessModCreated(1.iid, 1, 1)) shouldBe setOf("power", "toughness")
         }

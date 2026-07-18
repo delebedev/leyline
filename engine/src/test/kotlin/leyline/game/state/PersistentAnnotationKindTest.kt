@@ -17,6 +17,8 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.MechanicAnnotationResult
+import leyline.game.grp
+import leyline.game.iid
 import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
 import leyline.game.state.PersistentAnnotationStore
@@ -88,6 +90,17 @@ class PersistentAnnotationKindTest :
                 ?.firstOrNull()
 
         val emptyEffectDiff = EffectTracker.DiffResult(emptyList(), emptyList())
+
+        test("TargetSpec identity is affector plus group index") {
+            val first = AnnotationBuilder.targetSpec(101.iid, 900.iid, 42.grp, 1, 10, 900)
+            val changedTarget = AnnotationBuilder.targetSpec(202.iid, 900.iid, 42.grp, 1, 10, 900)
+            val nextGroup = AnnotationBuilder.targetSpec(101.iid, 900.iid, 42.grp, 2, 10, 900)
+
+            assertSoftly {
+                TargetSpecKind.identityKey(first) shouldBe TargetSpecKind.identityKey(changedTarget)
+                TargetSpecKind.identityKey(first) shouldNotBe TargetSpecKind.identityKey(nextGroup)
+            }
+        }
 
         test("EZTT clears at Upkeep") {
             val eztt =

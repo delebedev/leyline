@@ -1269,23 +1269,37 @@ object AnnotationBuilder {
 
     /** Target specification for spells/abilities. client type 26 (TargetSpec). */
     fun targetSpec(
+        instanceIds: List<InstanceId>,
+        affectorId: InstanceId,
+        abilityGrpId: GrpId,
+        index: Int,
+        promptId: Int,
+        promptParameters: Int,
+        distributions: List<Int> = emptyList(),
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.TargetSpec)
+            .setAffectorId(affectorId.value)
+            .addAllAffectedIds(instanceIds.map { it.value })
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.INDEX, index))
+            .addDetails(int32Detail(DetailKeys.PROMPT_ID, promptId))
+            .addDetails(int32Detail(DetailKeys.PROMPT_PARAMETERS, promptParameters))
+            .apply {
+                if (distributions.isNotEmpty()) {
+                    addDetails(int32ListDetail(DetailKeys.DISTRIBUTIONS, distributions))
+                }
+            }.build()
+
+    fun targetSpec(
         instanceId: InstanceId,
         affectorId: InstanceId,
         abilityGrpId: GrpId,
         index: Int,
         promptId: Int,
         promptParameters: Int,
-    ): AnnotationInfo =
-        AnnotationInfo
-            .newBuilder()
-            .addType(AnnotationType.TargetSpec)
-            .setAffectorId(affectorId.value)
-            .addAffectedIds(instanceId.value)
-            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
-            .addDetails(int32Detail(DetailKeys.INDEX, index))
-            .addDetails(int32Detail(DetailKeys.PROMPT_ID, promptId))
-            .addDetails(int32Detail(DetailKeys.PROMPT_PARAMETERS, promptParameters))
-            .build()
+    ): AnnotationInfo = targetSpec(listOf(instanceId), affectorId, abilityGrpId, index, promptId, promptParameters)
 
     /** P/T modification event (buff animation). client type 71 (PowerToughnessModCreated).
      *  [affectorId] = source of the P/T change (ability instance or card). */
