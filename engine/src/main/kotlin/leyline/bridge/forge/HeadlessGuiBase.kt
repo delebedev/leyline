@@ -258,10 +258,6 @@ class HeadlessGuiBase(
         callback.accept(false)
     }
 
-    override fun refreshSkin() {
-        // no-op
-    }
-
     override fun showCardList(
         title: String,
         message: String,

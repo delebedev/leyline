@@ -121,7 +121,9 @@ slice-verify:
     forge_sha=$(git -C forge rev-parse HEAD)
     edition_hash=$(shasum forge/forge-gui/res/editions/Secrets\ of\ Strixhaven*.txt forge/forge-gui/res/editions/Special\ Guests.txt 2>/dev/null | shasum | awk '{print $1}')
     deck_hash=$(grep -A6 'COMBAT_DECK = ' engine/src/test/kotlin/leyline/session/combat/CombatInteractionTest.kt | head -8 | shasum | awk '{print $1}')
-    jar_hash=$(shasum forge/.m2-local/forge/forge-gui/2.0.10-SNAPSHOT/forge-gui-2.0.10-SNAPSHOT.jar 2>/dev/null | awk '{print $1}' || echo "missing")
+    forge_version=$(grep '^forge = ' gradle/libs.versions.toml | cut -d '"' -f2)
+    forge_gui_jar="forge/.m2-local/forge/forge-gui/${forge_version}/forge-gui-${forge_version}.jar"
+    jar_hash=$(shasum "$forge_gui_jar" 2>/dev/null | awk '{print $1}' || echo "missing")
     echo "slice-verify input manifest:"
     echo "  leyline:        $leyline_sha"
     echo "  forge:          $forge_sha"
