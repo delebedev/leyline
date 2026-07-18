@@ -301,10 +301,11 @@ class GameEventCollector(
             )
         }
         val forgeTriggeringCard = topSa?.getTriggeringObject(AbilityKey.Card) as? Card
-        val opusActive =
-            isTrigger &&
-                topSa?.trigger?.getParam("TriggerDescription")?.startsWith("Opus —") == true &&
-                (forgeTriggeringCard?.castSA?.totalManaSpent ?: 0) >= 5
+        val opusTrigger =
+            isTrigger && topSa?.trigger?.getParam("TriggerDescription")?.startsWith("Opus —") == true
+        val opusActive = opusTrigger && (forgeTriggeringCard?.castSA?.totalManaSpent ?: 0) >= 5
+        val voidTrigger =
+            isTrigger && topSa?.trigger?.getParam("TriggerDescription")?.startsWith("Void —") == true
         val triggeringObjectCardId =
             when {
                 !isTrigger -> null
@@ -344,7 +345,9 @@ class GameEventCollector(
                 seatId = seat,
                 manaPayments = payments,
                 colorsSpentToCast = colorsSpentToCast,
+                opusTrigger = opusTrigger,
                 opusActive = opusActive,
+                voidTrigger = voidTrigger,
                 isAdventure = isAdventure,
                 isOmen = isOmen,
                 isMdfc = isMdfc,
@@ -1012,7 +1015,7 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventCardCounters) {
         val cardId = ForgeCardId(ev.card().id)
-        val affectorAbilityForgeId = trainingTriggerAbilityIdFor(cardId) ?: 0
+        val affectorAbilityForgeId = resolvingCounterTriggerAbilityIdFor(cardId) ?: 0
         frame.add(
             GameEvent.CountersChanged(
                 cardId = cardId,
@@ -1026,8 +1029,20 @@ class GameEventCollector(
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
 
-    private fun trainingTriggerAbilityIdFor(cardId: ForgeCardId): Int? =
-        pendingStackAbilities.abilityIdFor(cardId, KeywordAbilityIds.TRAINING, PendingStackAbilityKind.Trigger)
+    private fun resolvingCounterTriggerAbilityIdFor(cardId: ForgeCardId): Int? {
+        val game = bridge.getGame() ?: return null
+        val card = bridge.findCard(cardId) ?: return null
+        if (!game.stack.isResolving(card)) return null
+        val ability = game.stack.peek()?.spellAbility ?: return null
+        val context = pendingStackAbilities.contextFor(ability.id) ?: return null
+        if (context.kind != PendingStackAbilityKind.Trigger || context.sourceCardId != cardId) return null
+        val triggerDescription = ability.trigger?.getParam("TriggerDescription").orEmpty()
+        return ability.id.takeIf {
+            context.abilityGrpId == KeywordAbilityIds.TRAINING ||
+                triggerDescription.startsWith("Opus —") ||
+                triggerDescription.startsWith("Void —")
+        }
+    }
 
     override fun visit(ev: GameEventPlayerPoisoned) {
         val seat = seatOf(ev.receiver()) ?: return

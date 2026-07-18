@@ -81,6 +81,7 @@ data class StackAbilityAppearance(
     val activationZoneId: Int = 0,
     val triggeringObjectInstanceId: Int? = null,
     val triggeringObjectZoneId: Int = 0,
+    val voidTrigger: Boolean = false,
 )
 
 /** A triggered ability that was on the stack and is now gone (resolved or fizzled). */
@@ -1281,7 +1282,7 @@ object ZoneTransferDetector {
      * Detect triggered abilities that just appeared on the stack.
      * These are [GameObjectType.Ability] objects in the stack zone with no [previousZones] entry.
      */
-    @Suppress("LongParameterList")
+    @Suppress("CyclomaticComplexMethod", "LongParameterList")
     private fun detectStackAbilityAppearances(
         patchedObjects: List<GameObjectInfo>,
         previousZones: Map<Int, Int>,
@@ -1314,7 +1315,10 @@ object ZoneTransferDetector {
             val matchingCast =
                 events
                     .filterIsInstance<GameEvent.SpellCast>()
-                    .firstOrNull { it.cardId == sourceCardForgeId }
+                    .firstOrNull {
+                        it.cardId == sourceCardForgeId &&
+                            it.abilityForgeId == FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId).value
+                    }
             val isActivated = matchingCast?.let { it.isAbility && !it.isTrigger } ?: false
             val isParadigmTrigger = matchingCast?.abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
             val sourceCardIid =
@@ -1344,6 +1348,7 @@ object ZoneTransferDetector {
                     activationZoneId = activationZone,
                     triggeringObjectInstanceId = triggeringObjectIid,
                     triggeringObjectZoneId = triggeringObjectZone,
+                    voidTrigger = matchingCast?.voidTrigger == true,
                 ),
             )
             log.debug(

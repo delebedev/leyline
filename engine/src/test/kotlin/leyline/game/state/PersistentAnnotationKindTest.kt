@@ -499,6 +499,48 @@ class PersistentAnnotationKindTest :
             }
         }
 
+        test("relational AbilityWordActive affected-id transition updates in place") {
+            val oldAnn =
+                AnnotationBuilder
+                    .abilityWordActive(
+                        instanceId = InstanceId(301),
+                        abilityWordName = "Opus",
+                        affectorId = InstanceId(1),
+                        affectedIds = listOf(InstanceId(301), InstanceId(302)),
+                    ).toBuilder()
+                    .setId(42)
+                    .build()
+            val incoming =
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = InstanceId(302),
+                    abilityWordName = "Opus",
+                    affectorId = InstanceId(1),
+                    affectedIds = listOf(InstanceId(302)),
+                )
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(42 to oldAnn),
+                    startPersistentId = 100,
+                    frame = frame(PhaseType.MAIN1),
+                    effectPersistent = emptyList(),
+                    effectDiff = emptyEffectDiff,
+                    transferPersistent = emptyList(),
+                    mechanicResult =
+                        MechanicAnnotationResult(
+                            transient = emptyList(),
+                            persistent = emptyList(),
+                            perKindPersistent = mapOf(AbilityWordActiveKind to listOf(incoming)),
+                        ),
+                    resolveInstanceId = { InstanceId(it.value) },
+                )
+
+            assertSoftly {
+                (42 in result.deletedIds) shouldBe false
+                result.allAnnotations.single().id shouldBe 42
+                result.allAnnotations.single().affectedIdsList shouldBe listOf(302)
+            }
+        }
+
         test("Resolving an EZTT for a card on a player's BF doesn't accidentally also expire ColorProduction") {
             // Combined-state scenario — make sure each kind's shouldExpire is independent.
             val eztt =

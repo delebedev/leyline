@@ -9,6 +9,7 @@ import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.game.event.GameEvent
 import leyline.game.iid
 import leyline.game.mapping.FrameIdResolver
@@ -207,6 +208,69 @@ class StackAbilityZoneTransferDetectorTest :
 
             result.stackAbilityAppearances.shouldBeEmpty()
             result.stackAbilityDisappearances.shouldBeEmpty()
+        }
+
+        test("same-source trigger appearances retain their exact Void classification") {
+            val voidRuntimeId = 7
+            val otherRuntimeId = 8
+            val voidAbilityForgeId = FrameIdResolver.triggerStackAbilityForgeId(voidRuntimeId)
+            val otherAbilityForgeId = FrameIdResolver.triggerStackAbilityForgeId(otherRuntimeId)
+            val voidAbilityIid = 500
+            val otherAbilityIid = 501
+            val sourceIid = 300
+            val sourceId = ForgeCardId(42)
+            val objects =
+                listOf(
+                    abilityObject(instanceId = voidAbilityIid),
+                    abilityObject(instanceId = otherAbilityIid),
+                )
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = objects,
+                    zones =
+                        listOf(
+                            stackZone(ZoneIds.STACK, ZoneType.Stack, voidAbilityIid, otherAbilityIid),
+                            stackZone(ZoneIds.LIMBO, ZoneType.Limbo),
+                        ),
+                    events =
+                        listOf(
+                            GameEvent.SpellCast(
+                                cardId = sourceId,
+                                seatId = SeatId(1),
+                                isAbility = true,
+                                isTrigger = true,
+                                abilityForgeId = otherRuntimeId,
+                            ),
+                            GameEvent.SpellCast(
+                                cardId = sourceId,
+                                seatId = SeatId(1),
+                                voidTrigger = true,
+                                isAbility = true,
+                                isTrigger = true,
+                                abilityForgeId = voidRuntimeId,
+                            ),
+                        ),
+                    context =
+                        stackContext(
+                            previousZones = mapOf(sourceIid to ZoneIds.BATTLEFIELD),
+                            forgeIdLookup = { iid ->
+                                when (iid.value) {
+                                    voidAbilityIid -> voidAbilityForgeId
+                                    otherAbilityIid -> otherAbilityForgeId
+                                    sourceIid -> sourceId
+                                    else -> null
+                                }
+                            },
+                            idAllocator = noOpAllocator,
+                            idLookup = { fid -> if (fid == sourceId) InstanceId(sourceIid) else InstanceId(0) },
+                        ),
+                )
+
+            assertSoftly {
+                result.stackAbilityAppearances.map { it.abilityInstanceId } shouldBe
+                    listOf(voidAbilityIid, otherAbilityIid)
+                result.stackAbilityAppearances.map { it.voidTrigger } shouldBe listOf(true, false)
+            }
         }
     })
 

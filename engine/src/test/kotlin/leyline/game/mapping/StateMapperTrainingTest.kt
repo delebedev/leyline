@@ -83,4 +83,26 @@ class StateMapperTrainingTest :
                 .keywordCounterResolutionForEvent(1, secondCounter, events) { it.abilityGrpId == backupOne }
                 ?.abilityForgeId shouldBe 12
         }
+
+        test("counter from a response does not inherit a pending ability-word trigger") {
+            val source = ForgeCardId(101)
+            val counter = GameEvent.CountersChanged(source, "P1P1", oldCount = 0, newCount = 1)
+            val responseResolved =
+                GameEvent.SpellResolved(
+                    cardId = ForgeCardId(202),
+                    hasFizzled = false,
+                )
+            val opusResolved =
+                GameEvent.SpellResolved(
+                    cardId = source,
+                    hasFizzled = false,
+                    isTrigger = true,
+                    abilityForgeId = 12,
+                )
+            val events = listOf(counter, responseResolved, opusResolved)
+
+            AnnotationContext
+                .keywordCounterResolutionForEvent(0, counter, events) { it.abilityForgeId == 12 }
+                .shouldBeNull()
+        }
     })

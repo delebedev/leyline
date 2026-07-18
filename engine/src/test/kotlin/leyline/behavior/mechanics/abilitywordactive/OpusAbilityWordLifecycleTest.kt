@@ -9,9 +9,11 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
+import leyline.testkit.annotationsOfType
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
+import leyline.testkit.detailUint
 import leyline.testkit.firstGameObjectByIid
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -61,6 +63,7 @@ class OpusAbilityWordLifecycleTest :
                 name = "Opus five plus",
             )
             val source = human.getZone(forge.game.zone.ZoneType.Battlefield).cards.first { it.name == "Tackle Artist" }
+            val sourceIid = instanceIdOf("Tackle Artist")
             val target = instanceIdOf("Grizzly Bears", ai)
 
             val messages = castTargetedSpell("Unfriendly Fire", target)
@@ -77,6 +80,15 @@ class OpusAbilityWordLifecycleTest :
                     .flatMap { it.affectedIdsList }
             val triggeringSpellIid = triggeringObject.affectedIdsList.single()
             val triggeringSpell = messages.firstGameObjectByIid(triggeringSpellIid)!!
+            val counterAdded = messages.annotationsOfType(AnnotationType.CounterAdded).single()
+            val resolutionStart =
+                messages.annotationsOfType(AnnotationType.ResolutionStart).single { it.affectorId == abilityIid }
+            val resolutionComplete =
+                messages.annotationsOfType(AnnotationType.ResolutionComplete).single { it.affectorId == abilityIid }
+            val abilityDeleted =
+                messages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).single {
+                    abilityIid in it.affectedIdsList
+                }
 
             assertSoftly {
                 marker.affectorId shouldBe 1
@@ -85,12 +97,20 @@ class OpusAbilityWordLifecycleTest :
                 triggeringObject.detailInt("source_zone") shouldBe 27
                 triggeringSpell.grpId shouldBe 66309
                 triggeringSpell.zoneId shouldBe 27
+                counterAdded.affectorId shouldBe abilityIid
+                counterAdded.affectedIdsList shouldBe listOf(sourceIid)
+                counterAdded.detailInt("transaction_amount") shouldBe 2
+                resolutionStart.affectorId shouldBe abilityIid
+                resolutionStart.detailUint("grpid") shouldBe 204413
+                resolutionComplete.affectorId shouldBe abilityIid
+                resolutionComplete.detailUint("grpid") shouldBe 204413
+                abilityDeleted.affectedIdsList shouldBe listOf(abilityIid)
                 messages.deletedPersistentAnnotationIds() shouldContainAll setOf(marker.id, triggeringObject.id)
                 source.getCounters(CounterEnumType.P1P1) shouldBe 2
             }
         }
 
-        test("two Opus sources retain distinct live ability identities") {
+        test("two Opus sources aggregate under one player marker and shrink as abilities resolve") {
             startPuzzle(
                 opusPuzzle(sourceCount = 2),
                 name = "Two Opus sources",
@@ -99,7 +119,9 @@ class OpusAbilityWordLifecycleTest :
 
             val messages = castTargetedSpell("Unfriendly Fire", target)
             val markers = messages.opusMarkers()
-            val abilityIids = markers.flatMap { it.affectedIdsList }.toSet()
+            val markerIds = markers.map { it.id }.toSet()
+            val fullMarker = markers.maxBy { it.affectedIdsCount }
+            val abilityIids = fullMarker.affectedIdsList.toSet()
             val triggerObjects =
                 messages
                     .persistentAnnotationsOfType(AnnotationType.TriggeringObject)
@@ -107,13 +129,15 @@ class OpusAbilityWordLifecycleTest :
             val triggeringSpellIids = triggerObjects.map { it.affectedIdsList.single() }.toSet()
 
             assertSoftly {
-                markers shouldHaveSize 2
+                markerIds shouldHaveSize 1
+                fullMarker.affectedIdsList shouldHaveSize 2
+                markers.any { it.affectedIdsCount == 1 }.shouldBeTrue()
                 abilityIids shouldHaveSize 2
-                markers.map { it.affectorId }.toSet() shouldBe setOf(1)
+                fullMarker.affectorId shouldBe 1
                 triggerObjects.map { it.affectorId }.toSet() shouldBe abilityIids
                 triggeringSpellIids shouldHaveSize 1
                 messages.firstGameObjectByIid(triggeringSpellIids.single())!!.grpId shouldBe 66309
-                messages.deletedPersistentAnnotationIds() shouldContainAll markers.map { it.id }
+                messages.deletedPersistentAnnotationIds() shouldContainAll markerIds
             }
         }
 

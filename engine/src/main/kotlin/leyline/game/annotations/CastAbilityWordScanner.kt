@@ -15,6 +15,7 @@ import leyline.game.state.GameBridge
  */
 object CastAbilityWordScanner {
     private const val OPUS = "Opus"
+    private const val VOID = "Void"
     private const val CONVERGE = "Converge"
 
     fun scan(
@@ -29,6 +30,7 @@ object CastAbilityWordScanner {
                 isConvergeTrigger(ability, source) -> colorsSpentEntry(source, source.castSA, frameIds, ability.id)
                 entry.isSpell && source.hasConverge() -> colorsSpentEntry(source, ability, frameIds, cardBacked = true)
                 triggerStartsWith(ability, OPUS) -> opusEntry(ability, bridge, frameIds)
+                triggerStartsWith(ability, VOID) -> relationalTriggerEntry(ability, VOID, bridge, frameIds)
                 else -> null
             }
         }
@@ -62,11 +64,20 @@ object CastAbilityWordScanner {
     ): AbilityWordScanner.AbilityWordEntry? {
         val triggeringCard = ability.getTriggeringObject(AbilityKey.Card) as? Card ?: return null
         if ((triggeringCard.castSA?.totalManaSpent ?: 0) < 5) return null
+        return relationalTriggerEntry(ability, OPUS, bridge, frameIds)
+    }
+
+    private fun relationalTriggerEntry(
+        ability: SpellAbility,
+        abilityWordName: String,
+        bridge: GameBridge,
+        frameIds: FrameIdResolver,
+    ): AbilityWordScanner.AbilityWordEntry? {
         val iid = frameIds.triggerStackAbilityIid(ability.id).value
         val seat = bridge.seatOf(ability.activatingPlayer)?.value ?: return null
         return AbilityWordScanner.AbilityWordEntry(
             instanceId = iid,
-            abilityWordName = OPUS,
+            abilityWordName = abilityWordName,
             affectorId = seat,
             affectedIds = listOf(iid),
         )

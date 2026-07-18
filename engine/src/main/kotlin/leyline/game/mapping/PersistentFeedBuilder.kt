@@ -334,9 +334,14 @@ internal object PersistentFeedBuilder {
                     affectedIds = entry.affectedIds.ifEmpty { listOf(instanceId) }.map { InstanceId(it) },
                 )
             }
-        return scanned +
-            OpusAbilityWordFeedBuilder.build(events, frameIds).filterNot(scanned::contains) +
-            ColorsSpentToCastFeedBuilder.build(events, frameIds).filterNot(scanned::contains) +
+        val stackState =
+            AbilityWordFeedMerger.merge(
+                scanned +
+                    OpusAbilityWordFeedBuilder.build(events, frameIds).filterNot(scanned::contains) +
+                    VoidAbilityWordFeedBuilder.build(events, frameIds).filterNot(scanned::contains) +
+                    ColorsSpentToCastFeedBuilder.build(events, frameIds).filterNot(scanned::contains),
+            )
+        return stackState +
             collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds) +
             convokeCountAbilityWordPersistentFromPrompt(snap, bridge, frameIds) +
             trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)

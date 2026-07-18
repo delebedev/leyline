@@ -109,8 +109,12 @@ sealed interface GameEvent {
         val manaPayments: List<ManaPayment> = emptyList(),
         /** Distinct W/U/B/R/G ordinals retained from a Converge cast payment. */
         val colorsSpentToCast: List<Int> = emptyList(),
+        /** True for every Opus trigger, including the below-five base branch. */
+        val opusTrigger: Boolean = false,
         /** Five-plus Opus trigger state retained when the stack item collapses between snapshots. */
         val opusActive: Boolean = false,
+        /** Void trigger state retained for its player-to-source-and-ability marker lifecycle. */
+        val voidTrigger: Boolean = false,
         val isAdventure: Boolean = false,
         val isOmen: Boolean = false,
         val isMdfc: Boolean = false,
