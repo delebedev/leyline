@@ -86,6 +86,7 @@ class GameActionBridge(
         val command: PlayerAction,
         val stackAbilityGrpId: Int? = null,
         val forgeAbilityId: Int? = null,
+        val spellGrpId: Int? = null,
     )
 
     data class PendingAction(
@@ -268,7 +269,7 @@ class GameActionBridge(
         offers: List<ActionOffer>,
         response: Action,
     ): ActionOffer? {
-        val identities = offers.distinctBy { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }
+        val identities = offers.distinctBy { listOf(it.command, it.stackAbilityGrpId, it.forgeAbilityId, it.spellGrpId) }
         val exactPayloadMatches = identities.filter { it.action == response }
         if (exactPayloadMatches.size == 1) return exactPayloadMatches.single()
         if (identities.size == 1) return identities.first()

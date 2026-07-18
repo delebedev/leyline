@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
@@ -185,20 +186,19 @@ data class BoundCard(
             repo: CardRepository,
         ): List<LinkedFaceDescriptor> {
             if (data == null) return emptyList()
-            val adventureGrpId =
-                when (data.linkedFaceType) {
-                    ADVENTURE_FACE_TYPE -> data.grpId
-                    ADVENTURE_PARENT_TYPE ->
-                        data.linkedFaceGrpIds.firstOrNull { linkedGrpId ->
-                            repo.findByGrpId(linkedGrpId)?.linkedFaceType == ADVENTURE_FACE_TYPE
-                        }
-                    else -> null
-                }
-            return adventureGrpId?.let { listOf(LinkedFaceDescriptor(it, LinkedFaceRole.Adventure)) }.orEmpty()
+            return LinkedFaceRole.entries.mapNotNull { role ->
+                val faceGrpId =
+                    when (data.linkedFaceType) {
+                        role.faceLinkedType -> data.grpId
+                        role.parentLinkedType ->
+                            data.linkedFaceGrpIds.firstOrNull { linkedGrpId ->
+                                repo.findByGrpId(linkedGrpId)?.linkedFaceType == role.faceLinkedType
+                            }
+                        else -> null
+                    }
+                faceGrpId?.let { LinkedFaceDescriptor(it, role) }
+            }
         }
-
-        private const val ADVENTURE_FACE_TYPE = 7
-        private const val ADVENTURE_PARENT_TYPE = 8
     }
 }
 
@@ -208,9 +208,15 @@ data class LinkedFaceDescriptor(
     val role: LinkedFaceRole,
 )
 
-/** Companion semantics supported by the projection layer. */
-enum class LinkedFaceRole {
-    Adventure,
+/** Companion semantics and identity namespaces supported by the projection layer. */
+enum class LinkedFaceRole(
+    val faceLinkedType: Int,
+    val parentLinkedType: Int,
+    val objectType: GameObjectType,
+    val companionIdOffset: Int,
+) {
+    Adventure(7, 8, GameObjectType.Adventure_a4aa, 500_000),
+    Omen(17, 18, GameObjectType.Omen_a4aa, 600_000),
 }
 
 /**

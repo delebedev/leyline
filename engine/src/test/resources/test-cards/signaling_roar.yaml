@@ -6,6 +6,7 @@ abilities:
     textId: 926735
     category: 4
 expansionCode: "TDM"
+linkedFaceType: 17
 tokens:
   "188714": 95824
 linkedFaces:

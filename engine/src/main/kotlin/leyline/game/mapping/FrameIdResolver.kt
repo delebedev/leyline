@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.TransferResult
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.LinkedFaceRole
 import leyline.game.state.GameBridge
 
 /**
@@ -135,9 +136,6 @@ class FrameIdResolver(
         /** Offset added to source card forge IDs for non-mana payment Ability gameObjects. */
         private const val COST_PAYMENT_ABILITY_ID_OFFSET = 400_000
 
-        /** Offset added to parent iids for Adventure companion objects. */
-        private const val ADVENTURE_COMPANION_ID_OFFSET = 500_000
-
         /**
          * Surrogate forge ID for a stack-resident Ability gameObject — used as
          * the key into [GameBridge.getOrAllocInstanceId] so the Ability's iid
@@ -164,9 +162,11 @@ class FrameIdResolver(
         /** Surrogate forge ID for a DisturbBack face object. */
         fun disturbBackForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + DISTURB_BACK_ID_OFFSET)
 
-        /** Surrogate keyed by one parent object lifetime. */
-        fun adventureCompanionForgeId(parentInstanceId: InstanceId): ForgeCardId =
-            ForgeCardId(parentInstanceId.value + ADVENTURE_COMPANION_ID_OFFSET)
+        /** Surrogate keyed by one parent object lifetime and linked-face role. */
+        fun linkedFaceCompanionForgeId(
+            parentInstanceId: InstanceId,
+            role: LinkedFaceRole,
+        ): ForgeCardId = ForgeCardId(parentInstanceId.value + role.companionIdOffset)
 
         /** True if [forgeId] falls in the stack-ability surrogate range. */
         fun isStackAbilityForgeId(forgeId: ForgeCardId): Boolean = forgeId.value in STACK_ABILITY_ID_OFFSET until MANA_ABILITY_ID_OFFSET

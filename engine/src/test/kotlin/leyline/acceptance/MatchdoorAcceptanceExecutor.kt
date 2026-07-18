@@ -126,6 +126,7 @@ private class ScenarioRun(
             is PlayMdfcStep -> submitNamedAction(ActionType.PlayMdfc, step.card)
             is CastStep -> cast(step)
             is CastAdventureStep -> submitNamedAction(ActionType.CastAdventure, step.card)
+            is CastOmenStep -> submitNamedAction(ActionType.CastOmen, step.card)
             is CastMdfcStep -> submitNamedAction(ActionType.CastMdfc, step.card)
             ResolveStackStep -> resolveStack()
             AttackAllStep -> {
@@ -159,7 +160,9 @@ private class ScenarioRun(
             candidates.firstOrNull { actionCardName(it).equals(card, ignoreCase = true) }
                 ?: candidates
                     .singleOrNull()
-                    ?.takeIf { actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc, ActionType.CastAdventure) }
+                    ?.takeIf {
+                        actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc, ActionType.CastAdventure, ActionType.CastOmen)
+                    }
                 ?: error("$context no named ${actionType.name} action for $card")
         submitAction(action)
     }
@@ -578,6 +581,7 @@ private class ScenarioRun(
                 AcceptanceActionType.Cast -> ActionType.Cast
                 AcceptanceActionType.CastMdfc -> ActionType.CastMdfc
                 AcceptanceActionType.CastAdventure -> ActionType.CastAdventure
+                AcceptanceActionType.CastOmen -> ActionType.CastOmen
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
             }
         val candidates =
@@ -597,6 +601,7 @@ private class ScenarioRun(
                 AcceptanceActionType.PlayMdfc,
                 AcceptanceActionType.CastMdfc,
                 AcceptanceActionType.CastAdventure,
+                AcceptanceActionType.CastOmen,
             ) &&
             condition.altCost == null &&
             candidates.size == 1

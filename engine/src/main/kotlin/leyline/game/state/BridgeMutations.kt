@@ -25,6 +25,7 @@ data class PendingTargetSpecRecord(
  * 5. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
  * 6. `nextAnnotationId` — transient annotation ID counter update
  * 7. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
+ * 8. `nextTransientLinkedFaceFamilyIds` — one-frame hidden-zone projection lifecycle
  *
  * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
  * not applied to bridge state; the rest of this batch still owns bridge writes.
@@ -45,6 +46,8 @@ data class BridgeMutations(
     val holderBatch: HolderBatch,
     /** Extra object deletions emitted in this Diff GSM, without bridge-state writes. */
     val diffDeletedInstanceIds: List<InstanceId> = emptyList(),
+    /** Linked-face family objects to delete on the following GSM. */
+    val nextTransientLinkedFaceFamilyIds: Set<InstanceId> = emptySet(),
 ) {
     companion object {
         val EMPTY: BridgeMutations =
