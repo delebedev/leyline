@@ -44,6 +44,7 @@ data class BoundCard(
     val decayedCleanup: Int? = null,
     val parentLinkage: ParentLinkage? = null,
     val designations: DesignationSet = DesignationSet(),
+    val linkedFaces: List<LinkedFaceDescriptor> = emptyList(),
 ) {
     /**
      * Find the alt-cost row whose [AltCostBinding.keywordBaseId] matches
@@ -177,7 +178,39 @@ data class BoundCard(
             if (!hasDecayed) return null
             return repo.findHiddenTriggeredAbilityGrpId(data.grpId)
         }
+
+        /** Bind the linked faces whose companion-object contract is supported. */
+        fun bindLinkedFaces(
+            data: CardData?,
+            repo: CardRepository,
+        ): List<LinkedFaceDescriptor> {
+            if (data == null) return emptyList()
+            val adventureGrpId =
+                when (data.linkedFaceType) {
+                    ADVENTURE_FACE_TYPE -> data.grpId
+                    ADVENTURE_PARENT_TYPE ->
+                        data.linkedFaceGrpIds.firstOrNull { linkedGrpId ->
+                            repo.findByGrpId(linkedGrpId)?.linkedFaceType == ADVENTURE_FACE_TYPE
+                        }
+                    else -> null
+                }
+            return adventureGrpId?.let { listOf(LinkedFaceDescriptor(it, LinkedFaceRole.Adventure)) }.orEmpty()
+        }
+
+        private const val ADVENTURE_FACE_TYPE = 7
+        private const val ADVENTURE_PARENT_TYPE = 8
     }
+}
+
+/** Static identity for a supported secondary-face companion. */
+data class LinkedFaceDescriptor(
+    val grpId: Int,
+    val role: LinkedFaceRole,
+)
+
+/** Companion semantics supported by the projection layer. */
+enum class LinkedFaceRole {
+    Adventure,
 }
 
 /**

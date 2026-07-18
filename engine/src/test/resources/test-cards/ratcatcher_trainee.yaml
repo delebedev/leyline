@@ -6,5 +6,6 @@ abilities:
     textId: 823208
     category: 3
 expansionCode: "WOE"
+linkedFaceType: 8
 linkedFaces:
   - 86846

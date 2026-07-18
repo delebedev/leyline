@@ -48,6 +48,8 @@ data class CardData(
      * positional fallback when this list is empty.
      */
     val chapterAbilityGrpIds: List<Int> = emptyList(),
+    /** Client card-DB relationship category for [linkedFaceGrpIds]. */
+    val linkedFaceType: Int = 0,
     val linkedFaceGrpIds: List<Int> = emptyList(),
 ) {
     val isMultiFace: Boolean get() = linkedFaceGrpIds.isNotEmpty()

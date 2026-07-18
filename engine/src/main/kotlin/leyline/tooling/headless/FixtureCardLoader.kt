@@ -131,6 +131,7 @@ object FixtureCardLoader {
             abilityCategories = abilityCategories,
             manaCost = rules.manaCost,
             tokenGrpIds = identity.tokens,
+            linkedFaceType = identity.linkedFaceType,
             linkedFaceGrpIds = identity.linkedFaces,
         )
     }

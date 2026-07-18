@@ -57,7 +57,8 @@ class ExposedCardRepositoryNameLookupTest :
                           AbilityIdToLinkedTokenGrpId TEXT DEFAULT '',
                           IsToken INT DEFAULT 0, IsPrimaryCard INT DEFAULT 1,
                           IsDigitalOnly INT DEFAULT 0, IsRebalanced INT DEFAULT 0,
-                          ExpansionCode TEXT DEFAULT '', LinkedFaceGrpIds TEXT DEFAULT ''
+                          ExpansionCode TEXT DEFAULT '', LinkedFaceType INTEGER DEFAULT 0,
+                          LinkedFaceGrpIds TEXT DEFAULT ''
                         );
                         """.trimIndent(),
                     )
