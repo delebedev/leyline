@@ -5,6 +5,7 @@ Start here for the public technical docs.
 ## System
 
 - [`architecture.md`](architecture.md) — modules, runtime services, wire frame, match lifecycle, state-mapping pipeline
+- [`architecture-direction.md`](architecture-direction.md) — accepted destination for Forge ownership, serial match coordination, pure projection, and ordered delivery
 - [`ai-solved-acceptance.md`](ai-solved-acceptance.md) — turning direct Forge-AI puzzle solutions into backend-neutral scripted acceptance suites
 - [`bridge-threading.md`](bridge-threading.md) — two-thread ownership model, snapshot timing, counter monotonicity, and bridge-side invariants
 - [`forge-api-concepts.md`](forge-api-concepts.md) — key Forge API concepts for engine work: controller callbacks, SpellAbility chains, actions, costs, events, snapshots, and prompts
@@ -26,6 +27,7 @@ Start here for the public technical docs.
 - [`decisions/0011-preserve-ability-definition-identity.md`](decisions/0011-preserve-ability-definition-identity.md) — stable ability definitions separated from unique runtime invocations across events, stack projection, and prompts
 - [`decisions/0012-bind-prompt-routes-once.md`](decisions/0012-bind-prompt-routes-once.md) — `ResolvedPromptRoute` bound once and carried through emission, re-prompting, and response handling
 - [`decisions/0013-finalize-annotation-frames-once.md`](decisions/0013-finalize-annotation-frames-once.md) — collect all state-frame annotation inputs before one ordering and transient-ID finalization pass
+- [`decisions/0014-command-yield-engine-boundary.md`](decisions/0014-command-yield-engine-boundary.md) — isolate Forge behind value-only commands and immutable yields with one serial match owner
 
 ## Setup
 

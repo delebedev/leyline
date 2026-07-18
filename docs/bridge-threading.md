@@ -8,7 +8,12 @@ read_when:
 
 # Bridge Threading
 
-The contract side of the Forge bridge: which thread owns which state, what must be true at each boundary, and the structural rules that keep the engine and the wire coherent. For the shape of the system (boxes, arrows, protocol frames), read [`architecture.md`](architecture.md) first.
+The contract side of the current Forge bridge: which thread owns which state,
+what must be true at each boundary, and the structural rules that keep the
+engine and the wire coherent. These rules remain mandatory until a seam has
+actually migrated. For the current system shape, read
+[`architecture.md`](architecture.md); for the accepted runtime destination,
+read [`architecture-direction.md`](architecture-direction.md).
 
 ---
 
@@ -174,3 +179,5 @@ Spell-time modals (kicker, spell modals where the card itself is already on the 
 ## See also
 
 [`architecture.md`](architecture.md) — system shape (modules, ports, wire frame, match lifecycle).
+
+[`architecture-direction.md`](architecture-direction.md) — accepted destination for engine ownership, pure projection, and ordered delivery.
