@@ -24,9 +24,6 @@ internal interface SimPromptPolicy {
 internal data class SimPromptPolicyTelemetry(
     val consulted: Map<String, Int>,
     val chose: Map<String, Int>,
-    val disagreements: Map<String, Int>,
-    val matches: Map<String, Int>,
-    val disagreementSamples: Map<String, String>,
     val totalMs: Map<String, Long>,
     val maxMs: Map<String, Long>,
     val targetChoices: Map<String, Int>,
@@ -41,9 +38,6 @@ internal data class SimPromptPolicyTelemetry(
             SimPromptPolicyTelemetry(
                 consulted = emptyMap(),
                 chose = emptyMap(),
-                disagreements = emptyMap(),
-                matches = emptyMap(),
-                disagreementSamples = emptyMap(),
                 totalMs = emptyMap(),
                 maxMs = emptyMap(),
                 targetChoices = emptyMap(),
@@ -306,13 +300,9 @@ internal open class GreedyPromptPolicy(
 internal class ForgeAiPromptPolicy(
     harness: MatchFlowHarness,
     private val forgeAi: ForgeAiPolicy,
-    private val shadowAdvisor: Boolean = false,
 ) : GreedyPromptPolicy(harness) {
     private val aiConsultedByPrompt = mutableMapOf<String, Int>()
     private val aiChoseByPrompt = mutableMapOf<String, Int>()
-    private val advisorDisagreementsByPrompt = mutableMapOf<String, Int>()
-    private val advisorMatchesByPrompt = mutableMapOf<String, Int>()
-    private val advisorDisagreementSamples = mutableMapOf<String, String>()
     private val aiTotalMsByPrompt = mutableMapOf<String, Long>()
     private val aiMaxMsByPrompt = mutableMapOf<String, Long>()
     private val targetChoiceCounts = mutableMapOf<String, Int>()
@@ -334,9 +324,6 @@ internal class ForgeAiPromptPolicy(
         SimPromptPolicyTelemetry(
             consulted = aiConsultedByPrompt.toMap(),
             chose = aiChoseByPrompt.toMap(),
-            disagreements = advisorDisagreementsByPrompt.toMap(),
-            matches = advisorMatchesByPrompt.toMap(),
-            disagreementSamples = advisorDisagreementSamples.toMap(),
             totalMs = aiTotalMsByPrompt.toMap(),
             maxMs = aiMaxMsByPrompt.toMap(),
             targetChoices = targetChoiceCounts.toMap(),
@@ -347,8 +334,6 @@ internal class ForgeAiPromptPolicy(
         prompt: ActivePrompt,
         attempts: ActionAttemptLedger,
     ): SimPromptResponse {
-        if (shadowAdvisor) return respondWithShadowAdvisor(prompt, attempts)
-
         val adapter = adapters[prompt.type]
         val context = ForgeAiPromptContext(harness, forgeAi, attempts)
         if (adapter != null && adapter.shouldConsult(prompt, context)) {
@@ -363,42 +348,6 @@ internal class ForgeAiPromptPolicy(
         val response = super.respondToPrompt(prompt, attempts)
         recordTargetChoice(prompt, response, source = "greedy")
         return response
-    }
-
-    private fun respondWithShadowAdvisor(
-        prompt: ActivePrompt,
-        attempts: ActionAttemptLedger,
-    ): SimPromptResponse {
-        val greedyResponse = super.respondToPrompt(prompt, attempts)
-        val adapter = adapters[prompt.type]
-        val context = ForgeAiPromptContext(harness, forgeAi, attempts)
-        if (adapter != null && adapter.shouldConsult(prompt, context)) {
-            bumpConsulted(adapter.telemetryName)
-            val advisedResponse = timed(adapter.telemetryName) { adapter.decide(prompt, context) }
-            if (advisedResponse != null) {
-                bumpChose(adapter.telemetryName)
-                recordAdvisorComparison(adapter.telemetryName, prompt, greedyResponse.decision, advisedResponse.decision)
-                recordTargetChoice(prompt, advisedResponse, source = "shadow-ai")
-            }
-        }
-        recordTargetChoice(prompt, greedyResponse, source = "greedy")
-        return greedyResponse
-    }
-
-    private fun recordAdvisorComparison(
-        promptName: String,
-        prompt: ActivePrompt,
-        greedyDecision: SimDecision,
-        advisedDecision: SimDecision,
-    ) {
-        val greedyDigest = greedyDecision.auditDigest(prompt)
-        val advisedDigest = advisedDecision.auditDigest(prompt)
-        if (greedyDigest == advisedDigest) {
-            advisorMatchesByPrompt.merge(promptName, 1) { a, b -> a + b }
-        } else {
-            advisorDisagreementsByPrompt.merge(promptName, 1) { a, b -> a + b }
-            advisorDisagreementSamples.putIfAbsent(promptName, "greedy=$greedyDigest;advisor=$advisedDigest;prompt=${prompt.fingerprint}")
-        }
     }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")

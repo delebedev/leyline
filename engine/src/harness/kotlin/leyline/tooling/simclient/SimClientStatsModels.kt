@@ -2,7 +2,7 @@ package leyline.tooling.simclient
 
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
-const val STATS_SCHEMA_VERSION = 2
+const val STATS_SCHEMA_VERSION = 3
 
 data class GameStats(
     val turn: Int,
@@ -20,9 +20,6 @@ data class GameStats(
     val aiChose: Int = 0,
     val aiConsultedByPrompt: Map<String, Int> = emptyMap(),
     val aiChoseByPrompt: Map<String, Int> = emptyMap(),
-    val advisorDisagreementsByPrompt: Map<String, Int> = emptyMap(),
-    val advisorMatchesByPrompt: Map<String, Int> = emptyMap(),
-    val advisorDisagreementSamples: Map<String, String> = emptyMap(),
     val aiTotalMs: Long = 0,
     val aiTotalMsByPrompt: Map<String, Long> = emptyMap(),
     val aiMaxMsByPrompt: Map<String, Long> = emptyMap(),

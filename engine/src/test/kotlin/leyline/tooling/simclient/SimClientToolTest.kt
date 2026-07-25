@@ -156,12 +156,6 @@ class SimClientToolTest :
             SimClientConfig.parse(listOf("--help"), emptyMap()) shouldBe null
         }
 
-        test("config parser accepts shadow AI audit policy") {
-            val config = SimClientConfig.parse(listOf("--policy", "shadow-ai"), emptyMap())!!
-
-            config.policy shouldBe SimClientPolicyMode.ShadowAi
-        }
-
         test("config parser keeps multi-word direct args") {
             val config =
                 SimClientConfig.parse(
