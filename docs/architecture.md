@@ -7,7 +7,12 @@ read_when:
 ---
 # Leyline — Architecture
 
-System shape: modules, services, wire, and the end-to-end flow from client connect to engine action. For threading invariants (ownership, snapshot timing, counters), see [`bridge-threading.md`](bridge-threading.md).
+System shape: modules, services, wire, and the end-to-end flow from client connect to engine action.
+
+This document describes the current implementation. For the accepted runtime
+destination, see [`architecture-direction.md`](architecture-direction.md). Until
+a seam migrates, the current threading invariants in
+[`bridge-threading.md`](bridge-threading.md) remain authoritative.
 
 ---
 

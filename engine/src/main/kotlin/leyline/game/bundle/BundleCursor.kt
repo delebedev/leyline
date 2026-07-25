@@ -5,9 +5,11 @@ import leyline.bridge.types.SeatId
 import leyline.game.snapshot.GsmSnapshot
 
 /**
- * Bundle-sequence cursor: the snapshot that was last sent to the client.
- * Serves as the `prev` baseline for the next `StateMapper.buildDiff` call
- * in the bundle loop.
+ * Bundle-sequence cursor: the snapshot most recently committed during bundle
+ * construction. Serves as the `prev` baseline for the next
+ * `StateMapper.buildDiff` call in the bundle loop. Construction advances this
+ * value before the sink accepts the resulting messages, so it is a projection
+ * baseline rather than delivery acknowledgement.
  *
  * One instance per [leyline.game.state.GameBridge], shared by every [BundleBuilder] bound to
  * that bridge — both the session-layer builder and the engine-thread
@@ -19,7 +21,7 @@ import leyline.game.snapshot.GsmSnapshot
  * GamePlayback. Typing the cursor today makes that lift mechanical.
  */
 class BundleCursor {
-    var lastSent: GsmSnapshot? = null
+    @Volatile var lastSent: GsmSnapshot? = null
 
     private var pendingPSuT: PSuTPending? = null
 
