@@ -122,7 +122,7 @@ private class ScenarioRun(
             is BlockStep -> block(step)
             is AttackStep -> attack(step)
             is TurnFaceUpStep -> turnFaceUp(step)
-            is PlayLandStep -> requireAction { harness.playLand(step.card) }
+            is PlayLandStep -> playLand(step)
             is PlayMdfcStep -> submitNamedAction(ActionType.PlayMdfc, step.card)
             is CastStep -> cast(step)
             is CastAdventureStep -> submitNamedAction(ActionType.CastAdventure, step.card)
@@ -134,6 +134,22 @@ private class ScenarioRun(
                 harness.submitAttackers()
             }
         }
+    }
+
+    private fun playLand(step: PlayLandStep) {
+        if (harness.hasPendingSelectNPrompt()) {
+            val prompt = latestPromptMessage()
+            require(prompt?.hasSelectNReq() == true) {
+                "$context active SelectN interaction has no SelectNReq"
+            }
+            val instanceId = resolveCardInZone(AcceptanceSide.Ours, AcceptanceZone.Hand, step.card)
+            require(instanceId in prompt.selectNReq.idsList) {
+                "$context land $step.card iid=$instanceId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+            }
+            harness.respondToSelectN(listOf(instanceId))
+            return
+        }
+        requireAction { harness.playLand(step.card) }
     }
 
     private fun cast(step: CastStep) {

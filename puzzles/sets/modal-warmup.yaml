@@ -115,7 +115,7 @@ scenarios:
       - cast: Patchwork Banner
       - pass_until:
           prompt: SelectNReq
-      - static_choice: { id: 34 }
+      - static_choice: { id: 34, label: Goblin }
       - resolve_stack: {}
       - expect:
           all:
@@ -131,7 +131,7 @@ scenarios:
       - cast: Heraldic Banner
       - pass_until:
           prompt: SelectNReq
-      - static_choice: { id: 4 }
+      - static_choice: { id: 4, label: Red }
       - resolve_stack: {}
       - expect:
           all:
@@ -152,8 +152,8 @@ scenarios:
             - our_life: 18
   - id: optional-trigger-reclamation-sage
     puzzle: optional-trigger-reclamation-sage
-    arena:
-      xfail: Optional trigger OptionalActionMessage is not driven by arena-ts yet.
+    native:
+      xfail: Optional trigger OptionalActionMessage is not driven by the native runner yet.
     web:
       skip: Web runner does not yet drive this optional trigger path to the expected board state.
     run: cast Reclamation Sage and accept its optional trigger

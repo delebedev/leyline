@@ -215,8 +215,8 @@ scenarios:
     puzzle: duress-reveal
     run: cast Duress and choose Murder from the revealed opponent hand
     expect: Murder moves from opponent hand to opponent graveyard
-    arena:
-      skip: Headless-only for now; Arena SelectN reveal-hand UI is not driven yet.
+    native:
+      skip: Headless-only for now; the native SelectN reveal-hand UI is not driven yet.
     steps:
       - expect:
           action: { type: cast, card: Duress }
@@ -663,7 +663,7 @@ scenarios:
       - activate: Giant Koi
       - expect:
           prompt: PayCostsReq
-      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Sol Ring] }
+      - select_cost: { zone: battlefield, cards: [Giant Koi, Coral Merfolk, Sol Ring] }
       - resolve_stack: {}
       - expect:
           stack_empty: true
@@ -837,8 +837,8 @@ scenarios:
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw
     expect: Clue leaves battlefield and a card is drawn
-    arena:
-      xfail: Clue token activation UI is selected but not committed by arena-ts yet.
+    native:
+      xfail: Clue token activation UI is selected but not committed by the native runner yet.
     web:
       skip: GRE Clue activation leaves the token on battlefield after action submission.
     steps:

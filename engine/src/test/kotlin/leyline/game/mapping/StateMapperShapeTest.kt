@@ -6,14 +6,20 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.event.FrameEventLog
+import leyline.game.event.GameEvent
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.StackEntry
+import leyline.game.snapshot.StackSnapshot
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
@@ -230,6 +236,77 @@ class StateMapperShapeTest :
             for (player in gs.playersList) {
                 player.timerIdsCount shouldBeGreaterThan 0
                 player.timerIdsList[0] shouldBe player.systemSeatNumber
+            }
+        }
+
+        test("resolved ability is deleted when the current stack snapshot still carries it") {
+            val (b, game) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val base = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
+            val sourceCardId = base.boundCards.keys.single()
+            val ability =
+                StackEntry(
+                    forgeCardId = sourceCardId,
+                    controller = SeatId(1),
+                    owner = SeatId(1),
+                    grpId = 12345,
+                    sourceCardGrpId = 12345,
+                    isSpell = false,
+                    targets = emptyList(),
+                    forgeAbilityId = 777,
+                )
+
+            fun snapshot(gameStateId: Int) =
+                GsmSnapshot.forTest(
+                    matchId = base.matchId,
+                    gameStateId = gameStateId,
+                    seats = base.seats,
+                    zones = base.zones,
+                    boundCards = base.boundCards,
+                    stack = StackSnapshot(listOf(ability)),
+                    phase = base.phase,
+                    combat = base.combat,
+                    abilityWordEntries = base.abilityWordEntries,
+                    pendingTriggers = base.pendingTriggers,
+                    persistentAnnotationState = base.persistentAnnotationState,
+                    capturedAt = base.capturedAt,
+                    dayTime = base.dayTime,
+                    activePlayerSpellsCastThisTurn = base.activePlayerSpellsCastThisTurn,
+                )
+            val previous = snapshot(1)
+            val current = snapshot(2)
+            val abilityIid = FrameIdResolver(b).triggerStackAbilityIid(777).value
+
+            val gsm =
+                StateMapper
+                    .buildDiff(
+                        prev = previous,
+                        cur = current,
+                        events =
+                            FrameEventLog(
+                                listOf(
+                                    GameEvent.SpellResolved(
+                                        cardId = ForgeCardId(sourceCardId.value),
+                                        hasFizzled = false,
+                                        isAbility = true,
+                                        abilityForgeId = 777,
+                                    ),
+                                ),
+                            ),
+                        gameStateId = 2,
+                        matchId = Board.TEST_MATCH_ID,
+                        bridge = b,
+                        viewingSeatId = 1,
+                    ).gsm
+
+            assertSoftly {
+                gsm.diffDeletedInstanceIdsList shouldContainExactly listOf(abilityIid)
+                gsm.gameObjectsList.map { it.instanceId } shouldNotContain abilityIid
+                gsm.zonesList
+                    .single { it.zoneId == ZoneIds.STACK }
+                    .objectInstanceIdsList shouldBe emptyList()
             }
         }
     })
