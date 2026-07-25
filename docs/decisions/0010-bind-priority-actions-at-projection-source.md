@@ -9,7 +9,10 @@ read_when:
 
 ## Status
 
-Accepted for incremental implementation.
+Accepted for incremental implementation. Amended by
+[ADR 0014](0014-command-yield-engine-boundary.md): the exact executable handle
+and pending-window ownership move into the engine worker's opaque-token table;
+the bind-at-source and bounded-lifetime invariants below are unchanged.
 
 ## Context
 
@@ -84,6 +87,10 @@ The session owns:
 - attaching offers to one pending priority window;
 - rejecting stale, superseded, duplicate, or absent responses;
 - submitting the already-bound command to the blocked engine thread.
+
+Under [ADR 0014](0014-command-yield-engine-boundary.md) these three session
+responsibilities relocate to the serial match owner and the engine worker's
+token table; the invariants they protect stay the same.
 
 Legality and affordability remain distinct. A legal but unaffordable candidate
 must remain available to projection as an inactive action and must prevent smart

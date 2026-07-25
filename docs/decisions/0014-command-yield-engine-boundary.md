@@ -59,7 +59,14 @@ keyed by opaque tokens. An action yield carries a token and immutable projection
 facts; the response returns the token; the worker resolves and consumes the
 retained handle. Completion, supersession, cancellation, and failure clear the
 table. This preserves ADR 0010's exact bind-at-source command without passing a
-mutable `SpellAbility` through session or projection state.
+mutable `SpellAbility` through session or projection state. It also relocates
+the pending-window ownership that ADR 0010 assigned to the session into the
+serial match owner and worker.
+
+The same discipline retires the other live crossings: the targeting-prompt
+`SpellAbility` retained for re-prompt legality becomes a worker-resolved
+handle behind a re-validation command, and priority candidate lists cross the
+boundary as immutable facts plus tokens instead of live ability references.
 
 Forge remains the authority for rules, legality, costs, engine identity,
 causes, and final game state. Leyline remains the authority for interaction
@@ -142,9 +149,11 @@ single ownership, pure projection, or ordered delivery.
 ## Relationship to earlier decisions
 
 This decision refines the inside of the shared engine established by
-[`ADR 0006`](0006-single-backbone-core-and-heads.md). It keeps the
-bind-at-source rule from [`ADR 0010`](0010-bind-priority-actions-at-projection-source.md)
-while moving its exact executable handle into the worker-owned token table. It
+[`ADR 0006`](0006-single-backbone-core-and-heads.md). It amends
+[`ADR 0010`](0010-bind-priority-actions-at-projection-source.md): the
+bind-at-source rule is kept, while the exact executable handle and the
+pending-window ownership 0010 assigned to the session move into the
+worker-owned token table. It
 also relies on the producer-bound values established by
 [`ADR 0011`](0011-preserve-ability-definition-identity.md), and
 [`ADR 0012`](0012-bind-prompt-routes-once.md), and extends the single-finalizer

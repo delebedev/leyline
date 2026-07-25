@@ -27,7 +27,7 @@ two-thread model.
 | Execution domain | Runs | Coordination |
 |---|---|---|
 | **Engine** — `game-loop-<gameId>` | Forge's `mainGameLoop`, trigger resolution, EventBus dispatch, `GamePlayback` frame construction | Owns the live Forge graph; blocks in controller futures |
-| **Interactive session entrants** — Netty I/O, test caller, `match-autoadvance-*` executor | `MatchSession`, handlers, `AutoPassEngine`, ordinary sends | Every game-logic entry point enters `ConnectionState.sessionLock`; may wait on `PrioritySignal` |
+| **Interactive session entrants** — Netty I/O, web relay dispatcher, test caller, `match-autoadvance-*` executor, debug-server pool | `MatchSession`, handlers, `AutoPassEngine`, ordinary sends | `MatchSession` game-logic entry points enter `ConnectionState.sessionLock`; may wait on `PrioritySignal` |
 | **Spectator pump** — `spectator-pump-*` executor | Drains spectator playback every 50 ms and sends terminal output | Separate non-interactive mode; coordinates with engine playback through `queueLock` |
 | **Sink caller** | Marks outbound IDs and invokes `MessageSink.send` | Runs on whichever session or pump domain initiated delivery |
 
@@ -38,6 +38,13 @@ phase and priority—plus Forge EventBus dispatch and engine-internal state.
 handler state, puzzle replacement, and ordinary interactive delivery. Netty and
 the auto-advance executor are different threads, but `sessionLock` makes them
 one logical writer.
+
+**Known exceptions to the critical section.** The mulligan flow
+(`MatchConnection` dispatching `MulliganHandler`) drives the engine on the
+transport thread without entering `sessionLock`, relying on pre-game phase
+exclusivity. The debug server's puzzle hot-swap writes `BundleCursor.lastSent`
+from its own executor outside the lock. Both are debt for the serial-owner
+migration, not license for new lock-free entry points.
 
 **Shared projection and handoff state.** `MessageCounter` uses atomics;
 `BundleCursor.lastSent` is volatile; pending actions and prompts use atomic
