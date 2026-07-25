@@ -1,0 +1,18 @@
+[metadata]
+Name:Ability Word Opus
+Goal:Demo
+Turns:3
+Difficulty:Easy
+Description:Cast a five-mana instant so Tackle Artist receives two counters from Opus.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Tackle Artist;Mountain;Mountain;Mountain;Mountain;Mountain
+humanhand=Unfriendly Fire
+humanlibrary=Mountain;Mountain;Mountain
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest

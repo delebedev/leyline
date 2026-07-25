@@ -347,10 +347,14 @@ class PersistentAnnotationStore {
                             existingEntry.value.affectorId != ann.affectorId ||
                             existingEntry.value.affectedIdsList != ann.affectedIdsList
                         ) {
-                            active.remove(existingEntry.key)
-                            deletions.add(existingEntry.key)
-                            val numbered = ann.toBuilder().setId(nextId++).build()
-                            active[numbered.id] = numbered
+                            if (kind.preserveIdOnChange(ann)) {
+                                active[existingEntry.key] = ann.toBuilder().setId(existingEntry.key).build()
+                            } else {
+                                active.remove(existingEntry.key)
+                                deletions.add(existingEntry.key)
+                                val numbered = ann.toBuilder().setId(nextId++).build()
+                                active[numbered.id] = numbered
+                            }
                         }
                     }
                     CollisionStrategy.REPLACE_ALWAYS -> {

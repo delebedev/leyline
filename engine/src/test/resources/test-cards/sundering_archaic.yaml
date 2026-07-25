@@ -1,0 +1,12 @@
+name: "Sundering Archaic"
+grpId: 102462
+titleId: 1110835
+abilities:
+  - id: 204292
+    textId: 1110837
+    category: 2
+  - id: 169749
+    textId: 738004
+    category: 1
+    mana: "o2"
+expansionCode: "SOS"

@@ -1,0 +1,18 @@
+[metadata]
+Name:Ability Word Void
+Goal:Demo
+Turns:3
+Difficulty:Easy
+Description:Remove a nonland permanent, then reach the end step so Insatiable Skittermaw receives a counter from Void.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Insatiable Skittermaw;Mountain
+humanhand=Shock
+humanlibrary=Mountain;Mountain;Mountain
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest

@@ -1102,3 +1102,50 @@ scenarios:
             - zone_not_contains: { side: opponent, zone: battlefield, card: Liliana of the Veil }
             - zone_contains: { side: opponent, zone: graveyard, card: Liliana of the Veil }
             - opponent_life: 20
+  - id: ability-word-opus
+    puzzle: ability-word-opus
+    run: cast Unfriendly Fire so Tackle Artist's five-mana Opus trigger resolves
+    expect: Opus is active on the live trigger ability and Tackle Artist receives two counters
+    steps:
+      - cast: Unfriendly Fire
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: Opus }
+            - battlefield_stats: { side: ours, card: Tackle Artist, power: 6, toughness: 5 }
+            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
+            - stack_empty: true
+  - id: ability-word-void
+    puzzle: ability-word-void
+    run: cast Shock on Grizzly Bears, then advance to the Void end-step trigger
+    expect: Void is active for Insatiable Skittermaw and its trigger adds a counter
+    steps:
+      - cast: Shock
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - pass_until:
+          battlefield_stats: { side: ours, card: Insatiable Skittermaw, power: 3, toughness: 3 }
+          max_passes: 30
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: Void }
+            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
+            - battlefield_stats: { side: ours, card: Insatiable Skittermaw, power: 3, toughness: 3 }
+            - stack_empty: true
+  - id: ability-word-colors-spent
+    puzzle: ability-word-colors-spent
+    run: cast Woodland Wanderer with green and red mana
+    expect: ColorsSpentToCast carries both paid colors and Converge makes Woodland Wanderer a 4/4
+    steps:
+      - cast: Woodland Wanderer
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Woodland Wanderer }
+            - battlefield_stats: { side: ours, card: Woodland Wanderer, power: 4, toughness: 4 }
+            - stack_empty: true

@@ -33,6 +33,10 @@ object AbilityWordScanner {
         val value: Int? = null,
         val threshold: Int? = null,
         val abilityGrpId: Int? = null,
+        /** Actual W/U/B/R/G mana-color ordinals spent for cast-payment state. */
+        val colors: List<Int>? = null,
+        /** Card-backed entry whose iid must follow this frame's zone reallocation. */
+        val forgeCardId: ForgeCardId? = null,
         /** Override affectorId (default = instanceId). */
         val affectorId: Int? = null,
         /** Per-player entries: all permanent iids with this ability word for that player. */

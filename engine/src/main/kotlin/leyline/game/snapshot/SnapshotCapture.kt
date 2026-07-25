@@ -8,6 +8,7 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.annotations.AbilityWordScanner
+import leyline.game.annotations.CastAbilityWordScanner
 import leyline.game.data.CardRepository
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
@@ -763,6 +764,6 @@ object SnapshotCapture {
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
                 bridge.abilityRegistryFor(card, cardData)
             },
-        )
+        ) + CastAbilityWordScanner.scan(game, bridge)
     }
 }

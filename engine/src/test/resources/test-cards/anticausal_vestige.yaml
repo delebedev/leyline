@@ -1,0 +1,13 @@
+name: "Anticausal Vestige"
+grpId: 96575
+titleId: 1055457
+abilities:
+  - id: 190841
+    textId: 1055459
+    category: 2
+  - id: 190842
+    textId: 1055460
+    category: 3
+    baseId: 371
+    mana: "o4"
+expansionCode: "EOE"

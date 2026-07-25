@@ -88,6 +88,9 @@ sealed interface PersistentAnnotationKind {
 
     fun identityKey(ann: AnnotationInfo): Any?
 
+    /** Whether an updated row keeps its persistent id instead of delete-and-recreate. */
+    fun preserveIdOnChange(ann: AnnotationInfo): Boolean = false
+
     fun shouldExpire(
         ann: AnnotationInfo,
         frame: FrameContext,
@@ -170,13 +173,21 @@ data object AbilityWordActiveKind : PersistentAnnotationKind {
 
     override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.AbilityWordActive in ann.typeList
 
-    override fun identityKey(ann: AnnotationInfo): Any =
-        listOf(
-            ann.affectorId,
-            firstAffectedId(ann),
-            stringDetail(ann, DetailKeys.ABILITY_WORD_NAME).orEmpty(),
-            numericDetail(ann, DetailKeys.ABILITY_GRP_ID_UPPER) ?: 0,
-        )
+    override fun identityKey(ann: AnnotationInfo): Any {
+        val name = stringDetail(ann, DetailKeys.ABILITY_WORD_NAME).orEmpty()
+        return if (name == "Opus" || name == "Void") {
+            listOf(ann.affectorId, name)
+        } else {
+            listOf(
+                ann.affectorId,
+                firstAffectedId(ann),
+                name,
+                numericDetail(ann, DetailKeys.ABILITY_GRP_ID_UPPER) ?: 0,
+            )
+        }
+    }
+
+    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean = stringDetail(ann, DetailKeys.ABILITY_WORD_NAME) in setOf("Opus", "Void")
 }
 
 data object QualificationKind : PersistentAnnotationKind {

@@ -319,21 +319,33 @@ internal object PersistentFeedBuilder {
         prev: GsmSnapshot?,
         bridge: GameBridge,
         frameIds: FrameIdResolver,
-    ): List<AnnotationInfo> =
-        snap.abilityWordEntries.map { entry ->
-            AnnotationBuilder.abilityWordActive(
-                instanceId = InstanceId(entry.instanceId),
-                abilityWordName = entry.abilityWordName,
-                value = entry.value,
-                threshold = entry.threshold,
-                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
-                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
-                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
+    ): List<AnnotationInfo> {
+        val scanned =
+            snap.abilityWordEntries.map { entry ->
+                val instanceId = entry.forgeCardId?.let(frameIds::cardIid)?.value ?: entry.instanceId
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = InstanceId(instanceId),
+                    abilityWordName = entry.abilityWordName,
+                    value = entry.value,
+                    threshold = entry.threshold,
+                    abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
+                    colors = entry.colors,
+                    affectorId = InstanceId(entry.affectorId ?: instanceId),
+                    affectedIds = entry.affectedIds.ifEmpty { listOf(instanceId) }.map { InstanceId(it) },
+                )
+            }
+        val stackState =
+            AbilityWordFeedMerger.merge(
+                scanned +
+                    OpusAbilityWordFeedBuilder.build(events, frameIds).filterNot(scanned::contains) +
+                    VoidAbilityWordFeedBuilder.build(events, frameIds).filterNot(scanned::contains) +
+                    ColorsSpentToCastFeedBuilder.build(events, frameIds).filterNot(scanned::contains),
             )
-        } +
+        return stackState +
             collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds) +
             convokeCountAbilityWordPersistentFromPrompt(snap, bridge, frameIds) +
             trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)
+    }
 
     private fun convokeCountAbilityWordPersistentFromPrompt(
         snap: GsmSnapshot,

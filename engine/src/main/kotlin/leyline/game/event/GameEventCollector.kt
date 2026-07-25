@@ -2,6 +2,7 @@ package leyline.game.event
 
 import com.google.common.eventbus.Subscribe
 import forge.card.CardStateName
+import forge.game.ability.AbilityKey
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardView
@@ -21,6 +22,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
@@ -250,6 +252,25 @@ class GameEventCollector(
         // not expose either flag.
         val isTrigger = ev.si()?.isTrigger ?: false
         val isAbility = ev.si()?.isAbility ?: false
+        val colorsSpentToCast =
+            if (realCard?.hasConverge() == true) {
+                val colorMasks =
+                    if (!isAbility && !isTrigger) {
+                        payments.map { it.color }
+                    } else {
+                        realCard.castSA
+                            ?.payingMana
+                            .orEmpty()
+                            .map { it.color.toInt() }
+                    }
+                colorMasks
+                    .flatMap(WubrgColorMapping::manaColorNumbersFromMagicMask)
+                    .distinct()
+                    .sorted()
+            } else {
+                emptyList()
+            }
+        val cardId = ForgeCardId(card.id)
         val spellAbilityId = ev.cause()?.abilityId() ?: ev.sa()?.id ?: 0
         val paradigmCopyStackIid = paradigmCopyStackIid(isParadigmCopyCast, spellAbilityId, ForgeCardId(card.id))
         // The SA's Forge id is needed for both triggered and activated abilities;
@@ -282,20 +303,27 @@ class GameEventCollector(
                 abilityDefinition,
             )
         }
+        val forgeTriggeringCard = topSa?.getTriggeringObject(AbilityKey.Card) as? Card
+        val opusTrigger =
+            isTrigger && topSa?.trigger?.getParam("TriggerDescription")?.startsWith("Opus —") == true
+        val opusActive = opusTrigger && (forgeTriggeringCard?.castSA?.totalManaSpent ?: 0) >= 5
+        val voidTrigger =
+            isTrigger && topSa?.trigger?.getParam("TriggerDescription")?.startsWith("Void —") == true
         val triggeringObjectCardId =
-            if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
-                enlistTriggerObjectFor(ForgeCardId(card.id), topSa)
-            } else {
-                null
+            when {
+                !isTrigger -> null
+                abilityGrpId == KeywordAbilityIds.ENLIST -> enlistTriggerObjectFor(ForgeCardId(card.id), topSa)
+                else -> forgeTriggeringCard?.let { ForgeCardId(it.id) }
             }
         val triggeringObjectInstanceId =
-            if (isTrigger && abilityGrpId == KeywordAbilityIds.ENLIST) {
-                pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
-                    ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
-            } else {
-                null
+            when {
+                !isTrigger -> null
+                abilityGrpId == KeywordAbilityIds.ENLIST ->
+                    pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
+                        ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
+                else -> triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
             }
-        if (triggeringObjectCardId != null) {
+        if (abilityGrpId == KeywordAbilityIds.ENLIST && triggeringObjectCardId != null) {
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
         }
         if (isTrigger && abilityForgeId != 0) {
@@ -319,10 +347,14 @@ class GameEventCollector(
         }
         frame.add(
             GameEvent.SpellCast(
-                cardId = ForgeCardId(card.id),
+                cardId = cardId,
                 seatId = seat,
                 spellGrpId = grpId,
                 manaPayments = payments,
+                colorsSpentToCast = colorsSpentToCast,
+                opusTrigger = opusTrigger,
+                opusActive = opusActive,
+                voidTrigger = voidTrigger,
                 isAdventure = isAdventure,
                 isOmen = isOmen,
                 isMdfc = isMdfc,
@@ -992,7 +1024,7 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventCardCounters) {
         val cardId = ForgeCardId(ev.card().id)
-        val affectorAbilityForgeId = trainingTriggerAbilityIdFor(cardId) ?: 0
+        val affectorAbilityForgeId = resolvingCounterTriggerAbilityIdFor(cardId) ?: 0
         frame.add(
             GameEvent.CountersChanged(
                 cardId = cardId,
@@ -1006,8 +1038,20 @@ class GameEventCollector(
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
 
-    private fun trainingTriggerAbilityIdFor(cardId: ForgeCardId): Int? =
-        pendingStackAbilities.abilityIdFor(cardId, KeywordAbilityIds.TRAINING, PendingStackAbilityKind.Trigger)
+    private fun resolvingCounterTriggerAbilityIdFor(cardId: ForgeCardId): Int? {
+        val game = bridge.getGame() ?: return null
+        val card = bridge.findCard(cardId) ?: return null
+        if (!game.stack.isResolving(card)) return null
+        val ability = game.stack.peek()?.spellAbility ?: return null
+        val context = pendingStackAbilities.contextFor(ability.id) ?: return null
+        if (context.kind != PendingStackAbilityKind.Trigger || context.sourceCardId != cardId) return null
+        val triggerDescription = ability.trigger?.getParam("TriggerDescription").orEmpty()
+        return ability.id.takeIf {
+            context.abilityGrpId == KeywordAbilityIds.TRAINING ||
+                triggerDescription.startsWith("Opus —") ||
+                triggerDescription.startsWith("Void —")
+        }
+    }
 
     override fun visit(ev: GameEventPlayerPoisoned) {
         val seat = seatOf(ev.receiver()) ?: return

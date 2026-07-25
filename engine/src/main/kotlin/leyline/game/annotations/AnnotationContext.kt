@@ -75,7 +75,7 @@ class AnnotationContext(
         }
         val resolved =
             keywordCounterResolutionForEvent(eventIndex, ev, events) { resolved ->
-                isCounterAffectingKeywordResolution(resolved)
+                isCounterAffectingKeywordResolution(resolved) || isCounterAffectingAbilityWordResolution(resolved)
             } ?: return null
         return InstanceId(stackAbilityIid(resolved.abilityForgeId, resolved.cardId))
     }
@@ -85,6 +85,13 @@ class AnnotationContext(
         val sourceGrpId = snap.boundCards[resolved.cardId]?.snapshot?.grpId ?: return false
         return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.BACKUP) == resolved.abilityGrpId
     }
+
+    private fun isCounterAffectingAbilityWordResolution(resolved: GameEvent.SpellResolved): Boolean =
+        events.filterIsInstance<GameEvent.SpellCast>().any { cast ->
+            cast.abilityForgeId == resolved.abilityForgeId &&
+                cast.cardId == resolved.cardId &&
+                (cast.opusTrigger || cast.voidTrigger)
+        }
 
     /** Affector iid for a `PlayerCountersChanged` event, or null when none resolves. */
     fun playerCounterAffectorFor(

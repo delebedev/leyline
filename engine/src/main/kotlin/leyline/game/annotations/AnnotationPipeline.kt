@@ -268,12 +268,12 @@ object AnnotationPipeline {
             )
             // TriggeringObject is trigger-only — activated abilities (cycling,
             // channel, unearth, …) do not carry one in the protocol shape.
-            if (!a.isActivatedAbility) {
+            if (!a.isActivatedAbility && !a.voidTrigger) {
                 transferPersistent.add(
                     AnnotationBuilder.triggeringObject(
                         abilityInstanceId = InstanceId(a.abilityInstanceId),
                         sourceCardInstanceId = InstanceId(a.triggeringObjectInstanceId ?: a.sourceCardInstanceId),
-                        sourceZone = sourceZone,
+                        sourceZone = a.triggeringObjectZoneId.takeIf { it != 0 } ?: sourceZone,
                     ),
                 )
             }
@@ -529,6 +529,8 @@ object AnnotationPipeline {
                 } else {
                     cast.activationZoneId.takeIf { it != 0 } ?: ctx.currentSourceZoneId(cast.cardId)
                 }
+            val triggeringObjectZone =
+                cast.triggeringObjectCardId?.let(ctx::currentSourceZoneId) ?: sourceZone
 
             if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
             bridge.abilityLineage.record(
@@ -548,13 +550,15 @@ object AnnotationPipeline {
                     sourceZone,
                 ),
             )
-            transferPersistent.add(
-                AnnotationBuilder.triggeringObject(
-                    abilityInstanceId = InstanceId(abilityIid),
-                    sourceCardInstanceId = InstanceId(triggeringObjectIid),
-                    sourceZone = sourceZone,
-                ),
-            )
+            if (!cast.voidTrigger) {
+                transferPersistent.add(
+                    AnnotationBuilder.triggeringObject(
+                        abilityInstanceId = InstanceId(abilityIid),
+                        sourceCardInstanceId = InstanceId(triggeringObjectIid),
+                        sourceZone = triggeringObjectZone,
+                    ),
+                )
+            }
         }
 
         // Activated-ability cast half: AbilityInstanceCreated keyed off the

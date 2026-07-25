@@ -1479,6 +1479,22 @@ class AnnotationBuilderTest :
             }
         }
 
+        test("AbilityWordActive emits exact paid colors as a required int32 list") {
+            val ann =
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = 700.iid,
+                    abilityWordName = "ColorsSpentToCast",
+                    colors = listOf(1, 4),
+                )
+
+            assertSoftly {
+                ann.affectorId shouldBe 700
+                ann.affectedIdsList shouldBe listOf(700)
+                ann.detailIntList(DetailKeys.COLORS) shouldBe listOf(1, 4)
+                ann.detailString(DetailKeys.ABILITY_WORD_NAME) shouldBe "ColorsSpentToCast"
+            }
+        }
+
         test("abilityWordActiveKeywordOnly") {
             val ann =
                 AnnotationBuilder.abilityWordActive(

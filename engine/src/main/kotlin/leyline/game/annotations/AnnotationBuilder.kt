@@ -777,6 +777,7 @@ object AnnotationBuilder {
         value: Int? = null,
         threshold: Int? = null,
         abilityGrpId: GrpId? = null,
+        colors: List<Int>? = null,
         affectorId: InstanceId = instanceId,
         affectedIds: List<InstanceId> = listOf(instanceId),
     ): AnnotationInfo =
@@ -790,6 +791,7 @@ object AnnotationBuilder {
                 if (value != null) addDetails(int32Detail(DetailKeys.VALUE, value))
                 if (threshold != null) addDetails(int32Detail(DetailKeys.THRESHOLD, threshold))
                 if (abilityGrpId != null) addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
+                if (colors != null) addDetails(int32ListDetail(DetailKeys.COLORS, colors))
             }.build()
 
     /**
@@ -1263,8 +1265,8 @@ object AnnotationBuilder {
             .build()
 
     /** Persistent annotation linking a triggered ability on the stack back to the
-     *  source permanent that triggered it. Client draws the source-arrow UI from
-     *  the source to the ability on the stack. Removed when the ability resolves
+     *  exact object that caused it. Client draws the source-arrow UI from that
+     *  object to the ability on the stack. Removed when the ability resolves
      *  or is otherwise removed from the stack.
      *  Wire shape: affectorId = stack ability instance, affectedIds = [source card].
      *  Client annotation type 32 (TriggeringObject). */
