@@ -25,7 +25,7 @@ internal class MatchConnectFlow(
     private val puzzleHandler: PuzzleHandler,
     private val output: MatchOutput,
     private val createMatchSession: (GameBridge) -> MatchSession,
-    private val createFamiliarSession: (MessageCounter) -> FamiliarSession,
+    private val onFamiliarConnected: (MessageCounter) -> Unit,
     private val createSpectatorSession: (GameBridge) -> SpectatorSession,
     private val sendRoomState: () -> Unit,
     private val sendInitialBundle: () -> Unit,
@@ -46,10 +46,12 @@ internal class MatchConnectFlow(
             log.info("Match Door: evicted {} stale match(es)", evicted.size)
         }
 
-        if (puzzleHandler.isPuzzleMatch(attempt.matchId)) {
-            connectPuzzle(attempt)
-        } else {
-            connectConstructed(attempt)
+        registry.withAuthority(attempt.matchId) {
+            if (puzzleHandler.isPuzzleMatch(attempt.matchId)) {
+                connectPuzzle(attempt)
+            } else {
+                connectConstructed(attempt)
+            }
         }
     }
 
@@ -93,9 +95,7 @@ internal class MatchConnectFlow(
         if (isSpectatorMode()) {
             connectSpectator(attempt, match, gameVariant)
         } else if (attempt.familiar) {
-            createFamiliarSession(bridge.messageCounter)
-            sendRoomState()
-            sendInitialBundle()
+            onFamiliarConnected(bridge.messageCounter)
         } else {
             onLocalPlayerConnected(bridge)
         }

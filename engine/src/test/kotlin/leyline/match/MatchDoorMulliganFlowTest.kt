@@ -2,6 +2,7 @@ package leyline.match
 
 import com.google.protobuf.ByteString
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -29,6 +30,11 @@ import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration.Companion.seconds
 
 class MatchDoorMulliganFlowTest :
     FunSpec({
@@ -200,6 +206,7 @@ class MatchDoorMulliganFlowTest :
                     ),
                 )
                 val mulliganPrompt = greOutbound(local).map { it.type }
+                val familiarPrompt = greOutbound(familiar).map { it.type }
 
                 local.writeInbound(
                     greServiceMessage(
@@ -219,6 +226,7 @@ class MatchDoorMulliganFlowTest :
                     mulliganPrompt shouldContain GREMessageType.GameStateMessage_695e
                     mulliganPrompt shouldContain GREMessageType.PromptReq
                     mulliganPrompt shouldContain GREMessageType.MulliganReq_aa0d
+                    familiarPrompt shouldBe emptyList()
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
                     (registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession)
@@ -299,6 +307,206 @@ class MatchDoorMulliganFlowTest :
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
                 }
             } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("queued familiar response is revalidated after entering session authority") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-authority"
+            val (local, familiar) = connectPair(registry, matchId)
+            val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+            val authorityEntered = CountDownLatch(1)
+            val advancePrompt = CountDownLatch(1)
+            val promptAdvanced = CountDownLatch(1)
+            val releaseAuthority = CountDownLatch(1)
+            val familiarEntrantStarted = CountDownLatch(1)
+            val familiarEntrantThread = AtomicReference<Thread>()
+            val entrants = Executors.newFixedThreadPool(2)
+
+            try {
+                val staleRespId = session.counter.lastPromptMsgId()
+                val currentRespId = AtomicReference<Int>()
+                val holder =
+                    entrants.submit {
+                        session.withSessionAuthority {
+                            authorityEntered.countDown()
+                            advancePrompt.await()
+                            val replacementPromptMsgId = session.counter.nextMsgId()
+                            session.counter.markPromptMsgId(replacementPromptMsgId)
+                            currentRespId.set(replacementPromptMsgId)
+                            promptAdvanced.countDown()
+                            releaseAuthority.await()
+                        }
+                    }
+                authorityEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+                val response = chooseStartingPlayer(staleRespId)
+                val familiarEntrant =
+                    entrants.submit {
+                        familiarEntrantThread.set(Thread.currentThread())
+                        familiarEntrantStarted.countDown()
+                        familiar.writeInbound(greServiceMessage(response, 5))
+                    }
+                familiarEntrantStarted.await(2, TimeUnit.SECONDS) shouldBe true
+
+                eventually(2.seconds) {
+                    familiarEntrantThread.get()?.state shouldBe Thread.State.BLOCKED
+                }
+
+                advancePrompt.countDown()
+                promptAdvanced.await(2, TimeUnit.SECONDS) shouldBe true
+                releaseAuthority.countDown()
+                holder.get(2, TimeUnit.SECONDS)
+                familiarEntrant.get(2, TimeUnit.SECONDS)
+
+                greOutbound(familiar).map { it.type } shouldContain GREMessageType.IllegalRequest
+
+                familiar.writeInbound(greServiceMessage(chooseStartingPlayer(currentRespId.get()), 6))
+                greOutbound(local).map { it.type } shouldContain GREMessageType.MulliganReq_aa0d
+            } finally {
+                advancePrompt.countDown()
+                releaseAuthority.countDown()
+                entrants.shutdownNow()
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("familiar connect and initial bundle wait for session authority") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-connect-authority"
+            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deck, seat2Deck = deck))
+            val local = EmbeddedChannel(handler(registry))
+            val familiar = EmbeddedChannel(handler(registry))
+            val authorityEntered = CountDownLatch(1)
+            val releaseAuthority = CountDownLatch(1)
+            val familiarConnectStarted = CountDownLatch(1)
+            val familiarConnectThread = AtomicReference<Thread>()
+            val entrants = Executors.newFixedThreadPool(2)
+
+            try {
+                local.writeInbound(auth("local-player", 1))
+                familiar.writeInbound(auth("local-player_Familiar", 2))
+                greOutbound(local)
+                greOutbound(familiar)
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
+                greOutbound(local)
+                val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+                val initialMsgId = session.counter.currentMsgId()
+                val holder =
+                    entrants.submit {
+                        session.withSessionAuthority {
+                            authorityEntered.countDown()
+                            releaseAuthority.await()
+                        }
+                    }
+                authorityEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+                val familiarConnect =
+                    entrants.submit {
+                        familiarConnectThread.set(Thread.currentThread())
+                        familiarConnectStarted.countDown()
+                        familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
+                    }
+                familiarConnectStarted.await(2, TimeUnit.SECONDS) shouldBe true
+                eventually(2.seconds) {
+                    familiarConnectThread.get()?.state shouldBe Thread.State.BLOCKED
+                }
+                assertSoftly {
+                    registry.getConnection(matchId, leyline.bridge.types.SeatId(2)) shouldBe null
+                    greOutbound(familiar) shouldBe emptyList()
+                    session.counter.currentMsgId() shouldBe initialMsgId
+                }
+
+                releaseAuthority.countDown()
+                holder.get(2, TimeUnit.SECONDS)
+                familiarConnect.get(2, TimeUnit.SECONDS)
+                familiar.runPendingTasks()
+                assertSoftly {
+                    registry.getConnection(matchId, leyline.bridge.types.SeatId(2)) shouldNotBe null
+                    session.counter.currentMsgId() shouldNotBe initialMsgId
+                    greOutbound(familiar).map { it.type } shouldContain GREMessageType.GameStateMessage_695e
+                }
+            } finally {
+                releaseAuthority.countDown()
+                entrants.shutdownNow()
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("familiar can establish the match before the human session exists") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-familiar-first"
+            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deck, seat2Deck = deck))
+            val local = EmbeddedChannel(handler(registry))
+            val familiar = EmbeddedChannel(handler(registry))
+
+            try {
+                familiar.writeInbound(auth("local-player_Familiar", 1))
+                greOutbound(familiar)
+                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 2))
+                val familiarInitial = greOutbound(familiar).map { it.type }
+
+                local.writeInbound(auth("local-player", 3))
+                greOutbound(local)
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 4))
+                val localInitial = greOutbound(local).map { it.type }
+
+                assertSoftly {
+                    registry.getConnection(matchId, leyline.bridge.types.SeatId(1)) shouldNotBe null
+                    registry.getConnection(matchId, leyline.bridge.types.SeatId(2)) shouldNotBe null
+                    familiarInitial shouldContain GREMessageType.GameStateMessage_695e
+                    localInitial shouldContain GREMessageType.GameStateMessage_695e
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("disconnect waits for session authority before teardown") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-disconnect-authority"
+            val (local, familiar) = connectPair(registry, matchId)
+            val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+            val authorityEntered = CountDownLatch(1)
+            val releaseAuthority = CountDownLatch(1)
+            val disconnectStarted = CountDownLatch(1)
+            val disconnectThread = AtomicReference<Thread>()
+            val entrants = Executors.newFixedThreadPool(2)
+
+            try {
+                val holder =
+                    entrants.submit {
+                        session.withSessionAuthority {
+                            authorityEntered.countDown()
+                            releaseAuthority.await()
+                        }
+                    }
+                authorityEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+                val disconnect =
+                    entrants.submit {
+                        disconnectThread.set(Thread.currentThread())
+                        disconnectStarted.countDown()
+                        registry.getConnection(matchId, leyline.bridge.types.SeatId(1))!!.disconnected()
+                    }
+                disconnectStarted.await(2, TimeUnit.SECONDS) shouldBe true
+                eventually(2.seconds) {
+                    disconnectThread.get()?.state shouldBe Thread.State.BLOCKED
+                }
+                registry.getMatch(matchId) shouldNotBe null
+
+                releaseAuthority.countDown()
+                holder.get(2, TimeUnit.SECONDS)
+                disconnect.get(2, TimeUnit.SECONDS)
+                registry.getMatch(matchId) shouldBe null
+            } finally {
+                releaseAuthority.countDown()
+                entrants.shutdownNow()
                 local.close()
                 familiar.close()
             }
