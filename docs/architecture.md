@@ -174,10 +174,14 @@ Residuals — a small, enumerated set of bridge reads/writes (card-DB lookups, l
 **BundleBuilder.bundle** assembles outbound messages:
 
 ```
-  per-seat visibility filter · full vs. diff selection · applyMutations commit · cursor advance · gsId / msgId sequencing
+  per-seat visibility filter · full vs. diff selection · frame finalization · projection commit · path-specific assembly
 ```
 
-After compute, `BundleBuilder` calls `bridge.applyMutations(result.mutations)`, embeds any `ActionsAvailableReq`, emits the GRE bundle, and advances `cursor.lastSent = snap`. The cursor (`BundleCursor`) is the snap-vs-snap diff baseline for the next bundle.
+After compute, `BundleBuilder` finalizes the frame and commits `BridgeMutations`
+with `cursor.lastSent = snap` at one projection seam. Diff paths then assemble
+actions or requests against the committed instance-id mapping and emit the GRE
+bundle. The cursor (`BundleCursor`) is the snap-vs-snap diff baseline for the
+next bundle.
 
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 

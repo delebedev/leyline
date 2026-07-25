@@ -431,10 +431,10 @@ class GameBridge(
     val bundleCursor: BundleCursor = BundleCursor()
 
     /**
-     * Test-only observability hook — invoked per bundle after [leyline.game.mapping.StateMapper.buildDiff]
-     * and [applyMutations], before the session's [BundleCursor] advances. Receives
-     * (prev, cur, events, gameStateId, diff gsm). Currently used by
-     * [leyline.game.PureDiffReplayTest] to capture live tuples for replay.
+     * Test-only observability hook — invoked per bundle after
+     * [leyline.game.mapping.StateMapper.buildDiff] finalization and immediately
+     * before projection commit. Receives (prev, cur, events, gameStateId, diff gsm).
+     * Currently used by [leyline.game.PureDiffReplayTest] to observe tuples for replay.
      */
     @VisibleForTesting
     @Volatile

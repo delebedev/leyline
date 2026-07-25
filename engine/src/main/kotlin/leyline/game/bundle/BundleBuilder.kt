@@ -26,16 +26,18 @@ import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.BridgeMutations
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Pure functions that build GRE message bundles for each flow milestone.
+ * Builds GRE message bundles for each flow milestone.
  *
- * No side effects, no Netty, no mutable handler state — takes everything as params,
- * returns messages. The shared [MessageCounter] advances atomically on each call.
+ * Frame computation reads one snapshot, then ordering-sensitive bridge mutations and
+ * the shared projection baseline commit through one seam. There is no Netty or mutable
+ * handler state here. The shared [MessageCounter] advances atomically on each call.
  *
  * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
  *
@@ -137,10 +139,13 @@ class BundleBuilder(
         frame: FrameDiff,
         riders: List<AnnotationInfo>,
         pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
+        cursorSnap: GsmSnapshot = frame.snap,
     ): FrameDiff {
         val result = finalizeStateFrame(frame.result, riders, pendingSubmittedTargets)
         bridge.diffListener?.invoke(frame.previousSnap, frame.snap, frame.events, frame.gameStateId, result.gsm)
-        return frame.copy(result = result)
+        val finalized = frame.copy(result = result)
+        commitProjection(cursorSnap, result.mutations, pendingSubmittedTargets)
+        return finalized
     }
 
     internal fun finalizeStateFrame(
@@ -148,22 +153,44 @@ class BundleBuilder(
         riders: List<AnnotationInfo>,
         pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
     ): StateMapper.BuildResult {
-        if (pendingSubmittedTargets == null) return commitFinalizedStateFrame(draft, riders)
+        if (pendingSubmittedTargets == null) return draft.finalizeAnnotations(riders)
 
         return synchronized(cursor) {
             check(cursor.pendingPSuT() == pendingSubmittedTargets) {
                 "Pending PlayerSubmittedTargets changed during frame assembly"
             }
-            commitFinalizedStateFrame(draft, riders).also {
-                cursor.consumePSuT(pendingSubmittedTargets)
-            }
+            draft.finalizeAnnotations(riders)
         }
     }
 
-    private fun commitFinalizedStateFrame(
-        draft: StateMapper.BuildResult,
-        riders: List<AnnotationInfo>,
-    ): StateMapper.BuildResult = draft.finalizeAnnotations(riders).also { bridge.applyMutations(it.mutations) }
+    /**
+     * Commits one successfully prepared projection at the path's existing commit point.
+     *
+     * Mutation application and baseline advancement stay adjacent under the caller's
+     * existing ownership boundary. Diff paths commit before action or request assembly
+     * so planned instance-id changes are visible to those builders. Engine playback
+     * calls this while holding its queue lock, before enqueueing the completed batch.
+     *
+     * Lifecycle boundaries remain named exceptions: [leyline.match.MatchSession] seeds
+     * mulligan and puzzle baselines, [leyline.match.MatchConnection] seeds the spectator
+     * handshake, and `DebugServer` seeds replacement-game baselines.
+     */
+    private fun commitProjection(
+        snap: GsmSnapshot,
+        mutations: BridgeMutations?,
+        pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
+    ) {
+        synchronized(cursor) {
+            pendingSubmittedTargets?.let { pending ->
+                check(cursor.pendingPSuT() == pending) {
+                    "Pending PlayerSubmittedTargets changed before projection commit"
+                }
+            }
+            mutations?.let(bridge::applyMutations)
+            cursor.lastSent = snap
+            pendingSubmittedTargets?.let(cursor::consumePSuT)
+        }
+    }
 
     /**
      * Post-action state bundle:
@@ -219,7 +246,6 @@ class BundleBuilder(
                     },
                 )
 
-        cursor.lastSent = snap
         return BundleResult(messages, projection.offers, nextGs)
     }
 
@@ -238,7 +264,6 @@ class BundleBuilder(
                     StateMapper.resolveUpdateType(snap, seatId)
                 }
             val nextGs = diff.gameStateId
-            val snap = diff.snap
             val result = diff.result
             val gs = result.gsm
 
@@ -254,7 +279,6 @@ class BundleBuilder(
                         buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
                     )
 
-            cursor.lastSent = snap
             BundleResult(messages)
         }
 
@@ -289,7 +313,6 @@ class BundleBuilder(
                     },
                 ) { _, _ -> GameStateUpdate.SendHiFi }
             val nextGs = diff.gameStateId
-            val snap = diff.snap
             // Build state first (triggers instanceId realloc), then actions with new IDs
             val gsBase = diff.result.gsm
             // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
@@ -314,7 +337,6 @@ class BundleBuilder(
                 }
             val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
 
-            cursor.lastSent = snap
             BundleResult(listOf(content) + coinFlipPromptMessages(diff.events.events, nextGs, counter) + listOf(echo))
         }
 
@@ -452,7 +474,7 @@ class BundleBuilder(
                 it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             }
 
-        cursor.lastSent = snap
+        commitProjection(snap, mutations = null)
         return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), priorityProjection.offers, commitGs)
     }
 
@@ -736,7 +758,7 @@ class BundleBuilder(
             stagedMove?.let { move ->
                 frameDraft.copy(result = frameDraft.result.copy(gsm = move.gsm))
             } ?: frameDraft
-        val diff = finalizeFrameDiff(augmentedDraft, emptyList())
+        val diff = finalizeFrameDiff(augmentedDraft, emptyList(), cursorSnap = stagedMove?.snap ?: snap)
         val (req, promptProto) = buildOrderReq(prompt, kind)
         val baseOrderGsm = if (stagedMove != null) diff.result.gsm else attachOrderGameObjects(diff.result.gsm, req, snap)
         val gs =
@@ -749,7 +771,6 @@ class BundleBuilder(
             counter,
             gs,
             GREMessageType.OrderReq_695e,
-            cursorSnap = stagedMove?.snap ?: snap,
         ) {
             it.orderReq = req
             it.setPrompt(promptProto)
@@ -765,7 +786,6 @@ class BundleBuilder(
         counter: MessageCounter,
         gameStateMessage: GameStateMessage,
         requestType: GREMessageType,
-        cursorSnap: GsmSnapshot = diff.snap,
         configureRequest: (GREToClientMessage.Builder) -> Unit,
     ): BundleResult {
         val nextGs = diff.gameStateId
@@ -775,7 +795,6 @@ class BundleBuilder(
             }
         val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
 
-        cursor.lastSent = cursorSnap
         return BundleResult(listOf(msg1, msg2))
     }
 

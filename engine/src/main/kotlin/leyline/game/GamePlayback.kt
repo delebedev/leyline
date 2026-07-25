@@ -302,8 +302,8 @@ class GamePlayback(
                     }
                 }
 
-            // No need to advance the cursor here — buildDiff (called by remoteActionDiff)
-            // writes cursor.lastSent after computing the diff. A redundant
+            // No need to advance the cursor here — remoteActionDiff commits the
+            // projection baseline while queueLock is held. A redundant
             // buildFromSnapshot with the same gsId creates a self-referential snapshot.
 
             log.debug(
