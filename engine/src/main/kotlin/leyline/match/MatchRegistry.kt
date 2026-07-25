@@ -23,10 +23,20 @@ class MatchRegistry {
     /** matchId -> (seatId -> MatchConnection). For pre-mulligan cross-connection messaging. */
     private val connections = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchConnection>>()
 
+    /** Match-scoped authority exists before either seat has a session. */
+    private val authorities = ConcurrentHashMap<String, Any>()
+
+    internal fun authorityFor(matchId: String): Any = authorities.computeIfAbsent(matchId) { Any() }
+
+    internal fun <T> withAuthority(
+        matchId: String,
+        action: () -> T,
+    ): T = synchronized(authorityFor(matchId), action)
+
     fun getOrCreateMatch(
         matchId: String,
         factory: () -> Match,
-    ): Match = matches.computeIfAbsent(matchId) { factory() }
+    ): Match = withAuthority(matchId) { matches.computeIfAbsent(matchId) { factory() } }
 
     /** Look up a match by id. */
     fun getMatch(matchId: String): Match? = matches[matchId]
@@ -38,7 +48,7 @@ class MatchRegistry {
         matchId: String,
         seatId: SeatId,
         session: SessionOps,
-    ) {
+    ) = withAuthority(matchId) {
         val previous = sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }.put(seatId.value, session)
         if (previous is SpectatorSession && previous !== session) previous.close()
     }
@@ -67,7 +77,7 @@ class MatchRegistry {
         matchId: String,
         seatId: SeatId,
         connection: MatchConnection,
-    ) {
+    ) = withAuthority(matchId) {
         connections.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = connection
     }
 
@@ -76,7 +86,7 @@ class MatchRegistry {
         seatId: SeatId,
     ): MatchConnection? = connections[matchId]?.get(seatId.value)
 
-    fun removeMatch(matchId: String): Match? = matches.remove(matchId)
+    fun removeMatch(matchId: String): Match? = withAuthority(matchId) { matches.remove(matchId) }
 
     fun teardownMatch(
         matchId: String,
@@ -84,7 +94,7 @@ class MatchRegistry {
         seatId: SeatId? = null,
         recorder: MatchRecorder? = null,
         fallbackBridge: GameBridge? = null,
-    ) {
+    ) = withAuthority(matchId) {
         log.info("MatchRegistry: teardown matchId={} seatId={} reason={}", matchId, seatId, reason)
 
         recorder?.shutdown()

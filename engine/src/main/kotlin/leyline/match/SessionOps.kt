@@ -16,6 +16,15 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 interface GreMessageSink {
     fun sendBundledGRE(messages: List<GREToClientMessage>)
 
+    /**
+     * Send seat-specific GRE through the session sink without peer mirroring.
+     *
+     * Pre-game flows build distinct payloads for each seat. They still use the
+     * shared counter, prompt marking, recorder, and transport funnel, but must not
+     * duplicate one seat's payload onto the other connection.
+     */
+    fun sendSeatGRE(messages: List<GREToClientMessage>) = sendBundledGRE(messages)
+
     fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int? = null,

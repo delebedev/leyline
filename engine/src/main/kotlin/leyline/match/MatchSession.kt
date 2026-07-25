@@ -207,6 +207,14 @@ class MatchSession(
         }
 
     /**
+     * Serialize an external game-logic entrant with inbound handlers and auto-advance.
+     *
+     * Debug control and pre-game response routing use this boundary so they cannot
+     * mutate engine or projection state behind the session's current authority.
+     */
+    fun <T> withSessionAuthority(action: () -> T): T = synchronized(sessionLock, action)
+
+    /**
      * Replace this session with a fresh one bound to a hot-swapped puzzle game.
      *
      * The connection (sink, identity, settings, autoPassState, sessionLock) and
@@ -687,20 +695,27 @@ class MatchSession(
         val playback = firstMsgId?.let { ctx.bridge.playbackFor(seatId) }
         if (playback != null) {
             for (batch in playback.drainQueueBeforeMsgId(firstMsgId, maxGsId)) {
-                sendBundledGREDirect(batch)
+                sendBundledGREDirect(batch, mirror = true)
             }
         }
-        sendBundledGREDirect(messages)
+        sendBundledGREDirect(messages, mirror = true)
     }
 
-    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
+    override fun sendSeatGRE(messages: List<GREToClientMessage>) {
+        sendBundledGREDirect(messages, mirror = false)
+    }
+
+    private fun sendBundledGREDirect(
+        messages: List<GREToClientMessage>,
+        mirror: Boolean,
+    ) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)
-        mirrorToFamiliar(messages)
+        if (mirror) mirrorToFamiliar(messages)
     }
 
     private fun requestAutoAdvance(reason: String) {
