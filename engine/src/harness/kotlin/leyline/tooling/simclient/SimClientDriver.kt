@@ -33,7 +33,6 @@ class SimClientDriver(
      * priority-window action picking only; other prompt types stay greedy.
      */
     private val forgeAi: ForgeAiPolicy? = null,
-    private val shadowAdvisor: Boolean = false,
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private var lastFlushedSize = 0
@@ -45,7 +44,7 @@ class SimClientDriver(
     private val attemptLedger = ActionAttemptLedger { currentTurnOrNull() }
     private val submitter = SimDecisionSubmitter(harness)
     private val promptPolicy: SimPromptPolicy =
-        forgeAi?.let { ForgeAiPromptPolicy(harness, it, shadowAdvisor = shadowAdvisor) } ?: GreedyPromptPolicy(harness)
+        forgeAi?.let { ForgeAiPromptPolicy(harness, it) } ?: GreedyPromptPolicy(harness)
     private var connectMs = 0L
     private var stepTotalMs = 0L
     private var stepMaxMs = 0L
@@ -168,9 +167,6 @@ class SimClientDriver(
             aiChose = policyTelemetry.choseTotal,
             aiConsultedByPrompt = policyTelemetry.consulted,
             aiChoseByPrompt = policyTelemetry.chose,
-            advisorDisagreementsByPrompt = policyTelemetry.disagreements,
-            advisorMatchesByPrompt = policyTelemetry.matches,
-            advisorDisagreementSamples = policyTelemetry.disagreementSamples,
             aiTotalMs = policyTelemetry.totalAiMs,
             aiTotalMsByPrompt = policyTelemetry.totalMs,
             aiMaxMsByPrompt = policyTelemetry.maxMs,

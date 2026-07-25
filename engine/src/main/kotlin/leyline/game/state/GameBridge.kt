@@ -899,7 +899,6 @@ class GameBridge(
         deckList2: String? = null,
         variant: String? = null,
         startGameHook: Runnable? = null,
-        aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
     ) {
         log.info("GameBridge: initializing AI-vs-AI spectator game")
         GameBootstrap.initializeCardDatabase()
@@ -924,19 +923,13 @@ class GameBridge(
         game = g
         populateSeatMap(g)
 
-        if (aiControllerFactory != null) {
-            for (player in g.players) {
-                player.addController(Long.MAX_VALUE - 1, player, aiControllerFactory(g, player), false)
-            }
-        } else {
-            g.players.forEachIndexed { index, player ->
-                player.addController(
-                    Long.MAX_VALUE - 1,
-                    player,
-                    RevealTrackingAiController(g, player, promptBridge(SeatId(1)), SeatId(index + 1)),
-                    false,
-                )
-            }
+        g.players.forEachIndexed { index, player ->
+            player.addController(
+                Long.MAX_VALUE - 1,
+                player,
+                RevealTrackingAiController(g, player, promptBridge(SeatId(1)), SeatId(index + 1)),
+                false,
+            )
         }
 
         val collector = GameEventCollector(this)

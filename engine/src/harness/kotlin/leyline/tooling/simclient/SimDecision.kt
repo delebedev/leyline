@@ -137,66 +137,6 @@ internal sealed interface SimDecision {
     }
 }
 
-internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
-    when (this) {
-        is SimDecision.PerformAction ->
-            listOf(
-                "perform:${action.actionType.name}",
-                "iid=${action.instanceId}",
-                "grp=${action.grpId}",
-                "ability=${action.abilityGrpId}",
-                "alt=${action.alternativeGrpId}",
-            ).joinToString(":")
-        is SimDecision.SelectTargets -> "select-targets:${targetInstanceIds.sorted().joinToString("+")}"
-        is SimDecision.SelectN -> "select-n:${selectedInstanceIds.sorted().joinToString("+")}"
-        is SimDecision.Order -> "order:${orderedInstanceIds.joinToString("+")}"
-        is SimDecision.Search -> "search:${itemsFound.sorted().joinToString("+")}"
-        is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
-        is SimDecision.GroupTop -> "group-top:${instanceIds.joinToString("+")}"
-        is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
-        is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
-        is SimDecision.OptionalCost -> "optional-cost:$ctoId"
-        is SimDecision.ModalChoice -> "modal-choice:${selectedGrpIds.sorted().joinToString("+")}"
-        is SimDecision.ManaTypeChoices -> "mana-type:${choicesByCtoId.joinToString("+") { (ctoId, color) -> "$ctoId=$color" }}"
-        is SimDecision.NumericInput -> "numeric-input:$value"
-        is SimDecision.AssignDamage -> {
-            val assignmentDigest =
-                assigners
-                    .sortedBy { it.first }
-                    .joinToString("+") { (id, assignments) ->
-                        "$id=${assignments.sortedBy { it.first }}"
-                    }
-            "assign-damage:$assignmentDigest"
-        }
-        SimDecision.DeclareAllAttackers -> {
-            val attackerIds =
-                prompt
-                    ?.msg
-                    ?.declareAttackersReq
-                    ?.attackersList
-                    .orEmpty()
-                    .map { it.attackerInstanceId }
-                    .distinct()
-                    .sorted()
-                    .joinToString("+")
-            "declare-attackers:$attackerIds"
-        }
-        is SimDecision.DeclareAttackers -> "declare-attackers:${attackerInstanceIds.sorted().joinToString("+")}"
-        is SimDecision.DeclareBlockers -> {
-            val assignmentDigest =
-                assignments.entries
-                    .sortedBy { it.key }
-                    .joinToString("+") { "${it.key}->${it.value}" }
-            "declare-blockers:$assignmentDigest"
-        }
-        SimDecision.DeclareNoBlockers -> "declare-blockers:"
-        SimDecision.CancelAction -> "cancel-action"
-        SimDecision.PassPriority -> "pass-priority"
-        SimDecision.RetirePrompt -> "retire-prompt"
-        SimDecision.WaitForEngine -> "wait-for-engine"
-        SimDecision.Terminal -> "terminal"
-    }
-
 internal enum class SimSubmitResult {
     Submitted,
     NoPending,

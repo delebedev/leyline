@@ -135,7 +135,7 @@ class SimClientRunner(
         playerLog: PlayerLogWriter,
     ): SimClientDriver {
         val forgeAi =
-            if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
+            if (config.policy == SimClientPolicyMode.ForgeAi) {
                 ForgeAiPolicy(harness, leyline.bridge.types.SeatId(1))
             } else {
                 null
@@ -148,7 +148,6 @@ class SimClientRunner(
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
                     forgeAi = forgeAi,
-                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                 )
             is PuzzleSimClientRow ->
                 SimClientDriver(
@@ -158,7 +157,6 @@ class SimClientRunner(
                     maxIterations = 3_000,
                     connect = { harness.connectAndKeepPuzzleText(row.puzzleText) },
                     forgeAi = forgeAi,
-                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                 )
         }
     }

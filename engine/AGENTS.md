@@ -20,7 +20,7 @@ protocol/    GRE handshake/proto dump helpers. TCP frame codecs live in native.p
 `leyline.tooling` (headless match harness, simclient) lives in the separate `harness`
 source set (`src/harness/kotlin/`, not `src/main/`) so none of it ships in the engine
 jar. It compiles against main's classes and is on the classpath for engine tests and
-the `simclient`/`simref` JavaExec tasks.
+the `simclient` JavaExec task.
 
 ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process. Concrete rules live in `PackageLayeringTest` (`engine/src/test/kotlin/leyline/architecture/`); match-handler constructor contracts are enforced alongside it in `HandlerConstructorContractTest`.
 

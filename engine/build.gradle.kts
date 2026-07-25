@@ -24,7 +24,7 @@ repositories {
 
 // Test-support code (headless match harness, simclient tooling) that must not
 // ship in the engine jar but needs main's classes and dependencies to compile.
-// Consumed by: engine tests, and the simclient/simref JavaExec tasks below.
+// Consumed by engine tests and the simclient JavaExec task below.
 val harness =
     sourceSets.create("harness") {
         compileClasspath += sourceSets.main.get().output + configurations["compileClasspath"]
@@ -185,20 +185,6 @@ val simclient =
         mainClass.set("leyline.tooling.simclient.SimClientToolKt")
         workingDir = rootProject.projectDir
         args((project.findProperty("simclientArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
-        outputs.upToDateWhen { false }
-        outputs.cacheIf { false }
-    }
-
-val simref =
-    tasks.register<JavaExec>("simref") {
-        group = "simclient"
-        (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-        description = "Run direct Forge AI deck/puzzle matrices"
-        dependsOn(tasks.named("harnessClasses"))
-        classpath = sourceSets["harness"].runtimeClasspath
-        mainClass.set("leyline.tooling.simclient.SimRefToolKt")
-        workingDir = rootProject.projectDir
-        args((project.findProperty("simrefArgs") as String?)?.split(" ")?.filter { it.isNotBlank() }.orEmpty())
         outputs.upToDateWhen { false }
         outputs.cacheIf { false }
     }

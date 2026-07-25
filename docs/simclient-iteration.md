@@ -73,37 +73,11 @@ Scout mode for broad deck sweeps keeps going after per-game exceptions and write
 SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "Deck A,Deck B,Deck C" 1..20
 ```
 
-Fast tool wiring smoke:
+Simclient test lane:
 
 ```bash
-./gradlew :engine:simclientSmoke
+just test-simclient
 ```
-
-Differential policy audit smoke:
-
-```bash
-SIMCLIENT_DECKS="forest-only,bears" \
-SIMCLIENT_SEEDS=1..2 \
-SIMCLIENT_MAX_TURNS=8 \
-SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
-  ./gradlew :engine:simRef \
-    -PsimrefArgs="--out-dir engine/build/sim-ref-shadow-smoke"
-
-SIMCLIENT_DECKS="forest-only,bears" \
-SIMCLIENT_SEEDS=1..2 \
-SIMCLIENT_POLICY=shadow-ai \
-SIMCLIENT_MAX_TURNS=8 \
-SIMCLIENT_GAME_TIMEOUT_SECONDS=30 \
-  ./gradlew :engine:simclient \
-    -PsimclientArgs="--out-dir engine/build/simclient-shadow-smoke"
-
-./gradlew :engine:simDiffReport \
-  -PsimDiffReportArgs="--ref-dir engine/build/sim-ref-shadow-smoke --cand-dir engine/build/simclient-shadow-smoke --out-dir engine/build/sim-diff-shadow-smoke"
-```
-
-Read `coverage-report.md` as a priority list, not a verdict. Prefer aggregate
-coverage gaps with high `healthyRows` and low `issueRows`. Use advisor-gap
-`category` and `sample` fields to choose the next small policy seam.
 
 Resume or shard a sweep without changing row identity:
 
