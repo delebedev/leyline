@@ -33,8 +33,8 @@ class ConnectionState(
     /**
      * Serializes all game-logic entry points (Netty I/O threads are concurrent).
      *
-     * Lives on the connection — must outlive game-level recreation (puzzle hot-swap)
-     * so concurrent inbound messages can't race the swap.
+     * Shared by every connection for this match and available before either seat
+     * has a session. It outlives game-level recreation (puzzle hot-swap).
      */
-    val sessionLock = Any()
+    val sessionLock: Any = registry.authorityFor(matchId)
 }

@@ -70,7 +70,7 @@ class PuzzleHandler(
         session: MatchSession,
         matchId: String,
         seatId: Int,
-    ) {
+    ) = session.withSessionAuthority {
         val bridge = session.gameBridge
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
         val gsId = session.counter.nextGsId()

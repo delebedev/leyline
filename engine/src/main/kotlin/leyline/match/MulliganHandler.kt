@@ -3,11 +3,8 @@ package leyline.match
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
-import leyline.game.bundle.markPrompts
 import leyline.game.state.GameBridge
-import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
-import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -25,7 +22,6 @@ class MulliganHandler(
     private val matchConfig: MatchConfig,
     private val registry: MatchRegistry,
     private val sessionProvider: () -> GameOps?,
-    private val outputProvider: () -> MatchOutput,
     private val matchIdProvider: () -> String,
     private val seatIdProvider: () -> SeatId,
 ) {
@@ -38,7 +34,6 @@ class MulliganHandler(
     var seat2Hand: List<Int> = emptyList()
 
     private val session get() = sessionProvider()
-    private val output get() = outputProvider()
     private val matchId get() = matchIdProvider()
     private val seatId: SeatId get() = seatIdProvider()
 
@@ -139,11 +134,8 @@ class MulliganHandler(
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId)
         s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        markPrompts(s.counter, msg)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=0")
-        ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
-        output.send(msg)
+        s.sendSeatGRE(msg.greToClientEvent.greToClientMessagesList)
     }
 
     /** DealHand only — public for cross-connection calls. */
@@ -158,11 +150,8 @@ class MulliganHandler(
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId, diffDeletedInstanceIds)
         s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        markPrompts(s.counter, msg)
         Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=${diffDeletedInstanceIds.size}")
-        ProtoDump.dump(msg, "DealHand-seat${seatId.value}")
-        output.send(msg)
+        s.sendSeatGRE(msg.greToClientEvent.greToClientMessagesList)
     }
 
     /**
@@ -187,11 +176,8 @@ class MulliganHandler(
                 numCards = numCards,
             )
         s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        markPrompts(s.counter, msg)
         Tap.outboundTemplate("MulliganReq seat=${seatId.value} mulliganCount=$reportedMulliganCount numCards=$numCards")
-        ProtoDump.dump(msg, "MulliganReq-seat${seatId.value}")
-        output.send(msg)
+        s.sendSeatGRE(msg.greToClientEvent.greToClientMessagesList)
     }
 
     /** DealHand + MulliganReq bundled (for seat 2). */
@@ -201,10 +187,7 @@ class MulliganHandler(
         val gsId = s.counter.nextGsId()
         val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.counter.currentMsgId(), gsId, bridge)
         s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        markPrompts(s.counter, msg)
         Tap.outboundTemplate("DealHand+MulliganReq seat=${seatId.value}")
-        ProtoDump.dump(msg, "DealHand+MullReq-seat${seatId.value}")
-        output.send(msg)
+        s.sendSeatGRE(msg.greToClientEvent.greToClientMessagesList)
     }
 }
