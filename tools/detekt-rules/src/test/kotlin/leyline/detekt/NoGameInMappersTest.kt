@@ -1,48 +1,45 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.test.lint
+import dev.detekt.api.Config
+import dev.detekt.test.lint
+import dev.detekt.test.utils.compileContentForTest
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.io.File
+import java.nio.file.Path
 
 class NoGameInMappersTest :
     FunSpec({
 
         fun lintAt(code: String, path: String): Int {
-            val file = File(path).also { it.parentFile?.mkdirs(); it.writeText(code) }
-            return try {
-                NoGameInMappers(Config.empty).lint(file.toPath()).size
-            } finally {
-                file.delete()
-            }
+            val file = compileContentForTest(code, Path.of(path))
+            return NoGameInMappers(Config.empty).lint(file).size
         }
 
         test("forge.game.Game import inside a mapper is flagged") {
             val code = """
-                package leyline.game.mapper
+                package leyline.game.mapping
                 import forge.game.Game
                 class X
             """.trimIndent()
-            lintAt(code, "/tmp/leyline/game/mapper/X.kt") shouldBe 1
+            lintAt(code, "/tmp/leyline/game/mapping/X.kt") shouldBe 1
         }
 
         test("forge.game.Game import inside StateMapper is flagged") {
             val code = """
-                package leyline.game
+                package leyline.game.mapping
                 import forge.game.Game
                 class StateMapper
             """.trimIndent()
-            lintAt(code, "/tmp/leyline/game/StateMapper.kt") shouldBe 1
+            lintAt(code, "/tmp/leyline/game/mapping/StateMapper.kt") shouldBe 1
         }
 
         test("forge.game.Game import inside GsmBuilder is flagged") {
             val code = """
-                package leyline.game
+                package leyline.game.bundle
                 import forge.game.Game
                 class GsmBuilder
             """.trimIndent()
-            lintAt(code, "/tmp/leyline/game/GsmBuilder.kt") shouldBe 1
+            lintAt(code, "/tmp/leyline/game/bundle/GsmBuilder.kt") shouldBe 1
         }
 
         test("forge.game.Game import inside BundleBuilder is allowed") {
@@ -74,10 +71,10 @@ class NoGameInMappersTest :
 
         test("unrelated import inside a mapper is not flagged") {
             val code = """
-                package leyline.game.mapper
+                package leyline.game.mapping
                 import some.other.Class
                 class Y
             """.trimIndent()
-            lintAt(code, "/tmp/leyline/game/mapper/Y.kt") shouldBe 0
+            lintAt(code, "/tmp/leyline/game/mapping/Y.kt") shouldBe 0
         }
     })

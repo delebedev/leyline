@@ -351,9 +351,10 @@ class MatchSession(
     private fun withValidResponse(
         greMsg: ClientToGREMessage,
         block: () -> Unit,
-    ) = synchronized(sessionLock) {
-        if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
-    }
+    ): Unit =
+        synchronized(sessionLock) {
+            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
+        }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -362,7 +363,7 @@ class MatchSession(
      * to return `TargetSelectionResult(false, false)` → spell targeting fails →
      * engine unwinds the cast (removes from stack, returns mana).
      */
-    override fun onCancelAction(greMsg: ClientToGREMessage) =
+    override fun onCancelAction(greMsg: ClientToGREMessage): Unit =
         synchronized(sessionLock) {
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
             if (combatHandler.pendingLegalAttackers.isNotEmpty()) {

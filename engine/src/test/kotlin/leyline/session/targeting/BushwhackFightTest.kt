@@ -3,13 +3,17 @@ package leyline.session.targeting
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.detailInt
+import leyline.testkit.gameStateMessages
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -52,8 +56,11 @@ class BushwhackFightTest :
             actions.actionsList.filter { it.actionType == ActionType.Cast && it.instanceId == destroyEvilIid } shouldBe emptyList()
         }
 
-        test("Bushwhack Fight mode emits SelectTargetsReq for both target groups") {
+        test("Bushwhack Fight mode shares exact target metadata with TargetSpec") {
             startPuzzleFile("puzzles/bushwhack-fight.pzl")
+
+            val ownIid = human.battlefield.iid("Centaur Courser")
+            val oppIid = ai.battlefield.iid("Grizzly Bears")
 
             val cto = castSpellUntilCastingTimeOptionsReq("Bushwhack")
             cto.castingTimeOptionReqCount shouldBe 1
@@ -73,11 +80,67 @@ class BushwhackFightTest :
             firstSt.shouldNotBeNull()
             val firstSelection = firstSt.selectTargetsReq.targetsList.first()
             assertSoftly {
+                firstSt.selectTargetsReq.abilityGrpId shouldBe 93928
+                firstSelection.targetIdx shouldBe 1
+                firstSelection.targetingAbilityGrpId shouldBe fightOption.grpId
+                firstSelection.prompt.promptId shouldBe PromptIds.TARGET_CREATURE_YOU_CONTROL
+                firstSelection.prompt.parametersList
+                    .single()
+                    .numberValue shouldBe firstSt.selectTargetsReq.sourceId
                 firstSelection.minTargets shouldBe 1
                 firstSelection.maxTargets shouldBe 1
                 firstSelection.targetsList
                     .map { it.targetInstanceId }
-                    .shouldContain(human.battlefield.iid("Centaur Courser"))
+                    .shouldContain(ownIid)
+            }
+
+            val secondPromptSlice = after { selectTargets(listOf(ownIid)) }
+            val secondSt =
+                secondPromptSlice.messages
+                    .last { it.hasSelectTargetsReq() }
+                    .selectTargetsReq
+            val firstActiveSpec =
+                secondPromptSlice.messages
+                    .persistentAnnotationsOfType(AnnotationType.TargetSpec)
+                    .single { it.detailInt("index") == 1 }
+            val secondSelection = secondSt.targetsList.single()
+            assertSoftly {
+                firstActiveSpec.affectorId shouldBe firstSt.selectTargetsReq.sourceId
+                secondSt.abilityGrpId shouldBe 93928
+                secondSelection.targetIdx shouldBe 2
+                secondSelection.targetingAbilityGrpId shouldBe fightOption.grpId
+                secondSelection.prompt.promptId shouldBe PromptIds.TARGET_CREATURE_YOU_DONT_CONTROL
+                secondSelection.prompt.parametersList
+                    .single()
+                    .numberValue shouldBe secondSt.sourceId
+                secondSelection.targetsList.map { it.targetInstanceId }.shouldContain(oppIid)
+            }
+
+            val submittedSlice = after { selectTargets(listOf(oppIid)) }
+            val secondSpecGsm =
+                submittedSlice.messages
+                    .gameStateMessages()
+                    .single { gsm ->
+                        gsm.persistentAnnotationsList.any {
+                            AnnotationType.TargetSpec in it.typeList && it.detailInt("index") == 2
+                        }
+                    }
+            val secondSpec =
+                secondSpecGsm.persistentAnnotationsList.single {
+                    AnnotationType.TargetSpec in it.typeList && it.detailInt("index") == 2
+                }
+            val firstSpec = firstActiveSpec
+            assertSoftly {
+                secondSpecGsm.diffDeletedPersistentAnnotationIdsList shouldNotContain firstSpec.id
+                firstSpec.affectorId shouldBe secondSpec.affectorId
+                firstSpec.affectedIdsList shouldBe listOf(ownIid)
+                secondSpec.affectedIdsList shouldBe listOf(oppIid)
+                firstSpec.detailInt("abilityGrpId") shouldBe fightOption.grpId
+                secondSpec.detailInt("abilityGrpId") shouldBe fightOption.grpId
+                firstSpec.detailInt("promptId") shouldBe PromptIds.TARGET_CREATURE_YOU_CONTROL
+                secondSpec.detailInt("promptId") shouldBe PromptIds.TARGET_CREATURE_YOU_DONT_CONTROL
+                firstSpec.detailInt("promptParameters") shouldBe firstSpec.affectorId
+                secondSpec.detailInt("promptParameters") shouldBe secondSpec.affectorId
             }
         }
 

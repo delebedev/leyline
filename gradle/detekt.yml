@@ -1,26 +1,33 @@
-build:
-  maxIssues: 0
-
 complexity:
   LongMethod:
-    threshold: 100
+    allowedLines: 100
   LongParameterList:
-    functionThreshold: 10
-    constructorThreshold: 12
+    allowedFunctionParameters: 10
+    allowedConstructorParameters: 12
   CyclomaticComplexMethod:
-    threshold: 25
+    allowedComplexity: 25
   CognitiveComplexMethod:
     active: false
   TooManyFunctions:
     active: false
   LargeClass:
-    threshold: 600
+    allowedLines: 600
   NestedBlockDepth:
-    threshold: 6
+    allowedDepth: 6
   ComplexCondition:
-    threshold: 5
+    allowedConditions: 5
 
 style:
+  # Detekt 2 enables these migrations by default. Keep the existing lint
+  # contract; adopt them separately from the build-toolchain upgrade.
+  AbstractClassCanBeInterface:
+    active: false
+  UseCheckNotNull:
+    active: false
+  UseOrEmpty:
+    active: false
+  UseRequireNotNull:
+    active: false
   MagicNumber:
     active: false
   WildcardImport:
@@ -31,7 +38,11 @@ style:
     maxLineLength: 140
   ForbiddenComment:
     active: false
-  UnusedPrivateMember:
+  UnusedPrivateClass:
+    active: true
+  UnusedPrivateFunction:
+    active: true
+  UnusedPrivateProperty:
     active: true
   UnusedParameter:
     active: true
@@ -45,6 +56,8 @@ empty-blocks:
     active: false
 
 potential-bugs:
+  UnsafeCallOnNullableType:
+    active: false
   DoubleMutabilityForCollection:
     active: true
   HasPlatformType:
@@ -81,6 +94,12 @@ exceptions:
     active: true
   RethrowCaughtException:
     active: true
+
+naming:
+  # Detekt 2 additionally reports nested implicit `it` parameters. Preserve
+  # the prior rule surface during the toolchain migration.
+  NoNameShadowing:
+    active: false
 
 leyline:
   TrivialKDoc:

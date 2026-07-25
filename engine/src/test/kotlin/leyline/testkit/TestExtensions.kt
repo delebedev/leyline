@@ -143,21 +143,6 @@ fun GameStateMessage.hasEnteredZoneThisTurn(instanceId: Int): Boolean =
             instanceId in it.affectedIdsList
     }
 
-// ----- Tier 2: Accumulator consistency -----
-
-/** Assert that action instanceIds and zone object refs are all valid. */
-fun ClientAccumulator.assertConsistent(context: String = "") {
-    val suffix = if (context.isNotEmpty()) " ($context)" else ""
-    val missingActions = actionInstanceIdsMissingFromObjects()
-    withClue("Action instanceIds missing from objects$suffix: $missingActions") {
-        missingActions.shouldBeEmpty()
-    }
-    val missingZoneObjs = zoneObjectsMissingFromObjects()
-    withClue("Zone objects missing from objects$suffix: $missingZoneObjs") {
-        missingZoneObjs.shouldBeEmpty()
-    }
-}
-
 // ----- Tier 2: Zone consistency -----
 
 /** Assert that a zone's objectInstanceIds count matches the number of objects with that zoneId. */

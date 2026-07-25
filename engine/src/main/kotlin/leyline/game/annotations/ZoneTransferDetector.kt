@@ -48,6 +48,8 @@ data class AppliedTransfer(
     val manaPayments: List<ManaPaymentRecord> = emptyList(),
     /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
     val isAdventureCast: Boolean = false,
+    /** True if this transfer is an Omen spell cast (UserActionTaken actionType=24). */
+    val isOmenCast: Boolean = false,
     /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
      *  Warp, Cycling, Impending). Carries the client ability grpId for the alt-cost. */
     val altCostAbilityGrpId: Int = 0,
@@ -127,6 +129,8 @@ data class TransferResult(
     val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
     /** Degraded transfers with no matching ordered Forge zone operation. */
     val snapshotFallbacks: List<SnapshotTransferFallback> = emptyList(),
+    /** Linked-face family objects exposed only for the transfer into a hidden zone. */
+    val transientHiddenFamilyIds: Set<Int> = emptySet(),
 )
 
 internal data class ZoneTransferContext(
@@ -379,7 +383,7 @@ object ZoneTransferDetector {
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
                 val handoff =
-                    if (!category.keepsSameInstanceId && forgeCardId != null) {
+                    if ((!category.keepsSameInstanceId || obj.zoneId in libraryZoneIds) && forgeCardId != null) {
                         ZoneHandoff.fromRealloc(idAllocator(forgeCardId), obj.zoneId)
                     } else {
                         ZoneHandoff.keepingSameInstanceId(InstanceId(obj.instanceId), obj.zoneId)
@@ -487,6 +491,14 @@ object ZoneTransferDetector {
                     } else {
                         null
                     }
+                val transferGrpId =
+                    spellCastEvent
+                        ?.spellGrpId
+                        ?.takeIf { category == TransferCategory.CastSpell && it != 0 }
+                        ?: obj.grpId
+                if (transferGrpId != obj.grpId) {
+                    patchedObjects[i] = patchedObjects[i].toBuilder().setGrpId(transferGrpId).build()
+                }
                 val manaPayments =
                     spellCastEvent?.manaPayments?.map { mp ->
                         val landIid = idLookup(mp.sourceCardId).value
@@ -501,6 +513,7 @@ object ZoneTransferDetector {
                         )
                     } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
+                val isOmenCast = spellCastEvent?.isOmen == true
                 val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
                 val castAbilityGrpId = spellCastEvent?.castAbilityGrpId ?: altCostAbilityGrpId
                 val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
@@ -521,13 +534,14 @@ object ZoneTransferDetector {
                         srcZoneId = prevZone,
                         destZoneId = obj.zoneId,
                         forgeCardId = forgeCardId,
-                        grpId = obj.grpId,
+                        grpId = transferGrpId,
                         ownerSeatId = obj.ownerSeatId,
                         affectorId = transferAffectorId,
                         colorOrdinals = colorOrdinals,
                         isMdfcLandPlay = isMdfcLandPlay,
                         manaPayments = manaPayments,
                         isAdventureCast = isAdventureCast,
+                        isOmenCast = isOmenCast,
                         altCostAbilityGrpId = altCostAbilityGrpId,
                         castAbilityGrpId = castAbilityGrpId,
                         kickerAbilityGrpId = kickerAbilityGrpId,
@@ -590,6 +604,7 @@ object ZoneTransferDetector {
             forgeIdLookup,
             idAllocator,
             grpIdResolver,
+            pendingSpellResolutionLookup,
         )
 
         // Post-pass: detect triggered ability lifecycle on the stack.
@@ -1066,6 +1081,7 @@ object ZoneTransferDetector {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         grpIdResolver: (ForgeCardId) -> GrpId,
+        pendingSpellResolutionLookup: (ForgeCardId) -> GameEvent.SpellResolved?,
     ) {
         val currentZoneById =
             patchedZones
@@ -1080,7 +1096,7 @@ object ZoneTransferDetector {
 
             val forgeCardId = forgeIdLookup(InstanceId(iid)) ?: continue
             val ownerSeatId = ownerSeatIdForZone(destZone) ?: ownerSeatIdForZone(prevZone) ?: 0
-            if (isOrderedOmenTransfer(ledgerIntents, forgeCardId, prevZone, destZone)) {
+            if (isCollapsedCastResolveToLibrary(ledgerIntents, forgeCardId, prevZone, destZone)) {
                 // The final hidden snapshot collapses Hand->Stack->Library.
                 // Ordered Forge moves remain authoritative for both legs.
                 val castHandoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), ZoneIds.STACK)
@@ -1088,7 +1104,8 @@ object ZoneTransferDetector {
                 val handId = castHandoff.realloc.old.value
                 val stackId = castHandoff.realloc.new.value
                 val libraryId = resolveHandoff.realloc.new.value
-                val grpId = grpIdResolver(forgeCardId).value
+                val pendingResolution = pendingSpellResolutionLookup(forgeCardId)
+                val grpId = pendingResolution?.spellGrpId?.takeIf { it != 0 } ?: grpIdResolver(forgeCardId).value
 
                 patchZoneInstanceId(patchedZones, destZone, iid, libraryId)
                 retiredIds.add(handId)
@@ -1121,7 +1138,7 @@ object ZoneTransferDetector {
                 )
                 zoneRecordings.add(libraryId to destZone)
                 log.debug(
-                    "zone-only Omen transfer: iid {} -> stack {} -> library {}",
+                    "zone-only cast-resolve transfer: iid {} -> stack {} -> library {}",
                     handId,
                     stackId,
                     libraryId,
@@ -1129,15 +1146,10 @@ object ZoneTransferDetector {
                 continue
             }
             val ledgerIntent = pendingLedgerIntents.removeFirstOrNull { it.matches(forgeCardId, prevZone, destZone) }
-            val category =
-                categoryForTransfer(
-                    GameObjectInfo.getDefaultInstance(),
-                    prevZone,
-                    destZone,
-                    forgeCardId,
-                    events,
-                    ledgerIntent,
-                )
+            val pendingResolution =
+                pendingSpellResolutionLookup(forgeCardId)
+                    ?.takeIf { prevZone == ZoneIds.STACK }
+            val category = zoneOnlyTransferCategory(prevZone, destZone, forgeCardId, events, ledgerIntent, pendingResolution)
             if (ledgerIntent?.origin != TransferPlanOrigin.Event) {
                 snapshotFallbacks.add(SnapshotTransferFallback(forgeCardId, prevZone, destZone))
                 log.warn("snapshot transfer fallback card={} {}->{}", forgeCardId, prevZone, destZone)
@@ -1151,7 +1163,7 @@ object ZoneTransferDetector {
                     null
                 }
             val handoff =
-                if (!category.keepsSameInstanceId) {
+                if (!category.keepsSameInstanceId || destZone in libraryZoneIds) {
                     ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
                 } else {
                     ZoneHandoff.keepingSameInstanceId(InstanceId(iid), destZone)
@@ -1168,7 +1180,7 @@ object ZoneTransferDetector {
                     srcZoneId = prevZone,
                     destZoneId = destZone,
                     forgeCardId = forgeCardId,
-                    grpId = grpIdResolver(forgeCardId).value,
+                    grpId = pendingResolution?.spellGrpId?.takeIf { it != 0 } ?: grpIdResolver(forgeCardId).value,
                     ownerSeatId = ownerSeatId,
                     isAdventureCast = spellCastEvent?.isAdventure == true,
                     altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0,
@@ -1189,7 +1201,7 @@ object ZoneTransferDetector {
         transfers: List<AppliedTransfer>,
     ): Boolean = iid !in gameObjectIds && destZone != ZoneIds.LIMBO && transfers.none { it.origId == iid || it.newId == iid }
 
-    private fun isOrderedOmenTransfer(
+    private fun isCollapsedCastResolveToLibrary(
         ledgerIntents: List<ZoneMoveIntent>,
         forgeCardId: ForgeCardId,
         prevZone: Int,
@@ -1204,12 +1216,36 @@ object ZoneTransferDetector {
             cardMoves.any { it.move.from == Zone.Stack && it.move.to == Zone.Library && it.category == TransferCategory.Resolve }
     }
 
+    private fun zoneOnlyTransferCategory(
+        prevZone: Int,
+        destZone: Int,
+        forgeCardId: ForgeCardId,
+        events: List<GameEvent>,
+        ledgerIntent: ZoneMoveIntent?,
+        pendingResolution: GameEvent.SpellResolved?,
+    ): TransferCategory =
+        when {
+            pendingResolution?.hasFizzled == true -> TransferCategory.Countered
+            pendingResolution != null -> TransferCategory.Resolve
+            else ->
+                categoryForTransfer(
+                    GameObjectInfo.getDefaultInstance(),
+                    prevZone,
+                    destZone,
+                    forgeCardId,
+                    events,
+                    ledgerIntent,
+                )
+        }
+
     private fun ownerSeatIdForZone(zoneId: Int): Int? =
         when (zoneId) {
             ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD, ZoneIds.REVEALED_P1 -> 1
             ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD, ZoneIds.REVEALED_P2 -> 2
             else -> null
         }
+
+    private val libraryZoneIds = setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
 
     private inline fun <T> MutableList<T>.removeFirstOrNull(predicate: (T) -> Boolean): T? {
         val index = indexOfFirst(predicate)
@@ -1333,7 +1369,7 @@ object ZoneTransferDetector {
                     ?.takeIf { it != 0 }
                     ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
-                if (isActivated) matchingCast?.activationZoneId ?: 0 else 0
+                if (isActivated) matchingCast.activationZoneId else 0
             val triggeringObjectIid = matchingCast?.triggeringObjectInstanceId?.value
             val triggeringObjectZone =
                 triggeringObjectZoneId(triggeringObjectIid, patchedObjects, previousZones)

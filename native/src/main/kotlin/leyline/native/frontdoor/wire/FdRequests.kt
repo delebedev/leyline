@@ -1,11 +1,11 @@
 package leyline.native.frontdoor.wire
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.domain.DeckCard
+import leyline.domain.json.productionJson
 import org.slf4j.LoggerFactory
 
 /**
@@ -19,7 +19,7 @@ object FdRequests {
     private val log = LoggerFactory.getLogger(FdRequests::class.java)
 
     private val lenientJson =
-        Json {
+        productionJson {
             ignoreUnknownKeys = true
             isLenient = true
         }

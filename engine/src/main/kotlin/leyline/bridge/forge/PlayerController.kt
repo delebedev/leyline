@@ -1,6 +1,7 @@
 package leyline.bridge.forge
 
 import forge.LobbyPlayer
+import forge.ai.LobbyPlayerAi
 import forge.card.ColorSet
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
@@ -45,6 +46,7 @@ import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import forge.game.spellability.TargetChoices
 import forge.game.staticability.StaticAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
@@ -269,10 +271,18 @@ class PlayerController(
     private val optionalActionGate = OptionalActionGate(this, actionBridge)
     private val numericInputGate = NumericInputGate(this, actionBridge)
     private val spellExecutor = SpellExecutor(game, player, bridge)
-    private val targetingCoordinator = TargetingCoordinator(bridge, seating, currentSourceEntityId = ::currentSourceEntityId)
+    private val targetingCoordinator =
+        TargetingCoordinator(
+            bridge,
+            seating,
+            viewerSeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
+            currentSourceEntityId = ::currentSourceEntityId,
+            isCastingSpell = { activeSourceIsSpell },
+        )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
     private var activeSpellSourceId: Int? = null
+    private var activeSourceIsSpell: Boolean = false
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -932,6 +942,25 @@ class PlayerController(
     // TargetSelection validates candidates and zones; this method handles
     // the user interaction portion.
 
+    override fun chooseTargetsFor(currentAbility: SpellAbility): Boolean {
+        val chosen = super.chooseTargetsFor(currentAbility)
+        if (chosen) targetingCoordinator.recordCompletedTargetSpec(currentAbility)
+        return chosen
+    }
+
+    override fun chooseNewTargetsFor(
+        ability: SpellAbility,
+        filter: Predicate<GameObject>?,
+        optional: Boolean,
+    ): TargetChoices? {
+        val selected = super.chooseNewTargetsFor(ability, filter, optional)
+        if (selected != null) {
+            val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
+            targetingCoordinator.recordCompletedTargetSpec(targetAbility)
+        }
+        return selected
+    }
+
     override fun selectTargetsInteractively(
         validTargets: List<Card>,
         sa: SpellAbility,
@@ -940,7 +969,7 @@ class PlayerController(
         divisionValues: Collection<Int>?,
         filter: Predicate<GameObject>?,
         mustTargetFiltered: Boolean,
-    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets, divisionValues)
+    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets)
 
     // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(
@@ -1110,7 +1139,7 @@ class PlayerController(
             // total-power taps keep the auto-take shortcut for a forced list.
             forcePrompt = totalPowerNeeded == null,
             costSelectionWeights =
-                if (teamwork) optionList.map { (it.netPower ?: 0).coerceAtLeast(0) } else emptyList(),
+                if (teamwork) optionList.map { it.netPower.coerceAtLeast(0) } else emptyList(),
             minSelectionWeight = totalPowerNeeded.takeIf { teamwork },
         )
     }
@@ -1327,11 +1356,14 @@ class PlayerController(
         block: () -> T,
     ): T {
         val previous = activeSpellSourceId
+        val previousIsSpell = activeSourceIsSpell
         activeSpellSourceId = sa.hostCard?.id ?: previous
+        activeSourceIsSpell = sa.isSpell
         return try {
             block()
         } finally {
             activeSpellSourceId = previous
+            activeSourceIsSpell = previousIsSpell
         }
     }
 

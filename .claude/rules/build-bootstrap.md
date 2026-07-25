@@ -14,14 +14,14 @@ paths:
 
 Two modes, chosen automatically by whether `forge/` has uncommitted changes:
 
-- **shared** (clean submodule): `forge/.m2-local` is a symlink → `~/.cache/leyline/forge-m2/<commit>/`. Multiple worktrees reuse the same jars. This is why `mvn install` is skipped when another worktree already built the same forge commit.
+- **shared** (clean submodule): `forge/.m2-local` is a symlink → `~/.cache/leyline/forge-m2/<commit>/`. Multiple worktrees reuse the same jars. A file lock serializes the first install for a commit; concurrent and later installs reuse its success marker.
 - **local** (dirty submodule): `forge/.m2-local` is a real directory. Prevents leaking uncommitted forge changes to other worktrees.
 
 The script outputs three shell variables via `printf` — the justfile `eval`s the output to get `current_forge` (commit hash), `forge_cache_mode`, and `forge_m2` (resolved path).
 
 ## `.forge-commit-installed` stamp
 
-Contains the forge content hash (from `git log -1 --format=%H -- forge-core/src ...`). Written by `just install-forge`, read by `CheckUpstreamTask` (gradle) to skip redundant `mvn install`. Not the full submodule commit — only tracks source-affecting changes.
+Contains the Forge submodule commit. Written by `just install-forge` and read by `CheckUpstreamTask` so Gradle rejects a checkout whose Forge jars have not been installed.
 
 ## Worktree submodule init
 

@@ -2,13 +2,9 @@
 # Imported by justfile — all variables available from parent.
 
 # single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one WebRoutesTest web`)
-# Resolves the fully-qualified class name from source first: Gradle's --tests
-# glob matching (`--tests "*Class"`) silently matches zero tests for kotest
-# specs on this project's Gradle/kotest combo (the class's tests run and pass
-# inside kotest, but the result never reaches Gradle's reporting layer) — see
-# .claude/rules/leyline-tests.md "Running tests". A fully-qualified --tests
-# pattern is the one shape proven to work and to fail loud when nothing
-# matches, so resolve-test-fqcn.sh does that resolution before invoking gradle.
+# Resolve the source file first so missing and ambiguous class names fail before
+# Gradle combines filters. The fully-qualified selector also remains stable when
+# similarly named specs are added in another package.
 [group('test')]
 test-one class module='engine':
     #!/usr/bin/env bash
@@ -28,12 +24,8 @@ test-debug class module='engine':
 
 # several test classes in one run, space-separated, engine by default
 # (e.g. `just test-many "PackageLayeringTest HandlerConstructorContractTest"`)
-# kotest.filter.specs comma/semicolon lists are NOT a substitute — Kotest
-# 5.9.1's SystemPropertySpecFilterInterceptor ANDs multiple patterns together
-# instead of ORing them, so a real multi-class list always matches zero specs,
-# silently (BUILD SUCCESSFUL, PASS 0/0 — no non-zero exit at all). Repeated
-# --tests flags with fully-qualified names give real OR semantics and fail
-# loud, so that's what this recipe uses.
+# Repeated fully-qualified --tests flags provide Gradle's native OR semantics;
+# source resolution keeps every requested class independently validated.
 [group('test')]
 test-many classes module='engine':
     #!/usr/bin/env bash
@@ -58,7 +50,7 @@ test-gate: docs-lint
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
     ./gradlew ktlintCheck detekt verifyWebProfilePosture :web:generateOpenApi
-    ./gradlew --rerun-tasks \
+    ./gradlew -PforceTests \
         :test \
         :domain:test \
         :engine:testGate \
@@ -78,17 +70,17 @@ test-gate: docs-lint
 # ~cores/4 (gradle-side); pass a number to override.
 [group('test')]
 test-integration forks='':
-    cd "{{project_dir}}" && ./gradlew --rerun-tasks -PintegrationForks={{forks}} :engine:testIntegration :engine:jacocoTestReport
+    cd "{{project_dir}}" && ./gradlew -PforceTests -PintegrationForks={{forks}} :engine:testIntegration :engine:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
 [group('test')]
 test-acceptance:
-    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testAcceptance
+    cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testAcceptance
 
 # sim-client E2E suite — synthetic GRE log generation, drives full games (slow)
 [group('test')]
 test-simclient:
-    cd "{{project_dir}}" && ./gradlew --rerun-tasks :engine:testSimClient
+    cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testSimClient
 
 # strict integration test for slice verification — bypasses gradle's test
 # build cache (which serves stale PASS results when forge jar inputs match
@@ -131,7 +123,7 @@ slice-verify:
     echo "  COMBAT_DECK:    $deck_hash"
     echo "  forge-gui jar:  $jar_hash"
     echo
-    ./gradlew --rerun-tasks :engine:testIntegrationStrict --console=plain
+    ./gradlew -PforceTests :engine:testIntegrationStrict --console=plain
 
 # JaCoCo coverage report (per-module, merged summary)
 [group('test')]

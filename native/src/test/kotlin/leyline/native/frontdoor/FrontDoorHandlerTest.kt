@@ -342,8 +342,9 @@ class FrontDoorHandlerTest :
         test("CmdType 1700 - GraphDefinitions returns JSON") {
             val ch = fdChannel()
             val msg = ch.sendCmd(1700)
-            msg.jsonPayload.shouldNotBeNull().shouldNotBeEmpty()
-            json.parseToJsonElement(msg.jsonPayload!!) // valid JSON
+            val payload = msg.jsonPayload.shouldNotBeNull()
+            payload.shouldNotBeEmpty()
+            json.parseToJsonElement(payload) // valid JSON
         }
 
         test("CmdType 1910 - PlayBladeQueueConfig has all queues") {

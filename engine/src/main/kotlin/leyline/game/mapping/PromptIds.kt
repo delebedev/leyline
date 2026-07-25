@@ -7,6 +7,11 @@ object PromptIds {
     const val ORDER_BLOCKERS = 7
     const val ASSIGN_DAMAGE = 8
     const val SELECT_TARGETS = 10
+    const val TARGET_CREATURE_YOU_CONTROL = 152
+    const val TARGET_CREATURE = 1010
+    const val TARGET_CREATURE_YOU_DONT_CONTROL = 1112
+    const val TARGET_CREATURE_OR_PLANESWALKER_YOU_DONT_CONTROL = 2401
+    const val CHOOSE_ANY_TARGET = 11869
     const val PAY_COSTS = 11
     const val CASTING_TIME_OPTIONS = 23
 

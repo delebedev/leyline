@@ -2,6 +2,7 @@ package leyline.config
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.serializer
 import net.peanuuutz.tomlkt.Toml
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -50,7 +51,7 @@ data class MatchConfig(
 
             log.info("Loading config from {}", file.absolutePath)
             val text = file.readText()
-            val config = toml.decodeFromString(serializer(), text)
+            val config = toml.decodeFromString(serializer<MatchConfig>(), text)
             config.validate()
             log.info("Config loaded: {}", config.summary())
             return config

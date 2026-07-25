@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.TransferResult
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.LinkedFaceRole
 import leyline.game.state.GameBridge
 
 /**
@@ -160,6 +161,12 @@ class FrameIdResolver(
 
         /** Surrogate forge ID for a DisturbBack face object. */
         fun disturbBackForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + DISTURB_BACK_ID_OFFSET)
+
+        /** Surrogate keyed by one parent object lifetime and linked-face role. */
+        fun linkedFaceCompanionForgeId(
+            parentInstanceId: InstanceId,
+            role: LinkedFaceRole,
+        ): ForgeCardId = ForgeCardId(parentInstanceId.value + role.companionIdOffset)
 
         /** True if [forgeId] falls in the stack-ability surrogate range. */
         fun isStackAbilityForgeId(forgeId: ForgeCardId): Boolean = forgeId.value in STACK_ABILITY_ID_OFFSET until MANA_ABILITY_ID_OFFSET

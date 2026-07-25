@@ -3,7 +3,7 @@ description: Alternate costs, sacrifice/discard payments, and payment-selection 
 scenarios:
   - id: treasure-token
     puzzle: treasure-token
-    arena:
+    native:
       xfail: Treasure mana is not surfaced as a usable cast payment path yet.
     run: cast Prosperous Innkeeper, then cast Lightning Bolt using the Treasure mana path
     expect: opponent takes damage and Innkeeper remains on battlefield
@@ -23,8 +23,8 @@ scenarios:
           opponent_life: 3
   - id: eaten-alive-sacrifice
     puzzle: eaten-alive
-    arena:
-      xfail: Sacrifice additional-cost prompt sequencing is not driven by arena-ts yet.
+    native:
+      xfail: Sacrifice additional-cost prompt sequencing is not driven by the native runner yet.
     run: cast Eaten Alive with the sacrifice additional-cost branch
     expect: Walking Corpse is sacrificed and Centaur Courser is exiled
     steps:
@@ -41,8 +41,8 @@ scenarios:
             - zone_contains: { side: opponent, zone: exile, card: Centaur Courser }
   - id: eaten-alive-sacrifice-lethal
     puzzle: eaten-alive-sacrifice-lethal
-    arena:
-      xfail: Sacrifice additional-cost prompt sequencing is not driven by arena-ts yet.
+    native:
+      xfail: Sacrifice additional-cost prompt sequencing is not driven by the native runner yet.
     run: cast Eaten Alive by sacrificing Ornithopter, exile Centaur Courser, then attack for lethal
     expect: Ornithopter is sacrificed, Grizzly Bears survives to attack, and the opponent loses
     steps:
@@ -96,8 +96,8 @@ scenarios:
             - zone_not_contains: { side: ours, zone: graveyard, card: Radical Idea }
   - id: escape-glimpse-of-freedom
     puzzle: escape-glimpse-of-freedom
-    arena:
-      xfail: Escape graveyard cast plus multi-card graveyard payment is not driven by arena-ts yet.
+    native:
+      xfail: Escape graveyard cast plus multi-card graveyard payment is not driven by the native runner yet.
     run: cast Glimpse of Freedom from hand, then escape the graveyard copy
     expect: escape exiles five graveyard cards and draws another card
     steps:

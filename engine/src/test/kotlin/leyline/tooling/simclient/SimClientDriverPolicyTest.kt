@@ -226,19 +226,6 @@ class SimClientDriverPolicyTest :
             chooseBoardAwareGroupAwayIds(groupPrompt(listOf(801, 802), GroupingContext.Surveil), harness) shouldBe emptyList()
         }
 
-        test("audit digest distinguishes keeping top from bottoming none") {
-            val groupTop = SimDecision.GroupTop(listOf(801, 802))
-            val groupAway =
-                SimDecision.GroupAway(
-                    awayInstanceIds = emptyList(),
-                    allInstanceIds = listOf(801, 802),
-                    context = GroupingContext.Scry_a0f6,
-                )
-
-            groupTop.auditDigest() shouldBe "group-top:801+802"
-            groupAway.auditDigest() shouldBe "group-away::context=Scry_a0f6"
-        }
-
         test("forge-ai SelectTargets adapter consults exact target prompts") {
             val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
 

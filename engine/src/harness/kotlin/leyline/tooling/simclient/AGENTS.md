@@ -2,12 +2,12 @@
 
 Synthetic GRE-log generator. Drives a Leyline match in-process through `MatchSession`, `GameBridge`, and Forge; writes Player.log-shaped output plus metadata and stats under `engine/build/simclient/`.
 
-Use `docs/simclient-iteration.md` for the fixed-seed debugging loop, failure taxonomy, deck-vs-puzzle choice, differential audit, quarantine, resume, and sharding. Treat CLI help and current code as option authority.
+Use `docs/simclient-iteration.md` for the fixed-seed debugging loop, failure taxonomy, deck-vs-puzzle choice, quarantine, resume, and sharding. Treat CLI help and current code as option authority.
 
 ## Fast routes
 
 ```bash
-./gradlew :engine:simclientSmoke                 # tool wiring
+just test-simclient                              # full simclient test lane
 just simclient                                   # default matrix + scry ingest
 just simclient mono-r-burn 1..10                 # focused deck/seed range
 SIMCLIENT_POLICY=forge-ai just simclient bears 3 # policy + fixed seed
@@ -28,6 +28,9 @@ Arbitrary deck files may require `LEYLINE_CARD_DB`; built-in fixture decks do no
 - This harness package — CLI/config, matrix expansion, watchdog, stats, summary, ingest.
 
 Keep policy, telemetry, and row orchestration here. Put generic session response helpers in the headless harness. Policies return decisions; they do not submit directly.
+
+Simclient evaluates the client-facing execution path. It does not own direct
+Forge runs, AI-strength comparisons, or experiment evidence.
 
 ## Iteration loop
 
@@ -102,7 +105,7 @@ Cancellation during teardown can produce one residual interruption error. Do not
 For simclient tooling changes:
 
 1. run the focused unit tests;
-2. run `:engine:simclientSmoke`;
+2. run `just test-simclient`;
 3. rerun one representative fixed seed;
 4. inspect stats and generated log/metadata shape;
 5. run a small widened range when policy or orchestration changed.

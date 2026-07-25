@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.kdoc.psi.api.KDoc
 import org.jetbrains.kotlin.psi.KtDeclaration
 
@@ -17,21 +14,17 @@ import org.jetbrains.kotlin.psi.KtDeclaration
  *
  * To pass: include at least one narrative line, or remove the KDoc entirely.
  */
-class TrivialKDoc(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "TrivialKDoc",
-        severity = Severity.Maintainability,
-        description = "KDoc contains only @tags with no prose — delete it or add a description.",
-        debt = Debt.FIVE_MINS,
-    )
+class TrivialKDoc(config: Config) : Rule(
+    config,
+    description = "KDoc contains only @tags with no prose — delete it or add a description.",
+) {
 
     override fun visitDeclaration(declaration: KtDeclaration) {
         super.visitDeclaration(declaration)
         val kdoc = declaration.docComment ?: return
         if (isTrivial(kdoc)) {
             report(
-                CodeSmell(
-                    issue,
+                Finding(
                     Entity.from(kdoc),
                     "Trivial KDoc on '${declaration.name ?: "<anon>"}': contains only @tags, " +
                         "no narrative description. Add prose or delete the KDoc.",

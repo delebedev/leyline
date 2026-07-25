@@ -6,10 +6,15 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.StackEntry
+import leyline.game.snapshot.StackSnapshot
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
@@ -19,13 +24,64 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * TargetSpec persistent annotation tests — verifies targeting arrows emitted
  * via the bridge-side pending target store.
  *
- * Targets are captured during selectTargetsInteractively and stored on
+ * Completed target groups are recorded after chooseTargetsFor and stored on
  * InteractivePromptBridge. The mapper computes from pending records without
  * consuming them; GameBridge.applyMutations consumes them after the persistent
  * annotation batch is committed.
  */
 class TargetSpecAnnotationTest :
     BoardTest({
+
+        test("same-row stack abilities resolve TargetSpec by exact ability id") {
+            val (b, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Goblin Fireslinger", human, ZoneType.Battlefield)
+                }
+            val source =
+                b
+                    .getPlayer(SeatId(1))!!
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Goblin Fireslinger" }
+            val abilityGrpId = 77
+            val firstAbilityId = 501
+            val secondAbilityId = 502
+            val stack =
+                StackSnapshot(
+                    listOf(firstAbilityId, secondAbilityId).map { abilityId ->
+                        StackEntry(
+                            forgeCardId = ForgeCardId(source.id),
+                            controller = SeatId(1),
+                            owner = SeatId(1),
+                            grpId = abilityGrpId,
+                            sourceCardGrpId = 1,
+                            isSpell = false,
+                            targets = emptyList(),
+                            forgeAbilityId = abilityId,
+                        )
+                    },
+                )
+            val snap = GsmSnapshot.forTest(stack = stack)
+            val ctx = AnnotationContext(b, snap, FrameIdResolver(b), emptyList())
+            val spec =
+                InteractivePromptBridge.PendingTarget(
+                    spellForgeCardId = source.id,
+                    spellName = source.name,
+                    index = 1,
+                    affectorInstanceIdAtRecord = 0,
+                    affectees = listOf(InteractivePromptBridge.PendingTarget.TargetAffectee(targetSeatId = 2)),
+                    isStackAbility = true,
+                    abilityIdentity =
+                        ResolvedAbilityIdentity(
+                            definition = AbilityDefinitionRef.SpellAbility(1),
+                            abilityGrpId = abilityGrpId,
+                        ),
+                    forgeAbilityId = secondAbilityId,
+                )
+
+            ctx.targetSpecStackAbilityIid(spec) shouldBe
+                b.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(secondAbilityId))
+        }
 
         test("pending target spec emits TargetSpec persistent annotation") {
             val (b, game) =
@@ -47,12 +103,15 @@ class TargetSpecAnnotationTest :
                     .cards
                     .first { it.name == "Murder" }
 
-            // Simulate what selectTargetsInteractively does: add pending target
+            // Simulate completed chooseTargetsFor state: add the pending group.
             b.seat(SeatId(1)).prompt.addPendingTargetSpec(
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
-                    targetForgeCardId = creature.id,
+                    affectees =
+                        listOf(
+                            InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
+                        ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),
@@ -97,7 +156,10 @@ class TargetSpecAnnotationTest :
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
-                    targetForgeCardId = creature.id,
+                    affectees =
+                        listOf(
+                            InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
+                        ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),
@@ -162,7 +224,10 @@ class TargetSpecAnnotationTest :
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
-                    targetForgeCardId = creature.id,
+                    affectees =
+                        listOf(
+                            InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
+                        ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
                 ),

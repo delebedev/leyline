@@ -1,6 +1,5 @@
 package leyline.match
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -11,6 +10,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.json.productionJson
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
@@ -143,7 +143,7 @@ class MatchConnection(
 
     companion object {
         private val lenientJson =
-            Json {
+            productionJson {
                 ignoreUnknownKeys = true
                 isLenient = true
             }
@@ -584,7 +584,7 @@ class MatchConnection(
         }
         val deckId = coordinator?.selectedDeckId
         if (deckId != null) {
-            val cardsJson = coordinator?.resolveDeckJson(deckId)
+            val cardsJson = coordinator.resolveDeckJson(deckId)
             if (cardsJson != null) {
                 log.info("Match Door: seat 1 deck from DB deckId={}", deckId)
                 return convertArenaCardsToDeckText(cardsJson)

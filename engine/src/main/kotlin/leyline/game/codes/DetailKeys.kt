@@ -59,6 +59,7 @@ object DetailKeys {
     const val INDEX = "index"
     const val PROMPT_ID = "promptId"
     const val PROMPT_PARAMETERS = "promptParameters"
+    const val DISTRIBUTIONS = "distributions"
     const val POWER = "power"
     const val TOUGHNESS = "toughness"
     const val DISABLE = "Disable"

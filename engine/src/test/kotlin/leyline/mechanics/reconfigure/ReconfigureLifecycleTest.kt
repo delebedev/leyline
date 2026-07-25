@@ -87,8 +87,7 @@ class ReconfigureLifecycleTest :
                 unattachedObject.cardTypesList shouldContain CardType.Artifact_a80b
                 unattachedObject.cardTypesList shouldContain CardType.Creature
                 unattachedObject.parentId shouldBe 0
-                removeAttachment.shouldNotBeNull()
-                removeAttachment!!.affectorId shouldBe rabbitIid
+                removeAttachment.shouldNotBeNull().affectorId shouldBe rabbitIid
                 removeAttachment.affectedIdsList shouldBe listOf(bearIid)
                 removeAttachment.detailInt(DetailKeys.INVALIDATING_GRPID) shouldBe 244
                 unattachSlice

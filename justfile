@@ -49,7 +49,13 @@ install-forge:
     cd "{{project_dir}}"
     {{_forge_m2_setup}}
     echo "Forge checkout $forge_cache_mode; using cache: $forge_m2"
-    cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -Dmaven.repo.local="$forge_m2" -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+    cd "{{project_dir}}/forge"
+    install_command=(mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -Dmaven.repo.local="$forge_m2" -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q)
+    if [ "$forge_cache_mode" = "shared" ]; then
+        python3 "{{project_dir}}/gradle/scripts/forge-install.py" "$forge_m2" "${install_command[@]}"
+    else
+        "${install_command[@]}"
+    fi
     printf '%s\n' "$current_forge" > "{{project_dir}}/.forge-commit-installed"
     echo "Forge engine installed to $forge_m2"
 
@@ -77,7 +83,8 @@ lint:
 # report outdated dependencies
 [group('build')]
 deps-outdated:
-    cd "{{project_dir}}" && ./gradlew dependencyUpdates -q
+    # The versions plugin requires isolated execution on Gradle 9.
+    cd "{{project_dir}}" && ./gradlew dependencyUpdates -q --no-parallel --no-configuration-cache
 
 # build performance profile (opens HTML report)
 [group('build')]

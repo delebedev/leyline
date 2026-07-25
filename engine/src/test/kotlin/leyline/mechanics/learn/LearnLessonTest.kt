@@ -111,8 +111,7 @@ class LearnLessonTest :
                 }
 
             assertSoftly {
-                sideboardToHand.shouldNotBeNull()
-                sideboardToHand!!.detailString("category") shouldBe "Put"
+                sideboardToHand.shouldNotBeNull().detailString("category") shouldBe "Put"
                 annotations.any { AnnotationType.RevealedCardCreated in it.typeList }.shouldBeTrue()
                 "Environmental Sciences" should beInHandOf(human)
                 human.getZone(ZoneType.Sideboard).cards.filter { it.name == "Environmental Sciences" } shouldHaveSize 0

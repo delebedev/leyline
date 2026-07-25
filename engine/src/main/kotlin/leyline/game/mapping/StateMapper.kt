@@ -366,6 +366,12 @@ object StateMapper {
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
         val frameIds = FrameIdResolver(bridge, FrameIdResolver.postReallocIids(transferResult))
+        val resolvedStackAbilityIids =
+            eventsMutable
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .filter { it.isTrigger || it.isAbility }
+                .mapTo(linkedSetOf()) { AnnotationContext.stackAbilityIid(it.abilityForgeId, it.cardId, frameIds) }
+        transferResult = transferResult.withoutStackAbilities(resolvedStackAbilityIids)
         transferResult = transferResult.withDecayedCleanupAffectors(eventsMutable, snap, bridge, frameIds)
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
@@ -482,9 +488,15 @@ object StateMapper {
                 displayCardAffectors = battlefieldIids + postDiffActiveIids + (stackIids - resolvingStackIids),
                 delayedTriggerAffectorReplacements = delayedTriggerAffectorReplacements,
             )
-        // Stage-4-5 context deliberately omits transferResult — only the
-        // transfer-stage Convoke emission (convokeCtx above) diffs zone transfers.
-        val annCtx = AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = eventsMutable)
+        // Stage-4-5 contributors may need the frame's pre-reallocation identities.
+        val annCtx =
+            AnnotationContext(
+                bridge = bridge,
+                snap = snap,
+                frameIds = frameIds,
+                events = eventsMutable,
+                transferResult = transferResult,
+            )
         val remaining =
             AnnotationPipeline.computeRemainingAnnotations(
                 annCtx,
@@ -501,6 +513,8 @@ object StateMapper {
                 convokePaymentsBySource,
                 transferResult = transferResult,
             )
+
+        transferResult = LinkedFaceCompanionProjector.append(transferResult, snap, bridge, frameIds)
 
         // ═══ ASSEMBLE: build the GSM proto ═══
         val built =
@@ -531,7 +545,11 @@ object StateMapper {
                 consumedTargetSpecs = remaining.consumedTargetSpecs,
                 nextAnnotationId = null,
                 holderBatch = holderBatch,
-                diffDeletedInstanceIds = stackTransferDeletedIds(transferResult).map { InstanceId(it) },
+                diffDeletedInstanceIds =
+                    (stackTransferDeletedIds(transferResult) + resolvedStackAbilityIids)
+                        .distinct()
+                        .map { InstanceId(it) },
+                nextTransientLinkedFaceFamilyIds = transferResult.transientHiddenFamilyIds.mapTo(mutableSetOf(), ::InstanceId),
             )
 
         return BuildResult(
@@ -660,6 +678,12 @@ object StateMapper {
                 events = events,
             )
         val current = fullResult.gsm
+        val currentCompanionIds =
+            current.gameObjectsList
+                .filter { LinkedFaceCompanionProjector.isCompanionType(it.type) }
+                .mapTo(mutableSetOf()) { it.instanceId }
+        val previousCompanionIds = LinkedFaceCompanionProjector.instanceIds(prev, bridge, viewingSeatId)
+        val previousTransientHiddenFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds().map { it.value }
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
         val changedZoneIds =
@@ -693,10 +717,12 @@ object StateMapper {
                 }
                 else -> null
             }
+        val hasStackRetirement = fullResult.mutations.diffDeletedInstanceIds.isNotEmpty()
         val changedZones =
             current.zonesList
                 .filter { zone ->
                     zone.zoneId in changedZoneIds ||
+                        (zone.zoneId == ZoneIds.STACK && hasStackRetirement) ||
                         (
                             zone.zoneId == ZoneIds.LIMBO &&
                                 (
@@ -737,6 +763,14 @@ object StateMapper {
         val prevDisturbBackSourceFids = projectedDisturbBackSourceFids(prev)
         val curDisturbBackSourceFids = projectedDisturbBackSourceFids(cur)
         val changedFids = cardSnapshotChangedFids + zoneMovedFids
+        val currentParentIds =
+            changedFids.mapTo(mutableSetOf()) { fid ->
+                checkNotNull(fullResult.annotationFrameDraft).idResolver.cardIid(fid).value
+            }
+        val changedCompanionIds =
+            current.gameObjectsList
+                .filter { LinkedFaceCompanionProjector.isCompanionType(it.type) && it.parentId in currentParentIds }
+                .mapTo(mutableSetOf()) { it.instanceId }
         val changedDisturbBackIds =
             disturbBackInstanceIds(
                 changedFids.filter { it in prevDisturbBackSourceFids || it in curDisturbBackSourceFids },
@@ -745,20 +779,23 @@ object StateMapper {
         val changedInstanceIds =
             changedFids.map { bridge.getOrAllocInstanceId(it).value }.toSet() +
                 changedDisturbBackIds +
+                changedCompanionIds +
                 fullResult.objectRefreshInstanceIds
         // instanceIds tracked in the prev snapshot (to detect truly new objects like RevealedCard proxies)
         val prevInstanceIds =
             prev.objects.keys
                 .map { bridge.getOrAllocInstanceId(it).value }
                 .toSet() +
-                disturbBackInstanceIds(prevDisturbBackSourceFids, bridge)
+                disturbBackInstanceIds(prevDisturbBackSourceFids, bridge) +
+                previousCompanionIds
         val changedObjects =
             current.gameObjectsList.filter { obj ->
                 // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
                 if (obj.instanceId !in prevInstanceIds) {
                     // Still apply opponent-hand filter unless reveal is active
                     if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                        return@filter hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                        return@filter obj.type == GameObjectType.RevealedCard ||
+                            (hasActiveReveal && obj.visibility == Visibility.Public)
                     }
                     if (opponentSideboardZoneId != 0 && obj.zoneId == opponentSideboardZoneId) return@filter false
                     return@filter true
@@ -775,7 +812,7 @@ object StateMapper {
                     return@filter false
                 }
                 if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                    if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
+                    if (obj.type == GameObjectType.RevealedCard || (hasActiveReveal && obj.visibility == Visibility.Public)) {
                         // fall through
                     } else {
                         return@filter false
@@ -790,9 +827,14 @@ object StateMapper {
         val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
         val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
         val deletedDisturbBackIds = disturbBackInstanceIds(prevDisturbBackSourceFids - curDisturbBackSourceFids, bridge)
+        val deletedCompanionIds = previousCompanionIds - currentCompanionIds
         val deletedIds =
-            ((prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } + deletedDisturbBackIds)
-                .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
+            (
+                (prev.objects.keys - cur.objects.keys).map { bridge.getOrAllocInstanceId(it).value } +
+                    deletedDisturbBackIds +
+                    deletedCompanionIds
+            ).filter { it !in currentObjIds && it !in currentZoneTrackedIds } +
+                previousTransientHiddenFamilyIds
 
         val previousTurnInfo = GsmFrame.Companion.from(prev).turnInfo()
         val includeTurnInfo =
@@ -1030,6 +1072,31 @@ object StateMapper {
         return copy(transfers = patchedTransfers)
     }
 
+    /**
+     * Resolution events are authoritative when Forge's stack snapshot still
+     * carries the resolved ability for the current frame. Remove those stale
+     * projections before diffing; [BridgeMutations.diffDeletedInstanceIds]
+     * retires their client identity without placing abilities in Limbo.
+     */
+    private fun TransferResult.withoutStackAbilities(resolvedIids: Set<Int>): TransferResult {
+        if (resolvedIids.isEmpty()) return this
+        val updatedObjects = patchedObjects.filterNot { it.instanceId in resolvedIids }
+        if (updatedObjects.size == patchedObjects.size) return this
+        val updatedZones =
+            patchedZones.map { zone ->
+                if (zone.zoneId != ZoneIds.STACK) {
+                    zone
+                } else {
+                    zone
+                        .toBuilder()
+                        .clearObjectInstanceIds()
+                        .addAllObjectInstanceIds(zone.objectInstanceIdsList.filterNot { it in resolvedIids })
+                        .build()
+                }
+            }
+        return copy(patchedObjects = updatedObjects, patchedZones = updatedZones)
+    }
+
     private fun TransferResult.withDelayedTriggerHolders(
         holderBatch: HolderBatch,
         postDiffActiveIids: Set<Int>,
@@ -1202,11 +1269,8 @@ object StateMapper {
             }
         }
 
-    /**
-     * Synthesize RevealedCard proxy objects during active reveal-choose, or
-     * schedule proxy cleanup when the reveal ends. Modifies [zones], [gameObjects],
-     * and [events] in place.
-     */
+    /** Synthesize short-lived RevealedCard views for semantic reveal events and
+     * keep them alive while a reveal-choose prompt remains active. */
     // Nullable `activeReveal` is intentional: the function has two branches —
     // synthesize proxies when non-null, cleanup-and-clear when null.
     @Suppress("CanBeNonNullable")
@@ -1218,46 +1282,69 @@ object StateMapper {
         gameObjects: MutableList<GameObjectInfo>,
         events: MutableList<GameEvent>,
     ) {
-        if (activeReveal != null) {
-            val ownerSeat = activeReveal.ownerSeatId.value
-            val viewerSeat = SeatId(ownerSeat).opponent.value
-            val handZoneId = ZoneIds.handOf(ownerSeat)
-            val revealedZoneId = ZoneIds.revealedOf(ownerSeat)
-
-            val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
-            val revealedZoneBuilder =
-                if (revealedZoneIdx >= 0) {
-                    zones.removeAt(revealedZoneIdx).toBuilder()
-                } else {
-                    ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
-                }
-
-            // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
-            val needsAlloc = bridge.revealProxies.isEmpty
-            for (forgeCardId in activeReveal.allHandCardIds) {
-                val cardSnap = snap.objects[forgeCardId] ?: continue
-                val proxyId =
-                    if (needsAlloc) {
-                        val id = bridge.ids.allocSynthetic()
-                        bridge.revealProxies.allocate(forgeCardId, id)
-                        id
-                    } else {
-                        bridge.revealProxies.lookup(forgeCardId) ?: continue
+        val eventReveals =
+            events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }
+        val revealFacts =
+            buildList {
+                eventReveals.forEach { reveal ->
+                    reveal.cardIds.forEach {
+                        add(
+                            Triple(
+                                it,
+                                reveal.ownerSeatId.value,
+                                reveal.sourceZone?.let { zone ->
+                                    ZoneIds.revealZone(zone, reveal.ownerSeatId)
+                                },
+                            ),
+                        )
                     }
-                revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
-                gameObjects.add(
-                    ObjectMapper.buildRevealedCardProxy(
-                        cardSnap,
-                        proxyId.value,
-                        handZoneId,
-                        ownerSeat,
-                        viewerSeat,
-                        bridge.cardProto,
-                        parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
-                    ),
-                )
+                }
+                activeReveal?.allHandCardIds?.forEach { cardId ->
+                    add(Triple(cardId, activeReveal.ownerSeatId.value, ZoneIds.handOf(activeReveal.ownerSeatId)))
+                }
+            }.distinctBy { it.first }
+
+        if (revealFacts.isNotEmpty()) {
+            val retiredViews = bridge.revealProxies.retain(revealFacts.mapTo(mutableSetOf()) { it.first })
+            if (retiredViews.isNotEmpty()) events.add(GameEvent.RevealProxiesDeleted(retiredViews))
+            for ((ownerSeat, ownerFacts) in revealFacts.groupBy { it.second }) {
+                val viewerSeat = SeatId(ownerSeat).opponent.value
+                val revealedZoneId = ZoneIds.revealedOf(ownerSeat)
+                val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
+                val revealedZoneBuilder =
+                    if (revealedZoneIdx >= 0) {
+                        zones.removeAt(revealedZoneIdx).toBuilder()
+                    } else {
+                        ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
+                    }
+
+                for ((forgeCardId, _, sourceZoneId) in ownerFacts) {
+                    val cardSnap = snap.objects[forgeCardId] ?: continue
+                    val proxyId =
+                        bridge.revealProxies.lookup(forgeCardId) ?: run {
+                            val id = bridge.ids.allocSynthetic()
+                            bridge.revealProxies.allocate(forgeCardId, id)
+                            id
+                        }
+                    revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
+                    gameObjects.add(
+                        ObjectMapper.buildRevealedCardProxy(
+                            cardSnap,
+                            proxyId.value,
+                            sourceZoneId
+                                ?: snap.zones.values
+                                    .firstOrNull { forgeCardId in it.contents }
+                                    ?.id
+                                ?: ZoneIds.handOf(ownerSeat),
+                            ownerSeat,
+                            viewerSeat,
+                            bridge.cardProto,
+                            parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
+                        ),
+                    )
+                }
+                zones.add(revealedZoneBuilder.build())
             }
-            zones.add(revealedZoneBuilder.build())
         } else if (!bridge.revealProxies.isEmpty) {
             // Reveal ended — emit cleanup annotations and clear tracking.
             // Diff naturally detects missing proxy objects via snapshot-compare.

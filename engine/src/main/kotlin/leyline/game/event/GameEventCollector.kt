@@ -129,6 +129,9 @@ class GameEventCollector(
     /** Stack iids for Paradigm copy casts, keyed by Forge SpellAbility id until resolution. */
     private val pendingParadigmCopyStackIids = ConcurrentHashMap<Int, Int>()
 
+    /** Selected spell-face identity carried from cast through resolution. */
+    private val pendingSpellFaceGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
+
     /** Enlist taps are paid before the trigger resolves; carry tapped creature → attacker across frames. */
     private val pendingEnlistAffectors = ConcurrentHashMap<ForgeCardId, ForgeCardId>()
 
@@ -218,7 +221,7 @@ class GameEventCollector(
             } else {
                 null
             }
-        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+        val grpId = bridge.consumeSelectedSpellGrpId(ForgeCardId(card.id)) ?: bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
         val isParadigmCopyCast = isParadigmCopyCast(topSa)
         val altCostAbilityGrpId =
@@ -339,10 +342,14 @@ class GameEventCollector(
                 else -> 0
             }
         val castingTimeOptionState = readCastingTimeOptionState(topSa, card)
+        if (!isTrigger && !isAbility) {
+            pendingSpellFaceGrpIds[ForgeCardId(card.id)] = grpId
+        }
         frame.add(
             GameEvent.SpellCast(
                 cardId = cardId,
                 seatId = seat,
+                spellGrpId = grpId,
                 manaPayments = payments,
                 colorsSpentToCast = colorsSpentToCast,
                 opusTrigger = opusTrigger,
@@ -652,13 +659,15 @@ class GameEventCollector(
         val bridgedIdentity = bridge.consumeStackAbilityIdentity(saId)
         val abilityIdentity = context?.identity ?: bridgedIdentity
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
-        val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
         val cardId = ForgeCardId(card.id)
+        val spellGrpId = pendingSpellFaceGrpIds.remove(cardId) ?: bridge.pendingSpellCast(cardId)?.spellGrpId ?: 0
+        val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
         recordEarthbendResolution(card, saId, isTrigger || isAbility, abilityGrpId, ev.hasFizzled())
         frame.add(
             GameEvent.SpellResolved(
                 cardId = cardId,
                 hasFizzled = ev.hasFizzled(),
+                spellGrpId = spellGrpId,
                 isTrigger = isTrigger,
                 isAbility = isAbility,
                 abilityForgeId = if (isTrigger || isAbility) saId else 0,

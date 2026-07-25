@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
@@ -15,11 +17,8 @@ repositories {
     }
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 dependencies {
+    implementation(platform(libs.netty.bom))
     implementation(project(":domain"))
     implementation(project(":engine"))
     implementation(libs.kotlin.stdlib)
@@ -27,6 +26,7 @@ dependencies {
     implementation(libs.protobuf.java)
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
+    testImplementation(libs.netty.pkitesting)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
@@ -44,6 +44,7 @@ dependencies {
     testImplementation(libs.archunit)
 }
 
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =
         listOf(

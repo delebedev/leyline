@@ -1,0 +1,8 @@
+name: "Twin Bolt"
+grpId: 95649
+titleId: 0
+abilities:
+  - id: 90088
+    textId: 0
+    category: 4
+expansionCode: "DTK"

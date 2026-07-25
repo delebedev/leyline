@@ -35,6 +35,22 @@ class AnnotationBuilderTest :
 
         tags(UnitTag)
 
+        test("reveal-state builders preserve distinct identities and details") {
+            val faceUp = AnnotationBuilder.cardRevealed(400.iid, 500.iid, ZoneIds.P2_LIBRARY)
+            val known = AnnotationBuilder.instanceRevealedToOpponent(600.iid)
+
+            assertSoftly {
+                faceUp.typeList shouldBe listOf(AnnotationType.CardRevealed)
+                faceUp.affectorId shouldBe 400
+                faceUp.affectedIdsList shouldBe listOf(500)
+                faceUp.detailInt(DetailKeys.SOURCE_ZONE) shouldBe ZoneIds.P2_LIBRARY
+                known.typeList shouldBe listOf(AnnotationType.InstanceRevealedToOpponent)
+                known.affectorId shouldBe 600
+                known.affectedIdsList shouldBe listOf(600)
+                known.detailsList.shouldBeEmpty()
+            }
+        }
+
         test("zoneTransferAnnotation") {
             val ann =
                 AnnotationBuilder.zoneTransfer(
@@ -1364,6 +1380,23 @@ class AnnotationBuilderTest :
                 ann.detailInt("index") shouldBe 1
                 ann.detailInt("promptId") shouldBe 1330
                 ann.detailInt("promptParameters") shouldBe 303
+            }
+        }
+
+        test("targetSpec groups affectees and aligned distributions") {
+            val ann =
+                AnnotationBuilder.targetSpec(
+                    instanceIds = listOf(293.iid, 294.iid),
+                    affectorId = 303.iid,
+                    abilityGrpId = 90088.grp,
+                    index = 1,
+                    promptId = 11869,
+                    promptParameters = 303,
+                    distributions = listOf(1, 1),
+                )
+            assertSoftly {
+                ann.affectedIdsList shouldBe listOf(293, 294)
+                ann.detailIntList("distributions") shouldBe listOf(1, 1)
             }
         }
 

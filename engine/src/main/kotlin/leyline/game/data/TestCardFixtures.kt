@@ -40,6 +40,7 @@ object TestCardFixtures {
         val expansionCode: String,
         val abilities: List<Ability>,
         val tokens: Map<Int, Int>,
+        val linkedFaceType: Int,
         val linkedFaces: List<Int>,
         val isToken: Boolean,
         val isPrimaryCard: Boolean,
@@ -148,6 +149,7 @@ object TestCardFixtures {
                     parseAbility(i, entry as Map<String, Any?>)
                 },
             tokens = parseTokens(raw["tokens"] as? Map<*, *>),
+            linkedFaceType = (raw["linkedFaceType"] as? Number)?.toInt() ?: 0,
             linkedFaces = (raw["linkedFaces"] as? List<*>).orEmpty().map { (it as Number).toInt() },
             isToken = (raw["isToken"] as? Boolean) ?: false,
             isPrimaryCard = (raw["isPrimaryCard"] as? Boolean) ?: true,

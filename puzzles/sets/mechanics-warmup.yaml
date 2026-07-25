@@ -1,6 +1,36 @@
 name: mechanics-warmup
 description: Small arena-driven mechanic smoke suite focused on client-accepted mechanic surfaces.
 scenarios:
+  - id: omen-lifecycle
+    puzzle: omen-riling-dawnbreaker
+    run: cast Signaling Roar, create a Soldier, then shuffle Riling Dawnbreaker into the library
+    expect: the Soldier reaches the battlefield and the Omen parent returns to the library
+    steps:
+      - cast_omen: Riling Dawnbreaker
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Soldier Token }
+            - zone_not_contains: { side: ours, zone: hand, card: Riling Dawnbreaker }
+            - stack_empty: true
+  - id: adventure-lifecycle
+    puzzle: adventure-test
+    run: cast Pest Problem, then cast Ratcatcher Trainee from exile
+    expect: two Rats and Ratcatcher Trainee reach the battlefield
+    steps:
+      - cast_adventure: Ratcatcher Trainee
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: battlefield, count: 9 }
+            - zone_contains: { side: ours, zone: exile, card: Ratcatcher Trainee }
+      - cast: { card: Ratcatcher Trainee, zone: exile }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Ratcatcher Trainee }
+            - zone_not_contains: { side: ours, zone: exile, card: Ratcatcher Trainee }
+            - stack_empty: true
   - id: kicker-burst
     puzzle: mechanic-kicker-burst
     run: cast Burst Lightning, choose kicker, target opponent
@@ -62,6 +92,8 @@ scenarios:
             - our_life: 24
             - zone_contains: { side: ours, zone: hand, card: Environmental Sciences }
             - zone_not_contains: { side: ours, zone: sideboard, card: Environmental Sciences }
+            - annotation_seen: CardRevealed
+            - annotation_seen: InstanceRevealedToOpponent
             - stack_empty: true
   - id: reconfigure-attach-unattach
     puzzle: reconfigure-rabbit-battery

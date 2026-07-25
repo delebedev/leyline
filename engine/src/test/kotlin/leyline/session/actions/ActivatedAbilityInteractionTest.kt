@@ -2,8 +2,13 @@ package leyline.session.actions
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.deletedPersistentAnnotationIds
+import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
  * Session-tier activated ability tests — full MatchSession round-trip.
@@ -42,9 +47,19 @@ class ActivatedAbilityInteractionTest :
             }
             selectTargets(listOf(OPPONENT_SEAT))
 
+            val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()
+            val stackAbilityIids =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.type == GameObjectType.Ability }
+                    .map { it.instanceId }
             assertSoftly {
+                stackAbilityIids shouldContain targetSpec.affectorId
+                targetSpec.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
                 passUntil(maxPasses = 10) { ai.life < 5 }.shouldBeTrue()
                 ai.life shouldBe 4
+                allMessages.deletedPersistentAnnotationIds() shouldContain targetSpec.id
             }
         }
 

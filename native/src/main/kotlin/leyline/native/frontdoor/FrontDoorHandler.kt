@@ -17,6 +17,7 @@ import leyline.domain.DraftStatus
 import leyline.domain.MatchInfo
 import leyline.domain.PlayerId
 import leyline.domain.Preferences
+import leyline.domain.json.productionJson
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
@@ -76,7 +77,7 @@ class FrontDoorHandler(
     private val selectedDeckByEvent = mutableMapOf<String, String>()
 
     private val lenientJson =
-        Json {
+        productionJson {
             ignoreUnknownKeys = true
             isLenient = true
         }

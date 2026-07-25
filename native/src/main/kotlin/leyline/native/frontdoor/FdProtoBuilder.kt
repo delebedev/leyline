@@ -3,9 +3,9 @@ package leyline.native.frontdoor
 import com.google.protobuf.ByteString
 import com.google.protobuf.UnknownFieldSet
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import leyline.domain.json.productionJson
 
-private val json = Json { ignoreUnknownKeys = true }
+private val json = productionJson { ignoreUnknownKeys = true }
 
 /** Builds GetFormats and GetSets protobuf responses from JSON data. */
 object FdProtoBuilder {

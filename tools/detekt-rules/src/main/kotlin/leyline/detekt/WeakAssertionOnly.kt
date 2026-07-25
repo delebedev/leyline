@@ -1,12 +1,9 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.CodeSmell
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.Debt
-import io.gitlab.arturbosch.detekt.api.Entity
-import io.gitlab.arturbosch.detekt.api.Issue
-import io.gitlab.arturbosch.detekt.api.Rule
-import io.gitlab.arturbosch.detekt.api.Severity
+import dev.detekt.api.Finding
+import dev.detekt.api.Config
+import dev.detekt.api.Entity
+import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtElement
@@ -29,13 +26,10 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
  *
  * Does NOT fire when the test body is empty (that's `EmptyAssertion`'s job).
  */
-class WeakAssertionOnly(config: Config) : Rule(config) {
-    override val issue = Issue(
-        id = "WeakAssertionOnly",
-        severity = Severity.Warning,
-        description = "Test uses only weak matchers (shouldNotBeNull/Empty/Contain/BeTrue) — no equality assertion. Likely a shape check, not a behaviour test.",
-        debt = Debt.TEN_MINS,
-    )
+class WeakAssertionOnly(config: Config) : Rule(
+    config,
+    description = "Test uses only weak matchers (shouldNotBeNull/Empty/Contain/BeTrue) — no equality assertion. Likely a shape check, not a behaviour test.",
+) {
 
     override fun visitCallExpression(expression: KtCallExpression) {
         super.visitCallExpression(expression)
@@ -56,8 +50,7 @@ class WeakAssertionOnly(config: Config) : Rule(config) {
         if (assertions.any { it.startsWith("assert") && it !in WRAPPER_ASSERTIONS }) return
         // All assertions are weak. Flag.
         report(
-            CodeSmell(
-                issue,
+            Finding(
                 Entity.from(expression),
                 "test body contains only weak matchers ${assertions.toSet()}. Add at least one equality-shape assertion (shouldBe, shouldHaveSize, shouldContainExactly).",
             ),

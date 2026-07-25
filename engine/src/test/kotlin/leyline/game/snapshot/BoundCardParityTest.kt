@@ -48,8 +48,7 @@ class BoundCardParityTest :
                     if (cardSnap.grpId > 0) b.cardRepository.findByGrpId(cardSnap.grpId) else null
                 bound.data shouldBe expected
                 if (cardSnap.grpId > 0) {
-                    bound.data.shouldNotBeNull()
-                    bound.data?.grpId shouldBe cardSnap.grpId
+                    bound.data.shouldNotBeNull().grpId shouldBe cardSnap.grpId
                 }
             }
         }
@@ -79,8 +78,7 @@ class BoundCardParityTest :
             val realSnap = snap.objects.getValue(realFid)
             realSnap.grpId shouldBeGreaterThan 0
             val realBound = snap.boundCards.getValue(realFid)
-            realBound.data.shouldNotBeNull()
-            realBound.data?.grpId shouldBe realSnap.grpId
+            realBound.data.shouldNotBeNull().grpId shouldBe realSnap.grpId
         }
 
         test("designations mirror CardSnapshot's per-role state") {

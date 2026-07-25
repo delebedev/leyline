@@ -269,13 +269,7 @@ object MechanicAnnotations {
                     detachedForgeCardIds.add(ev.cardId)
                     log.debug("mechanic: removeAttachment aura={}", auraIid.value)
                 }
-                is GameEvent.CardsRevealed -> {
-                    for (cardId in ev.cardIds) {
-                        val instanceId = idResolver(cardId)
-                        annotations.add(AnnotationBuilder.revealedCardCreated(instanceId))
-                        log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId.value, ev.ownerSeatId)
-                    }
-                }
+                is GameEvent.CardsRevealed -> Unit
                 is GameEvent.RevealProxiesDeleted -> {
                     for (proxyId in ev.proxyInstanceIds) {
                         annotations.add(AnnotationBuilder.revealedCardDeleted(proxyId))

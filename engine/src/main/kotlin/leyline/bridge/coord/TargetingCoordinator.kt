@@ -35,6 +35,8 @@ import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
+import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
@@ -64,9 +66,12 @@ import org.slf4j.LoggerFactory
 class TargetingCoordinator(
     private val bridge: InteractivePromptBridge,
     private val seating: Seating,
+    private val viewerSeatId: SeatId = seating.humanSeat,
     private val currentSourceEntityId: () -> Int? = { null },
+    private val isCastingSpell: () -> Boolean = { false },
 ) {
     private val log = LoggerFactory.getLogger(TargetingCoordinator::class.java)
+    private val spellAffectorIids = mutableMapOf<Int, Int>()
 
     // -- Entity choice ---------------------------------------------------
 
@@ -182,7 +187,13 @@ class TargetingCoordinator(
         if (!isLearn || chosen !is Card || !chosen.isInZone(ZoneType.Sideboard)) return
 
         val ownerSeat = if (chosen.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordReveal(listOf(ForgeCardId(chosen.id)), ownerSeat)
+        bridge.recordReveal(
+            listOf(ForgeCardId(chosen.id)),
+            ownerSeat,
+            opposingSeat(ownerSeat),
+            RevealZone.SIDEBOARD,
+            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+        )
     }
 
     private fun <T : GameEntity> chooseMutateTopCard(
@@ -392,7 +403,7 @@ class TargetingCoordinator(
         visibleToChooser: CardCollectionView,
     ): PromptSideEffect.RevealStarted? {
         if (visibleToChooser.isEmpty()) return null
-        val visibleIds = visibleToChooser.mapNotNull { (it as? Card)?.let { card -> ForgeCardId(card.id) } }
+        val visibleIds = visibleToChooser.map { ForgeCardId(it.id) }
         if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
         val ownerSeat = if (discarder.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
         return PromptSideEffect.RevealStarted(visibleIds, ownerSeat)
@@ -455,10 +466,16 @@ class TargetingCoordinator(
         owner: Player,
     ) {
         if (cards.isEmpty()) return
-        val cardIds = cards.mapNotNull { card -> (card as? Card)?.let { ForgeCardId(it.id) } }
+        val cardIds = cards.map { ForgeCardId(it.id) }
         val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordReveal(cardIds, ownerSeat)
-        if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
+        bridge.recordReveal(
+            cardIds,
+            ownerSeat,
+            viewerSeatId,
+            revealZone(zone),
+            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+        )
+        if (viewerSeatId != ownerSeat && zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
             TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
     }
@@ -473,8 +490,14 @@ class TargetingCoordinator(
         val ownerPlayer = players.firstOrNull { owner.isLobbyPlayer(it.lobbyPlayer) } ?: return
         val cardIds = cards.map { ForgeCardId(it.id) }
         val ownerSeat = if (ownerPlayer.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordReveal(cardIds, ownerSeat)
-        if (zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, ownerPlayer)) {
+        bridge.recordReveal(
+            cardIds,
+            ownerSeat,
+            viewerSeatId,
+            revealZone(zone),
+            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+        )
+        if (viewerSeatId != ownerSeat && zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, ownerPlayer)) {
             TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
         }
     }
@@ -486,6 +509,22 @@ class TargetingCoordinator(
         val handIds = owner.getZone(ZoneType.Hand).cards.map { ForgeCardId(it.id) }
         return handIds.isNotEmpty() && cardIds.size == handIds.size && cardIds.toSet() == handIds.toSet()
     }
+
+    private fun opposingSeat(ownerSeat: SeatId): SeatId = if (ownerSeat == seating.humanSeat) seating.familiarSeat else seating.humanSeat
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun revealZone(zone: ZoneType): RevealZone? =
+        when (zone) {
+            ZoneType.Hand -> RevealZone.HAND
+            ZoneType.Library -> RevealZone.LIBRARY
+            ZoneType.Sideboard -> RevealZone.SIDEBOARD
+            ZoneType.Graveyard -> RevealZone.GRAVEYARD
+            ZoneType.Battlefield -> RevealZone.BATTLEFIELD
+            ZoneType.Exile -> RevealZone.EXILE
+            ZoneType.Command -> RevealZone.COMMAND
+            ZoneType.Stack -> RevealZone.STACK
+            else -> null
+        }
 
     // -- Zone ordering ----------------------------------------------------
 
@@ -609,7 +648,6 @@ class TargetingCoordinator(
         sa: SpellAbility,
         mandatory: Boolean,
         numTargets: Int?,
-        divisionValues: Collection<Int>?,
     ): TargetSelectionResult {
         val tgt = sa.targetRestrictions ?: return TargetSelectionResult(false, true)
         val minTargets = numTargets ?: sa.minTargets
@@ -636,15 +674,7 @@ class TargetingCoordinator(
 
         if (allCandidates.isEmpty()) return TargetSelectionResult(false, true)
 
-        // Auto-resolve: single valid target + mandatory → pick it without prompting.
-        if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
-            val target = allCandidates[0]
-            if (target !is Card || !target.isInZone(ZoneType.Stack)) {
-                sa.targets.add(target)
-                recordPendingTargetSpec(sa, target)
-                return TargetSelectionResult(true, true)
-            }
-        }
+        if (autoSelectSingleTarget(sa, allCandidates, mandatory, minTargets)) return TargetSelectionResult(true, true)
 
         val labels =
             allCandidates.map { entity ->
@@ -681,6 +711,8 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
                 sourceEntityId = sa.hostCard?.id,
+                targetIndex = targetGroupIndex(sa),
+                targetPromptId = effectiveTargetPromptId(sa),
                 isTriggeredAbility = sa.isTrigger,
                 forgeAbilityId = if (sa.isTrigger) sa.id else 0,
             )
@@ -690,78 +722,166 @@ class TargetingCoordinator(
             return TargetSelectionResult(false, false)
         }
 
-        for (idx in indices) {
-            val entity = allCandidates.getOrNull(idx) ?: continue
-            if (entity is Card && sa.isDividedAsYouChoose && divisionValues != null) {
-                sa.addDividedAllocation(entity, sa.stillToDivide / (stillNeeded - indices.indexOf(idx)).coerceAtLeast(1))
-            }
-            sa.targets.add(entity)
-            recordPendingTargetSpec(sa, entity)
-        }
+        applySelectedTargets(sa, allCandidates, indices)
 
-        val totalTargeted = sa.targets.size
-        val done = totalTargeted >= maxTargets || indices.isEmpty()
         val chosen = indices.isNotEmpty() || minTargets == 0
-        return TargetSelectionResult(chosen, done)
+        // One bridge request represents the client's complete submitted set.
+        // Forge's desktop picker may call back once per target, but this path
+        // returns the whole group after SubmitTargetsReq.
+        return TargetSelectionResult(chosen, true)
     }
 
     // -- Private helpers --------------------------------------------------
 
-    private fun recordPendingTargetSpec(
+    private fun autoSelectSingleTarget(
         sa: SpellAbility,
-        target: forge.game.GameEntity,
+        candidates: List<GameEntity>,
+        mandatory: Boolean,
+        minTargets: Int,
+    ): Boolean {
+        if (candidates.size != 1 || !mandatory || minTargets < 1) return false
+        val target = candidates.single()
+        if (target is Card && target.isInZone(ZoneType.Stack)) return false
+        sa.targets.add(target)
+        return true
+    }
+
+    private fun applySelectedTargets(
+        sa: SpellAbility,
+        candidates: List<GameEntity>,
+        indices: List<Int>,
     ) {
+        indices.forEach { candidateIndex ->
+            candidates.getOrNull(candidateIndex)?.let(sa.targets::add)
+        }
+    }
+
+    /** Record a completed target group after Forge has finalized divided allocations. */
+    fun recordCompletedTargetSpec(sa: SpellAbility) {
         val spellCard = sa.hostCard ?: return
-        val isTrigger = sa.isTrigger
-        val (targetCardId, targetSeatId) =
-            when (target) {
-                is Card -> target.id to null
-                is forge.game.player.Player -> {
-                    val seat =
-                        if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
-                            seating.familiarSeat
-                        } else {
-                            seating.humanSeat
-                        }
-                    null to seat.value
+        val targets = sa.targets.targetEntities.toList()
+        if (targets.isEmpty()) return
+        val groupIndex = targetGroupIndex(sa)
+        val isStackAbility = !isSpellTargeting(sa)
+        val affectees =
+            targets.mapNotNull { target ->
+                when (target) {
+                    is Card ->
+                        InteractivePromptBridge.PendingTarget.TargetAffectee(
+                            targetForgeCardId = target.id,
+                            distribution = sa.getDividedValue(target),
+                        )
+                    is forge.game.player.Player -> {
+                        val seat =
+                            if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
+                                seating.familiarSeat
+                            } else {
+                                seating.humanSeat
+                            }
+                        InteractivePromptBridge.PendingTarget.TargetAffectee(
+                            targetSeatId = seat.value,
+                            distribution = sa.getDividedValue(target),
+                        )
+                    }
+                    else -> null
                 }
-                else -> return
             }
+        if (affectees.isEmpty()) return
         // Resolve the spell card's iid here, while the spell is still on the
         // stack. Re-deriving from the live bridge at TargetSpec emission time
         // is unsafe for multi-target spells: per-group TargetSpecs are emitted
         // across multiple GSM drains, and the spell's iid changes when it
         // leaves the stack (e.g. Stack→Graveyard at resolve), which would
-        // split the per-group entries onto two iids. Triggered abilities use
+        // split the per-group entries onto two iids. Stack abilities use
         // a stack-ability surrogate iid that's stable across drains, resolved
         // at emission time from `forgeAbilityId` (see StateMapper).
         val affectorIid =
-            if (isTrigger) {
+            if (isStackAbility) {
                 0
             } else {
-                bridge.forgeIidResolver?.invoke(ForgeCardId(spellCard.id))?.value ?: 0
+                if (groupIndex == 1) {
+                    resolveSpellAffectorIid(spellCard.id).also { spellAffectorIids[spellCard.id] = it }
+                } else {
+                    spellAffectorIids[spellCard.id]
+                        ?: resolveSpellAffectorIid(spellCard.id).also { spellAffectorIids[spellCard.id] = it }
+                }
             }
         val abilityIdentity = bridge.resolveAbilityIdentity(sa)
-        val promptId =
-            when {
-                abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
-                sa.isMutate -> PromptIds.MUTATE_TARGET
-                else -> null
-            }
         bridge.addPendingTargetSpec(
             InteractivePromptBridge.PendingTarget(
                 spellForgeCardId = spellCard.id,
                 spellName = spellCard.name,
-                index = bridge.nextTargetSpecIndex(),
+                index = groupIndex,
                 affectorInstanceIdAtRecord = affectorIid,
-                targetForgeCardId = targetCardId,
-                targetSeatId = targetSeatId,
-                isTriggeredAbility = isTrigger,
-                promptId = promptId,
+                affectees = affectees,
+                isStackAbility = isStackAbility,
+                promptId = effectiveTargetPromptId(sa, abilityIdentity),
                 abilityIdentity = abilityIdentity,
                 forgeAbilityId = sa.id,
             ),
         )
+    }
+
+    private fun isSpellTargeting(sa: SpellAbility): Boolean {
+        if (isCastingSpell() || sa.rootAbility.isSpell) return true
+        val host = sa.hostCard ?: return false
+        return sa.activatingPlayer.game.stack.any { entry ->
+            entry.isSpell && (entry.sourceCard?.id == host.id || entry.sourceCard?.name == host.name)
+        }
+    }
+
+    private fun resolveSpellAffectorIid(spellCardId: Int): Int = bridge.forgeIidResolver?.invoke(ForgeCardId(spellCardId))?.value ?: 0
+
+    private fun effectiveTargetPromptId(
+        sa: SpellAbility,
+        abilityIdentity: ResolvedAbilityIdentity? = bridge.resolveAbilityIdentity(sa),
+    ): Int =
+        when {
+            abilityIdentity?.keywordFamily == AbilityKeywordFamily.Mentor -> PromptIds.MENTOR_TARGET
+            sa.isMutate -> PromptIds.MUTATE_TARGET
+            else -> targetPromptId(sa) ?: PromptIds.SELECT_TARGETS
+        }
+
+    private fun targetGroupIndex(sa: SpellAbility): Int {
+        var index = 0
+        var current: SpellAbility? = sa.rootAbility
+        while (current != null) {
+            if (current.targetRestrictions != null) index++
+            if (current === sa) return index.coerceAtLeast(1)
+            current = current.subAbility
+        }
+        return 1
+    }
+
+    private fun targetPromptId(sa: SpellAbility): Int? {
+        val valid =
+            sa.targetRestrictions
+                ?.validTgts
+                ?.toList()
+                .orEmpty()
+        if (valid.isEmpty()) return null
+        val normalized = valid.map { it.lowercase() }
+        if (normalized == listOf("any")) return PromptIds.CHOOSE_ANY_TARGET
+        val allOpponentControlled = normalized.all { "youdontctrl" in it }
+        val targetKinds =
+            normalized
+                .flatMap { restriction ->
+                    buildList {
+                        if ("creature" in restriction) add("creature")
+                        if ("planeswalker" in restriction) add("planeswalker")
+                    }
+                }.toSet()
+        return when {
+            targetKinds == setOf("creature", "planeswalker") && allOpponentControlled ->
+                PromptIds.TARGET_CREATURE_OR_PLANESWALKER_YOU_DONT_CONTROL
+            targetKinds == setOf("creature") && normalized.all { "youctrl" in it && "youdontctrl" !in it } ->
+                PromptIds.TARGET_CREATURE_YOU_CONTROL
+            targetKinds == setOf("creature") && allOpponentControlled ->
+                PromptIds.TARGET_CREATURE_YOU_DONT_CONTROL
+            targetKinds == setOf("creature") && normalized.none { "youctrl" in it || "youdontctrl" in it } ->
+                PromptIds.TARGET_CREATURE
+            else -> null
+        }
     }
 
     private fun arrangeTopNCards(

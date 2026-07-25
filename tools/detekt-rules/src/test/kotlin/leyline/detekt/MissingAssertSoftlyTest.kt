@@ -1,8 +1,8 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.test.TestConfig
-import io.gitlab.arturbosch.detekt.test.lint
+import dev.detekt.api.Config
+import dev.detekt.test.TestConfig
+import dev.detekt.test.lint
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -22,7 +22,6 @@ class MissingAssertSoftlyTest : FunSpec({
             }
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "MissingAssertSoftly",
             messageContains = "3 consecutive assertions",
         )
     }
@@ -38,7 +37,6 @@ class MissingAssertSoftlyTest : FunSpec({
             }
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "MissingAssertSoftly",
             messageContains = "3 consecutive assertions",
         )
     }
@@ -129,7 +127,7 @@ class MissingAssertSoftlyTest : FunSpec({
     }
 
     test("threshold of 5 via config does not flag run of 3") {
-        val configured = MissingAssertSoftly(TestConfig("threshold" to "5"))
+        val configured = MissingAssertSoftly(TestConfig("threshold" to 5))
         val code = """
             infix fun Int.shouldBe(other: Int) {}
             fun main() {

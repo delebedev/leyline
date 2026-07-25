@@ -188,7 +188,7 @@ class StackCastResolveTest :
 
             for (manaPaid in gsm.annotations(AnnotationType.ManaPaid)) {
                 assertSoftly {
-                    tappedSources shouldContain manaPaid.affectorId.toInt()
+                    tappedSources shouldContain manaPaid.affectorId
                     manaPaid.detailInt("id") shouldBeGreaterThan 0
                     manaPaid.detailInt("color") shouldBeGreaterThan 0
                 }
@@ -218,7 +218,7 @@ class StackCastResolveTest :
                 zt.detailString("category") shouldBe "Resolve"
                 zt.detailInt("zone_src") shouldBe ZoneIds.STACK
                 zt.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
-                zt.affectorId.toInt() shouldBe SEAT_ID
+                zt.affectorId shouldBe SEAT_ID
             }
         }
 

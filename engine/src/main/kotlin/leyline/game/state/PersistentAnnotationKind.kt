@@ -101,13 +101,13 @@ sealed interface PersistentAnnotationKind {
  *  existing active row's identity. */
 enum class CollisionStrategy {
     /** Active row stays — incoming row is dropped. Used by ModifiedType-for-crew,
-     *  TemporaryPermanent, DelayedTriggerAffectees, TargetSpec — all "appears once, value rarely
-     *  changes" kinds. */
+     *  TemporaryPermanent, and DelayedTriggerAffectees. */
     KEEP_EXISTING,
 
     /** Active row gets replaced when its detail list differs from the incoming row's.
      *  AbilityWordActive (value updates), CrewedThisTurn (which vehicles this turn),
-     *  Designation kinds (PreparedCopyZcid swaps). */
+     *  Designation kinds (PreparedCopyZcid swaps), and TargetSpec (target or
+     *  distribution changes within one group). */
     REPLACE_IF_CHANGED,
 
     /** Active row always gets replaced — fresh id every collision. Counter (every counter
@@ -262,12 +262,19 @@ data object DelayedTriggerAffecteesKind : PersistentAnnotationKind {
 
 data object TargetSpecKind : PersistentAnnotationKind {
     override val name = "TargetSpec"
-    override val pruneStale = true
-    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
 
     override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.TargetSpec in ann.typeList
 
-    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann) to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean =
+        frame.phase != null &&
+            (ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids)
 }
 
 data object MutateLayeredEffectKind : PersistentAnnotationKind {
@@ -598,6 +605,26 @@ data object DisplayCardUnderCardKind : PersistentAnnotationKind {
     ): Boolean = frame.displayCardAffectors?.let { ann.affectorId !in it } ?: false
 }
 
+data object CardRevealedKind : PersistentAnnotationKind {
+    override val name = "CardRevealed"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.CardRevealed in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object InstanceRevealedToOpponentKind : PersistentAnnotationKind {
+    override val name = "InstanceRevealedToOpponent"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.InstanceRevealedToOpponent in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 object PersistentAnnotationKinds {
     /**
      * Upsert-path kinds — rows are identity-keyed, dispatched by
@@ -615,6 +642,8 @@ object PersistentAnnotationKinds {
             ModifiedTypeForCrewKind,
             TemporaryPermanentKind,
             DelayedTriggerAffecteesKind,
+            CardRevealedKind,
+            InstanceRevealedToOpponentKind,
             TargetSpecKind,
             MutateLayeredEffectKind,
             ColorProductionKind,

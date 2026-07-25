@@ -11,7 +11,6 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.annotations
-import leyline.testkit.assertConsistent
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType

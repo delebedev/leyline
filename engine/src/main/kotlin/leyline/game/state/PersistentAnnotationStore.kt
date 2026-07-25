@@ -344,6 +344,7 @@ class PersistentAnnotationStore {
                     CollisionStrategy.REPLACE_IF_CHANGED -> {
                         if (
                             existingEntry.value.detailsList != ann.detailsList ||
+                            existingEntry.value.affectorId != ann.affectorId ||
                             existingEntry.value.affectedIdsList != ann.affectedIdsList
                         ) {
                             if (kind.preserveIdOnChange(ann)) {

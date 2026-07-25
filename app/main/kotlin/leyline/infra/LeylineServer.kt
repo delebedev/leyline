@@ -4,12 +4,13 @@ import io.netty.bootstrap.ServerBootstrap
 import io.netty.channel.Channel
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.ChannelOption
-import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import io.netty.channel.nio.NioIoHandler
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
-import io.netty.handler.ssl.util.SelfSignedCertificate
+import io.netty.pkitesting.CertificateBuilder
 import leyline.DevCheck
 import leyline.bridge.bootstrap.CardEntry
 import leyline.bridge.bootstrap.DeckConverter
@@ -70,8 +71,8 @@ class LeylineServer(
     /** Hardcoded player ID — matches seed-db. */
     private val playerId = "9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b"
 
-    private val bossGroup = NioEventLoopGroup(1)
-    private val workerGroup = NioEventLoopGroup()
+    private val bossGroup = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
+    private val workerGroup = MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())
 
     @Volatile private var frontDoorChannel: Channel? = null
 
@@ -120,8 +121,14 @@ class LeylineServer(
             SslContextBuilder.forServer(tlsFiles.first, tlsFiles.second).build()
         } else {
             log.info("Using self-signed TLS certificate")
-            val ssc = SelfSignedCertificate()
-            SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build()
+            val certificate =
+                CertificateBuilder()
+                    .subject("CN=localhost")
+                    .addSanDnsName("localhost")
+                    .addExtendedKeyUsageServerAuth()
+                    .setIsCertificateAuthority(true)
+                    .buildSelfSigned()
+            SslContextBuilder.forServer(certificate.keyPair.private, certificate.certificate).build()
         }
 
     private fun startLocal(

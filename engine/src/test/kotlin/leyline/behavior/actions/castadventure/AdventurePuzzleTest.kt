@@ -1,12 +1,19 @@
 package leyline.behavior.actions.castadventure
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
  * Integration test for the full adventure lifecycle:
@@ -48,8 +55,20 @@ class AdventurePuzzleTest :
             startPuzzleRaw(pzl, validating = true)
             phase() shouldBe "MAIN1"
 
+            fun adventureCompanionIn(zoneId: Int): GameObjectInfo =
+                harness.accumulator.objects.values.single { obj ->
+                    obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == zoneId
+                }
+
             // --- Step 1: Verify CastAdventure action is available ---
             val traineeIid = human.hand.iid("Ratcatcher Trainee")
+            val handCompanion = adventureCompanionIn(ZoneIds.P1_HAND)
+            harness.accumulator.zones
+                .getValue(ZoneIds.P1_HAND)
+                .objectInstanceIdsList shouldContain traineeIid
+            harness.accumulator.zones
+                .getValue(ZoneIds.P1_HAND)
+                .objectInstanceIdsList shouldNotContain handCompanion.instanceId
 
             // Look for CastAdventure in the latest ActionsAvailableReq
             val actionsMsg =
@@ -76,6 +95,11 @@ class AdventurePuzzleTest :
                 }
             harness.session.onPerformAction(harness.submitWithGsId(castMsg))
             harness.drainSink()
+            val adventureStackCompanion = adventureCompanionIn(ZoneIds.STACK)
+            adventureStackCompanion.instanceId shouldNotBe handCompanion.instanceId
+            harness.accumulator.zones
+                .getValue(ZoneIds.STACK)
+                .objectInstanceIdsList shouldNotContain adventureStackCompanion.instanceId
 
             // --- Step 3: Pass priority until adventure resolves (tokens appear) ---
             // Forge token name is "Rat Token" (from b_1_1_rat_noblock.txt)
@@ -99,10 +123,25 @@ class AdventurePuzzleTest :
                     .getZone(ZoneType.Exile)
                     .cards
                     .any { it.name == "Ratcatcher Trainee" }
-            inExile.shouldBeTrue()
+            val exileCompanion = adventureCompanionIn(ZoneIds.EXILE)
+            assertSoftly {
+                inExile.shouldBeTrue()
+                exileCompanion.instanceId shouldNotBe adventureStackCompanion.instanceId
+                harness.accumulator.zones
+                    .getValue(ZoneIds.EXILE)
+                    .objectInstanceIdsList shouldNotContain exileCompanion.instanceId
+            }
 
             // --- Step 5: Cast creature from exile ---
-            harness.castFromExile("Ratcatcher Trainee").shouldBeTrue()
+            val castCreature = harness.castFromExile("Ratcatcher Trainee")
+            val creatureStackCompanion = adventureCompanionIn(ZoneIds.STACK)
+            assertSoftly {
+                castCreature.shouldBeTrue()
+                creatureStackCompanion.instanceId shouldNotBe exileCompanion.instanceId
+                harness.accumulator.zones
+                    .getValue(ZoneIds.STACK)
+                    .objectInstanceIdsList shouldNotContain creatureStackCompanion.instanceId
+            }
 
             // --- Step 6: Pass until creature resolves to battlefield ---
             val creatureOnBattlefield =
@@ -112,7 +151,14 @@ class AdventurePuzzleTest :
                         .cards
                         .any { it.name == "Ratcatcher Trainee" }
                 }
-            creatureOnBattlefield.shouldBeTrue()
+            val battlefieldCompanion = adventureCompanionIn(ZoneIds.BATTLEFIELD)
+            assertSoftly {
+                creatureOnBattlefield.shouldBeTrue()
+                battlefieldCompanion.instanceId shouldBe creatureStackCompanion.instanceId
+                harness.accumulator.zones
+                    .getValue(ZoneIds.BATTLEFIELD)
+                    .objectInstanceIdsList shouldNotContain battlefieldCompanion.instanceId
+            }
 
             // Final verification: Ratcatcher Trainee on battlefield
             human

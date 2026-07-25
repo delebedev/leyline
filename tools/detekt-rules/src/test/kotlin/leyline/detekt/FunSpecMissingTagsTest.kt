@@ -1,7 +1,7 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.test.lint
+import dev.detekt.api.Config
+import dev.detekt.test.lint
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -18,7 +18,6 @@ class FunSpecMissingTagsTest : FunSpec({
             })
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "FunSpecMissingTags",
             messageContains = "has no lane tag",
         )
     }
@@ -68,7 +67,6 @@ class FunSpecMissingTagsTest : FunSpec({
             })
         """.trimIndent()
         rule.lint(code).shouldHaveSingleFinding(
-            ruleId = "FunSpecMissingTags",
             messageContains = "has multiple lane tags",
         )
     }

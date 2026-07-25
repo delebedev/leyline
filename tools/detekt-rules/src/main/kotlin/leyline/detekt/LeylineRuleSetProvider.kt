@@ -1,28 +1,28 @@
 package leyline.detekt
 
-import io.gitlab.arturbosch.detekt.api.Config
-import io.gitlab.arturbosch.detekt.api.RuleSet
-import io.gitlab.arturbosch.detekt.api.RuleSetProvider
+import dev.detekt.api.RuleSet
+import dev.detekt.api.RuleSetId
+import dev.detekt.api.RuleSetProvider
 
 class LeylineRuleSetProvider : RuleSetProvider {
-    override val ruleSetId: String = "leyline"
+    override val ruleSetId = RuleSetId("leyline")
 
-    override fun instance(config: Config): RuleSet =
+    override fun instance(): RuleSet =
         RuleSet(
             ruleSetId,
             listOf(
-                TrivialKDoc(config),
-                BooleanAssertion(config),
-                VacuousTestSkip(config),
-                EmptyAssertion(config),
-                MissingAssertSoftly(config),
-                FunSpecMissingTags(config),
-                NoGameInMappers(config),
-                NoThreadSleepInTests(config),
-                NoTimingAssertsInTests(config),
-                TierPlacementCheck(config),
-                TestLayoutCheck(config),
-                WeakAssertionOnly(config),
+                ::TrivialKDoc,
+                ::BooleanAssertion,
+                ::VacuousTestSkip,
+                ::EmptyAssertion,
+                ::MissingAssertSoftly,
+                ::FunSpecMissingTags,
+                ::NoGameInMappers,
+                ::NoThreadSleepInTests,
+                ::NoTimingAssertsInTests,
+                ::TierPlacementCheck,
+                ::TestLayoutCheck,
+                ::WeakAssertionOnly,
             ),
         )
 }

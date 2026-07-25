@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 
 /**
@@ -106,6 +107,8 @@ sealed interface GameEvent {
     data class SpellCast(
         val cardId: ForgeCardId,
         val seatId: SeatId,
+        /** Card-definition identity of the spell face while it is on the stack. */
+        val spellGrpId: Int = 0,
         val manaPayments: List<ManaPayment> = emptyList(),
         /** Distinct W/U/B/R/G ordinals retained from a Converge cast payment. */
         val colorsSpentToCast: List<Int> = emptyList(),
@@ -182,6 +185,8 @@ sealed interface GameEvent {
     data class SpellResolved(
         val cardId: ForgeCardId,
         val hasFizzled: Boolean,
+        /** Card-definition identity of the resolving spell face. */
+        val spellGrpId: Int = 0,
         /** True if the resolved item was a triggered ability rather than a cast spell. */
         val isTrigger: Boolean = false,
         /**
@@ -456,6 +461,9 @@ sealed interface GameEvent {
     data class CardsRevealed(
         val cardIds: List<ForgeCardId>,
         val ownerSeatId: SeatId,
+        val viewerSeatId: SeatId,
+        val sourceZone: RevealZone? = null,
+        val sourceCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** RevealedCard proxies removed after reveal-choose resolution. */

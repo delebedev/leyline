@@ -108,6 +108,7 @@ object SnapshotCapture {
             val mobilizeCleanup = BoundCard.bindMobilizeCleanup(data, altCosts, repo)
             val decayedCleanup = BoundCard.bindDecayedCleanup(data, repo)
             val parentLinkage = bindParentLinkage(snap)
+            val linkedFaces = BoundCard.bindLinkedFaces(data, repo)
             val designations =
                 DesignationSet(
                     prepared = snap.preparedRole,
@@ -121,7 +122,7 @@ object SnapshotCapture {
                     isLeftDoorUnlocked = snap.isLeftDoorUnlocked,
                     isRightDoorUnlocked = snap.isRightDoorUnlocked,
                 )
-            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup, decayedCleanup, parentLinkage, designations)
+            out[fid] = BoundCard(fid, snap, data, altCosts, mobilizeCleanup, decayedCleanup, parentLinkage, designations, linkedFaces)
         }
         return out
     }

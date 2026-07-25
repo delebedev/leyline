@@ -122,9 +122,11 @@ private class ScenarioRun(
             is BlockStep -> block(step)
             is AttackStep -> attack(step)
             is TurnFaceUpStep -> turnFaceUp(step)
-            is PlayLandStep -> requireAction { harness.playLand(step.card) }
+            is PlayLandStep -> playLand(step)
             is PlayMdfcStep -> submitNamedAction(ActionType.PlayMdfc, step.card)
             is CastStep -> cast(step)
+            is CastAdventureStep -> submitNamedAction(ActionType.CastAdventure, step.card)
+            is CastOmenStep -> submitNamedAction(ActionType.CastOmen, step.card)
             is CastMdfcStep -> submitNamedAction(ActionType.CastMdfc, step.card)
             ResolveStackStep -> resolveStack()
             AttackAllStep -> {
@@ -132,6 +134,22 @@ private class ScenarioRun(
                 harness.submitAttackers()
             }
         }
+    }
+
+    private fun playLand(step: PlayLandStep) {
+        if (harness.hasPendingSelectNPrompt()) {
+            val prompt = latestPromptMessage()
+            require(prompt?.hasSelectNReq() == true) {
+                "$context active SelectN interaction has no SelectNReq"
+            }
+            val instanceId = resolveCardInZone(AcceptanceSide.Ours, AcceptanceZone.Hand, step.card)
+            require(instanceId in prompt.selectNReq.idsList) {
+                "$context land $step.card iid=$instanceId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+            }
+            harness.respondToSelectN(listOf(instanceId))
+            return
+        }
+        requireAction { harness.playLand(step.card) }
     }
 
     private fun cast(step: CastStep) {
@@ -158,7 +176,9 @@ private class ScenarioRun(
             candidates.firstOrNull { actionCardName(it).equals(card, ignoreCase = true) }
                 ?: candidates
                     .singleOrNull()
-                    ?.takeIf { actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc) }
+                    ?.takeIf {
+                        actionType in listOf(ActionType.PlayMdfc, ActionType.CastMdfc, ActionType.CastAdventure, ActionType.CastOmen)
+                    }
                 ?: error("$context no named ${actionType.name} action for $card")
         submitAction(action)
     }
@@ -576,6 +596,8 @@ private class ScenarioRun(
                 AcceptanceActionType.PlayMdfc -> ActionType.PlayMdfc
                 AcceptanceActionType.Cast -> ActionType.Cast
                 AcceptanceActionType.CastMdfc -> ActionType.CastMdfc
+                AcceptanceActionType.CastAdventure -> ActionType.CastAdventure
+                AcceptanceActionType.CastOmen -> ActionType.CastOmen
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
             }
         val candidates =
@@ -590,7 +612,13 @@ private class ScenarioRun(
                     (condition.altCost == null || actionMatchesAltCost(action, condition.altCost))
             }
         if (namedMatch) return true
-        return condition.type in listOf(AcceptanceActionType.PlayMdfc, AcceptanceActionType.CastMdfc) &&
+        return condition.type in
+            listOf(
+                AcceptanceActionType.PlayMdfc,
+                AcceptanceActionType.CastMdfc,
+                AcceptanceActionType.CastAdventure,
+                AcceptanceActionType.CastOmen,
+            ) &&
             condition.altCost == null &&
             candidates.size == 1
     }

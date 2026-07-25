@@ -37,6 +37,7 @@ import leyline.domain.DraftSession
 import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
+import leyline.domain.json.productionJson
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
@@ -90,7 +91,7 @@ fun Application.installWeb(services: WebServices) {
         // Tolerate client-only view-model fields on request bodies (e.g. the SPA's
         // GreStartConfig carries gameType, which the server infers and ignores).
         json(
-            Json {
+            productionJson {
                 encodeDefaults = true
                 ignoreUnknownKeys = true
             },

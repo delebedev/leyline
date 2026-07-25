@@ -1,0 +1,8 @@
+name: "Pilfer"
+grpId: 93894
+titleId: 614878
+abilities:
+  - id: 117067
+    textId: 238874
+    category: 4
+expansionCode: "FDN"

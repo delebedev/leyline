@@ -134,8 +134,12 @@ class TargetingHandler(
                 ?.selectedInstanceIds
                 .orEmpty()
 
-        if (resp.target.targetIdx != 1) {
-            log.warn("TargetingHandler: SelectTargetsResp targetIdx={} expected=1", resp.target.targetIdx)
+        if (resp.target.targetIdx != pendingPrompt.request.targetIndex) {
+            log.warn(
+                "TargetingHandler: SelectTargetsResp targetIdx={} expected={}",
+                resp.target.targetIdx,
+                pendingPrompt.request.targetIndex,
+            )
             sendTargetRePrompt(pendingPrompt, existing)
             return
         }
@@ -530,22 +534,16 @@ class TargetingHandler(
      */
     fun onCancelAction(autoPass: () -> Unit) {
         val bridge = ctx.bridge
-        when (pendingInteraction) {
-            is PendingClientInteraction.OptionalCost,
-            is PendingClientInteraction.AlternateCostChoice,
-            is PendingClientInteraction.HybridManaType,
-            -> {
-                pendingInteraction = null
-                bridge
-                    .seat(counters.seatId)
-                    .prompt
-                    .journal
-                    .clearHybridManaStash()
-                log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
-                autoPass()
-                return
+        when (val interaction = pendingInteraction) {
+            is PendingClientInteraction.OptionalCost -> {
+                return cancelDeferredCast(interaction.action.cardId, autoPass)
             }
-
+            is PendingClientInteraction.AlternateCostChoice -> {
+                return cancelDeferredCast(interaction.cardId, autoPass)
+            }
+            is PendingClientInteraction.HybridManaType -> {
+                return cancelDeferredCast(interaction.action.cardId, autoPass)
+            }
             is PendingClientInteraction.ModalChoice,
             is PendingClientInteraction.Search,
             is PendingClientInteraction.TargetSelection,
@@ -570,6 +568,20 @@ class TargetingHandler(
         // Submit empty list → engine sees no targets → spell fails → unwind
         seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
         bridge.awaitPriority()
+        autoPass()
+    }
+
+    private fun cancelDeferredCast(
+        cardId: ForgeCardId,
+        autoPass: () -> Unit,
+    ) {
+        pendingInteraction = null
+        ctx.bridge.setSelectedSpellGrpId(cardId, null)
+        ctx.bridge
+            .seat(counters.seatId)
+            .prompt.journal
+            .clearHybridManaStash()
+        log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
         autoPass()
     }
 
@@ -755,8 +767,10 @@ class TargetingHandler(
 
                 val selectedIndices = mapModalGrpIdsToPromptIndices(chosenGrpIds, pending.childGrpIds)
 
-                pending.sourceForgeCardId?.let { source ->
-                    chosenGrpIds.singleOrNull()?.let { bridge.recordSelectedModalAbilityGrpId(source, it) }
+                chosenGrpIds.singleOrNull()?.let { selectedGrpId ->
+                    pending.sourceForgeCardId?.let { source ->
+                        bridge.recordSelectedModalAbilityGrpId(source, selectedGrpId)
+                    }
                 }
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)

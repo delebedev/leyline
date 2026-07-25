@@ -10,8 +10,11 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
+import leyline.testkit.ClientAccumulator
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
+import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -140,6 +143,23 @@ class WaterbendLifecycleTest :
 
             additionalCostAnnotations shouldHaveSize 1
             additionalCostAnnotations.single().detailInt(DetailKeys.ADDITIONAL_COST_GRP_ID) shouldBe RUINOUS_WATERBEND_ABILITY_GRP_ID
+
+            val client = ClientAccumulator()
+            allMessages.forEach(client::process)
+            val stackIds = client.zones[ZoneIds.STACK]?.objectInstanceIdsList.orEmpty()
+            val stackTrace =
+                allMessages.gameStateMessages().mapNotNull { gsm ->
+                    val zone = gsm.zonesList.firstOrNull { it.zoneId == ZoneIds.STACK }
+                    val objects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.STACK }.map { it.instanceId }
+                    if (zone == null && objects.isEmpty()) {
+                        null
+                    } else {
+                        "gs=${gsm.gameStateId} zone=${zone?.objectInstanceIdsList} objects=$objects"
+                    }
+                }
+            withClue("stack=$stackIds objects=${stackIds.map(client.objects::get)} trace=$stackTrace") {
+                stackIds shouldBe emptyList()
+            }
         }
 
         test("Ruinous Waterbending accepts live Waterbend MakePayment responses") {
@@ -188,6 +208,10 @@ class WaterbendLifecycleTest :
                 human.graveyard.iid("Coral Merfolk") shouldBeGreaterThan 0
                 human.graveyard.iid("Grizzly Bears") shouldBeGreaterThan 0
                 human.life shouldBe 22
+                allMessages
+                    .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                    .filter { it.detailInt(DetailKeys.TYPE) == CastingTimeOptionType.AdditionalCost.number }
+                    .shouldHaveSize(1)
             }
         }
 

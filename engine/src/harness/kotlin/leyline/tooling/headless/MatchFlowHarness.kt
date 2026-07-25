@@ -7,6 +7,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
@@ -598,7 +599,7 @@ class MatchFlowHarness(
      * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
     fun selectTargets(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds)))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
         drainSink()
         session.onSubmitTargets(submitWithGsId(submitTargetsReq()))
         drainSink()
@@ -609,9 +610,18 @@ class MatchFlowHarness(
      * Use to inspect the echo-back re-prompt before confirming.
      */
     fun selectTargetsIterative(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds)))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
         drainSink()
     }
+
+    private fun currentTargetIndex(): Int =
+        allMessages
+            .lastOrNull { it.hasSelectTargetsReq() }
+            ?.selectTargetsReq
+            ?.targetsList
+            ?.singleOrNull()
+            ?.targetIdx
+            ?: 1
 
     /** Phase 2: send SubmitTargetsReq — the client's "Done" button. */
     fun submitTargets() {
@@ -1032,6 +1042,14 @@ class MatchFlowHarness(
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
     fun latestPromptMsgId(): Int = messageLog.latestPromptMsgId()
+
+    fun hasPendingSelectNPrompt(): Boolean =
+        bridge
+            .seat(seatId)
+            .prompt
+            .getPendingPrompt()
+            ?.request
+            ?.route is ResolvedPromptRoute.SelectN
 
     /**
      * Reflect the latest prompt ids onto a client response before it enters
