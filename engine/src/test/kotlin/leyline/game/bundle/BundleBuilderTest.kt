@@ -722,47 +722,41 @@ class BundleBuilderTest :
             }
         }
 
-        test("failed finalization preserves pending submitted targets and annotation counter for retry") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
+        test("failure during finalization leaves cursor and bridge state unchanged") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Llanowar Elves", human, ZoneType.Hand)
+                }
             val builder = bundleBuilder(b)
-            val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
-            builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
             b.seedDiffBaseline(game, counter.currentGsId())
             val snap = checkNotNull(builder.cursor.lastSent)
-            val draft =
-                StateMapper.buildDiff(
-                    prev = snap,
-                    cur = snap,
-                    events = FrameEventLog.EMPTY,
-                    gameStateId = counter.nextGsId(),
-                    matchId = "test-match",
-                    bridge = b,
-                )
+            val startInstanceIds = b.getInstanceIdMap()
+            val startZones = b.getProtoZones()
             val startId = b.annotations.currentAnnotationId()
-            val invalidDraft =
-                draft.copy(
-                    annotationFrameDraft =
-                        checkNotNull(draft.annotationFrameDraft).copy(firstAnnotationId = 0),
-                )
-            val rider = AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
+            val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
+            builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            moveToBattlefield(card, game)
+            b.diffListener = { _, _, _, _, _ -> error("induced finalization failure") }
 
-            shouldThrow<IllegalArgumentException> {
-                builder.finalizeStateFrame(invalidDraft, listOf(rider), pending)
+            try {
+                shouldThrow<IllegalStateException> {
+                    builder.stateOnlyDiff(game, counter)
+                }
+            } finally {
+                b.diffListener = null
             }
+
             assertSoftly {
+                builder.cursor.lastSent shouldBe snap
                 builder.cursor.pendingPSuT() shouldBe pending
                 b.annotations.currentAnnotationId() shouldBe startId
-            }
-
-            val retried = builder.finalizeStateFrame(draft, listOf(rider), pending)
-            assertSoftly {
-                retried.gsm.annotationsList
-                    .first()
-                    .typeList shouldBe listOf(AnnotationType.PlayerSubmittedTargets)
-                builder.cursor.pendingPSuT() shouldBe null
-                b.annotations.currentAnnotationId() shouldBe retried.gsm.annotationsList
-                    .last()
-                    .id + 1
+                b.getInstanceIdMap() shouldBe startInstanceIds
+                b.getProtoZones() shouldBe startZones
             }
         }
 

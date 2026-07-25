@@ -129,9 +129,12 @@ The current state-diff order is:
 ```text
 snapshot Forge state
   -> compute and finalize the frame
-  -> apply BridgeMutations
-  -> assemble messages
-  -> advance BundleCursor.lastSent
+  -> invoke the pre-commit diff observer
+  -> commit projection:
+       apply BridgeMutations
+       advance BundleCursor.lastSent
+       consume pending frame state
+  -> assemble path-specific messages
   -> return or enqueue the batch
   -> later call sink.send
 ```
@@ -139,14 +142,17 @@ snapshot Forge state
 `BridgeMutations` commits in a fixed order—ID reallocations, limbo retirements,
 zone bookkeeping, persistent-annotation batch, then `nextAnnotationId`. The
 interactive path binds offers and sends after `BundleBuilder` returns. The
-playback path performs build, cursor advance, and enqueue under `queueLock`; a
-session or spectator domain drains and sends later.
+playback path performs build, projection commit, message assembly, and enqueue
+under `queueLock`; a session or spectator domain drains and sends later.
 
 This is not an atomic projection-plus-delivery transaction. An exception after
-mutation application can leave part of the projection state committed. A sink
-failure can leave both mutations and cursor ahead of delivered state. The
-current runtime has no rollback or retry-from-old-baseline contract; the target
-architecture's atomic commit plus ordered outbox is intended to close this gap.
+frame finalization but before projection commit advances neither bridge
+mutations nor the cursor. Mutation application and cursor advancement share one
+commit function, so later failures cannot split those two baselines. An
+exception during path-specific assembly or a sink failure can still leave the
+committed projection ahead of returned or delivered output. The current runtime
+has no rollback or retry-from-old-baseline contract; the target architecture's
+ordered outbox is intended to close this remaining gap.
 
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
