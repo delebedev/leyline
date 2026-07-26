@@ -95,7 +95,7 @@ internal class PromptResponseSubmitter(
                 .prompt
                 .submitResponse(pendingPrompt.promptId, selectedIndices, onAccepted)
         if (!submitted) return
-        ctx.bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 

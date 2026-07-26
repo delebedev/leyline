@@ -4,14 +4,26 @@ import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.types.PriorityActionFacts
+import leyline.game.GamePlayback
+import leyline.game.InteractivePlaybackMaterializer
+import leyline.game.PlaybackCutReason
+import leyline.game.PlaybackYield
 import leyline.game.bundle.MessageCounter
+import leyline.game.event.GameEventCollector
+import leyline.game.mapping.NaiveGsmActionCapture
+import leyline.game.state.GameBridge
+import leyline.match.EngineCutAwaiter
+import leyline.match.GameOps
 import leyline.match.MatchOwner
+import leyline.match.MatchSession
+import leyline.match.SessionContext
 import java.lang.reflect.Modifier
 import java.nio.file.Path
 
@@ -205,6 +217,128 @@ class RuntimeBoundaryTest :
                     }
             check(escapedState.isEmpty()) {
                 "OwnerProtocolState escaped MatchOwner: $escapedState"
+            }
+        }
+
+        test("interactive playback crosses as a bounded value") {
+            val forbidden =
+                PlaybackYield::class.java.declaredFields.mapNotNull { field ->
+                    field.genericType.typeName
+                        .takeIf {
+                            "forge." in it ||
+                                "wotc.mtgo.gre" in it ||
+                                "CompletableFuture" in it ||
+                                "Function" in it
+                        }?.let { "${field.name}: $it" }
+                }
+            check(forbidden.isEmpty()) {
+                "PlaybackYield retains a live or protocol field: ${forbidden.joinToString()}"
+            }
+
+            val reservationFields = GameBridge.BundleFrameReservation::class.java.declaredFields
+            check(
+                reservationFields.none {
+                    it.type == GameEventCollector::class.java ||
+                        it.type == InteractivePromptBridge::class.java
+                },
+            ) {
+                "Bundle reservation retains a mutable producer: ${reservationFields.map { it.genericType.typeName }}"
+            }
+
+            PlaybackCutReason.entries.map { it.name } shouldBe
+                listOf(
+                    "LAND_PLAYED",
+                    "SPELL_ABILITY_CAST",
+                    "SPELL_RESOLVED",
+                    "STACK_EXIT_COMPLETION",
+                    "CARD_COUNTERS",
+                    "PLAYER_POISONED",
+                    "TURN_BEGAN",
+                    "TURN_PHASE",
+                    "ATTACKERS_DECLARED",
+                    "BLOCKERS_DECLARED",
+                    "COMBAT_ENDED",
+                )
+        }
+
+        test("interactive callback adapter cannot compile protocol output") {
+            val adapterField =
+                GamePlayback::class.java.declaredFields.singleOrNull {
+                    it.type == InteractivePlaybackMaterializer::class.java
+                }
+            checkNotNull(adapterField) {
+                "GamePlayback must route interactive cuts through InteractivePlaybackMaterializer"
+            }
+
+            noClasses()
+                .that()
+                .haveNameMatching(
+                    "${InteractivePlaybackMaterializer::class.java.name}|" +
+                        NaiveGsmActionCapture::class.java.name,
+                ).should()
+                .dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game.bundle..",
+                    "com.google.protobuf..",
+                    "wotc.mtgo.gre.external.messaging..",
+                ).because(
+                    "the engine callback materializes values; only the serial owner compiles protocol output",
+                ).check(classes)
+
+            noClasses()
+                .that()
+                .haveFullyQualifiedName(MatchSession::class.java.name)
+                .should()
+                .dependOnClassesThat()
+                .haveFullyQualifiedName(GamePlayback::class.java.name)
+                .because("interactive ordering comes from the engine-cut FIFO, not numbered-queue repair")
+                .check(classes)
+        }
+
+        test("production priority waits require the owner drain seam") {
+            val contextConstructors = SessionContext::class.java.declaredConstructors
+            check(
+                contextConstructors.none { constructor ->
+                    constructor.parameterTypes.contentEquals(arrayOf(GameBridge::class.java))
+                },
+            ) {
+                "SessionContext must not provide a direct-bridge await fallback"
+            }
+            check(
+                SessionContext::class.java.declaredFields.any {
+                    it.type == EngineCutAwaiter::class.java
+                },
+            ) {
+                "SessionContext must carry an EngineCutAwaiter"
+            }
+
+            val awaitMethods =
+                GameOps::class.java.declaredMethods.filter {
+                    it.name == "awaitEnginePriority" ||
+                        it.name == "awaitEnginePriorityWithTimeout"
+                }
+            check(awaitMethods.isNotEmpty() && awaitMethods.all { Modifier.isAbstract(it.modifiers) }) {
+                "GameOps priority waits must be supplied by the serial owner: ${awaitMethods.map { it.name to it.modifiers }}"
+            }
+
+            val productionAwaiter =
+                MatchSession::class.java.declaredFields.singleOrNull {
+                    EngineCutAwaiter::class.java.isAssignableFrom(it.type)
+                }
+            checkNotNull(productionAwaiter) {
+                "MatchSession must bind EngineCutAwaiter to its owner drain"
+            }
+            check(Modifier.isPrivate(productionAwaiter.modifiers)) {
+                "MatchSession EngineCutAwaiter must remain private"
+            }
+
+            check(
+                EngineCutAwaiter::class.java.declaredMethods
+                    .map { it.name }
+                    .toSet() ==
+                    setOf("awaitPriority", "awaitPriorityWithTimeout", "awaitActionPriority"),
+            ) {
+                "Every production priority wait must cross the owner drain seam"
             }
         }
     })

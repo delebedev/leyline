@@ -17,30 +17,62 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
-import leyline.game.event.ZoneMove
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
-import java.util.concurrent.ConcurrentLinkedQueue
 
 class GamePlaybackFramePlanTest :
     BoardTest({
 
-        @Suppress("UNCHECKED_CAST")
-        fun collectorQueue(bridge: leyline.game.state.GameBridge): ConcurrentLinkedQueue<GameEvent> {
-            val field = checkNotNull(bridge.eventCollector).javaClass.getDeclaredField("frame")
-            field.isAccessible = true
-            return field.get(bridge.eventCollector) as ConcurrentLinkedQueue<GameEvent>
-        }
+        test("interactive noncombat damage deferral releases its exact prefix") {
+            val (bridge, game) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            val sourceId =
+                ForgeCardId(
+                    game.humanPlayer
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .single()
+                        .id,
+                )
+            val events =
+                listOf(
+                    GameEvent.DamageDealtToPlayer(
+                        sourceCardId = sourceId,
+                        targetSeatId = SeatId(2),
+                        amount = 2,
+                        sourceKind = DamageSourceKind.SpellOrAbility,
+                        changesLife = true,
+                    ),
+                    GameEvent.SpellResolved(sourceId, hasFizzled = false),
+                )
+            checkNotNull(bridge.eventCollector).appendEventsForTest(events)
+            val materializer =
+                InteractivePlaybackMaterializer(
+                    bridge = bridge,
+                    matchId = "test-match",
+                    seatId = 1,
+                    combatFramePlanner = CombatFramePlanner(bridge, 1),
+                )
 
-        @Suppress("UNCHECKED_CAST")
-        fun collectorZoneMoves(bridge: leyline.game.state.GameBridge): ConcurrentLinkedQueue<ZoneMove> {
-            val field = checkNotNull(bridge.eventCollector).javaClass.getDeclaredField("zoneMoves")
-            field.isAccessible = true
-            return field.get(bridge.eventCollector) as ConcurrentLinkedQueue<ZoneMove>
+            materializer.materialize(
+                game = game,
+                cutReason = PlaybackCutReason.SPELL_RESOLVED,
+                turnStarted = false,
+            ) shouldBe false
+
+            val retained = bridge.reserveBundleFrame(1)
+            assertSoftly {
+                materializer.isAwaitingResolutionBoundary() shouldBe true
+                bridge.hasPendingEngineCuts() shouldBe false
+                retained.events.events shouldBe events
+            }
+            bridge.releaseBundleFrame(retained)
         }
 
         test("playback retries reserved input and preserves a later suffix") {
@@ -85,7 +117,8 @@ class GamePlaybackFramePlanTest :
 
             playback.receiveGameEvent(captureEvent)
 
-            val retainedInput = bridge.reserveBundleFrame(1).events
+            val retainedReservation = bridge.reserveBundleFrame(1)
+            val retainedInput = retainedReservation.events
             assertSoftly {
                 playback.drainQueue().shouldBeEmpty()
                 retainedInput.events shouldBe failedInput?.events
@@ -96,6 +129,7 @@ class GamePlaybackFramePlanTest :
                 bridge.bundleCursor.lastSent shouldBe baseline
                 counter.snapshot() shouldBe counterBefore
             }
+            bridge.releaseBundleFrame(retainedReservation)
 
             var retryInput: FrameEventLog? = null
             bridge.diffListener = { _, _, events, _, _ ->
@@ -163,7 +197,7 @@ class GamePlaybackFramePlanTest :
                         changesLife = true,
                     ),
                 )
-            collectorQueue(bridge).addAll(events)
+            checkNotNull(bridge.eventCollector).appendEventsForTest(events)
             val baseline = bridge.bundleCursor.lastSent
             val counterBefore = counter.snapshot()
             val captureEvent = GameEventLandPlayed(PlayerView.get(game.humanPlayer), CardView.get(source))
@@ -175,7 +209,8 @@ class GamePlaybackFramePlanTest :
 
             playback.receiveGameEvent(captureEvent)
 
-            val retained = bridge.reserveBundleFrame(1).events
+            val retainedReservation = bridge.reserveBundleFrame(1)
+            val retained = retainedReservation.events
             assertSoftly {
                 observationCount shouldBe 2
                 playback.drainQueue().shouldBeEmpty()
@@ -183,6 +218,7 @@ class GamePlaybackFramePlanTest :
                 bridge.bundleCursor.lastSent shouldBe baseline
                 retained.events shouldBe events
             }
+            bridge.releaseBundleFrame(retainedReservation)
 
             var retryObservationCount = 0
             bridge.diffListener = { _, _, _, _, _ ->
@@ -229,8 +265,8 @@ class GamePlaybackFramePlanTest :
                     sourceKind = DamageSourceKind.Combat,
                     changesLife = true,
                 )
-            collectorQueue(bridge).add(damage)
-            collectorZoneMoves(bridge).clear()
+            checkNotNull(bridge.eventCollector).appendEventsForTest(listOf(damage))
+            bridge.eventCollector?.clearZoneMovesForTest()
             val reservation = bridge.reserveBundleFrame(1)
             reservation.events.zoneMoves.shouldBeEmpty()
             val firstFrameEvents = reservation.events.events.filterNot { it === damage }
@@ -302,8 +338,8 @@ class GamePlaybackFramePlanTest :
                 )
 
             game.humanPlayer.getZone(ZoneType.Battlefield).remove(token)
-            collectorQueue(bridge).addAll(events)
-            collectorZoneMoves(bridge).clear()
+            checkNotNull(bridge.eventCollector).appendEventsForTest(events)
+            bridge.eventCollector?.clearZoneMovesForTest()
             val reservation = bridge.reserveBundleFrame(1)
             reservation.events.zoneMoves.shouldBeEmpty()
 

@@ -76,7 +76,7 @@ class NumericInputHandler(
         )
 
         bridge.submitNumericInput(value)
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 

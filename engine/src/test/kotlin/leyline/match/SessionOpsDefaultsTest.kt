@@ -87,6 +87,22 @@ class SessionOpsDefaultsTest :
             ops.recorder.shouldBeNull()
         }
 
+        test("playback delivery pacing starts between results") {
+            val delays = mutableListOf<Int>()
+            val pacing =
+                object : Pacing {
+                    override fun paceDelay(multiplier: Int) {
+                        delays += multiplier
+                    }
+                }
+
+            pacing.paceBeforePlaybackDelivery(hasDelivered = false)
+            pacing.paceBeforePlaybackDelivery(hasDelivered = true)
+            pacing.paceBeforePlaybackDelivery(hasDelivered = true)
+
+            delays shouldBe listOf(1, 1)
+        }
+
         test("makeGRE default builds envelope fields") {
             val gre = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId = 7, msgId = 11) {}
 

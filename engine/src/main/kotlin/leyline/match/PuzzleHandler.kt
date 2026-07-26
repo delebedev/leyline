@@ -87,7 +87,7 @@ class PuzzleHandler(
         output.send(bundleMsg)
 
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
-        bridge.awaitPriority()
+        session.awaitEnginePriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
         val snap = SnapshotCapture.run(checkNotNull(bridge.getGame()), bridge, matchId, gsId)

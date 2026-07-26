@@ -17,6 +17,7 @@ import leyline.bridge.types.PromptOptionDto
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
+import leyline.game.event.MonotonicPrefixQueue
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -391,9 +392,10 @@ class InteractivePromptBridge(
 
     internal data class RevealReservation(
         val records: List<RevealRecord>,
+        internal val prefix: MonotonicPrefixQueue.Reservation<RevealRecord>,
     )
 
-    private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
+    private val revealQueue = MonotonicPrefixQueue<RevealRecord>()
     private val revealConsumptionLock = Any()
 
     /** Push a batch of revealed card IDs (called from engine thread via the PlayerController.reveal override). */
@@ -422,19 +424,19 @@ class InteractivePromptBridge(
     /** Snapshot pending reveal records without consuming them. */
     internal fun reserveReveals(): RevealReservation =
         synchronized(revealConsumptionLock) {
-            RevealReservation(revealQueue.toList())
+            val prefix = revealQueue.reserve()
+            RevealReservation(prefix.values, prefix)
         }
 
     internal fun validateRevealReservation(reservation: RevealReservation) {
         synchronized(revealConsumptionLock) {
-            val actual = revealQueue.iterator()
-            check(
-                reservation.records.all { record ->
-                    actual.hasNext() && actual.next() == record
-                },
-            ) {
-                "Reveal records changed before projection commit"
-            }
+            revealQueue.validate(reservation.prefix)
+        }
+    }
+
+    internal fun releaseRevealReservation(reservation: RevealReservation) {
+        synchronized(revealConsumptionLock) {
+            revealQueue.release(reservation.prefix)
         }
     }
 
@@ -442,11 +444,7 @@ class InteractivePromptBridge(
     internal fun consumeReveals(reservation: RevealReservation) {
         synchronized(revealConsumptionLock) {
             validateRevealReservation(reservation)
-            reservation.records.forEach { expected ->
-                check(revealQueue.poll() == expected) {
-                    "Reserved reveal prefix changed before consumption"
-                }
-            }
+            revealQueue.consume(reservation.prefix)
         }
     }
 

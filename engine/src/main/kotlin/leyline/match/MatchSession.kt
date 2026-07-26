@@ -6,6 +6,8 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PlayerLossCause
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
+import leyline.game.EngineCut
+import leyline.game.EngineCutCheckpoint
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -26,9 +28,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * and the auto-pass loop to [AutoPassEngine]. Owns message
  * sending, and Familiar mirroring.
  *
- * Protocol sequencing uses a shared [MessageCounter] — same instance is passed
- * to [GamePlayback][leyline.game.GamePlayback]. No seeding or
- * syncing needed.
+ * The owner drains engine-cut values, then compiles, sequences, commits, and
+ * sends each resulting bundle.
  *
  * Transport-agnostic: sends messages through [MessageSink].
  * [MatchHandler] creates one per connection and delegates GRE messages here.
@@ -74,7 +75,10 @@ class MatchSession(
         if (autoAdvanceClosed.get()) return
         owner.reduce {
             owner.assertOwnerThread()
-            if (!autoAdvanceClosed.get()) action()
+            if (!autoAdvanceClosed.get()) {
+                drainPlaybackOwned()
+                action()
+            }
         }
     }
 
@@ -83,9 +87,18 @@ class MatchSession(
      * puzzle hot-swap MatchHandler builds a fresh instance for the new
      * game, so this snapshot stays valid for the session's lifetime.
      */
-    val ctx: SessionContext = SessionContext(gameBridge)
-
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
+
+    private val engineCutAwaiter =
+        object : EngineCutAwaiter {
+            override fun awaitPriority(): Boolean = awaitPriorityOwned(gameBridge.priorityWaitMs)
+
+            override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean = awaitPriorityOwned(timeoutMs)
+
+            override fun awaitActionPriority(): Boolean = awaitActionPriorityOwned()
+        }
+
+    val ctx: SessionContext = SessionContext(gameBridge, engineCutAwaiter)
 
     init {
         gameBridge.configureAutoPass(autoPassState)
@@ -126,7 +139,6 @@ class MatchSession(
             sink = this,
             counters = this,
             bundles = this,
-            pacing = this,
             combatHandler = combatHandler,
             targetingHandler = targetingHandler,
             optionalActionHandler = optionalActionHandler,
@@ -159,24 +171,12 @@ class MatchSession(
      */
     override fun onMulliganKeep() =
         reduceActive {
-            val bridge = gameBridge
             log.info("MatchSession: waiting for engine to reach priority after keep")
 
-            bridge.awaitPriority()
+            ctx.engine.awaitPriority()
 
-            // Drain AI action diffs queued during awaitPriority.
-            // These have gsIds allocated by the engine thread via the shared counter
-            // during awaitPriority. Send them first (lower gsIds).
-            val playback = ctx.bridge.playbackFor(seatId)
-            if (playback != null) {
-                for (batch in playback.drainQueue()) {
-                    sendBundledGRE(batch)
-                }
-            }
-
-            // phaseTransitionDiff after AI diffs — uses the shared counter which is
-            // now past whatever the engine allocated. gsIds are higher than AI diffs
-            // but the prevGsId chain is valid (references last AI diff's gsId).
+            // The owner wait already drained every preceding playback value.
+            // Allocate the phase transition next on the same causal gsId chain.
             val bb = bundleBuilder
             val result = bb.phaseTransitionDiff(counter)
             sendBundle(result)
@@ -520,7 +520,7 @@ class MatchSession(
                 return
             }
         if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
-            bridge.awaitActionPriority(seatId)
+            engineCutAwaiter.awaitActionPriority()
         }
         if (bridge.seat(seatId).action.getPending() == null) {
             sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
@@ -661,15 +661,69 @@ class MatchSession(
         }
 
     private fun sendBundledGREOwned(messages: List<GREToClientMessage>) {
-        val firstMsgId = messages.firstOrNull()?.msgId
-        val maxGsId = messages.maxOfOrNull { it.gameStateId } ?: 0
-        val playback = firstMsgId?.let { ctx.bridge.playbackFor(seatId) }
-        if (playback != null) {
-            for (batch in playback.drainQueueBeforeMsgId(firstMsgId, maxGsId)) {
-                sendBundledGREDirect(batch, mirror = true)
+        drainPlaybackOwned()
+        sendBundledGREDirect(messages, mirror = true)
+    }
+
+    override fun drainPlayback(): Boolean {
+        owner.assertOwnerThread()
+        return drainPlaybackOwned()
+    }
+
+    private fun awaitPriorityOwned(timeoutMs: Long): Boolean {
+        owner.assertOwnerThread()
+        val checkpoint =
+            gameBridge.awaitPriorityCut(timeoutMs)
+                ?: run {
+                    drainPlaybackOwned()
+                    return false
+                }
+        drainEngineCutsThrough(checkpoint)
+        return true
+    }
+
+    private fun awaitActionPriorityOwned(): Boolean {
+        owner.assertOwnerThread()
+        val checkpoint =
+            gameBridge.awaitActionPriorityCut(seatId)
+                ?: run {
+                    drainPlaybackOwned()
+                    return false
+                }
+        drainEngineCutsThrough(checkpoint)
+        return true
+    }
+
+    override fun awaitEnginePriority(): Boolean = engineCutAwaiter.awaitPriority()
+
+    override fun awaitEnginePriorityWithTimeout(timeoutMs: Long): Boolean = engineCutAwaiter.awaitPriorityWithTimeout(timeoutMs)
+
+    private fun drainPlaybackOwned(): Boolean {
+        owner.assertOwnerThread()
+        val checkpoint = gameBridge.latestEngineCutCheckpoint()
+        return drainEngineCutsThrough(checkpoint)
+    }
+
+    private fun drainEngineCutsThrough(checkpoint: EngineCutCheckpoint): Boolean {
+        var delivered = false
+        while (true) {
+            val cut = gameBridge.peekEngineCutThrough(checkpoint) ?: break
+            if (cut !is EngineCut.Observation) {
+                gameBridge.acknowledgeEngineCut(cut)
+                continue
+            }
+            val results = bundleBuilder.playbackYield(cut.value, counter)
+            gameBridge.acknowledgeEngineCut(cut)
+            for (result in results) {
+                paceBeforePlaybackDelivery(delivered)
+                sendBundledGREDirect(result.messages, mirror = true)
+                delivered = true
+            }
+            if (gameBridge.consumePromptTimeoutNeedsAutoAdvance()) {
+                requestAutoAdvance("prompt timeout playback committed")
             }
         }
-        sendBundledGREDirect(messages, mirror = true)
+        return delivered
     }
 
     override fun sendSeatGRE(messages: List<GREToClientMessage>) =
@@ -699,6 +753,7 @@ class MatchSession(
             owner.enqueue {
                 try {
                     owner.assertOwnerThread()
+                    drainPlaybackOwned()
                     do {
                         if (autoAdvanceClosed.get()) return@enqueue
                         autoAdvanceRequested.set(false)
@@ -774,8 +829,7 @@ class MatchSession(
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
         if (seatId != gameBridge.seating.humanSeat) return
         val peer = registry.getPeer(matchId, seatId) ?: return
-        // Only mirror to FamiliarSession — paired peers build their own state
-        // via per-seat GamePlayback.
+        // Only mirror to FamiliarSession — paired peers build their own state.
         if (peer !is FamiliarSession) return
         val mirrorSeat = 2
         // Filter out CastingTimeOptionsReq — Familiar must not auto-respond to modal prompts
@@ -805,6 +859,10 @@ class MatchSession(
         val delay = paceDelayMs * multiplier
         if (delay > 0) Thread.sleep(delay)
     }
+}
+
+internal fun Pacing.paceBeforePlaybackDelivery(hasDelivered: Boolean) {
+    if (hasDelivered) paceDelay(1)
 }
 
 internal fun annotationLossReasonFor(

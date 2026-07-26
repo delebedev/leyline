@@ -30,7 +30,6 @@ import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
 
 /**
@@ -96,17 +95,6 @@ class FrameEventLog(
     }
 }
 
-private fun <T> ConcurrentLinkedQueue<T>.hasPrefix(expected: List<T>): Boolean {
-    val actual = iterator()
-    return expected.all { item -> actual.hasNext() && actual.next() == item }
-}
-
-private fun <T> ConcurrentLinkedQueue<T>.consumePrefix(expected: List<T>) {
-    expected.forEach { item ->
-        check(poll() == item) { "Reserved frame prefix changed before consumption" }
-    }
-}
-
 @Suppress("LargeClass")
 class GameEventCollector(
     private val bridge: GameBridge,
@@ -115,10 +103,12 @@ class GameEventCollector(
 
     internal data class FrameReservation(
         val log: FrameEventLog,
+        internal val events: MonotonicPrefixQueue.Reservation<GameEvent>,
+        internal val zoneMoves: MonotonicPrefixQueue.Reservation<ZoneMove>,
     )
 
-    private val frame = ConcurrentLinkedQueue<GameEvent>()
-    private val zoneMoves = ConcurrentLinkedQueue<ZoneMove>()
+    private val frame = MonotonicPrefixQueue<GameEvent>()
+    private val zoneMoves = MonotonicPrefixQueue<ZoneMove>()
     private val frameConsumptionLock = Any()
 
     /**
@@ -154,14 +144,22 @@ class GameEventCollector(
     /** Snapshot the current ordered prefix without consuming it. */
     internal fun reserveFrame(): FrameReservation =
         synchronized(frameConsumptionLock) {
-            FrameReservation(FrameEventLog(frame.toList(), zoneMoves.toList()))
+            val events = frame.reserve()
+            val moves = zoneMoves.reserve()
+            FrameReservation(FrameEventLog(events.values, moves.values), events, moves)
         }
 
     internal fun validateFrameReservation(reservation: FrameReservation) {
         synchronized(frameConsumptionLock) {
-            check(frame.hasPrefix(reservation.log.events) && zoneMoves.hasPrefix(reservation.log.zoneMoves)) {
-                "Frame events changed before projection commit"
-            }
+            frame.validate(reservation.events)
+            zoneMoves.validate(reservation.zoneMoves)
+        }
+    }
+
+    internal fun releaseFrameReservation(reservation: FrameReservation) {
+        synchronized(frameConsumptionLock) {
+            frame.release(reservation.events)
+            zoneMoves.release(reservation.zoneMoves)
         }
     }
 
@@ -169,8 +167,8 @@ class GameEventCollector(
     internal fun consumeFrame(reservation: FrameReservation) {
         synchronized(frameConsumptionLock) {
             validateFrameReservation(reservation)
-            frame.consumePrefix(reservation.log.events)
-            zoneMoves.consumePrefix(reservation.log.zoneMoves)
+            frame.consume(reservation.events)
+            zoneMoves.consume(reservation.zoneMoves)
         }
     }
 
@@ -192,6 +190,14 @@ class GameEventCollector(
 
     /** True if the current frame has events accumulated. */
     fun hasEvents(): Boolean = frame.isNotEmpty()
+
+    internal fun appendEventsForTest(events: Iterable<GameEvent>) {
+        events.forEach(frame::add)
+    }
+
+    internal fun clearZoneMovesForTest() {
+        zoneMoves.clear()
+    }
 
     // -- EventBus entry point --
 

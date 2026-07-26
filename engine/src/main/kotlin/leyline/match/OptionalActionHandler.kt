@@ -81,7 +81,7 @@ class OptionalActionHandler(
         }
         bridge.prioritySignal.markPromptResolved()
         bridge.submitOptionalAction(accepted)
-        bridge.awaitActionPriority(counters.seatId)
+        ctx.engine.awaitActionPriority()
         if (commanderReturn != null) {
             sendCommanderPromptCleanup(commanderReturn)
             sink.sendRealGameState(bridge)
