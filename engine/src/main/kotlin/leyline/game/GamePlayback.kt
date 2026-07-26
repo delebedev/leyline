@@ -5,56 +5,40 @@ import forge.game.event.*
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
 import leyline.game.event.FrameEventLog
 import leyline.game.event.Zone
 import leyline.game.event.combatDamageFact
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import leyline.game.event.GameEvent as LeylineGameEvent
 
 /**
- * Captures per-action GRE state diffs for the client, pacing remote turns
- * by sleeping the game thread at key events.
+ * Materializes per-action values for owner-side projection while pacing remote
+ * turns by sleeping the game thread at key events.
  *
  * Subscribes to the engine's Guava EventBus. Events fire synchronously on
  * the game thread -- sleeping here freezes engine progress and state, making
  * it safe to snapshot and diff. Mirrors [leyline.bridge.WebGamePlayback].
  *
- * Interactive playback publishes immutable [PlaybackYield] values. The match
- * owner compiles and sequences those values before sending them. Spectator
- * playback retains its independent serialized queue.
- *
- * Shares [leyline.game.bundle.BundleCursor] with the session-layer `BundleBuilder` via
- * [leyline.game.state.GameBridge.bundleCursor]: the two builders must agree on the diff baseline
- * or `buildDiff` produces a Full when the client expects a Diff. See
- * [leyline.game.bundle.BundleCursor] KDoc for the sharing invariant.
- *
- * The [MatchHandler][leyline.match.MatchHandler] drains spectator messages via
- * [drainQueue]. Interactive matches drain the engine-cut FIFO.
+ * Every mode publishes immutable [PlaybackYield] values. The match owner
+ * compiles, sequences, and delivers them.
  *
  * @param bridge the GameBridge for state mapping and zone tracking
  * @param matchId match identifier for GRE messages
  * @param seatId the human player's seat (messages are from their perspective)
- * @param counter spectator protocol counter; unused by interactive playback
  */
 class GamePlayback(
     private val bridge: GameBridge,
     private val matchId: String,
     private val seatId: Int,
-    private val counter: MessageCounter,
     /** Delay multiplier (1.0 = default, 0.5 = 2x speed, 0 = instant). Derived from config ai.speed. */
     private val delayMultiplier: Double = 1.0,
     /** Spectator playback captures both seats because every turn is remote to the viewer. */
     private val captureLocalActions: Boolean = false,
 ) : IGameEventVisitor.Base<Unit>() {
-    private val bundleBuilder = BundleBuilder(bridge, matchId, seatId)
     private val combatFramePlanner = CombatFramePlanner(bridge, seatId)
-    private val interactiveMaterializer =
+    private val playbackMaterializer =
         InteractivePlaybackMaterializer(bridge, matchId, seatId, combatFramePlanner)
 
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
@@ -62,19 +46,6 @@ class GamePlayback(
     /** Dedup: last turn+phase captured by TurnBegan, so TurnPhase can skip the duplicate. */
     private var lastCapturedTurn = 0
     private var lastCapturedPhase: PhaseType? = null
-
-    /** Thread-safe queue of GRE message batches for the handler to drain. */
-    private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
-
-    /** Spectator noncombat damage held until its resolving stack object reaches its completion boundary. */
-    private var pendingResolutionFrame: FrameEventLog? = null
-
-    /**
-     * Guards the build-and-enqueue window. Message ids are allocated while the
-     * batch is built, so drains must not observe an empty queue until that batch
-     * is either fully enqueued or the capture fails.
-     */
-    private val queueLock = Any()
 
     // -- EventBus entry point --
 
@@ -136,13 +107,7 @@ class GamePlayback(
     }
 
     override fun visit(ev: GameEventCardChangeZone) {
-        val awaitingResolutionBoundary =
-            if (captureLocalActions) {
-                pendingResolutionFrame != null
-            } else {
-                interactiveMaterializer.isAwaitingResolutionBoundary()
-            }
-        if (!awaitingResolutionBoundary || ev.from()?.zoneType != ZoneType.Stack) return
+        if (!playbackMaterializer.isAwaitingResolutionBoundary() || ev.from()?.zoneType != ZoneType.Stack) return
         captureAndPause(PlaybackCutReason.STACK_EXIT_COMPLETION, 0)
     }
 
@@ -218,52 +183,10 @@ class GamePlayback(
         captureAndPause(PlaybackCutReason.COMBAT_ENDED, 0)
     }
 
-    // -- Queue access (called from MatchHandler / Netty thread) --
-
-    /** Drain all queued message batches. Returns empty list if nothing queued. */
-    fun drainQueue(): List<List<GREToClientMessage>> =
-        synchronized(queueLock) {
-            buildList {
-                while (true) {
-                    add(queue.poll() ?: break)
-                }
-            }
-        }
-
-    /** Drain queued batches that must precede the caller's next outbound message. */
-    fun drainQueueBeforeMsgId(
-        msgId: Int,
-        maxGsId: Int = 0,
-    ): List<List<GREToClientMessage>> =
-        synchronized(queueLock) {
-            buildList {
-                while (true) {
-                    val batch = queue.peek() ?: break
-                    val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
-                    val firstGsId = batch.firstGameStateId()
-                    if (maxGsId != 0 && firstGsId != null) {
-                        if (firstGsId >= maxGsId) break
-                    } else if (firstMsgId >= msgId) {
-                        break
-                    }
-                    add(queue.poll() ?: break)
-                }
-            }
-        }
-
-    /** True if there are messages waiting to be sent. */
-    fun hasPendingMessages(): Boolean =
-        if (captureLocalActions) {
-            synchronized(queueLock) { queue.isNotEmpty() }
-        } else {
-            bridge.hasPendingEngineCuts()
-        }
-
     // -- Internal --
 
     /**
-     * Materialize an interactive yield or serialize a spectator diff, then
-     * sleep for animation pacing.
+     * Materialize one value yield, then sleep for animation pacing.
      *
      * Called on the engine thread while state is frozen at the cut.
      */
@@ -279,51 +202,16 @@ class GamePlayback(
             }
 
         try {
-            val messageCount =
-                if (!captureLocalActions) {
-                    if (interactiveMaterializer.materialize(game, cutReason, turnStarted)) 1 else 0
-                } else {
-                    synchronized(queueLock) {
-                        val reservation = bridge.reserveBundleFrame(seatId)
-                        val events =
-                            pendingResolutionFrame?.mergeReservedInput(reservation.events)
-                                ?: reservation.events
-                        if (events.shouldAwaitResolutionBoundary()) {
-                            pendingResolutionFrame = events
-                            bridge.releaseBundleFrame(reservation)
-                            return@synchronized 0
-                        }
-                        try {
-                            val count =
-                                if (events.events.shouldSplitCombatDamageWindow()) {
-                                    captureSplitCombatDamage(game, events.events, reservation)
-                                    2
-                                } else {
-                                    val messages = buildDiffMessages(game, turnStarted, events, reservation)
-                                    queue.add(messages)
-                                    if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                        bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
-                                    }
-                                    messages.size
-                                }
-                            pendingResolutionFrame = null
-                            count
-                        } catch (failure: Throwable) {
-                            bridge.releaseBundleFrame(reservation)
-                            throw failure
-                        }
-                    }
-                }
+            val published = playbackMaterializer.materialize(game, cutReason, turnStarted)
 
             // Projection baseline advancement belongs to the path that commits
             // the materialized frame.
 
             log.debug(
-                "action captured: phase={} turn={} queued={} msgs={}",
+                "action materialized: phase={} turn={} published={}",
                 game.phaseHandler.phase,
                 game.phaseHandler.turn,
-                queue.size,
-                messageCount,
+                published,
             )
         } catch (ex: Exception) {
             log.warn("Failed to capture AI action state: {}", ex.message, ex)
@@ -337,80 +225,6 @@ class GamePlayback(
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
             }
-        }
-    }
-
-    private fun captureSplitCombatDamage(
-        game: forge.game.Game,
-        events: List<LeylineGameEvent>,
-        reservation: GameBridge.BundleFrameReservation,
-    ) {
-        val frames = combatFramePlanner.materialize(game, events)
-        val results =
-            bundleBuilder.remoteActionDiffSequence(
-                game = game,
-                counter = counter,
-                eventFrames = frames.map { it.events },
-                bundleFrameReservation = reservation,
-            )
-        val batches =
-            if (results.size == frames.size) {
-                results.zip(frames) { result, frame ->
-                    result.messages.withLifeTotals(frame.lifeTotals)
-                }
-            } else {
-                check(results.size == 1) { "Combat frame sequence produced ${results.size} results for ${frames.size} frames" }
-                listOf(results.single().messages)
-            }
-        queue.addAll(batches)
-    }
-
-    private fun buildDiffMessages(
-        game: forge.game.Game,
-        turnStarted: Boolean,
-        events: FrameEventLog,
-        reservation: GameBridge.BundleFrameReservation?,
-    ): List<GREToClientMessage> =
-        if (reservation == null) {
-            bundleBuilder
-                .remoteActionDiff(
-                    game,
-                    counter,
-                    turnStarted = turnStarted,
-                    eventsOverride = events,
-                ).messages
-        } else {
-            bundleBuilder
-                .remoteActionDiff(
-                    game,
-                    counter,
-                    turnStarted,
-                    events,
-                    reservation,
-                ).messages
-        }
-
-    private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
-
-    private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
-        if (lifeTotals.isEmpty()) return this
-        return mapIndexed { index, message ->
-            if (index != 0 || !message.hasGameStateMessage()) return@mapIndexed message
-            val gsm = message.gameStateMessage
-            val patchedPlayers =
-                gsm.playersList.map { player ->
-                    val life = lifeTotals[player.systemSeatNumber]
-                    if (life == null) player else player.toBuilder().setLifeTotal(life).build()
-                }
-            message
-                .toBuilder()
-                .setGameStateMessage(
-                    gsm
-                        .toBuilder()
-                        .clearPlayers()
-                        .addAllPlayers(patchedPlayers)
-                        .build(),
-                ).build()
         }
     }
 

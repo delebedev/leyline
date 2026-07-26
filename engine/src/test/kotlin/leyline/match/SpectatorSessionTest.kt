@@ -1,9 +1,7 @@
 package leyline.match
 
-import forge.game.GameStage
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -11,6 +9,8 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
+import leyline.game.InteractionReadiness
+import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.testkit.TestCardRegistry
@@ -34,11 +34,26 @@ class SpectatorSessionTest :
             bridge = null
         }
 
-        test("pumpOnce sends game over once") {
+        fun waitUntil(
+            owner: MatchOwner,
+            predicate: () -> Boolean,
+        ) {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (!owner.reduce(predicate) && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+            }
+            owner.reduce(predicate).shouldBeTrue()
+        }
+
+        test("owner sends game over once for duplicate terminal readiness") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
             val b = GameBridge(cardRepository = TestCardRegistry.repo)
             bridge = b
+            val owner = MatchOwner("test-match")
+            val sink = ListMessageSink()
+            val session = SpectatorSession(SeatId(1), "test-match", sink, b, owner = owner)
+            session.startObserving()
             b.startAiVsAi(
                 seed = 42,
                 startGameHook =
@@ -49,24 +64,29 @@ class SpectatorSessionTest :
             )
             reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
 
-            val sink = ListMessageSink()
-            val session = SpectatorSession(SeatId(1), "test-match", sink, b)
-            b.getGame()!!.age = GameStage.GameOver
+            b.publishEngineReady(InteractionReadiness.GAME_OVER)
+            b.publishEngineReady(InteractionReadiness.GAME_OVER)
+            waitUntil(owner) { sink.rawMessages.isNotEmpty() }
 
             assertSoftly {
-                session.pumpOnce().shouldBeTrue()
-                session.pumpOnce().shouldBeFalse()
                 sink.rawMessages shouldHaveSize 1
+                sink.messages.shouldNotBeEmpty()
             }
             releaseHook.countDown()
             session.close()
+            owner.close()
+            owner.awaitTermination()
         }
 
-        test("pumpOnce forwards AI-vs-AI playback") {
+        test("owner forwards AI-vs-AI observations in sequence") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
             val b = GameBridge(cardRepository = TestCardRegistry.repo)
             bridge = b
+            val owner = MatchOwner("test-match")
+            val sink = ListMessageSink()
+            val session = SpectatorSession(SeatId(1), "test-match", sink, b, owner = owner)
+            session.startObserving()
             b.startAiVsAi(
                 seed = 42,
                 startGameHook =
@@ -77,36 +97,60 @@ class SpectatorSessionTest :
             )
             reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
 
-            val sink = ListMessageSink()
-            val session = SpectatorSession(SeatId(1), "test-match", sink, b)
             try {
+                val initialGsId = session.counter.nextGsId()
+                b.seedDiffBaseline(checkNotNull(b.getGame()), initialGsId)
                 releaseHook.countDown()
-                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-                while (sink.messages.isEmpty() && System.nanoTime() < deadline) {
-                    session.pumpOnce()
-                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(25))
-                }
+                waitUntil(owner) { sink.messages.isNotEmpty() }
 
                 sink.messages.shouldNotBeEmpty()
-                sink.messages.size shouldBe 2
+                sink.messages.all { it.hasGameStateMessage() }.shouldBeTrue()
+                val messageIds = sink.messages.map { it.msgId }
+                messageIds shouldBe messageIds.sorted().distinct()
             } finally {
                 releaseHook.countDown()
                 session.close()
+                owner.close()
+                owner.awaitTermination()
             }
         }
 
-        test("registering replacement spectator session closes prior pump") {
+        test("replacement spectator fences queued delivery from prior session") {
             val b = GameBridge(cardRepository = TestCardRegistry.repo)
             bridge = b
             val registry = MatchRegistry()
-            val first = SpectatorSession(SeatId(1), "test-match", ListMessageSink(), b)
-            val second = SpectatorSession(SeatId(1), "test-match", ListMessageSink(), b)
+            val owner = registry.ownerFor("test-match")
+            val firstSink = ListMessageSink()
+            val secondSink = ListMessageSink()
+            val first = SpectatorSession(SeatId(1), "test-match", firstSink, b, owner = owner)
+            val second = SpectatorSession(SeatId(1), "test-match", secondSink, b, owner = owner)
+            val reachedHook = CountDownLatch(1)
+            val releaseHook = CountDownLatch(1)
 
             registry.registerSession("test-match", SeatId(1), first)
-            registry.registerSession("test-match", SeatId(1), second)
+            first.startObserving()
+            b.startAiVsAi(
+                seed = 42,
+                startGameHook =
+                    Runnable {
+                        reachedHook.countDown()
+                        releaseHook.await(5, TimeUnit.SECONDS)
+                    },
+            )
+            reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
+            val initialGsId = second.counter.nextGsId()
+            b.seedDiffBaseline(checkNotNull(b.getGame()), initialGsId)
 
-            first.startPump()
-            first.pumpOnce() shouldBe false
+            registry.registerSession("test-match", SeatId(1), second)
+            second.startObserving()
+            second.reconcilePendingEngineCuts()
+            releaseHook.countDown()
+            waitUntil(owner) { secondSink.messages.isNotEmpty() }
+
+            firstSink.messages shouldHaveSize 0
+            secondSink.messages.shouldNotBeEmpty()
             second.close()
+            owner.close()
+            owner.awaitTermination()
         }
     })

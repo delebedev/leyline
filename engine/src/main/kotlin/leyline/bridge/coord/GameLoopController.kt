@@ -32,6 +32,7 @@ class GameLoopController(
     private val promptBridges: Collection<InteractivePromptBridge> = emptyList(),
     private val mulliganBridges: Collection<MulliganBridge> = emptyList(),
     private val prioritySignal: PrioritySignal? = null,
+    private val onGameOver: () -> Unit = {},
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(GameLoopController::class.java)
@@ -93,7 +94,15 @@ class GameLoopController(
                         log.debug("Game loop interrupted during shutdown for game ${game.id}")
                     }
                 } finally {
+                    val completedGame = running.get() && game.isGameOver
                     running.set(false)
+                    if (completedGame) {
+                        try {
+                            onGameOver()
+                        } catch (failure: Exception) {
+                            log.error("Game-over callback failed for game ${game.id}", failure)
+                        }
+                    }
                     // Wake up any awaitPriority() blocked on the semaphore — game over
                     // means no more priority stops, so without this signal the caller
                     // waits the full 15s timeout before detecting isGameOver.

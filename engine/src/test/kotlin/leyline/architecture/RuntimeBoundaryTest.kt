@@ -24,6 +24,7 @@ import leyline.match.GameOps
 import leyline.match.MatchOwner
 import leyline.match.MatchSession
 import leyline.match.SessionContext
+import leyline.match.SpectatorSession
 import java.lang.reflect.Modifier
 import java.nio.file.Path
 
@@ -261,19 +262,20 @@ class RuntimeBoundaryTest :
                 )
         }
 
-        test("interactive callback adapter cannot compile protocol output") {
+        test("playback callback adapter cannot compile protocol output") {
             val adapterField =
                 GamePlayback::class.java.declaredFields.singleOrNull {
                     it.type == InteractivePlaybackMaterializer::class.java
                 }
             checkNotNull(adapterField) {
-                "GamePlayback must route interactive cuts through InteractivePlaybackMaterializer"
+                "GamePlayback must route every cut through InteractivePlaybackMaterializer"
             }
 
             noClasses()
                 .that()
                 .haveNameMatching(
-                    "${InteractivePlaybackMaterializer::class.java.name}|" +
+                    "${GamePlayback::class.java.name}|" +
+                        "${InteractivePlaybackMaterializer::class.java.name}|" +
                         NaiveGsmActionCapture::class.java.name,
                 ).should()
                 .dependOnClassesThat()
@@ -282,8 +284,37 @@ class RuntimeBoundaryTest :
                     "com.google.protobuf..",
                     "wotc.mtgo.gre.external.messaging..",
                 ).because(
-                    "the engine callback materializes values; only the serial owner compiles protocol output",
+                    "engine callbacks materialize values; only the serial owner compiles protocol output",
                 ).check(classes)
+
+            val forbiddenPlaybackFields =
+                GamePlayback::class.java.declaredFields.filter { field ->
+                    field.name == "queueLock" ||
+                        field.genericType.typeName.contains("MessageCounter") ||
+                        field.genericType.typeName.contains("GREToClientMessage") ||
+                        field.genericType.typeName.contains("ConcurrentLinkedQueue")
+                }
+            check(forbiddenPlaybackFields.isEmpty()) {
+                "GamePlayback retains protocol or queue state: ${forbiddenPlaybackFields.map { it.name }}"
+            }
+
+            check(
+                GameBridge::class.java.declaredClasses.none { it.simpleName == "PlaybackRegistry" } &&
+                    GameBridge::class.java.declaredMethods.none {
+                        it.name == "playbackFor" || it.name == "getPlayback"
+                    },
+            ) {
+                "GameBridge retains the numbered-playback registry"
+            }
+
+            val spectatorPumpFields =
+                SpectatorSession::class.java.declaredFields.filter {
+                    it.type.name.contains("ScheduledExecutor") ||
+                        it.type.name.contains("ScheduledFuture")
+                }
+            check(spectatorPumpFields.isEmpty()) {
+                "SpectatorSession retains polling state: ${spectatorPumpFields.map { it.name }}"
+            }
 
             noClasses()
                 .that()
