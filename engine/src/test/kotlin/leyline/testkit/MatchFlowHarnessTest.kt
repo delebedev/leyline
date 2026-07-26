@@ -287,6 +287,16 @@ class MatchFlowHarnessTest :
             h.connectAndKeep()
 
             val oldPromptGsId = h.latestPromptGsId()
+            val oldPromptMsgId = h.latestPromptMsgId()
+            val owner = h.session.connection.owner
+            val ownerPromptHorizon =
+                owner.reduce {
+                    owner.lastPromptGsId() to owner.lastPromptMsgId()
+                }
+            assertSoftly {
+                ownerPromptHorizon.first shouldBe oldPromptGsId
+                ownerPromptHorizon.second shouldBe oldPromptMsgId
+            }
             val actionBridge = h.bridge.actionBridge(SeatId(1))
             val oldPending = actionBridge.getPending().shouldNotBeNull()
             oldPending.publishedCatalog?.gameStateId shouldBe oldPromptGsId
@@ -301,7 +311,7 @@ class MatchFlowHarnessTest :
                 latePassBase
                     .toBuilder()
                     .setGameStateId(oldPromptGsId)
-                    .setRespId(h.latestPromptMsgId())
+                    .setRespId(oldPromptMsgId)
                     .setPerformActionResp(
                         latePassBase.performActionResp
                             .toBuilder()
@@ -311,10 +321,16 @@ class MatchFlowHarnessTest :
             h.drainSink()
 
             val stillPending = actionBridge.getPending().shouldNotBeNull()
+            val finalPromptHorizon =
+                owner.reduce {
+                    owner.lastPromptGsId() to owner.lastPromptMsgId()
+                }
             assertSoftly {
                 stillPending.actionId shouldBe nextPending.actionId
                 stillPending.publishedCatalog.shouldBeNull()
                 h.session.autoPassState.autoPassPriority shouldBe AutoPassPriority.None_a099
+                finalPromptHorizon.first shouldBe oldPromptGsId
+                finalPromptHorizon.second shouldBe oldPromptMsgId
             }
         }
 

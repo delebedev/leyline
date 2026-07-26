@@ -15,20 +15,18 @@ class ResponseEnvelopeGuardTest :
 
         test("accepts a response correlated to the latest prompt") {
             val counter = MessageCounter()
-            counter.markPromptMsgId(17)
             val sink = CollectingSink()
 
-            ResponseEnvelopeGuard.rejectMismatch(response(respId = 17), counter, sink) shouldBe false
+            ResponseEnvelopeGuard.rejectMismatch(response(respId = 17), 17, counter, sink) shouldBe false
             sink.messages shouldBe emptyList()
         }
 
         test("rejects a response correlated to another prompt") {
             val counter = MessageCounter(initialMsgId = 20)
-            counter.markPromptMsgId(17)
             val sink = CollectingSink()
             val invalid = response(respId = 16)
 
-            ResponseEnvelopeGuard.rejectMismatch(invalid, counter, sink) shouldBe true
+            ResponseEnvelopeGuard.rejectMismatch(invalid, 17, counter, sink) shouldBe true
 
             val rejection = sink.messages.single()
             assertSoftly {
@@ -46,7 +44,12 @@ class ResponseEnvelopeGuardTest :
         test("rejects a response when no prompt has been emitted") {
             val sink = CollectingSink()
 
-            ResponseEnvelopeGuard.rejectMismatch(response(respId = 0), MessageCounter(), sink) shouldBe true
+            ResponseEnvelopeGuard.rejectMismatch(
+                response(respId = 0),
+                0,
+                MessageCounter(),
+                sink,
+            ) shouldBe true
             sink.messages
                 .single()
                 .illegalRequestMessage.reason shouldBe FailureReason.ReqRespMismatch
@@ -54,7 +57,6 @@ class ResponseEnvelopeGuardTest :
 
         test("does not correlate control messages") {
             val counter = MessageCounter()
-            counter.markPromptMsgId(17)
             val sink = CollectingSink()
             val control =
                 ClientToGREMessage
@@ -62,17 +64,17 @@ class ResponseEnvelopeGuardTest :
                     .setType(ClientMessageType.CancelActionReq_097b)
                     .build()
 
-            ResponseEnvelopeGuard.rejectMismatch(control, counter, sink) shouldBe false
+            ResponseEnvelopeGuard.rejectMismatch(control, 17, counter, sink) shouldBe false
             sink.messages shouldBe emptyList()
         }
 
         test("correlates numeric input responses") {
             val counter = MessageCounter()
-            counter.markPromptMsgId(17)
             val sink = CollectingSink()
 
             ResponseEnvelopeGuard.rejectMismatch(
                 response(respId = 16, type = ClientMessageType.NumericInputResp_097b),
+                17,
                 counter,
                 sink,
             ) shouldBe true

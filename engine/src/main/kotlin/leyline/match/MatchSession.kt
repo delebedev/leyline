@@ -9,7 +9,6 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
-import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
 import leyline.game.state.GameResetCommand
 import leyline.infra.MessageSink
@@ -99,6 +98,7 @@ class MatchSession(
             counters = this,
             bundles = this,
             pacing = this,
+            lastPromptGsId = owner::lastPromptGsId,
             ctx = ctx,
         )
     private val targetingHandler =
@@ -143,6 +143,7 @@ class MatchSession(
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,
             autoPassState = autoPassState,
+            lastPromptGsId = owner::lastPromptGsId,
             ctx = ctx,
         )
 
@@ -368,7 +369,7 @@ class MatchSession(
         block: () -> Unit,
     ): Unit =
         reduceActive {
-            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
+            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, owner.lastPromptMsgId(), counter, this)) block()
         }
 
     /**
@@ -651,11 +652,8 @@ class MatchSession(
     /**
      * Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer.
      *
-     * Sink-boundary auto-mark: every outgoing prompt-bearing GRE bumps
-     * [MessageCounter.lastPromptGsId] before leaving so staleness predicates
-     * pick up the new horizon automatically. Direct-builder bypasses
-     * (handshake messages, MulliganReq, GroupReq from GsmBuilder) get the
-     * same treatment as bundle-built messages — the funnel guarantees it.
+     * The owner records every prompt-bearing GRE before delivery so response
+     * validation and staleness predicates share one ordered horizon.
      */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) =
         reduceActive {
@@ -683,9 +681,9 @@ class MatchSession(
         messages: List<GREToClientMessage>,
         mirror: Boolean,
     ) {
+        owner.observeOutbound(messages)
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-            markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)

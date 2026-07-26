@@ -1017,13 +1017,8 @@ class MatchFlowHarness(
     //
     // [submitWithGsId] fills the field by scanning [allMessages] — the
     // drained record of what the harness has *seen*, mirroring a real
-    // client's TCP receive view. Reading from `bridge.messageCounter.
-    // lastPromptGsId()` directly would race against the engine thread:
-    // the engine can emit a new prompt between the harness's read and the
-    // session's processing of the response, leaving the response stamped
-    // with an old gsId that the staleness predicate then rejects (observed
-    // on CI under load, never reproduces locally because the engine drains
-    // synchronously fast enough to hide the race).
+    // client's TCP receive view. The server's owner state can already have
+    // advanced to output that this harness has not drained yet.
     //
     // Tests that need to send an explicit (or stale) gsId can pass a
     // non-zero `gameStateId` on the inbound message; the wrapper leaves
@@ -1034,10 +1029,7 @@ class MatchFlowHarness(
      * 0 pre-handshake or before any prompt has been received.
      *
      * Walks [allMessages] in reverse — that's the harness's view of what
-     * the "client" has seen. Deliberately does not consult
-     * `bridge.messageCounter.lastPromptGsId()`: the bridge counter is
-     * shared mutable state advanced from the engine thread, so reading it
-     * races against in-flight emissions.
+     * the "client" has seen, independent of later server-side delivery.
      */
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
