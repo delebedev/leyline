@@ -7,6 +7,7 @@ import forge.game.event.GameEventShuffle
 import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -26,6 +27,17 @@ import wotc.mtgo.gre.external.messaging.Messages.Step
 
 class GamePlaybackFramePlanTest :
     BoardTest({
+
+        fun drainPublishedYield(
+            bridge: leyline.game.state.GameBridge,
+            counter: leyline.game.bundle.MessageCounter,
+        ): List<BundleBuilder.BundleResult> {
+            val checkpoint = bridge.latestEngineCutCheckpoint()
+            val cut = bridge.peekEngineCutThrough(checkpoint) as? EngineCut.Observation ?: error("No playback observation")
+            val results = BundleBuilder(bridge, "test-match", 1).playbackYield(cut.value, counter)
+            bridge.acknowledgeEngineCut(cut)
+            return results
+        }
 
         test("interactive noncombat damage deferral releases its exact prefix") {
             val (bridge, game) =
@@ -75,7 +87,7 @@ class GamePlaybackFramePlanTest :
             bridge.releaseBundleFrame(retained)
         }
 
-        test("playback retries reserved input and preserves a later suffix") {
+        test("spectator local-seat playback retries reserved input and preserves a later suffix") {
             val (bridge, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Hand)
@@ -86,7 +98,6 @@ class GamePlaybackFramePlanTest :
                     bridge = bridge,
                     matchId = "test-match",
                     seatId = 1,
-                    counter = counter,
                     delayMultiplier = 0.0,
                     captureLocalActions = true,
                 )
@@ -116,11 +127,18 @@ class GamePlaybackFramePlanTest :
             }
 
             playback.receiveGameEvent(captureEvent)
+            shouldThrowAny {
+                drainPublishedYield(bridge, counter)
+            }
 
-            val retainedReservation = bridge.reserveBundleFrame(1)
-            val retainedInput = retainedReservation.events
+            val retainedYield =
+                (bridge.peekEngineCutThrough(bridge.latestEngineCutCheckpoint()) as EngineCut.Observation)
+                    .value
+            val retainedInput = retainedYield.events
             assertSoftly {
-                playback.drainQueue().shouldBeEmpty()
+                retainedYield.snapshot.seats
+                    .map { it.seatId }
+                    .toSet() shouldBe setOf(SeatId(1), SeatId(2))
                 retainedInput.events shouldBe failedInput?.events
                 retainedInput.zoneMoves shouldBe failedInput?.zoneMoves
                 retainedInput.events.filterIsInstance<GameEvent.LandPlayed>() shouldHaveSize 1
@@ -129,21 +147,20 @@ class GamePlaybackFramePlanTest :
                 bridge.bundleCursor.lastSent shouldBe baseline
                 counter.snapshot() shouldBe counterBefore
             }
-            bridge.releaseBundleFrame(retainedReservation)
 
             var retryInput: FrameEventLog? = null
             bridge.diffListener = { _, _, events, _, _ ->
                 retryInput = events
                 game.fireEvent(GameEventShuffle(game.humanPlayer))
             }
-            playback.receiveGameEvent(captureEvent)
+            val retryResults = drainPublishedYield(bridge, counter)
             bridge.diffListener = null
 
             val suffix = bridge.reserveBundleFrame(1).events
             assertSoftly {
                 retryInput?.events shouldBe failedInput?.events
                 retryInput?.zoneMoves shouldBe failedInput?.zoneMoves
-                playback.drainQueue() shouldHaveSize 1
+                retryResults shouldHaveSize 1
                 suffix.events.filterIsInstance<GameEvent.LibraryShuffled>() shouldHaveSize 1
                 suffix.events.filterIsInstance<GameEvent.LandPlayed>().shouldBeEmpty()
                 suffix.events.filterIsInstance<GameEvent.CardsRevealed>().shouldBeEmpty()
@@ -161,7 +178,6 @@ class GamePlaybackFramePlanTest :
                     bridge = bridge,
                     matchId = "test-match",
                     seatId = 1,
-                    counter = counter,
                     delayMultiplier = 0.0,
                     captureLocalActions = true,
                 )
@@ -208,17 +224,20 @@ class GamePlaybackFramePlanTest :
             }
 
             playback.receiveGameEvent(captureEvent)
+            shouldThrowAny {
+                drainPublishedYield(bridge, counter)
+            }
 
-            val retainedReservation = bridge.reserveBundleFrame(1)
-            val retained = retainedReservation.events
+            val retained =
+                (bridge.peekEngineCutThrough(bridge.latestEngineCutCheckpoint()) as EngineCut.Observation)
+                    .value
+                    .events
             assertSoftly {
                 observationCount shouldBe 2
-                playback.drainQueue().shouldBeEmpty()
                 counter.snapshot() shouldBe counterBefore
                 bridge.bundleCursor.lastSent shouldBe baseline
                 retained.events shouldBe events
             }
-            bridge.releaseBundleFrame(retainedReservation)
 
             var retryObservationCount = 0
             bridge.diffListener = { _, _, _, _, _ ->
@@ -227,12 +246,12 @@ class GamePlaybackFramePlanTest :
                     game.fireEvent(GameEventShuffle(game.humanPlayer))
                 }
             }
-            playback.receiveGameEvent(captureEvent)
+            val retryResults = drainPublishedYield(bridge, counter)
             bridge.diffListener = null
 
             val suffix = bridge.reserveBundleFrame(1).events
             assertSoftly {
-                playback.drainQueue() shouldHaveSize 2
+                retryResults shouldHaveSize 2
                 retryObservationCount shouldBe 2
                 suffix.events.filterIsInstance<GameEvent.LibraryShuffled>() shouldHaveSize 1
                 suffix.events.filterIsInstance<GameEvent.DamageDealtToPlayer>().shouldBeEmpty()

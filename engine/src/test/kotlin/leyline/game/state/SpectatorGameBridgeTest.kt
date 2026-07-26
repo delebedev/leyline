@@ -2,9 +2,9 @@ package leyline.game.state
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -13,6 +13,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.TestCardRegistry
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.LockSupport
 
 class SpectatorGameBridgeTest :
     FunSpec({
@@ -49,7 +50,7 @@ class SpectatorGameBridgeTest :
                 reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
                 b.seatOf(b.getPlayer(SeatId(1))) shouldBe SeatId(1)
                 b.seatOf(b.getPlayer(SeatId(2))) shouldBe SeatId(2)
-                b.playbackFor(SeatId(1)).shouldNotBeNull()
+                b.hasPendingEngineCuts().shouldBeFalse()
             }
 
             val snap = GsmSnapshot.capture(b.getGame()!!, b, "test-match", 1)
@@ -61,5 +62,10 @@ class SpectatorGameBridgeTest :
             }
 
             releaseHook.countDown()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (!b.hasPendingEngineCuts() && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+            }
+            b.hasPendingEngineCuts().shouldBeTrue()
         }
     })
