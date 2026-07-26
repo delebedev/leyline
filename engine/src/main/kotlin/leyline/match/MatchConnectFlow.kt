@@ -113,13 +113,18 @@ internal class MatchConnectFlow(
             return
         }
         val spectator = createSpectatorSession(match.bridge)
+        val startingMatch = match.state == MatchState.WAITING
+        spectator.startObserving()
         sendRoomState()
-        if (match.state == MatchState.WAITING) {
-            if (!startSpectatorMatch(match, gameVariant)) return
+        if (startingMatch) {
+            if (!startSpectatorMatch(match, gameVariant)) {
+                spectator.close()
+                return
+            }
         } else {
             sendInitialBundle()
         }
-        spectator.startPump()
+        spectator.reconcilePendingEngineCuts()
     }
 
     private fun startSpectatorMatch(

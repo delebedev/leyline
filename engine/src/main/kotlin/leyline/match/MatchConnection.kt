@@ -318,7 +318,15 @@ class MatchConnection(
 
     private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = true)
-        val s = SpectatorSession(SeatId(seatId), matchId, sink, bridge, playerId = clientId.removeSuffix("_Familiar"))
+        val s =
+            SpectatorSession(
+                SeatId(seatId),
+                matchId,
+                sink,
+                bridge,
+                playerId = clientId.removeSuffix("_Familiar"),
+                owner = registry.ownerFor(matchId),
+            )
         registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
             bindSession(s)
         }

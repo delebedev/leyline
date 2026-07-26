@@ -1,79 +1,96 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
+import leyline.game.EngineCut
+import leyline.game.EngineCutCheckpoint
+import leyline.game.InteractionReadiness
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Read-only session for MTGA-as-camera over a server-driven AI-vs-AI game. */
-class SpectatorSession(
+internal class SpectatorSession(
     override val seatId: SeatId,
     override val matchId: String,
     val sink: MessageSink,
     val gameBridge: GameBridge,
     val playerId: String = "spectator",
     override var counter: MessageCounter = gameBridge.messageCounter,
+    private val owner: MatchOwner,
 ) : SessionOps {
     private val bundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
     private var gameOverSent = false
+    private val closed = AtomicBoolean(false)
+    private val engineCutListener: (EngineCutCheckpoint) -> Unit = ::requestDrain
 
-    @Volatile private var closed = false
-
-    private val pumpExecutor =
-        Executors.newSingleThreadScheduledExecutor { r ->
-            Thread(r, "spectator-pump-${matchId.take(8)}-${seatId.value}").apply { isDaemon = true }
+    /**
+     * Bind autonomous engine progress to the match owner.
+     *
+     * A new game installs this before its initial-state barrier is released.
+     * Replacements reconcile values published before this binding only after
+     * their Full state has been sent.
+     */
+    fun startObserving() {
+        owner.reduce {
+            if (closed.get()) return@reduce
+            gameBridge.observeEngineCuts(engineCutListener)
         }
-    private var pumpTask: ScheduledFuture<*>? = null
+    }
 
-    fun startPump(periodMs: Long = 50L) {
-        if (closed) return
-        if (pumpTask != null) return
-        pumpTask =
-            pumpExecutor.scheduleWithFixedDelay(
-                {
-                    val sent = pumpOnce()
-                    if (gameOverSent && !sent) close()
-                },
-                0,
-                periodMs,
-                TimeUnit.MILLISECONDS,
-            )
+    /** Deliver any pending engine values after this connection's Full state. */
+    fun reconcilePendingEngineCuts() {
+        owner.reduce {
+            if (!closed.get()) {
+                drainEngineCutsThrough(gameBridge.latestEngineCutCheckpoint())
+            }
+        }
     }
 
     fun close() {
-        closed = true
-        pumpTask?.cancel(false)
-        pumpTask = null
-        pumpExecutor.shutdownNow()
+        if (closed.compareAndSet(false, true)) {
+            gameBridge.stopObservingEngineCuts(engineCutListener)
+        }
     }
 
-    /** Drain AI playback batches to the observer. Returns true when anything was sent. */
-    fun pumpOnce(): Boolean {
-        if (closed) return false
-
-        var sent = false
-        val playback = gameBridge.playbackFor(seatId)
-        if (playback != null && playback.hasPendingMessages()) {
-            for (batch in playback.drainQueue()) {
-                sendBundledGRE(batch)
-                sent = true
+    private fun requestDrain(checkpoint: EngineCutCheckpoint) {
+        if (closed.get()) return
+        owner.enqueue {
+            if (!closed.get()) {
+                drainEngineCutsThrough(checkpoint)
             }
         }
-        if (!gameOverSent && gameBridge.runtimeFacts(seatId).isGameOver) {
-            sendGameOver()
-            gameOverSent = true
-            sent = true
-        }
-        return sent
     }
 
-    override fun sendBundledGRE(messages: List<GREToClientMessage>) {
+    private fun drainEngineCutsThrough(checkpoint: EngineCutCheckpoint) {
+        owner.assertOwnerThread()
+        while (true) {
+            when (val cut = gameBridge.peekEngineCutThrough(checkpoint) ?: break) {
+                is EngineCut.Observation -> {
+                    val results = bundleBuilder.playbackYield(cut.value, counter)
+                    gameBridge.acknowledgeEngineCut(cut)
+                    results.forEach { sendBundledGREDirect(it.messages) }
+                }
+                is EngineCut.InteractionReady -> {
+                    gameBridge.acknowledgeEngineCut(cut)
+                    if (cut.kind == InteractionReadiness.GAME_OVER) {
+                        sendGameOverOwned(ResultReason.Game_ae0a)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun sendBundledGRE(messages: List<GREToClientMessage>) =
+        owner.reduce {
+            if (!closed.get()) sendBundledGREDirect(messages)
+        }
+
+    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
+        owner.assertOwnerThread()
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
         }
@@ -83,17 +100,29 @@ class SpectatorSession(
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) {
-        sendBundle(bundleBuilder.stateOnlyDiff(counter))
+    ) = owner.reduce {
+        if (!closed.get()) sendBundledGREDirect(bundleBuilder.stateOnlyDiff(counter).messages)
     }
 
-    override fun sendBundle(result: BundleBuilder.BundleResult) = sendBundledGRE(result.messages)
+    override fun sendBundle(result: BundleBuilder.BundleResult) =
+        owner.reduce {
+            if (!closed.get()) sendBundledGREDirect(result.messages)
+        }
 
-    override fun sendGameOver(reason: ResultReason) {
+    override fun sendGameOver(reason: ResultReason) =
+        owner.reduce {
+            sendGameOverOwned(reason)
+        }
+
+    private fun sendGameOverOwned(reason: ResultReason) {
+        owner.assertOwnerThread()
+        if (closed.get() || gameOverSent) return
         val p1Won = gameBridge.playerWon(SeatId(1))
         val winningTeam = if (p1Won) 1 else 2
-        sendBundledGRE(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
+        sendBundledGREDirect(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
+        gameOverSent = true
+        close()
     }
 
     override fun paceDelay(multiplier: Int) {}

@@ -82,6 +82,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -168,6 +169,7 @@ class GameBridge(
     private val bundleFrameLock = Any()
     private val frameSourceGeneration = AtomicLong()
     private val engineCuts = EngineCutQueue()
+    private val engineCutListener = AtomicReference<((EngineCutCheckpoint) -> Unit)?>(null)
 
     @Volatile
     private var activeGame: ActiveGame? = null
@@ -432,7 +434,11 @@ class GameBridge(
 
     fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
 
-    internal fun publishPlaybackYield(value: PlaybackYield): EngineCutCheckpoint = engineCuts.publishObservation(value)
+    internal fun publishPlaybackYield(value: PlaybackYield): EngineCutCheckpoint =
+        engineCuts.publishObservation(value).also(::notifyEngineCutListener)
+
+    internal fun publishEngineReady(kind: InteractionReadiness): EngineCutCheckpoint =
+        engineCuts.publishReady(kind).also(::notifyEngineCutListener)
 
     internal fun peekEngineCutThrough(checkpoint: EngineCutCheckpoint): EngineCut? = engineCuts.peekThrough(checkpoint)
 
@@ -441,6 +447,18 @@ class GameBridge(
     internal fun latestEngineCutCheckpoint(): EngineCutCheckpoint = engineCuts.latestCheckpoint()
 
     internal fun hasPendingEngineCuts(): Boolean = engineCuts.hasPending()
+
+    internal fun observeEngineCuts(listener: (EngineCutCheckpoint) -> Unit) {
+        engineCutListener.set(listener)
+    }
+
+    internal fun stopObservingEngineCuts(listener: (EngineCutCheckpoint) -> Unit) {
+        engineCutListener.compareAndSet(listener, null)
+    }
+
+    private fun notifyEngineCutListener(checkpoint: EngineCutCheckpoint) {
+        engineCutListener.get()?.invoke(checkpoint)
+    }
 
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
@@ -476,30 +494,8 @@ class GameBridge(
                 -> null
             }
 
-    private class PlaybackRegistry {
-        private val bySeat = mutableMapOf<SeatId, GamePlayback>()
-
-        fun get(seatId: SeatId): GamePlayback? = bySeat[seatId]
-
-        fun register(
-            seatId: SeatId,
-            playback: GamePlayback,
-        ) {
-            bySeat[seatId] = playback
-        }
-
-        fun values(): Collection<GamePlayback> = bySeat.values
-
-        fun clear() = bySeat.clear()
-    }
-
-    /** Per-seat action playback. Empty until the initial Full projection commits. */
-    private val playbackRegistry = PlaybackRegistry()
-
-    /** Convenience: seat-1 playback for single-player (1vAI) matches. */
-    val playback: GamePlayback? get() = playbackFor(SeatId(1))
-
-    fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
+    /** Engine event subscriber retained for deterministic unsubscribe during teardown. */
+    private var playbackSubscriber: GamePlayback? = null
 
     private fun registerPlayback(
         game: Game,
@@ -511,11 +507,11 @@ class GameBridge(
                 bridge = this,
                 matchId = "forge-match-1",
                 seatId = seatId.value,
-                counter = messageCounter,
                 delayMultiplier = matchConfig.aiDelayMultiplier,
                 captureLocalActions = captureLocalActions,
             )
-        playbackRegistry.register(seatId, playback)
+        check(playbackSubscriber == null) { "Playback subscriber already registered" }
+        playbackSubscriber = playback
         game.subscribeToEvents(playback)
     }
 
@@ -532,7 +528,7 @@ class GameBridge(
             "Spectator playback is activated by its initial-state barrier"
         }
         val seatId = seating.humanSeat
-        if (playbackFor(seatId) != null) return
+        if (playbackSubscriber != null) return
         registerPlayback(active.game, seatId, captureLocalActions = false)
         log.info("GameBridge: activated interactive GamePlayback for seat {}", seatId.value)
     }
@@ -1179,15 +1175,25 @@ class GameBridge(
         }
 
         val collector = GameEventCollector(this)
-        val loop = GameLoopController(g, prioritySignal = prioritySignal)
+        val loop =
+            GameLoopController(
+                g,
+                prioritySignal = prioritySignal,
+                onGameOver = {
+                    publishEngineReady(InteractionReadiness.GAME_OVER)
+                },
+            )
         activeGame = ActiveGame.Spectator(g, collector, loop)
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for AI-vs-AI spectator game")
 
-        loop.start(startGameHook)
-
-        registerPlayback(g, SeatId(1), captureLocalActions = true)
-        log.info("GameBridge: registered spectator GamePlayback")
+        loop.start(
+            Runnable {
+                registerPlayback(g, SeatId(1), captureLocalActions = true)
+                log.info("GameBridge: registered spectator GamePlayback at initial-state barrier")
+                startGameHook?.run()
+            },
+        )
 
         loop.awaitStarted()
     }
@@ -1947,11 +1953,10 @@ class GameBridge(
     fun teardownResources() {
         val active = activeGame ?: return
         active.game.unsubscribeFromEvents(active.eventCollector)
-        for (pb in playbackRegistry.values()) {
-            active.game.unsubscribeFromEvents(pb)
-        }
+        playbackSubscriber?.let(active.game::unsubscribeFromEvents)
         loopController?.shutdown()
-        playbackRegistry.clear()
+        playbackSubscriber = null
+        engineCutListener.set(null)
         activeGame = null
     }
 

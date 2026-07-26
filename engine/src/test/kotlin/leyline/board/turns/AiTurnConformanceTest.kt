@@ -28,8 +28,6 @@ class AiTurnConformanceTest :
             val board = startGameAtMain1()
             val (b, game, _) = board
 
-            val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
-
             // Play a land to have mana, then snapshot
             playLand(b) ?: error("playLand failed at seed 42")
             b.seedDiffBaseline(game)
@@ -39,7 +37,7 @@ class AiTurnConformanceTest :
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
                 passPriority(b)
-                if (playback.hasPendingMessages()) break
+                if (b.hasPendingEngineCuts()) break
             }
 
             val batches = board.drainPlayback()
@@ -65,8 +63,6 @@ class AiTurnConformanceTest :
             val board = startGameAtMain1()
             val (b, game, _) = board
 
-            val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
-
             playLand(b) ?: error("playLand failed at seed 42")
             b.seedDiffBaseline(game)
 
@@ -75,7 +71,7 @@ class AiTurnConformanceTest :
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
                 passPriority(b)
-                if (playback.hasPendingMessages()) {
+                if (b.hasPendingEngineCuts()) {
                     val drained = board.drainPlayback()
                     allBatches.addAll(drained)
                     // Snap-vs-snap diffs: break only when we see actual card movements

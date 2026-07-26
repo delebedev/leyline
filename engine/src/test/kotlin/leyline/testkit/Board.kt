@@ -97,8 +97,7 @@ class Board(
             }
             bridge.acknowledgeEngineCut(cut)
         }
-        val spectator = bridge.playback?.drainQueue().orEmpty()
-        return interactive + spectator
+        return interactive
     }
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
