@@ -1370,7 +1370,9 @@ object ZoneTransferDetector {
                     ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
                 if (isActivated) matchingCast.activationZoneId else 0
-            val triggeringObjectIid = matchingCast?.triggeringObjectInstanceId?.value
+            val triggeringObjectIid =
+                matchingCast?.triggeringObjectInstanceId?.value
+                    ?: matchingCast?.triggeringObjectCardId?.let { idLookup(it).value }
             val triggeringObjectZone =
                 triggeringObjectZoneId(triggeringObjectIid, patchedObjects, previousZones)
 
