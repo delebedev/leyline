@@ -26,6 +26,7 @@ internal class MatchOwner(
     private val ownerThread = AtomicReference<Thread?>()
     private val closed = AtomicBoolean(false)
     private val protocolState = OwnerProtocolState()
+    private val outbox = MatchOutbox()
     private val executor =
         object :
             ThreadPoolExecutor(
@@ -80,6 +81,34 @@ internal class MatchOwner(
     fun observeOutbound(message: MatchServiceToClientMessage) {
         assertOwnerThread()
         protocolState.observeOutbound(message)
+    }
+
+    fun bindOutboxHead(audience: MatchOutbox.Audience): MatchOutbox.HeadToken {
+        assertOwnerThread()
+        return outbox.bind(audience)
+    }
+
+    fun releaseOutboxHead(token: MatchOutbox.HeadToken) {
+        assertOwnerThread()
+        outbox.release(token)
+    }
+
+    fun appendOutbox(entries: List<Pair<MatchOutbox.HeadToken, MatchOutbox.Payload>>): Long {
+        assertOwnerThread()
+        return outbox.append(entries)
+    }
+
+    fun peekOutbox(token: MatchOutbox.HeadToken): MatchOutbox.Delivery? {
+        assertOwnerThread()
+        return outbox.peek(token)
+    }
+
+    fun acknowledgeOutbox(
+        token: MatchOutbox.HeadToken,
+        sequence: Long,
+    ) {
+        assertOwnerThread()
+        outbox.acknowledge(token, sequence)
     }
 
     fun lastPromptGsId(): Int {

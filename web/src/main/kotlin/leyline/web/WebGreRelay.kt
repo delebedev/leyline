@@ -30,6 +30,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 private val relayLog = LoggerFactory.getLogger("leyline.web.WebGreRelay")
 
@@ -46,7 +48,7 @@ interface WebGreRelay {
         ownerPlayerId: PlayerId? = null,
         publicAccess: Boolean = false,
         onClose: () -> Unit = {},
-        engineFactory: (onFrame: (ByteArray) -> Unit, onClosed: () -> Unit) -> WebGreEngineSession,
+        engineFactory: (onFrame: (ByteArray) -> Boolean, onClosed: () -> Unit) -> WebGreEngineSession,
     )
 
     suspend fun attach(
@@ -85,9 +87,18 @@ class InProcessWebGreRelay(
         ownerPlayerId: PlayerId?,
         publicAccess: Boolean,
         onClose: () -> Unit,
-        engineFactory: (onFrame: (ByteArray) -> Unit, onClosed: () -> Unit) -> WebGreEngineSession,
+        engineFactory: (onFrame: (ByteArray) -> Boolean, onClosed: () -> Unit) -> WebGreEngineSession,
     ) {
-        sessions.computeIfAbsent(matchId) { RelaySession() }.configure(engineFactory, ownerPlayerId, publicAccess, onClose)
+        sessions.compute(matchId) { _, current ->
+            val candidate = current ?: RelaySession()
+            if (candidate.configure(engineFactory, ownerPlayerId, publicAccess, onClose)) {
+                candidate
+            } else {
+                RelaySession().also {
+                    check(it.configure(engineFactory, ownerPlayerId, publicAccess, onClose))
+                }
+            }
+        }
     }
 
     override suspend fun attach(
@@ -98,8 +109,10 @@ class InProcessWebGreRelay(
         val relaySession = sessions[matchId] ?: return false
         val canDrive = relaySession.canDrive(playerId)
         if (!relaySession.canAttach(playerId)) return false
-        relaySession.attach(session, canDrive)
-        relaySession.scheduleIdleClose(idleCloseGraceMs) { sessions.remove(matchId, relaySession) }
+        val attachedGeneration = relaySession.attach(session, canDrive) ?: return false
+        relaySession.scheduleIdleClose(attachedGeneration, idleCloseGraceMs) {
+            sessions.remove(matchId, relaySession)
+        }
         return true
     }
 
@@ -119,10 +132,27 @@ class InProcessWebGreRelay(
     private class RelaySession(
         dispatcher: CoroutineDispatcher = Dispatchers.Default,
     ) {
-        private val lock = Mutex()
+        private val lifecycleLock = ReentrantLock()
+        private val browserLock = ReentrantLock()
         private val engineLock = Mutex()
         private val browsers = mutableMapOf<DefaultWebSocketServerSession, Boolean>()
-        private val outbound = Channel<ByteArray>(Channel.UNLIMITED)
+
+        private sealed interface RelayEvent {
+            data class SwitchGeneration(
+                val generation: Long,
+            ) : RelayEvent
+
+            data class Frame(
+                val generation: Long,
+                val bytes: ByteArray,
+            ) : RelayEvent
+
+            data class Close(
+                val generation: Long,
+            ) : RelayEvent
+        }
+
+        private val outbound = Channel<RelayEvent>(Channel.UNLIMITED)
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
         @Volatile var engine: WebGreEngineSession? = null
@@ -135,32 +165,57 @@ class InProcessWebGreRelay(
 
         @Volatile private var onClose: () -> Unit = {}
 
+        private var lifecycleGeneration: Long = 0
+
         init {
             scope.launch {
-                for (frame in outbound) {
-                    val targets = lock.withLock { browsers.keys.toList() }
-                    targets.forEach { target -> runCatching { target.send(Frame.Binary(fin = true, data = frame)) } }
+                var activeGeneration = 0L
+                try {
+                    for (event in outbound) {
+                        when (event) {
+                            is RelayEvent.SwitchGeneration -> activeGeneration = event.generation
+                            is RelayEvent.Frame -> {
+                                if (event.generation != activeGeneration) continue
+                                val targets = browserLock.withLock { browsers.keys.toList() }
+                                targets.forEach { target ->
+                                    runCatching { target.send(Frame.Binary(fin = true, data = event.bytes)) }
+                                }
+                            }
+                            is RelayEvent.Close -> {
+                                if (event.generation == activeGeneration) disconnectBrowsers()
+                            }
+                        }
+                    }
+                } finally {
+                    disconnectBrowsers()
                 }
             }
         }
 
         fun configure(
-            engineFactory: (onFrame: (ByteArray) -> Unit, onClosed: () -> Unit) -> WebGreEngineSession,
+            engineFactory: (onFrame: (ByteArray) -> Boolean, onClosed: () -> Unit) -> WebGreEngineSession,
             ownerPlayerId: PlayerId?,
             publicAccess: Boolean,
             onClose: () -> Unit,
-        ) {
-            this.engine?.close()
-            this.engine =
-                engineFactory(
-                    { bytes -> outbound.trySend(bytes) },
-                    { scope.launch { disconnectBrowsers() } },
-                )
-            this.ownerPlayerId = ownerPlayerId
-            this.publicAccess = publicAccess
-            this.onClose = onClose
-            closed = false
-        }
+        ): Boolean =
+            lifecycleLock.withLock {
+                if (closed) return false
+                val nextGeneration = lifecycleGeneration + 1
+                if (outbound.trySend(RelayEvent.SwitchGeneration(nextGeneration)).isFailure) {
+                    return false
+                }
+                lifecycleGeneration = nextGeneration
+                this.engine?.close()
+                this.engine =
+                    engineFactory(
+                        { bytes -> outbound.trySend(RelayEvent.Frame(nextGeneration, bytes)).isSuccess },
+                        { outbound.trySend(RelayEvent.Close(nextGeneration)) },
+                    )
+                this.ownerPlayerId = ownerPlayerId
+                this.publicAccess = publicAccess
+                this.onClose = onClose
+                true
+            }
 
         fun canAttach(playerId: PlayerId?): Boolean = publicAccess || (ownerPlayerId != null && ownerPlayerId == playerId)
 
@@ -169,12 +224,18 @@ class InProcessWebGreRelay(
         suspend fun attach(
             session: DefaultWebSocketServerSession,
             canDrive: Boolean,
-        ) {
-            val accepted =
-                lock.withLock {
-                    if (closed) false else browsers.put(session, canDrive) == null
+        ): Long? {
+            val attachedGeneration =
+                lifecycleLock.withLock {
+                    if (closed) {
+                        null
+                    } else {
+                        browserLock.withLock {
+                            if (browsers.put(session, canDrive) == null) lifecycleGeneration else null
+                        }
+                    }
                 }
-            if (!accepted) return
+            if (attachedGeneration == null) return null
             try {
                 for (frame in session.incoming) {
                     when (frame) {
@@ -192,8 +253,9 @@ class InProcessWebGreRelay(
                     }
                 }
             } finally {
-                lock.withLock { browsers.remove(session) }
+                browserLock.withLock { browsers.remove(session) }
             }
+            return attachedGeneration
         }
 
         private fun isHandshake(payload: ByteArray): Boolean {
@@ -209,34 +271,33 @@ class InProcessWebGreRelay(
 
         /** After [graceMs] with no attached browsers, close the engine and run [onRemoved]. */
         fun scheduleIdleClose(
+            expectedGeneration: Long,
             graceMs: Long,
             onRemoved: () -> Unit,
         ) {
             scope.launch {
                 if (graceMs > 0) delay(graceMs)
-                if (closeIfIdle()) onRemoved()
+                if (closeIfIdle(expectedGeneration)) onRemoved()
             }
         }
 
-        suspend fun closeIfIdle(): Boolean {
-            val engineToClose =
-                lock.withLock {
-                    if (closed || browsers.isNotEmpty()) return false
-                    closed = true
-                    val current = engine ?: return false
-                    engine = null
-                    current
-                }
-            engineToClose.close()
-            onClose()
-            scope.cancel()
-            outbound.close()
-            return true
-        }
+        private fun closeIfIdle(expectedGeneration: Long): Boolean =
+            lifecycleLock.withLock {
+                if (closed || lifecycleGeneration != expectedGeneration) return false
+                if (browserLock.withLock { browsers.isNotEmpty() }) return false
+                val engineToClose = engine ?: return false
+                closed = true
+                engine = null
+                engineToClose.close()
+                onClose()
+                outbound.close()
+                scope.cancel()
+                true
+            }
 
         /** Notify attached browsers that the engine is gone — e.g. it crashed mid-match. */
         private suspend fun disconnectBrowsers() {
-            val targets = lock.withLock { browsers.keys.toList() }
+            val targets = browserLock.withLock { browsers.keys.toList() }
             targets.forEach { target ->
                 runCatching { target.close(CloseReason(CloseReason.Codes.INTERNAL_ERROR, "match engine closed")) }
             }
@@ -253,7 +314,7 @@ class DirectWebGreEngineSession(
     private val coordinator: MatchCoordinator,
     private val cardRepository: CardRepository,
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry,
-    onFrame: (ByteArray) -> Unit,
+    onFrame: (ByteArray) -> Boolean,
     onClosed: () -> Unit = {},
 ) : WebGreEngineSession {
     /**
@@ -278,7 +339,15 @@ class DirectWebGreEngineSession(
         openConnection(
             object : MatchOutput {
                 override fun send(message: MatchServiceToClientMessage) {
-                    onFrame(message.toByteArray())
+                    check(onFrame(message.toByteArray())) { "Web GRE relay rejected outbound frame" }
+                }
+
+                override fun send(
+                    message: MatchServiceToClientMessage,
+                    completion: (Throwable?) -> Unit,
+                ) {
+                    val accepted = onFrame(message.toByteArray())
+                    completion(if (accepted) null else IllegalStateException("Web GRE relay rejected outbound frame"))
                 }
 
                 override fun close() = onClosed()

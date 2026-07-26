@@ -99,6 +99,8 @@ private class CollectingSink : GreMessageSink {
         this.messages += messages
     }
 
+    override fun sendMatchProgress(message: MatchServiceToClientMessage) {}
+
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,

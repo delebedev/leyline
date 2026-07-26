@@ -15,6 +15,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 interface GreMessageSink {
     fun sendBundledGRE(messages: List<GREToClientMessage>)
 
+    fun sendMatchProgress(message: MatchServiceToClientMessage)
+
     /**
      * Send seat-specific GRE through the session sink without peer mirroring.
      *

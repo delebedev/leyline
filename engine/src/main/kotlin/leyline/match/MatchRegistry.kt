@@ -68,6 +68,7 @@ class MatchRegistry {
         previous?.let {
             if (it is SpectatorSession && it !== session) it.close()
             if (it is MatchSession && it !== session) it.close()
+            if (it is FamiliarSession && it !== session) it.close()
         }
     }
 
@@ -92,6 +93,7 @@ class MatchRegistry {
         previousSession?.let {
             if (it is SpectatorSession && it !== session) it.close()
             if (it is MatchSession && it !== session) it.close()
+            if (it is FamiliarSession && it !== session) it.close()
         }
         previousConnection?.let {
             if (it !== connection) it.detachAfterTeardown()
@@ -179,6 +181,7 @@ class MatchRegistry {
         val interactiveSessions = removedSessions.filterIsInstance<MatchSession>()
         interactiveSessions.forEach { it.retireBeforeOwnerClose() }
         removedSessions.filterIsInstance<SpectatorSession>().forEach { it.close() }
+        removedSessions.filterIsInstance<FamiliarSession>().forEach { it.close() }
         matchConnections.forEach { it.detachAfterTeardown() }
 
         if (match != null) {

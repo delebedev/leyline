@@ -54,6 +54,8 @@ class SessionTraceOps(
         sentGRE.add(messages)
     }
 
+    override fun sendMatchProgress(message: MatchServiceToClientMessage) {}
+
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,

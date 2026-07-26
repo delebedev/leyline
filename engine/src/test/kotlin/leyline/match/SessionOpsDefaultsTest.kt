@@ -25,6 +25,8 @@ class SessionOpsDefaultsTest :
 
                 override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
 
+                override fun sendMatchProgress(message: MatchServiceToClientMessage) {}
+
                 override fun sendRealGameState(
                     bridge: GameBridge,
                     revealForSeat: Int?,

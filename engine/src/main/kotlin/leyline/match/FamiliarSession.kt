@@ -17,18 +17,38 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * All action handlers are inherited no-ops from [SessionOps] —
  * the type system enforces read-only behavior without boolean gates.
  */
-class FamiliarSession(
+internal class FamiliarSession(
     override val seatId: SeatId,
     override val matchId: String,
     val sink: MessageSink,
     override var counter: MessageCounter = MessageCounter(),
+    private val owner: MatchOwner = MatchOwner(matchId),
 ) : SessionOps {
-    override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        for (m in messages) {
-            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
+    internal val protocolHead =
+        MatchProtocolHead(
+            owner,
+            MatchOutbox.Audience.Familiar(seatId),
+            sink,
+        )
+
+    override fun sendBundledGRE(messages: List<GREToClientMessage>) =
+        owner.reduce {
+            for (m in messages) {
+                if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
+            }
+            owner.observeOutbound(messages)
+            owner.appendOutbox(listOf(protocolHead.token to MatchOutbox.Payload.Gre(messages)))
+            protocolHead.flush()
         }
-        sink.send(messages)
-    }
+
+    override fun sendMatchProgress(message: MatchServiceToClientMessage) =
+        owner.reduce {
+            owner.observeOutbound(message)
+            owner.appendOutbox(listOf(protocolHead.token to MatchOutbox.Payload.Raw(message)))
+            protocolHead.flush()
+        }
+
+    fun close() = protocolHead.close()
 
     override fun sendRealGameState(
         bridge: GameBridge,
