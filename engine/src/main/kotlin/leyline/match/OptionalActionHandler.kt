@@ -6,6 +6,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.GsmFrame
+import leyline.game.bundle.PendingPromptPlan
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
@@ -153,17 +154,19 @@ class OptionalActionHandler(
                 ).build()
 
         if (!isCommanderReturnPrompt) {
-            PendingPromptEnvelope.sendBare(
-                sink,
-                counters,
-                GREMessageType.OptionalActionMessage_695e,
-            ) {
-                it.optionalActionMessage = optionalMsg
-                it.prompt = promptProto
-                // Controls Cancel button visibility, NOT whether declining is allowed.
-                // Player can always decline via CancelNo response regardless of this value.
-                it.allowCancel = AllowCancel.No_a526
-            }
+            sink.sendBundledGRE(
+                PendingPromptPlan.build(
+                    counters.counter,
+                    counters.seatId,
+                    GREMessageType.OptionalActionMessage_695e,
+                ) {
+                    it.optionalActionMessage = optionalMsg
+                    it.prompt = promptProto
+                    // Controls Cancel button visibility, NOT whether declining is allowed.
+                    // Player can always decline via CancelNo response regardless of this value.
+                    it.allowCancel = AllowCancel.No_a526
+                },
+            )
             return
         }
         val commanderContext = checkNotNull(commanderReturn)

@@ -11,6 +11,15 @@ internal class NettyMatchOutput(
         ctx.writeAndFlush(message)
     }
 
+    override fun send(
+        message: MatchServiceToClientMessage,
+        completion: (Throwable?) -> Unit,
+    ) {
+        ctx.writeAndFlush(message).addListener { future ->
+            completion(future.cause())
+        }
+    }
+
     override fun close() {
         ctx.close()
     }

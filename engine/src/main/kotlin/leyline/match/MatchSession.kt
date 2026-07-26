@@ -18,7 +18,6 @@ import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -66,10 +65,20 @@ class MatchSession(
     val autoPassState: ClientAutoPassState get() = connection.autoPassState
 
     private val owner get() = connection.owner
+    private val outbox =
+        MatchSessionOutbox(
+            owner,
+            seatId,
+            sink,
+            counter,
+            recorder,
+            ::familiarPeer,
+        )
     private val autoAdvanceRequested = AtomicBoolean(false)
     private val autoAdvanceRunning = AtomicBoolean(false)
     private val autoAdvanceClosed = AtomicBoolean(false)
     private val autoAdvanceRequest: (String) -> Unit = { reason -> requestAutoAdvance(reason) }
+    private var gameOverCommitted = false
 
     private fun reduceActive(action: () -> Unit) {
         if (autoAdvanceClosed.get()) return
@@ -430,7 +439,7 @@ class MatchSession(
                 )
             counter.setMsgId(nextMsgId)
             ProtoDump.dump(msg, "SettingsResp")
-            sink.sendRaw(msg)
+            sendMatchProgressOwned(msg)
         }
 
     /**
@@ -594,6 +603,7 @@ class MatchSession(
         }
 
     private fun sendGameOverOwned(reason: ResultReason) {
+        if (gameOverCommitted) return
         val bridge = gameBridge
         val humanWon = bridge.playerWon(seatId)
         val winningTeam = if (humanWon) 1 else 2
@@ -623,28 +633,31 @@ class MatchSession(
 
         // Send MatchCompleted room state — triggers the client's result screen
         val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason)
-        sink.sendRaw(matchCompletedMsg)
+        sendMatchProgressOwned(matchCompletedMsg)
         log.info("MatchSession: sent MatchCompleted room state")
+        gameOverCommitted = true
 
-        // Notify coordinator (e.g. CourseService for sealed events)
-        try {
-            coordinator?.reportMatchResult(matchId, humanWon)
-        } catch (e: Exception) {
-            log.warn("MatchSession: reportMatchResult failed: {}", e.message)
+        outbox.afterDrained {
+            // Notify coordinator (e.g. CourseService for sealed events)
+            try {
+                coordinator?.reportMatchResult(matchId, humanWon)
+            } catch (e: Exception) {
+                log.warn("MatchSession: reportMatchResult failed: {}", e.message)
+            }
+
+            // Trigger post-game analysis
+            recorder?.run {
+                markGameOver()
+            }
+
+            registry.teardownMatch(
+                matchId = matchId,
+                reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
+                seatId = seatId,
+                recorder = recorder,
+                fallbackBridge = bridge,
+            )
         }
-
-        // Trigger post-game analysis
-        recorder?.run {
-            markGameOver()
-        }
-
-        registry.teardownMatch(
-            matchId = matchId,
-            reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
-            seatId = seatId,
-            recorder = recorder,
-            fallbackBridge = bridge,
-        )
     }
 
     // --- Low-level helpers ---
@@ -659,6 +672,15 @@ class MatchSession(
         reduceActive {
             sendBundledGREOwned(messages)
         }
+
+    override fun sendMatchProgress(message: MatchServiceToClientMessage) =
+        reduceActive {
+            sendMatchProgressOwned(message)
+        }
+
+    private fun sendMatchProgressOwned(message: MatchServiceToClientMessage) {
+        outbox.sendRaw(message)
+    }
 
     private fun sendBundledGREOwned(messages: List<GREToClientMessage>) {
         drainPlaybackOwned()
@@ -735,13 +757,7 @@ class MatchSession(
         messages: List<GREToClientMessage>,
         mirror: Boolean,
     ) {
-        owner.observeOutbound(messages)
-        for (m in messages) {
-            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-        }
-        recorder?.recordOutbound(messages)
-        sink.send(messages)
-        if (mirror) mirrorToFamiliar(messages)
+        outbox.sendGre(messages, mirror)
     }
 
     private fun requestAutoAdvance(reason: String) {
@@ -796,6 +812,7 @@ class MatchSession(
     }
 
     private fun finishRetirement() {
+        outbox.close()
         if (gameBridge.autoAdvanceRequester === autoAdvanceRequest) {
             gameBridge.autoAdvanceRequester = null
         }
@@ -825,33 +842,10 @@ class MatchSession(
         }
     }
 
-    /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */
-    private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
-        if (seatId != gameBridge.seating.humanSeat) return
-        val peer = registry.getPeer(matchId, seatId) ?: return
-        // Only mirror to FamiliarSession — paired peers build their own state.
-        if (peer !is FamiliarSession) return
-        val mirrorSeat = 2
-        // Filter out CastingTimeOptionsReq — Familiar must not auto-respond to modal prompts
-        val filtered = messages.filter { it.type != GREMessageType.CastingTimeOptionsReq_695e }
-        if (filtered.isEmpty()) return
-        val mirrored =
-            filtered.map { gre ->
-                val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
-                // Strip Private gameObjects not visible to mirror seat (client
-                // omits Limbo objects from non-owner messages).
-                if (builder.hasGameStateMessage()) {
-                    val gsm = builder.gameStateMessage.toBuilder()
-                    val filtered =
-                        gsm.gameObjectsList.filter { obj ->
-                            obj.visibility != Visibility.Private || obj.viewersList.contains(mirrorSeat)
-                        }
-                    gsm.clearGameObjects().addAllGameObjects(filtered)
-                    builder.setGameStateMessage(gsm.build())
-                }
-                builder.build()
-            }
-        peer.sink.send(mirrored)
+    private fun familiarPeer(): FamiliarSession? {
+        if (seatId != gameBridge.seating.humanSeat) return null
+        val peer = registry.getPeer(matchId, seatId) ?: return null
+        return peer as? FamiliarSession
     }
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */

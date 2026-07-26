@@ -26,18 +26,18 @@ publication—not from a literal two-thread model.
 | Execution domain | Runs | Coordination |
 |---|---|---|
 | **Engine** — `game-loop-<gameId>` | Forge's `mainGameLoop`, trigger resolution, EventBus dispatch, `GamePlayback` value materialization | Owns the live Forge graph; blocks in controller futures |
-| **Match owner** — fed by Netty I/O, web relay dispatcher, engine-cut notifications, test callers, auto-advance requests, and debug-server work | `MatchSession`, `SpectatorSession`, handlers, `AutoPassEngine`, ordinary sends | One `MatchOwner` queue is the sole protocol compiler and session executor; interactive waits may use `PrioritySignal` |
-| **Sink caller** | Marks outbound game-state progress and invokes `MessageSink.send` | Runs on the match owner |
+| **Match owner** — fed by Netty I/O, web relay dispatcher, engine-cut notifications, test callers, auto-advance requests, and debug-server work | `MatchSession`, `SpectatorSession`, handlers, `AutoPassEngine`, protocol commit | One `MatchOwner` queue is the sole protocol compiler, session executor, and outbox ordering authority; interactive waits may use `PrioritySignal` |
+| **Protocol head** | Flushes the committed subsequence for one audience generation and reports completion | Holds the transport; never chooses semantic order or adapts a later generation's entry |
 
 **Engine-owned.** The `Game` object graph—zones, stack, life totals, counters,
 phase and priority—plus Forge EventBus dispatch and engine-internal state.
 
 **Interactive-match-owner-owned.** Command dispatch, auto-pass, handler state,
-prompt correlation (`OwnerProtocolState`), puzzle replacement, and ordinary
-interactive delivery. Entrant threads submit work to one serial owner; handler
-implementations remain private to `MatchSession`. The delivery funnel advances
-the prompt horizon before sending, and response validation reads it only after
-entering the same owner.
+prompt correlation (`OwnerProtocolState`), puzzle replacement, and outbox
+commit. Entrant threads submit work to one serial owner; handler implementations
+remain private to `MatchSession`. Append advances the prompt horizon and
+game-state cursor before a head flushes, and response validation reads them only
+after entering the same owner.
 
 **Terminal lifecycle.** Disconnect, failure, and stale-match teardown are
 supervisor-side cancellation, not handler work. A connection teardown first
@@ -111,7 +111,9 @@ flowchart LR
     EVT --> Y[PlaybackYield]
     Y --> CUT[EngineCutQueue]
     CUT --> OWNER
-    OWNER --> SEND[MessageSink.send]
+    OWNER --> OUTBOX[MatchOutbox append]
+    OUTBOX --> HEAD[Generation-tagged protocol head]
+    HEAD --> SEND[MessageSink send and completion]
 ```
 
 Engine callbacks do not build protocol frames. Interactive waits drain through
@@ -164,16 +166,17 @@ engine-completion signal.
 
 ---
 
-## 3. Projection baseline vs sink handoff
+## 3. Projection baseline vs delivery handoff
 
-Two independent timelines exist. The field name `BundleCursor.lastSent` is
+Three related timelines exist. The field name `BundleCursor.lastSent` is
 historical; the value is the latest projection baseline committed during bundle
-construction, not an acknowledgement from the sink.
+construction, not an acknowledgement from a protocol head.
 
 | Timeline | Location | Advances on | Purpose |
 |---|---|---|---|
 | Projection baseline | `BundleCursor.lastSent: GsmSnapshot?` on `GameBridge.bundleCursor` | A `BundleBuilder` assigns the completed snapshot before returning or enqueueing its messages | Input to the next `StateMapper.buildDiff` call |
-| Sink handoff | Implicit in the sink | `sink.send(messages)` is invoked successfully | Server-side delivery attempt; this is not client acknowledgement |
+| Outbox order | `MatchOutbox` on `MatchOwner` | The owner appends a committed value for concrete head generations | One semantic order across every match-progress producer |
+| Head handoff | `MatchProtocolHead` | The transport reports that the current entry was accepted | Advances that generation's prefix; this is not client acknowledgement |
 
 The current state-diff order is:
 
@@ -192,27 +195,34 @@ snapshot Forge state
        consume pending frame state
        consume exactly the reserved event/reveal prefix
        advance the shared MessageCounter
-  -> return or enqueue the batch
-  -> later call sink.send
+  -> append the batch to the owner outbox
+  -> let the targeted protocol heads flush it
 ```
 
 `BridgeMutations` commits in a fixed order—ID reallocations, limbo retirements,
 zone bookkeeping, persistent-annotation batch, then `nextAnnotationId`. The
 interactive owner compiles each `PlaybackYield`, commits its projection and
 reserved prefixes atomically, then sends it before later interaction output.
-The spectator path uses the same compile, commit, acknowledge, and delivery
-order on the match owner. Session replacement closes the displaced observer
-before queued owner work can use its sink.
+The spectator path uses the same compile, commit, append, acknowledge, and
+delivery order on the match owner. Session replacement retires the displaced
+head before queued owner work can target its transport.
 
-This is not an atomic projection-plus-delivery transaction. An exception after
-frame finalization, during path-specific assembly, or during projection commit
-advances neither bridge mutations, cursor, shared counter, nor reserved
-event/reveal input. Those values share one commit function. Exact-prefix
-consumption preserves input appended after compilation for the next frame. A
-failure while returning, enqueueing, or sending can still leave committed
-projection ahead of visible output. The current runtime has no rollback or
-retry-from-old-baseline contract; the target architecture's ordered outbox is
-intended to close this remaining gap.
+Projection commit and outbox append share one owner reduction. An exception
+before append advances neither bridge mutations, cursor, shared counter, nor
+reserved event/reveal input. Exact-prefix consumption preserves input appended
+after compilation for the next frame. Once appended, delivery failure retains
+the head's current entry and prevents later entries from becoming visible.
+Replacing a head retires that generation and its pending subsequence; a stale
+completion cannot acknowledge successor output.
+
+### Outbound delivery paths
+
+| Output | Authority |
+|---|---|
+| Engine playback, prompts, mulligan, initial Full state, puzzle state, settings, and terminal output | Match-owner outbox append; audience-generation head flush |
+| Familiar view | Adapted for its concrete head before the shared outbox commit |
+| Authentication response | Channel-local negotiation |
+| Playing room-state response | Channel-local connection negotiation, before the initial Full state |
 
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
