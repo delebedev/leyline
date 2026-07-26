@@ -12,6 +12,7 @@ import leyline.bridge.NonInteractiveScope
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.StrictPromptRefusalException
 import leyline.bridge.types.ManaColorMapping
+import leyline.game.ManaRequirementValue
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
@@ -302,44 +303,57 @@ internal object ActionManaCosts {
     fun forgeManaCostToRequirements(
         manaCost: ManaCost,
         abilityGrpId: Int? = null,
-    ): List<ManaRequirement> {
-        if (manaCost.none { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
-            return aggregatedManaRequirements(manaCost, abilityGrpId)
+    ): List<ManaRequirement> =
+        forgeManaCostToValues(manaCost, abilityGrpId).map { value ->
+            val req =
+                ManaRequirement
+                    .newBuilder()
+                    .addAllColor(value.colors.map(ManaColor::forNumber))
+                    .setCount(value.count)
+            if (value.abilityGrpId != 0) req.setAbilityGrpId(value.abilityGrpId)
+            req.build()
         }
-        val result = mutableListOf<ManaRequirement>()
+
+    fun forgeManaCostToValues(
+        manaCost: ManaCost,
+        abilityGrpId: Int? = null,
+    ): List<ManaRequirementValue> {
+        if (manaCost.none { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
+            return aggregatedManaValues(manaCost, abilityGrpId)
+        }
+        val result = mutableListOf<ManaRequirementValue>()
         for (shard in manaCost) {
             val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
             val color = hybridColor ?: ManaColorMapping.fromShard(shard) ?: continue
-            val req = ManaRequirement.newBuilder().setCount(1)
-            if (hybridColor != null) req.addColor(ManaColor.TwoGeneric)
-            req.addColor(color)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
+            result +=
+                ManaRequirementValue(
+                    colors =
+                        buildList {
+                            if (hybridColor != null) add(ManaColor.TwoGeneric.number)
+                            add(color.number)
+                        },
+                    count = 1,
+                    abilityGrpId = abilityGrpId ?: 0,
+                )
         }
         val generic = manaCost.genericCost
         if (generic > 0) {
-            val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
+            result += ManaRequirementValue(listOf(ManaColor.Generic.number), generic, abilityGrpId ?: 0)
         }
         return result
     }
 
-    private fun aggregatedManaRequirements(
+    private fun aggregatedManaValues(
         manaCost: ManaCost,
         abilityGrpId: Int?,
-    ): List<ManaRequirement> {
-        val result = mutableListOf<ManaRequirement>()
+    ): List<ManaRequirementValue> {
+        val result = mutableListOf<ManaRequirementValue>()
         for ((color, count) in ManaColorMapping.colorCounts(manaCost)) {
-            val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
+            result += ManaRequirementValue(listOf(color.number), count, abilityGrpId ?: 0)
         }
         val generic = manaCost.genericCost
         if (generic > 0) {
-            val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            result.add(req.build())
+            result += ManaRequirementValue(listOf(ManaColor.Generic.number), generic, abilityGrpId ?: 0)
         }
         return result
     }

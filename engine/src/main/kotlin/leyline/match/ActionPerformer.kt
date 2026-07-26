@@ -202,7 +202,7 @@ class ActionPerformer(
         }
 
         // Wait for engine to reach next priority stop
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPassEngine.drainPlayback()
 
         if (action.actionType == ActionType.ActivateMana) {

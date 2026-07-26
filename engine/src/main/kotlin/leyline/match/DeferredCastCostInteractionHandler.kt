@@ -336,7 +336,7 @@ internal class DeferredCastCostInteractionHandler(
             rejectDeferredResponse(responseName)
             return
         }
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 

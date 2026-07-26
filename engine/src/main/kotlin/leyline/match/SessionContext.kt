@@ -8,4 +8,5 @@ import leyline.game.state.GameBridge
  */
 data class SessionContext(
     val bridge: GameBridge,
+    val engine: EngineCutAwaiter,
 )

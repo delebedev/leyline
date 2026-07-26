@@ -7,15 +7,12 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
-import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.Zone
 import leyline.game.event.combatDamageFact
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.Phase
-import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import leyline.game.event.GameEvent as LeylineGameEvent
@@ -28,22 +25,22 @@ import leyline.game.event.GameEvent as LeylineGameEvent
  * the game thread -- sleeping here freezes engine progress and state, making
  * it safe to snapshot and diff. Mirrors [leyline.bridge.WebGamePlayback].
  *
- * Uses the shared [leyline.game.bundle.MessageCounter] for protocol sequencing. Both the session
- * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`
- * on the same atomic — no seeding or syncing needed.
+ * Interactive playback publishes immutable [PlaybackYield] values. The match
+ * owner compiles and sequences those values before sending them. Spectator
+ * playback retains its independent serialized queue.
  *
  * Shares [leyline.game.bundle.BundleCursor] with the session-layer `BundleBuilder` via
  * [leyline.game.state.GameBridge.bundleCursor]: the two builders must agree on the diff baseline
  * or `buildDiff` produces a Full when the client expects a Diff. See
  * [leyline.game.bundle.BundleCursor] KDoc for the sharing invariant.
  *
- * The [MatchHandler][leyline.match.MatchHandler] drains the queue
- * via [drainQueue] and sends messages to the TCP socket.
+ * The [MatchHandler][leyline.match.MatchHandler] drains spectator messages via
+ * [drainQueue]. Interactive matches drain the engine-cut FIFO.
  *
  * @param bridge the GameBridge for state mapping and zone tracking
  * @param matchId match identifier for GRE messages
  * @param seatId the human player's seat (messages are from their perspective)
- * @param counter shared protocol counter (same instance used by MatchSession)
+ * @param counter spectator protocol counter; unused by interactive playback
  */
 class GamePlayback(
     private val bridge: GameBridge,
@@ -56,6 +53,9 @@ class GamePlayback(
     private val captureLocalActions: Boolean = false,
 ) : IGameEventVisitor.Base<Unit>() {
     private val bundleBuilder = BundleBuilder(bridge, matchId, seatId)
+    private val combatFramePlanner = CombatFramePlanner(bridge, seatId)
+    private val interactiveMaterializer =
+        InteractivePlaybackMaterializer(bridge, matchId, seatId, combatFramePlanner)
 
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
 
@@ -66,7 +66,7 @@ class GamePlayback(
     /** Thread-safe queue of GRE message batches for the handler to drain. */
     private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
 
-    /** Noncombat damage held until its resolving stack object or ability reaches its completion boundary. */
+    /** Spectator noncombat damage held until its resolving stack object reaches its completion boundary. */
     private var pendingResolutionFrame: FrameEventLog? = null
 
     /**
@@ -85,7 +85,7 @@ class GamePlayback(
 
     override fun visit(ev: GameEventLandPlayed) {
         if (!isRemoteActing()) return
-        captureAndPause(LAND_DELAY)
+        captureAndPause(PlaybackCutReason.LAND_PLAYED, LAND_DELAY)
     }
 
     /** Local stack objects seen at their cast/enter event and awaiting a
@@ -105,21 +105,21 @@ class GamePlayback(
             when {
                 isTrigger -> {
                     if (key != null) markPending(pendingLocalTriggers, key)
-                    captureAndPause(CAST_DELAY)
+                    captureAndPause(PlaybackCutReason.SPELL_ABILITY_CAST, CAST_DELAY)
                 }
                 isAbility -> {
                     if (key != null) markPending(pendingLocalAbilities, key)
-                    captureAndPause(CAST_DELAY)
+                    captureAndPause(PlaybackCutReason.SPELL_ABILITY_CAST, CAST_DELAY)
                 }
                 !isAbility -> {
                     if (key != null) markPending(pendingLocalCasts, key)
-                    captureAndPause(CAST_DELAY)
+                    captureAndPause(PlaybackCutReason.SPELL_ABILITY_CAST, CAST_DELAY)
                 }
             }
             return
         }
 
-        captureAndPause(CAST_DELAY)
+        captureAndPause(PlaybackCutReason.SPELL_ABILITY_CAST, CAST_DELAY)
     }
 
     override fun visit(ev: GameEventSpellResolved) {
@@ -132,22 +132,28 @@ class GamePlayback(
                         consumePending(pendingLocalCasts, key)
                 )
         if (!isRemoteActing() && !splitLocalStackObject) return
-        captureAndPause(RESOLVE_DELAY)
+        captureAndPause(PlaybackCutReason.SPELL_RESOLVED, RESOLVE_DELAY)
     }
 
     override fun visit(ev: GameEventCardChangeZone) {
-        if (pendingResolutionFrame == null || ev.from()?.zoneType != ZoneType.Stack) return
-        captureAndPause(0)
+        val awaitingResolutionBoundary =
+            if (captureLocalActions) {
+                pendingResolutionFrame != null
+            } else {
+                interactiveMaterializer.isAwaitingResolutionBoundary()
+            }
+        if (!awaitingResolutionBoundary || ev.from()?.zoneType != ZoneType.Stack) return
+        captureAndPause(PlaybackCutReason.STACK_EXIT_COMPLETION, 0)
     }
 
     override fun visit(ev: GameEventCardCounters) {
         if (isRemoteActing()) return
-        captureAndPause(COUNTER_DELAY)
+        captureAndPause(PlaybackCutReason.CARD_COUNTERS, COUNTER_DELAY)
     }
 
     override fun visit(ev: GameEventPlayerPoisoned) {
         if (isRemoteActing()) return
-        captureAndPause(COUNTER_DELAY)
+        captureAndPause(PlaybackCutReason.PLAYER_POISONED, COUNTER_DELAY)
     }
 
     override fun visit(ev: GameEventTurnBegan) {
@@ -159,7 +165,7 @@ class GamePlayback(
             }
         lastCapturedTurn = game.phaseHandler.turn
         lastCapturedPhase = game.phaseHandler.phase
-        captureAndPause(PHASE_DELAY, turnStarted = true)
+        captureAndPause(PlaybackCutReason.TURN_BEGAN, PHASE_DELAY, turnStarted = true)
     }
 
     override fun visit(ev: GameEventTurnPhase) {
@@ -183,7 +189,7 @@ class GamePlayback(
                 -> COMBAT_DELAY
                 else -> PHASE_DELAY
             }
-        captureAndPause(delay)
+        captureAndPause(PlaybackCutReason.TURN_PHASE, delay)
     }
 
     override fun visit(ev: GameEventAttackersDeclared) {
@@ -193,15 +199,15 @@ class GamePlayback(
         // the human-seat auto-pass loop overshoots past combat before building
         // a diff, and the client never sees attackers tapped (leyline-o2q).
         if (isRemoteActing()) {
-            captureAndPause(COMBAT_DELAY)
+            captureAndPause(PlaybackCutReason.ATTACKERS_DECLARED, COMBAT_DELAY)
         } else {
-            captureAndPause(0) // no pacing delay on own turn
+            captureAndPause(PlaybackCutReason.ATTACKERS_DECLARED, 0) // no pacing delay on own turn
         }
     }
 
     override fun visit(ev: GameEventBlockersDeclared) {
         if (!isRemoteActing()) return
-        captureAndPause(COMBAT_DELAY)
+        captureAndPause(PlaybackCutReason.BLOCKERS_DECLARED, COMBAT_DELAY)
     }
 
     override fun visit(ev: GameEventCombatEnded) {
@@ -209,7 +215,7 @@ class GamePlayback(
         // damage/life/death annotations can sit in the collector queue until the
         // next later priority stop and get folded into a post-combat action GSM.
         if (isRemoteActing()) return
-        captureAndPause(0)
+        captureAndPause(PlaybackCutReason.COMBAT_ENDED, 0)
     }
 
     // -- Queue access (called from MatchHandler / Netty thread) --
@@ -246,18 +252,23 @@ class GamePlayback(
         }
 
     /** True if there are messages waiting to be sent. */
-    fun hasPendingMessages(): Boolean = synchronized(queueLock) { queue.isNotEmpty() }
+    fun hasPendingMessages(): Boolean =
+        if (captureLocalActions) {
+            synchronized(queueLock) { queue.isNotEmpty() }
+        } else {
+            bridge.hasPendingEngineCuts()
+        }
 
     // -- Internal --
 
     /**
-     * Snapshot current game state as a diff, queue the GRE messages,
-     * update the bridge snapshot, then sleep for animation pacing.
+     * Materialize an interactive yield or serialize a spectator diff, then
+     * sleep for animation pacing.
      *
-     * Called on the engine thread -- state is frozen, safe to serialize.
-     * Uses the shared [counter] — no seeding needed.
+     * Called on the engine thread while state is frozen at the cut.
      */
     private fun captureAndPause(
+        cutReason: PlaybackCutReason,
         delayMs: Int,
         turnStarted: Boolean = false,
     ) {
@@ -269,35 +280,43 @@ class GamePlayback(
 
         try {
             val messageCount =
-                synchronized(queueLock) {
-                    val reservation = bridge.reserveBundleFrame(seatId)
-                    val events =
-                        pendingResolutionFrame?.mergeReservedInput(reservation.events)
-                            ?: reservation.events
-                    if (events.shouldAwaitResolutionBoundary()) {
-                        pendingResolutionFrame = events
-                        0
-                    } else {
-                        val count =
-                            if (events.events.shouldSplitCombatDamageWindow()) {
-                                captureSplitCombatDamage(game, events.events, reservation)
-                                2
-                            } else {
-                                val messages = buildDiffMessages(game, turnStarted, events, reservation)
-                                queue.add(messages)
-                                if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                    bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                if (!captureLocalActions) {
+                    if (interactiveMaterializer.materialize(game, cutReason, turnStarted)) 1 else 0
+                } else {
+                    synchronized(queueLock) {
+                        val reservation = bridge.reserveBundleFrame(seatId)
+                        val events =
+                            pendingResolutionFrame?.mergeReservedInput(reservation.events)
+                                ?: reservation.events
+                        if (events.shouldAwaitResolutionBoundary()) {
+                            pendingResolutionFrame = events
+                            bridge.releaseBundleFrame(reservation)
+                            return@synchronized 0
+                        }
+                        try {
+                            val count =
+                                if (events.events.shouldSplitCombatDamageWindow()) {
+                                    captureSplitCombatDamage(game, events.events, reservation)
+                                    2
+                                } else {
+                                    val messages = buildDiffMessages(game, turnStarted, events, reservation)
+                                    queue.add(messages)
+                                    if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
+                                        bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
+                                    }
+                                    messages.size
                                 }
-                                messages.size
-                            }
-                        pendingResolutionFrame = null
-                        count
+                            pendingResolutionFrame = null
+                            count
+                        } catch (failure: Throwable) {
+                            bridge.releaseBundleFrame(reservation)
+                            throw failure
+                        }
                     }
                 }
 
-            // No need to advance the cursor here — remoteActionDiff commits the
-            // projection baseline while queueLock is held. A redundant
-            // buildFromSnapshot with the same gsId creates a self-referential snapshot.
+            // Projection baseline advancement belongs to the path that commits
+            // the materialized frame.
 
             log.debug(
                 "action captured: phase={} turn={} queued={} msgs={}",
@@ -326,32 +345,18 @@ class GamePlayback(
         events: List<LeylineGameEvent>,
         reservation: GameBridge.BundleFrameReservation,
     ) {
-        val damageFrames = events.combatDamageFrames(game)
-        val endCombatEvents =
-            events.filter { event ->
-                event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
-            }
-
-        val frames =
-            damageFrames.map { damageFrame ->
-                FrameEventLog(damageFrame.events) to damageFrame.lifeTotals
-            } +
-                if (endCombatEvents.isNotEmpty()) {
-                    listOf(FrameEventLog(endCombatEvents) to emptyMap<Int, Int>())
-                } else {
-                    emptyList()
-                }
+        val frames = combatFramePlanner.materialize(game, events)
         val results =
             bundleBuilder.remoteActionDiffSequence(
                 game = game,
                 counter = counter,
-                eventFrames = frames.map { it.first },
+                eventFrames = frames.map { it.events },
                 bundleFrameReservation = reservation,
             )
         val batches =
             if (results.size == frames.size) {
-                results.zip(frames) { result, (_, lifeTotals) ->
-                    result.messages.withLifeTotals(lifeTotals)
+                results.zip(frames) { result, frame ->
+                    result.messages.withLifeTotals(frame.lifeTotals)
                 }
             } else {
                 check(results.size == 1) { "Combat frame sequence produced ${results.size} results for ${frames.size} frames" }
@@ -387,88 +392,6 @@ class GamePlayback(
 
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
-    private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean = any { it.combatDamageFact() == true }
-
-    private data class CombatDamageFrame(
-        val events: List<LeylineGameEvent>,
-        val lifeTotals: Map<Int, Int> = emptyMap(),
-    )
-
-    private fun List<LeylineGameEvent>.combatDamageFrames(game: forge.game.Game): List<CombatDamageFrame> {
-        if (!canSafelySplitCombatDamage()) {
-            return listOf(
-                CombatDamageFrame(
-                    filterNot { event -> event is LeylineGameEvent.PhaseChanged }
-                        .prependCombatDamagePhase(game, this),
-                ),
-            )
-        }
-
-        val frames = mutableListOf<CombatDamageFrame>()
-        var current = mutableListOf<LeylineGameEvent>()
-
-        fun flushFrame() {
-            if (current.hasCombatDamage()) {
-                frames += CombatDamageFrame(current.toList(), current.lifeTotals())
-            }
-            current = mutableListOf()
-        }
-
-        for (event in this) {
-            if (event is LeylineGameEvent.PhaseChanged) {
-                if (event.isDamageStep()) {
-                    if (current.hasCombatDamage()) {
-                        flushFrame()
-                    } else {
-                        current.removeAll { pending -> pending is LeylineGameEvent.PhaseChanged && pending.isDamageStep() }
-                    }
-                    current += event
-                }
-                continue
-            }
-            current += event
-        }
-
-        flushFrame()
-        if (frames.isNotEmpty()) return frames
-
-        return listOf(
-            CombatDamageFrame(
-                filterNot { event -> event is LeylineGameEvent.PhaseChanged }
-                    .prependCombatDamagePhase(game, this),
-            ),
-        )
-    }
-
-    private fun List<LeylineGameEvent>.canSafelySplitCombatDamage(): Boolean {
-        var inDamageStep = false
-        for (event in this) {
-            val damageFact = event.combatDamageFact()
-            if (event is LeylineGameEvent.PhaseChanged) {
-                if (event.isDamageStep()) inDamageStep = true
-            } else if (damageFact != null) {
-                if (!damageFact || !inDamageStep) return false
-                if (event is LeylineGameEvent.DamageDealtToCard) return false
-            } else if (event is LeylineGameEvent.LifeChanged ||
-                event == LeylineGameEvent.CombatEnded
-            ) {
-                if (!inDamageStep) return false
-            } else {
-                if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
-            }
-        }
-        return true
-    }
-
-    private fun LeylineGameEvent.isSafeBeforeDamageStep(): Boolean =
-        this is LeylineGameEvent.CardTapped ||
-            this is LeylineGameEvent.AttackersDeclared ||
-            this is LeylineGameEvent.BlockersDeclared
-
-    private fun List<LeylineGameEvent>.lifeTotals(): Map<Int, Int> =
-        filterIsInstance<LeylineGameEvent.LifeChanged>()
-            .associate { event -> event.seatId.value to event.newLife }
-
     private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
         if (lifeTotals.isEmpty()) return this
         return mapIndexed { index, message ->
@@ -489,69 +412,6 @@ class GamePlayback(
                         .build(),
                 ).build()
         }
-    }
-
-    private fun LeylineGameEvent.PhaseChanged.isDamageStep(): Boolean =
-        step == Step.FirstStrikeDamage_a2cb.number || step == Step.CombatDamage_a2cb.number
-
-    private fun List<LeylineGameEvent>.prependCombatDamagePhase(
-        game: forge.game.Game,
-        sourceEvents: List<LeylineGameEvent>,
-    ): List<LeylineGameEvent> {
-        val activeSeat = combatDamageSourceSeat(sourceEvents) ?: currentTurnSeat(game) ?: seatId
-        val damageStep = sourceEvents.combatDamageStep()
-        return listOf(
-            LeylineGameEvent.PhaseChanged(
-                SeatId(activeSeat),
-                Phase.Combat_a549.number,
-                damageStep,
-            ),
-        ) + this
-    }
-
-    private fun List<LeylineGameEvent>.combatDamageStep(): Int =
-        run {
-            var currentDamageStep = Step.CombatDamage_a2cb.number
-            for (event in this) {
-                if (event is LeylineGameEvent.PhaseChanged) {
-                    if (event.step == Step.FirstStrikeDamage_a2cb.number || event.step == Step.CombatDamage_a2cb.number) {
-                        currentDamageStep = event.step
-                    }
-                }
-                if (event.combatDamageFact() == true) {
-                    return@run currentDamageStep
-                }
-            }
-            Step.CombatDamage_a2cb.number
-        }
-
-    private fun combatDamageSourceSeat(events: List<LeylineGameEvent>): Int? {
-        events
-            .firstNotNullOfOrNull { event ->
-                (event as? LeylineGameEvent.DamageDealtToPlayer)
-                    ?.takeIf { it.sourceKind == DamageSourceKind.Combat }
-                    ?.targetSeatId
-                    ?.value
-            }?.let { defenderSeat ->
-                val otherSeats = bridge.gameSeatIds() - defenderSeat
-                if (otherSeats.size == 1) return otherSeats.single()
-                return if (defenderSeat == 1) 2 else 1
-            }
-        val sourceId =
-            events.firstNotNullOfOrNull { event ->
-                when (event) {
-                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
-                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
-                    else -> null
-                }
-            } ?: return null
-        val controller = bridge.findCard(sourceId)?.controller ?: return null
-        return bridge.gameSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == controller }
-    }
-
-    private fun currentTurnSeat(game: forge.game.Game): Int? {
-        val turnPlayer = game.phaseHandler.playerTurn ?: return null
-        return bridge.gameSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == turnPlayer }
     }
 
     /**

@@ -100,6 +100,17 @@ class GsmSnapshot internal constructor(
             gameStateId: Int,
         ): GsmSnapshot = SnapshotCapture.run(game, bridge, matchId, gameStateId)
 
+        /**
+         * Immutable playback input materialized while the engine is paused at a
+         * frame cut. ID/cache binding still occurs inside [SnapshotCapture];
+         * removing that capture-side projection residue is a separate boundary.
+         */
+        fun captureForPlayback(
+            game: Game,
+            bridge: GameBridge,
+            matchId: String,
+        ): GsmSnapshot = SnapshotCapture.run(game, bridge, matchId, 0)
+
         /** Test fixture builder — named args with sensible defaults. */
         @VisibleForTesting
         @Suppress("LongParameterList")

@@ -3,6 +3,7 @@ package leyline.game.mapping
 import forge.card.mana.ManaCost
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.game.ManaRequirementValue
 import leyline.game.data.CardData
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement
@@ -45,24 +46,38 @@ internal object CastDisplayCost {
         player: Player,
         printed: CardData?,
         abilityGrpId: Int? = null,
-    ): List<ManaRequirement> {
+    ): List<ManaRequirement> =
+        requirementValues(sa, player, printed, abilityGrpId).map { value ->
+            val req =
+                ManaRequirement
+                    .newBuilder()
+                    .addAllColor(value.colors.mapNotNull(ManaColor::forNumber))
+                    .setCount(value.count)
+            if (value.abilityGrpId != 0) req.setAbilityGrpId(value.abilityGrpId)
+            req.build()
+        }
+
+    fun requirementValues(
+        sa: SpellAbility?,
+        player: Player,
+        printed: CardData?,
+        abilityGrpId: Int? = null,
+    ): List<ManaRequirementValue> {
         if (sa != null) {
-            of(sa, player)?.let { return ActionManaCosts.forgeManaCostToRequirements(it, abilityGrpId) }
+            of(sa, player)?.let { return ActionManaCosts.forgeManaCostToValues(it, abilityGrpId) }
             val saCost = sa.payCosts?.totalMana
             if (saCost != null && !saCost.isNoCost) {
-                return ActionManaCosts.forgeManaCostToRequirements(saCost, abilityGrpId)
+                return ActionManaCosts.forgeManaCostToValues(saCost, abilityGrpId)
             }
         }
-        return printedRequirements(printed, abilityGrpId)
+        return printedRequirementValues(printed, abilityGrpId)
     }
 
-    private fun printedRequirements(
+    private fun printedRequirementValues(
         printed: CardData?,
         abilityGrpId: Int?,
-    ): List<ManaRequirement> =
+    ): List<ManaRequirementValue> =
         printed?.manaCost.orEmpty().map { (color: ManaColor, count: Int) ->
-            val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
-            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
-            req.build()
+            ManaRequirementValue(listOf(color.number), count, abilityGrpId ?: 0)
         }
 }

@@ -144,7 +144,7 @@ internal class PayCostsInteractionHandler(
                     clearPayment(pendingPrompt.promptId)
                 }
         if (!submitted) return
-        ctx.bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 

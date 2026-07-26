@@ -83,7 +83,7 @@ class MulliganHandler(
         when (decision) {
             MulliganOption.AcceptHand -> {
                 if (!bridge.submitKeep(seatId)) return
-                bridge.awaitPriority()
+                s.awaitEnginePriority()
                 s.onMulliganKeep()
             }
             MulliganOption.Mulligan,
@@ -110,7 +110,7 @@ class MulliganHandler(
         val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
         log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId.value, tuckIds.size)
         bridge.submitTuckInstances(seatId, tuckIds.map(::InstanceId))
-        bridge.awaitPriority()
+        s.awaitEnginePriority()
         s.onMulliganKeep()
     }
 

@@ -58,27 +58,38 @@ inside the engine domain are outside this table.
 
 | Primitive | Direction | Why it remains shared | Deletion horizon |
 |---|---|---|---|
-| `MessageCounter.gsId` / `msgId` atomics plus allocation monitor | Engine playback + owner builders → one sequence | Both builder domains still allocate client-visible IDs; frame compilation holds the monitor from fork through commit. | All frame allocation and standalone message construction run in the owner outbox. |
-| `MessageCounter.lastGameStateGsId` atomic | Sink domains → owner/engine builders | Delivery publishes the latest outbound GSM while either builder may allocate its successor. | One owner outbox owns both delivery order and predecessor selection. |
-| `BundleCursor.lastSent` volatile | Owner builder ↔ engine playback builder | Both builders still share one projection baseline. | Projection build and commit move entirely onto the owner. |
+| `MessageCounter.gsId` / `msgId` atomics plus allocation monitor | Match owner → one interactive sequence | The owner forks and commits planned allocations atomically. Interactive engine callbacks never allocate IDs; spectator playback retains its separate legacy path. | Replace the allocation monitor when every standalone owner message is part of one outbox transaction. |
+| `MessageCounter.lastGameStateGsId` atomic | Owner delivery → owner builders | Delivery publishes the latest outbound GSM used by later owner allocations. | One owner outbox owns both delivery order and predecessor selection. |
+| `BundleCursor.lastSent` volatile | Match owner projection baseline | Interactive playback compilation and commit now run on the owner. Spectator playback remains separate. | Make the cursor plain owner-confined state after the remaining builder entry points join the owner. |
 | `BundleCursor.pendingPSuT` synchronized slot | Owner handler → next owner/engine builder | Accepted target facts must reach whichever domain commits the next frame. | The owner both records accepted targets and commits every next frame. |
 | `InstanceIdRegistry` atomic allocator/maps, `DiffSnapshotter.previousZones`, and `TokenIdentityRegistry` | Owner/engine builders ↔ shared projection registry | Both builder paths allocate identities, resolve retired IDs, and commit zone/token projection history. | Immutable engine observations carry planned identities and the owner alone commits all projection registries. |
 | `GameBridge` spell/modal/stack/trigger/paradigm identity maps | Owner handlers + engine callbacks → owner/engine builders | Accepted choices and engine events journal identity facts consumed during later event or frame construction. | Typed immutable observations carry the identity facts directly into owner-side frame construction. |
-| `GameEventCollector` concurrent event/zone queues, consumption lock, and pending ability/event maps | Engine EventBus → owner/engine builders | Engine callbacks append frame input while either builder may reserve and consume the exact prefix. | The engine yields one immutable event batch to the owner per observation. |
+| `GameEventCollector` stamped event/zone queues and pending ability/event maps | Engine EventBus → owner builder | An engine cut reserves a monotonic, source-tagged prefix. Owner commit validates and consumes exactly that prefix; replacement or reset invalidates the reservation. | Move the remaining mapper-side identity work into immutable cut input. |
 | `GameActionBridge` lifecycle monitor, future, and token table | Engine ↔ owner | The engine blocks with an exact action command while the owner publishes a catalog and submits or cancels a value token. | Engine continuations consume owner-mailbox commands without a cross-thread pending window. |
 | `InteractivePromptBridge` active reference, command/reveal/order/target queues, futures, and monitors | Engine ↔ owner/builders | The engine blocks inside a prompt callback while the owner revalidates/submits values and builders consume prompt-side projection facts. | Prompt publication, revalidation, continuation, and projection all use the owner mailbox. |
 | `MulliganBridge` synchronized state, sequence, and keep/tuck futures | Engine → owner → engine | The engine publishes and waits; the owner reads the pending phase and completes the matching future. | Mulligan becomes an owner-mailbox command with an explicit engine continuation. |
 | `PlayerController.pendingDamageAssignment`, `pendingOptionalAction`, and `pendingNumericInput` volatile future slots | Engine → owner → engine | The engine publishes a prompt and blocks; owner handlers discover the slot and complete its future. | These prompts publish and resume through the owner mailbox or `InteractivePromptBridge`, with no `PlayerController` field polled across domains. |
 | `PromptJournal` concurrent drain/volatile stash slots and `GameBridge.pendingLibraryArrangements` queue | Owner handlers + engine callbacks → owner/engine annotation builders | Prompt responses and callback side effects must survive until the frame or annotation builder consumes them. | Accepted-response effects travel as immutable owner commands or engine observations attached to one frame plan. |
-| `PrioritySignal` semaphore | Engine bridges → waiting owner | Engine publication must wake an owner that may not have started waiting yet. | Engine progress is appended as owner work instead of observed through a blocking wait. |
+| `PrioritySignal` semaphore | Engine bridges → waiting owner | Engine publication must wake an owner that may not have started waiting yet. The wake is followed by a typed readiness marker in the engine-cut FIFO. | Engine progress is appended as owner work instead of observed through a blocking wait. |
 | `MatchSession.autoAdvanceRequested` / `running` / `closed`, `GameBridge.autoAdvanceRequester`, and `promptTimeoutNeedsAutoAdvance` | Engine playback + lifecycle entrants → owner queue | Timeout and playback callbacks coalesce owner work while retirement suppresses or detaches stale requests. | Engine observations enqueue one generation-tagged owner command directly; owner retirement cancels it through queue lifecycle. |
 | `ClientAutoPassState` volatile options/concurrent opponent-stop set and `PhaseStopProfile` concurrent map | Owner settings → engine priority loop | Client policy changes must be visible during engine priority decisions. | Engine decisions receive an immutable policy snapshot published by the owner instead of reading mutable connection state. |
 | `GameBridge.activeGame` volatile | Engine/puzzle lifecycle → owner snapshot and handler reads | The owner still queries a live bridge whose game generation may be replaced or stopped by lifecycle work. | The engine exposes immutable generation-tagged observations; owner code no longer reads the live game holder. |
-| `GamePlayback.queue` and `queueLock` | Engine/session producers → owner/spectator consumers | Producers and consumers still share frame ordering and projection commit boundaries. | All output joins one owner-ordered outbox. |
+| `EngineCutQueue` | Engine playback/readiness → match owner | One generation-tagged FIFO orders immutable playback values before the readiness marker that lets the owner resume. | Becomes the worker-to-owner mailbox when engine execution is isolated. |
+| `GamePlayback.queue` and `queueLock` | Spectator playback → spectator pump | Spectator mode still compiles numbered output on the engine thread. Interactive matches do not use or repair against this queue. | Migrate spectator playback to the same value-yield model. |
 
-The playback queue is concurrent, but `queueLock` deliberately covers the whole
-close-events/build/advance-cursor/enqueue window and every drain. The queue type
-alone is not the transaction. Priority-action catalogs contain value-only
+The interactive playback boundary is intentionally narrower than complete
+projection purity. `GsmSnapshot` materialization still allocates projection
+identities and reads bridge caches. Owner compilation still reads
+owner-confined delayed-trigger-holder and transient linked-face baselines.
+Pending target specs remain mutable interaction facts consumed by the existing
+`buildDiff` path, and `StateMapper` retains broader bridge reads and inline
+projection computation. Moving those facts into explicit value inputs is the
+next mapper-extraction boundary; none of them restores protocol construction or
+sequence allocation to the engine callback.
+
+The spectator playback queue is concurrent, but `queueLock` deliberately
+covers the whole close-events/build/advance-cursor/enqueue window and every
+drain. The queue type alone is not the transaction. Priority-action catalogs contain value-only
 offers. Exact `PlayerAction` commands remain in `GameActionBridge`'s per-window
 token table while the priority window is live. One lifecycle monitor covers
 pending-window publication, token registration, immutable
@@ -102,16 +113,20 @@ flowchart LR
     MS --> WAIT[PrioritySignal wait]
 
     E[Forge engine thread] --> EVT[EventBus and GamePlayback]
-    EVT --> QL[queueLock: build and enqueue]
-    MS --> QL
-    SP[Spectator pump] --> QL
-    QL --> Q[Playback queue]
-    Q --> SEND[MessageSink.send]
+    EVT --> Y[PlaybackYield]
+    Y --> CUT[EngineCutQueue]
+    CUT --> OWNER
+    OWNER --> SEND[MessageSink.send]
+
+    EVT --> SQL["Spectator only: queueLock"]
+    SP[Spectator pump] --> SQL
+    SQL --> SQ[Spectator playback queue]
+    SQ --> SEND
 ```
 
-`queueLock` and the playback queue can disappear only when engine callbacks
-stop building protocol frames and every producer appends through the match
-owner's ordered outbox.
+Interactive callbacks no longer build protocol frames. `queueLock` and the
+numbered playback queue remain only for spectator mode and can disappear when
+that mode publishes value yields through the owner.
 
 A read of shared state on one execution domain is a snapshot of a moving
 system. Decisions whose correctness depends on a value remaining stable must
@@ -150,7 +165,11 @@ sequenceDiagram
     SESS->>SESS: build and send bundle
 ```
 
-The signal means "a pending item was posted." It does not mean "the engine has finished writing to shared state." `awaitPriorityWithTimeout` therefore records `MessageCounter.currentGsId()` on entry and, after the wake, waits for the counter to advance past that watermark before returning. Without this second wait, a caller can drain an empty sink.
+The signal means "a pending item was posted." It does not establish output
+order by itself. `awaitPriorityCut` therefore appends a typed readiness marker
+to `EngineCutQueue`. The owner drains every preceding playback value through
+that marker before returning from the wait. Counter progress is not used as an
+engine-completion signal.
 
 ---
 
@@ -188,9 +207,10 @@ snapshot Forge state
 
 `BridgeMutations` commits in a fixed order—ID reallocations, limbo retirements,
 zone bookkeeping, persistent-annotation batch, then `nextAnnotationId`. The
-interactive path binds offers and sends after `BundleBuilder` returns. The
-playback path performs compilation, commit, and enqueue under `queueLock`; a
-session or spectator domain drains and sends later.
+interactive owner compiles each `PlaybackYield`, commits its projection and
+reserved prefixes atomically, then sends it before later interaction output.
+The spectator path still performs compilation, commit, and enqueue under
+`queueLock`; its pump drains and sends later.
 
 This is not an atomic projection-plus-delivery transaction. An exception after
 frame finalization, during path-specific assembly, or during projection commit
@@ -205,17 +225,16 @@ intended to close this remaining gap.
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
 
-**R2. One cursor per bridge, shared across builders.** `MatchSession` and
-`GamePlayback` each construct a `BundleBuilder`, but both receive
-`bridge.bundleCursor`. Separate cursors would produce diffs against different
-histories. `BundleCursor.lastSent` is volatile for publication, while the match
-owner, `queueLock`, priority waits, and queue ordering provide the larger
-sequencing contract.
+**R2. One interactive cursor, committed by the owner.** Interactive
+`GamePlayback` publishes a value only. `MatchSession` is the sole compiler and
+committer for that value and later interaction frames. Spectator playback keeps
+its legacy builder and cursor coordination until its own migration.
 
-**R3. Preserve playback-before-session delivery.** `sendBundledGRE` drains
-queued playback batches with lower message or game-state IDs before sending the
-caller's batch. Do not bypass that funnel while engine callbacks can still
-construct and enqueue frames.
+**R3. Preserve playback-before-session delivery.** Interactive playback and
+readiness share one `EngineCutQueue`. Owner waits drain every playback value
+before the readiness marker, then later owner work may allocate. No lower-ID
+repair path exists in `MatchSession`. Drain-before-ID remains a spectator-only
+legacy rule until spectator playback adopts value yields.
 
 ---
 
@@ -229,14 +248,15 @@ bookkeeping does not: `OwnerProtocolState.lastPromptGsId` and
 delivery. `ActionPerformer`, `CombatHandler`, and `ResponseEnvelopeGuard` read
 that state within the same owner domain. Validator hard failures are
 intentionally limited to the stable gsId facts plus AIC/AID affector
-consistency. Both allocated IDs live on one
-`MessageCounter` instance shared by `MatchSession`, `GameBridge`,
-`GamePlayback`, and `BundleBuilder`. Projection-building paths allocate against
-a fork and advance the shared counter in frame commit; standalone message
-builders still allocate directly. Every public frame build holds the counter's
-allocation lock from fork through commit. Direct standalone allocation uses
-that same lock, so legitimate interleaving cannot invalidate an already
-compiled frame.
+consistency. Both allocated IDs live on the `MessageCounter` owned by
+`MatchSession` for an interactive match. Owner projection paths allocate
+against a fork and advance the counter in frame commit; standalone owner
+message builders still allocate directly. Every public frame build holds the
+counter's allocation lock from fork through commit. Direct standalone
+allocation uses that same lock, so legitimate interleaving cannot invalidate
+an already compiled frame. Spectator `GamePlayback` retains its own legacy
+counter and numbered queue; interactive playback never allocates on the engine
+thread.
 
 A partitioned design (a range of IDs per thread) cannot guarantee client-visible ordering without coordination on every send, which is the problem the shared atomic already solves. A predecessor design with two counters and a `max()`-merge at every bridge callback existed; the current shape removes the problem rather than patching it.
 
@@ -250,14 +270,14 @@ mid-mutation—triggers firing, SBAs resolving, or `GamePlayback` materializing 
 frame—when phase transitions fire.
 
 **Invariant.** Before an interactive-session handler builds an outbound GRE
-message in response to a phase, it must call `bridge.awaitPriority()` (or
-`awaitPriorityWithTimeout` with a tighter budget).
+message in response to a phase, it must wait through the owner-bound
+`EngineCutAwaiter`.
 
 The wait guarantees three things hold when it returns:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
-2. `MessageCounter` has advanced past its pre-wait watermark.
-3. `BundleCursor.lastSent` has settled: any engine-thread bundle from the preceding action has already advanced the cursor.
+2. The owner has drained every playback value preceding the readiness marker.
+3. `BundleCursor.lastSent` has settled because those values were compiled and committed by the owner.
 
 A send that skips `awaitPriority` is a send built from a half-mutated engine state. The resulting GSM diff will be inconsistent with what the client should observe.
 
@@ -294,11 +314,12 @@ copy.
 
 `GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is synchronous on the engine thread: the `@Subscribe` method runs on `game-loop-<id>`, mid-way through whatever engine operation fired the event. Three rules follow.
 
-**Only bounded internal coordination.** A subscriber may read engine state,
-compile and commit a frame plan, and enqueue its batch. `GamePlayback`
-deliberately acquires `queueLock` around close-events, compilation, commit, and
-enqueue so a drain cannot observe half a transaction. A subscriber must not
-synchronously enter the match owner, perform
+**Only bounded internal coordination.** Interactive subscribers may read
+engine state, reserve an input prefix, and publish an immutable
+`PlaybackYield`. They do not build protocol messages, allocate protocol IDs,
+advance projection cursors, or commit reservations. Spectator playback retains
+its bounded legacy build under `queueLock`. A subscriber must not synchronously
+enter the match owner, perform
 I/O, or wait on an external resource. Keep `queueLock` hold time bounded and
 never create a reverse path where its drainer waits for the engine while
 holding the lock.
@@ -307,7 +328,9 @@ holding the lock.
 deliberately `Thread.sleep`s at key events to pace remote turns for the human
 viewer. The sleep freezes engine progress: engine state cannot mutate while the
 subscriber is running, which is the window in which it materializes a coherent
-snapshot.
+snapshot. When several yields accumulate before the owner regains control,
+`MatchSession` also spaces successive playback deliveries so those earlier
+engine pauses do not collapse into one client burst.
 
 **Combat declarations are materialized unconditionally.** Unlike other events,
 which become playback frames only during remote turns,

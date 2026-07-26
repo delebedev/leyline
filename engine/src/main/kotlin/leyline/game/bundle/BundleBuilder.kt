@@ -10,6 +10,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.game.NaiveGsmAction
+import leyline.game.PlaybackYield
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.event.FrameEventLog
@@ -200,7 +202,8 @@ class BundleBuilder(
     )
 
     private fun buildFrameDraft(
-        game: Game,
+        @Suppress("CanBeNonNullable")
+        game: Game?,
         counter: MessageCounter,
         revealForSeat: Int? = null,
         eventsOverride: FrameEventLog? = null,
@@ -211,7 +214,7 @@ class BundleBuilder(
         val nextGs = counter.nextGsId()
         val snap =
             projectionBaseline.snapTemplate?.withGameStateId(nextGs)
-                ?: GsmSnapshot.capture(game, bridge, matchId, nextGs)
+                ?: GsmSnapshot.capture(checkNotNull(game), bridge, matchId, nextGs)
         val bundleFrameReservation =
             when {
                 bundleFrameReservationOverride != null -> bundleFrameReservationOverride
@@ -256,7 +259,7 @@ class BundleBuilder(
     }
 
     private fun buildFrameDiff(
-        game: Game,
+        game: Game?,
         counter: MessageCounter,
         revealForSeat: Int? = null,
         eventsOverride: FrameEventLog? = null,
@@ -354,10 +357,11 @@ class BundleBuilder(
 
     private fun compileAndCommit(
         counter: MessageCounter,
+        releaseReservationOnFailure: Boolean = true,
         compile: () -> FramePlan,
     ): BundleResult =
         counter.withAllocationLock {
-            commit(compile(), counter)
+            commit(compile(), counter, releaseReservationOnFailure)
         }
 
     private fun FrameDiff.planDraft(
@@ -391,79 +395,19 @@ class BundleBuilder(
     internal fun commit(
         plan: FramePlan,
         counter: MessageCounter,
+        releaseReservationOnFailure: Boolean = true,
     ): BundleResult {
         val projection = plan.projection
-        counter.commitAllocation(projection.counterBefore, projection.counterAfter) {
-            val commitProjection = {
-                synchronized(cursor) {
-                    projection.pendingSubmittedTargets?.let { pending ->
-                        val currentPending = cursor.pendingPSuT()
-                        check(currentPending == pending) {
-                            "Pending PlayerSubmittedTargets changed before projection commit: " +
-                                "expected=$pending, actual=$currentPending"
-                        }
-                    }
-                    projection.pendingOrderZoneMove?.let { pending ->
-                        check(
-                            bridge.promptBridge(SeatId(seatId)).pendingOrderZoneMove(
-                                pending.seatId,
-                                pending.forgeCardIds,
-                            ) == pending,
-                        ) {
-                            "Pending order zone move changed before projection commit"
-                        }
-                    }
-                    projection.observation?.let { observation ->
-                        bridge.diffListener?.invoke(
-                            observation.previous,
-                            observation.current,
-                            observation.events,
-                            observation.gameStateId,
-                            observation.message,
-                        )
-                    }
-                    projection.mutations?.let(bridge::applyMutations)
-                    if (projection.mutations == null) {
-                        projection.nextAnnotationId?.let(bridge.annotations::setAnnotationId)
-                    }
-                    cursor.lastSent = projection.nextBaseline
-                    projection.pendingSubmittedTargets?.let(cursor::consumePSuT)
-                    projection.pendingOrderZoneMove?.let {
-                        bridge.promptBridge(SeatId(seatId)).consumePendingOrderZoneMove(it)
-                    }
-                }
-            }
-            val reservation = projection.bundleFrameReservation
-            if (reservation != null) {
-                bridge.commitBundleFrame(reservation, commitProjection)
-            } else {
-                commitProjection()
-            }
-        }
-        return plan.delivery()
-    }
-
-    private fun commitComposite(
-        plans: List<FramePlan>,
-        counter: MessageCounter,
-        reservation: GameBridge.BundleFrameReservation,
-    ): List<BundleResult> {
-        check(plans.isNotEmpty()) { "Composite frame requires at least one plan" }
-        plans.zipWithNext().forEach { (current, next) ->
-            check(current.projection.counterAfter == next.projection.counterBefore) {
-                "Composite frame counter allocations are not contiguous"
-            }
-        }
-        val first = plans.first().projection
-        val last = plans.last().projection
-        counter.commitAllocation(first.counterBefore, last.counterAfter) {
-            bridge.commitBundleFrame(reservation) {
-                synchronized(cursor) {
-                    plans.forEach { plan ->
-                        val projection = plan.projection
+        val reservation = projection.bundleFrameReservation
+        try {
+            counter.commitAllocation(projection.counterBefore, projection.counterAfter) {
+                val commitProjection = {
+                    synchronized(cursor) {
                         projection.pendingSubmittedTargets?.let { pending ->
-                            check(cursor.pendingPSuT() == pending) {
-                                "Pending PlayerSubmittedTargets changed before composite projection commit"
+                            val currentPending = cursor.pendingPSuT()
+                            check(currentPending == pending) {
+                                "Pending PlayerSubmittedTargets changed before projection commit: " +
+                                    "expected=$pending, actual=$currentPending"
                             }
                         }
                         projection.pendingOrderZoneMove?.let { pending ->
@@ -473,12 +417,10 @@ class BundleBuilder(
                                     pending.forgeCardIds,
                                 ) == pending,
                             ) {
-                                "Pending order zone move changed before composite projection commit"
+                                "Pending order zone move changed before projection commit"
                             }
                         }
-                    }
-                    plans.forEach { plan ->
-                        plan.projection.observation?.let { observation ->
+                        projection.observation?.let { observation ->
                             bridge.diffListener?.invoke(
                                 observation.previous,
                                 observation.current,
@@ -487,9 +429,6 @@ class BundleBuilder(
                                 observation.message,
                             )
                         }
-                    }
-                    plans.forEach { plan ->
-                        val projection = plan.projection
                         projection.mutations?.let(bridge::applyMutations)
                         if (projection.mutations == null) {
                             projection.nextAnnotationId?.let(bridge.annotations::setAnnotationId)
@@ -501,7 +440,88 @@ class BundleBuilder(
                         }
                     }
                 }
+                if (reservation != null) {
+                    bridge.commitBundleFrame(reservation, commitProjection)
+                } else {
+                    commitProjection()
+                }
             }
+        } catch (failure: Throwable) {
+            if (releaseReservationOnFailure) {
+                reservation?.let(bridge::releaseBundleFrame)
+            }
+            throw failure
+        }
+        return plan.delivery()
+    }
+
+    private fun commitComposite(
+        plans: List<FramePlan>,
+        counter: MessageCounter,
+        reservation: GameBridge.BundleFrameReservation,
+        releaseReservationOnFailure: Boolean = true,
+    ): List<BundleResult> {
+        check(plans.isNotEmpty()) { "Composite frame requires at least one plan" }
+        plans.zipWithNext().forEach { (current, next) ->
+            check(current.projection.counterAfter == next.projection.counterBefore) {
+                "Composite frame counter allocations are not contiguous"
+            }
+        }
+        val first = plans.first().projection
+        val last = plans.last().projection
+        try {
+            counter.commitAllocation(first.counterBefore, last.counterAfter) {
+                bridge.commitBundleFrame(reservation) {
+                    synchronized(cursor) {
+                        plans.forEach { plan ->
+                            val projection = plan.projection
+                            projection.pendingSubmittedTargets?.let { pending ->
+                                check(cursor.pendingPSuT() == pending) {
+                                    "Pending PlayerSubmittedTargets changed before composite projection commit"
+                                }
+                            }
+                            projection.pendingOrderZoneMove?.let { pending ->
+                                check(
+                                    bridge.promptBridge(SeatId(seatId)).pendingOrderZoneMove(
+                                        pending.seatId,
+                                        pending.forgeCardIds,
+                                    ) == pending,
+                                ) {
+                                    "Pending order zone move changed before composite projection commit"
+                                }
+                            }
+                        }
+                        plans.forEach { plan ->
+                            plan.projection.observation?.let { observation ->
+                                bridge.diffListener?.invoke(
+                                    observation.previous,
+                                    observation.current,
+                                    observation.events,
+                                    observation.gameStateId,
+                                    observation.message,
+                                )
+                            }
+                        }
+                        plans.forEach { plan ->
+                            val projection = plan.projection
+                            projection.mutations?.let(bridge::applyMutations)
+                            if (projection.mutations == null) {
+                                projection.nextAnnotationId?.let(bridge.annotations::setAnnotationId)
+                            }
+                            cursor.lastSent = projection.nextBaseline
+                            projection.pendingSubmittedTargets?.let(cursor::consumePSuT)
+                            projection.pendingOrderZoneMove?.let {
+                                bridge.promptBridge(SeatId(seatId)).consumePendingOrderZoneMove(it)
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (failure: Throwable) {
+            if (releaseReservationOnFailure) {
+                bridge.releaseBundleFrame(reservation)
+            }
+            throw failure
         }
         return plans.map(FramePlan::delivery)
     }
@@ -568,6 +588,28 @@ class BundleBuilder(
 
     private fun GsmSnapshot.withPersistentAnnotationState(state: PersistentAnnotationState): GsmSnapshot =
         copyProjection(gameStateId = gameStateId, persistentAnnotationState = state)
+
+    private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
+        if (lifeTotals.isEmpty()) return this
+        return mapIndexed { index, message ->
+            if (index != 0 || !message.hasGameStateMessage()) return@mapIndexed message
+            val gsm = message.gameStateMessage
+            val players =
+                gsm.playersList.map { player ->
+                    lifeTotals[player.systemSeatNumber]
+                        ?.let { life -> player.toBuilder().setLifeTotal(life).build() }
+                        ?: player
+                }
+            message
+                .toBuilder()
+                .setGameStateMessage(
+                    gsm
+                        .toBuilder()
+                        .clearPlayers()
+                        .addAllPlayers(players),
+                ).build()
+        }
+    }
 
     private fun GsmSnapshot.copyProjection(
         gameStateId: Int,
@@ -786,6 +828,99 @@ class BundleBuilder(
             commitComposite(plans, counter, bundleFrameReservation)
         }
 
+    internal fun playbackYield(
+        input: PlaybackYield,
+        counter: MessageCounter,
+    ): List<BundleResult> {
+        if (input.combatFrames.isEmpty()) {
+            return listOf(
+                compileAndCommit(counter, releaseReservationOnFailure = false) {
+                    compileRemoteActionDiff(input, counter)
+                },
+            )
+        }
+        return counter.withAllocationLock {
+            val sourceSnapshot = input.snapshot
+
+            fun compileUnsplit(): List<BundleResult> {
+                val fallbackCounter = MessageCounter.fork(counter.snapshot())
+                val plan =
+                    compilePlanOn(fallbackCounter) { sequenceCounter ->
+                        buildRemoteActionDraft(
+                            game = null,
+                            plannedCounter = sequenceCounter,
+                            eventsOverride = input.events,
+                            bundleFrameReservationOverride = input.reservation,
+                            naiveActionsOverride = input.naiveActions,
+                            projectionBaseline =
+                                FrameProjectionBaseline(
+                                    previousSnap = cursor.lastSent,
+                                    snapTemplate = sourceSnapshot,
+                                    delayedTriggerHolders = bridge.delayedTriggerHolders.activeRecords(),
+                                    transientLinkedFaceFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds(),
+                                ),
+                        )
+                    }
+                return@compileUnsplit commitComposite(
+                    listOf(plan),
+                    counter,
+                    input.reservation,
+                    releaseReservationOnFailure = false,
+                )
+            }
+
+            if (
+                input.events.zoneMoves.isNotEmpty() ||
+                bridge.snapshotPendingTargetSpecs().isNotEmpty() ||
+                cursor.lastSent?.hasCardZoneDelta(sourceSnapshot) == true
+            ) {
+                return@withAllocationLock compileUnsplit()
+            }
+
+            val plannedCounter = MessageCounter.fork(counter.snapshot())
+            var projectionBaseline =
+                FrameProjectionBaseline(
+                    previousSnap = cursor.lastSent,
+                    snapTemplate = sourceSnapshot,
+                    delayedTriggerHolders = bridge.delayedTriggerHolders.activeRecords(),
+                    transientLinkedFaceFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds(),
+                )
+            val plans = mutableListOf<FramePlan>()
+            input.combatFrames.forEachIndexed { index, frame ->
+                val plan =
+                    compilePlanOn(plannedCounter) { sequenceCounter ->
+                        buildRemoteActionDraft(
+                            game = null,
+                            plannedCounter = sequenceCounter,
+                            eventsOverride = frame.events,
+                            naiveActionsOverride = input.naiveActions,
+                            projectionBaseline = projectionBaseline,
+                            includePendingSubmittedTargets = index == 0,
+                        )
+                    }
+                if (
+                    index < input.combatFrames.lastIndex &&
+                    plan.projection.mutations?.requiresCommittedBridgeState() == true
+                ) {
+                    return@withAllocationLock compileUnsplit()
+                }
+                projectionBaseline = projectionBaseline.advance(plan.projection)
+                plans += plan
+            }
+            val results =
+                commitComposite(
+                    plans,
+                    counter,
+                    input.reservation,
+                    releaseReservationOnFailure = false,
+                )
+            if (results.size != input.combatFrames.size) return@withAllocationLock results
+            results.zip(input.combatFrames) { result, frame ->
+                result.copy(messages = result.messages.withLifeTotals(frame.lifeTotals))
+            }
+        }
+    }
+
     internal fun compileRemoteActionDiff(
         game: Game,
         counter: MessageCounter,
@@ -803,14 +938,37 @@ class BundleBuilder(
             )
         }
 
+    internal fun compileRemoteActionDiff(
+        input: PlaybackYield,
+        counter: MessageCounter,
+    ): FramePlan =
+        compilePlan(counter) { plannedCounter ->
+            buildRemoteActionDraft(
+                game = null,
+                plannedCounter = plannedCounter,
+                turnStarted = input.turnStarted,
+                eventsOverride = input.events,
+                bundleFrameReservationOverride = input.reservation,
+                naiveActionsOverride = input.naiveActions,
+                projectionBaseline =
+                    FrameProjectionBaseline(
+                        previousSnap = cursor.lastSent,
+                        snapTemplate = input.snapshot,
+                        delayedTriggerHolders = bridge.delayedTriggerHolders.activeRecords(),
+                        transientLinkedFaceFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds(),
+                    ),
+            )
+        }
+
     private fun buildRemoteActionDraft(
-        game: Game,
+        game: Game?,
         plannedCounter: MessageCounter,
         turnStarted: Boolean = false,
         eventsOverride: FrameEventLog? = null,
         bundleFrameReservationOverride: GameBridge.BundleFrameReservation? = null,
         projectionBaseline: FrameProjectionBaseline = FrameProjectionBaseline(cursor.lastSent),
         includePendingSubmittedTargets: Boolean = true,
+        naiveActionsOverride: List<NaiveGsmAction>? = null,
     ): FramePlanDraft {
         val diff =
             buildFrameDiff(
@@ -829,14 +987,24 @@ class BundleBuilder(
                 },
             ) { _, _ -> GameStateUpdate.SendHiFi }
         val nextGs = diff.gameStateId
-        val actions = ActionMapper.buildNaiveActions(seatId, bridge, diff.idResolver::cardIid)
+        val actions =
+            naiveActionsOverride?.map { ActionMapper.buildNaiveGsmAction(it, diff.idResolver::cardIid) }
+                ?: ActionMapper
+                    .buildNaiveActions(seatId, bridge, diff.idResolver::cardIid)
+                    .actionsList
         val gsBuilder = diff.result.gsm.toBuilder()
-        for (action in actions.actionsList) {
+        for (action in actions) {
             gsBuilder.addActions(
                 ActionInfo
                     .newBuilder()
                     .setSeatId(seatId)
-                    .setAction(ActionMapper.stripActionForGsm(action)),
+                    .setAction(
+                        if (naiveActionsOverride == null) {
+                            ActionMapper.stripActionForGsm(action)
+                        } else {
+                            action
+                        },
+                    ),
             )
         }
         val gs = gsBuilder.build()

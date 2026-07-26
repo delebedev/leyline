@@ -22,6 +22,9 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.ManaRequirementValue
+import leyline.game.NaiveGsmAction
+import leyline.game.NaiveGsmActionKind
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
@@ -1737,6 +1740,41 @@ object ActionMapper {
             b.setInstanceId(action.instanceId)
         }
         return b.build()
+    }
+
+    /** Compile one engine-neutral playback action into its embedded GSM form. */
+    internal fun buildNaiveGsmAction(
+        value: NaiveGsmAction,
+        idResolver: (ForgeCardId) -> InstanceId,
+    ): Action {
+        val builder =
+            Action
+                .newBuilder()
+                .setActionType(
+                    when (value.kind) {
+                        NaiveGsmActionKind.CAST -> ActionType.Cast
+                        NaiveGsmActionKind.CAST_ADVENTURE -> ActionType.CastAdventure
+                        NaiveGsmActionKind.CAST_MDFC -> ActionType.CastMdfc
+                        NaiveGsmActionKind.ACTIVATE_MANA -> ActionType.ActivateMana
+                        NaiveGsmActionKind.PASS -> ActionType.Pass
+                        NaiveGsmActionKind.FLOAT_MANA -> ActionType.FloatMana
+                    },
+                )
+        value.forgeCardId?.let { builder.instanceId = idResolver(it).value }
+        if (value.abilityGrpId != 0) builder.abilityGrpId = value.abilityGrpId
+        value.sourceForgeCardId?.let { builder.sourceId = idResolver(it).value }
+        builder.addAllManaCost(value.manaCost.map(::buildManaRequirement))
+        return builder.build()
+    }
+
+    private fun buildManaRequirement(value: ManaRequirementValue): ManaRequirement {
+        val builder =
+            ManaRequirement
+                .newBuilder()
+                .addAllColor(value.colors.mapNotNull(ManaColor::forNumber))
+                .setCount(value.count)
+        if (value.abilityGrpId != 0) builder.abilityGrpId = value.abilityGrpId
+        return builder.build()
     }
 
     /**

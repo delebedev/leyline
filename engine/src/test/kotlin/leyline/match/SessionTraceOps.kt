@@ -24,7 +24,21 @@ class SessionTraceOps(
         BundleBuilder(gameBridge, matchId, seatId.value)
 
     /** Snapshot for handler construction in tests. */
-    val ctx: SessionContext = SessionContext(gameBridge)
+    val ctx: SessionContext =
+        SessionContext(
+            gameBridge,
+            object : EngineCutAwaiter {
+                override fun awaitPriority(): Boolean = awaitEnginePriority()
+
+                override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean = awaitEnginePriorityWithTimeout(timeoutMs)
+
+                override fun awaitActionPriority(): Boolean = awaitEnginePriority()
+            },
+        )
+
+    override fun awaitEnginePriority(): Boolean = gameBridge.awaitPriorityWithTimeout(gameBridge.priorityWaitMs)
+
+    override fun awaitEnginePriorityWithTimeout(timeoutMs: Long): Boolean = gameBridge.awaitPriorityWithTimeout(timeoutMs)
 
     // --- Traced calls ---
 
