@@ -37,7 +37,6 @@ import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
-import java.util.concurrent.CompletableFuture
 
 /**
  * Reveal subsystem tests.
@@ -381,7 +380,6 @@ class RevealTest :
                         unfilteredRefs = unfilteredRefs,
                         sourceEntityId = sourceEntityId,
                     ),
-                future = CompletableFuture(),
             )
     }
 }

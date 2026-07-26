@@ -19,7 +19,11 @@ import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
+import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PayCostsRouteKind
+import leyline.bridge.handoff.PromptAbilityAdvisor
+import leyline.bridge.handoff.PromptAdviceRequest
+import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -84,7 +88,7 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 class ForgeAiPolicy(
     private val harness: MatchFlowHarness,
     private val seatId: SeatId,
-) {
+) : PromptAbilityAdvisor {
     /** Resolved on first use — bridge is `lateinit` and not ready at construction. */
     private val seatPlayer: Player by lazy {
         harness.bridge.getPlayer(seatId)
@@ -282,31 +286,19 @@ class ForgeAiPolicy(
         if (!canChooseStaticColorSelectN(msg)) return null
         val req = msg.selectNReq
         val pending = harness.bridge.promptBridge(seatId).getPendingPrompt()
-        val sa =
-            pending?.targetingSa
-                ?: harness
-                    .game()
-                    .stack
-                    .firstOrNull()
-                    ?.spellAbility
         val allowedIds = allowedStaticColorIds(req, pending?.request?.staticOptionIds.orEmpty())
-        val allowedColors = colorSetFromStaticIds(allowedIds)
-        if (allowedColors.isColorless) return null
-        val colors =
-            askAi("chooseColors") {
-                aiController.chooseColors(
-                    pending?.request?.message.orEmpty(),
-                    sa,
-                    req.minSel.coerceAtLeast(1),
-                    (if (req.maxSel > 0) req.maxSel else req.minSel).coerceAtLeast(1),
-                    allowedColors,
-                )
-            } ?: return null
-        val selected = colors.toStaticColorIds().filter { it in allowedIds }.take(selectNCount(req))
-        return selected.takeIf { it.isNotEmpty() }
+        val prompt = pending ?: return null
+        return requestPromptAdvice(
+            prompt.promptId,
+            PromptAdviceRequest.StaticColors(
+                allowedIds = allowedIds,
+                min = req.minSel.coerceAtLeast(1),
+                max = (if (req.maxSel > 0) req.maxSel else req.minSel).coerceAtLeast(1),
+            ),
+        )
     }
 
-    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean = sacrificeCostContext(msg) != null
+    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean = sacrificeCostPrompt(msg) != null
 
     /**
      * Recover the Forge-AI cost decision for a sacrifice cost-payment prompt.
@@ -322,29 +314,24 @@ class ForgeAiPolicy(
      * being submitted — it degrades to greedy instead.
      */
     fun chooseSacrificeCostPayment(msg: GREToClientMessage): List<Int>? {
-        val (sa, costPart) = sacrificeCostContext(msg) ?: return null
-        val decision =
-            askAi("sacrificeCostDecision") {
-                costPart.accept(AiCostDecision(seatPlayer, sa, false))
-            } ?: return null
-        val chosenIds = decision.cards.map { instanceIdForCard(it) }
-        return sacrificeCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+        val prompt = sacrificeCostPrompt(msg) ?: return null
+        val selection = msg.payCostsReq.effectCostReq.costSelection
+        val min = selection.minSel.coerceAtLeast(0)
+        val max = if (selection.maxSel > 0) selection.maxSel else min
+        return requestPromptAdvice(
+            prompt.promptId,
+            PromptAdviceRequest.SacrificeCost(selection.idsList, min, max),
+        )
     }
 
-    private fun sacrificeCostContext(msg: GREToClientMessage): Pair<SpellAbility, CostSacrifice>? {
+    private fun sacrificeCostPrompt(msg: GREToClientMessage): InteractivePromptBridge.PendingPrompt? {
         if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
         if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
         val bridge = runCatching { harness.bridge }.getOrNull() ?: return null
         val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
         val route = pending.request.route as? ResolvedPromptRoute.PayCosts ?: return null
         if (route.descriptor.kind != PayCostsRouteKind.Sacrifice) return null
-        val sa = pending.targetingSa ?: return null
-        val costPart =
-            sa.payCosts
-                ?.costParts
-                ?.filterIsInstance<CostSacrifice>()
-                ?.firstOrNull() ?: return null
-        return sa to costPart
+        return pending
     }
 
     fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
@@ -373,25 +360,11 @@ class ForgeAiPolicy(
             msg.selectTargetsReq.targetsList
                 .sumOf { group -> group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets }
                 .coerceAtLeast(minCount)
-        val sa =
-            harness.bridge
-                .promptBridge(seatId)
-                .getPendingPrompt()
-                ?.targetingSa ?: return null
-        val previousTargets = sa.targets.clone()
-        val chosenTargets =
-            try {
-                sa.targets.clear()
-                val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
-                if (!chose) return null
-                sa.targets.toList()
-            } finally {
-                sa.targets.clear()
-                sa.targets.addAll(previousTargets)
-            }
-        if (chosenTargets.size !in minCount..maxCount) return null
-        val selectedIds = chosenTargets.map { targetInstanceId(it) ?: return null }
-        return selectedIds.takeIf { ids -> ids.size == ids.distinct().size && ids.all { it in selectableIds } }
+        val prompt = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
+        return requestPromptAdvice(
+            prompt.promptId,
+            PromptAdviceRequest.SelectTargets(selectableIds, minCount, maxCount),
+        )
     }
 
     fun canChooseCastingTimeOptions(msg: GREToClientMessage): Boolean {
@@ -424,28 +397,116 @@ class ForgeAiPolicy(
                 .modalReq
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
         val pending = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
-        val sa = pending.targetingSa ?: return null
+        return requestPromptAdvice(
+            pending.promptId,
+            PromptAdviceRequest.ModalChoice(modalGrpIds),
+        )
+    }
+
+    private fun requestPromptAdvice(
+        promptId: String,
+        request: PromptAdviceRequest,
+    ): List<Int>? {
+        val promptBridge = harness.bridge.promptBridge(seatId)
+        promptBridge.promptAbilityAdvisor = this
+        return promptBridge.requestPromptAdvice(promptId, request)
+    }
+
+    override fun advise(
+        ability: SpellAbility,
+        prompt: PromptRequest,
+        request: PromptAdviceRequest,
+    ): List<Int>? =
+        when (request) {
+            is PromptAdviceRequest.StaticColors -> adviseStaticColors(ability, prompt, request)
+            is PromptAdviceRequest.SacrificeCost -> adviseSacrificeCost(ability, request)
+            is PromptAdviceRequest.SelectTargets -> adviseSelectTargets(ability, request)
+            is PromptAdviceRequest.ModalChoice -> adviseModalChoice(ability, prompt, request)
+        }
+
+    private fun adviseStaticColors(
+        ability: SpellAbility,
+        prompt: PromptRequest,
+        request: PromptAdviceRequest.StaticColors,
+    ): List<Int>? {
+        val allowedColors = colorSetFromStaticIds(request.allowedIds)
+        if (allowedColors.isColorless) return null
+        val colors =
+            askAi("chooseColors") {
+                aiController.chooseColors(prompt.message, ability, request.min, request.max, allowedColors)
+            } ?: return null
+        return colors
+            .toStaticColorIds()
+            .filter { it in request.allowedIds }
+            .take(request.max)
+            .takeIf { it.size >= request.min }
+    }
+
+    private fun adviseSacrificeCost(
+        ability: SpellAbility,
+        request: PromptAdviceRequest.SacrificeCost,
+    ): List<Int>? {
+        val costPart =
+            ability.payCosts
+                ?.costParts
+                ?.filterIsInstance<CostSacrifice>()
+                ?.firstOrNull() ?: return null
+        val decision =
+            askAi("sacrificeCostDecision") {
+                costPart.accept(AiCostDecision(seatPlayer, ability, false))
+            } ?: return null
+        val chosenIds = decision.cards.map(::instanceIdForCard)
+        if (chosenIds.any { it == 0 || it !in request.selectableIds }) return null
+        if (chosenIds.distinct().size != chosenIds.size) return null
+        return chosenIds.takeIf { it.size in request.min..request.max }
+    }
+
+    private fun adviseSelectTargets(
+        ability: SpellAbility,
+        request: PromptAdviceRequest.SelectTargets,
+    ): List<Int>? {
+        val previousTargets = ability.targets.clone()
+        val chosenTargets =
+            try {
+                ability.targets.clear()
+                val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(ability) } ?: false
+                if (!chose) return null
+                ability.targets.toList()
+            } finally {
+                ability.targets.clear()
+                ability.targets.addAll(previousTargets)
+            }
+        if (chosenTargets.size !in request.min..request.max) return null
+        val selectedIds = chosenTargets.map { targetInstanceId(it) ?: return null }
+        return selectedIds.takeIf { ids ->
+            ids.size == ids.distinct().size && ids.all { it in request.selectableIds }
+        }
+    }
+
+    private fun adviseModalChoice(
+        ability: SpellAbility,
+        prompt: PromptRequest,
+        request: PromptAdviceRequest.ModalChoice,
+    ): List<Int>? {
         val possible =
             modalPossibleAbilities(
-                sa,
-                pending.request.modalChoice
-                    ?.possible
-                    ?.map { it.fullIndex },
-                modalGrpIds.size,
+                ability,
+                prompt.modalChoice?.possible?.map { it.fullIndex },
+                request.modalGrpIds.size,
             ) ?: return null
-        modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
-        modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
-        val previousSub = sa.subAbility
-        val previousChosen = sa.chosenList
+        modalChoiceGrpIds(ability.chosenList, possible, request.modalGrpIds)?.let { return it }
+        modalChoiceGrpIds(subAbilityChain(ability.subAbility), possible, request.modalGrpIds)?.let { return it }
+        val previousSub = ability.subAbility
+        val previousChosen = ability.chosenList
         val chosen =
             try {
-                sa.subAbility = null
-                askAi("chooseModeForAbility") { aiController.chooseModeForAbility(sa, possible, 1, 1, false) }
+                ability.subAbility = null
+                askAi("chooseModeForAbility") { aiController.chooseModeForAbility(ability, possible, 1, 1, false) }
             } finally {
-                sa.subAbility = previousSub
-                sa.chosenList = previousChosen
+                ability.subAbility = previousSub
+                ability.chosenList = previousChosen
             } ?: return null
-        return modalChoiceGrpIds(chosen, possible, modalGrpIds)
+        return modalChoiceGrpIds(chosen, possible, request.modalGrpIds)
     }
 
     private fun chooseOptionalCastingTimeOptions(msg: GREToClientMessage): Int? {

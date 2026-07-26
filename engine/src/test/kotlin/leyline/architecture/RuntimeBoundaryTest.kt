@@ -5,7 +5,11 @@ import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.core.spec.style.FunSpec
 import leyline.UnitTag
-import java.nio.file.Files
+import leyline.bridge.handoff.DamageAssignmentPrompt
+import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.NumericInputPrompt
+import leyline.bridge.handoff.OptionalActionPrompt
+import leyline.bridge.types.PriorityActionFacts
 import java.nio.file.Path
 
 /**
@@ -35,46 +39,46 @@ class RuntimeBoundaryTest :
                     buildDir.resolve("java/main"),
                 )
 
-        val sourceRoot =
-            sequenceOf(
-                cwd.resolve("src/main/kotlin"),
-                cwd.resolve("engine/src/main/kotlin"),
-            ).first { it.resolve("leyline").toFile().isDirectory }
+        test("match orchestration has zero semantic Forge dependencies") {
+            noClasses()
+                .that()
+                .resideInAnyPackage("leyline.match..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .because("live engine objects stay behind immutable value and command seams")
+                .check(classes)
+        }
 
-        test("match Forge imports stay within the frozen migration allowlist") {
-            // This is an upper bound, not an expected-equality snapshot: existing
-            // imports may disappear without editing the test, while any new
-            // importing file fails. Remove names only after their imports are gone.
-            val allowedViolators =
-                setOf(
-                    "AutoPassEngine.kt",
-                    "SessionContext.kt",
-                    "MatchSession.kt",
-                    "CombatHandler.kt",
-                    "DeferredCastCostInteractionHandler.kt",
-                    "OptionalActionHandler.kt",
-                    "PayCostsInteractionHandler.kt",
-                    "PuzzleHandler.kt",
+        test("session-facing prompt and priority facts contain no Forge objects") {
+            val valueTypes =
+                listOf(
+                    InteractivePromptBridge.PendingPrompt::class.java,
+                    DamageAssignmentPrompt::class.java,
+                    OptionalActionPrompt::class.java,
+                    NumericInputPrompt::class.java,
+                    PriorityActionFacts::class.java,
                 )
-            val matchRoot = sourceRoot.resolve("leyline/match")
-            val violators = mutableSetOf<String>()
-            val stream = Files.walk(matchRoot)
-            try {
-                stream
-                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
-                    .forEach { file ->
-                        if (Files.readAllLines(file).any { it.trim().startsWith("import forge.") }) {
-                            violators += matchRoot.relativize(file).toString()
-                        }
+            val liveFields =
+                valueTypes.flatMap { type ->
+                    type.declaredFields.mapNotNull { field ->
+                        field.genericType.typeName
+                            .takeIf { "forge." in it || "CompletableFuture" in it }
+                            ?.let { "${type.simpleName}.${field.name}: $it" }
                     }
-            } finally {
-                stream.close()
+                }
+            check(liveFields.isEmpty()) {
+                "Session-facing boundary values retain live fields: ${liveFields.joinToString()}"
             }
 
-            check(violators.all { it in allowedViolators }) {
-                "Unexpected Forge imports in leyline.match: " +
-                    (violators - allowedViolators).sorted().joinToString()
-            }
+            noClasses()
+                .that()
+                .resideInAnyPackage("leyline.match..")
+                .should()
+                .dependOnClassesThat()
+                .haveFullyQualifiedName("java.util.concurrent.CompletableFuture")
+                .because("session handlers submit values through bridge-owned completion gateways")
+                .check(classes)
         }
 
         test("match and game do not depend on transport implementations") {

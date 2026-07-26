@@ -93,7 +93,7 @@ The local-control server exposes puzzle control, best-play, and full-state injec
 
 ## 4. Bridge Pattern
 
-The gameplay path bridges an asynchronous, protobuf-driven client to a synchronous, single-threaded Java engine. When the engine reaches a priority stop or interactive prompt, a bridge class blocks the engine thread on a `CompletableFuture` until the client's response arrives; the session thread builds and sends the outbound message in the meantime, then completes the future to unblock the engine.
+The gameplay path bridges an asynchronous, protobuf-driven client to a synchronous, single-threaded Java engine. At a priority stop, the action bridge blocks the engine thread on a `CompletableFuture` until the client's response arrives. Interactive prompts instead publish an immutable `PendingPrompt` and block on an engine-owned command queue. The queue accepts final answers plus intermediate value requests such as target revalidation; the retained `SpellAbility` remains private to the blocked engine callback.
 
 Three bridges cover the engine callback surface: `GameActionBridge` for priority stops, `InteractivePromptBridge` for engine-initiated choices (targeting, sacrifice, scry, modal), and `MulliganBridge` for the mulligan loop.
 
@@ -109,6 +109,10 @@ registration, catalog replacement, submission, cancellation, timeout, and
 engine consumption. Each catalog publication is one immutable game-state-id
 and offer-map value, so a response cannot combine selectors from different
 prompt generations.
+
+Priority candidate enumeration is also bridge-local. `AutoPassEngine` consumes
+only `PriorityActionFacts`; action projection performs its own bridge-side
+candidate traversal when the session decides to expose the priority window.
 
 A fourth family covers prompts that fire mid-override rather than at a priority stop or bridge-initiated choice — `confirmTrigger`, `chooseNumber`, `assignCombatDamage`, and similar sites where the engine is already inside a specific `PlayerController` method and can't route through `GameActionBridge`'s priority-loop future. Small gates — `OptionalActionGate`, `NumericInputGate`, `DamageAssignmentGate` — each own a single-use `CompletableFuture` for the override cluster they serve, built on a shared `PendingGate` core (publish the prompt, signal, await with timeout, clear on completion). The pending future lives as a field on `PlayerController` itself rather than on a bridge object; `GameBridge.hasPendingInteraction()` polls those fields alongside the three bridges above to detect a live interaction.
 

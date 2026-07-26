@@ -2,7 +2,6 @@ package leyline.game.bundle
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
@@ -73,6 +72,96 @@ class BundleBuilder(
     val cursor: BundleCursor = bridge.bundleCursor,
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
+
+    fun postAction(
+        counter: MessageCounter,
+        revealForSeat: Int? = null,
+    ): BundleResult = postAction(bridge.requireGame(), counter, revealForSeat)
+
+    fun stateOnlyDiff(counter: MessageCounter): BundleResult = stateOnlyDiff(bridge.requireGame(), counter)
+
+    fun phaseTransitionDiff(counter: MessageCounter): BundleResult = phaseTransitionDiff(bridge.requireGame(), counter)
+
+    fun echoAttackersBundle(
+        counter: MessageCounter,
+        selectedAttackerIds: List<Int>,
+        allLegalAttackerIds: List<Int>,
+        selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
+        selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+    ): BundleResult =
+        echoAttackersBundle(
+            bridge.requireGame(),
+            counter,
+            selectedAttackerIds,
+            allLegalAttackerIds,
+            selectedAttackAlternatives,
+            selectedDamageRecipients,
+        )
+
+    fun declareAttackersBundle(
+        counter: MessageCounter,
+        prebuiltReq: DeclareAttackersReq? = null,
+    ): BundleResult = declareAttackersBundle(bridge.requireGame(), counter, prebuiltReq)
+
+    fun echoBlockersBundle(
+        counter: MessageCounter,
+        blockAssignments: Map<Int, Int>,
+    ): BundleResult = echoBlockersBundle(bridge.requireGame(), counter, blockAssignments)
+
+    fun buildDeclareBlockersReq(): DeclareBlockersReq = RequestBuilder.buildDeclareBlockersReq(bridge.requireGame(), SeatId(seatId), bridge)
+
+    fun declareBlockersBundle(counter: MessageCounter): BundleResult = declareBlockersBundle(bridge.requireGame(), counter)
+
+    fun selectTargetsBundle(
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+    ): BundleResult = selectTargetsBundle(bridge.requireGame(), counter, prompt)
+
+    fun selectNBundle(
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        route: SelectNPromptRoute,
+        envelopeForReq: (SelectNReq) -> SelectNEnvelope,
+    ): BundleResult = selectNBundle(bridge.requireGame(), counter, prompt, route, envelopeForReq)
+
+    fun selectNBundle(
+        counter: MessageCounter,
+        envelope: SelectNEnvelope,
+    ): BundleResult = selectNBundle(bridge.requireGame(), counter, envelope)
+
+    fun orderBundle(
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
+    ): BundleResult = orderBundle(bridge.requireGame(), counter, prompt, kind)
+
+    fun castingTimeOptionsBundle(
+        counter: MessageCounter,
+        req: CastingTimeOptionsReq,
+        sourceCardInstanceId: Int? = null,
+        sourceCardGrpId: Int? = null,
+    ): BundleResult =
+        castingTimeOptionsBundle(
+            bridge.requireGame(),
+            counter,
+            req,
+            sourceCardInstanceId,
+            sourceCardGrpId,
+        )
+
+    fun payCostsBundle(
+        counter: MessageCounter,
+        req: PayCostsReq,
+        prompt: Prompt? = null,
+        promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
+    ): BundleResult =
+        payCostsBundle(
+            bridge.requireGame(),
+            counter,
+            req,
+            prompt,
+            promptPersistentAnnotations,
+        )
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
@@ -510,17 +599,15 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
-        priorityCandidates: PriorityActionCandidates? = null,
     ): BundleResult =
         compileAndCommit(counter) {
-            compilePostAction(game, counter, revealForSeat, priorityCandidates)
+            compilePostAction(game, counter, revealForSeat)
         }
 
     internal fun compilePostAction(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
-        priorityCandidates: PriorityActionCandidates? = null,
     ): FramePlan =
         compilePlan(counter) { plannedCounter ->
             val diff =
@@ -542,8 +629,7 @@ class BundleBuilder(
             val projection =
                 buildPriorityProjection(
                     snap,
-                    priorityCandidates,
-                    diff.idResolver::cardIid,
+                    idResolver = diff.idResolver::cardIid,
                 )
             val actions = projection.actions
             val gs = GsmBuilder.embedActions(diff.result.gsm, actions, frame, recipientSeatId = seatId)
@@ -773,7 +859,7 @@ class BundleBuilder(
      *
      * This is the **session-side** layer of a two-layer auto-pass system:
      *
-     * 1. **Engine-side** — [leyline.bridge.PriorityActionCandidates.hasLegalNonManaAction] runs
+     * 1. **Engine-side** — priority candidate facts are materialized
      *    inside [PlayerController.chooseSpellAbilityToPlay] on the engine
      *    thread, own-turn only. When false, the engine auto-passes before the
      *    bridge round-trip even happens. The session thread never sees it.
@@ -790,10 +876,10 @@ class BundleBuilder(
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
+    fun buildActions(): ActionsAvailableReq {
         val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        return ActionMapper.buildFromSnapshot(seatId, snap, bridge, priorityCandidates)
+        return ActionMapper.buildFromSnapshot(seatId, snap, bridge)
     }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
@@ -910,17 +996,16 @@ class BundleBuilder(
 
     private fun buildPriorityProjection(
         snap: GsmSnapshot,
-        priorityCandidates: PriorityActionCandidates? = null,
         idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): ActionMapper.ActionProjection {
         val actionBridge = bridge.seat(SeatId(seatId)).action
         return if (actionBridge.getPending() == null) {
             ActionMapper.ActionProjection(
-                actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge, priorityCandidates, idResolver),
+                actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge, idResolver = idResolver),
                 offers = emptyList(),
             )
         } else {
-            ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates, idResolver)
+            ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, idResolver = idResolver)
         }
     }
 

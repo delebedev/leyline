@@ -60,17 +60,17 @@ import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.CommanderReturnPromptContext
-import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ModalChoiceOption
 import leyline.bridge.handoff.ModalChoicePayload
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputGate
-import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionGate
-import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
+import leyline.bridge.handoff.PendingDamageAssignment
+import leyline.bridge.handoff.PendingNumericInput
+import leyline.bridge.handoff.PendingOptionalAction
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -237,7 +237,7 @@ class PlayerController(
      * OptionalActionMessage, OrderReq) may benefit from the same approach if
      * they hit similar timing issues with the action bridge.
      */
-    @Volatile override var pendingDamageAssignment: DamageAssignmentPrompt? = null
+    @Volatile override var pendingDamageAssignment: PendingDamageAssignment? = null
 
     /**
      * Pending "you may" trigger decision. Set by [confirmTrigger] when an optional
@@ -248,7 +248,7 @@ class PlayerController(
      *
      * Same dedicated-future pattern as [pendingDamageAssignment].
      */
-    @Volatile override var pendingOptionalAction: OptionalActionPrompt? = null
+    @Volatile override var pendingOptionalAction: PendingOptionalAction? = null
 
     /**
      * Pending numeric-input prompt. Set by [NumericInputGate] when Forge calls one of
@@ -258,7 +258,7 @@ class PlayerController(
      *
      * Same dedicated-future pattern as [pendingOptionalAction] / [pendingDamageAssignment].
      */
-    @Volatile override var pendingNumericInput: NumericInputPrompt? = null
+    @Volatile override var pendingNumericInput: PendingNumericInput? = null
 
     /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
     override val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
@@ -722,8 +722,8 @@ class PlayerController(
         return CommanderReturnPromptContext(
             oldInstanceId = oldInstanceId,
             promptInstanceId = promptInstanceId,
-            originZone = origin,
-            destinationZone = destination,
+            originZone = origin.name,
+            destinationZone = destination.name,
             ownerSeatId = seating.humanSeat.value,
             transferCategory = commanderTransferCategory(origin, destination),
         )

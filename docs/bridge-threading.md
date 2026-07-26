@@ -60,6 +60,12 @@ consumption. Deferred-response journals commit inside accepted submission,
 before the engine future becomes visible. Completion, replacement,
 cancellation, and failure clear the bounded window.
 
+`InteractivePromptBridge` publishes a value-only `PendingPrompt`. Its private
+active state retains the callback ability and an engine command queue. A
+session entrant may request target revalidation or submit a final answer as
+values; the blocked engine callback services those commands and restores any
+hypothetical target state before waiting again.
+
 ```mermaid
 flowchart LR
     N[Netty input] --> OWNER[MatchOwner queue]

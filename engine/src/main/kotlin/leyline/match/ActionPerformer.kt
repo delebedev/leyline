@@ -66,8 +66,13 @@ class ActionPerformer(
 
         val pending =
             seatBridge.action.getPending() ?: run {
+                val runtime = bridge.runtimeFacts(counters.seatId)
+                if (runtime.isGameOver && !runtime.hasPlayer) {
+                    log.warn("ActionPerformer: PerformActionResp after game retirement — ignoring")
+                    return
+                }
                 log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.game, counters.counter))
+                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(counters.counter))
                 return
             }
         val action = greMsg.performActionResp.actionsList.firstOrNull()
@@ -129,8 +134,7 @@ class ActionPerformer(
                 action.actionType == ActionType.CastOmen ||
                 action.actionType == ActionType.CastMdfc ||
                 action.actionType == ActionType.SpecialTurnFaceUp_add3
-        val game = ctx.game
-        val stackWasNonEmpty = !game.stack.isEmpty
+        val stackWasNonEmpty = !ctx.bridge.runtimeFacts(counters.seatId).stackEmpty
         val submitted =
             when (action.actionType) {
                 ActionType.Pass, ActionType.FloatMana -> {
@@ -212,7 +216,6 @@ class ActionPerformer(
         // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
         // during resolution, blocking in chooseModeForAbility.
         if (stackWasNonEmpty) {
-            val g = ctx.game
             // Check for pending modal prompt from ETB trigger
             when (targetingHandler.checkPendingPrompt()) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
@@ -220,7 +223,8 @@ class ActionPerformer(
                     // Fall through to autoPass
                 }
                 TargetingHandler.PromptResult.NONE -> {
-                    if (g.stack.isEmpty) {
+                    val runtime = ctx.bridge.runtimeFacts(counters.seatId)
+                    if (runtime.stackEmpty) {
                         val nextPending = seatBridge.action.getPending()
                         if (nextPending?.state?.kind == PendingActionKind.DECLARE_ATTACKERS ||
                             nextPending?.state?.kind == PendingActionKind.DECLARE_BLOCKERS
@@ -230,7 +234,7 @@ class ActionPerformer(
                         }
                         log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
                         sink.sendRealGameState(bridge)
-                        if (g.isGameOver) {
+                        if (runtime.isGameOver) {
                             log.info("ActionPerformer: game over after stack resolution")
                             sink.sendGameOver()
                             return

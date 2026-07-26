@@ -5,6 +5,7 @@ import forge.game.Game
 import forge.game.GameType
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.player.GameLossReason
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -13,22 +14,33 @@ import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.DevCheck
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.forge.RevealTrackingAiController
+import leyline.bridge.handoff.DamageAssignmentPrompt
+import leyline.bridge.handoff.DamageAssignmentValue
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.NumericInputPrompt
+import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.PhaseStopProfile
+import leyline.bridge.types.PlayerLossCause
+import leyline.bridge.types.PriorityActionFacts
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
@@ -44,6 +56,9 @@ import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.SearchShape
+import leyline.game.mapping.StopTypeMapping
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GrpIdResolver
@@ -52,6 +67,10 @@ import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.SettingScope
+import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
@@ -1143,7 +1162,275 @@ class GameBridge(
 
     override fun getGame(): Game? = game
 
+    fun requireGame(): Game = checkNotNull(game) { "GameBridge has no active game" }
+
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
+
+    data class RuntimeFacts(
+        val phase: String?,
+        val turn: Int,
+        val isGameOver: Boolean,
+        val hasPlayer: Boolean,
+        val isHumanTurn: Boolean,
+        val stackEmpty: Boolean,
+        val combatHasAttackers: Boolean,
+    ) {
+        val isAiTurn: Boolean get() = hasPlayer && !isHumanTurn
+    }
+
+    fun runtimeFacts(seatId: SeatId): RuntimeFacts {
+        val activeGame =
+            game
+                ?: return RuntimeFacts(
+                    null,
+                    0,
+                    isGameOver = true,
+                    hasPlayer = false,
+                    isHumanTurn = false,
+                    stackEmpty = true,
+                    combatHasAttackers = false,
+                )
+        val player = getPlayer(seatId)
+        return RuntimeFacts(
+            phase = activeGame.phaseHandler.phase?.name,
+            turn = activeGame.phaseHandler.turn,
+            isGameOver = activeGame.isGameOver,
+            hasPlayer = player != null,
+            isHumanTurn = player != null && activeGame.phaseHandler.playerTurn == player,
+            stackEmpty = activeGame.stack.isEmpty,
+            combatHasAttackers =
+                activeGame.phaseHandler.combat
+                    ?.attackers
+                    ?.isNotEmpty() == true,
+        )
+    }
+
+    fun opponentPlayerId(seatId: SeatId): ForgePlayerId? {
+        val player = getPlayer(seatId)
+        return game
+            ?.players
+            ?.firstOrNull { it !== player }
+            ?.id
+            ?.let(::ForgePlayerId)
+    }
+
+    fun playerEntityId(seatId: SeatId): Int? = getPlayer(seatId)?.id
+
+    fun playerWon(seatId: SeatId): Boolean = getPlayer(seatId)?.getOutcome()?.hasWon() == true
+
+    fun cardName(cardId: ForgeCardId): String? = game?.findById(cardId.value)?.name
+
+    private val deferredCastCostInspector = DeferredCastCostInspector(this)
+
+    fun hybridCastCostFacts(
+        seatId: SeatId,
+        cardId: ForgeCardId,
+        castAbilityIndex: Int?,
+    ): HybridCastCostFacts? = deferredCastCostInspector.hybrid(seatId, cardId, castAbilityIndex)
+
+    fun optionalCastCostFacts(
+        seatId: SeatId,
+        cardId: ForgeCardId,
+        castAbilityIndex: Int?,
+        grpId: Int,
+    ): OptionalCastCostFacts? = deferredCastCostInspector.optional(seatId, cardId, castAbilityIndex, grpId)
+
+    fun alternateCastCostFacts(
+        seatId: SeatId,
+        cardId: ForgeCardId,
+    ): AlternateCastCostFacts? = deferredCastCostInspector.alternate(seatId, cardId)
+
+    fun registerAlternateCastCommands(
+        seatId: SeatId,
+        pendingActionId: String,
+        cardId: ForgeCardId,
+        ctoIds: List<Int>,
+    ): AlternateCastCommands? = deferredCastCostInspector.registerAlternateCommands(seatId, pendingActionId, cardId, ctoIds)
+
+    fun currentStackSourceCardId(fallback: Int?): ForgeCardId? =
+        (
+            fallback ?: game
+                ?.stack
+                ?.firstOrNull()
+                ?.spellAbility
+                ?.hostCard
+                ?.id
+        )?.let(::ForgeCardId)
+
+    fun convokeAssignmentPlan(
+        candidateIds: List<ForgeCardId>,
+        cost: List<Pair<ManaColor, Int>>,
+    ): Map<ForgeCardId, ManaColor> {
+        val candidates = candidateIds.mapNotNull { id -> game?.findById(id.value)?.let { id to it } }
+        return ConvokeShardAssigner
+            .assign(candidates, ManaColorMapping.paymentShardCounts(cost)) { (_, card) -> card.color }
+            .associate { (entry, shard) -> entry.first to ManaColorMapping.paymentCostColor(shard) }
+    }
+
+    fun fallbackConvokeColor(
+        cardId: ForgeCardId,
+        cost: List<Pair<ManaColor, Int>>,
+    ): ManaColor? {
+        val color = game?.findById(cardId.value)?.color ?: return null
+        return ConvokeShardAssigner
+            .assign(listOf(color), ManaColorMapping.paymentShardCounts(cost)) { it }
+            .firstOrNull()
+            ?.second
+            ?.let(ManaColorMapping::paymentCostColor)
+    }
+
+    data class SearchPromptFacts(
+        val libraryZoneId: Int,
+        val allLibraryIds: List<Int>,
+        val sourceInstanceId: Int,
+        val hostCardInstanceId: Int,
+        val promptId: Int,
+    )
+
+    fun searchPromptFacts(
+        seatId: SeatId,
+        fallbackSourceEntityId: Int?,
+    ): SearchPromptFacts {
+        val libraryIds =
+            getPlayer(seatId)
+                ?.getZone(ZoneType.Library)
+                ?.cards
+                ?.map { getOrAllocInstanceId(ForgeCardId(it.id)).value }
+                .orEmpty()
+        val stackTop = game?.stack?.firstOrNull()
+        val ability = stackTop?.spellAbility
+        val hostCardForgeId = ability?.hostCard?.id ?: fallbackSourceEntityId
+        val hostCardIid = hostCardForgeId?.let { getOrAllocInstanceId(ForgeCardId(it)).value } ?: 0
+        val sourceId =
+            when {
+                stackTop?.isAbility == true && ability != null ->
+                    getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(ability.id)).value
+                hostCardIid != 0 -> hostCardIid
+                stackTop != null -> getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
+                else -> 0
+            }
+        return SearchPromptFacts(
+            libraryZoneId = ZoneIds.libraryOf(seatId),
+            allLibraryIds = libraryIds,
+            sourceInstanceId = sourceId,
+            hostCardInstanceId = hostCardIid,
+            promptId =
+                if (stackTop?.isAbility == true && SearchShape.isTypeCycling(ability)) {
+                    PromptIds.SEARCH_TYPECYCLING
+                } else {
+                    PromptIds.SEARCH
+                },
+        )
+    }
+
+    fun configureAutoPass(state: leyline.bridge.types.ClientAutoPassState) {
+        humanController?.setAutoPassState(state)
+    }
+
+    data class PhaseStopUpdate(
+        val opponentEnabled: Set<String>,
+        val opponentDisabled: Set<String>,
+    )
+
+    fun applyPhaseStops(
+        seatId: SeatId,
+        settings: SettingsMessage,
+    ): PhaseStopUpdate {
+        val profile = phaseStopProfile ?: return PhaseStopUpdate(emptySet(), emptySet())
+        val humanPlayer = getPlayer(seatId) ?: return PhaseStopUpdate(emptySet(), emptySet())
+        val aiPlayer = getPlayer(seatId.opponent) ?: return PhaseStopUpdate(emptySet(), emptySet())
+        if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
+            profile.clearAll(humanPlayer.id)
+            profile.clearAll(aiPlayer.id)
+        }
+        val stops = settings.stopsList + settings.transientStopsList
+        applyStopsForPlayer(stops, SettingScope.Team_ac6e, humanPlayer.id, profile)
+        applyStopsForPlayer(stops, SettingScope.Opponents, aiPlayer.id, profile)
+        val opponentEnabled = StopTypeMapping.parseStops(stops, SettingScope.Opponents).mapTo(mutableSetOf()) { it.name }
+        val opponentDisabled =
+            stops
+                .filter { it.status == SettingStatus.Clear_a3fe }
+                .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
+                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType)?.name }
+                .toSet()
+        return PhaseStopUpdate(opponentEnabled, opponentDisabled)
+    }
+
+    private fun applyStopsForPlayer(
+        stops: List<wotc.mtgo.gre.external.messaging.Messages.Stop>,
+        scope: SettingScope,
+        playerId: Int,
+        profile: PhaseStopProfile,
+    ) {
+        val enabled = StopTypeMapping.parseStops(stops, scope)
+        val disabled =
+            stops
+                .filter { it.status == SettingStatus.Clear_a3fe }
+                .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
+                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
+                .toSet()
+        enabled.forEach { profile.setEnabled(playerId, it, true) }
+        disabled.forEach { profile.setEnabled(playerId, it, false) }
+    }
+
+    fun snapshot(
+        matchId: String,
+        gameStateId: Int,
+    ): GsmSnapshot = GsmSnapshot.capture(requireGame(), this, matchId, gameStateId)
+
+    fun playerLossCause(seatId: SeatId): PlayerLossCause? =
+        when (getPlayer(seatId)?.getOutcome()?.lossState) {
+            GameLossReason.LifeReachedZero -> PlayerLossCause.LifeTotal
+            GameLossReason.Poisoned -> PlayerLossCause.Poison
+            GameLossReason.Milled -> PlayerLossCause.Milled
+            GameLossReason.Conceded -> PlayerLossCause.Concede
+            GameLossReason.CommanderDamage,
+            GameLossReason.IntentionalDraw,
+            GameLossReason.OpponentWon,
+            GameLossReason.SpellEffect,
+            -> PlayerLossCause.Other
+            null -> null
+        }
+
+    fun pendingDamageAssignment(): DamageAssignmentPrompt? = humanController?.pendingDamageAssignment?.prompt
+
+    fun submitDamageAssignment(assigners: List<DamageAssignmentValue>): Boolean {
+        val controller = humanController ?: return false
+        val pending = controller.pendingDamageAssignment ?: return false
+        val activeGame = game ?: return false
+        var first: Map<Card?, Int>? = null
+        assigners.forEach { assigner ->
+            val damageMap =
+                assigner.assignments
+                    .mapNotNull { assignment ->
+                        val target = assignment.targetId?.let { activeGame.findById(it.value) ?: return@mapNotNull null }
+                        target to assignment.damage
+                    }.toMap(mutableMapOf())
+            val overflow = assigner.totalDamage - damageMap.values.sum()
+            if (overflow > 0 && null !in damageMap) damageMap[null] = overflow
+            if (first == null) {
+                first = damageMap
+            } else {
+                controller.damageAssignCache[assigner.attackerId] = damageMap
+            }
+        }
+        return pending.future.complete(first?.toMutableMap() ?: mutableMapOf())
+    }
+
+    fun pendingOptionalAction(): OptionalActionPrompt? = humanController?.pendingOptionalAction?.prompt
+
+    fun submitOptionalAction(accepted: Boolean): Boolean = humanController?.pendingOptionalAction?.future?.complete(accepted) == true
+
+    fun pendingNumericInput(): NumericInputPrompt? = humanController?.pendingNumericInput?.prompt
+
+    fun submitNumericInput(value: Int): Boolean = humanController?.pendingNumericInput?.future?.complete(value) == true
+
+    /** Priority policy input materialized while the live candidate graph stays bridge-local. */
+    fun priorityActionFacts(seatId: SeatId): PriorityActionFacts {
+        val player = getPlayer(seatId) ?: return PriorityActionFacts(hasLegalNonManaAction = false)
+        val currentGame = game ?: return PriorityActionFacts(hasLegalNonManaAction = false)
+        return PriorityActionCandidates.query(currentGame, player).facts(player)
+    }
 
     /** Resolve an engine player to its protocol seat for this match. */
     fun seatOf(player: Player?): SeatId? {
@@ -1422,6 +1709,14 @@ class GameBridge(
     ) {
         log.info("GameBridge: seat {} tucking {} cards", seatId.value, cards.size)
         if (seatId == seating.humanSeat) mulliganBridge(seatId).submitTuck(cards)
+    }
+
+    fun submitTuckInstances(
+        seatId: SeatId,
+        instanceIds: List<InstanceId>,
+    ) {
+        val selectedIds = instanceIds.mapNotNull(::getForgeCardId).mapTo(mutableSetOf()) { it.value }
+        submitTuck(seatId, getHandCards(seatId).filter { it.id in selectedIds })
     }
 
     /** True when this bridge is running a puzzle game. */

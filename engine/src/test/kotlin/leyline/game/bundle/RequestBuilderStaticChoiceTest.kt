@@ -23,7 +23,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
-import java.util.concurrent.CompletableFuture
 
 class RequestBuilderStaticChoiceTest :
     FunSpec({
@@ -33,7 +32,6 @@ class RequestBuilderStaticChoiceTest :
             InteractivePromptBridge.PendingPrompt(
                 promptId = "static-choice",
                 request = request,
-                future = CompletableFuture(),
             )
 
         test("static choice routes pin outer prompt ids and choice domains") {
