@@ -9,10 +9,11 @@ import forge.game.staticability.StaticAbilityMode
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
-import leyline.bridge.types.InstanceId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.codes.QualificationType
 import leyline.game.data.CardData
+import leyline.game.snapshot.BoundCard
+import leyline.game.snapshot.CombatQualificationSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -20,30 +21,57 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 /** Snapshot-derived Qualification pAnns for combat restrictions and evasion. */
 object CombatQualificationScanner {
     private data class RowKey(
-        val affectorId: Int,
-        val affectedId: Int,
+        val sourceCardId: ForgeCardId,
+        val affectedCardId: ForgeCardId,
         val grpId: Int,
         val qualificationType: QualificationType,
     )
 
     private data class Row(
-        val affectorId: InstanceId,
-        val affectedId: InstanceId,
-        val sourceParent: InstanceId,
+        val sourceCardId: ForgeCardId,
+        val affectedCardId: ForgeCardId,
         val grpId: GrpId,
         val qualificationType: QualificationType,
-        val cantBlockObjects: MutableSet<Int> = linkedSetOf(),
-        val cantBeBlockedByObjects: MutableSet<Int> = linkedSetOf(),
+        val cantBlockCardIds: MutableSet<ForgeCardId> = linkedSetOf(),
+        val cantBeBlockedByCardIds: MutableSet<ForgeCardId> = linkedSetOf(),
     )
 
     fun scan(
         snap: GsmSnapshot,
-        bridge: GameBridge,
         frameIds: FrameIdResolver,
-    ): List<AnnotationInfo> {
-        val game = bridge.getGame() ?: return emptyList()
-        if (!liveBattlefieldMatchesSnapshot(game, snap)) return emptyList()
+    ): List<AnnotationInfo> =
+        snap.combatQualifications
+            .map { value ->
+                val sourceIid = frameIds.cardIid(value.sourceCardId)
+                val affectedIid = frameIds.cardIid(value.affectedCardId)
+                AnnotationBuilder.qualification(
+                    affectorId = sourceIid,
+                    instanceId = affectedIid,
+                    grpId = GrpId(value.grpId),
+                    qualificationType = value.qualificationType,
+                    sourceParent = sourceIid,
+                    cantBlockObjects = value.cantBlockCardIds.map { frameIds.cardIid(it).value }.sorted(),
+                    cantBeBlockedByObjects = value.cantBeBlockedByCardIds.map { frameIds.cardIid(it).value }.sorted(),
+                )
+            }.sortedWith(
+                compareBy<AnnotationInfo> { it.affectedIdsList.firstOrNull() ?: 0 }
+                    .thenBy { annotation ->
+                        annotation.detailsList
+                            .first { it.key == leyline.game.codes.DetailKeys.QUALIFICATION_TYPE }
+                            .getValueInt32(0)
+                    }.thenBy { annotation ->
+                        annotation.detailsList
+                            .first { it.key == leyline.game.codes.DetailKeys.GRPID }
+                            .getValueInt32(0)
+                    },
+            )
 
+    internal fun capture(
+        game: Game,
+        boundCards: Map<ForgeCardId, BoundCard>,
+        bridge: GameBridge,
+    ): List<CombatQualificationSnapshot> {
+        if (!liveBattlefieldMatchesSnapshot(game, boundCards)) return emptyList()
         val creatures = battlefieldCreatures(game)
         if (creatures.isEmpty()) return emptyList()
 
@@ -52,28 +80,26 @@ object CombatQualificationScanner {
             for (staticAbility in source.staticAbilities.orEmpty()) {
                 if (staticAbility.keyword != null) continue
                 if (staticAbility.checkConditions(StaticAbilityMode.CantAttack)) {
-                    scanCantAttack(staticAbility, creatures, game, snap, bridge, frameIds, rows)
+                    scanCantAttack(staticAbility, creatures, game, boundCards, bridge, rows)
                 }
                 if (staticAbility.checkConditions(StaticAbilityMode.CantBlock)) {
-                    scanCantBlock(staticAbility, creatures, snap, bridge, frameIds, rows)
+                    scanCantBlock(staticAbility, creatures, boundCards, bridge, rows)
                 }
                 if (staticAbility.checkConditions(StaticAbilityMode.CantBlockBy)) {
-                    scanCantBlockBy(staticAbility, creatures, snap, bridge, frameIds, rows)
+                    scanCantBlockBy(staticAbility, creatures, boundCards, bridge, rows)
                 }
             }
         }
 
         return rows.values
-            .sortedWith(compareBy<Row> { it.affectedId.value }.thenBy { it.qualificationType.wireValue }.thenBy { it.grpId.value })
             .map { row ->
-                AnnotationBuilder.qualification(
-                    affectorId = row.affectorId,
-                    instanceId = row.affectedId,
-                    grpId = row.grpId,
+                CombatQualificationSnapshot(
+                    sourceCardId = row.sourceCardId,
+                    affectedCardId = row.affectedCardId,
+                    grpId = row.grpId.value,
                     qualificationType = row.qualificationType,
-                    sourceParent = row.sourceParent,
-                    cantBlockObjects = row.cantBlockObjects.toList().sorted(),
-                    cantBeBlockedByObjects = row.cantBeBlockedByObjects.toList().sorted(),
+                    cantBlockCardIds = row.cantBlockCardIds.toSet(),
+                    cantBeBlockedByCardIds = row.cantBeBlockedByCardIds.toSet(),
                 )
             }
     }
@@ -82,16 +108,15 @@ object CombatQualificationScanner {
         staticAbility: StaticAbility,
         creatures: List<Card>,
         game: Game,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
         bridge: GameBridge,
-        frameIds: FrameIdResolver,
         rows: MutableMap<RowKey, Row>,
     ) {
         for (creature in creatures) {
             val targets = attackTargets(game, creature)
             if (targets.isEmpty()) continue
             if (targets.any { StaticAbilityCantAttackBlock.applyCantAttackAbility(staticAbility, creature, it) }) {
-                addRow(staticAbility, creature, QualificationType.CantAttack, snap, bridge, frameIds, rows)
+                addRow(staticAbility, creature, QualificationType.CantAttack, boundCards, bridge, rows)
             }
         }
     }
@@ -99,14 +124,13 @@ object CombatQualificationScanner {
     private fun scanCantBlock(
         staticAbility: StaticAbility,
         creatures: List<Card>,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
         bridge: GameBridge,
-        frameIds: FrameIdResolver,
         rows: MutableMap<RowKey, Row>,
     ) {
         for (blocker in creatures) {
             if (StaticAbilityCantAttackBlock.applyCantBlockAbility(staticAbility, blocker)) {
-                addRow(staticAbility, blocker, QualificationType.CantBlock, snap, bridge, frameIds, rows)
+                addRow(staticAbility, blocker, QualificationType.CantBlock, boundCards, bridge, rows)
             }
         }
     }
@@ -114,14 +138,13 @@ object CombatQualificationScanner {
     private fun scanCantBlockBy(
         staticAbility: StaticAbility,
         creatures: List<Card>,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
         bridge: GameBridge,
-        frameIds: FrameIdResolver,
         rows: MutableMap<RowKey, Row>,
     ) {
         for (attacker in creatures) {
             if (appliesWithoutSpecificBlocker(staticAbility, attacker)) {
-                addRow(staticAbility, attacker, QualificationType.CantBeBlocked, snap, bridge, frameIds, rows)
+                addRow(staticAbility, attacker, QualificationType.CantBeBlocked, boundCards, bridge, rows)
                 continue
             }
 
@@ -130,11 +153,15 @@ object CombatQualificationScanner {
                 if (!StaticAbilityCantAttackBlock.applyCantBlockByAbility(staticAbility, attacker, blocker)) continue
 
                 if (isBlockerCentric(staticAbility, blocker)) {
-                    val row = addRow(staticAbility, blocker, QualificationType.CantBlock, snap, bridge, frameIds, rows) ?: continue
-                    row.cantBlockObjects.add(instanceId(attacker, frameIds).value)
+                    val row =
+                        addRow(staticAbility, blocker, QualificationType.CantBlock, boundCards, bridge, rows)
+                            ?: continue
+                    row.cantBlockCardIds.add(ForgeCardId(attacker.id))
                 } else {
-                    val row = addRow(staticAbility, attacker, QualificationType.CantBeBlocked, snap, bridge, frameIds, rows) ?: continue
-                    row.cantBeBlockedByObjects.add(instanceId(blocker, frameIds).value)
+                    val row =
+                        addRow(staticAbility, attacker, QualificationType.CantBeBlocked, boundCards, bridge, rows)
+                            ?: continue
+                    row.cantBeBlockedByCardIds.add(ForgeCardId(blocker.id))
                 }
             }
         }
@@ -144,21 +171,19 @@ object CombatQualificationScanner {
         staticAbility: StaticAbility,
         affected: Card,
         qualificationType: QualificationType,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
         bridge: GameBridge,
-        frameIds: FrameIdResolver,
         rows: MutableMap<RowKey, Row>,
     ): Row? {
         val sourceParent = sourceParent(staticAbility)
-        val sourceParentIid = instanceId(sourceParent, frameIds)
-        val affectedIid = instanceId(affected, frameIds)
-        val grpId = abilityGrpId(staticAbility, sourceParent, snap, bridge) ?: return null
-        val key = RowKey(sourceParentIid.value, affectedIid.value, grpId.value, qualificationType)
+        val sourceCardId = ForgeCardId(sourceParent.id)
+        val affectedCardId = ForgeCardId(affected.id)
+        val grpId = abilityGrpId(staticAbility, sourceParent, boundCards, bridge) ?: return null
+        val key = RowKey(sourceCardId, affectedCardId, grpId.value, qualificationType)
         return rows.getOrPut(key) {
             Row(
-                affectorId = sourceParentIid,
-                affectedId = affectedIid,
-                sourceParent = sourceParentIid,
+                sourceCardId = sourceCardId,
+                affectedCardId = affectedCardId,
                 grpId = grpId,
                 qualificationType = qualificationType,
             )
@@ -168,17 +193,17 @@ object CombatQualificationScanner {
     private fun abilityGrpId(
         staticAbility: StaticAbility,
         sourceParent: Card,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
         bridge: GameBridge,
     ): GrpId? {
         val host = staticAbility.hostCard
-        val hostData = cardData(host, snap, bridge)
+        val hostData = cardData(host, boundCards, bridge)
         val hostRegistry = bridge.abilityRegistryFor(host, hostData)
         hostRegistry?.forStaticAbility(staticAbility.definitionId)?.let { return GrpId(it) }
 
         val sourceAbility = host.getEffectSourceAbility()
         if (sourceAbility != null) {
-            val sourceData = cardData(sourceParent, snap, bridge)
+            val sourceData = cardData(sourceParent, boundCards, bridge)
             val sourceRegistry = bridge.abilityRegistryFor(sourceParent, sourceData)
             sourceRegistry?.forSpellAbility(sourceAbility.definitionId)?.let { return GrpId(it) }
         }
@@ -188,18 +213,13 @@ object CombatQualificationScanner {
 
     private fun cardData(
         card: Card,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
         bridge: GameBridge,
     ): CardData? =
-        snap.boundCards[ForgeCardId(card.id)]?.data
+        boundCards[ForgeCardId(card.id)]?.data
             ?: bridge.cardRepository.findGrpIdByName(card.name)?.let { bridge.cardRepository.findByGrpId(it) }
 
     private fun sourceParent(staticAbility: StaticAbility): Card = staticAbility.hostCard.getEffectSource() ?: staticAbility.hostCard
-
-    private fun instanceId(
-        card: Card,
-        frameIds: FrameIdResolver,
-    ): InstanceId = frameIds.cardIid(ForgeCardId(card.id))
 
     private fun battlefieldCreatures(game: Game): List<Card> = battlefieldCards(game).filter { it.isCreature }.sortedBy { it.id }
 
@@ -208,12 +228,12 @@ object CombatQualificationScanner {
 
     private fun liveBattlefieldMatchesSnapshot(
         game: Game,
-        snap: GsmSnapshot,
+        boundCards: Map<ForgeCardId, BoundCard>,
     ): Boolean {
         val liveIds = battlefieldCards(game).map { it.id }.toSet()
         val snapIds =
-            snap.objects.values
-                .filter { it.isOnBattlefield }
+            boundCards.values
+                .filter { it.snapshot.isOnBattlefield }
                 .map { it.forgeCardId.value }
                 .toSet()
         return liveIds == snapIds

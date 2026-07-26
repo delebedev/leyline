@@ -330,13 +330,12 @@ object StateMapper {
             bridge,
             zones,
             gameObjects,
-            human,
             keywordSnapshot,
         )
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Merged, ZoneIds.SUPPRESSED, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Merged, ZoneIds.SUPPRESSED, bridge, zones, gameObjects)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)

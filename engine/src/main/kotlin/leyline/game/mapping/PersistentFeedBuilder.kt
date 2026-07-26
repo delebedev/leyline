@@ -129,7 +129,7 @@ internal object PersistentFeedBuilder {
             .filter { it.isOnAdventure }
             .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
             suspectedQualificationAnnotations(snap, frameIds) +
-            CombatQualificationScanner.scan(snap, bridge, frameIds)
+            CombatQualificationScanner.scan(snap, frameIds)
 
     private fun suspectedQualificationAnnotations(
         snap: GsmSnapshot,
@@ -169,7 +169,7 @@ internal object PersistentFeedBuilder {
     ): TemporaryPermanentFeedResult {
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         val tokenSources: Map<CardSnapshot, ForgeCardId?> =
-            eotTokens.associateWith { tokenSourceForgeId(it.forgeCardId, bridge) }
+            eotTokens.associateWith { it.tokenSourceForgeCardId }
         val decayedCleanupHolders =
             decayedCleanupHoldersFromSnap(
                 decayedCleanupSourcesThisGsm,
@@ -648,15 +648,6 @@ internal object PersistentFeedBuilder {
         grpId: Int,
         bridge: GameBridge,
     ): Boolean = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TRAINING) != null
-
-    private fun tokenSourceForgeId(
-        tokenForgeId: ForgeCardId,
-        bridge: GameBridge,
-    ): ForgeCardId? {
-        val tokenCard = bridge.findCard(tokenForgeId) ?: return null
-        val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
-        return ForgeCardId(sourceCard.id)
-    }
 
     private fun mobilizeCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
