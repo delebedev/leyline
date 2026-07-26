@@ -9,7 +9,6 @@ import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
-import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
@@ -63,7 +62,6 @@ class PuzzleHandler(
 
     /** Send puzzle initial bundle: ConnectResp + Full GSM (stage=Play) + ActionsAvailableReq. */
     fun sendPuzzleInitialBundle(
-        output: MatchOutput,
         session: MatchSession,
         matchId: String,
         seatId: Int,
@@ -84,7 +82,7 @@ class PuzzleHandler(
         session.counter.markGameStateGsId(gsId)
         Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
-        output.send(bundleMsg)
+        session.sendMatchProgress(bundleMsg)
         bridge.activateInteractivePlayback()
 
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
@@ -106,10 +104,9 @@ class PuzzleHandler(
                 projection.actions,
             )
         session.counter.setMsgId(nextMsgId2)
-        session.connection.owner.observeOutbound(actionsMsg)
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
-        output.send(actionsMsg)
+        session.sendMatchProgress(actionsMsg)
     }
 
     /**

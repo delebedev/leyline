@@ -1,6 +1,7 @@
 package leyline.match
 
 import leyline.bridge.handoff.NumericInputPrompt
+import leyline.game.bundle.PendingPromptPlan
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -115,14 +116,16 @@ class NumericInputHandler(
                         .setNumberValue(sourceId),
                 ).build()
 
-        PendingPromptEnvelope.sendBare(
-            sink,
-            counters,
-            GREMessageType.NumericInputReq_695e,
-        ) {
-            it.numericInputReq = req
-            it.prompt = promptProto
-            it.allowCancel = AllowCancel.No_a526
-        }
+        sink.sendBundledGRE(
+            PendingPromptPlan.build(
+                counters.counter,
+                counters.seatId,
+                GREMessageType.NumericInputReq_695e,
+            ) {
+                it.numericInputReq = req
+                it.prompt = promptProto
+                it.allowCancel = AllowCancel.No_a526
+            },
+        )
     }
 }

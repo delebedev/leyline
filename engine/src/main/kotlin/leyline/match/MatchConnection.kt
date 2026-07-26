@@ -130,7 +130,6 @@ class MatchConnection(
             coordinator = coordinator,
             cardRepository = cardRepository,
             puzzleHandler = puzzleHandler,
-            output = output,
             createMatchSession = ::createAndRegisterMatchSession,
             onFamiliarConnected = ::onFamiliarConnected,
             createSpectatorSession = ::createAndRegisterSpectatorSession,
@@ -302,7 +301,7 @@ class MatchConnection(
     /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
     private fun createAndRegisterFamiliarSession(counter: MessageCounter): FamiliarSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = false)
-        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
+        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter, owner = registry.ownerFor(matchId))
         registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
             bindSession(s)
         }
@@ -540,12 +539,9 @@ class MatchConnection(
             )
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
-        if (s !is SpectatorSession) {
-            registry.ownerFor(matchId).observeOutbound(msg)
-        }
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
-        output.send(msg)
+        s.sendMatchProgress(msg)
         if (s !is SpectatorSession) {
             bridge.activateInteractivePlayback()
         }

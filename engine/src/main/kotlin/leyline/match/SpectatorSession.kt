@@ -26,6 +26,12 @@ internal class SpectatorSession(
     private var gameOverSent = false
     private val closed = AtomicBoolean(false)
     private val engineCutListener: (EngineCutCheckpoint) -> Unit = ::requestDrain
+    private val protocolHead =
+        MatchProtocolHead(
+            owner,
+            MatchOutbox.Audience.Spectator(seatId),
+            sink,
+        )
 
     /**
      * Bind autonomous engine progress to the match owner.
@@ -53,6 +59,7 @@ internal class SpectatorSession(
     fun close() {
         if (closed.compareAndSet(false, true)) {
             gameBridge.stopObservingEngineCuts(engineCutListener)
+            protocolHead.close()
         }
     }
 
@@ -94,7 +101,21 @@ internal class SpectatorSession(
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
         }
-        sink.send(messages)
+        owner.observeOutbound(messages)
+        owner.appendOutbox(listOf(protocolHead.token to MatchOutbox.Payload.Gre(messages)))
+        protocolHead.flush()
+    }
+
+    override fun sendMatchProgress(message: MatchServiceToClientMessage) =
+        owner.reduce {
+            if (!closed.get()) sendMatchProgressOwned(message)
+        }
+
+    private fun sendMatchProgressOwned(message: MatchServiceToClientMessage) {
+        owner.assertOwnerThread()
+        owner.observeOutbound(message)
+        owner.appendOutbox(listOf(protocolHead.token to MatchOutbox.Payload.Raw(message)))
+        protocolHead.flush()
     }
 
     override fun sendRealGameState(
@@ -120,9 +141,9 @@ internal class SpectatorSession(
         val p1Won = gameBridge.playerWon(SeatId(1))
         val winningTeam = if (p1Won) 1 else 2
         sendBundledGREDirect(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
-        sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
+        sendMatchProgressOwned(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
         gameOverSent = true
-        close()
+        protocolHead.afterDrained(::close)
     }
 
     override fun paceDelay(multiplier: Int) {}

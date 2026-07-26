@@ -23,6 +23,7 @@ import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.infra.RecordedDelivery
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -112,6 +113,7 @@ class MatchFlowHarness(
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
     val allRawMessages = mutableListOf<MatchServiceToClientMessage>()
+    val allDeliveries = mutableListOf<RecordedDelivery>()
 
     /** When set, the next auto-accepted optional-action prompt declines instead.
      *  Use [declineNextOptionalAction] to set this. Cleared after one use. */
@@ -1124,6 +1126,7 @@ class MatchFlowHarness(
     private fun collectSinkMessages() {
         allMessages.addAll(sink.messages)
         allRawMessages.addAll(sink.rawMessages)
+        allDeliveries.addAll(sink.deliveries)
         accumulator.processAll(sink.messages)
         sink.clear()
     }

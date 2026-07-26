@@ -9,6 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.infra.RecordedDelivery
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
@@ -87,6 +88,12 @@ class GameEndTest :
                         MatchGameRoomStateType.MatchCompleted
                 }
             matchCompleted.shouldNotBeNull()
+
+            val terminalDeliveries = harness.allDeliveries.takeLast(2)
+            val gameOverDelivery = terminalDeliveries[0] as RecordedDelivery.Gre
+            val completedDelivery = terminalDeliveries[1] as RecordedDelivery.Raw
+            gameOverDelivery.messages.any { it.hasIntermissionReq() }.shouldBeTrue()
+            completedDelivery.message shouldBe matchCompleted
 
             // Verify FinalMatchResult
             val finalResult = matchCompleted.matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult

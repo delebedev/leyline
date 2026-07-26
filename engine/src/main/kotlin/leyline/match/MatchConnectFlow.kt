@@ -5,7 +5,6 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
-import leyline.infra.MatchOutput
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -23,7 +22,6 @@ internal class MatchConnectFlow(
     private val coordinator: MatchCoordinator?,
     private val cardRepository: CardRepository,
     private val puzzleHandler: PuzzleHandler,
-    private val output: MatchOutput,
     private val createMatchSession: (GameBridge) -> MatchSession,
     private val onFamiliarConnected: (MessageCounter) -> Unit,
     private val createSpectatorSession: (GameBridge) -> SpectatorSession,
@@ -63,7 +61,7 @@ internal class MatchConnectFlow(
         }
         val bridge = puzzleHandler.getOrCreatePuzzleBridge(attempt.matchId)
         val ms = createMatchSession(bridge)
-        puzzleHandler.sendPuzzleInitialBundle(output, ms, attempt.matchId, attempt.seatId)
+        puzzleHandler.sendPuzzleInitialBundle(ms, attempt.matchId, attempt.seatId)
     }
 
     private fun connectConstructed(attempt: ConnectAttempt) {
