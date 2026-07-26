@@ -260,11 +260,9 @@ class GamePlayback(
     private fun captureAndPause(
         delayMs: Int,
         turnStarted: Boolean = false,
-        gameOverride: forge.game.Game? = null,
-        eventsOverride: FrameEventLog? = null,
     ) {
         val game =
-            gameOverride ?: bridge.getGame() ?: run {
+            bridge.getGame() ?: run {
                 log.debug("GamePlayback: captureAndPause during teardown (game null), skipping")
                 return
             }
@@ -272,32 +270,27 @@ class GamePlayback(
         try {
             val messageCount =
                 synchronized(queueLock) {
-                    val closedEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
+                    val reservation = bridge.reserveBundleFrame(seatId)
                     val events =
-                        if (eventsOverride == null) {
-                            pendingResolutionFrame?.merge(closedEvents) ?: closedEvents
-                        } else {
-                            closedEvents
-                        }
-                    if (eventsOverride == null && events.shouldAwaitResolutionBoundary()) {
+                        pendingResolutionFrame?.mergeReservedInput(reservation.events)
+                            ?: reservation.events
+                    if (events.shouldAwaitResolutionBoundary()) {
                         pendingResolutionFrame = events
                         0
                     } else {
                         val count =
-                            if (eventsOverride == null && events.events.shouldSplitCombatDamageWindow()) {
-                                captureSplitCombatDamage(game, events.events)
+                            if (events.events.shouldSplitCombatDamageWindow()) {
+                                captureSplitCombatDamage(game, events.events, reservation)
                                 2
                             } else {
-                                val messages = buildDiffMessages(game, turnStarted, events)
+                                val messages = buildDiffMessages(game, turnStarted, events, reservation)
                                 queue.add(messages)
                                 if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
                                     bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
                                 }
                                 messages.size
                             }
-                        if (eventsOverride == null) {
-                            pendingResolutionFrame = null
-                        }
+                        pendingResolutionFrame = null
                         count
                     }
                 }
@@ -331,6 +324,7 @@ class GamePlayback(
     private fun captureSplitCombatDamage(
         game: forge.game.Game,
         events: List<LeylineGameEvent>,
+        reservation: GameBridge.BundleFrameReservation,
     ) {
         val damageFrames = events.combatDamageFrames(game)
         val endCombatEvents =
@@ -338,27 +332,58 @@ class GamePlayback(
                 event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
             }
 
-        for (damageFrame in damageFrames) {
-            val messages = buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageFrame.events))
-            queue.add(messages.withLifeTotals(damageFrame.lifeTotals))
-        }
-        if (endCombatEvents.isNotEmpty()) {
-            queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(endCombatEvents)))
-        }
+        val frames =
+            damageFrames.map { damageFrame ->
+                FrameEventLog(damageFrame.events) to damageFrame.lifeTotals
+            } +
+                if (endCombatEvents.isNotEmpty()) {
+                    listOf(FrameEventLog(endCombatEvents) to emptyMap<Int, Int>())
+                } else {
+                    emptyList()
+                }
+        val results =
+            bundleBuilder.remoteActionDiffSequence(
+                game = game,
+                counter = counter,
+                eventFrames = frames.map { it.first },
+                bundleFrameReservation = reservation,
+            )
+        val batches =
+            if (results.size == frames.size) {
+                results.zip(frames) { result, (_, lifeTotals) ->
+                    result.messages.withLifeTotals(lifeTotals)
+                }
+            } else {
+                check(results.size == 1) { "Combat frame sequence produced ${results.size} results for ${frames.size} frames" }
+                listOf(results.single().messages)
+            }
+        queue.addAll(batches)
     }
 
     private fun buildDiffMessages(
         game: forge.game.Game,
         turnStarted: Boolean,
         events: FrameEventLog,
+        reservation: GameBridge.BundleFrameReservation?,
     ): List<GREToClientMessage> =
-        bundleBuilder
-            .remoteActionDiff(
-                game,
-                counter,
-                turnStarted = turnStarted,
-                eventsOverride = events,
-            ).messages
+        if (reservation == null) {
+            bundleBuilder
+                .remoteActionDiff(
+                    game,
+                    counter,
+                    turnStarted = turnStarted,
+                    eventsOverride = events,
+                ).messages
+        } else {
+            bundleBuilder
+                .remoteActionDiff(
+                    game,
+                    counter,
+                    turnStarted,
+                    events,
+                    reservation,
+                ).messages
+        }
 
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
@@ -600,4 +625,17 @@ internal fun FrameEventLog.shouldAwaitResolutionBoundary(): Boolean {
         }
 }
 
-private fun FrameEventLog.merge(next: FrameEventLog): FrameEventLog = FrameEventLog(events + next.events, zoneMoves + next.zoneMoves)
+/**
+ * A still-open reservation already contains its earlier prefix. If another
+ * frame consumed that prefix, retain the detached pending input and append the
+ * newly reserved suffix.
+ */
+internal fun FrameEventLog.mergeReservedInput(next: FrameEventLog): FrameEventLog =
+    if (
+        next.events.take(events.size) == events &&
+        next.zoneMoves.take(zoneMoves.size) == zoneMoves
+    ) {
+        next
+    } else {
+        FrameEventLog(events + next.events, zoneMoves + next.zoneMoves)
+    }

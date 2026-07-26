@@ -247,6 +247,14 @@ class GameBridge(
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
+    private val bundleFrameLock = Any()
+
+    internal data class BundleFrameReservation(
+        val events: FrameEventLog,
+        internal val collector: GameEventCollector?,
+        internal val eventReservation: GameEventCollector.FrameReservation?,
+        internal val revealReservations: List<Pair<InteractivePromptBridge, InteractivePromptBridge.RevealReservation>>,
+    )
 
     @Volatile
     var autoAdvanceRequester: ((String) -> Unit)? = null
@@ -275,9 +283,7 @@ class GameBridge(
         val action: GameActionBridge,
         val prompt: InteractivePromptBridge,
         val mulligan: MulliganBridge,
-    ) {
-        fun drainReveals(): List<InteractivePromptBridge.RevealRecord> = prompt.drainReveals()
-    }
+    )
 
     /** Parameterized accessor — throws if seat not populated. */
     fun actionBridge(seatId: SeatId): GameActionBridge = actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
@@ -291,6 +297,13 @@ class GameBridge(
 
     /** All protocol seat IDs for players in the current game. */
     fun gameSeatIds(): Set<Int> = players.keys.takeIf { it.isNotEmpty() } ?: promptBridges.keys
+
+    private fun revealBridges(viewingSeatId: Int): List<InteractivePromptBridge> =
+        if (viewingSeatId == 0) {
+            promptBridges.toSortedMap().values.toList()
+        } else {
+            listOf(promptBridge(SeatId(viewingSeatId)))
+        }
 
     /** Parameterized accessor — throws if seat not populated. */
     fun mulliganBridge(seatId: SeatId): MulliganBridge =
@@ -306,10 +319,8 @@ class GameBridge(
 
     /** Drain reveal queue(s) for a specific viewer; seat 0 drains all seats. */
     fun drainReveals(viewingSeatId: Int): List<InteractivePromptBridge.RevealRecord> =
-        if (viewingSeatId == 0) {
-            promptBridges.toSortedMap().values.flatMap { it.drainReveals() }
-        } else {
-            seat(SeatId(viewingSeatId)).drainReveals()
+        synchronized(bundleFrameLock) {
+            revealBridges(viewingSeatId).flatMap { it.drainReveals() }
         }
 
     fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
@@ -622,6 +633,8 @@ class GameBridge(
 
     override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
+    fun planInstanceIdReallocation(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.planRealloc(forgeCardId)
+
     override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
@@ -649,7 +662,7 @@ class GameBridge(
      * Fixed order: id reallocations → limbo retires → zone recordings →
      * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
      *
-     * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
+     * Called by [leyline.game.bundle.BundleBuilder] when committing a complete frame plan.
      */
     fun applyMutations(m: BridgeMutations) {
         val nextAnnotationId =
@@ -666,34 +679,98 @@ class GameBridge(
         transientLinkedFaceFamilyIds = m.nextTransientLinkedFaceFamilyIds
     }
 
-    override fun closeFrame(): FrameEventLog = eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
+    override fun closeFrame(): FrameEventLog =
+        synchronized(bundleFrameLock) {
+            eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
+        }
 
     /**
-     * Close the event frame for one bundle build: collector events + reveal records
-     * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
-     * the returned log to [leyline.game.mapping.StateMapper.buildFromSnapshot] /
-     * [leyline.game.mapping.StateMapper.buildDiff].
+     * Reserve the event input for one bundle build without consuming it.
      *
-     * One close per call; per-seat reveal consumption is seat-scoped. A multi-seat
-     * close (so two per-seat builds of the same snapshot see the same reveals) is
-     * a separate design concern if the pattern ever matters.
+     * Collector events and reveal records become one immutable [FrameEventLog].
+     * [commitBundleFrame] consumes exactly this prefix after projection commit;
+     * later events remain queued for the next frame.
      */
-    fun closeBundleFrame(viewingSeatId: Int = 0): FrameEventLog {
-        val frame = closeFrame()
-        val events = frame.events.toMutableList()
-        for (reveal in drainReveals(viewingSeatId)) {
-            events.add(
-                GameEvent.CardsRevealed(
-                    reveal.forgeCardIds,
-                    reveal.ownerSeatId,
-                    reveal.viewerSeatId,
-                    reveal.sourceZone,
-                    reveal.sourceCardId,
-                ),
-            )
+    internal fun reserveBundleFrame(viewingSeatId: Int = 0): BundleFrameReservation =
+        synchronized(bundleFrameLock) {
+            reserveBundleFrameLocked(viewingSeatId)
         }
-        return FrameEventLog(events, frame.zoneMoves)
+
+    private fun reserveBundleFrameLocked(viewingSeatId: Int): BundleFrameReservation {
+        val collector = eventCollector
+        val eventReservation = collector?.reserveFrame()
+        val revealReservations =
+            revealBridges(viewingSeatId).map { prompt ->
+                prompt to prompt.reserveReveals()
+            }
+        val events =
+            eventReservation
+                ?.log
+                ?.events
+                .orEmpty()
+                .toMutableList()
+        for ((_, reservation) in revealReservations) {
+            for (reveal in reservation.records) {
+                events.add(
+                    GameEvent.CardsRevealed(
+                        reveal.forgeCardIds,
+                        reveal.ownerSeatId,
+                        reveal.viewerSeatId,
+                        reveal.sourceZone,
+                        reveal.sourceCardId,
+                    ),
+                )
+            }
+        }
+        return BundleFrameReservation(
+            events = FrameEventLog(events, eventReservation?.log?.zoneMoves.orEmpty()),
+            collector = collector,
+            eventReservation = eventReservation,
+            revealReservations = revealReservations,
+        )
     }
+
+    /**
+     * Run projection commit against the reserved input, then consume its exact
+     * event/reveal prefixes. A failed commit leaves the input available to retry.
+     */
+    internal fun <T> commitBundleFrame(
+        reservation: BundleFrameReservation,
+        commit: () -> T,
+    ): T =
+        synchronized(bundleFrameLock) {
+            check(eventCollector === reservation.collector) {
+                "Event collector changed before projection commit"
+            }
+            reservation.eventReservation?.let { expected ->
+                checkNotNull(reservation.collector).validateFrameReservation(expected)
+            }
+            reservation.revealReservations.forEach { (prompt, expected) ->
+                prompt.validateRevealReservation(expected)
+            }
+
+            val result = commit()
+
+            reservation.eventReservation?.let { expected ->
+                checkNotNull(reservation.collector).consumeFrame(expected)
+            }
+            reservation.revealReservations.forEach { (prompt, expected) ->
+                prompt.consumeReveals(expected)
+            }
+            result
+        }
+
+    /**
+     * Close the event frame immediately.
+     *
+     * Bundle compilation uses [reserveBundleFrame] and [commitBundleFrame].
+     */
+    fun closeBundleFrame(viewingSeatId: Int = 0): FrameEventLog =
+        synchronized(bundleFrameLock) {
+            val reservation = reserveBundleFrameLocked(viewingSeatId)
+            commitBundleFrame(reservation) {}
+            reservation.events
+        }
 
     /** True if the open frame has accumulated events not yet closed into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false

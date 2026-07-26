@@ -90,14 +90,27 @@ class InteractivePromptBridge(
         pendingOrderZoneMoves.add(move)
     }
 
+    fun pendingOrderZoneMove(
+        seatId: SeatId,
+        forgeCardIds: List<ForgeCardId>,
+    ): PendingOrderZoneMove? =
+        pendingOrderZoneMoves.firstOrNull {
+            it.seatId == seatId && it.forgeCardIds == forgeCardIds
+        }
+
+    fun consumePendingOrderZoneMove(expected: PendingOrderZoneMove) {
+        check(pendingOrderZoneMoves.remove(expected)) {
+            "Pending order zone move changed during frame assembly"
+        }
+    }
+
     fun pollPendingOrderZoneMove(
         seatId: SeatId,
         forgeCardIds: List<ForgeCardId>,
-    ): PendingOrderZoneMove? {
-        val match = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds } ?: return null
-        pendingOrderZoneMoves.remove(match)
-        return match
-    }
+    ): PendingOrderZoneMove? =
+        pendingOrderZoneMove(seatId, forgeCardIds)?.also {
+            consumePendingOrderZoneMove(it)
+        }
 
     // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
 
@@ -288,7 +301,12 @@ class InteractivePromptBridge(
         val sourceCardId: ForgeCardId? = null,
     )
 
+    internal data class RevealReservation(
+        val records: List<RevealRecord>,
+    )
+
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
+    private val revealConsumptionLock = Any()
 
     /** Push a batch of revealed card IDs (called from engine thread via the PlayerController.reveal override). */
     fun recordReveal(
@@ -306,22 +324,51 @@ class InteractivePromptBridge(
     /** Clear all accumulated state for puzzle hot-swap. */
     fun resetForPuzzle() {
         synchronized(_history) { _history.clear() }
-        revealQueue.clear()
+        synchronized(revealConsumptionLock) { revealQueue.clear() }
         pendingOrderZoneMoves.clear()
         pendingTargetSpecs.clear()
         journal.resetForPuzzle()
         pending.set(null)
     }
 
-    /** Drain all pending reveal records (called from annotation-build thread). */
-    fun drainReveals(): List<RevealRecord> {
-        val result = mutableListOf<RevealRecord>()
-        while (true) {
-            val record = revealQueue.poll() ?: break
-            result.add(record)
+    /** Snapshot pending reveal records without consuming them. */
+    internal fun reserveReveals(): RevealReservation =
+        synchronized(revealConsumptionLock) {
+            RevealReservation(revealQueue.toList())
         }
-        return result
+
+    internal fun validateRevealReservation(reservation: RevealReservation) {
+        synchronized(revealConsumptionLock) {
+            val actual = revealQueue.iterator()
+            check(
+                reservation.records.all { record ->
+                    actual.hasNext() && actual.next() == record
+                },
+            ) {
+                "Reveal records changed before projection commit"
+            }
+        }
     }
+
+    /** Consume exactly the reserved prefix, preserving records appended later. */
+    internal fun consumeReveals(reservation: RevealReservation) {
+        synchronized(revealConsumptionLock) {
+            validateRevealReservation(reservation)
+            reservation.records.forEach { expected ->
+                check(revealQueue.poll() == expected) {
+                    "Reserved reveal prefix changed before consumption"
+                }
+            }
+        }
+    }
+
+    /** Drain all pending reveal records immediately. */
+    fun drainReveals(): List<RevealRecord> =
+        synchronized(revealConsumptionLock) {
+            val reservation = reserveReveals()
+            consumeReveals(reservation)
+            reservation.records
+        }
 
     /**
      * Called from the engine thread (BLOCKS until client responds or timeout).
