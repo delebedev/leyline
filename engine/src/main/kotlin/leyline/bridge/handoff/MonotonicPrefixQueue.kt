@@ -1,4 +1,4 @@
-package leyline.game.event
+package leyline.bridge.handoff
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong

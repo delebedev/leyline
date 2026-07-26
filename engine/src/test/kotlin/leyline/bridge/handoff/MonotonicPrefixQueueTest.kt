@@ -1,4 +1,4 @@
-package leyline.game.event
+package leyline.bridge.handoff
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
