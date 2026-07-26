@@ -16,6 +16,7 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.handoff.MonotonicPrefixQueue
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -355,7 +356,7 @@ class GameEventCollector(
                 abilityGrpId == KeywordAbilityIds.ENLIST ->
                     pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
                         ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
-                else -> triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
+                else -> null
             }
         if (abilityGrpId == KeywordAbilityIds.ENLIST && triggeringObjectCardId != null) {
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
