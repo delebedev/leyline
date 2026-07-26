@@ -82,7 +82,7 @@ internal object PersistentFeedBuilder {
         decayedCleanupSourcesThisGsm: Set<ForgeCardId>,
         transferResult: TransferResult,
     ): PersistentFeedBuildResult {
-        val qualification = buildQualificationAnnotations(snap, bridge, frameIds)
+        val qualification = buildQualificationAnnotations(snap, frameIds)
         val temporaryPermanent =
             buildTemporaryPermanentAnnotations(
                 snap,
@@ -122,7 +122,6 @@ internal object PersistentFeedBuilder {
 
     private fun buildQualificationAnnotations(
         snap: GsmSnapshot,
-        bridge: GameBridge,
         frameIds: FrameIdResolver,
     ): List<AnnotationInfo> =
         snap.objects.values
