@@ -295,7 +295,7 @@ class TargetingHandler(
             ),
         )
 
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -413,7 +413,7 @@ class TargetingHandler(
                         )
                     }
                     if (seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))) {
-                        bridge.awaitPriority()
+                        ctx.engine.awaitPriority()
                         PromptResult.AUTO_RESOLVED
                     } else {
                         PromptResult.NONE
@@ -543,7 +543,7 @@ class TargetingHandler(
                 bridge.recordLibraryArrangement(counters.seatId, route.context, topIds, awayIds)
             }
         if (!submitted) return
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -591,7 +591,7 @@ class TargetingHandler(
 
         // Submit empty list → engine sees no targets → spell fails → unwind
         if (!seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())) return
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -801,7 +801,7 @@ class TargetingHandler(
                         pendingInteraction = null
                     }
                 if (!submitted) return
-                bridge.awaitPriority()
+                ctx.engine.awaitPriority()
                 autoPass()
                 pending.stackAbilityInstanceId?.let { abilityIid ->
                     sink.sendBundledGRE(listOf(bundles.bundleBuilder.modalStackCleanup(counters.counter, abilityIid)))
@@ -936,7 +936,7 @@ class TargetingHandler(
                 req.candidateRefs.size,
             )
             if (bridge.seat(counters.seatId).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))) {
-                bridge.awaitPriority()
+                ctx.engine.awaitPriority()
             }
             return
         }
@@ -953,6 +953,6 @@ class TargetingHandler(
     private fun autoResolvePrompt(prompt: InteractivePromptBridge.PendingPrompt) {
         val bridge = ctx.bridge
         if (!bridge.seat(counters.seatId).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))) return
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
     }
 }

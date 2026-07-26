@@ -2,6 +2,7 @@ package leyline.game.bundle
 
 import forge.game.card.CardView
 import forge.game.event.GameEventLandPlayed
+import forge.game.event.GameEventShuffle
 import forge.game.phase.PhaseType
 import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
@@ -28,6 +29,8 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.PlaybackCutReason
+import leyline.game.PlaybackYield
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
@@ -38,6 +41,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.iid
+import leyline.game.mapping.NaiveGsmActionCapture
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
@@ -46,6 +50,7 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PhaseSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
@@ -829,6 +834,111 @@ class BundleBuilderTest :
             }
         }
 
+        test("remote yield preserves legacy bundle bytes with reserved event input") {
+            fun board() =
+                Board.startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Eddymurk Crab", human, ZoneType.Hand)
+                    repeat(3) { addCard("Lightning Bolt", human, ZoneType.Graveyard) }
+                }
+
+            val legacy = board()
+            val migrated = board()
+            try {
+                val legacyLand =
+                    legacy.game.humanPlayer
+                        .getZone(ZoneType.Hand)
+                        .cards
+                        .single { it.isLand }
+                legacy.game.humanPlayer.playLand(legacyLand, null)
+                val legacyReservation = legacy.bridge.reserveBundleFrame(1)
+                val legacyMessages =
+                    legacy
+                        .bundleBuilder()
+                        .remoteActionDiff(
+                            legacy.game,
+                            legacy.counter,
+                            turnStarted = false,
+                            eventsOverride = legacyReservation.events,
+                            bundleFrameReservation = legacyReservation,
+                        ).messages
+
+                val migratedLand =
+                    migrated.game.humanPlayer
+                        .getZone(ZoneType.Hand)
+                        .cards
+                        .single { it.isLand }
+                migrated.game.humanPlayer.playLand(migratedLand, null)
+                val migratedReservation = migrated.bridge.reserveBundleFrame(1)
+                val yield =
+                    PlaybackYield(
+                        sourceGeneration = migratedReservation.sourceGeneration,
+                        cutReason = PlaybackCutReason.LAND_PLAYED,
+                        snapshot = GsmSnapshot.captureForPlayback(migrated.game, migrated.bridge, Board.TEST_MATCH_ID),
+                        events = migratedReservation.events,
+                        reservation = migratedReservation,
+                        naiveActions = NaiveGsmActionCapture.materialize(1, migrated.bridge),
+                    )
+                val migratedMessages =
+                    migrated
+                        .bundleBuilder()
+                        .playbackYield(yield, migrated.counter)
+                        .flatMap { it.messages }
+
+                migratedMessages.map { it.toByteString() } shouldBe legacyMessages.map { it.toByteString() }
+            } finally {
+                legacy.bridge.shutdown()
+                migrated.bridge.shutdown()
+            }
+        }
+
+        test("failed queued yield retries before a later reserved yield") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val (bridge, game, counter) = board
+            val builder = bundleBuilder(bridge)
+            val land =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            game.humanPlayer.playLand(land, null)
+            val firstReservation = bridge.reserveBundleFrame(1)
+            val first =
+                PlaybackYield(
+                    sourceGeneration = firstReservation.sourceGeneration,
+                    cutReason = PlaybackCutReason.LAND_PLAYED,
+                    snapshot = GsmSnapshot.captureForPlayback(game, bridge, Board.TEST_MATCH_ID),
+                    events = firstReservation.events,
+                    reservation = firstReservation,
+                    naiveActions = NaiveGsmActionCapture.materialize(1, bridge),
+                )
+            game.fireEvent(GameEventShuffle(game.humanPlayer))
+            val secondReservation = bridge.reserveBundleFrame(1)
+            val second =
+                PlaybackYield(
+                    sourceGeneration = secondReservation.sourceGeneration,
+                    cutReason = PlaybackCutReason.SPELL_RESOLVED,
+                    snapshot = GsmSnapshot.captureForPlayback(game, bridge, Board.TEST_MATCH_ID),
+                    events = secondReservation.events,
+                    reservation = secondReservation,
+                    naiveActions = NaiveGsmActionCapture.materialize(1, bridge),
+                )
+            val counterBefore = counter.snapshot()
+            bridge.diffListener = { _, _, _, _, _ -> error("induced owner commit failure") }
+
+            shouldThrow<IllegalStateException> {
+                builder.playbackYield(first, counter)
+            }
+
+            counter.snapshot() shouldBe counterBefore
+            bridge.diffListener = null
+            builder.playbackYield(first, counter).shouldHaveSize(1)
+            builder.playbackYield(second, counter).shouldHaveSize(1)
+        }
+
         test("failed frame commit preserves event and reveal input for retry") {
             val board =
                 startWithBoard { _, human, _ ->
@@ -880,12 +990,14 @@ class BundleBuilderTest :
                 counter.snapshot() shouldBe startCounter
             }
 
-            val retryInput = b.reserveBundleFrame(1).events
+            val retryReservation = b.reserveBundleFrame(1)
+            val retryInput = retryReservation.events
             assertSoftly {
                 retryInput.events.filterIsInstance<GameEvent.LandPlayed>() shouldHaveSize 1
                 retryInput.events.filterIsInstance<GameEvent.CardsRevealed>() shouldHaveSize 1
                 retryInput.zoneMoves shouldHaveSize 1
             }
+            b.releaseBundleFrame(retryReservation)
 
             val committed = builder.stateOnlyDiff(game, counter)
             val annotationTypes =

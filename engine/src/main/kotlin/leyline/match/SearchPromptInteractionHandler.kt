@@ -45,7 +45,7 @@ internal class SearchPromptInteractionHandler(
                 setPendingInteraction(null)
             }
         if (!submitted) return
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         drainPendingPlayback()
         bundles.bundleBuilder.cursor.invalidate()
         sink.sendRealGameState(bridge)
@@ -119,11 +119,6 @@ internal class SearchPromptInteractionHandler(
     }
 
     private fun drainPendingPlayback() {
-        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return
-        if (!playback.hasPendingMessages()) return
-
-        for (batch in playback.drainQueue()) {
-            sink.sendBundledGRE(batch)
-        }
+        sink.drainPlayback()
     }
 }

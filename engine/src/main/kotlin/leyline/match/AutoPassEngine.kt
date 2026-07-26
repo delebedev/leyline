@@ -12,14 +12,13 @@ import org.slf4j.LoggerFactory
  * meaningful actions, drains AI-action playback diffs, and delegates to
  * [CombatHandler] / [TargetingHandler] when interactive prompts arise.
  *
- * Protocol sequencing uses the shared [MessageCounter][leyline.game.bundle.MessageCounter]
- * via `counters.counter` — no seeding or syncing needed.
+ * Playback is reduced by the owner before later prompts or terminal output,
+ * keeping one protocol sequence.
  */
 class AutoPassEngine(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
     private val bundles: BundleBuilderHolder,
-    private val pacing: Pacing,
     private val combatHandler: CombatHandler,
     private val targetingHandler: TargetingHandler,
     private val optionalActionHandler: OptionalActionHandler,
@@ -54,9 +53,8 @@ class AutoPassEngine(
     fun autoPassAndAdvance() {
         val bridge = ctx.bridge
         repeat(MAX_ITERATIONS) {
-            // Drain playback before terminal checks. Playback diffs are already
-            // allocated on the shared counter; game-over frames must chain after
-            // the client-visible queue, not skip over it.
+            // Reduce playback before terminal checks so game-over output follows
+            // every earlier engine observation on the owner sequence.
             if (drainPlayback()) return@repeat
 
             val runtime = bridge.runtimeFacts(counters.seatId)
@@ -191,14 +189,8 @@ class AutoPassEngine(
      * produced by [GamePlayback] already have correct sequence numbers.
      */
     fun drainPlayback(): Boolean {
-        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return false
-        if (!playback.hasPendingMessages()) return false
-        val batches = playback.drainQueue()
-        for ((idx, batch) in batches.withIndex()) {
-            if (idx > 0) pacing.paceDelay(1)
-            sink.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
-        }
-        log.debug("drainPlayback: drained {} batches", batches.size)
+        if (!sink.drainPlayback()) return false
+        log.debug("drainPlayback: drained owner engine cuts")
         // Do NOT snapshot current engine state here — the playback diffs represent
         // an earlier point in time. Snapshotting now would advance the diff baseline
         // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
@@ -290,9 +282,9 @@ class AutoPassEngine(
                 sink.sendBundledGRE(edictal.messages)
             }
             bridge.seat(counters.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)
-            bridge.awaitPriority()
+            ctx.engine.awaitPriority()
         } else if (isAiTurn) {
-            val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
+            val reachedPriority = ctx.engine.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
                 if (bridge.runtimeFacts(counters.seatId).isGameOver) {
                     if (drainPlayback()) return LoopSignal.CONTINUE
@@ -304,7 +296,7 @@ class AutoPassEngine(
             }
         } else {
             log.warn("autoPass: no pending action, waiting for priority")
-            bridge.awaitPriority()
+            ctx.engine.awaitPriority()
         }
         return LoopSignal.CONTINUE
     }

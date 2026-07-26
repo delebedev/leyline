@@ -8,12 +8,14 @@ import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.EngineCut
 import leyline.game.advanceToMain1
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.generator.PuzzleSource
 import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -64,14 +66,26 @@ class Board(
 
     /** Build a postAction bundle with standard test constants. */
     fun postAction(): BundleBuilder.BundleResult {
-        val playbackMessages =
-            bridge.playback
-                ?.drainQueue()
-                .orEmpty()
-                .flatten()
+        val playbackMessages = drainPlayback().flatten()
         val result = bundleBuilder().postAction(game, counter)
         if (playbackMessages.isEmpty()) return result
         return BundleBuilder.BundleResult(playbackMessages + result.messages)
+    }
+
+    /** Drain playback through the same compile/commit order as the match owner. */
+    fun drainPlayback(): List<List<GREToClientMessage>> {
+        val builder = bundleBuilder()
+        val interactive = mutableListOf<List<GREToClientMessage>>()
+        val checkpoint = bridge.latestEngineCutCheckpoint()
+        while (true) {
+            val cut = bridge.peekEngineCutThrough(checkpoint) ?: break
+            if (cut is EngineCut.Observation) {
+                interactive += builder.playbackYield(cut.value, counter).map { it.messages }
+            }
+            bridge.acknowledgeEngineCut(cut)
+        }
+        val spectator = bridge.playback?.drainQueue().orEmpty()
+        return interactive + spectator
     }
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */

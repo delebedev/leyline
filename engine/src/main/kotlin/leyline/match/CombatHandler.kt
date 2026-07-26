@@ -288,7 +288,7 @@ open class CombatHandler(
                 defenderByAttacker = defenderByAttacker,
             ),
         )
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -331,7 +331,7 @@ open class CombatHandler(
             pending.actionId,
             PlayerAction.DeclareAttackers(emptyList(), defender = defenderPlayerId?.let { Target.Player(it) }),
         )
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -405,7 +405,7 @@ open class CombatHandler(
             pending.actionId,
             PlayerAction.DeclareBlockers(blockAssignments),
         )
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -454,7 +454,7 @@ open class CombatHandler(
                     // PlayerController — it creates a pending action via awaitAction().
                     // Without this, we'd send DeclareBlockersReq before the engine is
                     // ready to accept the response, causing "no pending action" errors.
-                    ctx.bridge.awaitPriority()
+                    ctx.engine.awaitPriority()
                     // Drain any pending playback messages — the engine thread may have
                     // queued AI actions between the last drain and now.
                     drainPendingPlayback()
@@ -473,7 +473,7 @@ open class CombatHandler(
                         val blockerPending = seatBridge.action.getPending()
                         if (blockerPending != null) {
                             seatBridge.action.submitAction(blockerPending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
-                            ctx.bridge.awaitPriority()
+                            ctx.engine.awaitPriority()
                         }
                         return Signal.SEND_STATE
                     }
@@ -584,7 +584,7 @@ open class CombatHandler(
         )
 
         bridge.submitDamageAssignment(assignments)
-        bridge.awaitPriority()
+        ctx.engine.awaitPriority()
         autoPass()
     }
 
@@ -744,12 +744,6 @@ open class CombatHandler(
      * drain and send.
      */
     private fun drainPendingPlayback() {
-        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return
-        if (playback.hasPendingMessages()) {
-            val batches = playback.drainQueue()
-            for (batch in batches) {
-                sink.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
-            }
-        }
+        sink.drainPlayback()
     }
 }

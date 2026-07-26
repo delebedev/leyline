@@ -188,6 +188,36 @@ class MatchFlowHarnessTest :
             }
         }
 
+        test("AI playback precedes resumed priority in one monotonic stream") {
+            val h = MatchFlowHarness(seed = AI_FIRST_SEED)
+            harness = h
+            h.connectAndKeep()
+
+            val messages = h.allMessages
+            val msgIds = messages.map { it.msgId }
+            msgIds.zipWithNext().all { (before, after) -> before < after }.shouldBeTrue()
+
+            val resumedPromptIndex = messages.indexOfLast { it.hasActionsAvailableReq() }
+            val fullIndex =
+                messages.indexOfLast {
+                    it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full
+                }
+            val playbackIndex =
+                messages
+                    .subList(fullIndex + 1, resumedPromptIndex)
+                    .indexOfLast { it.hasGameStateMessage() }
+                    .takeIf { it >= 0 }
+                    ?.plus(fullIndex + 1)
+                    ?: -1
+
+            assertSoftly {
+                fullIndex shouldBeGreaterThanOrEqualTo 0
+                playbackIndex shouldBeGreaterThan fullIndex
+                resumedPromptIndex shouldBeGreaterThan playbackIndex
+                assertGsIdChain(messages, context = "AI playback before resumed priority")
+            }
+        }
+
         test("AI-first multi-turn gsId chain unique") {
             val h = MatchFlowHarness(seed = AI_FIRST_SEED)
             harness = h

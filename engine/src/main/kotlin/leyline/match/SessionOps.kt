@@ -35,6 +35,9 @@ interface GreMessageSink {
 
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
 
+    /** Compile, commit, and deliver all engine observations currently published. */
+    fun drainPlayback(): Boolean = false
+
     /** Build a single GRE message with explicit IDs. */
     fun makeGRE(
         type: GREMessageType,
@@ -42,6 +45,14 @@ interface GreMessageSink {
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage
+}
+
+interface EngineCutAwaiter {
+    fun awaitPriority(): Boolean
+
+    fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean
+
+    fun awaitActionPriority(): Boolean
 }
 
 /**
@@ -176,4 +187,8 @@ interface GameOps :
     SessionOps,
     BundleBuilderHolder {
     val gameBridge: GameBridge
+
+    fun awaitEnginePriority(): Boolean
+
+    fun awaitEnginePriorityWithTimeout(timeoutMs: Long): Boolean
 }

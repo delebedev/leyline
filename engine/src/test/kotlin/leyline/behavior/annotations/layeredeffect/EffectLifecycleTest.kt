@@ -21,6 +21,7 @@ import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.Board
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -91,6 +92,7 @@ class EffectLifecycleTest :
             TestCardRegistry.registerPuzzleCards(b.getGame()!!)
 
             val game = b.getGame()!!
+            val board = Board(b, game, b.messageCounter)
             val human = b.getPlayer(SeatId(1))!!
 
             // Verify setup: Swiftspear on battlefield, Giant Growth in hand
@@ -145,9 +147,8 @@ class EffectLifecycleTest :
             swiftspear.netToughness shouldBeGreaterThan 2
 
             val playbackGsms =
-                b.playback
-                    ?.drainQueue()
-                    .orEmpty()
+                board
+                    .drainPlayback()
                     .flatten()
                     .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 

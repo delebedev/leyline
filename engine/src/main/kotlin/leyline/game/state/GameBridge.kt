@@ -42,7 +42,12 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
+import leyline.game.EngineCut
+import leyline.game.EngineCutCheckpoint
+import leyline.game.EngineCutQueue
 import leyline.game.GamePlayback
+import leyline.game.InteractionReadiness
+import leyline.game.PlaybackYield
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleCursor
 import leyline.game.bundle.MessageCounter
@@ -76,6 +81,7 @@ import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -159,7 +165,21 @@ class GameBridge(
         val phaseStopProfile: PhaseStopProfile,
     )
 
-    @Volatile private var activeGame: ActiveGame? = null
+    private val bundleFrameLock = Any()
+    private val frameSourceGeneration = AtomicLong()
+    private val engineCuts = EngineCutQueue()
+
+    @Volatile
+    private var activeGame: ActiveGame? = null
+        set(value) {
+            synchronized(bundleFrameLock) {
+                if (field !== value) {
+                    frameSourceGeneration.incrementAndGet()
+                    engineCuts.beginGeneration()
+                }
+                field = value
+            }
+        }
 
     @get:JvmName("getActiveForgeGame")
     private val game: Game? get() = activeGame?.game
@@ -322,13 +342,18 @@ class GameBridge(
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
-    private val bundleFrameLock = Any()
 
     internal data class BundleFrameReservation(
+        val sourceGeneration: Long,
+        val viewingSeatId: Int,
         val events: FrameEventLog,
-        internal val collector: GameEventCollector?,
         internal val eventReservation: GameEventCollector.FrameReservation?,
-        internal val revealReservations: List<Pair<InteractivePromptBridge, InteractivePromptBridge.RevealReservation>>,
+        internal val revealReservations: List<RevealFrameReservation>,
+    )
+
+    internal data class RevealFrameReservation(
+        val seatId: Int,
+        val reservation: InteractivePromptBridge.RevealReservation,
     )
 
     @Volatile
@@ -380,6 +405,13 @@ class GameBridge(
             listOf(promptBridge(SeatId(viewingSeatId)))
         }
 
+    private fun revealSeats(viewingSeatId: Int): List<Pair<Int, InteractivePromptBridge>> =
+        if (viewingSeatId == 0) {
+            promptBridges.toSortedMap().toList()
+        } else {
+            listOf(viewingSeatId to promptBridge(SeatId(viewingSeatId)))
+        }
+
     /** Parameterized accessor — throws if seat not populated. */
     fun mulliganBridge(seatId: SeatId): MulliganBridge =
         mulliganBridges[seatId.value] ?: error("No mulligan bridge for seat ${seatId.value}")
@@ -399,6 +431,16 @@ class GameBridge(
         }
 
     fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
+
+    internal fun publishPlaybackYield(value: PlaybackYield): EngineCutCheckpoint = engineCuts.publishObservation(value)
+
+    internal fun peekEngineCutThrough(checkpoint: EngineCutCheckpoint): EngineCut? = engineCuts.peekThrough(checkpoint)
+
+    internal fun acknowledgeEngineCut(cut: EngineCut) = engineCuts.acknowledge(cut)
+
+    internal fun latestEngineCutCheckpoint(): EngineCutCheckpoint = engineCuts.latestCheckpoint()
+
+    internal fun hasPendingEngineCuts(): Boolean = engineCuts.hasPending()
 
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
@@ -457,7 +499,7 @@ class GameBridge(
     /** Convenience: seat-1 playback for single-player (1vAI) matches. */
     val playback: GamePlayback? get() = playbackFor(SeatId(1))
 
-    override fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
+    fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
 
     private fun registerPlayback(
         game: Game,
@@ -792,8 +834,8 @@ class GameBridge(
         val collector = eventCollector
         val eventReservation = collector?.reserveFrame()
         val revealReservations =
-            revealBridges(viewingSeatId).map { prompt ->
-                prompt to prompt.reserveReveals()
+            revealSeats(viewingSeatId).map { (seatId, prompt) ->
+                RevealFrameReservation(seatId, prompt.reserveReveals())
             }
         val events =
             eventReservation
@@ -815,8 +857,9 @@ class GameBridge(
             }
         }
         return BundleFrameReservation(
+            sourceGeneration = frameSourceGeneration.get(),
+            viewingSeatId = viewingSeatId,
             events = FrameEventLog(events, eventReservation?.log?.zoneMoves.orEmpty()),
-            collector = collector,
             eventReservation = eventReservation,
             revealReservations = revealReservations,
         )
@@ -831,25 +874,37 @@ class GameBridge(
         commit: () -> T,
     ): T =
         synchronized(bundleFrameLock) {
-            check(eventCollector === reservation.collector) {
-                "Event collector changed before projection commit"
+            check(frameSourceGeneration.get() == reservation.sourceGeneration) {
+                "Frame source generation changed before projection commit"
             }
+            val collector = eventCollector
             reservation.eventReservation?.let { expected ->
-                checkNotNull(reservation.collector).validateFrameReservation(expected)
+                checkNotNull(collector).validateFrameReservation(expected)
             }
-            reservation.revealReservations.forEach { (prompt, expected) ->
-                prompt.validateRevealReservation(expected)
+            reservation.revealReservations.forEach { expected ->
+                promptBridge(SeatId(expected.seatId)).validateRevealReservation(expected.reservation)
             }
 
             val result = commit()
 
-            reservation.eventReservation?.let { expected ->
-                checkNotNull(reservation.collector).consumeFrame(expected)
+            check(frameSourceGeneration.get() == reservation.sourceGeneration) {
+                "Frame source generation changed during projection commit"
             }
-            reservation.revealReservations.forEach { (prompt, expected) ->
-                prompt.consumeReveals(expected)
+            reservation.eventReservation?.let { expected ->
+                checkNotNull(collector).consumeFrame(expected)
+            }
+            reservation.revealReservations.forEach { expected ->
+                promptBridge(SeatId(expected.seatId)).consumeReveals(expected.reservation)
             }
             result
+        }
+
+    internal fun releaseBundleFrame(reservation: BundleFrameReservation) =
+        synchronized(bundleFrameLock) {
+            reservation.eventReservation?.let { eventCollector?.releaseFrameReservation(it) }
+            reservation.revealReservations.forEach { expected ->
+                promptBridge(SeatId(expected.seatId)).releaseRevealReservation(expected.reservation)
+            }
         }
 
     /**
@@ -901,10 +956,6 @@ class GameBridge(
         /** Short settle delay after detecting pending state — lets engine thread finish
          *  in-flight zone moves before we snapshot. */
         private const val SETTLE_MS = 1L
-
-        /** Max time to wait for gsId to advance after detecting a pending interaction.
-         *  Capped to avoid stalling on prompts that fire before any GSM is sent. */
-        private const val PROGRESS_WAIT_MS = 50L
 
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 5L
@@ -1525,16 +1576,26 @@ class GameBridge(
         awaitPriorityWithTimeout(priorityWaitMs)
     }
 
-    /** Wait specifically for this seat's next executable priority window. */
-    fun awaitActionPriority(seatId: SeatId): Boolean {
+    /**
+     * Wait specifically for this seat's next executable priority window.
+     *
+     * The readiness marker shares the playback FIFO so the owner can drain
+     * every preceding observation before resuming.
+     */
+    internal fun awaitActionPriorityCut(seatId: SeatId): EngineCutCheckpoint? {
         val deadline = System.currentTimeMillis() + priorityWaitMs
         val actionBridge = seat(seatId).action
         while (true) {
-            if (actionBridge.getPending() != null) return true
+            if (actionBridge.getPending() != null) {
+                return engineCuts.publishReady(InteractionReadiness.ACTION)
+            }
             val g = game
-            if (g == null || g.isGameOver) return false
+            if (g == null || g.isGameOver) {
+                engineCuts.publishReady(InteractionReadiness.GAME_OVER)
+                return null
+            }
             val remaining = deadline - System.currentTimeMillis()
-            if (remaining <= 0) return false
+            if (remaining <= 0) return null
             prioritySignal.awaitSignal(remaining)
         }
     }
@@ -1552,40 +1613,49 @@ class GameBridge(
      * the next action-bridge priority stop is reached. Without this, casting a
      * targeted spell would appear to time out.
      *
-     * After detecting a pending interaction, waits for [messageCounter] to
-     * advance (proving engine output) before returning. This prevents the
-     * caller from draining the sink before the engine has written messages.
+     * Detecting a pending interaction publishes a readiness marker into the
+     * same FIFO as playback observations. The owner drains through that marker
+     * before it resumes the interaction.
      *
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */
-    override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
+    override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean = awaitPriorityCut(timeoutMs) != null
+
+    internal fun awaitPriorityCut(timeoutMs: Long = priorityWaitMs): EngineCutCheckpoint? {
         val deadline = System.currentTimeMillis() + timeoutMs
-        val entryGsId = messageCounter.currentGsId()
         while (true) {
             // Check conditions first (handles already-pending case)
             val g = game
             if (g != null && g.isGameOver) {
                 log.info("GameBridge: game over detected while waiting for priority")
-                return false
+                engineCuts.publishReady(InteractionReadiness.GAME_OVER)
+                return null
             }
             if (hasPendingInteraction()) {
-                // Wait for engine to produce output (gsId advances), then settle
-                awaitProgress(entryGsId, deadline)
                 Thread.sleep(SETTLE_MS)
-                return true
+                return engineCuts.publishReady(pendingInteractionReadiness())
             }
 
             val remaining = deadline - System.currentTimeMillis()
             if (remaining <= 0) {
                 log.warn("GameBridge: timed out waiting for priority ({}ms)", timeoutMs)
-                return false
+                return null
             }
 
             // Wait for signal from either bridge (or timeout)
             prioritySignal.awaitSignal(remaining)
         }
     }
+
+    private fun pendingInteractionReadiness(): InteractionReadiness =
+        when {
+            humanController?.pendingDamageAssignment != null -> InteractionReadiness.DAMAGE_ASSIGNMENT
+            humanController?.pendingOptionalAction != null -> InteractionReadiness.OPTIONAL_ACTION
+            humanController?.pendingNumericInput != null -> InteractionReadiness.NUMERIC_INPUT
+            promptBridges.values.any { it.getPendingPrompt() != null } -> InteractionReadiness.PROMPT
+            else -> InteractionReadiness.ACTION
+        }
 
     private fun hasPendingInteraction(): Boolean =
         actionBridges.values.any { it.getPending() != null } ||
@@ -1596,22 +1666,6 @@ class GameBridge(
             humanController?.pendingDamageAssignment != null ||
             humanController?.pendingOptionalAction != null ||
             humanController?.pendingNumericInput != null
-
-    /**
-     * Spin until the message counter advances past [entryGsId], proving engine output.
-     * Capped at [PROGRESS_WAIT_MS] to avoid stalling on prompts that fire before any GSM.
-     */
-    private fun awaitProgress(
-        entryGsId: Int,
-        deadline: Long,
-    ) {
-        if (entryGsId == 0) return
-        val progressDeadline = minOf(deadline, System.currentTimeMillis() + PROGRESS_WAIT_MS)
-        while (messageCounter.currentGsId() <= entryGsId) {
-            if (System.currentTimeMillis() >= progressDeadline) return
-            Thread.sleep(1)
-        }
-    }
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
