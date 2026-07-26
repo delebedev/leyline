@@ -97,4 +97,29 @@ class RuntimeBoundaryTest :
                     "ADR 0014 keeps transport channels in protocol heads outside the match runtime",
                 ).check(classes)
         }
+
+        test("priority action state crosses the worker boundary as values") {
+            noClasses()
+                .that()
+                .haveNameMatching(
+                    "leyline\\.bridge\\.handoff\\.GameActionBridge\\\$ActionOffer|" +
+                        "leyline\\.bridge\\.handoff\\.GameActionBridge\\\$ActionSubmission|" +
+                        "leyline\\.bridge\\.handoff\\.GameActionBridge\\\$PendingAction|" +
+                        "leyline\\.game\\.mapping\\.ActionMapper\\\$ActionProjection|" +
+                        "leyline\\.match\\.PendingClientInteraction.*",
+                ).should()
+                .dependOnClassesThat()
+                .haveFullyQualifiedName("leyline.bridge.handoff.PlayerAction")
+                .because("live executable commands remain in the worker-owned token table")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveFullyQualifiedName("leyline.bridge.handoff.GameActionBridge\$ActionOffer")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .because("priority action offers contain tokens and immutable projection facts only")
+                .check(classes)
+        }
     })

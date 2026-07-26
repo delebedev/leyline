@@ -51,6 +51,14 @@ a replacement owner from overlapping the closing generation.
 references; `PrioritySignal` is a semaphore. `GamePlayback.queue` is concurrent,
 but `queueLock` deliberately covers the whole close-events/build/advance-cursor/
 enqueue window and every drain. The queue type alone is not the transaction.
+Priority-action catalogs contain value-only offers. Exact `PlayerAction`
+commands remain in `GameActionBridge`'s per-window token table while the
+priority window is live. One lifecycle monitor covers pending-window
+publication, token registration, immutable `(gameStateId, catalog)`
+replacement, submission, cancellation, timeout cleanup, and engine
+consumption. Deferred-response journals commit inside accepted submission,
+before the engine future becomes visible. Completion, replacement,
+cancellation, and failure clear the bounded window.
 
 ```mermaid
 flowchart LR

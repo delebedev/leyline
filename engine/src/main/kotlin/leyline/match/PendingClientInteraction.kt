@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.ActionToken
 import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -11,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * Only one such interaction should be pending at a time for a seat.
  * Keeping it typed avoids dispatch based on multiple nullable fields.
  */
-sealed interface PendingClientInteraction {
+internal sealed interface PendingClientInteraction {
     data class ModalChoice(
         val promptId: String,
         val childGrpIds: List<Int>,
@@ -42,8 +42,11 @@ sealed interface PendingClientInteraction {
 
     data class OptionalCost(
         val pendingActionId: String,
-        val action: PlayerAction.CastSpell,
+        val actionToken: ActionToken,
+        val cardId: ForgeCardId,
+        val acceptedActionEffects: AcceptedActionEffects,
         val costCtoIds: List<Int>,
+        val hybridManaChoices: List<ManaColor> = emptyList(),
         /**
          * Subset of [costCtoIds] that correspond to keyword-cost keywords
          * (Offspring, Casualty, Conspire — see
@@ -57,7 +60,9 @@ sealed interface PendingClientInteraction {
 
     data class HybridManaType(
         val pendingActionId: String,
-        val action: PlayerAction.CastSpell,
+        val actionToken: ActionToken,
+        val cardId: ForgeCardId,
+        val acceptedActionEffects: AcceptedActionEffects,
         val clientAction: Action,
         val castAbilityIndex: Int?,
         val ctoIds: List<Int>,
@@ -68,7 +73,9 @@ sealed interface PendingClientInteraction {
     data class AlternateCostChoice(
         val pendingActionId: String,
         val cardId: ForgeCardId,
-        val abilityIndicesByCtoId: Map<Int, Int>,
+        val acceptedActionEffects: AcceptedActionEffects,
+        val defaultActionToken: ActionToken,
+        val actionTokensByCtoId: Map<Int, ActionToken>,
     ) : PendingClientInteraction
 
     data class Search(

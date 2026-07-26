@@ -13,9 +13,12 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
+import leyline.bridge.handoff.PendingActionState
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -50,6 +53,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -1440,6 +1444,22 @@ class BundleBuilderTest :
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Battlefield)
                 }
+            val actionBridge = b.seat(SeatId(1)).action
+            val selected =
+                CompletableFuture.supplyAsync {
+                    actionBridge.awaitAction(
+                        PendingActionState("Main1", 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            val pending =
+                (1..10_000)
+                    .asSequence()
+                    .map {
+                        Thread.yield()
+                        actionBridge.getPending()
+                    }.filterNotNull()
+                    .firstOrNull()
+                    .shouldNotBeNull()
 
             val result = bundleBuilder(b).postAction(game, counter)
             val gsm = result.messages.first { it.hasGameStateMessage() }.gameStateMessage
@@ -1448,7 +1468,11 @@ class BundleBuilderTest :
             // No Library→Hand events, so the override must not fire and the default
             // SendAndRecord (acting == viewing) stands. Guards against the override
             // swallowing non-draw postAction bundles.
-            gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
+            assertSoftly {
+                actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority) shouldBe true
+                selected.get(2, TimeUnit.SECONDS) shouldBe PlayerAction.PassPriority
+                gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
+            }
         }
     })
 

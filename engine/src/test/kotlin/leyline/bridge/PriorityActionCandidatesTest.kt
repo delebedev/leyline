@@ -19,8 +19,8 @@ class PriorityActionCandidatesTest :
                 }
 
             val candidates = PriorityActionCandidates.query(board.game, board.human)
-            val projection =
-                ActionMapper.buildProjectionFromSnapshot(
+            val actions =
+                ActionMapper.buildFromSnapshot(
                     1,
                     SnapshotCapture.run(board.game, board.bridge, "test", 0),
                     board.bridge,
@@ -29,8 +29,8 @@ class PriorityActionCandidatesTest :
 
             assertSoftly {
                 candidates.hasLegalNonManaAction(board.human).shouldBeTrue()
-                projection.actions.ofType(ActionType.Cast).shouldHaveSize(0)
-                projection.actions.inactiveActionsList
+                actions.ofType(ActionType.Cast).shouldHaveSize(0)
+                actions.inactiveActionsList
                     .filter { it.actionType == ActionType.Cast }
                     .shouldHaveSize(1)
             }

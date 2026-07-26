@@ -6,17 +6,22 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Room (split-room enchantment) cast actions — `CastLeftRoom` (action type 22)
@@ -182,28 +187,43 @@ class RoomActionTest :
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
-            val offers = roomOffersForIid(projection.actions.actionsList, iid)
-
             val castable = leyline.bridge.getAllCastableAbilities(card, human)
-            offers.map { it.actionType } shouldContainExactlyInAnyOrder
-                listOf(ActionType.CastLeftRoom, ActionType.CastRightRoom)
+            val actionBridge = b.seat(SeatId(1)).action
+
+            fun selectRoomDoor(actionType: ActionType): PlayerAction.CastSpell {
+                val selected =
+                    CompletableFuture.supplyAsync {
+                        actionBridge.awaitAction(
+                            PendingActionState("Main1", 1, activePlayerId = 1, priorityPlayerId = 1),
+                        )
+                    }
+                val pending =
+                    (1..10_000)
+                        .asSequence()
+                        .map {
+                            Thread.yield()
+                            actionBridge.getPending()
+                        }.filterNotNull()
+                        .firstOrNull()
+                        .shouldNotBeNull()
+                val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+                val offer = projection.offers.single { it.action.actionType == actionType && it.action.instanceId == iid }
+                actionBridge.bindActionCatalog(pending.actionId, 12, projection.offers) shouldBe true
+                actionBridge.submitActionToken(pending.actionId, offer.token) shouldBe true
+                return selected.get(2, TimeUnit.SECONDS).shouldBeInstanceOf<PlayerAction.CastSpell>()
+            }
+
+            val left = selectRoomDoor(ActionType.CastLeftRoom)
+            val right = selectRoomDoor(ActionType.CastRightRoom)
+            listOf(left.ability?.cardStateName, right.ability?.cardStateName) shouldContainExactlyInAnyOrder
+                listOf(forge.card.CardStateName.LeftSplit, forge.card.CardStateName.RightSplit)
             assertSoftly {
-                offers.forEach { offer ->
-                    val command =
-                        projection.offers
-                            .single { it.action == offer }
-                            .command
-                            .shouldBeInstanceOf<PlayerAction.CastSpell>()
+                listOf(left, right).forEach { command ->
                     command.ability shouldNotBe null
                     command.abilityId shouldBe castable.indexOfFirst { it === command.ability }
-                    command.ability?.cardStateName shouldBe
-                        if (offer.actionType == ActionType.CastLeftRoom) {
-                            forge.card.CardStateName.LeftSplit
-                        } else {
-                            forge.card.CardStateName.RightSplit
-                        }
                 }
+                left.ability?.cardStateName shouldBe forge.card.CardStateName.LeftSplit
+                right.ability?.cardStateName shouldBe forge.card.CardStateName.RightSplit
             }
         }
 
