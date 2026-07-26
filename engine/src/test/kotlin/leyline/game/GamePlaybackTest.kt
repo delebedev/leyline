@@ -226,4 +226,61 @@ class GamePlaybackTest :
 
             FrameEventLog(events).shouldAwaitResolutionBoundary() shouldBe false
         }
+
+        test("pending frame reuses an open reservation without duplicating its prefix") {
+            val damage =
+                GameEvent.DamageDealtToPlayer(
+                    sourceCardId = ForgeCardId(10),
+                    targetSeatId = SeatId(2),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.SpellOrAbility,
+                    changesLife = true,
+                )
+            val resolved = GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false)
+            val pending = FrameEventLog(listOf(damage, resolved))
+            val completed =
+                FrameEventLog(
+                    events = listOf(damage, resolved),
+                    zoneMoves =
+                        listOf(
+                            ZoneMove(
+                                order = 1,
+                                cardId = ForgeCardId(10),
+                                from = Zone.Stack,
+                                to = Zone.Graveyard,
+                                cause = null,
+                            ),
+                        ),
+                )
+
+            pending.mergeReservedInput(completed).events shouldBe listOf(damage, resolved)
+        }
+
+        test("pending frame merges when another frame consumed its detached prefix") {
+            val damage =
+                GameEvent.DamageDealtToPlayer(
+                    sourceCardId = ForgeCardId(10),
+                    targetSeatId = SeatId(2),
+                    amount = 3,
+                    sourceKind = DamageSourceKind.SpellOrAbility,
+                    changesLife = true,
+                )
+            val resolved = GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false)
+            val move =
+                ZoneMove(
+                    order = 1,
+                    cardId = ForgeCardId(10),
+                    from = Zone.Stack,
+                    to = Zone.Graveyard,
+                    cause = null,
+                )
+            val pending = FrameEventLog(listOf(damage, resolved))
+
+            val merged = pending.mergeReservedInput(FrameEventLog(emptyList(), listOf(move)))
+
+            assertSoftly {
+                merged.events shouldBe listOf(damage, resolved)
+                merged.zoneMoves shouldBe listOf(move)
+            }
+        }
     })

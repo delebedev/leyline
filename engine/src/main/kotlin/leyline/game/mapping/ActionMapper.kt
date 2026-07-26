@@ -67,15 +67,16 @@ object ActionMapper {
     fun buildNaiveActions(
         seatId: Int,
         bridge: GameBridge,
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): ActionsAvailableReq {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return passOnlyActions()
         return buildActionList(
             player = player,
             seatId = seatId,
             checkLegality = false,
-            idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
+            idResolver = idResolver,
             grpIdResolver = { card ->
-                val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                val iid = idResolver(ForgeCardId(card.id)).value
                 GrpId(bridge.resolveGrpId(card, iid))
             },
             cardDataLookup = { grpId -> bridge.cardRepository.findByGrpId(grpId.value) },
@@ -105,6 +106,7 @@ object ActionMapper {
         snap: GsmSnapshot,
         bridge: GameBridge,
         priorityCandidates: PriorityActionCandidates? = null,
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): ActionProjection {
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()
@@ -143,8 +145,8 @@ object ActionMapper {
             buildAutoTapSolution(
                 cost,
                 player,
-                idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
-                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
+                idResolver = idResolver,
+                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, idResolver(ForgeCardId(c.id)).value)) },
                 cardDataLookup = { bridge.cardRepository.findByGrpId(it.value) },
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
             )
@@ -154,7 +156,7 @@ object ActionMapper {
             val card = snap.objects[fid] ?: continue
             if (card.controller.value != seatId) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = idResolver(fid).value
             val grpId = card.grpId
 
             if (!card.tapped && card.hasManaAbilities) {
@@ -247,7 +249,7 @@ object ActionMapper {
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
             if (forgeCard.lockedRooms.isEmpty()) continue
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = idResolver(fid).value
             addRoomCastActions(
                 forgeCard,
                 player,
@@ -273,7 +275,7 @@ object ActionMapper {
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
             val cardData = snap.boundCards[fid]?.data
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = idResolver(fid).value
             addSpecialTurnFaceUpActions(
                 card = forgeCard,
                 player = player,
@@ -305,7 +307,7 @@ object ActionMapper {
         for (fid in hand) {
             val card = snap.objects[fid] ?: continue
             if (!card.isLand) continue
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = idResolver(fid).value
             val grpId = card.grpId
             val landAbility = bridge.findCard(fid)?.let { candidates?.forCard(it)?.landAbility }
             val canPlayLand = landAbility != null && player?.canPlayLand(landAbility.hostCard, false, landAbility) == true
@@ -325,7 +327,7 @@ object ActionMapper {
             // of `getAllCastableAbilities` (so cast index resolution works),
             // but the hand-cast emit must skip them.
             if (cardSnap.isRoom) {
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val instanceId = idResolver(fid).value
                 addRoomCastActions(
                     forgeCard,
                     player,
@@ -348,7 +350,7 @@ object ActionMapper {
                 } else {
                     canPayManaCost(sa, player)
                 }
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = idResolver(fid).value
             val grpId = cardSnap.grpId
             val preferAltCostFirst = castable.any { it.isCastFaceDown }
 
@@ -452,7 +454,7 @@ object ActionMapper {
             val cardSnap = snap.objects[fid] ?: continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = idResolver(fid).value
             addMdfcFaceActions(
                 card = forgeCard,
                 player = player,
@@ -482,7 +484,7 @@ object ActionMapper {
                 builder = builder,
                 card = forgeCard,
                 player = player,
-                instanceId = { bridge.getOrAllocInstanceId(fid).value },
+                instanceId = { idResolver(fid).value },
                 grpId = { cardSnap.grpId },
                 cardData = { _ -> snap.boundCards[fid]?.data },
                 envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
@@ -501,10 +503,10 @@ object ActionMapper {
         }
 
         // --- Zone casts (graveyard, exile, command) ---
-        addZoneCastActionsFromSnap(seatId, snap, builder, bridge, candidates, ::addOffer)
+        addZoneCastActionsFromSnap(seatId, snap, builder, bridge, candidates, idResolver, ::addOffer)
 
         // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
-        addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, ::bindOffer)
+        addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, idResolver, ::bindOffer)
 
         // Pass + FloatMana always available
         addOffer(Action.newBuilder().setActionType(ActionType.Pass).build(), PlayerAction.PassPriority)
@@ -544,6 +546,7 @@ object ActionMapper {
         builder: ActionsAvailableReq.Builder,
         bridge: GameBridge,
         candidates: PriorityActionCandidates?,
+        idResolver: (ForgeCardId) -> InstanceId,
         addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
     ) {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return
@@ -554,7 +557,7 @@ object ActionMapper {
                 val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
                 if (castable.isEmpty()) continue
                 val sa = castable.first()
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val instanceId = idResolver(fid).value
                 val cardSnap = snap.objects[fid]
                 val sourceGrpId =
                     cardSnap?.grpId
@@ -571,7 +574,7 @@ object ActionMapper {
                 val actionFacetId =
                     when {
                         rail?.grpIdMode == ZoneCastGrpIdMode.OtherSide && cardSnap?.othersideGrpId?.takeIf { it > 0 } != null ->
-                            bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
+                            idResolver(FrameIdResolver.disturbBackForgeId(fid)).value
                         else -> instanceId
                     }
 
@@ -640,6 +643,7 @@ object ActionMapper {
         builder: ActionsAvailableReq.Builder,
         bridge: GameBridge,
         candidates: PriorityActionCandidates?,
+        idResolver: (ForgeCardId) -> InstanceId,
         addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
     ) {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return
@@ -658,7 +662,7 @@ object ActionMapper {
             for ((abilityIndex, ability) in (candidates?.forCard(forgeCard)?.activations ?: emptyList()).withIndex()) {
                 if (!ability.canPlay()) continue
                 val canPay = canPayManaCost(ability, player)
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val instanceId = idResolver(fid).value
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
                 ActivatedActionEmitter.emitActivatedAbilityAction(

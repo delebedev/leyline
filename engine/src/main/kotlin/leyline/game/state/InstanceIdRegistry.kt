@@ -75,6 +75,17 @@ class InstanceIdRegistry(
     }
 
     /**
+     * Reserve a reallocation without changing either identity map.
+     *
+     * The card must already be mapped: order-prompt candidates have previously
+     * been projected, so a missing mapping indicates an invalid frame input.
+     */
+    fun planRealloc(forgeCardId: ForgeCardId): IdReallocation {
+        val oldId = checkNotNull(forgeIdToInstanceId[forgeCardId]) { "Cannot plan reallocation for unmapped card $forgeCardId" }
+        return IdReallocation(oldId, reserveNextInstanceId())
+    }
+
+    /**
      * Apply a previously-planned reallocation.
      *
      * Updates forward map to [realloc.new]; keeps reverse entries for both old and
