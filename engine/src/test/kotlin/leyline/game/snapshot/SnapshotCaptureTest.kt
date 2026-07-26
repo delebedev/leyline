@@ -35,16 +35,8 @@ class SnapshotCaptureTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
             val goalFid = ForgeCardId(-1)
-            snap.objects[goalFid]?.grpId shouldBe 0
-            snap.objects[goalFid]?.name shouldBe "Puzzle Goal"
-            snap.objects[goalFid]?.isClientVisibleGamePiece shouldBe false
-
             val gsm = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
             val goalIid = b.getOrAllocInstanceId(goalFid).value
-            gsm.gameObjectsList.map { it.instanceId } shouldNotContain goalIid
-            gsm.zonesList
-                .first { it.zoneId == ZoneIds.COMMAND }
-                .objectInstanceIdsList shouldNotContain goalIid
 
             // Sanity: real card still resolves to a real grpId.
             val bearsCard =
@@ -53,8 +45,17 @@ class SnapshotCaptureTest :
                     .cards
                     .first { it.name == "Grizzly Bears" }
             val bearsSnap = snap.objects.getValue(ForgeCardId(bearsCard.id))
-            bearsSnap.grpId shouldBeGreaterThan 0
-            bearsSnap.isClientVisibleGamePiece shouldBe true
+            assertSoftly {
+                snap.objects[goalFid]?.grpId shouldBe 0
+                snap.objects[goalFid]?.name shouldBe "Puzzle Goal"
+                snap.objects[goalFid]?.isClientVisibleGamePiece shouldBe false
+                gsm.gameObjectsList.map { it.instanceId } shouldNotContain goalIid
+                gsm.zonesList
+                    .first { it.zoneId == ZoneIds.COMMAND }
+                    .objectInstanceIdsList shouldNotContain goalIid
+                bearsSnap.grpId shouldBeGreaterThan 0
+                bearsSnap.isClientVisibleGamePiece shouldBe true
+            }
         }
 
         test("Effect helper with source is omitted from snapshot zones and objects") {
