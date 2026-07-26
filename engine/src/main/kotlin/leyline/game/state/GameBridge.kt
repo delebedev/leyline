@@ -97,13 +97,69 @@ class GameBridge(
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
-    private var game: Game? = null
+    private sealed interface ActiveGame {
+        val game: Game
+        val eventCollector: GameEventCollector
+
+        data class Interactive(
+            override val game: Game,
+            override val eventCollector: GameEventCollector,
+            val humanController: BridgedPlayerController,
+            val phaseStopProfile: PhaseStopProfile,
+            val loopController: GameLoopController,
+        ) : ActiveGame
+
+        data class Spectator(
+            override val game: Game,
+            override val eventCollector: GameEventCollector,
+            val loopController: GameLoopController,
+        ) : ActiveGame
+
+        data class WrappedInteractive(
+            override val game: Game,
+            override val eventCollector: GameEventCollector,
+            val humanController: BridgedPlayerController,
+            val phaseStopProfile: PhaseStopProfile,
+        ) : ActiveGame
+
+        data class WrappedPassive(
+            override val game: Game,
+            override val eventCollector: GameEventCollector,
+        ) : ActiveGame
+
+        data class PuzzleAi(
+            override val game: Game,
+            override val eventCollector: GameEventCollector,
+            val phaseStopProfile: PhaseStopProfile,
+            val loopController: GameLoopController,
+        ) : ActiveGame
+    }
+
+    private data class HumanBindings(
+        val controller: BridgedPlayerController,
+        val phaseStopProfile: PhaseStopProfile,
+    )
+
+    @Volatile private var activeGame: ActiveGame? = null
+
+    @get:JvmName("getActiveForgeGame")
+    private val game: Game? get() = activeGame?.game
 
     /** True when the active game uses Commander/Brawl/Oathbreaker rules. */
     val isBrawlOrCommander: Boolean
         get() = game?.let { isCommanderGame(it) } ?: false
     private val players: MutableMap<Int, Player> = mutableMapOf()
-    private var loopController: GameLoopController? = null
+    private val loopController: GameLoopController?
+        get() =
+            when (val active = activeGame) {
+                is ActiveGame.Interactive -> active.loopController
+                is ActiveGame.Spectator -> active.loopController
+                is ActiveGame.PuzzleAi -> active.loopController
+                is ActiveGame.WrappedInteractive,
+                is ActiveGame.WrappedPassive,
+                null,
+                -> null
+            }
 
     val abilityLineage = AbilityLineageRegistry()
 
@@ -346,9 +402,18 @@ class GameBridge(
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
     }
 
-    /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
-    var humanController: BridgedPlayerController? = null
-        private set
+    /** Human player's controller for interactive modes. */
+    val humanController: BridgedPlayerController?
+        get() =
+            when (val active = activeGame) {
+                is ActiveGame.Interactive -> active.humanController
+                is ActiveGame.WrappedInteractive -> active.humanController
+                is ActiveGame.PuzzleAi,
+                is ActiveGame.Spectator,
+                is ActiveGame.WrappedPassive,
+                null,
+                -> null
+            }
 
     private class PlaybackRegistry {
         private val bySeat = mutableMapOf<SeatId, GamePlayback>()
@@ -394,12 +459,20 @@ class GameBridge(
     }
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
-    var eventCollector: GameEventCollector? = null
-        private set
+    val eventCollector: GameEventCollector? get() = activeGame?.eventCollector
 
     /** Phase stop profile — controls which phases the engine stops at per player. Null before start(). */
-    var phaseStopProfile: PhaseStopProfile? = null
-        private set
+    val phaseStopProfile: PhaseStopProfile?
+        get() =
+            when (val active = activeGame) {
+                is ActiveGame.Interactive -> active.phaseStopProfile
+                is ActiveGame.WrappedInteractive -> active.phaseStopProfile
+                is ActiveGame.PuzzleAi -> active.phaseStopProfile
+                is ActiveGame.Spectator,
+                is ActiveGame.WrappedPassive,
+                null,
+                -> null
+            }
 
     /**
      * Look up a Forge [Card] by [ForgeCardId]. Used by snapshot-based pipeline stages
@@ -842,21 +915,30 @@ class GameBridge(
      * but don't need the game loop or player interaction.
      */
     fun wrapGame(g: Game) {
-        game = g
         populateSeatMap(g)
         // Register the bridged controller exactly as the started-game paths
         // do — a wrapped game whose cost calculations reach the default
         // controller would block on desktop input machinery.
-        registerHumanController(g)
+        val humanBindings = registerHumanController(g)
         val collector = GameEventCollector(this)
-        eventCollector = collector
+        activeGame =
+            if (humanBindings == null) {
+                ActiveGame.WrappedPassive(g, collector)
+            } else {
+                ActiveGame.WrappedInteractive(
+                    game = g,
+                    eventCollector = collector,
+                    humanController = humanBindings.controller,
+                    phaseStopProfile = humanBindings.phaseStopProfile,
+                )
+            }
         g.subscribeToEvents(collector)
     }
 
-    private fun registerHumanController(g: Game) {
-        val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return
+    private fun registerHumanController(g: Game): HumanBindings? {
+        val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return null
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        val profile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
         val controller =
             BridgedPlayerController(
                 game = g,
@@ -866,9 +948,8 @@ class GameBridge(
                 seating = seating,
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
-                phaseStopProfile = phaseStopProfile,
+                phaseStopProfile = profile,
             )
-        humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
         aiPlayer.addController(
             Long.MAX_VALUE - 1,
@@ -876,6 +957,7 @@ class GameBridge(
             RevealTrackingAiController(g, aiPlayer, promptBridge(seating.humanSeat), seating.familiarSeat),
             false,
         )
+        return HumanBindings(controller, profile)
     }
 
     /**
@@ -921,12 +1003,10 @@ class GameBridge(
             } else {
                 GameBootstrap.createConstructedGame(deck1, deck2)
             }
-        game = g
-
         populateSeatMap(g)
 
         // Wire the interactive seat and retain native AI decisions with reveal observation.
-        registerHumanController(g)
+        val humanBindings = checkNotNull(registerHumanController(g)) { "Constructed game requires a human controller" }
 
         val loop =
             GameLoopController(
@@ -936,14 +1016,20 @@ class GameBridge(
                 mulliganBridges = mulliganBridges.values.toList(),
                 prioritySignal = prioritySignal,
             )
-        loopController = loop
+        val collector = GameEventCollector(this)
+        activeGame =
+            ActiveGame.Interactive(
+                game = g,
+                eventCollector = collector,
+                humanController = humanBindings.controller,
+                phaseStopProfile = humanBindings.phaseStopProfile,
+                loopController = loop,
+            )
         loop.start()
         loop.awaitStarted()
 
         // Register event collector FIRST — must fire before playback so closeFrame()
         // includes the current event when playback's captureAndPause runs.
-        val collector = GameEventCollector(this)
-        eventCollector = collector
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
@@ -997,7 +1083,6 @@ class GameBridge(
             } else {
                 GameBootstrap.createAiVsAiGame(deck1, deck2)
             }
-        game = g
         populateSeatMap(g)
 
         g.players.forEachIndexed { index, player ->
@@ -1010,12 +1095,11 @@ class GameBridge(
         }
 
         val collector = GameEventCollector(this)
-        eventCollector = collector
+        val loop = GameLoopController(g, prioritySignal = prioritySignal)
+        activeGame = ActiveGame.Spectator(g, collector, loop)
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for AI-vs-AI spectator game")
 
-        val loop = GameLoopController(g, prioritySignal = prioritySignal)
-        loopController = loop
         loop.start(startGameHook)
 
         registerPlayback(g, SeatId(1), captureLocalActions = true)
@@ -1358,7 +1442,6 @@ class GameBridge(
         GameBootstrap.initializeCardDatabase()
 
         val g = GameBootstrap.createPuzzleGame()
-        game = g
         populateSeatMap(g)
 
         // Apply puzzle state via reflection (applyGameOnThread is protected).
@@ -1398,24 +1481,26 @@ class GameBridge(
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        if (aiControllerFactory == null) {
-            val controller =
-                BridgedPlayerController(
-                    game = g,
-                    player = human,
-                    lobbyPlayer = human.lobbyPlayer,
-                    bridge = promptBridge(SeatId(1)),
-                    seating = seating,
-                    actionBridge = actionBridge(SeatId(1)),
-                    mulliganBridge = mulliganBridge(SeatId(1)),
-                    phaseStopProfile = phaseStopProfile,
-                )
-            humanController = controller
-            human.addController(Long.MAX_VALUE - 1, human, controller, false)
-        } else {
-            human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
-        }
+        val profile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        val humanController =
+            if (aiControllerFactory == null) {
+                val controller =
+                    BridgedPlayerController(
+                        game = g,
+                        player = human,
+                        lobbyPlayer = human.lobbyPlayer,
+                        bridge = promptBridge(SeatId(1)),
+                        seating = seating,
+                        actionBridge = actionBridge(SeatId(1)),
+                        mulliganBridge = mulliganBridge(SeatId(1)),
+                        phaseStopProfile = profile,
+                    )
+                human.addController(Long.MAX_VALUE - 1, human, controller, false)
+                controller
+            } else {
+                human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
+                null
+            }
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =
@@ -1426,13 +1511,17 @@ class GameBridge(
                 mulliganBridges = mulliganBridges.values.toList(),
                 prioritySignal = prioritySignal,
             )
-        loopController = loop
+        val collector = GameEventCollector(this)
+        activeGame =
+            if (humanController == null) {
+                ActiveGame.PuzzleAi(g, collector, profile, loop)
+            } else {
+                ActiveGame.Interactive(g, collector, humanController, profile, loop)
+            }
         loop.startFromCurrentState()
         loop.awaitStarted()
 
         // Register event collector and playback (same as constructed)
-        val collector = GameEventCollector(this)
-        eventCollector = collector
         g.subscribeToEvents(collector)
 
         registerPlayback(g, SeatId(1), captureLocalActions = false)
@@ -1495,17 +1584,14 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
-        val g = game
-        if (g != null) {
-            eventCollector?.let { g.unsubscribeFromEvents(it) }
-            for (pb in playbackRegistry.values()) {
-                g.unsubscribeFromEvents(pb)
-            }
+        val active = activeGame ?: return
+        active.game.unsubscribeFromEvents(active.eventCollector)
+        for (pb in playbackRegistry.values()) {
+            active.game.unsubscribeFromEvents(pb)
         }
         loopController?.shutdown()
-        loopController = null
         playbackRegistry.clear()
-        eventCollector = null
+        activeGame = null
     }
 
     /**
@@ -1516,7 +1602,6 @@ class GameBridge(
     fun shutdown() {
         log.info("GameBridge: shutting down")
         teardownResources()
-        game = null
         players.clear()
     }
 
