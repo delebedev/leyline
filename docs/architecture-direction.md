@@ -127,12 +127,12 @@ is cleared when the window completes, is superseded or cancelled, or fails.
 This preserves bind-at-source execution without sending a mutable
 `SpellAbility` across the boundary.
 
-The token table is not the only live crossing to retire. Today a pending
-targeting prompt retains its live `SpellAbility` so request rebuilding can
-re-check legality, and priority candidate lists carry live ability references
-through the session API. Under this architecture both become worker
-responsibilities: re-validation runs as an engine command against the retained
-handle, and candidate facts cross the boundary as immutable data plus tokens.
+Targeting prompts and priority candidate decisions already follow the same
+discipline. A pending prompt exposes only immutable request and identity data;
+its live `SpellAbility` stays in engine-owned active state while re-validation
+runs as a value request on the blocked callback. Priority candidate lists stay
+behind the bridge, while the match loop consumes immutable decision facts.
+Executable priority handles still follow the token-table rule above.
 
 ## State model
 

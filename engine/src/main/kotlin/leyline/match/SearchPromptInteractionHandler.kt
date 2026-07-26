@@ -6,10 +6,6 @@ import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.bundle.RequestBuilder
-import leyline.game.mapping.FrameIdResolver
-import leyline.game.mapping.PromptIds
-import leyline.game.mapping.SearchShape
-import leyline.game.mapping.ZoneIds
 import org.slf4j.LoggerFactory
 
 /** Owns the library-search request/response lifecycle. */
@@ -34,19 +30,23 @@ internal class SearchPromptInteractionHandler(
                 DevCheck.failOnAutoPass { "SearchResp but no search pending" }
                 return
             }
-        setPendingInteraction(null)
 
         val seatBridge = bridge.seat(counters.seatId)
         val prompt = seatBridge.prompt.getPendingPrompt()
-        if (prompt != null &&
-            prompt.promptId == pending.promptId &&
-            prompt.request.route.accepts(PromptResponseKind.Search)
+        if (prompt == null ||
+            prompt.promptId != pending.promptId ||
+            !prompt.request.route.accepts(PromptResponseKind.Search)
         ) {
-            val responseIndices = responseIndices(itemsFound, prompt)
-            seatBridge.prompt.submitResponse(pending.promptId, responseIndices)
-            bridge.awaitPriority()
-            drainPendingPlayback()
+            return
         }
+        val responseIndices = responseIndices(itemsFound, prompt)
+        val submitted =
+            seatBridge.prompt.submitResponse(pending.promptId, responseIndices) {
+                setPendingInteraction(null)
+            }
+        if (!submitted) return
+        bridge.awaitPriority()
+        drainPendingPlayback()
         bundles.bundleBuilder.cursor.invalidate()
         sink.sendRealGameState(bridge)
         autoPass()
@@ -58,39 +58,10 @@ internal class SearchPromptInteractionHandler(
         sink.sendRealGameState(bridge, revealForSeat = counters.seatId.value)
 
         val req = pendingPrompt.request
-        val player = bridge.getPlayer(counters.seatId)
-        val library = player?.getZone(forge.game.zone.ZoneType.Library)
-        val libZoneId = ZoneIds.libraryOf(counters.seatId)
-        val allLibIds =
-            library?.cards?.map {
-                bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
-            } ?: emptyList()
+        val facts = bridge.searchPromptFacts(counters.seatId, req.sourceEntityId)
         val validIds =
             req.candidateRefs.map { ref ->
                 bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
-            }
-
-        val stackTop = ctx.game.stack.firstOrNull()
-        val sa = stackTop?.spellAbility
-        val saId = sa?.id
-        val isAbilityOnStack = stackTop?.isAbility == true
-        val hostCardForgeId = sa?.hostCard?.id ?: req.sourceEntityId
-        val hostCardIid = hostCardForgeId?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)).value } ?: 0
-        val sourceId =
-            when {
-                isAbilityOnStack && saId != null -> {
-                    val abForgeId = FrameIdResolver.triggerStackAbilityForgeId(saId)
-                    bridge.getOrAllocInstanceId(abForgeId).value
-                }
-                hostCardIid != 0 -> hostCardIid
-                stackTop != null -> bridge.getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
-                else -> 0
-            }
-        val promptId =
-            if (isAbilityOnStack && SearchShape.isTypeCycling(sa)) {
-                PromptIds.SEARCH_TYPECYCLING
-            } else {
-                PromptIds.SEARCH
             }
 
         val msg =
@@ -98,23 +69,23 @@ internal class SearchPromptInteractionHandler(
                 msgId = counters.counter.nextMsgId(),
                 gsId = counters.counter.currentGsId(),
                 systemSeatId = counters.seatId.value,
-                sourceInstanceId = sourceId,
-                hostCardInstanceId = hostCardIid,
+                sourceInstanceId = facts.sourceInstanceId,
+                hostCardInstanceId = facts.hostCardInstanceId,
                 searchingSeat = counters.seatId.value,
-                libraryZoneId = libZoneId,
-                allLibraryIds = allLibIds,
+                libraryZoneId = facts.libraryZoneId,
+                allLibraryIds = facts.allLibraryIds,
                 validTargetIds = validIds,
                 maxFind = req.max,
                 allowFailToFind = req.min == 0,
-                promptId = promptId,
+                promptId = facts.promptId,
             )
         sink.sendBundledGRE(listOf(msg))
         setPendingInteraction(PendingClientInteraction.Search(pendingPrompt.promptId))
         log.info(
             "SearchReq sent: lib={} valid={} source={}, awaiting SearchResp",
-            allLibIds.size,
+            facts.allLibraryIds.size,
             validIds.size,
-            sourceId,
+            facts.sourceInstanceId,
         )
     }
 

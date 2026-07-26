@@ -460,7 +460,7 @@ class DebugServer(
                 }
             }
 
-        val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
+        val (newSession, deletedIds) = session.replaceForPuzzle { it.resetForPuzzle(puzzle) }
         bridge.awaitPriority()
         val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }

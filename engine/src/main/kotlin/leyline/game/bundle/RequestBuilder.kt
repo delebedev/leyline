@@ -2,11 +2,9 @@ package leyline.game.bundle
 
 import forge.card.mana.ManaCostShard
 import forge.game.Game
-import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
-import forge.game.spellability.SpellAbility
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
@@ -107,21 +105,16 @@ object RequestBuilder {
      * - Already-selected targets: `legalAction=Unselect`, no highlight.
      * - Remaining legal candidates: `legalAction=Select_a1ad`, `highlight=Tepid`
      *   (Hot for opponent player targets, Cold for own-player).
-     * - Illegal-after-selection candidates omitted entirely. Legality uses
-     *   Forge's [SpellAbility.canTarget] with hypothetical selections applied
-     *   via clone-and-swap on `sa.targets` (safe because the engine thread is
-     *   blocked inside `requestChoice` between phase-1 and phase-2).
+     * - Illegal-after-selection candidates omitted entirely. [legalCandidateIndices]
+     *   comes from engine-owned target revalidation against the blocked prompt.
      * - `selectedTargets` set to selection count; minTargets/maxTargets preserved.
-     *
-     * When [InteractivePromptBridge.PendingPrompt.targetingSa] is null, falls back
-     * to emitting all non-selected candidates as Select — unblocks the client
-     * without a legality filter.
      */
     @Suppress("CyclomaticComplexMethod")
     fun buildSelectTargetsRePrompt(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         selectedInstanceIds: List<Int>,
+        legalCandidateIndices: Set<Int>? = null,
         chooserSeatId: Int = 1,
     ): SelectTargetsReq {
         val builder = SelectTargetsReq.newBuilder()
@@ -140,14 +133,6 @@ object RequestBuilder {
 
         val selectedSet = selectedInstanceIds.toSet()
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
-        val sa = prompt.targetingSa
-        val game = bridge.getGame()
-        val hypotheticalSelections: List<GameEntity> =
-            if (sa != null && game != null) {
-                selectedInstanceIds.mapNotNull { resolveEntityByInstanceId(it, bridge, game) }
-            } else {
-                emptyList()
-            }
 
         // When all target slots are filled (e.g. min=max=1 after one pick), the
         // re-prompt omits Select entries — only the Unselect echo remains.
@@ -169,14 +154,7 @@ object RequestBuilder {
 
             // Remaining candidate — only emit if more slots are open and still legal.
             if (!slotsRemaining) continue
-            val stillLegal =
-                if (sa != null && game != null) {
-                    val candidate = resolveEntityByRef(ref, bridge, game)
-                    candidate == null || canTargetWithHypothetical(sa, candidate, hypotheticalSelections)
-                } else {
-                    true
-                }
-            if (!stillLegal) continue
+            if (legalCandidateIndices != null && ref.index !in legalCandidateIndices) continue
 
             selBuilder.addTargets(
                 wotc.mtgo.gre.external.messaging.Messages.Target
@@ -358,64 +336,15 @@ object RequestBuilder {
                 )
             null -> Unit
         }
-        val sa = prompt.targetingSa ?: return null
-        val cardName = sa.hostCard?.name ?: return null
+        if (prompt.request.targetPromptId != PromptIds.MUTATE_TARGET) return null
+        val cardName = prompt.request.sourceCardName ?: return null
         val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return null
-        return when {
-            sa.isMutate ->
-                TargetPromptShape(
-                    outerAbilityGrpId = KeywordAbilityIds.MUTATE,
-                    targetingAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0,
-                    promptId = PromptIds.MUTATE_TARGET,
-                    targetSourceZoneId = ZoneIds.BATTLEFIELD,
-                )
-            else -> null
-        }
-    }
-
-    /**
-     * Check whether [candidate] is still a legal target for [sa] given that
-     * [hypothetical] are already selected. Applied via clone-and-swap on
-     * `sa.targets` — never mutates the caller-visible TargetChoices.
-     */
-    private fun canTargetWithHypothetical(
-        sa: SpellAbility,
-        candidate: GameEntity,
-        hypothetical: List<GameEntity>,
-    ): Boolean {
-        val original = sa.targets
-        val clone = original.clone()
-        for (e in hypothetical) clone.add(e)
-        return try {
-            sa.setTargets(clone)
-            sa.canTarget(candidate)
-        } finally {
-            sa.setTargets(original)
-        }
-    }
-
-    /** Map a client instanceId (seatId for player targets, card iid otherwise) back to a Forge [GameEntity]. */
-    private fun resolveEntityByInstanceId(
-        instanceId: Int,
-        bridge: GameBridge,
-        game: Game,
-    ): GameEntity? {
-        bridge.getPlayer(SeatId(instanceId))?.let { return it }
-        val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
-        return game.findById(cardId.value)
-    }
-
-    /** Resolve a [candidateRef] (player- or card-kind) to a Forge [GameEntity]. */
-    private fun resolveEntityByRef(
-        ref: PromptCandidateRefDto,
-        bridge: GameBridge,
-        game: Game,
-    ): GameEntity? {
-        if (ref.isPlayer()) {
-            val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
-            return bridge.getPlayer(SeatId(seatId))
-        }
-        return game.findById(ref.entityId)
+        return TargetPromptShape(
+            outerAbilityGrpId = KeywordAbilityIds.MUTATE,
+            targetingAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0,
+            promptId = PromptIds.MUTATE_TARGET,
+            targetSourceZoneId = ZoneIds.BATTLEFIELD,
+        )
     }
 
     /**

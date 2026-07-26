@@ -9,7 +9,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.game.InMemoryCardRepository
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.state.GameBridge
-import java.util.concurrent.CompletableFuture
 
 class PromptSourceResolverTest :
     FunSpec({
@@ -19,7 +18,6 @@ class PromptSourceResolverTest :
             InteractivePromptBridge.PendingPrompt(
                 promptId = "source-test",
                 request = request,
-                future = CompletableFuture(),
             )
 
         test("card-source prompt resolves to source card iid") {

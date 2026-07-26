@@ -1,21 +1,13 @@
 package leyline.match
 
-import forge.card.mana.ManaCost
 import leyline.DevCheck
-import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.ActionToken
-import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.ManaColorMapping
 import leyline.game.bundle.CastingTimeOptionsBuilder
-import leyline.game.bundle.CastingTimeOptionsBuilder.ManaRequirementSpec
-import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
-import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -66,28 +58,17 @@ internal class DeferredCastCostInteractionHandler(
     ): Boolean {
         if (action.alternativeGrpId != 0) return false
         val bridge = ctx.bridge
-        val game = ctx.game
         clearDeferredCastCostStashes()
 
-        val card = game.findById(cardId.value) ?: return false
-        val player = bridge.getPlayer(counters.seatId) ?: return false
-        val castable = getAllCastableAbilities(card, player)
-        val sa = castAbilityIndex?.let { castable.getOrNull(it) } ?: castable.firstOrNull() ?: return false
-        sa.setActivatingPlayer(player)
-        val effectiveCost = ActionMapper.computeEffectiveCost(sa, player) ?: return false
-        val paymentColors = effectiveCost.hybridOrTwoGenericColors()
-        if (paymentColors.isEmpty()) return false
-        val baseCost = sa.payCosts?.totalMana
-        val promptCost = baseCost?.takeIf { it.hybridOrTwoGenericColors().size == paymentColors.size } ?: effectiveCost
-        val promptColors = promptCost.hybridOrTwoGenericColors()
+        val facts = bridge.hybridCastCostFacts(counters.seatId, cardId, castAbilityIndex) ?: return false
 
         val (ctoReq, ctoIds) =
             CastingTimeOptionsBuilder.buildManaTypeCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 grpId = action.grpId,
                 playerIdToPrompt = counters.seatId.value,
-                hybridColors = promptColors,
-                manaCost = promptCost.toManaRequirementSpecs(),
+                hybridColors = facts.promptColors,
+                manaCost = facts.manaCost,
             )
         setPendingInteraction(
             PendingClientInteraction.HybridManaType(
@@ -98,13 +79,13 @@ internal class DeferredCastCostInteractionHandler(
                 clientAction = action,
                 castAbilityIndex = castAbilityIndex,
                 ctoIds = ctoIds,
-                promptColors = promptColors,
-                paymentColors = paymentColors,
+                promptColors = facts.promptColors,
+                paymentColors = facts.paymentColors,
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
-        Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} card=${card.name}")
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(counters.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} card=${facts.cardName}")
         sink.sendBundledGRE(result.messages)
         return true
     }
@@ -120,79 +101,31 @@ internal class DeferredCastCostInteractionHandler(
         clearExistingStashes: Boolean = true,
     ): Boolean {
         val bridge = ctx.bridge
-        val game = ctx.game
-        val card = game.findById(cardId.value) ?: return false
-
-        val player = bridge.getPlayer(counters.seatId) ?: return false
-        val castable = getAllCastableAbilities(card, player)
-        val sa = castAbilityIndex?.let { castable.getOrNull(it) } ?: castable.firstOrNull() ?: return false
-        sa.setActivatingPlayer(player)
         if (clearExistingStashes) clearDeferredCastCostStashes()
-
-        val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
-        val keywordCostEntries = collectKeywordCostEntries(card)
-        if (optionalCosts.isEmpty() && keywordCostEntries.isEmpty()) return false
+        val facts = bridge.optionalCastCostFacts(counters.seatId, cardId, castAbilityIndex, action.grpId) ?: return false
+        val optionalCostEntries = facts.entries.filter { it.keywordName == null }
+        val keywordEntries = facts.entries.filter { it.keywordName != null }
 
         log.info(
             "DeferredCastCostInteractionHandler: card '{}' has {} optional costs and {} keyword costs — sending prompt",
-            card.name,
-            optionalCosts.size,
-            keywordCostEntries.size,
+            facts.cardName,
+            optionalCostEntries.size,
+            keywordEntries.size,
         )
-
-        val cardData = bridge.cardRepository.findByGrpId(action.grpId)
-        val keywordCount =
-            if (cardData != null) {
-                bridge.abilityRegistryFor(card, cardData)?.slotLayout?.keywordCount ?: 0
-            } else {
-                0
-            }
-        val optionalCostEntries =
-            optionalCosts.mapIndexed { i, cost ->
-                val ctoType =
-                    when (cost.type) {
-                        forge.game.spellability.OptionalCost.Kicker1,
-                        forge.game.spellability.OptionalCost.Kicker2,
-                        -> CastingTimeOptionType.Kicker
-                        else -> CastingTimeOptionType.AdditionalCost
-                    }
-                val abilityGrpId =
-                    if (cost.type == forge.game.spellability.OptionalCost.Bargain ||
-                        cost.type == forge.game.spellability.OptionalCost.Teamwork
-                    ) {
-                        findKeywordSlot(card, cost.type.name, keywordCount)
-                            ?.let { cardData?.abilityIds?.getOrNull(it)?.first }
-                            ?: 0
-                    } else {
-                        cardData
-                            ?.abilityIds
-                            ?.getOrNull(keywordCount + i)
-                            ?.first ?: 0
-                    }
-                Pair(ctoType, abilityGrpId)
-            }
-
-        val keywordEntries =
-            keywordCostEntries.mapNotNull { kw ->
-                val slot = findKeywordSlot(card, kw.name, keywordCount) ?: return@mapNotNull null
-                val abilityGrpId = cardData?.abilityIds?.getOrNull(slot)?.first ?: 0
-                Triple(CastingTimeOptionType.AdditionalCost, abilityGrpId, kw.name)
-            }
-
-        val combinedCostEntries = optionalCostEntries + keywordEntries.map { (ctoType, gid, _) -> ctoType to gid }
+        val combinedCostEntries = facts.entries.map { it.type to it.abilityGrpId }
         val (ctoReq, costCtoIds) =
             CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 optionalCosts = combinedCostEntries,
                 playerIdToPrompt = counters.seatId.value,
-                baseManaCost = cardData?.manaCost ?: emptyList(),
+                baseManaCost = facts.baseManaCost,
             )
         val keywordCtoIdMap =
             keywordEntries
-                .mapIndexed { idx, (_, _, kwName) ->
+                .mapIndexed { idx, entry ->
                     val ctoIdx = optionalCostEntries.size + idx
                     val ctoId = costCtoIds.getOrNull(ctoIdx) ?: return@mapIndexed null
-                    ctoId to kwName
+                    ctoId to checkNotNull(entry.keywordName)
                 }.filterNotNull()
                 .toMap()
 
@@ -208,8 +141,8 @@ internal class DeferredCastCostInteractionHandler(
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
-        Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} card=${card.name}")
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(counters.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} card=${facts.cardName}")
         sink.sendBundledGRE(result.messages)
         return true
     }
@@ -221,49 +154,28 @@ internal class DeferredCastCostInteractionHandler(
         acceptedActionEffects: AcceptedActionEffects,
     ): Boolean {
         val bridge = ctx.bridge
-        val game = ctx.game
-        val card = game.findById(cardId.value) ?: return false
-        if (card.keywords.none { it.original.startsWith("AlternateAdditionalCost") }) return false
-
-        val player = bridge.getPlayer(counters.seatId) ?: return false
-        val castable = getAllCastableAbilities(card, player)
-        if (castable.size <= 1) return false
-
-        val optionPromptIds = alternateAdditionalCostPromptIds(castable)
+        val facts = bridge.alternateCastCostFacts(counters.seatId, cardId) ?: return false
         val (ctoReq, ctoIds) =
             CastingTimeOptionsBuilder.buildChooseOrCostCastingTimeOptionsReq(
                 instanceId = action.instanceId,
                 grpId = action.grpId,
                 playerIdToPrompt = counters.seatId.value,
-                optionCount = castable.size,
-                optionPromptIds = optionPromptIds,
+                optionCount = facts.optionCount,
+                optionPromptIds = facts.optionPromptIds,
             )
-        val seatBridge = bridge.seat(counters.seatId)
-        val actionTokensByCtoId =
-            ctoIds
-                .mapIndexed { index, ctoId ->
-                    ctoId to
-                        seatBridge.action.registerActionCommand(
-                            pendingActionId,
-                            PlayerAction.CastSpell(
-                                cardId = cardId,
-                                abilityId = index,
-                                ability = castable[index],
-                            ),
-                        )
-                }.toMap()
+        val commands = bridge.registerAlternateCastCommands(counters.seatId, pendingActionId, cardId, ctoIds) ?: return false
         setPendingInteraction(
             PendingClientInteraction.AlternateCostChoice(
                 pendingActionId = pendingActionId,
                 cardId = cardId,
                 acceptedActionEffects = acceptedActionEffects,
-                defaultActionToken = checkNotNull(actionTokensByCtoId[ctoIds.first()]),
-                actionTokensByCtoId = actionTokensByCtoId,
+                defaultActionToken = commands.defaultToken,
+                actionTokensByCtoId = commands.tokensByCtoId,
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
-        Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} card=${card.name}")
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(counters.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} card=${facts.cardName}")
         sink.sendBundledGRE(result.messages)
         return true
     }
@@ -433,24 +345,6 @@ internal class DeferredCastCostInteractionHandler(
         DevCheck.failOnAutoPass { "$responseName response does not match its pending engine action" }
     }
 
-    private fun alternateAdditionalCostPromptIds(castable: List<forge.game.spellability.SpellAbility>): List<Int> {
-        val promptIds = castable.map { sa -> promptIdForAdditionalCostBranch(sa) }
-        return if (promptIds.all { it != null }) promptIds.filterNotNull() else emptyList()
-    }
-
-    private fun promptIdForAdditionalCostBranch(sa: forge.game.spellability.SpellAbility): Int? {
-        val costs = sa.payCosts ?: return null
-        if (costs.isOnlyManaCost) return PromptIds.CHOOSE_OR_COST_PAY_MANA
-        val costPartNames = costs.costParts.map { it.javaClass.simpleName }
-        return when {
-            costPartNames.any { it.contains("Sacrifice") } -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
-            costPartNames.any { it.contains("Exile") } -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
-            else -> null
-        }
-    }
-
-    private fun ManaCost.hybridOrTwoGenericColors(): List<ManaColor> = mapNotNull { shard -> ManaColorMapping.fromOrTwoGenericShard(shard) }
-
     private fun List<ManaColor>.reorderHybridChoices(
         promptColors: List<ManaColor>,
         paymentColors: List<ManaColor>,
@@ -465,67 +359,5 @@ internal class DeferredCastCostInteractionHandler(
                 getOrNull(promptIndex) ?: paymentColor
             }
         }
-    }
-
-    private fun ManaCost.toManaRequirementSpecs(): List<ManaRequirementSpec> =
-        buildList {
-            for (shard in this@toManaRequirementSpecs) {
-                val hybridColor = ManaColorMapping.fromOrTwoGenericShard(shard)
-                val color = hybridColor ?: ManaColorMapping.fromShard(shard) ?: continue
-                add(
-                    ManaRequirementSpec(
-                        colors =
-                            if (hybridColor !=
-                                null
-                            ) {
-                                listOf(ManaColor.TwoGeneric, color)
-                            } else {
-                                listOf(color)
-                            },
-                    ),
-                )
-            }
-            if (genericCost > 0) {
-                add(ManaRequirementSpec(colors = listOf(ManaColor.Generic), count = genericCost))
-            }
-        }
-
-    private val binaryKeywordCostNames =
-        setOf(
-            forge.game.keyword.Keyword.OFFSPRING,
-            forge.game.keyword.Keyword.CASUALTY,
-            forge.game.keyword.Keyword.CONSPIRE,
-        )
-
-    private data class KeywordCostEntry(
-        val name: String,
-    )
-
-    private fun collectKeywordCostEntries(card: forge.game.card.Card): List<KeywordCostEntry> {
-        val out = mutableListOf<KeywordCostEntry>()
-        for (ki in card.keywords) {
-            val keyword = ki.keyword ?: continue
-            if (keyword in binaryKeywordCostNames) {
-                out += KeywordCostEntry(keyword.toString())
-            }
-        }
-        return out
-    }
-
-    private fun findKeywordSlot(
-        card: forge.game.card.Card,
-        keywordName: String,
-        slotBound: Int,
-    ): Int? {
-        val keywordStrings =
-            card.rules
-                ?.mainPart
-                ?.keywords
-                ?.toList() ?: return null
-        for ((idx, kwText) in keywordStrings.withIndex()) {
-            if (idx >= slotBound) return null
-            if (kwText.startsWith(keywordName)) return idx
-        }
-        return null
     }
 }

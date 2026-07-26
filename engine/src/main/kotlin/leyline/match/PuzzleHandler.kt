@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.gamemodes.puzzle.Puzzle
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
@@ -23,8 +22,8 @@ import java.io.File
  * is loaded; otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
  *
  * **Ordering constraint:** [GameBootstrap.initializeLocalization] must be called
- * before any [Puzzle] constructor — Forge's `GameState.<clinit>` reads localized
- * card data. This is enforced inside [loadPuzzleForMatch], not at construction time,
+ * before parsing a puzzle — Forge's `GameState.<clinit>` reads localized
+ * card data. This is enforced inside [startPuzzleForMatch], not at construction time,
  * so the handler can be created eagerly without triggering Forge class loading.
  */
 class PuzzleHandler(
@@ -57,8 +56,7 @@ class PuzzleHandler(
                         cardRepository = cardRepository,
                     )
                 Match(matchId, bridge).also {
-                    val puzzle = loadPuzzleForMatch(matchId)
-                    bridge.startPuzzle(puzzle)
+                    startPuzzleForMatch(bridge, matchId)
                 }
             }
         return match.bridge
@@ -119,7 +117,10 @@ class PuzzleHandler(
      * The configured value may be an absolute path, a cwd-relative path, or a bare
      * puzzle name (e.g. `stock-up`) — bare names resolve to `puzzles/<name>.pzl`.
      */
-    private fun loadPuzzleForMatch(matchId: String): Puzzle {
+    private fun startPuzzleForMatch(
+        bridge: GameBridge,
+        matchId: String,
+    ) {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
         GameBootstrap.initializeLocalization()
 
@@ -127,7 +128,7 @@ class PuzzleHandler(
         val file =
             resolvePuzzleFile(name)
                 ?: error("Puzzle not found: $name (looked in ${File(findLeylineDir(), "puzzles").absolutePath})")
-        return PuzzleSource.loadFromFile(file.absolutePath)
+        bridge.startPuzzle(PuzzleSource.loadFromFile(file.absolutePath))
     }
 
     /** First existing candidate: as-given, with `.pzl`, then under `puzzles/`. */

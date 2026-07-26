@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.handoff.NumericInputPrompt
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -41,12 +40,11 @@ class NumericInputHandler(
      * @return true if a `NumericInputReq` was sent (caller should exit loop).
      */
     fun checkPendingNumericInput(): Boolean {
-        val wpc = ctx.bridge.humanController ?: return false
-        val prompt = wpc.pendingNumericInput ?: return false
+        val prompt = ctx.bridge.pendingNumericInput() ?: return false
 
         log.info(
             "NumericInputHandler: numeric input pending for {} (min={}, max={})",
-            prompt.sourceCard?.name ?: "unknown",
+            prompt.sourceCardName ?: "unknown",
             prompt.min,
             prompt.max,
         )
@@ -63,13 +61,8 @@ class NumericInputHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
-        val wpc =
-            bridge.humanController ?: run {
-                log.warn("NumericInputHandler: no humanController for NumericInputResp")
-                return
-            }
         val prompt =
-            wpc.pendingNumericInput ?: run {
+            bridge.pendingNumericInput() ?: run {
                 log.warn("NumericInputHandler: no pending prompt for NumericInputResp")
                 return
             }
@@ -79,10 +72,10 @@ class NumericInputHandler(
         log.info(
             "NumericInputHandler: client picked {} for {}",
             value,
-            prompt.sourceCard?.name ?: "unknown",
+            prompt.sourceCardName ?: "unknown",
         )
 
-        prompt.future.complete(value)
+        bridge.submitNumericInput(value)
         bridge.awaitPriority()
         autoPass()
     }
@@ -91,14 +84,14 @@ class NumericInputHandler(
 
     private fun sendNumericInputReq(prompt: NumericInputPrompt) {
         val bridge = ctx.bridge
-        val sourceCard = prompt.sourceCard
-        if (sourceCard == null) {
+        val sourceCardId = prompt.sourceCardId
+        if (sourceCardId == null) {
             log.warn("NumericInputHandler: sourceCard is null — defaulting to {}", prompt.min)
-            prompt.future.complete(prompt.min)
+            bridge.submitNumericInput(prompt.min)
             return
         }
 
-        val sourceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id)).value
+        val sourceId = bridge.getOrAllocInstanceId(sourceCardId).value
 
         val req =
             NumericInputReq

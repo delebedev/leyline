@@ -4,6 +4,7 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.util.MyRandom
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -113,6 +114,22 @@ class GameBridgeTest :
 
             seat1Hand.size shouldBe 7
             seat2Hand.shouldNotBeEmpty()
+        }
+
+        test("shutdown retires the game without retaining post-close access") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            val game = GameBootstrap.createGame()
+            b.wrapGame(game)
+
+            b.requireGame() shouldBe game
+            b.shutdown()
+
+            assertSoftly {
+                b.getGame() shouldBe null
+                shouldThrow<IllegalStateException> { b.requireGame() }.message shouldBe "GameBridge has no active game"
+            }
+            bridge = null
         }
 
         test("getHandGrpIds resolves") {

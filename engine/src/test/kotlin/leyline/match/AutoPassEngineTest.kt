@@ -92,7 +92,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true)
+            val decision = engine.checkHumanActions(isAiTurn = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
@@ -122,7 +122,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true)
+            val decision = engine.checkHumanActions(isAiTurn = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -182,7 +182,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true)
+            val decision = engine.checkHumanActions(isAiTurn = true)
 
             (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
         }
@@ -208,7 +208,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false)
+            val decision = engine.checkHumanActions(isAiTurn = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -236,7 +236,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true)
+            val decision = engine.checkHumanActions(isAiTurn = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -264,7 +264,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false)
+            val decision = engine.checkHumanActions(isAiTurn = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.ClientAutoPass
@@ -295,7 +295,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false)
+            val decision = engine.checkHumanActions(isAiTurn = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -320,7 +320,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false)
+            val decision = engine.checkHumanActions(isAiTurn = false)
 
             decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
         }
@@ -346,7 +346,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false)
+            val decision = engine.checkHumanActions(isAiTurn = false)
 
             val grant = decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             grant.phase shouldBe "MAIN1"
@@ -376,7 +376,7 @@ class AutoPassEngineTest :
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(game, isAiTurn = false)
+                engine.checkHumanActions(isAiTurn = false)
                 appender.list.single().formattedMessage shouldBe
                     "event=priority_decision source=session phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
             } finally {
@@ -408,7 +408,7 @@ class AutoPassEngineTest :
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(game, isAiTurn = true)
+                engine.checkHumanActions(isAiTurn = true)
                 appender.list.size shouldBe 0
             } finally {
                 logger.detachAppender(appender)
@@ -533,7 +533,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 ) {
                     override fun checkCombatPhase(
-                        phase: forge.game.phase.PhaseType?,
+                        phase: String?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
                     ): Signal = Signal.STOP
@@ -576,7 +576,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 ) {
                     override fun checkCombatPhase(
-                        phase: forge.game.phase.PhaseType?,
+                        phase: String?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
                     ): Signal = Signal.SEND_STATE
@@ -620,7 +620,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 ) {
                     override fun checkCombatPhase(
-                        phase: forge.game.phase.PhaseType?,
+                        phase: String?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
                     ): Signal = Signal.SEND_STATE

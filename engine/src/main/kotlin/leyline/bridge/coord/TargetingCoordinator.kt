@@ -711,6 +711,7 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
                 sourceEntityId = sa.hostCard?.id,
+                sourceCardName = sa.hostCard?.name,
                 targetIndex = targetGroupIndex(sa),
                 targetPromptId = effectiveTargetPromptId(sa),
                 isTriggeredAbility = sa.isTrigger,

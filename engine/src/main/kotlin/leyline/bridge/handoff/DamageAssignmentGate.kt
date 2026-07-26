@@ -49,13 +49,16 @@ class DamageAssignmentGate(
         return PendingGate.await(
             publish = { owner.pendingDamageAssignment = it },
             prompt = { future ->
-                DamageAssignmentPrompt(
-                    attacker = attacker,
-                    blockers = blockers,
-                    damageDealt = damageDealt,
-                    defender = defender,
-                    hasDeathtouch = attacker.hasKeyword(Keyword.DEATHTOUCH),
-                    hasTrample = attacker.hasKeyword(Keyword.TRAMPLE),
+                PendingDamageAssignment(
+                    prompt =
+                        DamageAssignmentPrompt(
+                            attacker = attacker.toCombatDamageCard(),
+                            blockers = blockers.map { it.toCombatDamageCard() },
+                            damageDealt = damageDealt,
+                            hasDefender = defender != null,
+                            hasDeathtouch = attacker.hasKeyword(Keyword.DEATHTOUCH),
+                            hasTrample = attacker.hasKeyword(Keyword.TRAMPLE),
+                        ),
                     future = future,
                 )
             },
@@ -73,3 +76,11 @@ class DamageAssignmentGate(
         )
     }
 }
+
+private fun Card.toCombatDamageCard() =
+    CombatDamageCard(
+        id = leyline.bridge.types.ForgeCardId(id),
+        name = name,
+        netToughness = netToughness,
+        damage = damage,
+    )
