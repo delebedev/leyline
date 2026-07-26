@@ -275,6 +275,7 @@ class Board(
                 "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
             }
             b.seedDiffBaseline(game, counter.currentGsId())
+            b.activateInteractivePlayback()
             return Board(b, game, counter)
         }
 
@@ -303,6 +304,7 @@ class Board(
                 "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})"
             }
             b.seedDiffBaseline(game, counter.currentGsId())
+            b.activateInteractivePlayback()
             return Board(b, game, counter)
         }
     }

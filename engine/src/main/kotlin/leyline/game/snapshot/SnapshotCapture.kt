@@ -10,6 +10,7 @@ import leyline.bridge.types.WubrgColorMapping
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
 import leyline.game.data.CardRepository
+import leyline.game.mapping.CombatQualificationScanner
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
@@ -50,6 +51,7 @@ object SnapshotCapture {
         val zones = captureZones(game, bridge)
         val objects = captureObjects(game, bridge, zones)
         val boundCards = bindCards(objects, bridge)
+        val combatQualifications = CombatQualificationScanner.capture(game, boundCards, bridge)
         val phase = capturePhase(game, bridge)
         val stack = captureStack(game, bridge)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
@@ -75,6 +77,7 @@ object SnapshotCapture {
             stack = stack,
             abilityWordEntries = abilityWordEntries,
             pendingTriggers = pendingTriggers,
+            combatQualifications = combatQualifications,
             persistentAnnotationState = persistentAnnotationState,
             capturedAt =
                 CaptureMarker(
@@ -512,8 +515,10 @@ object SnapshotCapture {
             isOnAdventure = card.isOnAdventure,
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
             isToken = card.isToken,
+            isClientVisibleGamePiece = card.gamePieceType == forge.card.GamePieceType.CARD || card.isToken,
             isCopyToken = card.isToken && card.copiedPermanent != null,
             tokenSourceCardGrpId = tokenSourceCardGrpId,
+            tokenSourceForgeCardId = tokenSourceCard?.let { ForgeCardId(it.id) },
             tokenParentAbilityInstanceId = tokenParentAbilityInstanceId,
             attachedToInstanceId = attachedToInstanceId,
             preparedCopySourceInstanceId = preparedCopySourceInstanceId,

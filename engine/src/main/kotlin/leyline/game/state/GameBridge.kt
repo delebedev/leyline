@@ -493,7 +493,7 @@ class GameBridge(
         fun clear() = bySeat.clear()
     }
 
-    /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
+    /** Per-seat action playback. Empty until the initial Full projection commits. */
     private val playbackRegistry = PlaybackRegistry()
 
     /** Convenience: seat-1 playback for single-player (1vAI) matches. */
@@ -517,6 +517,24 @@ class GameBridge(
             )
         playbackRegistry.register(seatId, playback)
         game.subscribeToEvents(playback)
+    }
+
+    /**
+     * Subscribe interactive playback after the initial Full projection commits.
+     *
+     * Setup events are already represented by that Full state. Subscribing
+     * earlier can reserve their event prefix before the initial projection
+     * consumes it.
+     */
+    internal fun activateInteractivePlayback() {
+        val active = checkNotNull(activeGame) { "Cannot activate playback before game start" }
+        check(active !is ActiveGame.Spectator) {
+            "Spectator playback is activated by its initial-state barrier"
+        }
+        val seatId = seating.humanSeat
+        if (playbackFor(seatId) != null) return
+        registerPlayback(active.game, seatId, captureLocalActions = false)
+        log.info("GameBridge: activated interactive GamePlayback for seat {}", seatId.value)
     }
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
@@ -1102,10 +1120,6 @@ class GameBridge(
         // includes the current event when playback's captureAndPause runs.
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
-
-        // Register action playback subscriber (after collector)
-        registerPlayback(g, SeatId(1), captureLocalActions = false)
-        log.info("GameBridge: registered GamePlayback for seat 1")
 
         if (matchConfig.game.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
@@ -1870,10 +1884,8 @@ class GameBridge(
         loop.startFromCurrentState()
         loop.awaitStarted()
 
-        // Register event collector and playback (same as constructed)
+        // Playback activates after the initial Full projection commits.
         g.subscribeToEvents(collector)
-
-        registerPlayback(g, SeatId(1), captureLocalActions = false)
 
         if (aiControllerFactory == null) {
             log.info("GameBridge: puzzle loop started, waiting for priority")

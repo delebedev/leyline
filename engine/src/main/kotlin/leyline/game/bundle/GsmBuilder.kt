@@ -431,7 +431,6 @@ object GsmBuilder {
                 bridge,
                 zones,
                 gameObjects,
-                bridge.getPlayer(SeatId(1)),
             )
         }
 
