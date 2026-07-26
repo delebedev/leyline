@@ -1,11 +1,16 @@
 package leyline.game.bundle
 
+import forge.game.card.CardView
+import forge.game.event.GameEventLandPlayed
 import forge.game.phase.PhaseType
+import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -45,6 +50,10 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Tests for [leyline.game.bundle.BundleBuilder] proto assembly.
@@ -722,25 +731,134 @@ class BundleBuilderTest :
             }
         }
 
-        test("failure during finalization leaves cursor and bridge state unchanged") {
+        test("compiled frame plan defers projection and counter state until commit") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
             val builder = bundleBuilder(b)
             b.seedDiffBaseline(game, counter.currentGsId())
-            val snap = checkNotNull(builder.cursor.lastSent)
-            val startInstanceIds = b.getInstanceIdMap()
-            val startZones = b.getProtoZones()
-            val startId = b.annotations.currentAnnotationId()
-            val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
-            builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
+            val baseline = checkNotNull(builder.cursor.lastSent)
+            val instanceIdsBefore = b.getInstanceIdMap()
+            val zonesBefore = b.getProtoZones()
+            val annotationIdBefore = b.annotations.currentAnnotationId()
+            val counterBefore = counter.snapshot()
             val card =
                 game.humanPlayer
                     .getZone(ZoneType.Hand)
                     .cards
                     .single()
             moveToBattlefield(card, game)
+
+            val plan = builder.compileStateOnlyDiff(game, counter)
+
+            assertSoftly {
+                plan.messages.map { it.toByteArray().toList() } shouldBe
+                    plan.delivery().messages.map { it.toByteArray().toList() }
+                plan.projection.mutations
+                    ?.idReallocations
+                    ?.size shouldBe 1
+                builder.cursor.lastSent shouldBe baseline
+                b.getInstanceIdMap() shouldBe instanceIdsBefore
+                b.getProtoZones() shouldBe zonesBefore
+                b.annotations.currentAnnotationId() shouldBe annotationIdBefore
+                counter.snapshot() shouldBe counterBefore
+            }
+
+            val committed = builder.commit(plan, counter)
+
+            assertSoftly {
+                committed.messages.map { it.toByteArray().toList() } shouldBe
+                    plan.messages.map { it.toByteArray().toList() }
+                builder.cursor.lastSent shouldBe plan.projection.nextBaseline
+                counter.currentGsId() shouldBe plan.projection.counterAfter.currentGsId
+                counter.currentMsgId() shouldBe plan.projection.counterAfter.currentMsgId
+            }
+        }
+
+        test("remote frame compilation replays byte-identically from the same immutable frame input") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            val (b, game, counter) = board
+            val builder = bundleBuilder(b)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val baseline = builder.cursor.lastSent
+            val counterBefore = counter.snapshot()
+            val land =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            land.tap(true, true, null, null)
+            val frameInput =
+                FrameEventLog(
+                    events =
+                        listOf(
+                            GameEvent.CoinFlipped(
+                                flipperSeatId = SeatId(1),
+                                sourceCardId = ForgeCardId(land.id),
+                                abilityForgeId = 200,
+                                abilityGrpId = 19490,
+                                result = 1,
+                            ),
+                        ),
+                    zoneMoves = emptyList(),
+                )
+
+            val first = builder.compileRemoteActionDiff(game, counter, eventsOverride = frameInput)
+            val replay = builder.compileRemoteActionDiff(game, counter, eventsOverride = frameInput)
+
+            assertSoftly {
+                replay.messages.map { it.toByteArray().toList() } shouldBe
+                    first.messages.map { it.toByteArray().toList() }
+                first.messages
+                    .first()
+                    .gameStateMessage.gameObjectsList
+                    .single()
+                    .isTapped
+                    .shouldBeTrue()
+                first.messages.any { it.type == GREMessageType.PromptReq }.shouldBeTrue()
+                checkNotNull(first.projection.mutations?.nextAnnotationId) shouldBeGreaterThan
+                    b.annotations.currentAnnotationId()
+                builder.cursor.lastSent shouldBe baseline
+                counter.snapshot() shouldBe counterBefore
+            }
+        }
+
+        test("failed frame commit preserves event and reveal input for retry") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Giant Growth", human, ZoneType.Hand)
+                }
+            val (b, game, counter) = board
+            val builder = bundleBuilder(b)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val snap = checkNotNull(builder.cursor.lastSent)
+            val startInstanceIds = b.getInstanceIdMap()
+            val startZones = b.getProtoZones()
+            val startId = b.annotations.currentAnnotationId()
+            val startCounter = counter.snapshot()
+            val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
+            builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
+            val land =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single { it.isLand }
+            val revealed =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single { !it.isLand }
+            game.humanPlayer.playLand(land, null)
+            b.promptBridge(SeatId(1)).recordReveal(
+                listOf(ForgeCardId(revealed.id)),
+                ownerSeatId = SeatId(1),
+                viewerSeatId = SeatId(2),
+            )
             b.diffListener = { _, _, _, _, _ -> error("induced finalization failure") }
 
             try {
@@ -757,6 +875,135 @@ class BundleBuilderTest :
                 b.annotations.currentAnnotationId() shouldBe startId
                 b.getInstanceIdMap() shouldBe startInstanceIds
                 b.getProtoZones() shouldBe startZones
+                counter.snapshot() shouldBe startCounter
+            }
+
+            val retryInput = b.reserveBundleFrame(1).events
+            assertSoftly {
+                retryInput.events.filterIsInstance<GameEvent.LandPlayed>() shouldHaveSize 1
+                retryInput.events.filterIsInstance<GameEvent.CardsRevealed>() shouldHaveSize 1
+                retryInput.zoneMoves shouldHaveSize 1
+            }
+
+            val committed = builder.stateOnlyDiff(game, counter)
+            val annotationTypes =
+                committed.messages
+                    .first()
+                    .gameStateMessage.annotationsList
+                    .flatMap { it.typeList }
+            assertSoftly {
+                annotationTypes shouldContain AnnotationType.ZoneTransfer_af5a
+                annotationTypes shouldContain AnnotationType.RevealedCardCreated
+                b.reserveBundleFrame(1).events.events shouldBe emptyList()
+            }
+        }
+
+        test("counter conflict preserves reserved event input") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val builder = bundleBuilder(b)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val baseline = builder.cursor.lastSent
+            val land =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            game.humanPlayer.playLand(land, null)
+            val plan = builder.compileStateOnlyDiff(game, counter)
+            counter.nextMsgId()
+
+            shouldThrow<IllegalStateException> {
+                builder.commit(plan, counter)
+            }
+
+            val retryInput = b.reserveBundleFrame(1).events
+            assertSoftly {
+                retryInput.events.filterIsInstance<GameEvent.LandPlayed>() shouldHaveSize 1
+                retryInput.zoneMoves shouldHaveSize 1
+                builder.cursor.lastSent shouldBe baseline
+            }
+        }
+
+        test("frame commit consumes its reserved prefix and preserves later input") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Giant Growth", human, ZoneType.Hand)
+                }
+            val (b, game, counter) = board
+            val builder = bundleBuilder(b)
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val land =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single { it.name == "Forest" }
+            val laterLand =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single { it.name == "Mountain" }
+            val revealed =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single { it.name == "Giant Growth" }
+            game.humanPlayer.playLand(land, null)
+
+            val plan = builder.compileStateOnlyDiff(game, counter)
+
+            game.fireEvent(GameEventLandPlayed(PlayerView.get(game.humanPlayer), CardView.get(laterLand)))
+            b.promptBridge(SeatId(1)).recordReveal(
+                listOf(ForgeCardId(revealed.id)),
+                ownerSeatId = SeatId(1),
+                viewerSeatId = SeatId(2),
+            )
+            builder.commit(plan, counter)
+
+            val remaining = b.reserveBundleFrame(1).events
+            assertSoftly {
+                remaining.events.filterIsInstance<GameEvent.LandPlayed>().map { it.cardId } shouldBe
+                    listOf(ForgeCardId(laterLand.id))
+                remaining.events
+                    .filterIsInstance<GameEvent.CardsRevealed>()
+                    .single()
+                    .cardIds shouldBe
+                    listOf(ForgeCardId(revealed.id))
+                remaining.zoneMoves shouldBe emptyList()
+            }
+        }
+
+        test("standalone counter allocation waits for frame compilation and commit") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val commitEntered = CountDownLatch(1)
+            val releaseCommit = CountDownLatch(1)
+            val executor = Executors.newFixedThreadPool(2)
+            b.diffListener = { _, _, _, _, _ ->
+                commitEntered.countDown()
+                releaseCommit.await(2, TimeUnit.SECONDS)
+            }
+
+            try {
+                val frame = executor.submit<BundleBuilder.BundleResult> { builder.stateOnlyDiff(game, counter) }
+                commitEntered.await(2, TimeUnit.SECONDS).shouldBeTrue()
+                val standalone = executor.submit<Int> { counter.nextMsgId() }
+
+                shouldThrow<TimeoutException> {
+                    standalone.get(100, TimeUnit.MILLISECONDS)
+                }
+
+                releaseCommit.countDown()
+                frame.get(2, TimeUnit.SECONDS)
+                standalone.get(2, TimeUnit.SECONDS) shouldBe counter.currentMsgId()
+            } finally {
+                releaseCommit.countDown()
+                b.diffListener = null
+                executor.shutdownNow()
             }
         }
 

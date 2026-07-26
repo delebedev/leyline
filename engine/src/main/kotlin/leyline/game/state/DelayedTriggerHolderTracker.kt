@@ -35,10 +35,22 @@ class DelayedTriggerHolderTracker {
      * gameObjects + zone entries for [HolderBatch.added], then returns the batch
      * through [BridgeMutations] so [GameBridge.applyMutations] commits it.
      */
-    fun computeBatch(current: List<HolderRecord>): HolderBatch {
+    fun computeBatch(current: List<HolderRecord>): HolderBatch = computeBatch(current, active.values)
+
+    /**
+     * Diff [current] against an immutable projected baseline.
+     *
+     * Composite frame compilation uses this overload to carry holder lifecycle
+     * across subframes without mutating the live tracker before commit.
+     */
+    fun computeBatch(
+        current: List<HolderRecord>,
+        projectedActive: Collection<HolderRecord>,
+    ): HolderBatch {
+        val activeIds = projectedActive.mapTo(mutableSetOf()) { it.iid }
         val currentByIid = current.associateBy { it.iid }
-        val added = current.filter { it.iid !in active }
-        val removed = (active.keys - currentByIid.keys).toList()
+        val added = current.filter { it.iid !in activeIds }
+        val removed = (activeIds - currentByIid.keys).toList()
         return HolderBatch(added = added, removed = removed)
     }
 

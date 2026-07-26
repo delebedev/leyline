@@ -128,13 +128,19 @@ The current state-diff order is:
 
 ```text
 snapshot Forge state
+  -> fork MessageCounter allocation state
+  -> reserve the immutable event/reveal prefix
   -> compute and finalize the frame
-  -> invoke the pre-commit diff observer
-  -> commit projection:
+  -> assemble path-specific messages through frame-local planned IDs
+  -> produce immutable FramePlan
+  -> commit:
+       validate the counter position and reserved input
+       invoke the pre-commit diff observer
        apply BridgeMutations
        advance BundleCursor.lastSent
        consume pending frame state
-  -> assemble path-specific messages
+       consume exactly the reserved event/reveal prefix
+       advance the shared MessageCounter
   -> return or enqueue the batch
   -> later call sink.send
 ```
@@ -142,17 +148,18 @@ snapshot Forge state
 `BridgeMutations` commits in a fixed order—ID reallocations, limbo retirements,
 zone bookkeeping, persistent-annotation batch, then `nextAnnotationId`. The
 interactive path binds offers and sends after `BundleBuilder` returns. The
-playback path performs build, projection commit, message assembly, and enqueue
-under `queueLock`; a session or spectator domain drains and sends later.
+playback path performs compilation, commit, and enqueue under `queueLock`; a
+session or spectator domain drains and sends later.
 
 This is not an atomic projection-plus-delivery transaction. An exception after
-frame finalization but before projection commit advances neither bridge
-mutations nor the cursor. Mutation application and cursor advancement share one
-commit function, so later failures cannot split those two baselines. An
-exception during path-specific assembly or a sink failure can still leave the
-committed projection ahead of returned or delivered output. The current runtime
-has no rollback or retry-from-old-baseline contract; the target architecture's
-ordered outbox is intended to close this remaining gap.
+frame finalization, during path-specific assembly, or during projection commit
+advances neither bridge mutations, cursor, shared counter, nor reserved
+event/reveal input. Those values share one commit function. Exact-prefix
+consumption preserves input appended after compilation for the next frame. A
+failure while returning, enqueueing, or sending can still leave committed
+projection ahead of visible output. The current runtime has no rollback or
+retry-from-old-baseline contract; the target architecture's ordered outbox is
+intended to close this remaining gap.
 
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
@@ -173,7 +180,18 @@ construct and enqueue frames.
 
 ## 4. One shared counter, not two
 
-`gsId` is protocol-critical: the client-visible `GameStateMessage` stream must use monotonically increasing, unique IDs with no self-referential predecessor. `msgId` is still allocated from the same counter object for local ordering and response bookkeeping, but validator hard failures are intentionally limited to the stable gsId facts plus AIC/AID affector consistency. Both IDs live on a single `MessageCounter` instance — shared by `MatchSession`, `GameBridge`, `GamePlayback`, and `BundleBuilder` at construction time. Interactive-session entrants, the spectator pump, and the engine thread call `nextGsId()` / `nextMsgId()` on the same atomic-backed counter.
+`gsId` is protocol-critical: the client-visible `GameStateMessage` stream must
+use monotonically increasing, unique IDs with no self-referential predecessor.
+`msgId` shares the same counter object for local ordering and response
+bookkeeping, but validator hard failures are intentionally limited to the
+stable gsId facts plus AIC/AID affector consistency. Both IDs live on one
+`MessageCounter` instance shared by `MatchSession`, `GameBridge`,
+`GamePlayback`, and `BundleBuilder`. Projection-building paths allocate against
+a fork and advance the shared counter in frame commit; standalone message
+builders still allocate directly. Every public frame build holds the counter's
+allocation lock from fork through commit. Direct standalone allocation uses
+that same lock, so legitimate interleaving cannot invalidate an already
+compiled frame.
 
 A partitioned design (a range of IDs per thread) cannot guarantee client-visible ordering without coordination on every send, which is the problem the shared atomic already solves. A predecessor design with two counters and a `max()`-merge at every bridge callback existed; the current shape removes the problem rather than patching it.
 
@@ -209,11 +227,21 @@ CharmEffect.makeChoices(ability)        ← blocks in chooseModeForAbility
 game.getStack().addAndUnfreeze(ability) ← runs only after mode choice returns
 ```
 
-When `PlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then write `cursor.lastSent` to the synthesized snapshot so the next diff sees the ability as already-sent. The cursor advance is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
+When `PlayerController.chooseModeForAbility` fires and the session sends
+`CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been
+added. The client expects to see the triggered ability on the stack before the
+modal prompt. Forge's ordering cannot be changed, so
+`BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object
+into the outbound GSM. `modalStackCleanup` explicitly deletes the synthetic
+object after the prompt completes.
 
 Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthesis; `sourceCardInstanceId` is null on that path.
 
-**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then advance `cursor.lastSent` to the synthesized snapshot — is the template to copy.
+**Generalization.** Any Forge callback where the engine blocks for input
+*before* the mutation the client expects to see has happened fits this pattern.
+The `castingTimeOptionsBundle` approach—synthesize the missing object in the
+outbound GSM and pair it with an explicit cleanup frame—is the template to
+copy.
 
 ---
 
@@ -222,12 +250,12 @@ Spell-time modals (kicker, spell modals where the card itself is already on the 
 `GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is synchronous on the engine thread: the `@Subscribe` method runs on `game-loop-<id>`, mid-way through whatever engine operation fired the event. Three rules follow.
 
 **Only bounded internal coordination.** A subscriber may read engine state,
-increment `MessageCounter`, advance `BundleCursor.lastSent`, and enqueue a batch.
-`GamePlayback` deliberately acquires `queueLock` around close-events, frame
-construction, cursor advance, and enqueue so a drain cannot observe half a
-transaction. A subscriber must not acquire `sessionLock`, perform I/O, or wait
-on an external resource. Keep `queueLock` hold time bounded and never create a
-reverse path where its drainer waits for the engine while holding the lock.
+compile and commit a frame plan, and enqueue its batch. `GamePlayback`
+deliberately acquires `queueLock` around close-events, compilation, commit, and
+enqueue so a drain cannot observe half a transaction. A subscriber must not
+acquire `sessionLock`, perform I/O, or wait on an external resource. Keep
+`queueLock` hold time bounded and never create a reverse path where its drainer
+waits for the engine while holding the lock.
 
 **Pausing the engine thread makes observation coherent.** `GamePlayback`
 deliberately `Thread.sleep`s at key events to pace remote turns for the human

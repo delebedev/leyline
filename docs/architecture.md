@@ -171,18 +171,28 @@ GsmSnapshot + prev: GsmSnapshot? + events: List<GameEvent>
 
 Residuals — a small, enumerated set of bridge reads/writes (card-DB lookups, layered-effect tracker, prompt journal, crew state, steal lifecycle, reveal proxies, the monotonic id counter itself) stay in-stage. The class KDoc on `StateMapper` carries the current list; `PureDiffReplayTest` is the contract, the enumeration is the catalog.
 
-**BundleBuilder.bundle** assembles outbound messages:
+**BundleBuilder** compiles outbound messages:
 
 ```
-  per-seat visibility filter · full vs. diff selection · frame finalization · projection commit · path-specific assembly
+  per-seat visibility filter · full vs. diff selection · frame finalization · path-specific assembly · FramePlan
 ```
 
-After compute, `BundleBuilder` finalizes the frame and commits `BridgeMutations`
-with `cursor.lastSent = snap` at one projection seam. Diff paths then assemble
-actions or requests against the committed instance-id mapping and emit the GRE
-bundle. The cursor (`BundleCursor`) is the snap-vs-snap diff baseline for the
-next bundle.
+After compute, `BundleBuilder` finalizes the frame and assembles actions or
+requests through the frame-local ID resolver. The resulting immutable
+`FramePlan` carries messages, action offers, deferred `BridgeMutations`, the
+next `BundleCursor` baseline, the planned counter position, and a reservation
+for the immutable event/reveal prefix used by the build. One commit operation
+applies that payload and then consumes exactly the reserved prefix before the
+bundle becomes visible. Failed compilation or commit leaves the input queued
+for retry; input appended after the reservation belongs to the next frame. The
+cursor remains the snap-vs-snap diff baseline for the next bundle.
 
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 
-**Counter sequencing.** The `MessageCounter` guarantees strictly increasing gsIds across the interleaved `GameStateMessage` stream and keeps msgIds on the same shared atomic path for local ordering and response bookkeeping. Thread-ownership rules live in [`bridge-threading.md`](bridge-threading.md#4-one-shared-counter-not-two).
+**Counter sequencing.** A frame compiler allocates gsIds and msgIds against a
+fork of the shared `MessageCounter`; commit advances the shared position only
+after the complete plan exists. The shared allocation lock covers each public
+compile-and-commit path, so standalone allocations cannot invalidate a plan
+between its fork and commit. The counter still guarantees strictly increasing
+IDs across interleaved output. Thread-ownership rules live in
+[`bridge-threading.md`](bridge-threading.md#4-one-shared-counter-not-two).

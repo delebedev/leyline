@@ -454,7 +454,7 @@ sealed interface GameEvent {
     ) : GameEvent
 
     // -- Group B+: reveal events --
-    // Not from EventBus — captured via InteractivePromptBridge.drainReveals()
+    // Not from EventBus — queued by InteractivePromptBridge and reserved through GameBridge.
     // in PlayerController.reveal() override.
 
     /** Cards were revealed to all players (e.g. draw-and-reveal, Explore, etc.). */

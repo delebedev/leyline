@@ -3,12 +3,14 @@ package leyline.game.bundle
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Shared atomic counter for GRE gsId/msgId sequencing (ADR-003).
+ * Shared counter for GRE gsId/msgId sequencing (ADR-003).
  *
  * One instance is created at session setup and passed to both [MatchSession]
  * and [leyline.game.state.GameBridge] at construction time. The session thread (Netty I/O) and
  * the engine thread (game daemon) both call [nextMsgId]/[nextGsId] on the
- * same atomics — monotonically increasing, no duplicates, no runtime sync.
+ * same allocation lock — monotonically increasing with no duplicates. Frame
+ * compilation holds that lock from fork through commit so standalone builders
+ * cannot invalidate a prepared allocation.
  *
  * The client requires gsIds to increase monotonically across the interleaved
  * message stream. A single shared counter is the correct coordination
@@ -41,7 +43,7 @@ class MessageCounter(
     private val lastGameStateGsId = AtomicInteger(0)
 
     /** Advance gsId and return the new value. */
-    fun nextGsId(): Int = gsId.incrementAndGet()
+    fun nextGsId(): Int = synchronized(this) { gsId.incrementAndGet() }
 
     /**
      * Allocate the next GameStateMessage id with the best known predecessor.
@@ -52,18 +54,19 @@ class MessageCounter(
      * returned predecessor is always lower than the new id, preserving the hard
      * no-self-reference contract.
      */
-    fun nextGameStateLink(): GameStateLink {
-        val next = nextGsId()
-        val previous =
-            lastGameStateGsId
-                .get()
-                .takeIf { it in 1 until next }
-                ?: (next - 1).coerceAtLeast(0)
-        return GameStateLink(gsId = next, prevGsId = previous)
-    }
+    fun nextGameStateLink(): GameStateLink =
+        synchronized(this) {
+            val next = gsId.incrementAndGet()
+            val previous =
+                lastGameStateGsId
+                    .get()
+                    .takeIf { it in 1 until next }
+                    ?: (next - 1).coerceAtLeast(0)
+            GameStateLink(gsId = next, prevGsId = previous)
+        }
 
     /** Advance msgId and return the new value. */
-    fun nextMsgId(): Int = msgId.incrementAndGet()
+    fun nextMsgId(): Int = synchronized(this) { msgId.incrementAndGet() }
 
     /** Current gsId (read-only snapshot, may be stale by the time you use it). */
     fun currentGsId(): Int = gsId.get()
@@ -108,8 +111,7 @@ class MessageCounter(
      * callers shouldn't need to invoke this directly.
      *
      * Monotonic max via CAS — out-of-order callers never regress the
-     * horizon. Concurrency: same [AtomicInteger] discipline as
-     * [nextGsId]/[nextMsgId]; both session and engine threads write here.
+     * horizon. Both session and engine threads write here.
      */
     fun markPromptGsId(gsId: Int) {
         markMonotonic(lastPromptGsId, gsId)
@@ -144,24 +146,60 @@ class MessageCounter(
      * session advances gsId via [nextGameStateId] before the counter is shared.
      */
     fun setGsId(value: Int) {
-        gsId.set(value)
+        synchronized(this) {
+            gsId.set(value)
+        }
     }
 
     /**
      * Set msgId to a specific value. Used during handshake setup.
      */
     fun setMsgId(value: Int) {
-        msgId.set(value)
+        synchronized(this) {
+            msgId.set(value)
+        }
     }
 
     fun snapshot(): Snapshot =
-        Snapshot(
-            currentGsId = gsId.get(),
-            currentMsgId = msgId.get(),
-            lastPromptGsId = lastPromptGsId.get(),
-            lastPromptMsgId = lastPromptMsgId.get(),
-            lastGameStateGsId = lastGameStateGsId.get(),
-        )
+        synchronized(this) {
+            Snapshot(
+                currentGsId = gsId.get(),
+                currentMsgId = msgId.get(),
+                lastPromptGsId = lastPromptGsId.get(),
+                lastPromptMsgId = lastPromptMsgId.get(),
+                lastGameStateGsId = lastGameStateGsId.get(),
+            )
+        }
+
+    /**
+     * Serialize one frame's forked allocation and commit with standalone
+     * builders that allocate directly from this counter.
+     */
+    internal fun <T> withAllocationLock(action: () -> T): T =
+        synchronized(this) {
+            action()
+        }
+
+    /**
+     * Commit IDs allocated by a frame compiler that started from [expected].
+     *
+     * Prompt and game-state delivery horizons are sink-owned and therefore are
+     * not copied back from the compiler fork.
+     */
+    internal fun commitAllocation(
+        expected: Snapshot,
+        next: Snapshot,
+        commitFrame: () -> Unit,
+    ) {
+        synchronized(this) {
+            check(currentGsId() == expected.currentGsId && currentMsgId() == expected.currentMsgId) {
+                "Message counter changed during frame compilation"
+            }
+            commitFrame()
+            setGsId(next.currentGsId)
+            setMsgId(next.currentMsgId)
+        }
+    }
 
     override fun toString(): String =
         snapshot().let {
@@ -169,4 +207,13 @@ class MessageCounter(
                 "lastPromptGsId=${it.lastPromptGsId}, lastPromptMsgId=${it.lastPromptMsgId}, " +
                 "lastGameStateGsId=${it.lastGameStateGsId})"
         }
+
+    companion object {
+        internal fun fork(snapshot: Snapshot): MessageCounter =
+            MessageCounter(snapshot.currentGsId, snapshot.currentMsgId).also { fork ->
+                fork.markPromptGsId(snapshot.lastPromptGsId)
+                fork.markPromptMsgId(snapshot.lastPromptMsgId)
+                fork.markGameStateGsId(snapshot.lastGameStateGsId)
+            }
+    }
 }
