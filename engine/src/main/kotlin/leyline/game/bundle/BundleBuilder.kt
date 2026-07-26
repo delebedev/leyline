@@ -540,10 +540,8 @@ class BundleBuilder(
             val snap = diff.snap
             val frame = GsmFrame.from(snap)
             val projection =
-                ActionMapper.buildProjectionFromSnapshot(
-                    seatId,
+                buildPriorityProjection(
                     snap,
-                    bridge,
                     priorityCandidates,
                     diff.idResolver::cardIid,
                 )
@@ -795,7 +793,7 @@ class BundleBuilder(
     fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
         val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        return ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates).actions
+        return ActionMapper.buildFromSnapshot(seatId, snap, bridge, priorityCandidates)
     }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
@@ -840,7 +838,7 @@ class BundleBuilder(
 
             val frame = GsmFrame.from(snap)
             val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-            val priorityProjection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
+            val priorityProjection = buildPriorityProjection(snap)
 
             val gs1 =
                 GsmBuilder.buildTransitionState(
@@ -909,6 +907,22 @@ class BundleBuilder(
                 nextAnnotationId = annotationId + 1,
             )
         }
+
+    private fun buildPriorityProjection(
+        snap: GsmSnapshot,
+        priorityCandidates: PriorityActionCandidates? = null,
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
+    ): ActionMapper.ActionProjection {
+        val actionBridge = bridge.seat(SeatId(seatId)).action
+        return if (actionBridge.getPending() == null) {
+            ActionMapper.ActionProjection(
+                actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge, priorityCandidates, idResolver),
+                offers = emptyList(),
+            )
+        } else {
+            ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates, idResolver)
+        }
+    }
 
     /** Embed stripped-down actions from ActionsAvailableReq into a GSM builder. */
     private fun embedActions(

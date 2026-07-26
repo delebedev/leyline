@@ -112,6 +112,7 @@ class MatchSession(
             counters = this,
             bundles = this,
             ctx = ctx,
+            autoPassState = autoPassState,
         )
     private val optionalActionHandler =
         OptionalActionHandler(
@@ -816,17 +817,20 @@ class MatchSession(
     ) {
         if (gameStateId == null && offers.isEmpty()) return
         val promptGameStateId = checkNotNull(gameStateId) { "Action offers require a game-state id" }
+        check(offers.isNotEmpty()) { "Cannot expose priority actions without bound engine tokens" }
         val actionBridge = gameBridge.seat(seatId).action
         val pending = checkNotNull(actionBridge.getPending()) { "Cannot expose priority actions without a pending window" }
         check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
             val current = actionBridge.getPending()
+            val currentActionId = current?.actionId?.take(8)
+            val completed = !actionBridge.isPendingActive(pending.actionId)
             val duplicateSelectors =
                 offers
                     .groupBy { ActionResponseKey.from(it.action) }
                     .filterValues { it.size > 1 }
-                    .mapValues { (_, variants) -> variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) } }
+                    .mapValues { (_, variants) -> variants.map { Triple(it.token, it.stackAbilityGrpId, it.forgeAbilityId) } }
             "Cannot bind priority actions to pending window ${pending.actionId.take(8)} " +
-                "(current=${current?.actionId?.take(8)}, completed=${pending.future.isDone}, offers=${offers.size}, " +
+                "(current=$currentActionId, completed=$completed, offers=${offers.size}, " +
                 "duplicates=$duplicateSelectors)"
         }
     }

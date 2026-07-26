@@ -1,6 +1,7 @@
 package leyline.match
 
 import leyline.DevCheck
+import leyline.bridge.handoff.ActionToken
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptResponseMapper
@@ -8,6 +9,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SelectNPromptRoute
+import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -33,6 +35,7 @@ class TargetingHandler(
     private val counters: SessionCounters,
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
+    private val autoPassState: ClientAutoPassState = ClientAutoPassState(),
 ) {
     companion object {
         /** Stash optional cost indices after client response — writes to journal only. */
@@ -70,6 +73,7 @@ class TargetingHandler(
             counters = counters,
             bundles = bundles,
             ctx = ctx,
+            autoPassState = autoPassState,
             getPendingInteraction = { pendingInteraction },
             setPendingInteraction = { pendingInteraction = it },
         )
@@ -536,13 +540,13 @@ class TargetingHandler(
         val bridge = ctx.bridge
         when (val interaction = pendingInteraction) {
             is PendingClientInteraction.OptionalCost -> {
-                return cancelDeferredCast(interaction.action.cardId, autoPass)
+                return cancelDeferredCast(interaction.cardId, autoPass)
             }
             is PendingClientInteraction.AlternateCostChoice -> {
                 return cancelDeferredCast(interaction.cardId, autoPass)
             }
             is PendingClientInteraction.HybridManaType -> {
-                return cancelDeferredCast(interaction.action.cardId, autoPass)
+                return cancelDeferredCast(interaction.cardId, autoPass)
             }
             is PendingClientInteraction.ModalChoice,
             is PendingClientInteraction.Search,
@@ -796,34 +800,59 @@ class TargetingHandler(
         }
     }
 
-    fun checkHybridManaTypeOptions(
+    internal fun checkHybridManaTypeOptions(
         action: Action,
         pendingActionId: String,
+        actionToken: ActionToken,
+        cardId: ForgeCardId,
         castAbilityIndex: Int?,
-    ): Boolean = deferredCastCostInteractionHandler.checkHybridManaTypeOptions(action, pendingActionId, castAbilityIndex)
+        acceptedActionEffects: AcceptedActionEffects,
+    ): Boolean =
+        deferredCastCostInteractionHandler.checkHybridManaTypeOptions(
+            action,
+            pendingActionId,
+            actionToken,
+            cardId,
+            castAbilityIndex,
+            acceptedActionEffects,
+        )
 
     /**
      * Check if a Cast action targets a card with optional costs (kicker, buyback, etc.).
      * If yes, sends CastingTimeOptionsReq to client and returns true (caller should NOT submit to engine).
      * If no, returns false (caller should proceed normally).
      */
-    fun checkOptionalCosts(
+    internal fun checkOptionalCosts(
         action: Action,
         pendingActionId: String,
+        actionToken: ActionToken,
+        cardId: ForgeCardId,
         castAbilityIndex: Int?,
-        preserveHybridStash: Boolean = false,
+        acceptedActionEffects: AcceptedActionEffects,
+        deferredHybridChoices: List<ManaColor> = emptyList(),
     ): Boolean =
         deferredCastCostInteractionHandler.checkOptionalCosts(
             action = action,
             pendingActionId = pendingActionId,
+            actionToken = actionToken,
+            cardId = cardId,
             castAbilityIndex = castAbilityIndex,
-            preserveHybridStash = preserveHybridStash,
+            acceptedActionEffects = acceptedActionEffects,
+            deferredHybridChoices = deferredHybridChoices,
         )
 
-    fun checkAlternateAdditionalCostChoice(
+    internal fun checkAlternateAdditionalCostChoice(
         action: Action,
         pendingActionId: String,
-    ): Boolean = deferredCastCostInteractionHandler.checkAlternateAdditionalCostChoice(action, pendingActionId)
+        cardId: ForgeCardId,
+        acceptedActionEffects: AcceptedActionEffects,
+    ): Boolean =
+        deferredCastCostInteractionHandler.checkAlternateAdditionalCostChoice(
+            action,
+            pendingActionId,
+            cardId,
+            acceptedActionEffects,
+        )
 
     private fun sendSearchReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         searchPromptInteractionHandler.sendSearchReq(pendingPrompt)

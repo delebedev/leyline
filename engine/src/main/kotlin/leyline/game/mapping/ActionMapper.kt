@@ -98,18 +98,46 @@ object ActionMapper {
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
-    ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge).actions
+        priorityCandidates: PriorityActionCandidates? = null,
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
+    ): ActionsAvailableReq =
+        buildProjection(
+            seatId,
+            snap,
+            bridge,
+            priorityCandidates,
+            bindOffers = false,
+            idResolver = idResolver,
+        ).actions
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
     fun buildProjectionFromSnapshot(
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
         priorityCandidates: PriorityActionCandidates? = null,
         idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
+    ): ActionProjection =
+        buildProjection(
+            seatId,
+            snap,
+            bridge,
+            priorityCandidates,
+            bindOffers = true,
+            idResolver = idResolver,
+        )
+
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
+    private fun buildProjection(
+        seatId: Int,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        priorityCandidates: PriorityActionCandidates?,
+        bindOffers: Boolean,
+        idResolver: (ForgeCardId) -> InstanceId,
     ): ActionProjection {
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()
+        val actionBridge = if (bindOffers) bridge.seat(SeatId(seatId)).action else null
 
         fun bindOffer(
             action: Action,
@@ -118,7 +146,7 @@ object ActionMapper {
             forgeAbilityId: Int? = null,
             spellGrpId: Int? = null,
         ) {
-            offers += ActionOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
+            actionBridge?.registerActionOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)?.let(offers::add)
         }
 
         fun addOffer(
@@ -528,7 +556,9 @@ object ActionMapper {
             builder.actionsCount,
         )
 
-        check(builder.actionsCount == offers.size) { "Every active priority action must have an executable offer" }
+        if (bindOffers) {
+            check(builder.actionsCount == offers.size) { "Every active priority action must have an executable offer" }
+        }
         return ActionProjection(builder.build(), offers)
     }
 
