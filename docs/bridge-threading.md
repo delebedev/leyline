@@ -20,25 +20,31 @@ read [`architecture-direction.md`](architecture-direction.md).
 ## 1. Execution domains and critical sections
 
 The current runtime has several physical threads. Correctness comes from a mix
-of engine confinement, one interactive-session critical section, a separate
-playback queue critical section, and atomic publication—not from a literal
-two-thread model.
+of engine confinement, one serial interactive match owner, a separate playback
+queue critical section, and atomic publication—not from a literal two-thread
+model.
 
 | Execution domain | Runs | Coordination |
 |---|---|---|
 | **Engine** — `game-loop-<gameId>` | Forge's `mainGameLoop`, trigger resolution, EventBus dispatch, `GamePlayback` frame construction | Owns the live Forge graph; blocks in controller futures |
-| **Interactive session entrants** — Netty I/O, web relay dispatcher, test caller, `match-autoadvance-*` executor, debug-server pool | `MatchSession`, handlers, `AutoPassEngine`, ordinary sends | Game-logic entry points enter the match-scoped `ConnectionState.sessionLock`; may wait on `PrioritySignal` |
+| **Interactive match owner** — fed by Netty I/O, web relay dispatcher, test callers, auto-advance requests, and debug-server work | `MatchSession`, handlers, `AutoPassEngine`, ordinary sends | One `MatchOwner` queue is the sole handler executor; it may wait on `PrioritySignal` |
 | **Spectator pump** — `spectator-pump-*` executor | Drains spectator playback every 50 ms and sends terminal output | Separate non-interactive mode; coordinates with engine playback through `queueLock` |
 | **Sink caller** | Marks outbound IDs and invokes `MessageSink.send` | Runs on whichever session or pump domain initiated delivery |
 
 **Engine-owned.** The `Game` object graph—zones, stack, life totals, counters,
 phase and priority—plus Forge EventBus dispatch and engine-internal state.
 
-**Interactive-session critical-section-owned.** Command dispatch, auto-pass,
-handler state, puzzle replacement, and ordinary interactive delivery. Netty and
-the auto-advance executor are different threads, but `sessionLock` makes them
-one logical writer. The registry creates that authority before either seat has
-a session; every `ConnectionState` for the match aliases the same lock.
+**Interactive-match-owner-owned.** Command dispatch, auto-pass, handler state,
+puzzle replacement, and ordinary interactive delivery. Entrant threads submit
+work to one serial owner; handler implementations remain private to
+`MatchSession`.
+
+**Terminal lifecycle.** Disconnect, failure, and stale-match teardown are
+supervisor-side cancellation, not handler work. A connection teardown first
+checks the current connection generation, closes the still-registered owner,
+shuts down the engine bridge, and only then waits for the owner to terminate.
+The owner remains discoverable but rejects work until termination, preventing
+a replacement owner from overlapping the closing generation.
 
 **Shared projection and handoff state.** `MessageCounter` uses atomics;
 `BundleCursor.lastSent` is volatile; pending actions and prompts use atomic
@@ -48,9 +54,10 @@ enqueue window and every drain. The queue type alone is not the transaction.
 
 ```mermaid
 flowchart LR
-    N[Netty input] --> SL[sessionLock]
-    A[Auto-advance executor] --> SL
-    SL --> MS[MatchSession and handlers]
+    N[Netty input] --> OWNER[MatchOwner queue]
+    A[Auto-advance request] --> OWNER
+    D[Debug and puzzle entrants] --> OWNER
+    OWNER --> MS[MatchSession and handlers]
     MS --> WAIT[PrioritySignal wait]
 
     E[Forge engine thread] --> EVT[EventBus and GamePlayback]
@@ -61,10 +68,9 @@ flowchart LR
     Q --> SEND[MessageSink.send]
 ```
 
-`sessionLock` can disappear only when Netty input, auto-advance, timeouts, and
-other entrants merely enqueue commands to one serial match owner. `queueLock`
-and the playback queue can disappear only when engine callbacks stop building
-protocol frames and every producer appends through that owner's ordered outbox.
+`queueLock` and the playback queue can disappear only when engine callbacks
+stop building protocol frames and every producer appends through the match
+owner's ordered outbox.
 
 A read of shared state on one execution domain is a snapshot of a moving
 system. Decisions whose correctness depends on a value remaining stable must
@@ -75,7 +81,7 @@ primitive.
 
 ## 2. Signaling at priority
 
-An interactive-session entrant needs to know when the engine has reached a
+The interactive match owner needs to know when the engine has reached a
 priority stop, posted an interactive prompt, or ended the game. The mechanism
 is a semaphore—`PrioritySignal`—not polling.
 
@@ -87,7 +93,7 @@ sequenceDiagram
     participant AB as GameActionBridge
     participant SIG as PrioritySignal
     participant GB as GameBridge.awaitPriorityWithTimeout
-    participant SESS as Session critical section
+    participant SESS as Match owner
 
     SESS->>GB: awaitPriorityWithTimeout(timeout)
     GB->>SIG: tryAcquire(timeout)
@@ -161,9 +167,9 @@ decision depends on whether delivery occurred, track delivery explicitly.
 **R2. One cursor per bridge, shared across builders.** `MatchSession` and
 `GamePlayback` each construct a `BundleBuilder`, but both receive
 `bridge.bundleCursor`. Separate cursors would produce diffs against different
-histories. `BundleCursor.lastSent` is volatile for publication, while
-`sessionLock`, `queueLock`, priority waits, and queue ordering provide the
-larger sequencing contract.
+histories. `BundleCursor.lastSent` is volatile for publication, while the match
+owner, `queueLock`, priority waits, and queue ordering provide the larger
+sequencing contract.
 
 **R3. Preserve playback-before-session delivery.** `sendBundledGRE` drains
 queued playback batches with lower message or game-state IDs before sending the
@@ -193,7 +199,7 @@ A partitioned design (a range of IDs per thread) cannot guarantee client-visible
 
 ## 5. awaitPriority before sending
 
-Detecting a phase from an interactive-session entrant means the engine *entered*
+Detecting a phase from the interactive match owner means the engine *entered*
 the phase, not that it is *blocked and waiting*. Engine state can still be
 mid-mutation—triggers firing, SBAs resolving, or `GamePlayback` materializing a
 frame—when phase transitions fire.
@@ -247,9 +253,10 @@ copy.
 compile and commit a frame plan, and enqueue its batch. `GamePlayback`
 deliberately acquires `queueLock` around close-events, compilation, commit, and
 enqueue so a drain cannot observe half a transaction. A subscriber must not
-acquire `sessionLock`, perform I/O, or wait on an external resource. Keep
-`queueLock` hold time bounded and never create a reverse path where its drainer
-waits for the engine while holding the lock.
+synchronously enter the match owner, perform
+I/O, or wait on an external resource. Keep `queueLock` hold time bounded and
+never create a reverse path where its drainer waits for the engine while
+holding the lock.
 
 **Pausing the engine thread makes observation coherent.** `GamePlayback`
 deliberately `Thread.sleep`s at key events to pace remote turns for the human

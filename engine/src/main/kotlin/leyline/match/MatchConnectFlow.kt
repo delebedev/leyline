@@ -46,7 +46,7 @@ internal class MatchConnectFlow(
             log.info("Match Door: evicted {} stale match(es)", evicted.size)
         }
 
-        registry.withAuthority(attempt.matchId) {
+        registry.ownerFor(attempt.matchId).reduce {
             if (puzzleHandler.isPuzzleMatch(attempt.matchId)) {
                 connectPuzzle(attempt)
             } else {
@@ -95,6 +95,7 @@ internal class MatchConnectFlow(
         if (isSpectatorMode()) {
             connectSpectator(attempt, match, gameVariant)
         } else if (attempt.familiar) {
+            sendRoomState()
             onFamiliarConnected(bridge.messageCounter)
         } else {
             onLocalPlayerConnected(bridge)

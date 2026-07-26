@@ -38,7 +38,7 @@ open class CombatHandler(
     private val log = LoggerFactory.getLogger(CombatHandler::class.java)
 
     /** Legal attacker instanceIds from the last DeclareAttackersReq we sent.
-     *  Guarded by MatchSession.sessionLock — all reads/writes occur within synchronized entry points. */
+     *  Owned by MatchOwner — all reads/writes occur within its serial execution domain. */
     var pendingLegalAttackers: List<Int> = emptyList()
         private set
 
