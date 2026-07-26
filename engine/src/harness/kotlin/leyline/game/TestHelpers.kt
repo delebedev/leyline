@@ -50,7 +50,7 @@ fun awaitFreshPending(
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
         val p = b.actionBridge(SeatId(1)).getPending()
-        if (p != null && p.actionId != previousId && !p.future.isDone) return p
+        if (p != null && p.actionId != previousId) return p
         Thread.sleep(5)
     }
     return null
