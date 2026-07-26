@@ -9,6 +9,8 @@ import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.testkit.BoardTest
 import leyline.testkit.performAction
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
  * Regression: stale duplicate PerformActionResp packets can arrive after the
@@ -36,7 +38,18 @@ class PerformActionRecoveryTest :
                     paceDelayMs = 0,
                 )
 
-            session.counter.markPromptMsgId(7)
+            session.connection.owner.reduce {
+                session.connection.owner.observeOutbound(
+                    listOf(
+                        GREToClientMessage
+                            .newBuilder()
+                            .setType(GREMessageType.ActionsAvailableReq_695e)
+                            .setGameStateId(1)
+                            .setMsgId(7)
+                            .build(),
+                    ),
+                )
+            }
             session.onPerformAction(
                 performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass }
                     .toBuilder()

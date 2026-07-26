@@ -113,7 +113,9 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-bolt-face", 1)
                 val gre = outbound(channel).flatMap(::greMessages)
                 val actionPrompt = gre.last { it.hasActionsAvailableReq() }
-                session.counter.lastPromptMsgId() shouldBe actionPrompt.msgId
+                session.connection.owner.reduce {
+                    session.connection.owner.lastPromptMsgId()
+                } shouldBe actionPrompt.msgId
 
                 session.onPerformAction(
                     ClientToGREMessage

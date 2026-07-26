@@ -1,5 +1,8 @@
 package leyline.match
 
+import leyline.game.bundle.PROMPT_GRE_TYPES
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.LinkedBlockingQueue
@@ -22,6 +25,7 @@ internal class MatchOwner(
 ) {
     private val ownerThread = AtomicReference<Thread?>()
     private val closed = AtomicBoolean(false)
+    private val protocolState = OwnerProtocolState()
     private val executor =
         object :
             ThreadPoolExecutor(
@@ -68,6 +72,26 @@ internal class MatchOwner(
         }
     }
 
+    fun observeOutbound(messages: List<GREToClientMessage>) {
+        assertOwnerThread()
+        protocolState.observeOutbound(messages)
+    }
+
+    fun observeOutbound(message: MatchServiceToClientMessage) {
+        assertOwnerThread()
+        protocolState.observeOutbound(message)
+    }
+
+    fun lastPromptGsId(): Int {
+        assertOwnerThread()
+        return protocolState.lastPromptGsId
+    }
+
+    fun lastPromptMsgId(): Int {
+        assertOwnerThread()
+        return protocolState.lastPromptMsgId
+    }
+
     fun isOwnerThread(): Boolean = Thread.currentThread() === ownerThread.get()
 
     fun isClosed(): Boolean = closed.get()
@@ -86,6 +110,37 @@ internal class MatchOwner(
         if (isOwnerThread()) return
         check(executor.awaitTermination(30, TimeUnit.SECONDS)) {
             "Match owner did not terminate"
+        }
+    }
+
+    /**
+     * Prompt correlation horizon advanced only by the serial match owner.
+     *
+     * The client echoes these IDs when answering the latest delivered prompt.
+     * Tracking that prompt directly avoids deriving a fragile offset from the
+     * allocation counter after trailing non-prompt messages advance it.
+     */
+    private class OwnerProtocolState {
+        var lastPromptGsId: Int = 0
+            private set
+
+        var lastPromptMsgId: Int = 0
+            private set
+
+        fun observeOutbound(messages: List<GREToClientMessage>) {
+            messages.forEach(::observeOutbound)
+        }
+
+        fun observeOutbound(message: MatchServiceToClientMessage) {
+            if (message.hasGreToClientEvent()) {
+                observeOutbound(message.greToClientEvent.greToClientMessagesList)
+            }
+        }
+
+        private fun observeOutbound(message: GREToClientMessage) {
+            if (message.type !in PROMPT_GRE_TYPES) return
+            lastPromptGsId = maxOf(lastPromptGsId, message.gameStateId)
+            lastPromptMsgId = maxOf(lastPromptMsgId, message.msgId)
         }
     }
 }
