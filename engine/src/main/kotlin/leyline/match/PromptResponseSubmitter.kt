@@ -26,10 +26,10 @@ internal class PromptResponseSubmitter(
         val selectedIds = greMsg.selectNResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
 
-        recordChoiceResults(pendingPrompt, selectedIds)
-
         log.info("PromptResponseSubmitter: SelectNResp indices={}", selectedIndices)
-        submit(pendingPrompt, selectedIndices, autoPass)
+        submit(pendingPrompt, selectedIndices, autoPass) {
+            recordChoiceResults(pendingPrompt, selectedIds)
+        }
     }
 
     fun onOrderResp(
@@ -53,12 +53,13 @@ internal class PromptResponseSubmitter(
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
         val route = pendingPrompt.request.route as? ResolvedPromptRoute.PayCosts
-        if (route?.descriptor?.manaSourcePayment != null) {
-            clearManaSourcePayment(pendingPrompt.promptId)
-        }
 
         log.info("PromptResponseSubmitter: EffectCostResp indices={}", selectedIndices)
-        submit(pendingPrompt, selectedIndices, autoPass)
+        submit(pendingPrompt, selectedIndices, autoPass) {
+            if (route?.descriptor?.manaSourcePayment != null) {
+                clearManaSourcePayment(pendingPrompt.promptId)
+            }
+        }
     }
 
     private fun pendingPromptOrWarn(
@@ -86,11 +87,14 @@ internal class PromptResponseSubmitter(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIndices: List<Int>,
         autoPass: () -> Unit,
+        onAccepted: () -> Unit = {},
     ) {
-        ctx.bridge
-            .seat(counters.seatId)
-            .prompt
-            .submitResponse(pendingPrompt.promptId, selectedIndices)
+        val submitted =
+            ctx.bridge
+                .seat(counters.seatId)
+                .prompt
+                .submitResponse(pendingPrompt.promptId, selectedIndices, onAccepted)
+        if (!submitted) return
         ctx.bridge.awaitPriority()
         autoPass()
     }

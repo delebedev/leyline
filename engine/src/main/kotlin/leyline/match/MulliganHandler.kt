@@ -109,13 +109,7 @@ class MulliganHandler(
         val groups = greMsg.groupResp.groupsList
         val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
         log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId.value, tuckIds.size)
-        val handCards = bridge.getHandCards(seatId)
-        val tuckCards =
-            tuckIds.mapNotNull { iid ->
-                val forgeId = bridge.getForgeCardId(InstanceId(iid))?.value
-                handCards.firstOrNull { it.id == forgeId }
-            }
-        bridge.submitTuck(seatId, tuckCards)
+        bridge.submitTuckInstances(seatId, tuckIds.map(::InstanceId))
         bridge.awaitPriority()
         s.onMulliganKeep()
     }

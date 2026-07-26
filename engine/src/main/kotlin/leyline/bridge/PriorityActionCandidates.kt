@@ -6,6 +6,7 @@ import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.types.PriorityActionFacts
 
 /** One Forge-owned traversal of candidates available during a priority window. */
 class PriorityActionCandidates private constructor(
@@ -31,6 +32,11 @@ class PriorityActionCandidates private constructor(
                 candidate.landAbility?.let { player.canPlayLand(candidate.card, false, it) } == true ||
                 candidate.mdfcLandAbility?.canPlay() == true
         }
+
+    fun facts(player: Player): PriorityActionFacts =
+        PriorityActionFacts(
+            hasLegalNonManaAction = hasLegalNonManaAction(player),
+        )
 
     companion object {
         fun query(

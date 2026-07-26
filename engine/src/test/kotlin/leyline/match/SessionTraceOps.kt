@@ -24,7 +24,7 @@ class SessionTraceOps(
         BundleBuilder(gameBridge, matchId, seatId.value)
 
     /** Snapshot for handler construction in tests. */
-    val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "SessionTraceOps requires non-null game" }, gameBridge)
+    val ctx: SessionContext = SessionContext(gameBridge)
 
     // --- Traced calls ---
 

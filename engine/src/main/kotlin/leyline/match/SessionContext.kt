@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.Game
 import leyline.game.state.GameBridge
 
 /**
@@ -8,6 +7,5 @@ import leyline.game.state.GameBridge
  * Constructed once per handler dispatch inside the synchronized block.
  */
 data class SessionContext(
-    val game: Game,
     val bridge: GameBridge,
 )

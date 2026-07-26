@@ -90,6 +90,8 @@ object ManaColorMapping {
     fun paymentCostColor(shard: ManaCostShard): ManaColor =
         if (shard == ManaCostShard.GENERIC) ManaColor.Generic else paymentWireColor(shard)
 
+    fun paymentWireColor(color: ManaColor): ManaColor = if (color == ManaColor.Generic) ManaColor.Colorless_afc9 else color
+
     fun paymentShardCounts(cost: List<Pair<ManaColor, Int>>): Map<ManaCostShard, Int> =
         buildMap {
             for ((color, count) in cost) {

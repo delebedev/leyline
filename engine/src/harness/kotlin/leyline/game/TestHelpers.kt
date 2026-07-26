@@ -78,7 +78,7 @@ fun awaitPrompt(
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
         val p = b.promptBridge(SeatId(1)).getPendingPrompt()
-        if (p != null && !p.future.isDone) return p
+        if (p != null) return p
         Thread.sleep(5)
     }
     return null

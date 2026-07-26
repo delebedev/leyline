@@ -63,8 +63,7 @@ class SpectatorSession(
                 sent = true
             }
         }
-        val game = gameBridge.getGame()
-        if (!gameOverSent && game?.isGameOver == true) {
+        if (!gameOverSent && gameBridge.runtimeFacts(seatId).isGameOver) {
             sendGameOver()
             gameOverSent = true
             sent = true
@@ -83,14 +82,13 @@ class SpectatorSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) {
-        val game = bridge.getGame() ?: return
-        sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
+        sendBundle(bundleBuilder.stateOnlyDiff(counter))
     }
 
     override fun sendBundle(result: BundleBuilder.BundleResult) = sendBundledGRE(result.messages)
 
     override fun sendGameOver(reason: ResultReason) {
-        val p1Won = gameBridge.getPlayer(SeatId(1))?.getOutcome()?.hasWon() == true
+        val p1Won = gameBridge.playerWon(SeatId(1))
         val winningTeam = if (p1Won) 1 else 2
         sendBundledGRE(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))

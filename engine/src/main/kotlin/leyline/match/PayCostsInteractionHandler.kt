@@ -1,7 +1,5 @@
 package leyline.match
 
-import forge.card.mana.ManaCostShard
-import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ManaSourcePaymentKind
 import leyline.bridge.handoff.PayCostsPromptRoute
@@ -31,7 +29,7 @@ internal class PayCostsInteractionHandler(
 
     private data class ConvokePaymentSelection(
         val forgeCardId: ForgeCardId,
-        val shard: ManaCostShard,
+        val color: ManaColor,
     )
 
     fun tryHandlePayCostsPerformAction(
@@ -64,8 +62,7 @@ internal class PayCostsInteractionHandler(
         val newSelectedIds = selectedIds.filter { selectedSet.add(it) }
 
         if (actions.any { it.actionType == ActionType.Pass }) {
-            val ids = manaSourcePaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
-            convokePaymentSelections.remove(pendingPrompt.promptId)
+            val ids = manaSourcePaymentSelections[pendingPrompt.promptId]?.toList().orEmpty()
             submitManaSourcePayment(pendingPrompt, paymentKind, ids, autoPass)
             return true
         }
@@ -99,8 +96,7 @@ internal class PayCostsInteractionHandler(
         autoPass: () -> Unit,
     ): Boolean {
         val paymentKind = pendingPrompt.payCostsRoute()?.manaSourcePayment ?: return false
-        val ids = manaSourcePaymentSelections.remove(pendingPrompt.promptId)?.toList().orEmpty()
-        convokePaymentSelections.remove(pendingPrompt.promptId)
+        val ids = manaSourcePaymentSelections[pendingPrompt.promptId]?.toList().orEmpty()
         if (ids.isEmpty()) return false
         log.info(
             "PayCostsInteractionHandler: CancelActionReq — completing {} payment ids={}",
@@ -119,7 +115,6 @@ internal class PayCostsInteractionHandler(
         val (req, prompt) = route.build(pendingPrompt, bridge)
         val result =
             bundles.bundleBuilder.payCostsBundle(
-                ctx.game,
                 counters.counter,
                 req,
                 prompt,
@@ -141,10 +136,14 @@ internal class PayCostsInteractionHandler(
             selectedIds,
             selectedIndices,
         )
-        ctx.bridge
-            .seat(counters.seatId)
-            .prompt
-            .submitResponse(pendingPrompt.promptId, selectedIndices)
+        val submitted =
+            ctx.bridge
+                .seat(counters.seatId)
+                .prompt
+                .submitResponse(pendingPrompt.promptId, selectedIndices) {
+                    clearPayment(pendingPrompt.promptId)
+                }
+        if (!submitted) return
         ctx.bridge.awaitPriority()
         autoPass()
     }
@@ -200,23 +199,19 @@ internal class PayCostsInteractionHandler(
         if (paymentKind == ManaSourcePaymentKind.Waterbend) return
         if (selections.isEmpty()) return
         val source =
-            pendingPrompt.request.sourceEntityId ?: ctx.game.stack
-                .firstOrNull()
-                ?.spellAbility
-                ?.hostCard
-                ?.id ?: return
+            ctx.bridge.currentStackSourceCardId(pendingPrompt.request.sourceEntityId) ?: return
         ctx.bridge
             .seat(counters.seatId)
             .prompt
             .journal
             .record(
                 PromptSideEffect.ConvokePayments(
-                    sourceForgeCardId = ForgeCardId(source),
+                    sourceForgeCardId = source,
                     payments =
                         selections.map { selection ->
                             PromptSideEffect.ConvokePayment(
                                 paymentForgeCardId = selection.forgeCardId,
-                                color = ManaColorMapping.paymentWireColor(selection.shard).number,
+                                color = ManaColorMapping.paymentWireColor(selection.color).number,
                                 substitutionGrpId = paymentKeywordGrpId(paymentKind),
                                 paymentAbilityGrpId = paymentAbilityGrpId(paymentKind),
                             )
@@ -242,14 +237,13 @@ internal class PayCostsInteractionHandler(
         val plan = convokeAssignmentPlan(pendingPrompt, remainingCost, existingForgeIds)
         return selectedIds.mapNotNull { iid ->
             val forgeId = ctx.bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
-            val card = ctx.bridge.findCard(forgeId) ?: return@mapNotNull null
-            val shard =
+            val color =
                 if (paymentKind == ManaSourcePaymentKind.Convoke) {
-                    plan[forgeId] ?: fallbackConvokeShard(card.color, remainingCost)
+                    plan[forgeId] ?: ctx.bridge.fallbackConvokeColor(forgeId, remainingCost)
                 } else {
-                    ManaCostShard.GENERIC
+                    ManaColor.Generic
                 } ?: return@mapNotNull null
-            ConvokePaymentSelection(forgeId, shard)
+            ConvokePaymentSelection(forgeId, color)
         }
     }
 
@@ -259,9 +253,8 @@ internal class PayCostsInteractionHandler(
     ): List<Pair<ManaColor, Int>> {
         val remaining = cost.associate { it.first to it.second }.toMutableMap()
         for (selection in selections) {
-            val color = ManaColorMapping.paymentCostColor(selection.shard)
-            val next = (remaining[color] ?: 0) - 1
-            if (next <= 0) remaining.remove(color) else remaining[color] = next
+            val next = (remaining[selection.color] ?: 0) - 1
+            if (next <= 0) remaining.remove(selection.color) else remaining[selection.color] = next
         }
         return cost.mapNotNull { (color, _) -> remaining[color]?.takeIf { it > 0 }?.let { color to it } }
     }
@@ -270,27 +263,15 @@ internal class PayCostsInteractionHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         cost: List<Pair<ManaColor, Int>>,
         existingForgeIds: Set<ForgeCardId>,
-    ): Map<ForgeCardId, ManaCostShard> {
+    ): Map<ForgeCardId, ManaColor> {
         val candidates =
             pendingPrompt.request.candidateRefs.mapNotNull { ref ->
                 val forgeId = ForgeCardId(ref.entityId)
                 if (forgeId in existingForgeIds) return@mapNotNull null
-                val card = ctx.bridge.findCard(forgeId) ?: return@mapNotNull null
-                forgeId to card
+                forgeId
             }
-        return ConvokeShardAssigner
-            .assign(candidates, ManaColorMapping.paymentShardCounts(cost)) { (_, card) -> card.color }
-            .associate { (entry, shard) -> entry.first to shard }
+        return ctx.bridge.convokeAssignmentPlan(candidates, cost)
     }
-
-    private fun fallbackConvokeShard(
-        color: forge.card.ColorSet,
-        cost: List<Pair<ManaColor, Int>>,
-    ): ManaCostShard? =
-        ConvokeShardAssigner
-            .assign(listOf(color), ManaColorMapping.paymentShardCounts(cost)) { it }
-            .firstOrNull()
-            ?.second
 
     private fun mapSelectedInstanceIdsToPromptIndices(
         selectedInstanceIds: List<Int>,

@@ -653,7 +653,6 @@ class BundleBuilderTest :
                             max = 1,
                             candidateRefs = candidateRefs,
                         ),
-                    future = java.util.concurrent.CompletableFuture(),
                 )
             val result = bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
 
@@ -690,7 +689,6 @@ class BundleBuilderTest :
                             candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, 999, "Battlefield")),
                             sourceEntityId = source.id,
                         ),
-                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val result = bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
@@ -1155,7 +1153,6 @@ class BundleBuilderTest :
                             options = emptyList(),
                             route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
                         ),
-                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val result = bundleBuilder(b).orderBundle(game, counter, prompt, OrderRouteKind.Top)
@@ -1207,7 +1204,6 @@ class BundleBuilderTest :
                             sourceEntityId = source.id,
                             route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
                         ),
-                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val result = bundleBuilder(b).orderBundle(game, counter, prompt, OrderRouteKind.Top)
@@ -1255,7 +1251,6 @@ class BundleBuilderTest :
                                 },
                             route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         ),
-                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
@@ -1298,7 +1293,6 @@ class BundleBuilderTest :
                             candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creature.id, "Battlefield")),
                             route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
                         ),
-                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())

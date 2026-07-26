@@ -1,22 +1,17 @@
 package leyline.match
 
-import forge.game.player.GameLossReason
-import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
-import leyline.bridge.types.PhaseStopProfile
+import leyline.bridge.types.PlayerLossCause
 import leyline.bridge.types.SeatId
-import leyline.bridge.types.opponent
 import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markIfPrompt
-import leyline.game.mapping.StopTypeMapping
-import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
+import leyline.game.state.GameResetCommand
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -89,12 +84,12 @@ class MatchSession(
      * puzzle hot-swap MatchHandler builds a fresh instance for the new
      * game, so this snapshot stays valid for the session's lifetime.
      */
-    val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "MatchSession requires non-null game" }, gameBridge)
+    val ctx: SessionContext = SessionContext(gameBridge)
 
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
 
     init {
-        gameBridge.humanController?.setAutoPassState(autoPassState)
+        gameBridge.configureAutoPass(autoPassState)
     }
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
@@ -182,11 +177,11 @@ class MatchSession(
             // now past whatever the engine allocated. gsIds are higher than AI diffs
             // but the prevGsId chain is valid (references last AI diff's gsId).
             val bb = bundleBuilder
-            val result = bb.phaseTransitionDiff(ctx.game, counter)
+            val result = bb.phaseTransitionDiff(counter)
             sendBundle(result)
 
             // Seed state snapshot for subsequent diff computation.
-            val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+            val snap1 = ctx.bridge.snapshot(matchId, counter.currentGsId())
             bb.cursor.lastSent = snap1
 
             // Auto-pass through phases where human has no real actions
@@ -236,10 +231,10 @@ class MatchSession(
      *
      * @return Pair of (new session, ids the client should delete from its view).
      */
-    fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
+    fun replaceForPuzzle(command: GameResetCommand): Pair<MatchSession, List<Int>> =
         owner.reduce {
             owner.assertOwnerThread()
-            val deletedIds = gameBridge.resetForPuzzle(puzzle)
+            val deletedIds = command.reset(gameBridge)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
             registry.registerSession(matchId, seatId, replacement)
             // Update the per-channel handler so future inbound GRE messages dispatch
@@ -276,7 +271,7 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the cursor
         // needs a matching snapshot for the first Diff to be correct.
-        val snap2 = SnapshotCapture.run(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+        val snap2 = ctx.bridge.snapshot(matchId, counter.currentGsId())
         bundleBuilder.cursor.lastSent = snap2
         return true
     }
@@ -448,63 +443,13 @@ class MatchSession(
      */
     private fun applyStopsToProfile(settings: SettingsMessage) {
         val bridge = gameBridge
-        val profile = bridge.phaseStopProfile ?: return
-        val humanPlayer = bridge.getPlayer(seatId) ?: return
-        val aiSeatId = seatId.opponent
-        val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
-
-        // Honor clear-all flags even when no explicit stops present
         if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
-            profile.clearAll(humanPlayer.id)
-            profile.clearAll(aiPlayer.id)
             autoPassState.clearOpponentStops()
             log.debug("MatchSession: clearAll — clearAllStops={} clearAllYields={}", settings.clearAllStops, settings.clearAllYields)
         }
-
-        // Combine stops + transientStops (same proto shape)
-        val allStops = settings.stopsList + settings.transientStopsList
-        if (allStops.isEmpty()) return
-
-        // Apply per-scope
-        applyStopsForPlayer(allStops, SettingScope.Team_ac6e, humanPlayer.id, profile)
-        applyStopsForPlayer(allStops, SettingScope.Opponents, aiPlayer.id, profile)
-
-        // Mirror Opponents-scope stops into ClientAutoPassState for session-layer
-        // opponent-turn check (separate from engine-internal AI_DEFAULTS).
-        val opponentEnabled = StopTypeMapping.parseStops(allStops, SettingScope.Opponents)
-        val opponentDisabled =
-            allStops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                .toSet()
-        for (phase in opponentEnabled) autoPassState.setOpponentStop(phase, true)
-        for (phase in opponentDisabled) autoPassState.setOpponentStop(phase, false)
-
-        log.debug(
-            "MatchSession: applied stops — human={} ai={}",
-            profile.getEnabled(humanPlayer.id).map { it.name },
-            profile.getEnabled(aiPlayer.id).map { it.name },
-        )
-    }
-
-    /** Apply Set/Clear stops matching [scope] to the given player in [profile]. */
-    private fun applyStopsForPlayer(
-        stops: List<Stop>,
-        scope: SettingScope,
-        playerId: Int,
-        profile: PhaseStopProfile,
-    ) {
-        val enabled = StopTypeMapping.parseStops(stops, scope)
-        val disabled =
-            stops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                .toSet()
-
-        for (phase in enabled) profile.setEnabled(playerId, phase, true)
-        for (phase in disabled) profile.setEnabled(playerId, phase, false)
+        val update = bridge.applyPhaseStops(seatId, settings)
+        update.opponentEnabled.forEach { autoPassState.setOpponentStop(it, true) }
+        update.opponentDisabled.forEach { autoPassState.setOpponentStop(it, false) }
     }
 
     /**
@@ -580,20 +525,17 @@ class MatchSession(
             sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
             return
         }
-        sendPriorityState(bridge, revealForSeat, null)
+        sendPriorityState(bridge, revealForSeat)
     }
 
-    override fun sendPriorityState(
-        bridge: GameBridge,
-        candidates: PriorityActionCandidates,
-    ) = reduceActive {
-        sendPriorityState(bridge, null, candidates)
-    }
+    override fun sendPriorityState(bridge: GameBridge) =
+        reduceActive {
+            sendPriorityState(bridge, null)
+        }
 
     private fun sendPriorityState(
         bridge: GameBridge,
         revealForSeat: Int?,
-        candidates: PriorityActionCandidates?,
     ) {
         val game =
             bridge.getGame() ?: run {
@@ -602,7 +544,7 @@ class MatchSession(
             }
 
         val bb = bundleBuilder
-        val result = bb.postAction(game, counter, revealForSeat, candidates)
+        val result = bb.postAction(game, counter, revealForSeat)
 
         // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
         val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
@@ -652,24 +594,19 @@ class MatchSession(
 
     private fun sendGameOverOwned(reason: ResultReason) {
         val bridge = gameBridge
-        val humanPlayer = bridge.getPlayer(seatId)
-        val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
+        val humanWon = bridge.playerWon(seatId)
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
-        val losingPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
-        val lossReason = annotationLossReasonFor(reason, losingPlayer?.getOutcome()?.lossState)
+        val lossReason = annotationLossReasonFor(reason, bridge.playerLossCause(SeatId(losingPlayerSeatId)))
 
         // If there are pending events (e.g. mana-ability sacrifice during resolution),
         // build a final diff GSM to emit those annotations before the game-over bundle.
         // This mirrors client behavior, which sends a resolution GSM before GameComplete.
         val bb = bundleBuilder
         if (bridge.hasPendingEvents()) {
-            val game = bridge.getGame()
-            if (game != null) {
-                val resolutionBundle = bb.stateOnlyDiff(game, counter)
-                sendBundledGRE(resolutionBundle.messages)
-                log.debug("sendGameOver: flushed {} pending events in pre-game-over diff", resolutionBundle.messages.size)
-            }
+            val resolutionBundle = bb.stateOnlyDiff(counter)
+            sendBundledGRE(resolutionBundle.messages)
+            log.debug("sendGameOver: flushed {} pending events in pre-game-over diff", resolutionBundle.messages.size)
         }
 
         val result =
@@ -874,20 +811,17 @@ class MatchSession(
 
 internal fun annotationLossReasonFor(
     resultReason: ResultReason,
-    lossState: GameLossReason?,
+    lossState: PlayerLossCause?,
 ): AnnotationLossReason =
     if (resultReason == ResultReason.Concede) {
         AnnotationLossReason.Concede
     } else {
         when (lossState) {
-            GameLossReason.LifeReachedZero -> AnnotationLossReason.LifeTotal
-            GameLossReason.Poisoned -> AnnotationLossReason.Poison
-            GameLossReason.Milled -> AnnotationLossReason.DrawFromEmptyLibrary
-            GameLossReason.Conceded -> AnnotationLossReason.Concede
-            GameLossReason.CommanderDamage,
-            GameLossReason.IntentionalDraw,
-            GameLossReason.OpponentWon,
-            GameLossReason.SpellEffect,
+            PlayerLossCause.LifeTotal -> AnnotationLossReason.LifeTotal
+            PlayerLossCause.Poison -> AnnotationLossReason.Poison
+            PlayerLossCause.Milled -> AnnotationLossReason.DrawFromEmptyLibrary
+            PlayerLossCause.Concede -> AnnotationLossReason.Concede
+            PlayerLossCause.Other,
             null,
             -> AnnotationLossReason.LifeTotal
         }

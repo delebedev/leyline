@@ -13,7 +13,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
-import java.util.concurrent.CompletableFuture
 
 class TargetingHandlerSelectNTest :
     FunSpec({
@@ -23,7 +22,6 @@ class TargetingHandlerSelectNTest :
             InteractivePromptBridge.PendingPrompt(
                 promptId = "prompt-1",
                 request = request,
-                future = CompletableFuture(),
             )
 
         test("static SelectN response ids map through static option ids") {

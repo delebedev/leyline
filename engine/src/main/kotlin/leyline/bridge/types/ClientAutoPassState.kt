@@ -63,18 +63,25 @@ class ClientAutoPassState {
      * the client toggles them. Separate from PhaseStopProfile's AI_DEFAULTS
      * which are engine-internal.
      */
-    private val opponentStops: MutableSet<PhaseType> = ConcurrentHashMap.newKeySet()
+    private val opponentStops: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /** Update opponent-turn stops from parsed client settings. */
     fun setOpponentStop(
         phase: PhaseType,
+        enabled: Boolean,
+    ) = setOpponentStop(phase.name, enabled)
+
+    fun setOpponentStop(
+        phase: String,
         enabled: Boolean,
     ) {
         if (enabled) opponentStops.add(phase) else opponentStops.remove(phase)
     }
 
     /** Check if the client has set an opponent-turn stop for this phase. */
-    fun hasOpponentStop(phase: PhaseType): Boolean = phase in opponentStops
+    fun hasOpponentStop(phase: String): Boolean = phase in opponentStops
+
+    fun hasOpponentStop(phase: PhaseType): Boolean = hasOpponentStop(phase.name)
 
     /** Clear all opponent-turn stops (used by clearAllStops). */
     fun clearOpponentStops() = opponentStops.clear()
