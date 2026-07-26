@@ -8,6 +8,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -16,6 +17,7 @@ import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.ServerConfig
+import leyline.game.state.GameResetCommand
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
@@ -166,6 +168,34 @@ class MatchDoorMulliganFlowTest :
             return local to familiar
         }
 
+        fun promptMsgId(owner: MatchOwner): Int = owner.reduce(owner::lastPromptMsgId)
+
+        fun outboundPrompt(
+            type: GREMessageType,
+            gsId: Int,
+            msgId: Int,
+        ): GREToClientMessage =
+            GREToClientMessage
+                .newBuilder()
+                .setType(type)
+                .setGameStateId(gsId)
+                .setMsgId(msgId)
+                .build()
+
+        fun deliverPrompt(session: MatchSession): Int {
+            val msgId = session.counter.nextMsgId()
+            session.sendBundledGRE(
+                listOf(
+                    outboundPrompt(
+                        GREMessageType.ChooseStartingPlayerReq_695e,
+                        session.counter.currentGsId(),
+                        msgId,
+                    ),
+                ),
+            )
+            return msgId
+        }
+
         fun chooseStartingPlayer(
             respId: Int,
             seatId: Int = 1,
@@ -199,10 +229,7 @@ class MatchDoorMulliganFlowTest :
                 familiar.writeInbound(
                     greServiceMessage(
                         chooseStartingPlayer(
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                            promptMsgId(registry.ownerFor(matchId)),
                         ),
                         5,
                     ),
@@ -214,10 +241,7 @@ class MatchDoorMulliganFlowTest :
                     greServiceMessage(
                         mulliganDecision(
                             MulliganOption.AcceptHand,
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                            promptMsgId(registry.ownerFor(matchId)),
                         ),
                         6,
                     ),
@@ -256,10 +280,7 @@ class MatchDoorMulliganFlowTest :
                 familiar.writeInbound(
                     greServiceMessage(
                         chooseStartingPlayer(
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                            promptMsgId(registry.ownerFor(matchId)),
                         ),
                         5,
                     ),
@@ -272,10 +293,7 @@ class MatchDoorMulliganFlowTest :
                     greServiceMessage(
                         mulliganDecision(
                             MulliganOption.Mulligan,
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                            promptMsgId(registry.ownerFor(matchId)),
                         ),
                         6,
                     ),
@@ -289,10 +307,7 @@ class MatchDoorMulliganFlowTest :
                     greServiceMessage(
                         mulliganDecision(
                             MulliganOption.AcceptHand,
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                            promptMsgId(registry.ownerFor(matchId)),
                         ),
                         7,
                     ),
@@ -307,6 +322,49 @@ class MatchDoorMulliganFlowTest :
                     redrawHand shouldNotBe firstHand
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("prompt correlation survives puzzle session replacement") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-puzzle-replacement"
+            val (local, familiar) = connectPair(registry, matchId)
+            val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+            val owner = session.connection.owner
+
+            try {
+                val priorPromptId = deliverPrompt(session)
+                val (replacement, _) =
+                    session.replaceForPuzzle(GameResetCommand { emptyList() })
+                val inheritedPromptId = owner.reduce(owner::lastPromptMsgId)
+                val replacementPromptId = deliverPrompt(replacement)
+
+                val (priorRejected, replacementAccepted) =
+                    owner.reduce {
+                        val currentPromptId = owner.lastPromptMsgId()
+                        ResponseEnvelopeGuard.rejectMismatch(
+                            chooseStartingPlayer(priorPromptId),
+                            currentPromptId,
+                            replacement.counter,
+                            replacement,
+                        ) to
+                            ResponseEnvelopeGuard.rejectMismatch(
+                                chooseStartingPlayer(replacementPromptId),
+                                currentPromptId,
+                                replacement.counter,
+                                replacement,
+                            )
+                    }
+
+                assertSoftly {
+                    replacement.connection.owner shouldBeSameInstanceAs owner
+                    inheritedPromptId shouldBe priorPromptId
+                    priorRejected shouldBe true
+                    replacementAccepted shouldBe false
                 }
             } finally {
                 local.close()
@@ -329,7 +387,10 @@ class MatchDoorMulliganFlowTest :
             val entrants = Executors.newFixedThreadPool(2)
 
             try {
-                val staleRespId = session.counter.lastPromptMsgId()
+                val staleRespId =
+                    session.connection.owner.reduce {
+                        session.connection.owner.lastPromptMsgId()
+                    }
                 val currentRespId = AtomicReference<Int>()
                 val holder =
                     entrants.submit {
@@ -338,7 +399,15 @@ class MatchDoorMulliganFlowTest :
                             authorityEntered.countDown()
                             advancePrompt.await()
                             val replacementPromptMsgId = session.counter.nextMsgId()
-                            session.counter.markPromptMsgId(replacementPromptMsgId)
+                            session.connection.owner.observeOutbound(
+                                listOf(
+                                    outboundPrompt(
+                                        GREMessageType.ChooseStartingPlayerReq_695e,
+                                        session.counter.currentGsId(),
+                                        replacementPromptMsgId,
+                                    ),
+                                ),
+                            )
                             currentRespId.set(replacementPromptMsgId)
                             promptAdvanced.countDown()
                             releaseAuthority.await()

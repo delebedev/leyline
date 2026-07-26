@@ -6,9 +6,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * Shared counter for GRE gsId/msgId sequencing (ADR-003).
  *
  * One instance is created at session setup and passed to both [MatchSession]
- * and [leyline.game.state.GameBridge] at construction time. The session thread (Netty I/O) and
- * the engine thread (game daemon) both call [nextMsgId]/[nextGsId] on the
- * same allocation lock — monotonically increasing with no duplicates. Frame
+ * and [leyline.game.state.GameBridge] at construction time. The serial match
+ * owner and engine thread both call [nextMsgId]/[nextGsId] on the same
+ * allocation lock — monotonically increasing with no duplicates. Frame
  * compilation holds that lock from fork through commit so standalone builders
  * cannot invalidate a prepared allocation.
  *
@@ -31,15 +31,11 @@ class MessageCounter(
     data class Snapshot(
         val currentGsId: Int,
         val currentMsgId: Int,
-        val lastPromptGsId: Int,
-        val lastPromptMsgId: Int,
         val lastGameStateGsId: Int,
     )
 
     private val gsId = AtomicInteger(initialGsId)
     private val msgId = AtomicInteger(initialMsgId)
-    private val lastPromptGsId = AtomicInteger(0)
-    private val lastPromptMsgId = AtomicInteger(0)
     private val lastGameStateGsId = AtomicInteger(0)
 
     /** Advance gsId and return the new value. */
@@ -81,50 +77,8 @@ class MessageCounter(
     fun lastGameStateGsId(): Int = lastGameStateGsId.get()
 
     /**
-     * gsId of the most recent message that asked the client for a response —
-     * AAR, SelectTargetsReq, SelectNReq, GroupReq, etc. The client reflects
-     * this gsId on every response it sends; staleness checks compare the
-     * inbound gsId against this horizon to decide whether the response
-     * targets a prompt that has since been replaced.
-     *
-     * Returns 0 when no prompt has been emitted yet — the same value a real
-     * client sends pre-handshake, so the staleness predicate naturally
-     * accepts 0 by short-circuiting on `clientGsId != 0`.
-     *
-     * **Why this and not [currentGsId] minus an offset?** Trailing post-content
-     * echo GSMs advance [currentGsId] one past the prompt they follow, so
-     * `clientGsId < currentGsId() - 1` was the working predicate — but that
-     * ordinal offset breaks the moment echo policy diversifies (a second
-     * echo, a skipped echo, two prompts back-to-back). Tracking the prompt
-     * horizon directly keeps the predicate stable across echo-policy
-     * changes. See [leyline.match.ActionPerformer] and
-     * [leyline.match.CombatHandler] for the staleness sites.
-     */
-    fun lastPromptGsId(): Int = lastPromptGsId.get()
-
-    /** msgId that a response to the most recent prompt must echo in `respId`. */
-    fun lastPromptMsgId(): Int = lastPromptMsgId.get()
-
-    /**
-     * Record [gsId] as the gsId of a freshly-emitted prompt-bearing GRE.
-     * Auto-called from `makeGRE` for prompt types in [PROMPT_GRE_TYPES];
-     * callers shouldn't need to invoke this directly.
-     *
-     * Monotonic max via CAS — out-of-order callers never regress the
-     * horizon. Both session and engine threads write here.
-     */
-    fun markPromptGsId(gsId: Int) {
-        markMonotonic(lastPromptGsId, gsId)
-    }
-
-    /** Record the msgId of a freshly emitted prompt-bearing GRE. */
-    fun markPromptMsgId(msgId: Int) {
-        markMonotonic(lastPromptMsgId, msgId)
-    }
-
-    /**
      * Record [gsId] as the latest GameStateMessage-bearing GRE seen by the client.
-     * Monotonic for the same concurrency reason as [markPromptGsId].
+     * Monotonic because interactive and spectator sinks can publish progress.
      */
     fun markGameStateGsId(gsId: Int) {
         markMonotonic(lastGameStateGsId, gsId)
@@ -165,8 +119,6 @@ class MessageCounter(
             Snapshot(
                 currentGsId = gsId.get(),
                 currentMsgId = msgId.get(),
-                lastPromptGsId = lastPromptGsId.get(),
-                lastPromptMsgId = lastPromptMsgId.get(),
                 lastGameStateGsId = lastGameStateGsId.get(),
             )
         }
@@ -204,15 +156,12 @@ class MessageCounter(
     override fun toString(): String =
         snapshot().let {
             "MessageCounter(gsId=${it.currentGsId}, msgId=${it.currentMsgId}, " +
-                "lastPromptGsId=${it.lastPromptGsId}, lastPromptMsgId=${it.lastPromptMsgId}, " +
                 "lastGameStateGsId=${it.lastGameStateGsId})"
         }
 
     companion object {
         internal fun fork(snapshot: Snapshot): MessageCounter =
             MessageCounter(snapshot.currentGsId, snapshot.currentMsgId).also { fork ->
-                fork.markPromptGsId(snapshot.lastPromptGsId)
-                fork.markPromptMsgId(snapshot.lastPromptMsgId)
                 fork.markGameStateGsId(snapshot.lastGameStateGsId)
             }
     }

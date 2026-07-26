@@ -3,7 +3,6 @@ package leyline.match
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
-import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -27,7 +26,6 @@ class FamiliarSession(
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-            markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
         }
         sink.send(messages)
     }

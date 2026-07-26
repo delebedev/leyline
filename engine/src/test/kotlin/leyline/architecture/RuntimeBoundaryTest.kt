@@ -10,6 +10,9 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.types.PriorityActionFacts
+import leyline.game.bundle.MessageCounter
+import leyline.match.MatchOwner
+import java.lang.reflect.Modifier
 import java.nio.file.Path
 
 /**
@@ -125,5 +128,83 @@ class RuntimeBoundaryTest :
                 .resideInAnyPackage("forge..")
                 .because("priority action offers contain tokens and immutable projection facts only")
                 .check(classes)
+        }
+
+        test("prompt correlation is plain state held by the serial owner") {
+            val counterFields =
+                MessageCounter::class.java.declaredFields
+                    .map { it.name }
+                    .toSet()
+            check("lastPromptGsId" !in counterFields && "lastPromptMsgId" !in counterFields) {
+                "MessageCounter still owns prompt correlation: $counterFields"
+            }
+
+            val stateType =
+                MatchOwner::class.java.declaredClasses.singleOrNull {
+                    it.simpleName == "OwnerProtocolState"
+                }
+            checkNotNull(stateType) { "MatchOwner must contain OwnerProtocolState" }
+            check(Modifier.isPrivate(stateType.modifiers)) {
+                "OwnerProtocolState must be private to MatchOwner"
+            }
+
+            val sharedStateFields =
+                stateType.declaredFields.filter {
+                    Modifier.isVolatile(it.modifiers) ||
+                        it.type.name.startsWith("java.util.concurrent") ||
+                        it.type.name.startsWith("java.util.concurrent.atomic")
+                }
+            check(sharedStateFields.isEmpty()) {
+                "OwnerProtocolState must remain plain owner-confined state: ${sharedStateFields.map { it.name }}"
+            }
+
+            val ownerState =
+                MatchOwner::class.java.declaredFields.singleOrNull {
+                    it.type == stateType
+                }
+            checkNotNull(ownerState) { "MatchOwner must hold OwnerProtocolState directly" }
+            check(Modifier.isPrivate(ownerState.modifiers)) {
+                "MatchOwner protocol state field must be private"
+            }
+
+            val rawAccessors =
+                MatchOwner::class.java.declaredMethods.filter {
+                    it.returnType == stateType || stateType in it.parameterTypes
+                }
+            check(rawAccessors.isEmpty()) {
+                "MatchOwner must not expose raw protocol state: ${rawAccessors.map { it.name }}"
+            }
+
+            val stateMutators =
+                stateType.declaredMethods.filter { it.name.startsWith("observeOutbound") }
+            check(stateMutators.isNotEmpty() && Modifier.isPrivate(stateType.modifiers)) {
+                "OwnerProtocolState mutators must remain inside the private owner state type"
+            }
+
+            val escapedState =
+                classes
+                    .filter { it.name != MatchOwner::class.java.name }
+                    .flatMap { type ->
+                        val reflected =
+                            Class.forName(
+                                type.name,
+                                false,
+                                MatchOwner::class.java.classLoader,
+                            )
+                        val fields =
+                            reflected.declaredFields
+                                .filter { it.type == stateType }
+                                .map { "${type.name}.${it.name}" }
+                        val methods =
+                            reflected.declaredMethods
+                                .filter {
+                                    it.returnType == stateType ||
+                                        stateType in it.parameterTypes
+                                }.map { "${type.name}.${it.name}()" }
+                        fields + methods
+                    }
+            check(escapedState.isEmpty()) {
+                "OwnerProtocolState escaped MatchOwner: $escapedState"
+            }
         }
     })

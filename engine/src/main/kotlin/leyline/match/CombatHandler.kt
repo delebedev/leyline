@@ -28,6 +28,7 @@ open class CombatHandler(
     private val counters: SessionCounters,
     private val bundles: BundleBuilderHolder,
     private val pacing: Pacing,
+    private val lastPromptGsId: () -> Int = { 0 },
     protected val ctx: SessionContext,
 ) {
     companion object {
@@ -81,12 +82,13 @@ open class CombatHandler(
         label: String,
     ): Boolean {
         val clientGsId = greMsg.gameStateId
-        if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
+        val promptGsId = lastPromptGsId()
+        if (clientGsId != 0 && clientGsId < promptGsId) {
             log.debug(
                 "CombatHandler: stale {} gsId={} (lastPrompt={}), ignoring",
                 label,
                 clientGsId,
-                counters.counter.lastPromptGsId(),
+                promptGsId,
             )
             return true
         }

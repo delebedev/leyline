@@ -381,7 +381,13 @@ class MatchConnection(
     ) {
         withSessionAuthority { authority ->
             val responseSession = session ?: authority
-            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, authority.counter, responseSession)) {
+            if (!ResponseEnvelopeGuard.rejectMismatch(
+                    greMsg,
+                    authority.connection.owner.lastPromptMsgId(),
+                    authority.counter,
+                    responseSession,
+                )
+            ) {
                 action()
             }
         }
@@ -526,7 +532,9 @@ class MatchConnection(
             )
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
-        leyline.game.bundle.markPrompts(s.counter, msg)
+        if (s !is SpectatorSession) {
+            registry.ownerFor(matchId).observeOutbound(msg)
+        }
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
         output.send(msg)
