@@ -85,6 +85,7 @@ class PuzzleHandler(
         Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
         ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
         output.send(bundleMsg)
+        bridge.activateInteractivePlayback()
 
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
         session.awaitEnginePriority()

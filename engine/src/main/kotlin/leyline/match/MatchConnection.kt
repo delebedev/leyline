@@ -538,6 +538,9 @@ class MatchConnection(
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
         output.send(msg)
+        if (s !is SpectatorSession) {
+            bridge.activateInteractivePlayback()
+        }
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {

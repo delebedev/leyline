@@ -263,6 +263,7 @@ class MatchFlowHarness(
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)
         validatingSink?.seedFull(fullResult.gsm)
+        bridge.activateInteractivePlayback()
     }
 
     /**
