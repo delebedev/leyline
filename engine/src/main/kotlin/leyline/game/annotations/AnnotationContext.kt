@@ -127,6 +127,9 @@ class AnnotationContext(
      *  is noise. The else-branch keeps the fallback explicit. */
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     fun currentSourceZoneId(cardId: ForgeCardId): Int {
+        snap.zones.values
+            .firstOrNull { zone -> cardId in zone.contents }
+            ?.let { zone -> return zone.id }
         val card = bridge.findCard(cardId) ?: return ZoneIds.BATTLEFIELD
         val ownerSeat = ownerSeatOf(card)
         return when (card.zone?.zoneType) {

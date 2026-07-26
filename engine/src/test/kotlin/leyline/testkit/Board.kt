@@ -47,8 +47,16 @@ class Board(
     /** Create a [BundleBuilder] with standard test constants. */
     fun bundleBuilder(): BundleBuilder = BundleBuilder(bridge, TEST_MATCH_ID, SEAT_ID)
 
-    /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
-    fun stateOnlyDiff(): GameStateMessage = bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+    /** Build a stateOnlyDiff and return the latest GSM. Fails if no GSM produced. */
+    fun stateOnlyDiff(): GameStateMessage {
+        val playbackMessages = drainPlayback().flatten()
+        playbackMessages
+            .lastOrNull { it.hasGameStateMessage() }
+            ?.gameStateMessage
+            ?.let { return it }
+        return bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull
+            ?: error("stateOnlyDiff returned no GSM")
+    }
 
     /**
      * Seed the diff baseline, run [action], build a stateOnlyDiff, return the GSM.
@@ -58,6 +66,7 @@ class Board(
         checkSba: Boolean = false,
         action: () -> Unit,
     ): GameStateMessage {
+        drainPlayback()
         bridge.seedDiffBaseline(game, counter.currentGsId())
         action()
         if (checkSba) game.action.checkStateEffects(true)

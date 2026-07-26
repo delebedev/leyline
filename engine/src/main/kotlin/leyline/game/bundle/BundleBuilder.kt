@@ -358,10 +358,11 @@ class BundleBuilder(
     private fun compileAndCommit(
         counter: MessageCounter,
         releaseReservationOnFailure: Boolean = true,
+        projectBaselineOnCommit: Boolean = false,
         compile: () -> FramePlan,
     ): BundleResult =
         counter.withAllocationLock {
-            commit(compile(), counter, releaseReservationOnFailure)
+            commit(compile(), counter, releaseReservationOnFailure, projectBaselineOnCommit)
         }
 
     private fun FrameDiff.planDraft(
@@ -396,6 +397,7 @@ class BundleBuilder(
         plan: FramePlan,
         counter: MessageCounter,
         releaseReservationOnFailure: Boolean = true,
+        projectBaselineOnCommit: Boolean = false,
     ): BundleResult {
         val projection = plan.projection
         val reservation = projection.bundleFrameReservation
@@ -433,7 +435,12 @@ class BundleBuilder(
                         if (projection.mutations == null) {
                             projection.nextAnnotationId?.let(bridge.annotations::setAnnotationId)
                         }
-                        cursor.lastSent = projection.nextBaseline
+                        cursor.lastSent =
+                            if (projectBaselineOnCommit) {
+                                projection.projectedSnapshot()
+                            } else {
+                                projection.nextBaseline
+                            }
                         projection.pendingSubmittedTargets?.let(cursor::consumePSuT)
                         projection.pendingOrderZoneMove?.let {
                             bridge.promptBridge(SeatId(seatId)).consumePendingOrderZoneMove(it)
@@ -460,6 +467,7 @@ class BundleBuilder(
         counter: MessageCounter,
         reservation: GameBridge.BundleFrameReservation,
         releaseReservationOnFailure: Boolean = true,
+        projectBaselineOnCommit: Boolean = false,
     ): List<BundleResult> {
         check(plans.isNotEmpty()) { "Composite frame requires at least one plan" }
         plans.zipWithNext().forEach { (current, next) ->
@@ -508,7 +516,12 @@ class BundleBuilder(
                             if (projection.mutations == null) {
                                 projection.nextAnnotationId?.let(bridge.annotations::setAnnotationId)
                             }
-                            cursor.lastSent = projection.nextBaseline
+                            cursor.lastSent =
+                                if (projectBaselineOnCommit) {
+                                    projection.projectedSnapshot()
+                                } else {
+                                    projection.nextBaseline
+                                }
                             projection.pendingSubmittedTargets?.let(cursor::consumePSuT)
                             projection.pendingOrderZoneMove?.let {
                                 bridge.promptBridge(SeatId(seatId)).consumePendingOrderZoneMove(it)
@@ -588,6 +601,16 @@ class BundleBuilder(
 
     private fun GsmSnapshot.withPersistentAnnotationState(state: PersistentAnnotationState): GsmSnapshot =
         copyProjection(gameStateId = gameStateId, persistentAnnotationState = state)
+
+    private fun GsmSnapshot.withOwnerPersistentAnnotationState(): GsmSnapshot {
+        val state =
+            PersistentAnnotationState(
+                activeAnnotations = bridge.annotations.snapshot(),
+                nextAnnotationId = bridge.annotations.currentAnnotationId(),
+                nextPersistentId = bridge.annotations.currentPersistentId(),
+            )
+        return if (state == persistentAnnotationState) this else withPersistentAnnotationState(state)
+    }
 
     private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
         if (lifeTotals.isEmpty()) return this
@@ -834,13 +857,17 @@ class BundleBuilder(
     ): List<BundleResult> {
         if (input.combatFrames.isEmpty()) {
             return listOf(
-                compileAndCommit(counter, releaseReservationOnFailure = false) {
+                compileAndCommit(
+                    counter,
+                    releaseReservationOnFailure = false,
+                    projectBaselineOnCommit = true,
+                ) {
                     compileRemoteActionDiff(input, counter)
                 },
             )
         }
         return counter.withAllocationLock {
-            val sourceSnapshot = input.snapshot
+            val sourceSnapshot = input.snapshot.withOwnerPersistentAnnotationState()
 
             fun compileUnsplit(): List<BundleResult> {
                 val fallbackCounter = MessageCounter.fork(counter.snapshot())
@@ -866,6 +893,7 @@ class BundleBuilder(
                     counter,
                     input.reservation,
                     releaseReservationOnFailure = false,
+                    projectBaselineOnCommit = true,
                 )
             }
 
@@ -913,6 +941,7 @@ class BundleBuilder(
                     counter,
                     input.reservation,
                     releaseReservationOnFailure = false,
+                    projectBaselineOnCommit = true,
                 )
             if (results.size != input.combatFrames.size) return@withAllocationLock results
             results.zip(input.combatFrames) { result, frame ->
@@ -943,6 +972,7 @@ class BundleBuilder(
         counter: MessageCounter,
     ): FramePlan =
         compilePlan(counter) { plannedCounter ->
+            val sourceSnapshot = input.snapshot.withOwnerPersistentAnnotationState()
             buildRemoteActionDraft(
                 game = null,
                 plannedCounter = plannedCounter,
@@ -953,7 +983,7 @@ class BundleBuilder(
                 projectionBaseline =
                     FrameProjectionBaseline(
                         previousSnap = cursor.lastSent,
-                        snapTemplate = input.snapshot,
+                        snapTemplate = sourceSnapshot,
                         delayedTriggerHolders = bridge.delayedTriggerHolders.activeRecords(),
                         transientLinkedFaceFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds(),
                     ),
