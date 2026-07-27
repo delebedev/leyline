@@ -249,29 +249,43 @@ class InProcessWebGreRelay(
 }
 
 class DirectWebGreEngineSession(
-    matchConfig: MatchConfig,
-    coordinator: MatchCoordinator,
-    cardRepository: CardRepository,
-    runtimeMatchConfigs: RuntimeMatchConfigRegistry,
+    private val matchConfig: MatchConfig,
+    private val coordinator: MatchCoordinator,
+    private val cardRepository: CardRepository,
+    private val runtimeMatchConfigs: RuntimeMatchConfigRegistry,
     onFrame: (ByteArray) -> Unit,
     onClosed: () -> Unit = {},
 ) : WebGreEngineSession {
-    private val connection =
-        MatchConnection(
-            registry = MatchRegistry(),
-            output =
-                object : MatchOutput {
-                    override fun send(message: MatchServiceToClientMessage) {
-                        onFrame(message.toByteArray())
-                    }
+    /**
+     * Shared by the browser's seat and the [WebFamiliarSeat] the server drives
+     * alongside it — the handshake reaches across seats through this registry
+     * (seat 2's starting-player answer deals seat 1 its hand), so two registries
+     * would leave each seat talking to itself.
+     */
+    private val registry = MatchRegistry()
 
-                    override fun close() = onClosed()
-                },
+    private fun openConnection(output: MatchOutput) =
+        MatchConnection(
+            registry = registry,
+            output = output,
             matchConfig = matchConfig,
             coordinator = coordinator,
             cardRepository = cardRepository,
             runtimeMatchConfigs = runtimeMatchConfigs,
         )
+
+    private val connection =
+        openConnection(
+            object : MatchOutput {
+                override fun send(message: MatchServiceToClientMessage) {
+                    onFrame(message.toByteArray())
+                }
+
+                override fun close() = onClosed()
+            },
+        )
+
+    private val familiar = WebFamiliarSeat(::openConnection)
 
     init {
         connection.opened()
@@ -284,7 +298,10 @@ class DirectWebGreEngineSession(
             } catch (_: InvalidProtocolBufferException) {
                 return
             }
-        runCatching { connection.receive(inbound) }.onFailure { error ->
+        runCatching {
+            connection.receive(inbound)
+            familiar.followBrowser(inbound)
+        }.onFailure { error ->
             relayLog.error("GRE engine error while handling client message", error)
             connection.failed(error)
         }
@@ -292,5 +309,6 @@ class DirectWebGreEngineSession(
 
     override fun close() {
         connection.disconnected()
+        familiar.close()
     }
 }
