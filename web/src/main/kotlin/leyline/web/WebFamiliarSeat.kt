@@ -43,6 +43,12 @@ private const val FAMILIAR_SEAT_ID = 2
  */
 internal class WebFamiliarSeat(
     private val openConnection: (MatchOutput) -> MatchConnection,
+    /**
+     * Whether [matchId] is one the seat belongs in. A puzzle starts from a
+     * prepared board and a spectated match already has both seats, so neither
+     * raises the starting-player prompt this exists to answer.
+     */
+    private val needsFamiliarSeat: (String) -> Boolean,
 ) {
     private val log = LoggerFactory.getLogger(WebFamiliarSeat::class.java)
 
@@ -96,7 +102,7 @@ internal class WebFamiliarSeat(
     }
 
     private fun join(matchId: String) {
-        if (connection != null || matchId.isEmpty()) return
+        if (connection != null || matchId.isEmpty() || !needsFamiliarSeat(matchId)) return
         val familiar = openConnection(output)
         connection = familiar
         log.info("Familiar seat: joining matchId={} as seat {}", matchId, FAMILIAR_SEAT_ID)
@@ -114,7 +120,14 @@ internal class WebFamiliarSeat(
      * connection that is still handling its own connect.
      */
     private fun answerStartingPlayer(familiar: MatchConnection) {
-        val respId = unansweredPromptMsgId ?: return
+        val respId = unansweredPromptMsgId
+        if (respId == null) {
+            // Nothing else will deal the opening hands, so the match is now
+            // stalled on its initial bundle. Say so — silence here reads as a
+            // client that never rendered rather than a handshake that stopped.
+            log.warn("Familiar seat: connected without a starting-player prompt; opening hands will not be dealt")
+            return
+        }
         unansweredPromptMsgId = null
         familiar.receive(chooseStartingPlayer(respId))
     }

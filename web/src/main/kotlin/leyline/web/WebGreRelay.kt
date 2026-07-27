@@ -285,7 +285,14 @@ class DirectWebGreEngineSession(
             },
         )
 
-    private val familiar = WebFamiliarSeat(::openConnection)
+    private val familiar = WebFamiliarSeat(::openConnection, ::needsFamiliarSeat)
+
+    private fun needsFamiliarSeat(matchId: String): Boolean {
+        val config = runtimeMatchConfigs.get(matchId)
+        val puzzle = !config?.puzzle.isNullOrBlank()
+        val spectating = config?.spectatorMode ?: matchConfig.game.spectatorMode
+        return !puzzle && !spectating
+    }
 
     init {
         connection.opened()
