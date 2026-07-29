@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -23,6 +24,8 @@ import leyline.game.snapshot.StackSnapshot
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
+import leyline.testkit.annotation
+import leyline.testkit.detailInt
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
@@ -162,6 +165,35 @@ class StateMapperShapeTest :
                 objectsById.getValue(graveyardIds[1]).grpId shouldBe b.cardRepository.findGrpIdByName("Mountain")
                 objectsById.getValue(exileIds[0]).grpId shouldBe b.cardRepository.findGrpIdByName("Forest")
                 objectsById.getValue(exileIds[1]).grpId shouldBe b.cardRepository.findGrpIdByName("Llanowar Elves")
+            }
+        }
+
+        test("land-play diff includes transfer zones without deleting the retired object") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Hand)
+                }
+            val land =
+                board.game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first { it.isLand }
+
+            val gsm =
+                board.snapshotDiff {
+                    board.game.action.moveToPlay(land, null, AbilityKey.newMap())
+                }
+
+            assertSoftly {
+                gsm.type shouldBe Messages.GameStateType.Diff
+
+                val zoneTypes = gsm.zonesList.map { it.type }.toSet()
+                (ProtoZoneType.Hand in zoneTypes).shouldBeTrue()
+                (ProtoZoneType.Battlefield in zoneTypes).shouldBeTrue()
+                (ProtoZoneType.Limbo in zoneTypes).shouldBeTrue()
+
+                val originalId = gsm.annotation(Messages.AnnotationType.ObjectIdChanged).detailInt("orig_id")
+                gsm.diffDeletedInstanceIdsList shouldNotContain originalId
             }
         }
 

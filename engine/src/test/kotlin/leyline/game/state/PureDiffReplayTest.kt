@@ -1,15 +1,17 @@
 package leyline.game.state
 
+import forge.game.ability.AbilityKey
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.state.GameBridge
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.IsolatedBoardLifecycle
@@ -18,28 +20,14 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
- * Acceptance forcing function for the diff-pure refactor.
+ * Replay sentinel for deterministic diff projection.
  *
- * Drives deterministic scripted scenarios (play land → cast creature → pass to
- * end of turn), records per-bundle (prev, cur, events, gsId, diff) during the
- * live run, then replays each step through a second bridge (started with the
- * same seed) and asserts byte-equal Diff GSM.
+ * Drives one seeded play/cast/turn scenario, collects each immutable projection
+ * input, then replays the inputs through a second bridge and requires byte-equal
+ * Diff GSMs. A direct zone-transfer case pins the deferred identity-commit seam.
  *
- * Scenarios:
- * - One-turn: minimal baseline — single play/cast/end-of-turn cycle.
- * - Three-turn: multi-turn invariants — cross-turn annotation lifecycle,
- *   cleanup transitions, monotonic counters across bundle boundaries.
- * - Defer-invariant regression: guards the bridge.ids realloc-commit contract
- *   (compute-pure, apply-via-applyMutations).
- *
- * Any drift = impurity surfaced. Passing = pure-output semantics verified for
- * this feature surface (zone transfers, phase changes, combat, persistent
- * annotations tied to the permanents involved).
- *
- * Scenarios are scripted via puzzle fixtures and seeded deterministic runs.
- *
- * Out of scope per spec: EffectTracker layered effects, reveal-choose prompts,
- * steal effects.
+ * Mechanic-specific lifecycle and projection shapes stay in their pipeline and
+ * mechanics suites.
  */
 class PureDiffReplayTest :
     BoardTest({
@@ -79,9 +67,8 @@ class PureDiffReplayTest :
                     liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
                 }
 
-                // Scripted scenario: play land → cast creature (if possible) → pass to end of turn.
-                playLand(liveBridge)
-                castCreature(liveBridge) // null-safe: skipped if no creature in hand
+                playLand(liveBridge) ?: error("seeded replay scenario requires a playable land")
+                castCreature(liveBridge) ?: error("seeded replay scenario requires a castable creature")
                 advanceToEndOfTurn(liveBridge)
                 liveBoard.drainPlayback()
 
@@ -117,159 +104,82 @@ class PureDiffReplayTest :
             }
         }
 
-        test("three-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
-            withBase {
-                // Same shape as the one-turn test but drives three turns to exercise
-                // multi-turn invariants: cross-turn annotation lifecycle, cleanup
-                // transitions, monotonic counters across bundle boundaries.
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
-                val liveRun = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
-                    liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
+        test("zone-transfer identity changes commit after diff projection") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Hand)
                 }
+            val land =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val forgeCardId = ForgeCardId(land.id)
+            val oldId = checkNotNull(board.bridge.ids.peek(forgeCardId))
+            board.bridge.closeBundleFrame()
+            val previous = GsmSnapshot.capture(board.game, board.bridge, Board.TEST_MATCH_ID, 1)
 
-                repeat(3) {
-                    playLand(liveBridge)
-                    castCreature(liveBridge)
-                    advanceToEndOfTurn(liveBridge)
-                }
-                liveBoard.drainPlayback()
+            board.game.action.moveToPlay(land, null, AbilityKey.newMap())
+            val current = GsmSnapshot.capture(board.game, board.bridge, Board.TEST_MATCH_ID, 2)
+            val events = board.bridge.closeBundleFrame()
+            val projected =
+                StateMapper
+                    .buildDiff(
+                        prev = previous,
+                        cur = current,
+                        events = events,
+                        gameStateId = 2,
+                        matchId = Board.TEST_MATCH_ID,
+                        bridge = board.bridge,
+                        viewingSeatId = SEAT_ID,
+                    ).finalizeAnnotations()
+            val reallocation = projected.mutations.idReallocations.single { it.old == oldId }
 
-                liveRun.shouldNotBeEmpty()
-                liveBridge.diffListener = null
+            board.bridge.ids.peek(forgeCardId) shouldBe oldId
+            board.bridge.getForgeCardId(reallocation.new) shouldBe null
 
-                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
+            board.bridge.applyMutations(projected.mutations)
 
-                val replayBytes =
-                    liveRun.map { step ->
-                        val updateType = step.diff.update
-                        val replayResult =
-                            StateMapper
-                                .buildDiff(
-                                    prev = step.prev,
-                                    cur = step.cur,
-                                    events = step.events,
-                                    gameStateId = step.gameStateId,
-                                    matchId = Board.TEST_MATCH_ID,
-                                    bridge = replayBridge,
-                                    updateType = updateType,
-                                    viewingSeatId = SEAT_ID,
-                                ).finalizeAnnotations(step.riders())
-                        replayBridge.applyMutations(replayResult.mutations)
-                        replayResult.gsm.toByteArray().toList()
-                    }
-                val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
-                replayBytes shouldBe liveBytes
-            }
+            board.bridge.ids.peek(forgeCardId) shouldBe reallocation.new
+            board.bridge.getForgeCardId(reallocation.new) shouldBe forgeCardId
         }
 
-        // Regression guard: buildDiff MUST NOT commit id-realloc map writes during
-        // compute. ZoneTransferDetector uses a local overlay; applyMutations is the
-        // only place the forward/reverse maps advance.
-        test("buildDiff defers bridge.ids realloc commits to applyMutations") {
-            withBase {
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
-                val captured = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
-                    captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
-                }
-                playLand(liveBridge)
-                castCreature(liveBridge)
-                advanceToEndOfTurn(liveBridge)
-                liveBoard.drainPlayback()
-                liveBridge.diffListener = null
+        test("holder removals commit after diff projection") {
+            val board = startWithBoard { _, _, _ -> }
+            val holder =
+                HolderRecord(
+                    iid = 777,
+                    ownerSeat = 1,
+                    objectSourceGrpId = 188698,
+                    parentIid = 100,
+                    cleanupGrpId = 189931,
+                )
+            board.bridge.delayedTriggerHolders.apply(HolderBatch(added = listOf(holder), removed = emptyList()))
+            board.bridge.closeBundleFrame()
+            val previous = GsmSnapshot.capture(board.game, board.bridge, Board.TEST_MATCH_ID, 1)
+            val current = GsmSnapshot.capture(board.game, board.bridge, Board.TEST_MATCH_ID, 2)
 
-                captured.shouldNotBeEmpty()
+            val projected =
+                StateMapper
+                    .buildDiff(
+                        prev = previous,
+                        cur = current,
+                        events = FrameEventLog.EMPTY,
+                        gameStateId = 2,
+                        matchId = Board.TEST_MATCH_ID,
+                        bridge = board.bridge,
+                        viewingSeatId = SEAT_ID,
+                    ).finalizeAnnotations()
 
-                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
-
-                // Walk the captured run. At each step with a non-trivial realloc: verify
-                // the forward map still reflects the OLD id pre-apply (compute did not
-                // commit), then the NEW id post-apply.
-                var exercisedRealloc = false
-                for (step in captured) {
-                    val draft =
-                        StateMapper.buildDiff(
-                            prev = step.prev,
-                            cur = step.cur,
-                            events = step.events,
-                            gameStateId = step.gameStateId,
-                            matchId = Board.TEST_MATCH_ID,
-                            bridge = replayBridge,
-                            updateType = step.diff.update,
-                            viewingSeatId = SEAT_ID,
-                        )
-                    draft.mutations.nextAnnotationId shouldBe null
-                    draft.gsm.annotationsList.all { it.id == 0 } shouldBe true
-                    val result = draft.finalizeAnnotations(step.riders())
-                    val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
-                    for (r in nonTrivial) {
-                        val fid =
-                            replayBridge.getForgeCardId(r.old)
-                                ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
-                        // Pre-apply: compute must NOT have moved the forward map.
-                        replayBridge.ids.peek(fid) shouldBe r.old
-                    }
-                    replayBridge.applyMutations(result.mutations)
-                    for (r in nonTrivial) {
-                        val fid =
-                            replayBridge.getForgeCardId(r.new)
-                                ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
-                        // Post-apply: the map now reflects the new id.
-                        replayBridge.ids.peek(fid) shouldBe r.new
-                    }
-                    if (nonTrivial.isNotEmpty()) exercisedRealloc = true
-                }
-                exercisedRealloc shouldBe true
+            assertSoftly {
+                board.bridge.delayedTriggerHolders.activeIids() shouldBe setOf(777)
+                projected.mutations.holderBatch.removed shouldBe listOf(777)
+                (777 in projected.gsm.diffDeletedInstanceIdsList) shouldBe true
             }
-        }
 
-        test("buildDiff defers delayed-trigger holder removals to applyMutations") {
-            withBase {
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
-                val captured = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { prev, cur, events, gsId, diff ->
-                    captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
-                }
-                playLand(liveBridge)
-                castCreature(liveBridge)
-                advanceToEndOfTurn(liveBridge)
-                liveBoard.drainPlayback()
-                liveBridge.diffListener = null
+            board.bridge.applyMutations(projected.mutations)
 
-                captured.shouldNotBeEmpty()
-
-                liveBridge.shutdown()
-                bridge = null
-                val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
-                val holder = HolderRecord(iid = 777, ownerSeat = 1, objectSourceGrpId = 188698, parentIid = 100, cleanupGrpId = 189931)
-                replayBridge.delayedTriggerHolders.apply(HolderBatch(added = listOf(holder), removed = emptyList()))
-                val activeBefore = replayBridge.delayedTriggerHolders.activeIids()
-                val step = captured.first()
-                val replayResult =
-                    StateMapper
-                        .buildDiff(
-                            prev = step.prev,
-                            cur = step.cur,
-                            events = step.events,
-                            gameStateId = step.gameStateId,
-                            matchId = Board.TEST_MATCH_ID,
-                            bridge = replayBridge,
-                            updateType = step.diff.update,
-                            viewingSeatId = SEAT_ID,
-                        ).finalizeAnnotations(step.riders())
-
-                assertSoftly("holder deletion is compute-time only until mutations apply") {
-                    replayBridge.delayedTriggerHolders.activeIids() shouldBe activeBefore
-                    replayResult.mutations.holderBatch.removed shouldBe listOf(777)
-                    (777 in replayResult.gsm.diffDeletedInstanceIdsList) shouldBe true
-                }
-                replayBridge.applyMutations(replayResult.mutations)
-                replayBridge.delayedTriggerHolders.activeIids() shouldBe emptySet()
-            }
+            board.bridge.delayedTriggerHolders.activeIids() shouldBe emptySet()
         }
     }) {
     companion object {
@@ -288,17 +198,19 @@ class PureDiffReplayTest :
     }
 }
 
-/**
- * Pass priority until the turn number changes. Covers all end-of-turn phases.
- * Capped at 60 passes to prevent runaway loops.
- */
+/** Pass priority until the turn changes, with a bounded runaway guard. */
 private fun advanceToEndOfTurn(bridge: GameBridge) {
-    val game = bridge.getGame() ?: return
+    val game = checkNotNull(bridge.getGame())
     val startTurn = game.phaseHandler.turn
     repeat(60) {
-        val pending = awaitFreshPending(bridge, null) ?: return
-        val nowTurn = game.phaseHandler.turn
-        if (nowTurn != startTurn) return
+        if (game.phaseHandler.turn != startTurn) return
+        val pending =
+            checkNotNull(awaitFreshPending(bridge, null)) {
+                "replay scenario lost priority before the turn changed"
+            }
         bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
+    }
+    check(game.phaseHandler.turn != startTurn) {
+        "replay scenario did not reach the next turn after 60 priority passes"
     }
 }
