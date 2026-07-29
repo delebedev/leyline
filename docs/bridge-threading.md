@@ -78,7 +78,6 @@ inside the engine domain are outside this table.
 | `MulliganBridge` synchronized state, sequence, and keep/tuck futures | Engine → owner → engine | The engine publishes and waits; the owner reads the pending phase and completes the matching future. | Mulligan becomes an owner-mailbox command with an explicit engine continuation. |
 | `PlayerController.pendingDamageAssignment`, `pendingOptionalAction`, and `pendingNumericInput` volatile future slots | Engine → owner → engine | The engine publishes a prompt and blocks; owner handlers discover the slot and complete its future. | These prompts publish and resume through the owner mailbox or `InteractivePromptBridge`, with no `PlayerController` field polled across domains. |
 | `PromptJournal` concurrent drain/volatile stash slots and `GameBridge.pendingLibraryArrangements` queue | Owner handlers + engine callbacks → owner/engine annotation builders | Prompt responses and callback side effects must survive until the frame or annotation builder consumes them. | Accepted-response effects travel as immutable owner commands or engine observations attached to one frame plan. |
-| `ActionMapper` priority-candidate fallback | Match owner projection → live engine graph | Auto-pass policy consumes immutable facts, but action presentation still queries `PriorityActionCandidates` when no candidate value is supplied. | Publish immutable presentation candidates with the readiness observation and remove the live fallback. |
 | `PrioritySignal` semaphore | Engine bridges → waiting owner | Engine publication must wake an owner that may not have started waiting yet. The wake is followed by a typed readiness marker in the engine-cut FIFO. | Engine progress is appended as owner work instead of observed through a blocking wait. |
 | `MatchSession.autoAdvanceRequested` / `running` / `closed`, `SpectatorSession.closed`, `GameBridge.autoAdvanceRequester`, `engineCutListener`, and `promptTimeoutNeedsAutoAdvance` | Engine playback + lifecycle entrants → owner queue | Interactive timeout work is coalesced; spectator cut notifications enqueue owner work; retirement or replacement suppresses stale requests. | Engine observations enqueue one generation-tagged owner command directly; owner retirement cancels it through queue lifecycle. |
 | `ClientAutoPassState` volatile options/concurrent opponent-stop set and `PhaseStopProfile` concurrent map | Owner settings → engine priority loop | Client policy changes must be visible during engine priority decisions. | Engine decisions receive an immutable policy snapshot published by the owner instead of reading mutable connection state. |
@@ -97,12 +96,12 @@ This boundary is intentionally narrower than complete projection purity.
 bridge caches. `StateMapper` still receives the bridge and retains inline
 projection computation; that compute-input extraction remains a separate
 pure-frame concern. Prompt executable graphs remain behind their value
-submission seam. Priority auto-pass policy also consumes immutable facts, but
-owner-side action presentation retains one named live candidate fallback in
-`ActionMapper`. Ordinary initial handshake and mulligan materialization are
-the named pre-play lifecycle horizon: the match-play observation stream begins
-at the first post-keep readiness cut. None of these horizons restores protocol
-construction or sequence allocation to an engine callback.
+submission seam. Priority policy and presentation both cross as immutable
+facts; exact commands remain private to the token table. Ordinary initial
+handshake and mulligan materialization use the same bridge-local value
+preparation before the match-play observation stream begins at the first
+post-keep readiness cut. None of these horizons restores protocol construction
+or sequence allocation to an engine callback.
 
 Priority-action catalogs contain value-only offers. Exact `PlayerAction`
 commands remain in `GameActionBridge`'s per-window token table while the
@@ -214,10 +213,12 @@ snapshot Forge state
   -> produce immutable FramePlan
   -> commit:
        validate the counter position and reserved input
+       validate the pending priority catalog and hold its lifecycle transaction
        invoke the pre-commit diff observer
        apply BridgeMutations
        advance BundleCursor.lastSent
        consume pending frame state
+       publish the exact actionId + gameStateId catalog
        consume exactly the reserved event/reveal prefix
        advance the shared MessageCounter
   -> append the batch to the owner outbox

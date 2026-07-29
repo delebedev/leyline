@@ -8,9 +8,10 @@ read_when:
 # Forge Runtime Architecture Direction
 
 This document defines the accepted destination for Leyline's match runtime.
-Implementation has converged at several seams but not across the complete
-projection boundary. For concrete threads, current handoff primitives, and
-remaining deletion horizons, read
+The command/yield runtime boundary has converged. Pure-compute input narrowing
+inside the frame compiler remains a separate concern and does not restore a
+second runtime authority. For concrete threads, current handoff primitives,
+and remaining deletion horizons, read
 [`bridge-threading.md`](bridge-threading.md); for the wider system shape, read
 [`architecture.md`](architecture.md).
 
@@ -282,6 +283,19 @@ The runtime has reached this direction when:
 - transport handlers only decode, enqueue, adapt, and flush;
 - native and web heads consume the same match runtime;
 - worker failure and shutdown have explicit, truthful semantics.
+
+### Convergence evidence
+
+| Criterion | Runtime authority | Executable evidence |
+|---|---|---|
+| Live Forge objects stay in one execution domain | `GameBridge.ActiveGame`, `EngineWorkerSupervisor`, value-only observations and tokenized priority windows | `RuntimeOwnershipArchitectureTest` sealed-runtime check; `RuntimeBoundaryTest` Forge-dependency, observation, prompt, and recursive priority-value checks |
+| Forge callbacks do not construct protocol messages | `InteractivePlaybackMaterializer` publishes immutable cuts; the match owner compiles them | `RuntimeBoundaryTest.playback callback adapter cannot compile protocol output` |
+| IDs, cursors, pending interactions, commit, and delivery have one serial owner | `MatchOwner`, `OwnerProtocolState`, `FramePlan`, and `BundleBuilder.commit` | `RuntimeOwnershipArchitectureTest.MatchSession handler implementations are reachable only through the owner`; `BundleBuilderTest.compiled frame plan defers projection and counter state until commit` |
+| Gameplay output enters one ordered outbox | `MatchOutbox` and generation-tagged `MatchProtocolHead` | `RuntimeOwnershipArchitectureTest.match-progress delivery has one outbox terminal`; `MatchOutboxTest` sequence, failure-prefix, replacement-generation, and terminal-flush checks |
+| Equal immutable inputs replay deterministically | `FramePlan` compilation from `GsmSnapshot`, event facts, and projection state | `PureDiffReplayTest` one-turn and three-turn byte-equality checks |
+| Transports only adapt and flush committed runtime output | Protocol heads remain outside `leyline.match` and `leyline.game` | `RuntimeBoundaryTest.match and game do not depend on transport implementations` |
+| Native and web consume the same match runtime | Both heads join `MatchRegistry` sessions and flush `MatchOutbox` entries | `RuntimeOwnershipArchitectureTest.match supervision owns the bridge lifecycle outside semantic state`; native and web gate suites |
+| Worker stop and failure semantics are explicit | `MatchWorkerSupervisor` owns operations; the match owner owns terminal meaning | `EngineWorkerSupervisorTest` completion, failure-fact, stop, and timeout checks; `MatchWorkerSupervisorTest` failure, startup-stop, disconnect-race, and stale-generation checks |
 
 ## Related decisions
 
