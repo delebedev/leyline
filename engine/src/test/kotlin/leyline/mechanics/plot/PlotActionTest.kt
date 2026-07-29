@@ -8,11 +8,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.buildPriorityActionsForTest
-import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
@@ -64,7 +61,7 @@ class PlotActionTest :
         }
 
         test("ActionMapper offers Cast for plot card in hand when mana available (alternativeGrpId=PLOTTED row)") {
-            val (b, game, _) =
+            val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
@@ -72,22 +69,11 @@ class PlotActionTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Railway Brawler", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
-
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    cardRepository = b.cardRepository,
-                )
+            val actions = buildPriorityActionsForTest(1, b)
 
             val castOffers =
                 actions.actionsList.filter {
@@ -134,34 +120,24 @@ class PlotActionTest :
         test("plot card in hand but insufficient mana → no Cast offer with alternativeGrpId=PLOTTED row") {
             // Plot {3}{G} unpayable with 2 Forests. The non-alt-cost base Cast at 4G
             // is also unpayable. Both must be absent from active offers.
-            val (b, game, _) =
+            val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Railway Brawler", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
-
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = buildPriorityActionsForTest(1, b)
 
             actions shouldNot offerAltCost(plottedAbilityGrpId)
         }
 
         test("plot card only in graveyard → no Cast offer with alternativeGrpId=PLOTTED row") {
             // Plot is hand-only. A plot card in graveyard must not surface a plot offer.
-            val (b, game, _) =
+            val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
@@ -169,21 +145,11 @@ class PlotActionTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Railway Brawler", human, ZoneType.Graveyard)
                 }
-            val human = game.humanPlayer
-
             val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
             val plottedAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = buildPriorityActionsForTest(1, b)
 
             actions shouldNot offerAltCost(plottedAbilityGrpId)
         }

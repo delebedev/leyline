@@ -232,9 +232,25 @@ class RuntimeBoundaryTest :
                     cwd.resolve("engine/src/main/kotlin/leyline/game/mapping/ActionMapper.kt"),
                 ).first(Files::isRegularFile)
             val source = Files.readString(mapperSource)
-            check("fun buildFromSnapshot(" !in source && "PriorityActionCandidates.query(" !in source) {
-                "Priority action projection regained a live candidate entrant"
+            check(
+                "fun buildFromSnapshot(" !in source &&
+                    "fun buildActionList(" !in source &&
+                    "buildHandCastActionsForCard" !in source &&
+                    "PriorityActionCandidates.query(" !in source,
+            ) {
+                "Priority action projection regained a live candidate or compatibility entrant"
             }
+        }
+
+        test("bundle frames share one commit transaction") {
+            val builderSource =
+                sequenceOf(
+                    cwd.resolve("src/main/kotlin/leyline/game/bundle/BundleBuilder.kt"),
+                    cwd.resolve("engine/src/main/kotlin/leyline/game/bundle/BundleBuilder.kt"),
+                ).first(Files::isRegularFile)
+            Regex("""counter\.commitAllocation\(""")
+                .findAll(Files.readString(builderSource))
+                .count() shouldBe 1
         }
 
         test("match and game do not depend on transport implementations") {

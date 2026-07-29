@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.game.mapping.ActionMapper
 import leyline.testkit.BoardTest
+import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -35,5 +36,18 @@ class NaiveActionsLandTest :
 
             activeLands.shouldBeEmpty()
             inactiveLands.shouldNotBeEmpty()
+        }
+
+        test("buildNaiveActions omits the land face of an MDFC") {
+            val (bridge, game) =
+                startWithBoard { _, human, _ ->
+                    addCard("Silundi Vision", human, ZoneType.Hand)
+                }
+            val iid = game.humanPlayer.hand.iid("Silundi Vision")
+
+            val req = ActionMapper.buildNaiveActions(1, bridge)
+            (req.actionsList + req.inactiveActionsList)
+                .filter { it.actionType == ActionType.PlayMdfc && it.instanceId == iid }
+                .shouldBeEmpty()
         }
     })

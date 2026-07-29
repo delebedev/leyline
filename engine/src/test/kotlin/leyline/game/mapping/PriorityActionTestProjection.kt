@@ -5,7 +5,9 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
+import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 
 internal fun projectPriorityWindowForTest(
     seatId: Int,
@@ -41,3 +43,13 @@ internal fun buildPriorityActionsForTest(
         ).actions,
     idResolver,
 )
+
+internal fun buildPriorityActionsForTest(
+    seatId: Int,
+    bridge: GameBridge,
+): ActionsAvailableReq =
+    buildPriorityActionsForTest(
+        seatId = seatId,
+        snap = SnapshotCapture.run(checkNotNull(bridge.getGame()), bridge, "test", 0),
+        bridge = bridge,
+    )

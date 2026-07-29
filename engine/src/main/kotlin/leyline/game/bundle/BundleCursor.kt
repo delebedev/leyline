@@ -11,14 +11,9 @@ import leyline.game.snapshot.GsmSnapshot
  * value before the sink accepts the resulting messages, so it is a projection
  * baseline rather than delivery acknowledgement.
  *
- * One instance per [leyline.game.state.GameBridge], shared by every [BundleBuilder] bound to
- * that bridge — both the session-layer builder and the engine-thread
- * [leyline.game.GamePlayback] builder. Keeping a single cursor ensures diff baselines
- * agree across the two construction sites.
- *
- * Lifting ownership fully to the session layer is a future design — it
- * needs rejoin/restore semantics and a channel from MatchSession to
- * GamePlayback. Typing the cursor today makes that lift mechanical.
+ * One instance per [leyline.game.state.GameBridge], shared by owner-side
+ * [BundleBuilder] instances. Keeping a single owner-committed cursor ensures
+ * diff baselines agree across interactive and spectator reductions.
  */
 class BundleCursor {
     @Volatile var lastSent: GsmSnapshot? = null

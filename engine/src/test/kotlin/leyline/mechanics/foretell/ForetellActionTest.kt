@@ -8,11 +8,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.buildPriorityActionsForTest
-import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
@@ -73,28 +70,17 @@ class ForetellActionTest :
             // Foretell action cost is constant {2}. Two Mountains pay it; the per-card
             // FORETELL row carries the *cast* cost {R}. Cost-agnostic lookup must still
             // resolve the offer's alternativeGrpId correctly.
-            val (b, game, _) =
+            val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Mountain", human, ZoneType.Battlefield)
                     addCard("Mountain", human, ZoneType.Battlefield)
                     addCard("Demon Bolt", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
-
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    cardRepository = b.cardRepository,
-                )
+            val actions = buildPriorityActionsForTest(1, b)
 
             val castOffers =
                 actions.actionsList.filter {
@@ -113,7 +99,7 @@ class ForetellActionTest :
             // hasUnmetTargeting and skips the whole card if the chosen SA has no
             // legal targets — which would also drop the foretell offer. Give the AI
             // a Grizzly Bears so the base SA's targeting is met and the foretell
-            // alt-cost branch in addHandAltCostCastActions actually fires.
+            // prepared alt-cost branch actually fires.
             val (b, game, _) =
                 startWithBoard { _, human, ai ->
                     addCard("Mountain", human, ZoneType.Battlefield)
@@ -145,26 +131,16 @@ class ForetellActionTest :
         test("foretell card in hand but only one land → no Cast offer with alternativeGrpId=FORETELL row") {
             // Only one Mountain — can't pay foretell action cost {2}. Base Cast at {R}
             // is payable but carries no alternativeGrpId; the foretell offer must be absent.
-            val (b, game, _) =
+            val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Mountain", human, ZoneType.Battlefield)
                     addCard("Demon Bolt", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
-
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = buildPriorityActionsForTest(1, b)
 
             actions shouldNot offerAltCost(foretellAbilityGrpId)
         }
@@ -172,27 +148,17 @@ class ForetellActionTest :
         test("foretell card only in graveyard → no Cast offer with alternativeGrpId=FORETELL row") {
             // Foretell hand-action is hand-only. A foretell card in graveyard must not
             // surface a foretell offer.
-            val (b, game, _) =
+            val (b, _, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Mountain", human, ZoneType.Battlefield)
                     addCard("Mountain", human, ZoneType.Battlefield)
                     addCard("Demon Bolt", human, ZoneType.Graveyard)
                 }
-            val human = game.humanPlayer
-
             val boltGrpId = b.cardRepository.findGrpIdByName("Demon Bolt")!!
             val foretellAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(boltGrpId, KeywordAbilityIds.FORETELL)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = buildPriorityActionsForTest(1, b)
 
             actions shouldNot offerAltCost(foretellAbilityGrpId)
         }

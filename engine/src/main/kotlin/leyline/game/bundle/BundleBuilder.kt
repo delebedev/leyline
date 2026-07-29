@@ -42,8 +42,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Compiles and commits GRE message bundles for each flow milestone.
  *
  * Frame computation reads one snapshot and returns an immutable [FramePlan].
- * [commit] is the only consumer that applies ordering-sensitive bridge
- * mutations and advances the shared projection baseline and message counter.
+ * The frame commit transaction is the only consumer that applies
+ * ordering-sensitive bridge mutations and advances the shared projection
+ * baseline and message counter.
  *
  * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
  *
@@ -68,10 +69,9 @@ class BundleBuilder(
     private val matchId: String,
     val seatId: Int,
     /**
-     * Cursor this builder updates after each bundle. Defaults to
-     * [GameBridge.bundleCursor] so the session builder and the
-     * [leyline.game.GamePlayback] builder share one baseline; tests can inject an
-     * isolated cursor if they don't want the bridge state affected.
+     * Cursor this builder updates after each bundle. Defaults to the
+     * owner-committed [GameBridge.bundleCursor]; tests can inject an isolated
+     * cursor if they don't want the bridge state affected.
      */
     val cursor: BundleCursor = bridge.bundleCursor,
 ) {
@@ -461,77 +461,14 @@ class BundleBuilder(
         counter: MessageCounter,
         releaseReservationOnFailure: Boolean = true,
         projectBaselineOnCommit: Boolean = false,
-    ): BundleResult {
-        val projection = plan.projection
-        val reservation = projection.bundleFrameReservation
-        try {
-            counter.commitAllocation(projection.counterBefore, projection.counterAfter) {
-                val commitProjection: () -> Unit = {
-                    synchronized(cursor) {
-                        projection.pendingSubmittedTargets?.let { pending ->
-                            val currentPending = cursor.pendingPSuT()
-                            check(currentPending == pending) {
-                                "Pending PlayerSubmittedTargets changed before projection commit: " +
-                                    "expected=$pending, actual=$currentPending"
-                            }
-                        }
-                        projection.pendingOrderZoneMove?.let { pending ->
-                            check(
-                                bridge.promptBridge(SeatId(seatId)).pendingOrderZoneMove(
-                                    pending.seatId,
-                                    pending.forgeCardIds,
-                                ) == pending,
-                            ) {
-                                "Pending order zone move changed before projection commit"
-                            }
-                        }
-                        projection.observation?.let { observation ->
-                            bridge.diffListener?.invoke(
-                                observation.previous,
-                                observation.current,
-                                observation.events,
-                                observation.gameStateId,
-                                observation.message,
-                            )
-                        }
-                        projection.mutations?.let(bridge::applyMutations)
-                        if (projection.mutations == null) {
-                            projection.nextAnnotationId?.let(bridge.annotations::setAnnotationId)
-                        }
-                        cursor.lastSent =
-                            if (projectBaselineOnCommit) {
-                                projection.projectedSnapshot()
-                            } else {
-                                projection.nextBaseline
-                            }
-                        projection.pendingSubmittedTargets?.let(cursor::consumePSuT)
-                        projection.pendingOrderZoneMove?.let {
-                            bridge.promptBridge(SeatId(seatId)).consumePendingOrderZoneMove(it)
-                        }
-                    }
-                }
-                val commitFrame = {
-                    val catalog = plan.actionCatalog
-                    if (catalog == null) {
-                        commitProjection()
-                    } else {
-                        commitActionCatalog(catalog, commitProjection)
-                    }
-                }
-                if (reservation != null) {
-                    bridge.commitBundleFrame(reservation, commitFrame)
-                } else {
-                    commitFrame()
-                }
-            }
-        } catch (failure: Throwable) {
-            if (releaseReservationOnFailure) {
-                reservation?.let(bridge::releaseBundleFrame)
-            }
-            throw failure
-        }
-        return plan.delivery()
-    }
+    ): BundleResult =
+        commitPlans(
+            plans = listOf(plan),
+            counter = counter,
+            reservation = plan.projection.bundleFrameReservation,
+            releaseReservationOnFailure = releaseReservationOnFailure,
+            projectBaselineOnCommit = projectBaselineOnCommit,
+        ).single()
 
     private fun commitComposite(
         plans: List<FramePlan>,
@@ -539,11 +476,26 @@ class BundleBuilder(
         reservation: GameBridge.BundleFrameReservation,
         releaseReservationOnFailure: Boolean = true,
         projectBaselineOnCommit: Boolean = false,
+    ): List<BundleResult> =
+        commitPlans(
+            plans = plans,
+            counter = counter,
+            reservation = reservation,
+            releaseReservationOnFailure = releaseReservationOnFailure,
+            projectBaselineOnCommit = projectBaselineOnCommit,
+        )
+
+    private fun commitPlans(
+        plans: List<FramePlan>,
+        counter: MessageCounter,
+        reservation: GameBridge.BundleFrameReservation?,
+        releaseReservationOnFailure: Boolean,
+        projectBaselineOnCommit: Boolean,
     ): List<BundleResult> {
-        check(plans.isNotEmpty()) { "Composite frame requires at least one plan" }
+        check(plans.isNotEmpty()) { "Frame commit requires at least one plan" }
         plans.zipWithNext().forEach { (current, next) ->
             check(current.projection.counterAfter == next.projection.counterBefore) {
-                "Composite frame counter allocations are not contiguous"
+                "Frame counter allocations are not contiguous"
             }
         }
         val first = plans.first().projection
@@ -555,8 +507,10 @@ class BundleBuilder(
                         plans.forEach { plan ->
                             val projection = plan.projection
                             projection.pendingSubmittedTargets?.let { pending ->
-                                check(cursor.pendingPSuT() == pending) {
-                                    "Pending PlayerSubmittedTargets changed before composite projection commit"
+                                val currentPending = cursor.pendingPSuT()
+                                check(currentPending == pending) {
+                                    "Pending PlayerSubmittedTargets changed before projection commit: " +
+                                        "expected=$pending, actual=$currentPending"
                                 }
                             }
                             projection.pendingOrderZoneMove?.let { pending ->
@@ -608,11 +562,15 @@ class BundleBuilder(
                         commitActionCatalog(catalog, commitProjection)
                     }
                 }
-                bridge.commitBundleFrame(reservation, commitFrame)
+                if (reservation == null) {
+                    commitFrame()
+                } else {
+                    bridge.commitBundleFrame(reservation, commitFrame)
+                }
             }
         } catch (failure: Throwable) {
             if (releaseReservationOnFailure) {
-                bridge.releaseBundleFrame(reservation)
+                reservation?.let(bridge::releaseBundleFrame)
             }
             throw failure
         }

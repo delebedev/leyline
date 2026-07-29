@@ -256,8 +256,8 @@ usually be provable without starting a game.
 
 ## Migration rules
 
-- Preserve the current playback/counter/cursor contract until one serial owner
-  has taken over all three responsibilities.
+- Playback, counter, and cursor progress belong to one serial owner. Do not
+  reintroduce an independent playback counter, cursor, or delivery path.
 - Do not place an actor or queue facade in front of state that remains shared
   behind it. Ownership moves with the facade or the slice is incomplete.
 - Each transitional seam has one named authority and a deletion condition for
@@ -298,6 +298,14 @@ The match-play runtime has reached this direction when:
   and event facts. Removing the remaining `GameBridge` compute input from
   `StateMapper` is tracked separately; the runtime owner and commit boundary do
   not depend on that signature change.
+- `GameActionBridge` and `InteractivePromptBridge` still retain exact engine
+  continuations behind value-only catalogs and prompts. Moving those
+  continuations into an owner mailbox is a separate interaction-runtime change,
+  not unfinished protocol ownership.
+- Worker supervisors make generation, stop, completion, and failure facts
+  explicit. They do not isolate Forge in another process, restart failed games,
+  or remove the live bridge graph. Broader worker extraction is a separate
+  lifecycle project.
 
 ### Convergence evidence
 
@@ -305,12 +313,29 @@ The match-play runtime has reached this direction when:
 |---|---|---|
 | Live Forge objects stay in one execution domain during match play | `GameBridge.ActiveGame`, `EngineWorkerSupervisor`, value-only observations and tokenized priority windows | `RuntimeOwnershipArchitectureTest` sealed-runtime check; `RuntimeBoundaryTest` Forge-dependency, observation, prompt, and recursive priority-value checks |
 | Forge callbacks do not construct protocol messages | `InteractivePlaybackMaterializer` publishes immutable cuts; the match owner compiles them | `RuntimeBoundaryTest.playback callback adapter cannot compile protocol output` |
-| IDs, cursors, pending interactions, commit, and delivery have one serial owner | `MatchOwner`, `OwnerProtocolState`, `FramePlan`, and `BundleBuilder.commit` | `RuntimeOwnershipArchitectureTest.MatchSession handler implementations are reachable only through the owner`; `RuntimeBoundaryTest.prompt correlation is plain state held by the serial owner`; `BundleBuilderTest.compiled frame plan defers projection and counter state until commit` |
+| IDs, cursors, pending interactions, commit, and delivery have one serial owner | `MatchOwner`, `OwnerProtocolState`, `FramePlan`, and the `BundleBuilder` frame transaction | `RuntimeOwnershipArchitectureTest.MatchSession handler implementations are reachable only through the owner`; `RuntimeBoundaryTest.prompt correlation is plain state held by the serial owner`; `BundleBuilderTest.compiled frame plan defers projection and counter state until commit` |
 | Gameplay output enters one ordered outbox | `MatchOutbox` and generation-tagged `MatchProtocolHead` | `RuntimeOwnershipArchitectureTest.match-progress delivery has one outbox terminal`; `MatchOutboxTest` sequence, failure-prefix, replacement-generation, and terminal-flush checks |
 | Equal diff-core inputs replay deterministically | `StateMapper` diff compilation from snapshots, event facts, and projection registries | `PureDiffReplayTest` one-turn and three-turn byte-equality checks; full compute-input narrowing remains separately scoped above |
 | Transports only adapt and flush committed runtime output | Protocol heads remain outside `leyline.match` and `leyline.game` | `RuntimeBoundaryTest.match and game do not depend on transport implementations` |
 | Native and web consume the same match runtime | Both heads join `MatchRegistry` sessions and flush `MatchOutbox` entries | `WebRoutesTest.relays GRE WebSocket frames through engine session`; `WebRoutesTest.GRE relay serializes engine access per match`; `NativeMatchDoorBootstrapTest.native match bootstrap binds an active TCP channel` |
 | Worker stop and failure semantics are explicit | `MatchWorkerSupervisor` owns operations; the match owner owns terminal meaning | `EngineWorkerSupervisorTest` completion, failure-fact, stop, and timeout checks; `MatchWorkerSupervisorTest` failure, startup-stop, disconnect-race, and stale-generation checks |
+
+### Deletion ledger
+
+This ledger closes the transition by naming what no longer participates in
+match-play authority. A replacement counts only where an executable ratchet
+prevents the retired path from returning.
+
+| Retired mechanism | Current authority | Ratchet |
+|---|---|---|
+| Session and queue locks around match progression | `MatchOwner` serial reduction | `RuntimeOwnershipArchitectureTest` owner reachability checks |
+| Auto-advance executor and spectator playback pump | Generation-tagged `EngineCutQueue` work submitted to the owner | `RuntimeBoundaryTest` forbidden playback-registry, queue-lock, and pump checks |
+| Direct match-progress sends and pending prompt envelope delivery | `MatchOutbox`, `MatchProtocolHead`, and `PendingPromptPlan` | `RuntimeOwnershipArchitectureTest.match-progress delivery has one outbox terminal`; `MatchOutboxTest` ordering and generation checks |
+| Protocol construction inside `GamePlayback` callbacks | `PlaybackYield` values compiled by the owner | `RuntimeBoundaryTest.playback callback adapter cannot compile protocol output` |
+| Prompt correlation stored in `MessageCounter` | `OwnerProtocolState` | `RuntimeBoundaryTest.prompt correlation is plain state held by the serial owner` |
+| Independent active-game fields and worker lifecycle flags | Sealed `GameBridge.ActiveGame` generations and worker supervisors | `RuntimeOwnershipArchitectureTest` sealed-runtime checks; supervisor lifecycle tests |
+| Separate single-frame and composite-frame commit transactions | One `BundleBuilder` frame transaction over one or more `FramePlan` values | `RuntimeBoundaryTest.bundle frames share one commit transaction`; `BundleBuilderTest` deferred projection/counter checks and composite bundle coverage |
+| Legality-enabled live-card action builder used only by tests | `PriorityActionPreparation` values plus `PriorityActionProjector` | Focused action tests call `buildPriorityActionsForTest`; `RuntimeBoundaryTest.priority action projection cannot query live candidates` |
 
 ## Related decisions
 

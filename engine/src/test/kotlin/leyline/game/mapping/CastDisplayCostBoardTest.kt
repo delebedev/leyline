@@ -134,21 +134,8 @@ class CastDisplayCostBoardTest :
                     repeat(2) { addCard("Forest", human) }
                 }
             val migration = game.humanPlayerCard("Thunderherd Migration")
-            val human = game.players.first { it.name == migration.controller.name }
-
-            val (actions, inactive) =
-                ActionMapper.buildHandCastActionsForCard(
-                    card = migration,
-                    player = human,
-                    instanceId = b.getOrAllocInstanceId(ForgeCardId(migration.id)).value,
-                    grpId = 0,
-                    checkLegality = true,
-                    idResolver = { b.getOrAllocInstanceId(it) },
-                    grpIdResolver = { leyline.bridge.types.GrpId(0) },
-                    cardDataLookup = { null },
-                )
-
-            val casts = actions + inactive
+            val actions = buildPriorityActionsForTest(1, b)
+            val casts = castActionsFor(actions, b.getOrAllocInstanceId(ForgeCardId(migration.id)).value)
             casts.size shouldBe 1
             casts.single() should haveManaCost(generic = 1, green = 1)
         }

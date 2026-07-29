@@ -6,10 +6,8 @@ import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
 import forge.game.player.Player
-import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.PriorityActionCandidates
-import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
@@ -28,7 +26,6 @@ import leyline.game.PriorityPlayKind
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.snapshot.AltCostBinding
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.LinkedFaceRole
@@ -63,10 +60,9 @@ object ActionMapper {
         idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): ActionsAvailableReq {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return passOnlyActions()
-        return buildActionList(
+        return buildNaiveActionList(
             player = player,
             seatId = seatId,
-            checkLegality = false,
             idResolver = idResolver,
             grpIdResolver = { card ->
                 val iid = idResolver(ForgeCardId(card.id)).value
@@ -325,7 +321,10 @@ object ActionMapper {
                 continue
             }
             val castable = candidates.forCard(forgeCard).casts
-            val sa = castable.firstOrNull { it.hasParam("WithoutManaCost") } ?: castable.firstOrNull() ?: continue
+            val sa =
+                castable.firstOrNull { it.hasParam("WithoutManaCost") }
+                    ?: choosePrimaryHandCastAbility(forgeCard, castable)
+                    ?: continue
             val abilityIndex = castable.indexOfFirst { it === sa }
             val noLegalTargets =
                 PriorityActionRailPreparer.hasUnmetTargeting(sa) ||
@@ -338,6 +337,16 @@ object ActionMapper {
                 }
             val grpId = cardSnap.grpId
             val preferAltCostFirst = castable.any { it.isCastFaceDown }
+            val displayedManaCost =
+                if (forgeCard.keywords.any { it.original.startsWith("AlternateAdditionalCost") }) {
+                    snap.boundCards[fid]
+                        ?.data
+                        ?.manaCost
+                        .orEmpty()
+                        .map { (color, count) -> ManaRequirementValue(listOf(color.number), count) }
+                } else {
+                    CastDisplayCost.requirementValues(sa, player, snap.boundCards[fid]?.data)
+                }
 
             if (preferAltCostFirst) {
                 // The face-cast modal defaults to the first Cast offer even
@@ -362,7 +371,7 @@ object ActionMapper {
                         kind = PriorityCastKind.CAST,
                         cardId = fid,
                         grpId = grpId,
-                        manaCost = CastDisplayCost.requirementValues(sa, player, snap.boundCards[fid]?.data),
+                        manaCost = displayedManaCost,
                         shouldStop = false,
                     ),
                 )
@@ -403,7 +412,7 @@ object ActionMapper {
                         kind = PriorityCastKind.CAST,
                         cardId = fid,
                         grpId = grpId,
-                        manaCost = CastDisplayCost.requirementValues(sa, player, snap.boundCards[fid]?.data),
+                        manaCost = displayedManaCost,
                         shouldStop = ShouldStopEvaluator.shouldStop(ActionType.Cast),
                         autoTapSolution =
                             displayCost
@@ -473,8 +482,8 @@ object ActionMapper {
         }
 
         // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
-        // Plot is intentionally NOT here — Plot's hand SA rides the Cast-with-alt-cost
-        // rail via [addHandAltCostCastActions] (mirroring Warp / Sneak).
+        // Plot is intentionally NOT here — Plot's hand SA rides the prepared
+        // Cast-with-alt-cost rail (mirroring Warp / Sneak).
         for (fid in hand) {
             val cardSnap = snap.objects[fid] ?: continue
             if (!cardSnap.hasNonManaActivatedAbilities) continue
@@ -548,7 +557,7 @@ object ActionMapper {
         val activateCount = values.actions.count { it is PriorityActionValue.Activate }
         val inactiveCount = values.inactiveActions.size
         log.debug(
-            "buildFromSnapshot: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
+            "prepareFromSnapshot: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
             seatId,
             manaCount,
             activateCount,
@@ -559,6 +568,19 @@ object ActionMapper {
         )
 
         return preparation
+    }
+
+    private fun choosePrimaryHandCastAbility(
+        card: Card,
+        castable: List<SpellAbility>,
+    ): SpellAbility? {
+        if (card.keywords.none { it.original.startsWith("AlternateAdditionalCost") }) {
+            return castable.firstOrNull()
+        }
+        return castable
+            .filter { it.isSpell && it.alternativeCost == null }
+            .minByOrNull { it.payCosts?.totalMana?.cmc ?: Int.MAX_VALUE }
+            ?: castable.firstOrNull()
     }
 
     private fun emitPlayLandAction(
@@ -584,28 +606,10 @@ object ActionMapper {
         }
     }
 
-    /**
-     * Compatibility action builder for direct mapper tests and naive projection.
-     *
-     * Production priority uses [buildProjection]. The legality-enabled branch
-     * retains its MDFC and Adventure proto adapters only until those focused
-     * tests move to prepared values; it is not a production authority.
-     *
-     * @param player Forge player for the seat.
-     * @param seatId Arena seat identifier (for logging).
-     * @param checkLegality true → live legality checks for hand/battlefield actions
-     *   (canPlayLand, canPayManaCost, activated ability canPlay, autoTapSolution,
-     *   inactive land actions). Zone-cast actions also check mana payability.
-     *   false → naive mode (everything playable, no autoTap, no Activate abilities).
-     * @param idResolver forgeCardId → instanceId.
-     * @param grpIdResolver card → grpId (handles both battlefield and hand cards).
-     * @param cardDataLookup grpId → CardData (nullable).
-     */
-    @Suppress("LongMethod", "CyclomaticComplexMethod") // inherent complexity — action types × legality modes
-    internal fun buildActionList(
+    /** Builds the intentionally permissive action list embedded during the opponent's turn. */
+    private fun buildNaiveActionList(
         player: Player,
         seatId: Int,
-        checkLegality: Boolean,
         idResolver: (ForgeCardId) -> InstanceId,
         grpIdResolver: (Card) -> GrpId,
         cardDataLookup: (GrpId) -> CardData?,
@@ -616,8 +620,7 @@ object ActionMapper {
 
         // Battlefield permanents: ActivateMana + Activate
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            // Naive mode only cares about ActivateMana — skip tapped cards entirely
-            if (!checkLegality && card.isTapped) continue
+            if (card.isTapped) continue
 
             val instanceId = idResolver(ForgeCardId(card.id)).value
             val grpId = grpIdResolver(card).value
@@ -634,30 +637,6 @@ object ActionMapper {
                     ),
                 )
             }
-
-            // Activate — non-mana activated abilities (only with legality checks)
-            if (checkLegality) {
-                val cardData = cardDataLookup(GrpId(grpId))
-                ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
-                    builder = builder,
-                    card = card,
-                    player = player,
-                    grpId = { grpId },
-                    cardData = { _ -> cardData },
-                    envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
-                    abilityRegistryLookup = abilityRegistryLookup,
-                    idResolver = idResolver,
-                    autoTapSolution = { cost ->
-                        buildAutoTapValue(
-                            cost,
-                            player,
-                            grpIdResolver,
-                            cardDataLookup,
-                            abilityRegistryLookup,
-                        )
-                    },
-                )
-            }
         }
 
         // Hand cards: Lands + Spells
@@ -667,101 +646,41 @@ object ActionMapper {
         for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
             val instanceId = idResolver(ForgeCardId(card.id)).value
             val grpId = grpIdResolver(card).value
-            val canPlay =
-                if (checkLegality) {
-                    val landAbility = LandAbility(card, card.currentState)
-                    landAbility.activatingPlayer = player
-                    player.canPlayLand(card, false, landAbility)
-                } else {
-                    false
-                }
-            emitPlayLandAction(builder, instanceId, grpId, canPlay)
+            emitPlayLandAction(builder, instanceId, grpId, canPlay = false)
         }
 
         // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
         for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
             val instanceId = idResolver(ForgeCardId(card.id)).value
             val grpId = grpIdResolver(card).value
-            val (actions, inactive) =
-                buildHandCastActionsForCard(
+            builder.addActions(
+                buildNaiveHandCastAction(
                     card = card,
                     player = player,
                     instanceId = instanceId,
                     grpId = grpId,
-                    checkLegality = checkLegality,
-                    idResolver = idResolver,
-                    grpIdResolver = grpIdResolver,
                     cardDataLookup = cardDataLookup,
-                    abilityRegistryLookup = abilityRegistryLookup,
-                )
-            actions.forEach(builder::addActions)
-            inactive.forEach(builder::addInactiveActions)
-
-            if (checkLegality) {
-                val altCosts =
-                    cardRepository?.let { repo ->
-                        BoundCard.bindAltCosts(repo.findByGrpId(grpId), repo)
-                    } ?: emptyList()
-                addHandAltCostCastActions(
-                    card = card,
-                    player = player,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    altCosts = altCosts,
-                    builder = builder,
-                )
-            }
+                ),
+            )
 
             // CastAdventure for adventure-capable cards
             if (card.isAdventureCard) {
                 val adventureSa = card.getState(CardStateName.Secondary)?.nonManaAbilities?.firstOrNull()
-                val advAction = adventureSa?.let { buildAdventureAction(it, player, instanceId, grpId, checkLegality) }
+                val advAction = adventureSa?.let { buildNaiveAdventureAction(it, player, instanceId, grpId) }
                 if (advAction != null) {
                     builder.addActions(advAction)
-                } else if (checkLegality) {
-                    buildInactiveAdventureAction(card, player, instanceId, grpId)
-                        ?.let { builder.addInactiveActions(it) }
                 }
             }
         }
 
-        // Hand cards: activated abilities with non-battlefield activation zones (Channel, etc.)
-        // Plot is intentionally NOT here — see addHandAltCostCastActions for the Plot rail.
-        // Client expects: instanceId + abilityGrpId + manaCost — no grpId/facetId.
-        // Including grpId causes the client to render card text instead of ability text.
-        if (checkLegality) {
-            for (card in handCards) {
-                ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
-                    builder = builder,
-                    card = card,
-                    player = player,
-                    grpId = { grpIdResolver(card).value },
-                    cardData = { actionGrpId -> cardDataLookup(GrpId(actionGrpId)) },
-                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
-                    abilityRegistryLookup = abilityRegistryLookup,
-                    idResolver = idResolver,
-                    autoTapSolution = { cost ->
-                        buildAutoTapValue(
-                            cost,
-                            player,
-                            grpIdResolver,
-                            cardDataLookup,
-                            abilityRegistryLookup,
-                        )
-                    },
-                )
-            }
-        }
-
         for (card in handCards) {
-            addMdfcFaceActions(
+            addNaiveMdfcFaceActions(
                 card = card,
                 player = player,
                 instanceId = idResolver(ForgeCardId(card.id)).value,
                 parentGrpId = grpIdResolver(card).value,
                 cardRepository = cardRepository,
                 builder = builder,
-                checkLegality = checkLegality,
             )
         }
 
@@ -773,194 +692,53 @@ object ActionMapper {
         val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
         val landCount = builder.actionsList.count { it.actionType == ActionType.Play_add3 }
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
-        if (checkLegality) {
-            val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
-            val inactiveCount = builder.inactiveActionsCount
-            log.debug(
-                "buildActions: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
-                seatId,
-                manaCount,
-                activateCount,
-                landCount,
-                castCount,
-                inactiveCount,
-                builder.actionsCount,
-            )
-        } else {
-            log.debug(
-                "buildNaiveActions: seat={} mana={} lands={} casts={} total={}",
-                seatId,
-                manaCount,
-                landCount,
-                castCount,
-                builder.actionsCount,
-            )
-        }
+        log.debug(
+            "buildNaiveActions: seat={} mana={} lands={} casts={} total={}",
+            seatId,
+            manaCount,
+            landCount,
+            castCount,
+            builder.actionsCount,
+        )
 
         return builder.build()
     }
 
-    internal fun buildHandCastActionsForCard(
+    private fun buildNaiveHandCastAction(
         card: Card,
         player: Player,
         instanceId: Int,
         grpId: Int,
-        checkLegality: Boolean,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
         cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
-    ): Pair<List<Action>, List<Action>> {
+    ): Action {
         val cardData = cardDataLookup(GrpId(grpId))
-        if (!checkLegality) {
-            // Naive frames embed the human's potential casts during the AI's
-            // turn, so the cast ability is chosen without the timing filter —
-            // the same selection rule as the legality-checked path, so both
-            // paths display the same cost for the same card.
-            val sa = chooseCastAbility(card, player, checkTiming = false)
-            val action =
-                buildCastAction(
-                    sa = sa,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    player = player,
-                    checkLegality = false,
-                    idResolver = idResolver,
-                    grpIdResolver = grpIdResolver,
-                    cardData = cardData,
-                    cardDataLookup = cardDataLookup,
-                    abilityRegistryLookup = abilityRegistryLookup,
-                )
-            return listOf(action) to emptyList()
-        }
-
-        val actions = mutableListOf<Action>()
-        val inactive = mutableListOf<Action>()
-        val castable = getAllCastableAbilities(card, player)
-        if (castable.isEmpty()) return emptyList<Action>() to emptyList()
-
-        // An AlternateAdditionalCost card expands into one castable variant per
-        // additional-cost option, but the offer is a single Cast at the base
-        // mana cost — the option choice rides a ChooseOrCost
-        // CastingTimeOptionsReq after the cast is submitted
-        // (DeferredCastCostInteractionHandler). The variant with the lowest
-        // mana cost is the one whose additional cost is non-mana, i.e. the
-        // printed cost.
-        val additionalCostVariantIndex =
-            if (card.keywords.any { it.original.startsWith("AlternateAdditionalCost") }) {
-                castable
-                    .withIndex()
-                    .filter { (_, sa) -> sa.isSpell && sa.alternativeCost == null }
-                    .minByOrNull { (_, sa) -> sa.payCosts?.totalMana?.cmc ?: Int.MAX_VALUE }
-                    ?.index
-            } else {
-                null
-            }
-
-        for ((abilityIndex, sa) in castable.withIndex()) {
-            if (sa.isLandAbility || PriorityActionRailPreparer.isMdfcBackSpell(sa)) continue
-            if (sa.isAdventure) continue
-            if (CastRails.handWithAltCost.any { it.saPredicate(sa) }) continue
-            if (
-                additionalCostVariantIndex != null &&
-                sa.isSpell &&
-                sa.alternativeCost == null &&
-                abilityIndex != additionalCostVariantIndex
-            ) {
-                continue
-            }
-            if (PriorityActionRailPreparer.hasUnmetTargeting(sa) ||
-                PriorityActionRailPreparer.hasNoLegalCharmModes(sa)
-            ) {
-                log.debug("ActionMapper: skipping {} variant — no legal targets or modes", card.name)
-                continue
-            }
-            val canPay = PriorityActionRailPreparer.canPayManaCost(sa, player)
-            // AlternateAdditionalCost variants each bake their own option's cost
-            // directly into payCosts (Forge copies the base SA per option, then
-            // adds that option's Cost — see GameActionUtil.getAdditionalCostSpell),
-            // so CastDisplayCost can't separate "printed" from "chosen option" by
-            // recomputing from this sa — and the option that stays castable
-            // depends on board state (e.g. no Dinosaur in hand drops the reveal
-            // option), so which variant survives isn't a display decision either.
-            // The host card's own mana cost is unaffected by either option's
-            // payCosts mutation, so it's the one variant-independent source for
-            // "the printed cost". The option choice rides the post-submit
-            // ChooseOrCost prompt.
-            val manaCostOverride =
-                if (abilityIndex == additionalCostVariantIndex) {
-                    card.manaCost?.takeIf { !it.isNoCost }?.let(ActionManaCosts::forgeManaCostToRequirements)
-                } else {
-                    null
-                }
-            val action =
-                buildCastAction(
-                    sa = sa,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    player = player,
-                    checkLegality = checkLegality,
-                    idResolver = idResolver,
-                    grpIdResolver = grpIdResolver,
-                    cardData = cardData,
-                    cardDataLookup = cardDataLookup,
-                    abilityRegistryLookup = abilityRegistryLookup,
-                    manaCostOverride = manaCostOverride,
-                )
-            if (canPay) actions.add(action) else inactive.add(action)
-        }
-        return actions to inactive
+        val ability = chooseCastAbility(card, player, checkTiming = false)
+        return Action
+            .newBuilder()
+            .setActionType(ActionType.Cast)
+            .setInstanceId(instanceId)
+            .setGrpId(grpId)
+            .setFacetId(instanceId)
+            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+            .addAllManaCost(CastDisplayCost.requirements(ability, player, cardData))
+            .build()
     }
 
-    @Suppress("LongParameterList") // face identity, legality inputs, and exact-source callbacks stay coupled.
-    private fun addMdfcFaceActions(
+    private fun addNaiveMdfcFaceActions(
         card: Card,
         player: Player,
         instanceId: Int,
         parentGrpId: Int,
         cardRepository: CardRepository?,
         builder: ActionsAvailableReq.Builder,
-        checkLegality: Boolean,
-        castable: List<SpellAbility> = getAllCastableAbilities(card, player, checkTiming = checkLegality),
-        mdfcLandAbility: LandAbility? = buildMdfcBackLandAbility(card),
-        onCast: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
-        onLand: (Action) -> Unit = {},
     ) {
         if (!card.isModal || !card.hasState(CardStateName.Backside)) return
 
+        val castable = getAllCastableAbilities(card, player, checkTiming = false)
         val backSpell = castable.firstOrNull(PriorityActionRailPreparer::isMdfcBackSpell)
-        if (backSpell != null) {
-            val action = buildMdfcSpellAction(backSpell, player, instanceId, parentGrpId, cardRepository)
-            if (action != null) {
-                if (!checkLegality || PriorityActionRailPreparer.canPlayAndPayManaCost(backSpell, player)) {
-                    builder.addActions(action)
-                    val index = castable.indexOfFirst { it === backSpell }
-                    check(!checkLegality || index >= 0) { "MDFC spell ability is absent from its candidate set" }
-                    onCast(action, index.coerceAtLeast(0), backSpell)
-                } else if (canPlay(backSpell)) {
-                    builder.addInactiveActions(action)
-                }
-            }
-        }
-
-        val landAbility = mdfcLandAbility
-        if (landAbility != null) {
-            landAbility.activatingPlayer = player
-            val canPlay = checkLegality && canPlay(landAbility)
-            val action =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.PlayMdfc)
-                    .setInstanceId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.PlayMdfc))
-            if (canPlay) {
-                val built = action.build()
-                builder.addActions(built)
-                onLand(built)
-            } else if (checkLegality) {
-                builder.addInactiveActions(action)
-            }
-        }
+        backSpell
+            ?.let { buildMdfcSpellAction(it, player, instanceId, parentGrpId, cardRepository) }
+            ?.let(builder::addActions)
     }
 
     private fun buildMdfcSpellAction(
@@ -1009,52 +787,6 @@ object ActionMapper {
             ?.first ?: 0
     }
 
-    private fun canPlay(sa: SpellAbility): Boolean =
-        try {
-            sa.canPlay()
-        } catch (_: Exception) {
-            false
-        }
-
-    @Suppress("LongParameterList")
-    private fun buildCastAction(
-        sa: SpellAbility?,
-        instanceId: Int,
-        grpId: Int,
-        player: Player,
-        checkLegality: Boolean,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
-        cardData: CardData?,
-        cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-        manaCostOverride: List<ManaRequirement>? = null,
-    ): Action {
-        val actionBuilder =
-            Action
-                .newBuilder()
-                .setActionType(ActionType.Cast)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-                .addAllManaCost(manaCostOverride ?: CastDisplayCost.requirements(sa, player, cardData))
-        if (sa != null && checkLegality) {
-            val displayCost = CastDisplayCost.of(sa, player)
-            if (displayCost != null && !displayCost.isNoCost) {
-                buildAutoTapSolution(
-                    displayCost,
-                    player,
-                    idResolver,
-                    grpIdResolver,
-                    cardDataLookup,
-                    abilityRegistryLookup,
-                )?.let(actionBuilder::setAutoTapSolution)
-            }
-        }
-        return actionBuilder.build()
-    }
-
     private fun linkedFaceGrpId(
         bound: BoundCard?,
         kind: PriorityCastKind,
@@ -1069,24 +801,16 @@ object ActionMapper {
             -> null
         }?.let { role -> bound?.linkedFaces?.firstOrNull { it.role == role }?.grpId }
 
-    /** Build a CastAdventure action for an adventure card, or null if not castable. */
-    private fun buildAdventureAction(
+    private fun buildNaiveAdventureAction(
         adventureSa: SpellAbility,
         player: Player,
         instanceId: Int,
         creatureGrpId: Int,
-        checkLegality: Boolean,
-    ): Action? {
-        if (checkLegality) {
-            adventureSa.setActivatingPlayer(player)
-            val canCast = PriorityActionRailPreparer.canPlayAndPayManaCost(adventureSa, player)
-            if (!canCast) return null
-        }
-
+    ): Action =
         // grpId = creature face — client can't resolve IsPrimaryCard=0 adventure
         // faces and rejects the action if grpId is unknown. manaCost from the
         // adventure SA provides the correct cost for the Choose One modal.
-        return Action
+        Action
             .newBuilder()
             .setActionType(ActionType.CastAdventure)
             .setInstanceId(instanceId)
@@ -1094,71 +818,12 @@ object ActionMapper {
             .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
             .addAllManaCost(CastDisplayCost.requirements(adventureSa, player, null))
             .build()
-    }
-
-    /** Build an inactive CastAdventure action (unaffordable), or null if card has no adventure state. */
-    private fun buildInactiveAdventureAction(
-        card: Card,
-        player: Player,
-        instanceId: Int,
-        creatureGrpId: Int,
-    ): Action? {
-        val adventureState = card.getState(CardStateName.Secondary) ?: return null
-        val adventureSa = adventureState.nonManaAbilities?.firstOrNull() ?: return null
-        adventureSa.setActivatingPlayer(player)
-        // Only emit inactive if the adventure is legal but unaffordable
-        if (!adventureSa.canPlay()) return null
-        return Action
-            .newBuilder()
-            .setActionType(ActionType.CastAdventure)
-            .setInstanceId(instanceId)
-            .setGrpId(creatureGrpId)
-            .addAllManaCost(CastDisplayCost.requirements(adventureSa, player, null))
-            .build()
-    }
-
-    /** Compatibility projection for tests that exercise the live-card helper. */
-    private fun addHandAltCostCastActions(
-        card: Card,
-        player: Player,
-        instanceId: Int,
-        grpId: Int,
-        altCosts: List<AltCostBinding>,
-        builder: ActionsAvailableReq.Builder,
-        castable: List<SpellAbility> = getAllCastableAbilities(card, player),
-        onActive: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
-    ) {
-        val cardId = ForgeCardId(card.id)
-        val resolver: (ForgeCardId) -> InstanceId = { requested ->
-            check(requested == cardId) { "Hand alt-cost action referenced another card" }
-            InstanceId(instanceId)
-        }
-        PriorityActionRailPreparer
-            .prepareHandAltCostCasts(player, cardId, grpId, altCosts, castable)
-            .forEach { prepared ->
-                val action = PriorityActionProjector.project(prepared.action, resolver)
-                builder.addActions(action)
-                onActive(action, prepared.abilityIndex, prepared.ability)
-            }
-    }
 
     internal fun passOnlyActions(): ActionsAvailableReq =
         ActionsAvailableReq
             .newBuilder()
             .addActions(Action.newBuilder().setActionType(ActionType.Pass))
             .build()
-
-    @Suppress("LongParameterList")
-    private fun buildAutoTapSolution(
-        manaCost: ManaCost,
-        player: Player,
-        idResolver: (ForgeCardId) -> InstanceId,
-        grpIdResolver: (Card) -> GrpId,
-        cardDataLookup: (GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): AutoTapSolution? =
-        buildAutoTapValue(manaCost, player, grpIdResolver, cardDataLookup, abilityRegistryLookup)
-            ?.let { PriorityActionProjector.projectAutoTap(it, idResolver) }
 
     @Suppress("LongParameterList")
     private fun buildAutoTapValue(
