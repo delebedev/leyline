@@ -18,6 +18,8 @@ import leyline.game.GamePlayback
 import leyline.game.InteractivePlaybackMaterializer
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackYield
+import leyline.game.PriorityActionSet
+import leyline.game.PriorityActionValue
 import leyline.game.SeatRuntimeFacts
 import leyline.game.bundle.MessageCounter
 import leyline.game.event.GameEventCollector
@@ -30,6 +32,8 @@ import leyline.match.MatchSession
 import leyline.match.SessionContext
 import leyline.match.SpectatorSession
 import java.lang.reflect.Modifier
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Type
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -129,6 +133,48 @@ class RuntimeBoundaryTest :
             check(liveFields.isEmpty()) {
                 "Worker observation values retain live fields: ${liveFields.joinToString()}"
             }
+        }
+
+        test("priority action values recursively contain boundary-safe facts") {
+            val seen = mutableSetOf<Class<*>>()
+            val valuePackages = setOf("leyline.game", "leyline.bridge.types")
+
+            fun isProjectValue(type: Class<*>): Boolean = !type.isEnum && type.packageName in valuePackages
+
+            fun nestedClasses(type: Type): Sequence<Class<*>> =
+                when (type) {
+                    is Class<*> -> sequenceOf(type)
+                    is ParameterizedType ->
+                        sequence {
+                            yieldAll(nestedClasses(type.rawType))
+                            type.actualTypeArguments.forEach { yieldAll(nestedClasses(it)) }
+                        }
+                    else -> emptySequence()
+                }
+
+            fun visit(type: Class<*>) {
+                if (!seen.add(type)) return
+                type.declaredFields.forEach { field ->
+                    val genericName = field.genericType.typeName
+                    check(
+                        "forge." !in genericName &&
+                            "wotc.mtgo.gre" !in genericName &&
+                            "PlayerAction" !in genericName &&
+                            "CompletableFuture" !in genericName &&
+                            "Function" !in genericName &&
+                            "GameBridge" !in genericName,
+                    ) {
+                        "${type.simpleName}.${field.name} retains a boundary object: $genericName"
+                    }
+                    nestedClasses(field.genericType)
+                        .filter(::isProjectValue)
+                        .forEach(::visit)
+                }
+                type.declaredClasses.filter(::isProjectValue).forEach(::visit)
+            }
+
+            visit(PriorityActionValue::class.java)
+            visit(PriorityActionSet::class.java)
         }
 
         test("worker failure crosses the supervisor boundary as facts only") {

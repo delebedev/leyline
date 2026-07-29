@@ -2,12 +2,9 @@ package leyline.game.mapping
 
 import forge.card.CardStateName
 import forge.card.mana.ManaCost
-import forge.game.ability.ApiType
-import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
-import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
@@ -15,7 +12,6 @@ import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.chooseCastAbility
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
@@ -25,6 +21,10 @@ import leyline.bridge.types.SeatId
 import leyline.game.ManaRequirementValue
 import leyline.game.NaiveGsmAction
 import leyline.game.NaiveGsmActionKind
+import leyline.game.PriorityActionValue
+import leyline.game.PriorityAutoTapSolutionValue
+import leyline.game.PriorityCastKind
+import leyline.game.PriorityPlayKind
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
@@ -51,16 +51,6 @@ object ActionMapper {
         val actions: ActionsAvailableReq,
         val offers: List<ActionOffer>,
     )
-
-    private fun canPayManaCost(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean = ActionManaCosts.canPayManaCost(sa, player)
-
-    private fun canPlayAndPayManaCost(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean = ActionManaCosts.canPlayAndPayManaCost(sa, player)
 
     /**
      * Naive action list: Cast for all non-lands, Play for all lands in hand,
@@ -138,28 +128,35 @@ object ActionMapper {
         bindOffers: Boolean,
         idResolver: (ForgeCardId) -> InstanceId,
     ): ActionProjection {
-        val builder = ActionsAvailableReq.newBuilder()
+        val builder = PriorityActionSetBuilder()
         val offers = mutableListOf<ActionOffer>()
         val actionBridge = if (bindOffers) bridge.seat(SeatId(seatId)).action else null
 
         fun bindOffer(
-            action: Action,
+            action: PriorityActionValue,
             command: PlayerAction,
             stackAbilityGrpId: Int? = null,
             forgeAbilityId: Int? = null,
             spellGrpId: Int? = null,
         ) {
-            actionBridge?.registerActionOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)?.let(offers::add)
+            actionBridge
+                ?.registerActionOffer(
+                    PriorityActionProjector.project(action, idResolver),
+                    command,
+                    stackAbilityGrpId,
+                    forgeAbilityId,
+                    spellGrpId,
+                )?.let(offers::add)
         }
 
         fun addOffer(
-            action: Action,
+            action: PriorityActionValue,
             command: PlayerAction,
             stackAbilityGrpId: Int? = null,
             forgeAbilityId: Int? = null,
             spellGrpId: Int? = null,
         ) {
-            builder.addActions(action)
+            builder.addAction(action)
             bindOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
         }
 
@@ -169,15 +166,21 @@ object ActionMapper {
         val player = bridge.getPlayer(SeatId(seatId))
         val candidates = priorityCandidates ?: bridge.getGame()?.let { game -> player?.let { PriorityActionCandidates.query(game, it) } }
 
-        fun autoTapForCost(
+        fun autoTapValueForCost(
             player: Player,
             cost: ManaCost,
-        ): AutoTapSolution? =
-            buildAutoTapSolution(
+        ): PriorityAutoTapSolutionValue? =
+            buildAutoTapValue(
                 cost,
                 player,
-                idResolver = idResolver,
-                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, idResolver(ForgeCardId(c.id)).value)) },
+                grpIdResolver = { card ->
+                    val cardId = ForgeCardId(card.id)
+                    GrpId(
+                        snap.objects[cardId]?.grpId?.takeIf { it > 0 }
+                            ?: snap.boundCards[cardId]?.data?.grpId
+                            ?: bridge.resolveGrpId(card),
+                    )
+                },
                 cardDataLookup = { bridge.cardRepository.findByGrpId(it.value) },
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
             )
@@ -187,7 +190,6 @@ object ActionMapper {
             val card = snap.objects[fid] ?: continue
             if (card.controller.value != seatId) continue
 
-            val instanceId = idResolver(fid).value
             val grpId = card.grpId
 
             if (!card.tapped && card.hasManaAbilities) {
@@ -195,9 +197,8 @@ object ActionMapper {
                 val boundData = snap.boundCards[fid]?.data
                 for (
                 manaAction in
-                ActivatedActionEmitter.buildActivateManaActions(
+                ActivatedActionEmitter.prepareActivateManaActions(
                     forgeCard,
-                    instanceId,
                     grpId,
                     { boundData },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
@@ -214,9 +215,8 @@ object ActionMapper {
                 val boundData = snap.boundCards[fid]?.data
                 for (
                 manaAction in
-                ActivatedActionEmitter.buildActivateManaActions(
+                ActivatedActionEmitter.prepareActivateManaActions(
                     forgeCard,
-                    instanceId,
                     grpId,
                     { boundData },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
@@ -229,9 +229,8 @@ object ActionMapper {
                     )
                 }
                 builder.addAllInactiveActions(
-                    ActivatedActionEmitter.buildInactiveActivateManaActions(
+                    ActivatedActionEmitter.prepareInactiveActivateManaActions(
                         forgeCard,
-                        instanceId,
                         grpId,
                         { boundData },
                         { c, d -> bridge.abilityRegistryFor(c, d) },
@@ -243,16 +242,15 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
                 val cardData = snap.boundCards[fid]?.data
-                ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
+                ActivatedActionEmitter.preparePlayableNonManaActivatedAbilities(
                     builder = builder,
                     card = forgeCard,
                     player = player,
-                    instanceId = { instanceId },
                     grpId = { grpId },
                     cardData = { _ -> cardData },
                     envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                    autoTapSolution = { cost -> autoTapForCost(player, cost) },
+                    autoTapSolution = { cost -> autoTapValueForCost(player, cost) },
                     skipSpecialTurnFaceUp = true,
                     abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
                     onActive = { action, abilityIndex, ability, abilityGrpId ->
@@ -280,17 +278,16 @@ object ActionMapper {
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
             if (forgeCard.lockedRooms.isEmpty()) continue
-            val instanceId = idResolver(fid).value
-            addRoomCastActions(
-                forgeCard,
-                player,
-                instanceId,
-                builder,
-                checkLegality = true,
-                castable = candidates?.forCard(forgeCard)?.casts ?: emptyList(),
-            ) { action, abilityIndex, ability ->
-                bindOffer(action, PlayerAction.CastSpell(fid, abilityIndex, ability = ability))
-            }
+            PriorityActionRailPreparer
+                .prepareRoomCasts(forgeCard, player, fid, candidates?.forCard(forgeCard)?.casts ?: emptyList())
+                .forEach { prepared ->
+                    if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
+                    if (!prepared.active) return@forEach
+                    bindOffer(
+                        prepared.action,
+                        PlayerAction.CastSpell(fid, prepared.abilityIndex, ability = prepared.ability),
+                    )
+                }
         }
 
         // --- Battlefield: Special_TurnFaceUp for supported face-down creatures ---
@@ -306,44 +303,52 @@ object ActionMapper {
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
             val cardData = snap.boundCards[fid]?.data
-            val instanceId = idResolver(fid).value
-            addSpecialTurnFaceUpActions(
-                card = forgeCard,
-                player = player,
-                instanceId = instanceId,
-                cardData = cardData,
-                fallbackAlternativeGrpId =
-                    when (faceDownKind) {
-                        leyline.game.snapshot.FaceDownKind.Disguise ->
-                            bridge.cardRepository.findKeywordAbilityGrpId(
-                                cardSnap.grpId,
-                                leyline.game.data.KeywordAbilityIds.DISGUISE,
-                            ) ?: 0
-                        leyline.game.snapshot.FaceDownKind.ManifestDread ->
-                            leyline.game.data.KeywordAbilityIds.MANIFEST_DREAD
-                    },
-                abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                builder = builder,
-                abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
-                onActive = { action, abilityIndex, ability ->
+            PriorityActionRailPreparer
+                .prepareTurnFaceUp(
+                    card = forgeCard,
+                    player = player,
+                    cardId = fid,
+                    cardData = cardData,
+                    fallbackAlternativeGrpId =
+                        when (faceDownKind) {
+                            leyline.game.snapshot.FaceDownKind.Disguise ->
+                                bridge.cardRepository.findKeywordAbilityGrpId(
+                                    cardSnap.grpId,
+                                    leyline.game.data.KeywordAbilityIds.DISGUISE,
+                                ) ?: 0
+                            leyline.game.snapshot.FaceDownKind.ManifestDread ->
+                                leyline.game.data.KeywordAbilityIds.MANIFEST_DREAD
+                        },
+                    abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                    abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
+                )?.let { prepared ->
+                    if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
+                    if (!prepared.active) return@let
                     bindOffer(
-                        action,
-                        PlayerAction.ActivateAbility(fid, abilityIndex, ability = ability),
-                        forgeAbilityId = ability.id,
+                        prepared.action,
+                        PlayerAction.ActivateAbility(fid, prepared.abilityIndex, ability = prepared.ability),
+                        forgeAbilityId = prepared.ability.id,
                     )
-                },
-            )
+                }
         }
         // --- Hand: lands ---
         for (fid in hand) {
             val card = snap.objects[fid] ?: continue
             if (!card.isLand) continue
-            val instanceId = idResolver(fid).value
             val grpId = card.grpId
             val landAbility = bridge.findCard(fid)?.let { candidates?.forCard(it)?.landAbility }
             val canPlayLand = landAbility != null && player?.canPlayLand(landAbility.hostCard, false, landAbility) == true
-            emitPlayLandAction(builder, instanceId, grpId, canPlayLand) { action ->
-                bindOffer(action, PlayerAction.PlayLand(fid))
+            val action =
+                PriorityActionValue.PlayLand(
+                    PriorityPlayKind.LAND,
+                    fid,
+                    grpId,
+                    canPlayLand && ShouldStopEvaluator.shouldStop(ActionType.Play_add3),
+                )
+            if (canPlayLand) {
+                addOffer(action, PlayerAction.PlayLand(fid))
+            } else {
+                builder.addInactiveAction(action)
             }
         }
 
@@ -358,30 +363,30 @@ object ActionMapper {
             // of `getAllCastableAbilities` (so cast index resolution works),
             // but the hand-cast emit must skip them.
             if (cardSnap.isRoom) {
-                val instanceId = idResolver(fid).value
-                addRoomCastActions(
-                    forgeCard,
-                    player,
-                    instanceId,
-                    builder,
-                    checkLegality = true,
-                    castable = candidates?.forCard(forgeCard)?.casts ?: emptyList(),
-                ) { action, abilityIndex, ability ->
-                    bindOffer(action, PlayerAction.CastSpell(fid, abilityIndex, ability = ability))
-                }
+                PriorityActionRailPreparer
+                    .prepareRoomCasts(forgeCard, player, fid, candidates?.forCard(forgeCard)?.casts ?: emptyList())
+                    .forEach { prepared ->
+                        if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
+                        if (!prepared.active) return@forEach
+                        bindOffer(
+                            prepared.action,
+                            PlayerAction.CastSpell(fid, prepared.abilityIndex, ability = prepared.ability),
+                        )
+                    }
                 continue
             }
             val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
             val sa = castable.firstOrNull { it.hasParam("WithoutManaCost") } ?: castable.firstOrNull() ?: continue
             val abilityIndex = castable.indexOfFirst { it === sa }
-            val noLegalTargets = hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)
+            val noLegalTargets =
+                PriorityActionRailPreparer.hasUnmetTargeting(sa) ||
+                    PriorityActionRailPreparer.hasNoLegalCharmModes(sa)
             val canPay =
-                if (usesPaymentSourceReducer(sa)) {
-                    canPayWithPaymentSourceReducer(sa, player)
+                if (PriorityActionRailPreparer.usesPaymentSourceReducer(sa)) {
+                    PriorityActionRailPreparer.canPayWithPaymentSourceReducer(sa, player)
                 } else {
-                    canPayManaCost(sa, player)
+                    PriorityActionRailPreparer.canPayManaCost(sa, player)
                 }
-            val instanceId = idResolver(fid).value
             val grpId = cardSnap.grpId
             val preferAltCostFirst = castable.any { it.isCastFaceDown }
 
@@ -390,94 +395,101 @@ object ActionMapper {
                 // when the visual click lands on the second card. Put Disguise's
                 // face-down option first so the modal commit submits the
                 // `alternativeGrpId=307` action instead of the printed spell.
-                addHandAltCostCastActions(
-                    card = forgeCard,
-                    player = player,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
-                    builder = builder,
-                    castable = castable,
-                    onActive = { action, index, ability ->
+                PriorityActionRailPreparer
+                    .prepareHandAltCostCasts(
+                        player = player,
+                        cardId = fid,
+                        grpId = grpId,
+                        altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                        castable = castable,
+                    ).forEach { (action, index, ability) ->
+                        builder.addAction(action)
                         bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
-                    },
-                )
+                    }
             }
 
             if (noLegalTargets || !canPay) {
-                val inactiveBuilder =
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
-                        .addAllManaCost(CastDisplayCost.requirements(sa, player, snap.boundCards[fid]?.data))
-                builder.addInactiveActions(inactiveBuilder)
-                if (!preferAltCostFirst) {
-                    addHandAltCostCastActions(
-                        card = forgeCard,
-                        player = player,
-                        instanceId = instanceId,
+                builder.addInactiveAction(
+                    PriorityActionValue.Cast(
+                        kind = PriorityCastKind.CAST,
+                        cardId = fid,
                         grpId = grpId,
-                        altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
-                        builder = builder,
-                        castable = castable,
-                        onActive = { action, index, ability ->
+                        manaCost = CastDisplayCost.requirementValues(sa, player, snap.boundCards[fid]?.data),
+                        shouldStop = false,
+                    ),
+                )
+                if (!preferAltCostFirst) {
+                    PriorityActionRailPreparer
+                        .prepareHandAltCostCasts(
+                            player = player,
+                            cardId = fid,
+                            grpId = grpId,
+                            altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                            castable = castable,
+                        ).forEach { (action, index, ability) ->
+                            builder.addAction(action)
                             bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
-                        },
-                    )
+                        }
                 }
                 // Adventure / Omen offers are independent of the main face's
                 // payability — emit them even when the main cast is unaffordable.
-                addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder, castable) { action, index, ability ->
-                    bindOffer(
-                        action,
-                        PlayerAction.CastSpell(fid, index, ability = ability),
-                        spellGrpId = linkedFaceGrpId(snap.boundCards[fid], action.actionType),
-                    )
-                }
+                PriorityActionRailPreparer
+                    .prepareSecondaryFaceCasts(forgeCard, player, fid, grpId, cardSnap, castable)
+                    .forEach { prepared ->
+                        val (action, index, ability) = prepared
+                        if (prepared.active) builder.addAction(action) else builder.addInactiveAction(action)
+                        if (!prepared.active) return@forEach
+                        bindOffer(
+                            action,
+                            PlayerAction.CastSpell(fid, index, ability = ability),
+                            spellGrpId = linkedFaceGrpId(snap.boundCards[fid], (action as PriorityActionValue.Cast).kind),
+                        )
+                    }
                 continue
             }
 
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-
-            actionBuilder.addAllManaCost(CastDisplayCost.requirements(sa, player, snap.boundCards[fid]?.data))
-            val displayCost = CastDisplayCost.of(sa, player)
-            if (displayCost != null && !displayCost.isNoCost) {
-                autoTapForCost(player, displayCost)?.let(actionBuilder::setAutoTapSolution)
-            }
-            addOffer(actionBuilder.build(), PlayerAction.CastSpell(fid, abilityIndex, ability = sa))
+            val action =
+                CastDisplayCost.of(sa, player).let { displayCost ->
+                    PriorityActionValue.Cast(
+                        kind = PriorityCastKind.CAST,
+                        cardId = fid,
+                        grpId = grpId,
+                        manaCost = CastDisplayCost.requirementValues(sa, player, snap.boundCards[fid]?.data),
+                        shouldStop = ShouldStopEvaluator.shouldStop(ActionType.Cast),
+                        autoTapSolution =
+                            displayCost
+                                ?.takeIf { !it.isNoCost }
+                                ?.let { autoTapValueForCost(player, it) },
+                    )
+                }
+            addOffer(action, PlayerAction.CastSpell(fid, abilityIndex, ability = sa))
 
             if (!preferAltCostFirst) {
-                addHandAltCostCastActions(
-                    card = forgeCard,
-                    player = player,
-                    instanceId = instanceId,
-                    grpId = grpId,
-                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
-                    builder = builder,
-                    castable = castable,
-                    onActive = { action, index, ability ->
+                PriorityActionRailPreparer
+                    .prepareHandAltCostCasts(
+                        player = player,
+                        cardId = fid,
+                        grpId = grpId,
+                        altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                        castable = castable,
+                    ).forEach { (action, index, ability) ->
+                        builder.addAction(action)
                         bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
-                    },
-                )
+                    }
             }
 
-            addSecondaryFaceCastActions(forgeCard, player, instanceId, grpId, cardSnap, builder, castable) { action, index, ability ->
-                bindOffer(
-                    action,
-                    PlayerAction.CastSpell(fid, index, ability = ability),
-                    spellGrpId = linkedFaceGrpId(snap.boundCards[fid], action.actionType),
-                )
-            }
+            PriorityActionRailPreparer
+                .prepareSecondaryFaceCasts(forgeCard, player, fid, grpId, cardSnap, castable)
+                .forEach { prepared ->
+                    val (action, index, ability) = prepared
+                    if (prepared.active) builder.addAction(action) else builder.addInactiveAction(action)
+                    if (!prepared.active) return@forEach
+                    bindOffer(
+                        action,
+                        PlayerAction.CastSpell(fid, index, ability = ability),
+                        spellGrpId = linkedFaceGrpId(snap.boundCards[fid], (action as PriorityActionValue.Cast).kind),
+                    )
+                }
         }
 
         // --- Hand: modal DFC back-face actions (spell and land faces) ---
@@ -485,22 +497,24 @@ object ActionMapper {
             val cardSnap = snap.objects[fid] ?: continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            val instanceId = idResolver(fid).value
-            addMdfcFaceActions(
-                card = forgeCard,
-                player = player,
-                instanceId = instanceId,
-                parentGrpId = cardSnap.grpId,
-                cardRepository = bridge.cardRepository,
-                builder = builder,
-                checkLegality = true,
-                castable = candidates?.forCard(forgeCard)?.casts ?: emptyList(),
-                mdfcLandAbility = candidates?.forCard(forgeCard)?.mdfcLandAbility,
-                onCast = { action, index, ability ->
-                    bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
-                },
-                onLand = { action -> bindOffer(action, PlayerAction.PlayLand(fid)) },
-            )
+            PriorityActionRailPreparer
+                .prepareMdfcFaces(
+                    player = player,
+                    cardId = fid,
+                    parentGrpId = cardSnap.grpId,
+                    cardRepository = bridge.cardRepository,
+                    castable = candidates?.forCard(forgeCard)?.casts ?: emptyList(),
+                    mdfcLandAbility = candidates?.forCard(forgeCard)?.mdfcLandAbility,
+                ).forEach { prepared ->
+                    if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
+                    if (!prepared.active) return@forEach
+                    when (val command = prepared.command) {
+                        is PriorityActionRailPreparer.Command.Cast ->
+                            bindOffer(prepared.action, PlayerAction.CastSpell(fid, command.index, ability = command.ability))
+                        PriorityActionRailPreparer.Command.PlayLand ->
+                            bindOffer(prepared.action, PlayerAction.PlayLand(fid))
+                    }
+                }
         }
 
         // --- Hand: non-battlefield activated abilities (Channel, Ninjutsu, etc.) ---
@@ -511,16 +525,15 @@ object ActionMapper {
             if (!cardSnap.hasNonManaActivatedAbilities) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
+            ActivatedActionEmitter.preparePlayableNonManaActivatedAbilities(
                 builder = builder,
                 card = forgeCard,
                 player = player,
-                instanceId = { idResolver(fid).value },
                 grpId = { cardSnap.grpId },
                 cardData = { _ -> snap.boundCards[fid]?.data },
                 envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                autoTapSolution = { cost -> autoTapForCost(player, cost) },
+                autoTapSolution = { cost -> autoTapValueForCost(player, cost) },
                 abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
                 onActive = { action, abilityIndex, ability, abilityGrpId ->
                     bindOffer(
@@ -534,20 +547,34 @@ object ActionMapper {
         }
 
         // --- Zone casts (graveyard, exile, command) ---
-        addZoneCastActionsFromSnap(seatId, snap, builder, bridge, candidates, idResolver, ::addOffer)
+        PriorityActionZonePreparer.prepareZoneCasts(seatId, snap, bridge, candidates).forEach { prepared ->
+            if (prepared.active) {
+                addOffer(prepared.action, checkNotNull(prepared.command))
+            } else {
+                builder.addInactiveAction(prepared.action)
+            }
+        }
 
         // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
-        addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, idResolver, ::bindOffer)
+        PriorityActionZonePreparer.prepareGraveyardActivations(
+            seatId,
+            snap,
+            builder,
+            bridge,
+            candidates,
+            ::bindOffer,
+        )
 
         // Pass + FloatMana always available
-        addOffer(Action.newBuilder().setActionType(ActionType.Pass).build(), PlayerAction.PassPriority)
-        addOffer(Action.newBuilder().setActionType(ActionType.FloatMana).build(), PlayerAction.PassPriority)
+        addOffer(PriorityActionValue.Pass, PlayerAction.PassPriority)
+        addOffer(PriorityActionValue.FloatMana, PlayerAction.PassPriority)
 
-        val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
-        val landCount = builder.actionsList.count { it.actionType == ActionType.Play_add3 }
-        val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
-        val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
-        val inactiveCount = builder.inactiveActionsCount
+        val values = builder.build()
+        val manaCount = values.actions.count { it is PriorityActionValue.ActivateMana }
+        val landCount = values.actions.count { it is PriorityActionValue.PlayLand }
+        val castCount = values.actions.count { it is PriorityActionValue.Cast }
+        val activateCount = values.actions.count { it is PriorityActionValue.Activate }
+        val inactiveCount = values.inactiveActions.size
         log.debug(
             "buildFromSnapshot: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
             seatId,
@@ -556,168 +583,13 @@ object ActionMapper {
             landCount,
             castCount,
             inactiveCount,
-            builder.actionsCount,
+            values.actions.size,
         )
 
         if (bindOffers) {
-            check(builder.actionsCount == offers.size) { "Every active priority action must have an executable offer" }
+            check(values.actions.size == offers.size) { "Every active priority action must have an executable offer" }
         }
-        return ActionProjection(builder.build(), offers)
-    }
-
-    /**
-     * Zone casts (graveyard, exile, command) — picks the first castable SA per
-     * card and dispatches via [CastRails]. Each (zone, rail-bucket) pair is
-     * declared in [zoneRailBuckets]; rails matching the SA win, otherwise the
-     * fallback path emits a printed-cost or best-effort shape. Unpayable zone
-     * casts stay visible as inactive actions so automation does not repeatedly
-     * submit a cast that Forge will bounce back to the source zone.
-     */
-    private fun addZoneCastActionsFromSnap(
-        seatId: Int,
-        snap: GsmSnapshot,
-        builder: ActionsAvailableReq.Builder,
-        bridge: GameBridge,
-        candidates: PriorityActionCandidates?,
-        idResolver: (ForgeCardId) -> InstanceId,
-        addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
-    ) {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return
-        for ((zoneId, rails) in zoneRailBuckets) {
-            val zone = snap.zones[zoneId] ?: continue
-            for (fid in zone.contents) {
-                val forgeCard = bridge.findCard(fid) ?: continue
-                val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
-                if (castable.isEmpty()) continue
-                val sa = castable.first()
-                val instanceId = idResolver(fid).value
-                val cardSnap = snap.objects[fid]
-                val sourceGrpId =
-                    cardSnap?.grpId
-                        ?: bridge.resolveGrpId(forgeCard, instanceId)
-                val bound = snap.boundCards[fid]
-                val rail = rails.firstOrNull { it.saPredicate(sa) }
-                val canPay = canPayManaCost(sa, player)
-                val omit = rail?.omitGrpIdAndFacetId == true
-                val actionGrpId =
-                    when (rail?.grpIdMode) {
-                        ZoneCastGrpIdMode.OtherSide -> cardSnap?.othersideGrpId?.takeIf { it > 0 } ?: sourceGrpId
-                        else -> sourceGrpId
-                    }
-                val actionFacetId =
-                    when {
-                        rail?.grpIdMode == ZoneCastGrpIdMode.OtherSide && cardSnap?.othersideGrpId?.takeIf { it > 0 } != null ->
-                            idResolver(FrameIdResolver.disturbBackForgeId(fid)).value
-                        else -> instanceId
-                    }
-
-                val actionBuilder =
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                if (canPay) {
-                    actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-                }
-                if (!omit) {
-                    actionBuilder.setGrpId(actionGrpId)
-                    actionBuilder.setFacetId(actionFacetId)
-                }
-                if (rail?.emitAlternativeSourceZcid == true) {
-                    actionBuilder.setAlternativeSourceZcid(instanceId)
-                }
-
-                if (rail != null) {
-                    configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
-                } else {
-                    configureZoneCastFallback(actionBuilder, sa, bound, player)
-                }
-                if (canPay) {
-                    val abilityIndex = castable.indexOfFirst { it === sa }
-                    check(abilityIndex >= 0) { "Zone cast ability is absent from its candidate set" }
-                    addOffer(
-                        actionBuilder.build(),
-                        PlayerAction.CastSpell(fid, abilityIndex, ability = sa),
-                        null,
-                        null,
-                    )
-                } else {
-                    builder.addInactiveActions(actionBuilder)
-                }
-            }
-        }
-    }
-
-    /** Per-source-zone rail buckets for [addZoneCastActionsFromSnap]. Empty
-     *  buckets (e.g. COMMAND) participate in iteration so cards there hit the
-     *  fallback path — historically commander-cast shape. */
-    private val zoneRailBuckets: List<Pair<Int, List<ZoneCastRail>>> =
-        listOf(
-            ZoneIds.EXILE to CastRails.fromExile,
-            ZoneIds.P1_GRAVEYARD to CastRails.fromGraveyard,
-            ZoneIds.P2_GRAVEYARD to CastRails.fromGraveyard,
-            ZoneIds.COMMAND to emptyList(),
-        )
-
-    /**
-     * Graveyard-zone activated abilities (Unearth, Embalm, Eternalize, …).
-     *
-     * Walks each own-graveyard card's `forgeCard.spellAbilities`, accepts
-     * activated non-mana abilities whose `canPlay()` passes (Forge enforces
-     * `ActivationZone$ Graveyard` and `SorcerySpeed$` checks). Emits
-     * `Activate_add3` with the minimal envelope: `instanceId + abilityGrpId +
-     * manaCost` (each mana slot echoes `abilityGrpId`). NO `grpId` /
-     * `facetId` / `shouldStop` — graveyard activations omit all three.
-     */
-    @Suppress("CyclomaticComplexMethod") // mirrors the hand-zone activated-ability emit path; same shape, same complexity
-    private fun addGraveyardActivatedActionsFromSnap(
-        seatId: Int,
-        snap: GsmSnapshot,
-        builder: ActionsAvailableReq.Builder,
-        bridge: GameBridge,
-        candidates: PriorityActionCandidates?,
-        idResolver: (ForgeCardId) -> InstanceId,
-        addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
-    ) {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return
-        val graveyardZoneId =
-            when (seatId) {
-                1 -> ZoneIds.P1_GRAVEYARD
-                2 -> ZoneIds.P2_GRAVEYARD
-                else -> return
-            }
-        val zone = snap.zones[graveyardZoneId] ?: return
-        for (fid in zone.contents) {
-            val cardSnap = snap.objects[fid] ?: continue
-            if (!cardSnap.hasNonManaActivatedAbilities) continue
-            val forgeCard = bridge.findCard(fid) ?: continue
-            val cardData = snap.boundCards[fid]?.data
-            for ((abilityIndex, ability) in (candidates?.forCard(forgeCard)?.activations ?: emptyList()).withIndex()) {
-                if (!ability.canPlay()) continue
-                val canPay = canPayManaCost(ability, player)
-                val instanceId = idResolver(fid).value
-                val registry = bridge.abilityRegistryFor(forgeCard, cardData)
-                val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
-                ActivatedActionEmitter.emitActivatedAbilityAction(
-                    builder = builder,
-                    instanceId = instanceId,
-                    grpId = cardSnap.grpId,
-                    abilityGrpId = abilityGrpId,
-                    uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId),
-                    abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana,
-                    canPay = canPay,
-                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
-                    onActive = { action ->
-                        addOffer(
-                            action,
-                            PlayerAction.ActivateAbility(fid, abilityIndex, ability = ability),
-                            abilityGrpId.takeIf { it != 0 },
-                            ability.id,
-                        )
-                    },
-                )
-            }
-        }
+        return ActionProjection(PriorityActionProjector.project(values, idResolver), offers)
     }
 
     private fun emitPlayLandAction(
@@ -744,97 +616,11 @@ object ActionMapper {
     }
 
     /**
-     * Configure a Cast action's keyword-specific fields per the rail's row in
-     * [CastRails]. Reference fixtures live under engine/src/test/resources/puzzles/
-     * (plot-railway-brawler, foretell-demon-bolt, disturb-lunarch,
-     * escape-glimpse-of-freedom). The rail descriptor encodes:
+     * Compatibility action builder for direct mapper tests and naive projection.
      *
-     *  - `alternativeGrpId` source (Universal-149 vs per-card row from BoundCard)
-     *  - `abilityGrpId` mode (None / FixedKeyword / EchoAlternative)
-     *  - whether mana cost is emitted, and whether each ManaRequirement echoes
-     *    the alternativeGrpId.
-     *
-     * `omitGrpIdAndFacetId` is honored by the caller before calling here.
-     */
-    private fun configureZoneCastRailShape(
-        actionBuilder: Action.Builder,
-        sa: SpellAbility,
-        rail: ZoneCastRail,
-        bound: BoundCard?,
-        player: Player,
-    ) {
-        val altCosts = bound?.altCosts ?: emptyList()
-        val altSource = rail.altGrpIdSource
-        val needsCostAware =
-            altSource is AltGrpIdSource.FromBoundCard && altSource.lookupMode == LookupMode.CostAware
-        val payCostPairs: List<Pair<ManaColor, Int>> =
-            if (needsCostAware) {
-                computeEffectiveCost(sa, player)
-                    ?.takeIf { !it.isNoCost }
-                    ?.let { forgeManaCostToPairs(it) }
-                    ?: emptyList()
-            } else {
-                emptyList()
-            }
-        val altGrpId = resolveAltGrpId(rail, altCosts, payCostPairs)
-        if (altGrpId > 0) actionBuilder.setAlternativeGrpId(altGrpId)
-
-        val abilityGrpId =
-            when (val mode = rail.abilityGrpIdMode) {
-                AbilityGrpIdMode.None -> 0
-                is AbilityGrpIdMode.FixedKeyword -> mode.baseId
-                AbilityGrpIdMode.EchoAlternative -> altGrpId
-            }
-        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-
-        if (rail.emitManaCost) {
-            emitAltCostManaCost(
-                actionBuilder,
-                sa,
-                player,
-                abilityGrpIdEcho = if (rail.echoAlternativeOnMana) altGrpId else 0,
-            )
-        }
-    }
-
-    /**
-     * Fallback for zone-cast SAs that don't match any [CastRails] rail —
-     * unrecognized alt-costs (Madness) and no-alt zone casts
-     * (commander, etc.). Emit printed mana cost from [CardData] when there's
-     * no alt cost; otherwise emit effective SA cost with optional abilityGrpId
-     * lookup. Best-effort shape until a CastRails row lands for the keyword.
-     */
-    private fun configureZoneCastFallback(
-        actionBuilder: Action.Builder,
-        sa: SpellAbility,
-        bound: BoundCard?,
-        player: Player,
-    ) {
-        val altCost = sa.alternativeCost
-        if (altCost == null) {
-            actionBuilder.addAllManaCost(CastDisplayCost.requirements(sa, player, bound?.data))
-        } else {
-            val keywordId = KeywordAbilityIds.fromForgeAltCostName(altCost.name)
-            val abilityGrpId = if (keywordId != null) bound?.altCost(keywordId)?.abilityGrpId ?: 0 else 0
-            if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            emitAltCostManaCost(actionBuilder, sa, player, abilityGrpIdEcho = 0)
-        }
-    }
-
-    /** Emit the SA's displayed mana cost; echo [abilityGrpIdEcho] on each
-     *  ManaRequirement when non-zero (the per-card alt-cost ability id is
-     *  what the client tags every mana symbol with for keyword-cost casts). */
-    private fun emitAltCostManaCost(
-        actionBuilder: Action.Builder,
-        sa: SpellAbility,
-        player: Player,
-        abilityGrpIdEcho: Int,
-    ) {
-        actionBuilder.addAllManaCost(CastDisplayCost.requirements(sa, player, null, abilityGrpIdEcho.takeIf { it > 0 }))
-    }
-
-    /**
-     * Shared action list builder — pure overload with function params.
+     * Production priority uses [buildProjection]. The legality-enabled branch
+     * retains its MDFC and Adventure proto adapters only until those focused
+     * tests move to prepared values; it is not a production authority.
      *
      * @param player Forge player for the seat.
      * @param seatId Arena seat identifier (for logging).
@@ -887,16 +673,15 @@ object ActionMapper {
                     builder = builder,
                     card = card,
                     player = player,
-                    instanceId = { instanceId },
                     grpId = { grpId },
                     cardData = { _ -> cardData },
                     envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
                     abilityRegistryLookup = abilityRegistryLookup,
+                    idResolver = idResolver,
                     autoTapSolution = { cost ->
-                        buildAutoTapSolution(
+                        buildAutoTapValue(
                             cost,
                             player,
-                            idResolver,
                             grpIdResolver,
                             cardDataLookup,
                             abilityRegistryLookup,
@@ -981,16 +766,15 @@ object ActionMapper {
                     builder = builder,
                     card = card,
                     player = player,
-                    instanceId = { idResolver(ForgeCardId(card.id)).value },
                     grpId = { grpIdResolver(card).value },
                     cardData = { actionGrpId -> cardDataLookup(GrpId(actionGrpId)) },
                     envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
                     abilityRegistryLookup = abilityRegistryLookup,
+                    idResolver = idResolver,
                     autoTapSolution = { cost ->
-                        buildAutoTapSolution(
+                        buildAutoTapValue(
                             cost,
                             player,
-                            idResolver,
                             grpIdResolver,
                             cardDataLookup,
                             abilityRegistryLookup,
@@ -1105,7 +889,7 @@ object ActionMapper {
             }
 
         for ((abilityIndex, sa) in castable.withIndex()) {
-            if (sa.isLandAbility || isMdfcBackSpell(sa)) continue
+            if (sa.isLandAbility || PriorityActionRailPreparer.isMdfcBackSpell(sa)) continue
             if (sa.isAdventure) continue
             if (CastRails.handWithAltCost.any { it.saPredicate(sa) }) continue
             if (
@@ -1116,11 +900,13 @@ object ActionMapper {
             ) {
                 continue
             }
-            if (hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)) {
+            if (PriorityActionRailPreparer.hasUnmetTargeting(sa) ||
+                PriorityActionRailPreparer.hasNoLegalCharmModes(sa)
+            ) {
                 log.debug("ActionMapper: skipping {} variant — no legal targets or modes", card.name)
                 continue
             }
-            val canPay = canPayManaCost(sa, player)
+            val canPay = PriorityActionRailPreparer.canPayManaCost(sa, player)
             // AlternateAdditionalCost variants each bake their own option's cost
             // directly into payCosts (Forge copies the base SA per option, then
             // adds that option's Cost — see GameActionUtil.getAdditionalCostSpell),
@@ -1157,8 +943,6 @@ object ActionMapper {
         return actions to inactive
     }
 
-    private fun isMdfcBackSpell(sa: SpellAbility): Boolean = sa.hostCard?.isModal == true && sa.cardStateName == CardStateName.Backside
-
     @Suppress("LongParameterList") // face identity, legality inputs, and exact-source callbacks stay coupled.
     private fun addMdfcFaceActions(
         card: Card,
@@ -1175,11 +959,11 @@ object ActionMapper {
     ) {
         if (!card.isModal || !card.hasState(CardStateName.Backside)) return
 
-        val backSpell = castable.firstOrNull(::isMdfcBackSpell)
+        val backSpell = castable.firstOrNull(PriorityActionRailPreparer::isMdfcBackSpell)
         if (backSpell != null) {
             val action = buildMdfcSpellAction(backSpell, player, instanceId, parentGrpId, cardRepository)
             if (action != null) {
-                if (!checkLegality || canPlayAndPayManaCost(backSpell, player)) {
+                if (!checkLegality || PriorityActionRailPreparer.canPlayAndPayManaCost(backSpell, player)) {
                     builder.addActions(action)
                     val index = castable.indexOfFirst { it === backSpell }
                     check(!checkLegality || index >= 0) { "MDFC spell ability is absent from its candidate set" }
@@ -1217,7 +1001,11 @@ object ActionMapper {
         parentGrpId: Int,
         cardRepository: CardRepository?,
     ): Action? {
-        if (hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)) return null
+        if (PriorityActionRailPreparer.hasUnmetTargeting(sa) ||
+            PriorityActionRailPreparer.hasNoLegalCharmModes(sa)
+        ) {
+            return null
+        }
         sa.setActivatingPlayer(player)
         val actionBuilder =
             Action
@@ -1298,63 +1086,19 @@ object ActionMapper {
         return actionBuilder.build()
     }
 
-    /**
-     * Emit Adventure / Omen offers for a hand card. Both ride a Secondary
-     * state (subtype "Adventure" or "Omen") and are independent of the main
-     * face's payability. Called from both the affordable and unaffordable
-     * main-cast branches so the secondary face surfaces regardless.
-     *
-     * Per-action-type field divergence: CastAdventure carries `grpId =
-     * creature face` (the client rejects unknown grpIds on IsPrimaryCard=0
-     * Adventure faces); CastOmen and CastLeftRoom/CastRightRoom omit
-     * `grpId`. That asymmetry is intentional, not an oversight.
-     */
-    private fun addSecondaryFaceCastActions(
-        card: Card,
-        player: Player,
-        instanceId: Int,
-        grpId: Int,
-        cardSnap: leyline.game.snapshot.CardSnapshot,
-        builder: ActionsAvailableReq.Builder,
-        castable: List<SpellAbility> = getAllCastableAbilities(card, player),
-        onActive: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
-    ) {
-        if (cardSnap.isAdventureCard) {
-            val adventureSa = castable.firstOrNull { it.isAdventure }
-            val advAction = adventureSa?.let { buildAdventureAction(it, player, instanceId, grpId, checkLegality = true) }
-            if (advAction != null) {
-                builder.addActions(advAction)
-                onActive(advAction, castable.indexOfFirst { it === adventureSa }, adventureSa)
-            } else {
-                buildInactiveAdventureAction(card, player, instanceId, grpId)
-                    ?.let { builder.addInactiveActions(it) }
-            }
-        }
-        if (cardSnap.isOmenCard) {
-            val omenSa = castable.firstOrNull { it.isOmen }
-            val omenAction = omenSa?.let { buildOmenAction(it, player, instanceId, checkLegality = true) }
-            if (omenAction != null) {
-                builder.addActions(omenAction)
-                onActive(omenAction, castable.indexOfFirst { it === omenSa }, omenSa)
-            } else {
-                buildInactiveOmenAction(card, player, instanceId)
-                    ?.let { builder.addInactiveActions(it) }
-            }
-        }
-    }
-
     private fun linkedFaceGrpId(
         bound: BoundCard?,
-        actionType: ActionType,
-    ): Int? {
-        val role =
-            when {
-                actionType == ActionType.CastAdventure -> LinkedFaceRole.Adventure
-                actionType == ActionType.CastOmen -> LinkedFaceRole.Omen
-                else -> return null
-            }
-        return bound?.linkedFaces?.firstOrNull { it.role == role }?.grpId
-    }
+        kind: PriorityCastKind,
+    ): Int? =
+        when (kind) {
+            PriorityCastKind.ADVENTURE -> LinkedFaceRole.Adventure
+            PriorityCastKind.OMEN -> LinkedFaceRole.Omen
+            PriorityCastKind.CAST,
+            PriorityCastKind.MDFC,
+            PriorityCastKind.LEFT_ROOM,
+            PriorityCastKind.RIGHT_ROOM,
+            -> null
+        }?.let { role -> bound?.linkedFaces?.firstOrNull { it.role == role }?.grpId }
 
     /** Build a CastAdventure action for an adventure card, or null if not castable. */
     private fun buildAdventureAction(
@@ -1366,7 +1110,7 @@ object ActionMapper {
     ): Action? {
         if (checkLegality) {
             adventureSa.setActivatingPlayer(player)
-            val canCast = canPlayAndPayManaCost(adventureSa, player)
+            val canCast = PriorityActionRailPreparer.canPlayAndPayManaCost(adventureSa, player)
             if (!canCast) return null
         }
 
@@ -1380,144 +1124,6 @@ object ActionMapper {
             .setGrpId(creatureGrpId)
             .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
             .addAllManaCost(CastDisplayCost.requirements(adventureSa, player, null))
-            .build()
-    }
-
-    /**
-     * Emit one CastLeftRoom and/or CastRightRoom action per locked door whose
-     * SA is castable. Each emit carries `actionType + instanceId + manaCost`
-     * only — door identity is encoded by `actionType` alone (no grpId,
-     * facetId, abilityGrpId, alternativeGrpId).
-     *
-     * From hand, Forge surfaces door SAs via `card.getSpells()` (the split-cast
-     * shape — `cardStateName=LeftSplit/RightSplit`). From battlefield, the
-     * locked door's SA comes from `card.getUnlockAbility(state)`.
-     */
-    private fun addRoomCastActions(
-        card: Card,
-        player: Player,
-        instanceId: Int,
-        builder: ActionsAvailableReq.Builder,
-        checkLegality: Boolean,
-        castable: List<SpellAbility> = getAllCastableAbilities(card, player, checkTiming = checkLegality),
-        onActive: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
-    ) {
-        for (state in card.lockedRooms) {
-            val descriptor = RoomDoorCastDescriptors.forState(state) ?: continue
-            val abilityIndex = castable.indexOfFirst { it.cardStateName == state }
-            val sa = castable.getOrNull(abilityIndex) ?: continue
-            sa.setActivatingPlayer(player)
-            val canPay =
-                if (checkLegality) {
-                    canPlayAndPayManaCost(sa, player)
-                } else {
-                    true
-                }
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(descriptor.actionType)
-                    .setInstanceId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(descriptor.actionType))
-                    .addAllManaCost(CastDisplayCost.requirements(sa, player, null))
-            if (canPay) {
-                val action = actionBuilder.build()
-                builder.addActions(action)
-                onActive(action, abilityIndex, sa)
-            } else {
-                builder.addInactiveActions(actionBuilder)
-            }
-        }
-    }
-
-    /**
-     * Emit the `Special_TurnFaceUp_add3` action for a face-down disguise
-     * permanent. The action's `alternativeGrpId` is the per-card "Turn face
-     * up" ability grpId (resolved via the AbilityRegistry), and `manaCost`
-     * is the printed disguise cost from the SA.
-     *
-     * Field divergence from regular Cast / Activate: no `grpId`, no
-     * `facetId` — the action-type alone identifies the target permanent
-     * (sibling pattern to CastOmen / CastLeftRoom).
-     */
-    private fun addSpecialTurnFaceUpActions(
-        card: Card,
-        player: Player,
-        instanceId: Int,
-        cardData: CardData?,
-        fallbackAlternativeGrpId: Int,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-        builder: ActionsAvailableReq.Builder,
-        abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
-        onActive: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
-    ) {
-        val abilityIndex = abilities.indexOfFirst { it.isTurnFaceUp }
-        val turnFaceUpSa = abilities.getOrNull(abilityIndex) ?: return
-        turnFaceUpSa.setActivatingPlayer(player)
-        val canPay = canPayManaCost(turnFaceUpSa, player)
-        val registry = abilityRegistryLookup(card, cardData)
-        val alternativeGrpId = registry?.forSpellAbility(turnFaceUpSa.definitionId) ?: fallbackAlternativeGrpId
-        if (alternativeGrpId == 0) return
-        val actionBuilder =
-            Action
-                .newBuilder()
-                .setActionType(ActionType.SpecialTurnFaceUp_add3)
-                .setInstanceId(instanceId)
-                .setAlternativeGrpId(alternativeGrpId)
-                .setAlternativeSourceZcid(instanceId)
-                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.SpecialTurnFaceUp_add3))
-                .addAllManaCost(CastDisplayCost.requirements(turnFaceUpSa, player, null, alternativeGrpId))
-        if (canPay) {
-            val action = actionBuilder.build()
-            builder.addActions(action)
-            onActive(action, abilityIndex, turnFaceUpSa)
-        } else {
-            builder.addInactiveActions(actionBuilder)
-        }
-    }
-
-    /**
-     * Build a CastOmen action for an Omen-capable card, or null if not castable.
-     * Mirrors [buildAdventureAction] but emits the minimal envelope —
-     * `actionType + instanceId + manaCost` only. No grpId / facetId. The Omen
-     * face is encoded by `actionType` alone (sibling: CastLeftRoom).
-     */
-    private fun buildOmenAction(
-        omenSa: SpellAbility,
-        player: Player,
-        instanceId: Int,
-        checkLegality: Boolean,
-    ): Action? {
-        if (checkLegality) {
-            omenSa.setActivatingPlayer(player)
-            val canCast = canPlayAndPayManaCost(omenSa, player)
-            if (!canCast) return null
-        }
-
-        return Action
-            .newBuilder()
-            .setActionType(ActionType.CastOmen)
-            .setInstanceId(instanceId)
-            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastOmen))
-            .addAllManaCost(CastDisplayCost.requirements(omenSa, player, null))
-            .build()
-    }
-
-    /** Build an inactive CastOmen action (unaffordable), or null if card has no Omen state. */
-    private fun buildInactiveOmenAction(
-        card: Card,
-        player: Player,
-        instanceId: Int,
-    ): Action? {
-        val omenState = card.getState(CardStateName.Secondary) ?: return null
-        val omenSa = omenState.nonManaAbilities?.firstOrNull() ?: return null
-        omenSa.setActivatingPlayer(player)
-        if (!omenSa.canPlay()) return null
-        return Action
-            .newBuilder()
-            .setActionType(ActionType.CastOmen)
-            .setInstanceId(instanceId)
-            .addAllManaCost(CastDisplayCost.requirements(omenSa, player, null))
             .build()
     }
 
@@ -1542,20 +1148,7 @@ object ActionMapper {
             .build()
     }
 
-    /**
-     * Hand-zone alt-cost casts — emit one [Action] per eligible alt-cost SA.
-     * Iterates [CastRails.handWithAltCost]; a rail matches when its
-     * [HandWithAltCost.saPredicate] holds for the SA. Each action carries:
-     *
-     *  - `instanceId` = hand card iid, `grpId` = card grpId, `facetId` = iid
-     *  - `abilityGrpId` = 0 (the alt-cost row is on `alternativeGrpId`)
-     *  - `alternativeGrpId` = per-card row resolved per the rail's lookup mode
-     *  - `manaCost` entries echo `alternativeGrpId` on each slot
-     *
-     * Madness and Flashback are intentionally NOT in
-     * [CastRails.handWithAltCost] — they ride other rails (OptionalAction for
-     * Madness, zone-cast for Flashback).
-     */
+    /** Compatibility projection for tests that exercise the live-card helper. */
     private fun addHandAltCostCastActions(
         card: Card,
         player: Player,
@@ -1566,68 +1159,18 @@ object ActionMapper {
         castable: List<SpellAbility> = getAllCastableAbilities(card, player),
         onActive: (Action, Int, SpellAbility) -> Unit = { _, _, _ -> },
     ) {
-        val emitted = mutableSetOf<Pair<Int, List<Pair<ManaColor, Int>>>>()
-        for ((abilityIndex, sa) in castable.withIndex()) {
-            val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
-            if (rail.kind == AltCostKind.MUTATE && hasUnmetTargeting(sa)) continue
-            val effectiveCost = computeEffectiveCostForOffer(rail, sa, player, altCosts)
-            val payCostPairs = effectiveCost.first
-            val alternativeGrpId = effectiveCost.second
-            if (rail.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
-            val canPay = if (rail.kind == AltCostKind.EMERGE) canPayEmerge(payCostPairs, player) else canPayManaCost(sa, player)
-            if (!canPay) continue
-            if (alternativeGrpId <= 0) continue
-            if (!emitted.add(alternativeGrpId to payCostPairs)) continue
-
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setAlternativeGrpId(alternativeGrpId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-
-            if (payCostPairs.isNotEmpty()) {
-                payCostPairs.forEach { (color, count) ->
-                    actionBuilder.addManaCost(
-                        ManaRequirement
-                            .newBuilder()
-                            .addColor(color)
-                            .setCount(count)
-                            .setAbilityGrpId(alternativeGrpId),
-                    )
-                }
+        val cardId = ForgeCardId(card.id)
+        val resolver: (ForgeCardId) -> InstanceId = { requested ->
+            check(requested == cardId) { "Hand alt-cost action referenced another card" }
+            InstanceId(instanceId)
+        }
+        PriorityActionRailPreparer
+            .prepareHandAltCostCasts(player, cardId, grpId, altCosts, castable)
+            .forEach { prepared ->
+                val action = PriorityActionProjector.project(prepared.action, resolver)
+                builder.addActions(action)
+                onActive(action, prepared.abilityIndex, prepared.ability)
             }
-            val action = actionBuilder.build()
-            builder.addActions(action)
-            onActive(action, abilityIndex, sa)
-        }
-    }
-
-    private fun computeEffectiveCostForOffer(
-        rail: HandWithAltCost,
-        sa: SpellAbility,
-        player: Player,
-        altCosts: List<AltCostBinding>,
-    ): Pair<List<Pair<ManaColor, Int>>, Int> {
-        if (rail.kind == AltCostKind.EMERGE) {
-            val alternativeGrpId = resolveAltGrpId(rail, altCosts, emptyList())
-            val payCostPairs = altCosts.firstOrNull { it.abilityGrpId == alternativeGrpId }?.manaCost.orEmpty()
-            return payCostPairs to alternativeGrpId
-        }
-        val effectiveCost = computeEffectiveCost(sa, player)
-        val payCostPairs = effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-        return payCostPairs to resolveAltGrpId(rail, altCosts, payCostPairs)
-    }
-
-    private fun canPayEmerge(
-        cost: List<Pair<ManaColor, Int>>,
-        player: Player,
-    ): Boolean {
-        val maxReduction = player.getCardsIn(ForgeZoneType.Battlefield).filter { it.isCreature }.maxOfOrNull { it.getCMC() } ?: return false
-        return ActionManaCosts.canPayManaCostPairsWithGenericReduction(cost, player, maxReduction)
     }
 
     internal fun passOnlyActions(): ActionsAvailableReq =
@@ -1645,36 +1188,26 @@ object ActionMapper {
         cardDataLookup: (GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): AutoTapSolution? =
+        buildAutoTapValue(manaCost, player, grpIdResolver, cardDataLookup, abilityRegistryLookup)
+            ?.let { PriorityActionProjector.projectAutoTap(it, idResolver) }
+
+    @Suppress("LongParameterList")
+    private fun buildAutoTapValue(
+        manaCost: ManaCost,
+        player: Player,
+        grpIdResolver: (Card) -> GrpId,
+        cardDataLookup: (GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): PriorityAutoTapSolutionValue? =
         ActionAutoTapSupport.build(
             manaCost,
-            ActionBuildContext(player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup),
+            ActionBuildContext(player, grpIdResolver, cardDataLookup, abilityRegistryLookup),
         )
 
     internal fun computeEffectiveCost(
         sa: SpellAbility,
         player: Player,
     ): forge.card.mana.ManaCost? = ActionManaCosts.computeEffectiveCost(sa, player)
-
-    private fun usesPaymentSourceReducer(sa: SpellAbility): Boolean {
-        val host = sa.hostCard ?: return false
-        return host.hasKeyword(Keyword.CONVOKE) || host.hasKeyword(Keyword.IMPROVISE)
-    }
-
-    private fun canPayWithPaymentSourceReducer(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean {
-        val host = sa.hostCard ?: return false
-        val usesConvoke = host.hasKeyword(Keyword.CONVOKE)
-        val usesImprovise = host.hasKeyword(Keyword.IMPROVISE)
-        if (!usesConvoke && !usesImprovise) return false
-        return ActionManaCosts.canPayWithPaymentSourceReducer(
-            sa,
-            player,
-            artifacts = usesImprovise,
-            creatures = usesConvoke,
-        )
-    }
 
     internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> =
         ActionManaCosts.forgeManaCostToPairs(manaCost)
@@ -1775,34 +1308,5 @@ object ActionMapper {
                 .setCount(value.count)
         if (value.abilityGrpId != 0) builder.abilityGrpId = value.abilityGrpId
         return builder.build()
-    }
-
-    /**
-     * True if any ability in the SA chain requires targets and has no legal candidates.
-     *
-     * Special case: Forge's [TargetRestrictions.hasCandidates] short-circuits to true
-     * for stack-zone targets without checking stack contents. We override that for
-     * spells targeting the stack (counterspells) — check stack emptiness directly.
-     */
-    private fun hasUnmetTargeting(sa: SpellAbility): Boolean {
-        val game = sa.hostCard?.game ?: return false
-        var node: SpellAbility? = sa
-        while (node != null) {
-            val tr = node.targetRestrictions
-            if (tr != null) {
-                if (tr.zone.contains(forge.game.zone.ZoneType.Stack)) {
-                    if (game.stack.isEmpty) return true
-                } else if (!tr.hasCandidates(node)) {
-                    return true
-                }
-            }
-            node = node.subAbility
-        }
-        return false
-    }
-
-    private fun hasNoLegalCharmModes(sa: SpellAbility): Boolean {
-        if (sa.api != ApiType.Charm) return false
-        return CharmEffect.makePossibleOptions(sa).isEmpty()
     }
 }

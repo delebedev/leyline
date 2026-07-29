@@ -22,9 +22,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *  - [FromGraveyard] — cast offer originates from a graveyard zone. Flashback,
  *    Disturb, Escape, Jump-start.
  *
- * `ActionMapper.addZoneCastActionsFromSnap` iterates the zone-cast buckets;
- * `ActionMapper.addHandAltCostCastActions` iterates the hand bucket and binds
- * each projected action to the matching candidate.
+ * [PriorityActionZonePreparer] iterates the zone-cast buckets;
+ * [PriorityActionRailPreparer] iterates the hand bucket and prepares each
+ * candidate for terminal projection.
  *
  * Adding a new alt-cost keyword:
  *  1. Add an [AltCostKind] entry with the keyword's `KeywordAbilityIds`

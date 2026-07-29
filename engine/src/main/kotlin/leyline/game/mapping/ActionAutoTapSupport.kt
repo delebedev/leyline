@@ -2,13 +2,14 @@ package leyline.game.mapping
 
 import forge.card.mana.ManaCost
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ManaColorMapping
-import wotc.mtgo.gre.external.messaging.Messages.AutoTapAction
-import wotc.mtgo.gre.external.messaging.Messages.AutoTapSolution
+import leyline.game.PriorityAutoTapActionValue
+import leyline.game.PriorityAutoTapSolutionValue
+import leyline.game.PriorityManaInfoValue
+import leyline.game.PriorityManaPaymentOptionValue
+import leyline.game.PriorityManaSpec
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
-import wotc.mtgo.gre.external.messaging.Messages.ManaPaymentOption
-import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
@@ -22,7 +23,7 @@ internal object ActionAutoTapSupport {
     private const val INITIAL_MANA_ID = 10
 
     private data class ManaSource(
-        val instanceId: Int,
+        val cardId: ForgeCardId,
         val color: ManaColor,
         val abilityGrpId: Int,
         val fromSnow: Boolean,
@@ -31,7 +32,7 @@ internal object ActionAutoTapSupport {
     fun build(
         manaCost: ManaCost,
         context: ActionBuildContext,
-    ): AutoTapSolution? =
+    ): PriorityAutoTapSolutionValue? =
         if (manaCost.any { ManaColorMapping.fromOrTwoGenericShard(it) != null }) {
             buildOrTwoGenericAutoTapSolution(manaCost, context)
         } else {
@@ -42,11 +43,11 @@ internal object ActionAutoTapSupport {
     private fun build(
         manaCost: List<Pair<ManaColor, Int>>,
         context: ActionBuildContext,
-    ): AutoTapSolution? {
+    ): PriorityAutoTapSolutionValue? {
         if (manaCost.isEmpty()) return null
         val sources = collectManaSources(context)
 
-        val usedSourceInstanceIds = mutableSetOf<Int>()
+        val usedSourceCardIds = mutableSetOf<ForgeCardId>()
         val matched = mutableListOf<Pair<ManaSource, ManaColor>>()
         val coloredReqs = manaCost.filter { it.first != ManaColor.Generic }
         val genericReqs = manaCost.filter { it.first == ManaColor.Generic }
@@ -55,9 +56,9 @@ internal object ActionAutoTapSupport {
             var remaining = reqCount
             for (src in sources) {
                 if (remaining <= 0) break
-                if (src.instanceId in usedSourceInstanceIds) continue
+                if (src.cardId in usedSourceCardIds) continue
                 if (canPayRequirement(src, reqColor)) {
-                    usedSourceInstanceIds.add(src.instanceId)
+                    usedSourceCardIds.add(src.cardId)
                     matched.add(src to src.color)
                     remaining--
                 }
@@ -69,8 +70,8 @@ internal object ActionAutoTapSupport {
             var remaining = reqCount
             for (src in sources) {
                 if (remaining <= 0) break
-                if (src.instanceId in usedSourceInstanceIds) continue
-                usedSourceInstanceIds.add(src.instanceId)
+                if (src.cardId in usedSourceCardIds) continue
+                usedSourceCardIds.add(src.cardId)
                 matched.add(src to src.color)
                 remaining--
             }
@@ -84,7 +85,7 @@ internal object ActionAutoTapSupport {
     private fun buildOrTwoGenericAutoTapSolution(
         manaCost: ManaCost,
         context: ActionBuildContext,
-    ): AutoTapSolution? {
+    ): PriorityAutoTapSolutionValue? {
         val sources = collectManaSources(context)
         if (sources.isEmpty()) return null
 
@@ -99,7 +100,7 @@ internal object ActionAutoTapSupport {
             }
         }
 
-        val used = mutableSetOf<Int>()
+        val used = mutableSetOf<ForgeCardId>()
         val matched = mutableListOf<Pair<ManaSource, ManaColor>>()
 
         fun payColor(
@@ -107,12 +108,12 @@ internal object ActionAutoTapSupport {
             then: () -> Boolean,
         ): Boolean {
             for (src in sources) {
-                if (src.instanceId in used || !canPayRequirement(src, color)) continue
-                used.add(src.instanceId)
+                if (src.cardId in used || !canPayRequirement(src, color)) continue
+                used.add(src.cardId)
                 matched.add(src to src.color)
                 if (then()) return true
                 matched.removeAt(matched.lastIndex)
-                used.remove(src.instanceId)
+                used.remove(src.cardId)
             }
             return false
         }
@@ -123,12 +124,12 @@ internal object ActionAutoTapSupport {
         ): Boolean {
             if (needed == 0) return then()
             for (src in sources) {
-                if (src.instanceId in used) continue
-                used.add(src.instanceId)
+                if (src.cardId in used) continue
+                used.add(src.cardId)
                 matched.add(src to src.color)
                 if (payGeneric(needed - 1, then)) return true
                 matched.removeAt(matched.lastIndex)
-                used.remove(src.instanceId)
+                used.remove(src.cardId)
             }
             return false
         }
@@ -167,46 +168,46 @@ internal object ActionAutoTapSupport {
             for (sa in getPlayableManaAbilities(card, context.player)) {
                 val colors = ActivatedActionEmitter.producedManaColors(sa)
                 if (colors.isEmpty()) continue
-                val instanceId = context.instanceId(card)
                 val grpId = context.grpId(card)
                 val cardData = context.cardData(grpId)
                 val registry = context.abilityRegistry(card, cardData)
                 val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: ActivatedActionEmitter.basicLandAbilityGrpId(card)
                 for (color in colors) {
-                    sources.add(ManaSource(instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
+                    sources.add(ManaSource(ForgeCardId(card.id), color, abilityGrpId, fromSnow = card.type.isSnow))
                 }
             }
         }
         return sources
     }
 
-    private fun buildAutoTapSolution(matched: List<Pair<ManaSource, ManaColor>>): AutoTapSolution {
-        val builder = AutoTapSolution.newBuilder()
+    private fun buildAutoTapSolution(matched: List<Pair<ManaSource, ManaColor>>): PriorityAutoTapSolutionValue {
         var manaIdCounter = INITIAL_MANA_ID
-        for ((src, payingColor) in matched) {
-            val manaId = manaIdCounter++
-            val manaInfo =
-                ManaInfo
-                    .newBuilder()
-                    .setManaId(manaId)
-                    .setColor(payingColor)
-                    .setSrcInstanceId(src.instanceId)
-                    .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                    .setAbilityGrpId(src.abilityGrpId)
-                    .setCount(1)
-            if (src.fromSnow) {
-                manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
-            }
-            builder.addAutoTapActions(
-                AutoTapAction
-                    .newBuilder()
-                    .setInstanceId(src.instanceId)
-                    .setAbilityGrpId(src.abilityGrpId)
-                    .setManaPaymentOption(
-                        ManaPaymentOption.newBuilder().addMana(manaInfo),
-                    ),
-            )
-        }
-        return builder.build()
+        return PriorityAutoTapSolutionValue(
+            actions =
+                matched.map { (src, payingColor) ->
+                    PriorityAutoTapActionValue(
+                        cardId = src.cardId,
+                        abilityGrpId = src.abilityGrpId,
+                        manaPaymentOption =
+                            PriorityManaPaymentOptionValue(
+                                mana =
+                                    listOf(
+                                        PriorityManaInfoValue(
+                                            manaId = manaIdCounter++,
+                                            color = payingColor.toPriorityManaColor(),
+                                            sourceCardId = src.cardId,
+                                            specs =
+                                                buildSet {
+                                                    add(PriorityManaSpec.PREDICTIVE)
+                                                    if (src.fromSnow) add(PriorityManaSpec.FROM_SNOW)
+                                                },
+                                            abilityGrpId = src.abilityGrpId,
+                                            count = 1,
+                                        ),
+                                    ),
+                            ),
+                    )
+                },
+        )
     }
 }

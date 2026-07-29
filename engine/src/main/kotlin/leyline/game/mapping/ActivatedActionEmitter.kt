@@ -6,29 +6,30 @@ import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.game.PriorityActionValue
+import leyline.game.PriorityAutoTapSolutionValue
+import leyline.game.PriorityManaColorCountValue
+import leyline.game.PriorityManaInfoValue
+import leyline.game.PriorityManaPaymentOptionValue
+import leyline.game.PriorityManaSelectionOptionValue
+import leyline.game.PriorityManaSelectionValidation
+import leyline.game.PriorityManaSelectionValue
+import leyline.game.PriorityManaSpec
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
-import wotc.mtgo.gre.external.messaging.Messages.AutoTapSolution
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.ManaColorCount
-import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
-import wotc.mtgo.gre.external.messaging.Messages.ManaPaymentOption
-import wotc.mtgo.gre.external.messaging.Messages.ManaSelection
-import wotc.mtgo.gre.external.messaging.Messages.ManaSelectionOption
-import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
-import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 
 /**
- * Emits activated-action families after [ActionMapper] selects eligible sources.
+ * Prepares activated-action values after [ActionMapper] selects eligible sources.
  *
- * The envelope is part of the action shape contract: battlefield activations
- * include source identity and may stop priority, while hand/graveyard-style
- * ability-only activations omit source identity fields. Mana abilities keep
- * their predictive mana options and unique ability ids in this seam.
+ * Forge identities stay intact until the owner-side terminal projector assigns
+ * protocol instance ids.
  */
 internal object ActivatedActionEmitter {
     private const val INITIAL_MANA_ID = 10
@@ -43,27 +44,27 @@ internal object ActivatedActionEmitter {
         ABILITY_ONLY(includesSourceIdentity = false, activeShouldStop = false, activeManaCost = true),
     }
 
-    data class ManaAction(
-        val action: Action,
+    data class PreparedManaAction(
+        val action: PriorityActionValue.ActivateMana,
         val abilityIndex: Int,
         val ability: SpellAbility,
     )
 
     @Suppress("LongParameterList")
-    fun emitPlayableNonManaActivatedAbilities(
-        builder: ActionsAvailableReq.Builder,
+    fun preparePlayableNonManaActivatedAbilities(
+        builder: PriorityActionSetBuilder,
         card: Card,
         player: Player,
-        instanceId: () -> Int,
         grpId: () -> Int,
         cardData: (Int) -> CardData?,
         envelope: Envelope,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-        autoTapSolution: (ManaCost) -> AutoTapSolution? = { null },
+        autoTapSolution: (ManaCost) -> PriorityAutoTapSolutionValue? = { null },
         skipSpecialTurnFaceUp: Boolean = false,
-        onActive: (Action, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
+        onActive: (PriorityActionValue.Activate, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
         abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
     ) {
+        val cardId = ForgeCardId(card.id)
         for ((abilityIndex, ability) in abilities.withIndex()) {
             if (!ability.canPlay()) continue
             if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
@@ -75,15 +76,14 @@ internal object ActivatedActionEmitter {
                 } else {
                     null
                 }
-            val actionInstanceId = instanceId()
             val actionGrpId = grpId()
             val actionCardData = cardData(actionGrpId)
             val registry = abilityRegistryLookup(card, actionCardData)
             val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
-            emitActivatedAbilityAction(
+            prepareActivatedAbilityAction(
                 builder = builder,
-                instanceId = actionInstanceId,
-                grpId = actionGrpId,
+                cardId = cardId,
+                grpId = actionGrpId.takeIf { envelope.includesSourceIdentity },
                 abilityGrpId = abilityGrpId,
                 uniqueAbilityId = uniqueAbilityIdFor(actionCardData, abilityGrpId),
                 abilityCost = abilityCost,
@@ -95,63 +95,50 @@ internal object ActivatedActionEmitter {
         }
     }
 
-    @Suppress("LongParameterList") // protocol identity, cost, and exact-source callback form one action emission.
-    fun emitActivatedAbilityAction(
-        builder: ActionsAvailableReq.Builder,
-        instanceId: Int,
-        grpId: Int,
+    @Suppress("LongParameterList")
+    fun prepareActivatedAbilityAction(
+        builder: PriorityActionSetBuilder,
+        cardId: ForgeCardId,
+        grpId: Int?,
         abilityGrpId: Int,
         uniqueAbilityId: Int?,
         abilityCost: ManaCost?,
-        autoTapSolution: AutoTapSolution? = null,
+        autoTapSolution: PriorityAutoTapSolutionValue? = null,
         canPay: Boolean,
         envelope: Envelope,
-        onActive: (Action) -> Unit = {},
+        onActive: (PriorityActionValue.Activate) -> Unit = {},
     ) {
-        val actionBuilder =
-            Action
-                .newBuilder()
-                .setActionType(ActionType.Activate_add3)
-                .setInstanceId(instanceId)
-        if (envelope.includesSourceIdentity) {
-            actionBuilder
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-        }
-        if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-        uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
-        if (canPay && envelope.activeShouldStop) {
-            actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
-        }
-        if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
-            ActionManaCosts.addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
-        }
-        autoTapSolution?.let(actionBuilder::setAutoTapSolution)
+        val value =
+            PriorityActionValue.Activate(
+                cardId = cardId,
+                grpId = grpId,
+                abilityGrpId = abilityGrpId,
+                uniqueAbilityId = uniqueAbilityId ?: 0,
+                manaCost =
+                    if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
+                        ActionManaCosts.forgeManaCostToValues(abilityCost, abilityGrpId)
+                    } else {
+                        emptyList()
+                    },
+                shouldStop = canPay && envelope.activeShouldStop && ShouldStopEvaluator.shouldStop(ActionType.Activate_add3),
+                autoTapSolution = autoTapSolution,
+            )
         if (canPay) {
-            val action = actionBuilder.build()
-            builder.addActions(action)
-            onActive(action)
+            builder.addAction(value)
+            onActive(value)
         } else {
-            builder.addInactiveActions(actionBuilder)
+            builder.addInactiveAction(value)
         }
     }
 
-    fun buildActivateManaAction(
+    fun prepareActivateManaActions(
         card: Card,
-        instanceId: Int,
-        grpId: Int,
-        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-    ): List<Action> = buildActivateManaActions(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup).map { it.action }
-
-    fun buildActivateManaActions(
-        card: Card,
-        instanceId: Int,
         grpId: Int,
         cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
         abilities: List<SpellAbility> = getPlayableManaAbilities(card, card.controller),
-    ): List<ManaAction> {
+    ): List<PreparedManaAction> {
+        val cardId = ForgeCardId(card.id)
         val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
         val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
@@ -160,99 +147,141 @@ internal object ActivatedActionEmitter {
             val colors = producedManaColors(sa)
             if (colors.isEmpty()) return@mapIndexedNotNull null
 
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.ActivateMana)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setIsBatchable(true)
-            if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            uniqueAbilityIdFor(cardData, abilityGrpId, fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId)
-                ?.let(actionBuilder::setUniqueAbilityId)
-
-            for ((idx, manaColor) in colors.withIndex()) {
-                val manaInfo =
-                    ManaInfo
-                        .newBuilder()
-                        .setManaId(INITIAL_MANA_ID + idx)
-                        .setColor(manaColor)
-                        .setSrcInstanceId(instanceId)
-                        .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                        .setAbilityGrpId(abilityGrpId)
-                        .setCount(1)
-                if (card.type.isSnow) {
-                    manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
-                }
-                actionBuilder.addManaPaymentOptions(
-                    ManaPaymentOption.newBuilder().addMana(manaInfo),
-                )
-            }
-
-            val selection =
-                ManaSelection
-                    .newBuilder()
-                    .setInstanceId(instanceId)
-                    .setAbilityGrpId(abilityGrpId)
-                    .setSelectionCount(1)
-                    .setValidationType(SelectionValidationType.NonRepeatable)
-            for (manaColor in colors) {
-                selection.addOptions(
-                    ManaSelectionOption
-                        .newBuilder()
-                        .setSelectedColor(manaColor)
-                        .addMana(
-                            ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
+            val value =
+                PriorityActionValue.ActivateMana(
+                    cardId = cardId,
+                    grpId = grpId,
+                    abilityGrpId = abilityGrpId,
+                    uniqueAbilityId =
+                        uniqueAbilityIdFor(
+                            cardData,
+                            abilityGrpId,
+                            fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId,
+                        ) ?: 0,
+                    manaPaymentOptions =
+                        colors.mapIndexed { index, manaColor ->
+                            PriorityManaPaymentOptionValue(
+                                mana =
+                                    listOf(
+                                        PriorityManaInfoValue(
+                                            manaId = INITIAL_MANA_ID + index,
+                                            color = manaColor.toPriorityManaColor(),
+                                            sourceCardId = cardId,
+                                            specs =
+                                                buildSet {
+                                                    add(PriorityManaSpec.PREDICTIVE)
+                                                    if (card.type.isSnow) add(PriorityManaSpec.FROM_SNOW)
+                                                },
+                                            abilityGrpId = abilityGrpId,
+                                            count = 1,
+                                        ),
+                                    ),
+                            )
+                        },
+                    manaSelections =
+                        listOf(
+                            PriorityManaSelectionValue(
+                                cardId = cardId,
+                                abilityGrpId = abilityGrpId,
+                                selectionCount = 1,
+                                validation = PriorityManaSelectionValidation.NON_REPEATABLE,
+                                options =
+                                    colors.map { manaColor ->
+                                        val color = manaColor.toPriorityManaColor()
+                                        PriorityManaSelectionOptionValue(
+                                            selectedColor = color,
+                                            mana = listOf(PriorityManaColorCountValue(color, 1)),
+                                        )
+                                    },
+                            ),
                         ),
+                    batchable = true,
                 )
-            }
-            actionBuilder.addManaSelections(selection)
-
-            ManaAction(actionBuilder.build(), abilityIndex, sa)
+            PreparedManaAction(value, abilityIndex, sa)
         }
     }
 
-    /**
-     * Build the minimal inactive mana-action rail for a tapped source.
-     *
-     * Inactive mana actions identify the source and ability but deliberately
-     * omit payment options and selections: the client only needs enough shape
-     * to render the source as unavailable.
-     */
-    fun buildInactiveActivateManaActions(
+    fun prepareInactiveActivateManaActions(
+        card: Card,
+        grpId: Int,
+        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ): List<PriorityActionValue.ActivateMana> {
+        val cardId = ForgeCardId(card.id)
+        val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
+        val registry = abilityRegistryLookup(card, cardData)
+        val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
+        return card.manaAbilities.mapNotNull { ability ->
+            ability.setActivatingPlayer(card.controller)
+            if (ability.canPlay()) return@mapNotNull null
+            val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: basicLandAbilityGrpId(card)
+            PriorityActionValue.ActivateMana(
+                cardId = cardId,
+                grpId = grpId,
+                abilityGrpId = abilityGrpId,
+                uniqueAbilityId =
+                    uniqueAbilityIdFor(
+                        cardData,
+                        abilityGrpId,
+                        fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId,
+                    ) ?: 0,
+                manaCost =
+                    ability.payCosts
+                        ?.totalMana
+                        ?.takeIf { !it.isNoCost }
+                        ?.let { ActionManaCosts.forgeManaCostToValues(it, abilityGrpId) }
+                        .orEmpty(),
+                batchable = false,
+            )
+        }
+    }
+
+    @Suppress("LongParameterList")
+    fun emitPlayableNonManaActivatedAbilities(
+        builder: ActionsAvailableReq.Builder,
+        card: Card,
+        player: Player,
+        grpId: () -> Int,
+        cardData: (Int) -> CardData?,
+        envelope: Envelope,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+        idResolver: (ForgeCardId) -> InstanceId,
+        autoTapSolution: (ManaCost) -> PriorityAutoTapSolutionValue? = { null },
+        skipSpecialTurnFaceUp: Boolean = false,
+        onActive: (Action, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
+        abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
+    ) {
+        val values = PriorityActionSetBuilder()
+        preparePlayableNonManaActivatedAbilities(
+            builder = values,
+            card = card,
+            player = player,
+            grpId = grpId,
+            cardData = cardData,
+            envelope = envelope,
+            abilityRegistryLookup = abilityRegistryLookup,
+            autoTapSolution = autoTapSolution,
+            skipSpecialTurnFaceUp = skipSpecialTurnFaceUp,
+            onActive = { action, abilityIndex, ability, abilityGrpId ->
+                onActive(PriorityActionProjector.project(action, idResolver), abilityIndex, ability, abilityGrpId)
+            },
+            abilities = abilities,
+        )
+        val projected = PriorityActionProjector.project(values.build(), idResolver)
+        builder.addAllActions(projected.actionsList)
+        builder.addAllInactiveActions(projected.inactiveActionsList)
+    }
+
+    fun buildActivateManaAction(
         card: Card,
         instanceId: Int,
         grpId: Int,
         cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): List<Action> {
-        val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
-        val registry = abilityRegistryLookup(card, cardData)
-        val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
-        return card.manaAbilities.mapNotNull { sa ->
-            sa.setActivatingPlayer(card.controller)
-            if (sa.canPlay()) return@mapNotNull null
-            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
-            val actionBuilder =
-                Action
-                    .newBuilder()
-                    .setActionType(ActionType.ActivateMana)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-            actionBuilder
-                .apply {
-                    if (abilityGrpId != 0) setAbilityGrpId(abilityGrpId)
-                    uniqueAbilityIdFor(cardData, abilityGrpId, fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId)
-                        ?.let(::setUniqueAbilityId)
-                }
-            sa.payCosts
-                ?.totalMana
-                ?.takeIf { !it.isNoCost }
-                ?.let { ActionManaCosts.addManaCostFromForge(it, actionBuilder, abilityGrpId) }
-            actionBuilder.build()
-        }
+        val idResolver: (ForgeCardId) -> InstanceId = { InstanceId(instanceId) }
+        return prepareActivateManaActions(card, grpId, cardDataLookup, abilityRegistryLookup)
+            .map { PriorityActionProjector.project(it.action, idResolver) }
     }
 
     fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
@@ -272,7 +301,7 @@ internal object ActivatedActionEmitter {
         }
     }
 
-    fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {
+    fun producedManaColors(sa: SpellAbility): List<ManaColor> {
         val mana = sa.manaPart ?: return emptyList()
         val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
         return produced.split(" ").mapNotNull { ActionManaCosts.producedToManaColor(it) }.distinct()
