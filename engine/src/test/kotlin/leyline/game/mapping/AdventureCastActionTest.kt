@@ -6,7 +6,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
@@ -34,7 +34,7 @@ class AdventureCastActionTest :
             val traineeIid = b.getOrAllocInstanceId(ForgeCardId(trainee.id)).value
 
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     seatId = 1,
                     snap = GsmSnapshot.capture(game, b, "test", 0),
                     bridge = b,
@@ -63,7 +63,7 @@ class AdventureCastActionTest :
                 }
 
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     seatId = 1,
                     snap = GsmSnapshot.capture(game, b, "test", 0),
                     bridge = b,
@@ -80,7 +80,7 @@ class AdventureCastActionTest :
                 }
 
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     seatId = 1,
                     snap = GsmSnapshot.capture(game, b, "test", 0),
                     bridge = b,

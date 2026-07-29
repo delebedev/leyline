@@ -3,6 +3,8 @@ package leyline.board.costs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.buildPriorityActionsForTest
+import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -41,7 +43,7 @@ class CostReductionTest :
 
         test("Cast action for Run Away Together shows reduced cost {U} with Archmage on battlefield") {
             val (b, _, _) = startPuzzleAtMain1(puzzleText)
-            val actions = bundleBuilder(b).buildActions()
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(b.requireGame(), b, "test", 0), b)
 
             val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
             castActions shouldHaveSize 1
@@ -52,7 +54,7 @@ class CostReductionTest :
 
         test("autoTap solution taps only 1 island for reduced cost") {
             val (b, _, _) = startPuzzleAtMain1(puzzleText)
-            val actions = bundleBuilder(b).buildActions()
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(b.requireGame(), b, "test", 0), b)
 
             val cast = actions.actionsList.first { it.actionType == ActionType.Cast }
 

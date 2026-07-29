@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
- * Verifies that [ActionMapper.buildFromSnapshot] produces correct action shapes
+ * Verifies that [buildPriorityActionsForTest] produces correct action shapes
  * for representative board states.
  *
  * Uses [Board.startWithBoard] — synchronous board setup, no game loop.
@@ -40,7 +40,7 @@ class ActionMapperSnapshotTest :
             val (b, game, _) = startWithBoard { _, _, _ -> }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             assertSoftly {
                 fromSnap.actionsList.any { it.actionType == ActionType.Pass }.shouldBeTrue()
@@ -66,7 +66,7 @@ class ActionMapperSnapshotTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             (fromSnap.actionsList + fromSnap.inactiveActionsList).count { it.actionType == ActionType.Play_add3 } shouldBe 1
         }
@@ -82,7 +82,7 @@ class ActionMapperSnapshotTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             (fromSnap.actionsList + fromSnap.inactiveActionsList).count { it.actionType == ActionType.Cast } shouldBe 1
         }
@@ -98,7 +98,7 @@ class ActionMapperSnapshotTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
         }
@@ -112,7 +112,7 @@ class ActionMapperSnapshotTest :
                         .tap(true, true, null, null)
                 }
 
-            val fromSnap = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val fromSnap = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
             val inactive = fromSnap.inactiveActionsList.single { it.actionType == ActionType.ActivateMana }
             val expectedInstanceId = b.getOrAllocInstanceId(ForgeCardId(islandForgeId)).value
             val expectedGrpId = b.resolveGrpId(b.findCard(ForgeCardId(islandForgeId))!!, expectedInstanceId)
@@ -137,7 +137,7 @@ class ActionMapperSnapshotTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
             val activate = fromSnap.actionsList.first { it.actionType == ActionType.Activate_add3 }
 
             assertSoftly {
@@ -155,7 +155,7 @@ class ActionMapperSnapshotTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
             val activate = fromSnap.actionsList.first { it.actionType == ActionType.Activate_add3 }
             val snowMana =
                 fromSnap.actionsList
@@ -194,7 +194,7 @@ class ActionMapperSnapshotTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             assertSoftly {
                 fromSnap.actionsCount shouldBe 4 // ActivateMana + Cast + Pass + FloatMana
@@ -231,7 +231,7 @@ class ActionMapperSnapshotTest :
                     .shouldNotBeNull()
 
             val projection =
-                ActionMapper.buildProjectionFromSnapshot(
+                projectPriorityWindowForTest(
                     1,
                     SnapshotCapture.run(board.game, board.bridge, "test", 0),
                     board.bridge,

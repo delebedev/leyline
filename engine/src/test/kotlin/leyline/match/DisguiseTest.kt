@@ -10,7 +10,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -88,7 +88,7 @@ class DisguiseTest :
                     ).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             val castOffers =
                 fromSnap.actionsList.filter {
@@ -128,7 +128,7 @@ class DisguiseTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             fromSnap shouldNot offerAltCost(KeywordAbilityIds.DISGUISE)
         }
@@ -147,7 +147,7 @@ class DisguiseTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             fromSnap shouldNot offerAltCost(KeywordAbilityIds.DISGUISE)
         }

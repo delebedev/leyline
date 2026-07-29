@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.psi.KtClass
 /**
  * Flags Session-tier tests (MatchFlowHarness / SessionTest) that never
  * drive the game loop. These pay Session cost (~0.7–3s/test) for signal
- * available at Bridge tier via `bundleBuilder(b).buildActions()` etc.
+ * available at Bridge tier via `ActionMapper.buildFromSnapshot(...)` etc.
  *
  * Heuristic:
  *   - File text contains `MatchFlowHarness` or `SessionTest`
@@ -60,7 +60,7 @@ class TierPlacementCheck(config: Config) : Rule(
         report(
             Finding(
                 Entity.from(klass),
-                "Session-tier setup but no game-loop interaction — consider demoting to BoardTest + bundleBuilder(b).buildActions(). See CostReductionTest migration (commit 8e298f6).",
+                "Session-tier setup but no game-loop interaction — consider demoting to BoardTest + ActionMapper.buildFromSnapshot(...). See CostReductionTest migration (commit 8e298f6).",
             ),
         )
     }

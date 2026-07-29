@@ -50,9 +50,16 @@ internal object ActivatedActionEmitter {
         val ability: SpellAbility,
     )
 
+    data class PreparedActivatedAction(
+        val action: PriorityActionValue.Activate,
+        val abilityIndex: Int,
+        val ability: SpellAbility,
+        val abilityGrpId: Int,
+        val active: Boolean,
+    )
+
     @Suppress("LongParameterList")
     fun preparePlayableNonManaActivatedAbilities(
-        builder: PriorityActionSetBuilder,
         card: Card,
         player: Player,
         grpId: () -> Int,
@@ -61,43 +68,50 @@ internal object ActivatedActionEmitter {
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
         autoTapSolution: (ManaCost) -> PriorityAutoTapSolutionValue? = { null },
         skipSpecialTurnFaceUp: Boolean = false,
-        onActive: (PriorityActionValue.Activate, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
         abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
-    ) {
+    ): List<PreparedActivatedAction> {
         val cardId = ForgeCardId(card.id)
-        for ((abilityIndex, ability) in abilities.withIndex()) {
-            if (!ability.canPlay()) continue
-            if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
-            val canPay = ActionManaCosts.canPayManaCost(ability, player)
-            val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
-            val autoTap =
-                if (canPay && abilityCost != null && !abilityCost.isNoCost) {
-                    autoTapSolution(abilityCost)
-                } else {
-                    null
-                }
-            val actionGrpId = grpId()
-            val actionCardData = cardData(actionGrpId)
-            val registry = abilityRegistryLookup(card, actionCardData)
-            val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
-            prepareActivatedAbilityAction(
-                builder = builder,
-                cardId = cardId,
-                grpId = actionGrpId.takeIf { envelope.includesSourceIdentity },
-                abilityGrpId = abilityGrpId,
-                uniqueAbilityId = uniqueAbilityIdFor(actionCardData, abilityGrpId),
-                abilityCost = abilityCost,
-                autoTapSolution = autoTap,
-                canPay = canPay,
-                envelope = envelope,
-                onActive = { action -> onActive(action, abilityIndex, ability, abilityGrpId) },
-            )
+        return buildList {
+            for ((abilityIndex, ability) in abilities.withIndex()) {
+                if (!ability.canPlay()) continue
+                if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
+                val canPay = ActionManaCosts.canPayManaCost(ability, player)
+                val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
+                val autoTap =
+                    if (canPay && abilityCost != null && !abilityCost.isNoCost) {
+                        autoTapSolution(abilityCost)
+                    } else {
+                        null
+                    }
+                val actionGrpId = grpId()
+                val actionCardData = cardData(actionGrpId)
+                val registry = abilityRegistryLookup(card, actionCardData)
+                val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
+                add(
+                    PreparedActivatedAction(
+                        action =
+                            prepareActivatedAbilityAction(
+                                cardId = cardId,
+                                grpId = actionGrpId.takeIf { envelope.includesSourceIdentity },
+                                abilityGrpId = abilityGrpId,
+                                uniqueAbilityId = uniqueAbilityIdFor(actionCardData, abilityGrpId),
+                                abilityCost = abilityCost,
+                                autoTapSolution = autoTap,
+                                canPay = canPay,
+                                envelope = envelope,
+                            ),
+                        abilityIndex = abilityIndex,
+                        ability = ability,
+                        abilityGrpId = abilityGrpId,
+                        active = canPay,
+                    ),
+                )
+            }
         }
     }
 
     @Suppress("LongParameterList")
     fun prepareActivatedAbilityAction(
-        builder: PriorityActionSetBuilder,
         cardId: ForgeCardId,
         grpId: Int?,
         abilityGrpId: Int,
@@ -106,30 +120,21 @@ internal object ActivatedActionEmitter {
         autoTapSolution: PriorityAutoTapSolutionValue? = null,
         canPay: Boolean,
         envelope: Envelope,
-        onActive: (PriorityActionValue.Activate) -> Unit = {},
-    ) {
-        val value =
-            PriorityActionValue.Activate(
-                cardId = cardId,
-                grpId = grpId,
-                abilityGrpId = abilityGrpId,
-                uniqueAbilityId = uniqueAbilityId ?: 0,
-                manaCost =
-                    if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
-                        ActionManaCosts.forgeManaCostToValues(abilityCost, abilityGrpId)
-                    } else {
-                        emptyList()
-                    },
-                shouldStop = canPay && envelope.activeShouldStop && ShouldStopEvaluator.shouldStop(ActionType.Activate_add3),
-                autoTapSolution = autoTapSolution,
-            )
-        if (canPay) {
-            builder.addAction(value)
-            onActive(value)
-        } else {
-            builder.addInactiveAction(value)
-        }
-    }
+    ): PriorityActionValue.Activate =
+        PriorityActionValue.Activate(
+            cardId = cardId,
+            grpId = grpId,
+            abilityGrpId = abilityGrpId,
+            uniqueAbilityId = uniqueAbilityId ?: 0,
+            manaCost =
+                if ((!canPay || envelope.activeManaCost) && abilityCost != null && !abilityCost.isNoCost) {
+                    ActionManaCosts.forgeManaCostToValues(abilityCost, abilityGrpId)
+                } else {
+                    emptyList()
+                },
+            shouldStop = canPay && envelope.activeShouldStop && ShouldStopEvaluator.shouldStop(ActionType.Activate_add3),
+            autoTapSolution = autoTapSolution,
+        )
 
     fun prepareActivateManaActions(
         card: Card,
@@ -253,7 +258,6 @@ internal object ActivatedActionEmitter {
     ) {
         val values = PriorityActionSetBuilder()
         preparePlayableNonManaActivatedAbilities(
-            builder = values,
             card = card,
             player = player,
             grpId = grpId,
@@ -262,11 +266,20 @@ internal object ActivatedActionEmitter {
             abilityRegistryLookup = abilityRegistryLookup,
             autoTapSolution = autoTapSolution,
             skipSpecialTurnFaceUp = skipSpecialTurnFaceUp,
-            onActive = { action, abilityIndex, ability, abilityGrpId ->
-                onActive(PriorityActionProjector.project(action, idResolver), abilityIndex, ability, abilityGrpId)
-            },
             abilities = abilities,
-        )
+        ).forEach { prepared ->
+            if (prepared.active) {
+                values.addAction(prepared.action)
+                onActive(
+                    PriorityActionProjector.project(prepared.action, idResolver),
+                    prepared.abilityIndex,
+                    prepared.ability,
+                    prepared.abilityGrpId,
+                )
+            } else {
+                values.addInactiveAction(prepared.action)
+            }
+        }
         val projected = PriorityActionProjector.project(values.build(), idResolver)
         builder.addAllActions(projected.actionsList)
         builder.addAllInactiveActions(projected.inactiveActionsList)

@@ -21,14 +21,17 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
+import leyline.game.EngineCut
 import leyline.game.InMemoryCardRepository
+import leyline.game.InteractionReadiness
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.event.FrameEventLog
-import leyline.game.mapping.ActionMapper
+import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -142,6 +145,38 @@ class GameBridgeTest :
             b.hasPendingEngineCuts() shouldBe false
         }
 
+        test("priority readiness carries the prepared actions for its exact pending window") {
+            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            bridge = b
+            b.startPuzzle(PuzzleSource.loadFromResource("puzzles/lands-only.pzl"))
+
+            val pending = b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            val checkpoint = b.latestEngineCutCheckpoint()
+            var readiness: EngineCut.InteractionReady? = null
+            while (true) {
+                val cut = b.peekEngineCutThrough(checkpoint) ?: break
+                if (cut is EngineCut.InteractionReady && cut.kind == InteractionReadiness.ACTION) {
+                    readiness = cut
+                }
+                b.acknowledgeEngineCut(cut)
+            }
+
+            val window =
+                readiness
+                    .shouldNotBeNull()
+                    .observation.preparedPriorityWindows[SeatId(1)]
+                    .shouldNotBeNull()
+            assertSoftly {
+                window.actionId shouldBe pending.actionId
+                window.actions.actions shouldBe window.offers.map { it.value }
+                readiness.observation.runtimeFor(SeatId(1)).priorityActionValues shouldBe window.actions
+                window.offers.shouldNotBeEmpty()
+                window.offers
+                    .all { offer -> b.actionBridge(SeatId(1)).acceptsActionToken(window.actionId, offer.token) }
+                    .shouldBeTrue()
+            }
+        }
+
         test("getHandGrpIds resolves") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
@@ -229,7 +264,7 @@ class GameBridgeTest :
             val game = b.getGame()!!
             listOf(PhaseType.MAIN1, PhaseType.UPKEEP, PhaseType.DRAW) shouldContain game.phaseHandler.phase
 
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
             assertSoftly {
                 actions.actionsList.count { it.actionType == Messages.ActionType.Pass } shouldBe 1
@@ -465,7 +500,7 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val snapGb1 = GsmSnapshot.capture(game, b, "test-match", 1)
             val gs = StateMapper.buildFromSnapshot(snapGb1, 1, "test-match", b, actions).gsm
 

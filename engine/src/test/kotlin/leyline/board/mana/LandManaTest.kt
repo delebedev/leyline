@@ -14,8 +14,8 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
@@ -203,7 +203,7 @@ class LandManaTest :
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
 
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
             val playActions = actions.ofType(ActionType.Play_add3)
             assertSoftly {
                 playActions.shouldHaveSize(2)
@@ -237,8 +237,7 @@ class LandManaTest :
             board.snapshotDiff { moveToBattlefield(land, board.game) }
 
             val manaActions =
-                ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.ActivateMana)
             assertSoftly {
                 manaActions.shouldHaveSize(2)
@@ -262,8 +261,7 @@ class LandManaTest :
                 }
 
             val action =
-                ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.ActivateMana)
                     .single()
             val colors = listOf(ManaColor.Black_afc9, ManaColor.Green_afc9)
@@ -300,8 +298,7 @@ class LandManaTest :
             board.snapshotDiff { moveToBattlefield(land, board.game) }
 
             val cast =
-                ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
@@ -339,8 +336,7 @@ class LandManaTest :
                 }
 
             val cast =
-                ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
@@ -364,8 +360,7 @@ class LandManaTest :
                 }
 
             val cast =
-                ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
@@ -470,8 +465,7 @@ class LandManaTest :
                 }
 
             val cast =
-                ActionMapper
-                    .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                buildPriorityActionsForTest(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
                     .ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 

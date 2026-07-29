@@ -5,6 +5,7 @@ import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PriorityActionProjector
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -244,7 +245,16 @@ object HandshakeMessages {
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): Pair<MatchServiceToClientMessage, Int> {
         val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
+        val priorityActions = bridge.materializePriorityActionValues(seatId, dealSnap)
+        val gsm =
+            GsmBuilder.buildDealHand(
+                bridge,
+                gameStateId,
+                seatId.value,
+                dealSnap,
+                priorityActions,
+                diffDeletedInstanceIds,
+            )
         val gre =
             GREToClientMessage
                 .newBuilder()
@@ -265,9 +275,10 @@ object HandshakeMessages {
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+        val priorityActions = bridge.materializePriorityActionValues(SeatId(2), deal2Snap)
         val gsm =
             GsmBuilder
-                .buildDealHand(bridge, gameStateId, 2, deal2Snap)
+                .buildDealHand(bridge, gameStateId, 2, deal2Snap, priorityActions)
                 .toBuilder()
                 .setPendingMessageCount(1)
                 .build()
@@ -375,7 +386,12 @@ object HandshakeMessages {
         // 1) Thin GSM Diff: player with mulliganCount + hand actions
         val game = bridge.getGame()!!
         val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "", 0)
-        val actions = ActionMapper.buildFromSnapshot(seatId.value, mulliganRespSnap, bridge)
+        val actions =
+            PriorityActionProjector
+                .project(
+                    bridge.materializePriorityActionValues(seatId, mulliganRespSnap),
+                    bridge::getOrAllocInstanceId,
+                ).actionsList
         val gsm =
             GameStateMessage
                 .newBuilder()
@@ -390,7 +406,7 @@ object HandshakeMessages {
                 ).setPendingMessageCount(2)
                 .setPrevGameStateId(gameStateId - 1)
                 .setUpdate(GameStateUpdate.SendAndRecord)
-        for (action in actions.actionsList) {
+        for (action in actions) {
             gsm.addActions(
                 ActionInfo
                     .newBuilder()
@@ -455,6 +471,7 @@ object HandshakeMessages {
         gameStateId: Int,
         bridge: GameBridge,
         observationSnapshot: GsmSnapshot,
+        actions: ActionsAvailableReq,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
@@ -478,7 +495,6 @@ object HandshakeMessages {
                     events = bridge.closeBundleFrame(seatId.value),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
-        val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
         val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)
 
         messages.add(

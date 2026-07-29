@@ -31,6 +31,26 @@ private fun pollForPending(bridge: GameActionBridge): GameActionBridge.PendingAc
     return null
 }
 
+private fun GameActionBridge.prepareActionOfferForTest(
+    action: Action,
+    command: PlayerAction,
+    stackAbilityGrpId: Int? = null,
+    forgeAbilityId: Int? = null,
+    spellGrpId: Int? = null,
+): GameActionBridge.ActionOffer {
+    val actionId = checkNotNull(getPending()).actionId
+    return GameActionBridge.ActionOffer(
+        action = action,
+        token = registerActionCommand(actionId, command),
+        cardId = command.cardIdOrNull(),
+        abilityId = command.abilityIdOrNull(),
+        stackAbilityGrpId = stackAbilityGrpId,
+        forgeAbilityId = forgeAbilityId,
+        spellGrpId = spellGrpId,
+    )
+}
+
+@Suppress("LargeClass")
 class GameActionBridgeTest :
     FunSpec({
 
@@ -138,7 +158,7 @@ class GameActionBridgeTest :
 
             val pending = pollForPending(bridge).shouldNotBeNull()
             val passOffer =
-                bridge.registerActionOffer(
+                bridge.prepareActionOfferForTest(
                     Action.newBuilder().setActionType(ActionType.Pass).build(),
                     PlayerAction.PassPriority,
                 )
@@ -149,6 +169,7 @@ class GameActionBridgeTest :
                     12,
                     listOf(passOffer),
                 ) shouldBe true
+                bridge.acceptsResponse(pending, 0) shouldBe false
                 bridge.acceptsResponse(pending, 11) shouldBe false
                 bridge.acceptsResponse(pending, 12) shouldBe true
             }
@@ -181,10 +202,11 @@ class GameActionBridgeTest :
                     .setAbilityGrpId(44)
                     .setAlternativeGrpId(0)
                     .build()
-            val castOffer = bridge.registerActionOffer(cast, PlayerAction.PassPriority)
+            val castOffer = bridge.prepareActionOfferForTest(cast, PlayerAction.PassPriority)
             bridge.bindActionCatalog(pending.actionId, 12, listOf(castOffer)) shouldBe true
             val response = cast.toBuilder().addManaCost(ManaRequirement.newBuilder().setCount(1)).build()
             assertSoftly {
+                bridge.resolveOfferedAction(pending, 0, response).shouldBeNull()
                 bridge.resolveOfferedAction(pending, 12, response)?.token shouldBe castOffer.token
                 bridge.resolveOfferedAction(pending, 11, response).shouldBeNull()
                 bridge.resolveOfferedAction(pending, 12, Action.newBuilder().setActionType(ActionType.FloatMana).build()).shouldBeNull()
@@ -210,8 +232,8 @@ class GameActionBridgeTest :
 
             val pending = pollForPending(bridge).shouldNotBeNull()
             val pass = Action.newBuilder().setActionType(ActionType.Pass).build()
-            val firstPassOffer = bridge.registerActionOffer(pass, PlayerAction.PassPriority)
-            val secondPassOffer = bridge.registerActionOffer(pass, PlayerAction.PassPriority)
+            val firstPassOffer = bridge.prepareActionOfferForTest(pass, PlayerAction.PassPriority)
+            val secondPassOffer = bridge.prepareActionOfferForTest(pass, PlayerAction.PassPriority)
             assertSoftly {
                 bridge.bindActionCatalog(
                     pending.actionId,
@@ -263,8 +285,8 @@ class GameActionBridgeTest :
                     .build()
             val first = activate.toBuilder().addManaCost(ManaRequirement.newBuilder().setCount(1)).build()
             val second = activate.toBuilder().addManaCost(ManaRequirement.newBuilder().setCount(2)).build()
-            val firstOffer = bridge.registerActionOffer(first, PlayerAction.PlayLand(ForgeCardId(1)))
-            val secondOffer = bridge.registerActionOffer(second, PlayerAction.PlayLand(ForgeCardId(2)))
+            val firstOffer = bridge.prepareActionOfferForTest(first, PlayerAction.PlayLand(ForgeCardId(1)))
+            val secondOffer = bridge.prepareActionOfferForTest(second, PlayerAction.PlayLand(ForgeCardId(2)))
             bridge.bindActionCatalog(
                 pending.actionId,
                 12,
@@ -292,6 +314,30 @@ class GameActionBridgeTest :
             ) shouldBe false
         }
 
+        test("stale catalog validation fails before owner projection commit") {
+            val bridge = GameActionBridge(timeoutMs = 5000)
+            val engineThread =
+                Thread {
+                    bridge.awaitAction(
+                        PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
+                    )
+                }
+            engineThread.isDaemon = true
+            engineThread.start()
+
+            val pending = pollForPending(bridge).shouldNotBeNull()
+            val pass = Action.newBuilder().setActionType(ActionType.Pass).build()
+            val offer = bridge.prepareActionOfferForTest(pass, PlayerAction.PassPriority)
+            bridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            engineThread.join(2000)
+
+            val projectionCommitted = AtomicBoolean(false)
+            bridge.commitActionCatalog(pending.actionId, 12, listOf(offer)) {
+                projectionCommitted.set(true)
+            } shouldBe false
+            projectionCommitted.get() shouldBe false
+        }
+
         test("catalog rejects duplicate response keys with distinct commands") {
             val bridge = GameActionBridge(timeoutMs = 5000)
             val ready = CountDownLatch(1)
@@ -313,8 +359,8 @@ class GameActionBridgeTest :
                     .setActionType(ActionType.Play_add3)
                     .setInstanceId(14)
                     .build()
-            val firstOffer = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(1)))
-            val secondOffer = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(2)))
+            val firstOffer = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(1)))
+            val secondOffer = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(2)))
             bridge.bindActionCatalog(
                 pending.actionId,
                 12,
@@ -347,7 +393,7 @@ class GameActionBridgeTest :
                     .setActionType(ActionType.Play_add3)
                     .setInstanceId(14)
                     .build()
-            val offer = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(7)))
+            val offer = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(7)))
             bridge.bindActionCatalog(pending.actionId, 12, listOf(offer)) shouldBe true
 
             assertSoftly {
@@ -381,10 +427,10 @@ class GameActionBridgeTest :
                     .setActionType(ActionType.Play_add3)
                     .setInstanceId(14)
                     .build()
-            val earlier = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(1)))
+            val earlier = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(1)))
             bridge.bindActionCatalog(pending.actionId, 12, listOf(earlier)) shouldBe true
             val earlierPublication = bridge.getPending()?.publishedCatalog.shouldNotBeNull()
-            val replacement = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(2)))
+            val replacement = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(2)))
             bridge.bindActionCatalog(pending.actionId, 13, listOf(replacement)) shouldBe true
             val replacementPublication = bridge.getPending()?.publishedCatalog.shouldNotBeNull()
 
@@ -427,7 +473,7 @@ class GameActionBridgeTest :
                     .setActionType(ActionType.Play_add3)
                     .setInstanceId(14)
                     .build()
-            val firstOffer = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(1)))
+            val firstOffer = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(1)))
             bridge.bindActionCatalog(firstPending.actionId, 12, listOf(firstOffer)) shouldBe true
             bridge.submitActionToken(firstPending.actionId, firstOffer.token) shouldBe true
             firstEngineThread.join(2000)
@@ -446,7 +492,7 @@ class GameActionBridgeTest :
             secondEngineThread.start()
 
             val secondPending = pollForPending(bridge).shouldNotBeNull()
-            val secondOffer = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(2)))
+            val secondOffer = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(2)))
             bridge.bindActionCatalog(secondPending.actionId, 13, listOf(secondOffer)) shouldBe true
             val staleSideEffect = AtomicBoolean(false)
 
@@ -490,7 +536,7 @@ class GameActionBridgeTest :
             val entrants = Executors.newFixedThreadPool(2)
             val registration =
                 entrants.submit<GameActionBridge.ActionOffer> {
-                    bridge.registerActionOffer(pass, PlayerAction.PassPriority)
+                    bridge.prepareActionOfferForTest(pass, PlayerAction.PassPriority)
                 }
             registerEntered.await(2, TimeUnit.SECONDS) shouldBe true
             val cancellation =
@@ -532,7 +578,7 @@ class GameActionBridgeTest :
                     .setActionType(ActionType.Play_add3)
                     .setInstanceId(14)
                     .build()
-            val offer = bridge.registerActionOffer(play, PlayerAction.PlayLand(ForgeCardId(7)))
+            val offer = bridge.prepareActionOfferForTest(play, PlayerAction.PlayLand(ForgeCardId(7)))
             bridge.bindActionCatalog(pending.actionId, 12, listOf(offer)) shouldBe true
             val submissionAccepted = CountDownLatch(1)
             val releaseSubmission = CountDownLatch(1)
@@ -582,7 +628,7 @@ class GameActionBridgeTest :
 
             val pending = pollForPending(bridge).shouldNotBeNull()
             val pass = Action.newBuilder().setActionType(ActionType.Pass).build()
-            val offer = bridge.registerActionOffer(pass, PlayerAction.PassPriority)
+            val offer = bridge.prepareActionOfferForTest(pass, PlayerAction.PassPriority)
             bridge.bindActionCatalog(pending.actionId, 12, listOf(offer)) shouldBe true
             engineThread.join(2000)
 

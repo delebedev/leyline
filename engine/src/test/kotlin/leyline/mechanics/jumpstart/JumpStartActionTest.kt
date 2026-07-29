@@ -5,7 +5,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -29,7 +29,7 @@ class JumpStartActionTest :
             val jumpStartSa = getAllCastableAbilities(card, human).firstOrNull { it.isJumpstart }
             jumpStartSa shouldBe null
 
-            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
             actions shouldNot offerAltCost(jumpStartAbilityGrpId)
         }
     })

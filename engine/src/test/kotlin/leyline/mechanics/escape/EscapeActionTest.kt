@@ -6,7 +6,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -57,7 +57,7 @@ class EscapeActionTest :
             handEscapeSa shouldBe null
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
             fromSnap shouldNot offerAltCost(escapeAbilityGrpId)
         }
 
@@ -89,7 +89,7 @@ class EscapeActionTest :
                 b.cardRepository.findKeywordAbilityGrpId(glimpseGrpId, KeywordAbilityIds.ESCAPE)!!
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
             fromSnap shouldNot offerAltCost(escapeAbilityGrpId)
         }
     })

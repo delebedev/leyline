@@ -12,7 +12,6 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -339,7 +338,7 @@ class DebugServer(
                             viewingSeatId = session.seatId.value,
                         ).gsm
 
-                val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
+                val (actions, catalog) = session.currentObservedActionCatalog(gsId)
                 val fullGsmWithActions =
                     GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = session.seatId.value)
 
@@ -364,6 +363,11 @@ class DebugServer(
                         .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                         .build()
 
+                val actionCatalog = checkNotNull(catalog) { "Full-state injection has no prepared priority window" }
+                val actionBridge = bridge.seat(session.seatId).action
+                check(actionBridge.bindActionCatalog(actionCatalog.actionId, actionCatalog.gameStateId, actionCatalog.offers)) {
+                    "Full-state injection could not bind priority actions"
+                }
                 session.sendBundledGRE(listOf(greGsm, greActions))
                 bridge.bundleCursor.lastSent = snap
 
@@ -461,9 +465,10 @@ class DebugServer(
             }
 
         val (newSession, deletedIds) = session.replaceForPuzzle { it.resetForPuzzle(puzzle) }
-        bridge.awaitPriority()
+        check(newSession.awaitEnginePriority()) {
+            "Puzzle hot-swap did not reach priority"
+        }
         val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }
 
         val counter = newSession.counter
         val gsId = counter.nextGsId()
@@ -482,8 +487,7 @@ class DebugServer(
                     viewingSeatId = newSession.seatId.value,
                 ).gsm
 
-        val projection = ActionMapper.buildProjectionFromSnapshot(newSession.seatId.value, snap, bridge)
-        val actions = projection.actions
+        val (actions, catalog) = newSession.currentObservedActionCatalog(gsId)
         val fullGsmWithActions =
             GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = newSession.seatId.value)
 
@@ -515,7 +519,8 @@ class DebugServer(
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
-        check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
+        val actionCatalog = checkNotNull(catalog) { "Puzzle hot-swap has no prepared priority window" }
+        check(actionBridge.bindActionCatalog(actionCatalog.actionId, actionCatalog.gameStateId, actionCatalog.offers)) {
             "Puzzle hot-swap could not bind priority actions"
         }
 

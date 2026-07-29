@@ -191,7 +191,16 @@ class GameActionBridge private constructor(
             }
             pending = action
         }
-        prioritySignal?.signal()
+        try {
+            prioritySignal?.signal()
+        } catch (failure: Throwable) {
+            synchronized(lifecycleLock) {
+                if (pending === action) {
+                    retireWindow(action, cancelFuture = true)
+                }
+            }
+            throw failure
+        }
 
         val effectiveTimeout = if (paused) null else configuredTimeoutMs
         deadlineMs = effectiveTimeout?.let { System.currentTimeMillis() + it }
@@ -272,32 +281,6 @@ class GameActionBridge private constructor(
         }
 
     /**
-     * Bind one exact engine command while its originating projection branch has
-     * the live Forge handle in hand.
-     */
-    fun registerActionOffer(
-        action: Action,
-        command: PlayerAction,
-        stackAbilityGrpId: Int? = null,
-        forgeAbilityId: Int? = null,
-        spellGrpId: Int? = null,
-    ): ActionOffer =
-        synchronized(lifecycleLock) {
-            val current = checkNotNull(pending) { "Cannot bind an action offer without a pending priority window" }
-            check(!current.future.isDone) { "Cannot bind an action offer to a completed priority window" }
-            val token = registerActionCommand(current.actionId, command)
-            ActionOffer(
-                action = action,
-                token = token,
-                cardId = command.cardIdOrNull(),
-                abilityId = command.abilityIdOrNull(),
-                stackAbilityGrpId = stackAbilityGrpId,
-                forgeAbilityId = forgeAbilityId,
-                spellGrpId = spellGrpId,
-            )
-        }
-
-    /**
      * Bind an exact command discovered by a deferred choice while the originating
      * priority window remains blocked.
      */
@@ -314,6 +297,29 @@ class GameActionBridge private constructor(
         }
 
     /**
+     * Atomically prepare every exact command for one blocked priority window.
+     *
+     * Returns null when the named window is no longer current. A preparation
+     * failure retires the window before the exception escapes to the engine
+     * callback, preventing a blocked future with a partial token table.
+     */
+    internal fun prepareActionTokens(
+        actionId: String,
+        commands: List<PlayerAction>,
+    ): List<ActionToken>? =
+        synchronized(lifecycleLock) {
+            val current = pending ?: return null
+            if (current.actionId != actionId || current.future.isDone) return null
+            if (current.state.kind != PendingActionKind.PRIORITY) return null
+            try {
+                actionCommands.replaceBatch(actionId, commands)
+            } catch (failure: Throwable) {
+                retireWindow(current, cancelFuture = true)
+                throw failure
+            }
+        }
+
+    /**
      * Atomically bind an executable priority catalog to its outbound prompt.
      *
      * Call this before the corresponding ActionsAvailableReq becomes visible.
@@ -325,6 +331,19 @@ class GameActionBridge private constructor(
         actionId: String,
         gameStateId: Int,
         offers: List<ActionOffer>,
+    ): Boolean = commitActionCatalog(actionId, gameStateId, offers) {}
+
+    /**
+     * Commit owner projection state and publish its catalog under one priority-window lock.
+     *
+     * Validation happens before [commit]. Catalog state changes only after [commit]
+     * succeeds, so a stale window cannot leave projection state partially advanced.
+     */
+    fun commitActionCatalog(
+        actionId: String,
+        gameStateId: Int,
+        offers: List<ActionOffer>,
+        commit: () -> Unit,
     ): Boolean {
         val groupedOffers = offers.groupBy { ActionResponseKey.from(it.action) }
         val catalog = groupedOffers.mapValues { (_, variants) -> variants.toList() }.toMap()
@@ -360,6 +379,7 @@ class GameActionBridge private constructor(
                 clearFailedCatalog(current)
                 return false
             }
+            commit()
             actionCommands.retain(actionId, offeredTokens)
             current.publishedCatalog = PublishedActionCatalog(gameStateId, catalog)
             return true
@@ -381,7 +401,7 @@ class GameActionBridge private constructor(
             val current = pending ?: return null
             if (current.actionId != pendingAction.actionId || current.future.isDone) return null
             val published = current.publishedCatalog ?: return null
-            if (responseGameStateId != 0 && published.gameStateId != responseGameStateId) return null
+            if (published.gameStateId != responseGameStateId) return null
             val catalog = published.catalog
             val keyedMatches = catalog[ActionResponseKey.from(action)].orEmpty()
             chooseExecutionIdentity(keyedMatches, action)?.let { return it }
@@ -429,7 +449,6 @@ class GameActionBridge private constructor(
         synchronized(lifecycleLock) {
             val current = pending ?: return false
             if (current.actionId != pendingAction.actionId || current.future.isDone) return false
-            if (responseGameStateId == 0) return true
             current.publishedCatalog?.gameStateId == responseGameStateId
         }
 

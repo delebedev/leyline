@@ -5,7 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.ofType
@@ -21,7 +21,7 @@ class PriorityActionCandidatesTest :
 
             val candidates = PriorityActionCandidates.query(board.game, board.human)
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     1,
                     SnapshotCapture.run(board.game, board.bridge, "test", 0),
                     board.bridge,
@@ -32,7 +32,9 @@ class PriorityActionCandidatesTest :
                 candidates.hasLegalNonManaAction(board.human).shouldBeTrue()
                 candidates.facts(board.human).hasLegalNonManaAction.shouldBeTrue()
                 board.bridge
-                    .priorityActionFacts(SeatId(1))
+                    .materializeEngineObservation(board.game)
+                    .runtimeFor(SeatId(1))
+                    .priorityActions
                     .hasLegalNonManaAction
                     .shouldBeTrue()
                 actions.ofType(ActionType.Cast).shouldHaveSize(0)

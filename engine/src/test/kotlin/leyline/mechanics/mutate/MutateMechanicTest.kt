@@ -10,9 +10,9 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.SessionTest
@@ -43,7 +43,7 @@ class MutateActionTest :
             mutateGrpId shouldBeGreaterThan 0
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
             val cardIid = human.hand.iid(MUTATE_CARD)
 
             val offer =

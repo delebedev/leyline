@@ -43,7 +43,7 @@ class CastDisplayCostBoardTest :
             val cruise = game.humanPlayerCard("Treasure Cruise")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+            val req = buildPriorityActionsForTest(1, snap, b)
 
             val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(cruise.id)).value).single()
             cast should haveManaCost(generic = 7, blue = 1)
@@ -62,7 +62,7 @@ class CastDisplayCostBoardTest :
             val tribunal = game.humanPlayerCard("Conclave Tribunal")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+            val req = buildPriorityActionsForTest(1, snap, b)
 
             val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(tribunal.id)).value).single()
             cast should haveManaCost(generic = 3, white = 1)
@@ -83,7 +83,7 @@ class CastDisplayCostBoardTest :
             val tribunal = game.humanPlayerCard("Conclave Tribunal")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+            val req = buildPriorityActionsForTest(1, snap, b)
 
             val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(tribunal.id)).value).single()
             cast should haveManaCost(generic = 2, white = 1)
@@ -99,7 +99,7 @@ class CastDisplayCostBoardTest :
             val koi = game.humanPlayerCard("Giant Koi")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+            val req = buildPriorityActionsForTest(1, snap, b)
 
             val activate =
                 castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(koi.id)).value, ActionType.Activate_add3).single()
@@ -119,7 +119,7 @@ class CastDisplayCostBoardTest :
             val fall = game.humanPlayerCard("Fall of the Thran")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+            val req = buildPriorityActionsForTest(1, snap, b)
 
             val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(fall.id)).value).single()
             cast should haveManaCost(generic = 4, white = 1)
@@ -187,7 +187,7 @@ class CastDisplayCostBoardTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val snapshotReq = ActionMapper.buildFromSnapshot(1, snap, b)
+            val snapshotReq = buildPriorityActionsForTest(1, snap, b)
             val naiveReq = ActionMapper.buildNaiveActions(1, b)
 
             val naiveCasts =

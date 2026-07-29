@@ -1,8 +1,10 @@
 package leyline.game.mapping
 
+import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.ManaRequirementValue
+import leyline.game.PreparedPriorityWindow
 import leyline.game.PriorityActionSet
 import leyline.game.PriorityActionValue
 import leyline.game.PriorityAutoTapActionValue
@@ -33,6 +35,32 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 
 /** Terminal owner-side translation from neutral priority values to protocol messages. */
 internal object PriorityActionProjector {
+    fun project(
+        window: PreparedPriorityWindow,
+        idResolver: (ForgeCardId) -> InstanceId,
+    ): ActionMapper.ActionProjection {
+        val active = window.actions.actions.map { project(it, idResolver) }
+        val actions =
+            ActionsAvailableReq
+                .newBuilder()
+                .addAllActions(active)
+                .addAllInactiveActions(window.actions.inactiveActions.map { project(it, idResolver) })
+                .build()
+        val offers =
+            window.offers.zip(active) { offer, action ->
+                ActionOffer(
+                    action = action,
+                    token = offer.token,
+                    cardId = offer.cardId,
+                    abilityId = offer.abilityId,
+                    stackAbilityGrpId = offer.stackAbilityGrpId,
+                    forgeAbilityId = offer.forgeAbilityId,
+                    spellGrpId = offer.spellGrpId,
+                )
+            }
+        return ActionMapper.ActionProjection(actions, offers)
+    }
+
     fun project(
         values: PriorityActionSet,
         idResolver: (ForgeCardId) -> InstanceId,

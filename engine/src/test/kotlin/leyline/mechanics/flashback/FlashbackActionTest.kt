@@ -8,7 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
@@ -30,7 +30,7 @@ class FlashbackActionTest :
                 b.cardRepository.findKeywordAbilityGrpId(thinkTwiceGrpId, KeywordAbilityIds.FLASHBACK)!!
 
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     seatId = 1,
                     snap = SnapshotCapture.run(game, b, "test", 0),
                     bridge = b,
@@ -70,7 +70,7 @@ class FlashbackActionTest :
             handFlashbackSa shouldBe null
 
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     seatId = 1,
                     snap = SnapshotCapture.run(game, b, "test", 0),
                     bridge = b,

@@ -14,7 +14,8 @@ import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
+import leyline.game.mapping.projectPriorityWindowForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -63,7 +64,7 @@ class RoomActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             val offers = roomOffersForIid(actions.actionsList, iid)
             offers.map { it.actionType } shouldContainExactlyInAnyOrder
@@ -93,7 +94,7 @@ class RoomActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             val activeLeft =
                 actions.actionsList.firstOrNull {
@@ -128,7 +129,7 @@ class RoomActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             roomOffersForIid(actions.actionsList, iid).shouldBeEmpty()
             roomOffersForIid(actions.inactiveActionsList, iid).shouldBeEmpty()
@@ -150,7 +151,7 @@ class RoomActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             val offers = roomOffersForIid(actions.actionsList, iid)
             offers.map { it.actionType } shouldContainExactlyInAnyOrder listOf(ActionType.CastRightRoom)
@@ -172,7 +173,7 @@ class RoomActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             roomOffersForIid(actions.actionsList, iid).shouldBeEmpty()
             roomOffersForIid(actions.inactiveActionsList, iid).shouldBeEmpty()
@@ -206,7 +207,7 @@ class RoomActionTest :
                         }.filterNotNull()
                         .firstOrNull()
                         .shouldNotBeNull()
-                val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+                val projection = projectPriorityWindowForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
                 val offer = projection.offers.single { it.action.actionType == actionType && it.action.instanceId == iid }
                 actionBridge.bindActionCatalog(pending.actionId, 12, projection.offers) shouldBe true
                 actionBridge.submitActionToken(pending.actionId, offer.token) shouldBe true

@@ -2,7 +2,6 @@ package leyline.game.bundle
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.SelectNPromptRoute
@@ -11,6 +10,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.CombatDeclarationFacts
+import leyline.game.EngineObservation
 import leyline.game.NaiveGsmAction
 import leyline.game.PlaybackYield
 import leyline.game.annotations.AnnotationBuilder
@@ -22,6 +22,7 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PriorityActionProjector
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
 import leyline.game.mapping.StateMapper
@@ -76,14 +77,7 @@ class BundleBuilder(
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
 
-    fun postAction(
-        counter: MessageCounter,
-        revealForSeat: Int? = null,
-    ): BundleResult = postAction(bridge.requireGame(), counter, revealForSeat)
-
     fun stateOnlyDiff(counter: MessageCounter): BundleResult = stateOnlyDiff(bridge.requireGame(), counter)
-
-    fun phaseTransitionDiff(counter: MessageCounter): BundleResult = phaseTransitionDiff(bridge.requireGame(), counter)
 
     internal fun echoAttackersBundle(
         counter: MessageCounter,
@@ -232,8 +226,7 @@ class BundleBuilder(
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
-        val actionOffers: List<ActionOffer> = emptyList(),
-        val actionGameStateId: Int? = null,
+        val actionCatalog: ActionCatalogPlan? = null,
     )
 
     private data class FrameDiff(
@@ -409,8 +402,7 @@ class BundleBuilder(
         val draft = compile(plannedCounter)
         return FramePlan(
             messages = draft.delivery.messages.toList(),
-            actionOffers = draft.delivery.actionOffers.toList(),
-            actionGameStateId = draft.delivery.actionGameStateId,
+            actionCatalog = draft.delivery.actionCatalog,
             projection =
                 FramePlan.ProjectionCommit(
                     counterBefore = counterBefore,
@@ -474,7 +466,7 @@ class BundleBuilder(
         val reservation = projection.bundleFrameReservation
         try {
             counter.commitAllocation(projection.counterBefore, projection.counterAfter) {
-                val commitProjection = {
+                val commitProjection: () -> Unit = {
                     synchronized(cursor) {
                         projection.pendingSubmittedTargets?.let { pending ->
                             val currentPending = cursor.pendingPSuT()
@@ -518,10 +510,18 @@ class BundleBuilder(
                         }
                     }
                 }
+                val commitFrame = {
+                    val catalog = plan.actionCatalog
+                    if (catalog == null) {
+                        commitProjection()
+                    } else {
+                        commitActionCatalog(catalog, commitProjection)
+                    }
+                }
                 if (reservation != null) {
-                    bridge.commitBundleFrame(reservation, commitProjection)
+                    bridge.commitBundleFrame(reservation, commitFrame)
                 } else {
-                    commitProjection()
+                    commitFrame()
                 }
             }
         } catch (failure: Throwable) {
@@ -550,7 +550,7 @@ class BundleBuilder(
         val last = plans.last().projection
         try {
             counter.commitAllocation(first.counterBefore, last.counterAfter) {
-                bridge.commitBundleFrame(reservation) {
+                val commitProjection: () -> Unit = {
                     synchronized(cursor) {
                         plans.forEach { plan ->
                             val projection = plan.projection
@@ -600,6 +600,15 @@ class BundleBuilder(
                         }
                     }
                 }
+                val catalog = plans.asReversed().mapNotNull(FramePlan::actionCatalog).firstOrNull()
+                val commitFrame = {
+                    if (catalog == null) {
+                        commitProjection()
+                    } else {
+                        commitActionCatalog(catalog, commitProjection)
+                    }
+                }
+                bridge.commitBundleFrame(reservation, commitFrame)
             }
         } catch (failure: Throwable) {
             if (releaseReservationOnFailure) {
@@ -608,6 +617,20 @@ class BundleBuilder(
             throw failure
         }
         return plans.map(FramePlan::delivery)
+    }
+
+    private fun commitActionCatalog(
+        plan: ActionCatalogPlan,
+        commit: () -> Unit,
+    ) {
+        check(plan.offers.isNotEmpty()) { "Cannot expose priority actions without bound engine tokens" }
+        val actionBridge = bridge.seat(SeatId(seatId)).action
+        check(actionBridge.commitActionCatalog(plan.actionId, plan.gameStateId, plan.offers, commit)) {
+            val current = actionBridge.getPending()
+            "Cannot bind priority actions to pending window ${plan.actionId.take(8)} " +
+                "(current=${current?.actionId?.take(8)}, completed=${!actionBridge.isPendingActive(plan.actionId)}, " +
+                "offers=${plan.offers.size})"
+        }
     }
 
     private fun FramePlan.ProjectionCommit.projectedSnapshot(): GsmSnapshot {
@@ -732,71 +755,32 @@ class BundleBuilder(
      *   GRE 1: Diff GameStateMessage with embedded actions (only changed zones/objects)
      *   GRE 2: ActionsAvailableReq
      */
-    fun postAction(
+    internal fun postAction(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
     ): BundleResult =
         compileAndCommit(counter) {
-            compilePostAction(game, counter, revealForSeat)
+            compilePostAction(bridge.materializeEngineObservation(game), counter, revealForSeat)
         }
 
-    fun postAction(
-        snapshot: GsmSnapshot,
+    internal fun postAction(
+        observation: EngineObservation,
         counter: MessageCounter,
         revealForSeat: Int? = null,
     ): BundleResult =
         compileAndCommit(counter) {
-            compilePostAction(snapshot, counter, revealForSeat)
+            compilePostAction(observation, counter, revealForSeat)
         }
 
     internal fun compilePostAction(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
-    ): FramePlan =
-        compilePlan(counter) { plannedCounter ->
-            val diff =
-                buildFrameDiff(
-                    game,
-                    plannedCounter,
-                    revealForSeat = revealForSeat,
-                    includePendingPlayerSubmittedTargets = true,
-                ) { snap, events ->
-                    if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
-                        GameStateUpdate.SendHiFi
-                    } else {
-                        StateMapper.resolveUpdateType(snap, seatId)
-                    }
-                }
-            val nextGs = diff.gameStateId
-            val snap = diff.snap
-            val frame = GsmFrame.from(snap)
-            val projection =
-                buildPriorityProjection(
-                    snap,
-                    idResolver = diff.idResolver::cardIid,
-                )
-            val actions = projection.actions
-            val gs = GsmBuilder.embedActions(diff.result.gsm, actions, frame, recipientSeatId = seatId)
-            val messages =
-                listOf(
-                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, plannedCounter.nextMsgId()) {
-                        it.gameStateMessage = gs
-                    },
-                ) + coinFlipPromptMessages(diff.events.events, nextGs, plannedCounter) +
-                    listOf(
-                        makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, plannedCounter.nextMsgId()) {
-                            it.actionsAvailableReq = actions
-                            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                        },
-                    )
-
-            diff.planDraft(BundleResult(messages, projection.offers, nextGs))
-        }
+    ): FramePlan = compilePostAction(bridge.materializeEngineObservation(game), counter, revealForSeat)
 
     private fun compilePostAction(
-        snapshot: GsmSnapshot,
+        observation: EngineObservation,
         counter: MessageCounter,
         revealForSeat: Int?,
     ): FramePlan =
@@ -806,7 +790,7 @@ class BundleBuilder(
                     game = null,
                     counter = plannedCounter,
                     revealForSeat = revealForSeat,
-                    projectionBaseline = FrameProjectionBaseline(cursor.lastSent, snapTemplate = snapshot),
+                    projectionBaseline = FrameProjectionBaseline(cursor.lastSent, snapTemplate = observation.snapshot),
                     includePendingPlayerSubmittedTargets = true,
                 ) { snap, events ->
                     if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
@@ -817,7 +801,8 @@ class BundleBuilder(
                 }
             val nextGs = diff.gameStateId
             val frame = GsmFrame.from(diff.snap)
-            val projection = buildPriorityProjection(diff.snap, idResolver = diff.idResolver::cardIid)
+            val window = observation.preparedPriorityWindows[SeatId(seatId)]
+            val projection = buildPriorityProjection(observation, idResolver = diff.idResolver::cardIid)
             val gs = GsmBuilder.embedActions(diff.result.gsm, projection.actions, frame, recipientSeatId = seatId)
             val messages =
                 listOf(
@@ -832,7 +817,12 @@ class BundleBuilder(
                         },
                     )
 
-            diff.planDraft(BundleResult(messages, projection.offers, nextGs))
+            diff.planDraft(
+                BundleResult(
+                    messages,
+                    window?.let { ActionCatalogPlan(it.actionId, nextGs, projection.offers) },
+                ),
+            )
         }
 
     /**
@@ -1231,13 +1221,6 @@ class BundleBuilder(
     // MatchSession uses these instead of calling RequestBuilder directly,
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
-    /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(): ActionsAvailableReq {
-        val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
-        val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        return ActionMapper.buildFromSnapshot(seatId, snap, bridge)
-    }
-
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -1261,48 +1244,40 @@ class BundleBuilder(
      *   4. PromptReq (promptId=37)
      *   5. ActionsAvailableReq (promptId=2)
      */
-    fun phaseTransitionDiff(
+    internal fun phaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
     ): BundleResult =
         compileAndCommit(counter) {
-            compilePhaseTransitionDiff(game, counter)
+            compilePhaseTransitionDiff(bridge.materializeEngineObservation(game), counter)
         }
 
-    fun phaseTransitionDiff(
-        snapshot: GsmSnapshot,
+    internal fun phaseTransitionDiff(
+        observation: EngineObservation,
         counter: MessageCounter,
     ): BundleResult =
         compileAndCommit(counter) {
-            compilePhaseTransitionDiff(snapshot, counter)
+            compilePhaseTransitionDiff(observation, counter)
         }
 
     internal fun compilePhaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
-    ): FramePlan = compilePhaseTransitionDiff(game, null, counter)
+    ): FramePlan = compilePhaseTransitionDiff(bridge.materializeEngineObservation(game), counter)
 
     private fun compilePhaseTransitionDiff(
-        snapshot: GsmSnapshot,
-        counter: MessageCounter,
-    ): FramePlan = compilePhaseTransitionDiff(null, snapshot, counter)
-
-    private fun compilePhaseTransitionDiff(
-        @Suppress("CanBeNonNullable")
-        game: Game?,
-        snapshot: GsmSnapshot?,
+        observation: EngineObservation,
         counter: MessageCounter,
     ): FramePlan =
         compilePlan(counter) { plannedCounter ->
             val prevGs = plannedCounter.currentGsId()
             val nextGs = plannedCounter.nextGsId()
-            val snap =
-                snapshot?.withFrameIdentity(matchId, nextGs)
-                    ?: GsmSnapshot.capture(checkNotNull(game), bridge, matchId, nextGs)
+            val snap = observation.snapshot.withFrameIdentity(matchId, nextGs)
 
             val frame = GsmFrame.from(snap)
-            val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-            val priorityProjection = buildPriorityProjection(snap)
+            val actions = buildNaiveActions(observation)
+            val window = observation.preparedPriorityWindows[SeatId(seatId)]
+            val priorityProjection = buildPriorityProjection(observation)
 
             val gs1 =
                 GsmBuilder.buildTransitionState(
@@ -1365,7 +1340,11 @@ class BundleBuilder(
                 }
 
             FramePlanDraft(
-                delivery = BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), priorityProjection.offers, commitGs),
+                delivery =
+                    BundleResult(
+                        listOf(msg1, msg2, msg3, msg4, msg5),
+                        window?.let { ActionCatalogPlan(it.actionId, commitGs, priorityProjection.offers) },
+                    ),
                 nextBaseline = snap,
                 mutations = null,
                 nextAnnotationId = annotationId + 1,
@@ -1373,19 +1352,28 @@ class BundleBuilder(
         }
 
     private fun buildPriorityProjection(
-        snap: GsmSnapshot,
+        observation: EngineObservation,
         idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
-    ): ActionMapper.ActionProjection {
-        val actionBridge = bridge.seat(SeatId(seatId)).action
-        return if (actionBridge.getPending() == null) {
-            ActionMapper.ActionProjection(
-                actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge, idResolver = idResolver),
-                offers = emptyList(),
-            )
-        } else {
-            ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, idResolver = idResolver)
-        }
-    }
+    ): ActionMapper.ActionProjection =
+        observation.preparedPriorityWindows[SeatId(seatId)]
+            ?.let { PriorityActionProjector.project(it, idResolver) }
+            ?: ActionMapper.ActionProjection(buildNaiveActions(observation, idResolver), emptyList())
+
+    internal fun projectObservedActions(observation: EngineObservation): ActionMapper.ActionProjection =
+        buildPriorityProjection(observation)
+
+    private fun buildNaiveActions(
+        observation: EngineObservation,
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
+    ): ActionsAvailableReq =
+        ActionsAvailableReq
+            .newBuilder()
+            .addAllActions(
+                observation
+                    .runtimeFor(SeatId(seatId))
+                    .naiveActions
+                    .map { ActionMapper.buildNaiveGsmAction(it, idResolver) },
+            ).build()
 
     /** Embed stripped-down actions from ActionsAvailableReq into a GSM builder. */
     private fun embedActions(

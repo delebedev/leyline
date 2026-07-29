@@ -11,6 +11,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -100,7 +101,7 @@ class PlotActionTest :
             }
         }
 
-        test("ActionMapper.buildFromSnapshot offers Cast for plot card in hand (snapshot path parity)") {
+        test("buildPriorityActionsForTest offers Cast for plot card in hand (snapshot path parity)") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
@@ -116,7 +117,7 @@ class PlotActionTest :
             val brawlerIid = game.humanPlayer.hand.iid("Railway Brawler")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             val plotOffer =
                 fromSnap.actionsList.firstOrNull {

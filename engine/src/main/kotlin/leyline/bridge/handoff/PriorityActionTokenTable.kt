@@ -36,6 +36,40 @@ internal class PriorityActionTokenTable(
                 commands[it] = BoundCommand(actionId, command)
             }
 
+    /**
+     * Atomically replace one window's commands and return one token per input.
+     *
+     * Existing tokens are reused for equal commands. Token generation completes
+     * against a staged table so a factory failure leaves the live table intact.
+     */
+    fun replaceBatch(
+        actionId: String,
+        replacements: List<PlayerAction>,
+    ): List<ActionToken> {
+        val existingForWindow = commands.filterValues { it.actionId == actionId }
+        val staged = commands.filterValues { it.actionId != actionId }.toMutableMap()
+        val assigned = mutableMapOf<PlayerAction, ActionToken>()
+        val tokens =
+            replacements.map { command ->
+                val token =
+                    assigned[command]
+                        ?: existingForWindow.entries
+                            .firstOrNull { (_, registered) -> registered.command == command }
+                            ?.key
+                        ?: tokenFactory().also { generated ->
+                            check(generated !in commands && generated !in staged) {
+                                "Priority action token factory returned a duplicate token"
+                            }
+                        }
+                assigned[command] = token
+                staged[token] = BoundCommand(actionId, command)
+                token
+            }
+        commands.clear()
+        commands.putAll(staged)
+        return tokens
+    }
+
     fun contains(
         actionId: String,
         token: ActionToken,

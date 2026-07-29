@@ -7,7 +7,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beInCommandOf
@@ -61,7 +61,7 @@ class BrawlMatchFlowTest :
 
             val commanderIid = board.bridge.getOrAllocInstanceId(ForgeCardId(commander.id)).value
             val actions =
-                ActionMapper.buildFromSnapshot(
+                buildPriorityActionsForTest(
                     activeSeat.value,
                     SnapshotCapture.run(board.game, board.bridge, "test", 0),
                     board.bridge,

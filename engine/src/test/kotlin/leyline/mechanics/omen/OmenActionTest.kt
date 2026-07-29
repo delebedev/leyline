@@ -11,7 +11,8 @@ import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
+import leyline.game.mapping.projectPriorityWindowForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -70,7 +71,7 @@ class OmenActionTest :
                     }.filterNotNull()
                     .firstOrNull()
                     .shouldNotBeNull()
-            val projection = ActionMapper.buildProjectionFromSnapshot(1, snap, b)
+            val projection = projectPriorityWindowForTest(1, snap, b)
             val actions = projection.actions
 
             val mainCast = actions.actionsList.firstOrNull { it.actionType == ActionType.Cast && it.instanceId == iid }
@@ -106,7 +107,7 @@ class OmenActionTest :
             val iid = human.hand.iid("Riling Dawnbreaker")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             val activeOmen =
                 actions.actionsList.firstOrNull { it.actionType == ActionType.CastOmen && it.instanceId == iid }
@@ -131,7 +132,7 @@ class OmenActionTest :
             val iid = human.graveyard.iid("Riling Dawnbreaker")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
+            val actions = buildPriorityActionsForTest(1, snap, b)
 
             omenOffers(actions.actionsList, iid).shouldBeEmpty()
             omenOffers(actions.inactiveActionsList, iid).shouldBeEmpty()

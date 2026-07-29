@@ -78,76 +78,14 @@ object ActionMapper {
         )
     }
 
-    /**
-     * Build [ActionsAvailableReq] from a pre-captured [GsmSnapshot].
-     *
-     * Zone iteration and card-identity reads come from the snapshot (immutable,
-     * race-free). Candidate legality comes from [PriorityActionCandidates].
-     * This is the production action-emission path. The live [buildActionList]
-     * overload remains as a focused test/naive-action helper and does not emit
-     * zone-cast rail shapes.
-     */
-    fun buildFromSnapshot(
-        seatId: Int,
-        snap: GsmSnapshot,
-        bridge: GameBridge,
-        priorityCandidates: PriorityActionCandidates? = null,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
-    ): ActionsAvailableReq =
-        buildProjection(
-            seatId,
-            snap,
-            bridge,
-            priorityCandidates,
-            bindOffers = false,
-            idResolver = idResolver,
-        ).actions
-
-    fun buildProjectionFromSnapshot(
-        seatId: Int,
-        snap: GsmSnapshot,
-        bridge: GameBridge,
-        priorityCandidates: PriorityActionCandidates? = null,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
-    ): ActionProjection =
-        buildProjection(
-            seatId,
-            snap,
-            bridge,
-            priorityCandidates,
-            bindOffers = true,
-            idResolver = idResolver,
-        )
-
     @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
-    private fun buildProjection(
+    internal fun prepareFromSnapshot(
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
-        priorityCandidates: PriorityActionCandidates?,
-        bindOffers: Boolean,
-        idResolver: (ForgeCardId) -> InstanceId,
-    ): ActionProjection {
-        val builder = PriorityActionSetBuilder()
-        val offers = mutableListOf<ActionOffer>()
-        val actionBridge = if (bindOffers) bridge.seat(SeatId(seatId)).action else null
-
-        fun bindOffer(
-            action: PriorityActionValue,
-            command: PlayerAction,
-            stackAbilityGrpId: Int? = null,
-            forgeAbilityId: Int? = null,
-            spellGrpId: Int? = null,
-        ) {
-            actionBridge
-                ?.registerActionOffer(
-                    PriorityActionProjector.project(action, idResolver),
-                    command,
-                    stackAbilityGrpId,
-                    forgeAbilityId,
-                    spellGrpId,
-                )?.let(offers::add)
-        }
+        candidates: PriorityActionCandidates,
+    ): PriorityActionPreparation {
+        val builder = PriorityActionPreparationBuilder()
 
         fun addOffer(
             action: PriorityActionValue,
@@ -156,15 +94,13 @@ object ActionMapper {
             forgeAbilityId: Int? = null,
             spellGrpId: Int? = null,
         ) {
-            builder.addAction(action)
-            bindOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
+            builder.addAction(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
         }
 
         val handZoneId = ZoneIds.handOf(seatId)
         val hand = snap.zones[handZoneId]?.contents.orEmpty()
         val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
         val player = bridge.getPlayer(SeatId(seatId))
-        val candidates = priorityCandidates ?: bridge.getGame()?.let { game -> player?.let { PriorityActionCandidates.query(game, it) } }
 
         fun autoTapValueForCost(
             player: Player,
@@ -202,7 +138,7 @@ object ActionMapper {
                     grpId,
                     { boundData },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
-                    candidates?.forCard(forgeCard)?.manaAbilities ?: emptyList(),
+                    candidates.forCard(forgeCard).manaAbilities,
                 )
                 ) {
                     addOffer(
@@ -220,7 +156,7 @@ object ActionMapper {
                     grpId,
                     { boundData },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
-                    candidates?.forCard(forgeCard)?.manaAbilities ?: emptyList(),
+                    candidates.forCard(forgeCard).manaAbilities,
                 )
                 ) {
                     addOffer(
@@ -242,26 +178,33 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val player = bridge.getPlayer(SeatId(seatId)) ?: continue
                 val cardData = snap.boundCards[fid]?.data
-                ActivatedActionEmitter.preparePlayableNonManaActivatedAbilities(
-                    builder = builder,
-                    card = forgeCard,
-                    player = player,
-                    grpId = { grpId },
-                    cardData = { _ -> cardData },
-                    envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
-                    abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                    autoTapSolution = { cost -> autoTapValueForCost(player, cost) },
-                    skipSpecialTurnFaceUp = true,
-                    abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
-                    onActive = { action, abilityIndex, ability, abilityGrpId ->
-                        bindOffer(
-                            action,
-                            PlayerAction.ActivateAbility(fid, abilityIndex, ability = ability),
-                            abilityGrpId.takeIf { it != 0 },
-                            ability.id,
-                        )
-                    },
-                )
+                ActivatedActionEmitter
+                    .preparePlayableNonManaActivatedAbilities(
+                        card = forgeCard,
+                        player = player,
+                        grpId = { grpId },
+                        cardData = { _ -> cardData },
+                        envelope = ActivatedActionEmitter.Envelope.PERMANENT_SOURCE,
+                        abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                        autoTapSolution = { cost -> autoTapValueForCost(player, cost) },
+                        skipSpecialTurnFaceUp = true,
+                        abilities = candidates.forCard(forgeCard).activations,
+                    ).forEach { prepared ->
+                        if (prepared.active) {
+                            addOffer(
+                                prepared.action,
+                                PlayerAction.ActivateAbility(
+                                    fid,
+                                    prepared.abilityIndex,
+                                    ability = prepared.ability,
+                                ),
+                                prepared.abilityGrpId.takeIf { it != 0 },
+                                prepared.ability.id,
+                            )
+                        } else {
+                            builder.addInactiveAction(prepared.action)
+                        }
+                    }
             }
         }
 
@@ -279,14 +222,16 @@ object ActionMapper {
             val forgeCard = bridge.findCard(fid) ?: continue
             if (forgeCard.lockedRooms.isEmpty()) continue
             PriorityActionRailPreparer
-                .prepareRoomCasts(forgeCard, player, fid, candidates?.forCard(forgeCard)?.casts ?: emptyList())
+                .prepareRoomCasts(forgeCard, player, fid, candidates.forCard(forgeCard).casts)
                 .forEach { prepared ->
-                    if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
-                    if (!prepared.active) return@forEach
-                    bindOffer(
-                        prepared.action,
-                        PlayerAction.CastSpell(fid, prepared.abilityIndex, ability = prepared.ability),
-                    )
+                    if (prepared.active) {
+                        addOffer(
+                            prepared.action,
+                            PlayerAction.CastSpell(fid, prepared.abilityIndex, ability = prepared.ability),
+                        )
+                    } else {
+                        builder.addInactiveAction(prepared.action)
+                    }
                 }
         }
 
@@ -320,15 +265,17 @@ object ActionMapper {
                                 leyline.game.data.KeywordAbilityIds.MANIFEST_DREAD
                         },
                     abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                    abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
+                    abilities = candidates.forCard(forgeCard).activations,
                 )?.let { prepared ->
-                    if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
-                    if (!prepared.active) return@let
-                    bindOffer(
-                        prepared.action,
-                        PlayerAction.ActivateAbility(fid, prepared.abilityIndex, ability = prepared.ability),
-                        forgeAbilityId = prepared.ability.id,
-                    )
+                    if (prepared.active) {
+                        addOffer(
+                            prepared.action,
+                            PlayerAction.ActivateAbility(fid, prepared.abilityIndex, ability = prepared.ability),
+                            forgeAbilityId = prepared.ability.id,
+                        )
+                    } else {
+                        builder.addInactiveAction(prepared.action)
+                    }
                 }
         }
         // --- Hand: lands ---
@@ -336,7 +283,7 @@ object ActionMapper {
             val card = snap.objects[fid] ?: continue
             if (!card.isLand) continue
             val grpId = card.grpId
-            val landAbility = bridge.findCard(fid)?.let { candidates?.forCard(it)?.landAbility }
+            val landAbility = bridge.findCard(fid)?.let { candidates.forCard(it).landAbility }
             val canPlayLand = landAbility != null && player?.canPlayLand(landAbility.hostCard, false, landAbility) == true
             val action =
                 PriorityActionValue.PlayLand(
@@ -364,18 +311,20 @@ object ActionMapper {
             // but the hand-cast emit must skip them.
             if (cardSnap.isRoom) {
                 PriorityActionRailPreparer
-                    .prepareRoomCasts(forgeCard, player, fid, candidates?.forCard(forgeCard)?.casts ?: emptyList())
+                    .prepareRoomCasts(forgeCard, player, fid, candidates.forCard(forgeCard).casts)
                     .forEach { prepared ->
-                        if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
-                        if (!prepared.active) return@forEach
-                        bindOffer(
-                            prepared.action,
-                            PlayerAction.CastSpell(fid, prepared.abilityIndex, ability = prepared.ability),
-                        )
+                        if (prepared.active) {
+                            addOffer(
+                                prepared.action,
+                                PlayerAction.CastSpell(fid, prepared.abilityIndex, ability = prepared.ability),
+                            )
+                        } else {
+                            builder.addInactiveAction(prepared.action)
+                        }
                     }
                 continue
             }
-            val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
+            val castable = candidates.forCard(forgeCard).casts
             val sa = castable.firstOrNull { it.hasParam("WithoutManaCost") } ?: castable.firstOrNull() ?: continue
             val abilityIndex = castable.indexOfFirst { it === sa }
             val noLegalTargets =
@@ -403,8 +352,7 @@ object ActionMapper {
                         altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                         castable = castable,
                     ).forEach { (action, index, ability) ->
-                        builder.addAction(action)
-                        bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
+                        addOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
                     }
             }
 
@@ -427,8 +375,7 @@ object ActionMapper {
                             altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                             castable = castable,
                         ).forEach { (action, index, ability) ->
-                            builder.addAction(action)
-                            bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
+                            addOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
                         }
                 }
                 // Adventure / Omen offers are independent of the main face's
@@ -437,13 +384,15 @@ object ActionMapper {
                     .prepareSecondaryFaceCasts(forgeCard, player, fid, grpId, cardSnap, castable)
                     .forEach { prepared ->
                         val (action, index, ability) = prepared
-                        if (prepared.active) builder.addAction(action) else builder.addInactiveAction(action)
-                        if (!prepared.active) return@forEach
-                        bindOffer(
-                            action,
-                            PlayerAction.CastSpell(fid, index, ability = ability),
-                            spellGrpId = linkedFaceGrpId(snap.boundCards[fid], (action as PriorityActionValue.Cast).kind),
-                        )
+                        if (prepared.active) {
+                            addOffer(
+                                action,
+                                PlayerAction.CastSpell(fid, index, ability = ability),
+                                spellGrpId = linkedFaceGrpId(snap.boundCards[fid], (action as PriorityActionValue.Cast).kind),
+                            )
+                        } else {
+                            builder.addInactiveAction(action)
+                        }
                     }
                 continue
             }
@@ -473,8 +422,7 @@ object ActionMapper {
                         altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
                         castable = castable,
                     ).forEach { (action, index, ability) ->
-                        builder.addAction(action)
-                        bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
+                        addOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
                     }
             }
 
@@ -482,13 +430,15 @@ object ActionMapper {
                 .prepareSecondaryFaceCasts(forgeCard, player, fid, grpId, cardSnap, castable)
                 .forEach { prepared ->
                     val (action, index, ability) = prepared
-                    if (prepared.active) builder.addAction(action) else builder.addInactiveAction(action)
-                    if (!prepared.active) return@forEach
-                    bindOffer(
-                        action,
-                        PlayerAction.CastSpell(fid, index, ability = ability),
-                        spellGrpId = linkedFaceGrpId(snap.boundCards[fid], (action as PriorityActionValue.Cast).kind),
-                    )
+                    if (prepared.active) {
+                        addOffer(
+                            action,
+                            PlayerAction.CastSpell(fid, index, ability = ability),
+                            spellGrpId = linkedFaceGrpId(snap.boundCards[fid], (action as PriorityActionValue.Cast).kind),
+                        )
+                    } else {
+                        builder.addInactiveAction(action)
+                    }
                 }
         }
 
@@ -503,16 +453,21 @@ object ActionMapper {
                     cardId = fid,
                     parentGrpId = cardSnap.grpId,
                     cardRepository = bridge.cardRepository,
-                    castable = candidates?.forCard(forgeCard)?.casts ?: emptyList(),
-                    mdfcLandAbility = candidates?.forCard(forgeCard)?.mdfcLandAbility,
+                    castable = candidates.forCard(forgeCard).casts,
+                    mdfcLandAbility = candidates.forCard(forgeCard).mdfcLandAbility,
                 ).forEach { prepared ->
-                    if (prepared.active) builder.addAction(prepared.action) else builder.addInactiveAction(prepared.action)
-                    if (!prepared.active) return@forEach
-                    when (val command = prepared.command) {
-                        is PriorityActionRailPreparer.Command.Cast ->
-                            bindOffer(prepared.action, PlayerAction.CastSpell(fid, command.index, ability = command.ability))
-                        PriorityActionRailPreparer.Command.PlayLand ->
-                            bindOffer(prepared.action, PlayerAction.PlayLand(fid))
+                    if (prepared.active) {
+                        when (val command = prepared.command) {
+                            is PriorityActionRailPreparer.Command.Cast ->
+                                addOffer(
+                                    prepared.action,
+                                    PlayerAction.CastSpell(fid, command.index, ability = command.ability),
+                                )
+                            PriorityActionRailPreparer.Command.PlayLand ->
+                                addOffer(prepared.action, PlayerAction.PlayLand(fid))
+                        }
+                    } else {
+                        builder.addInactiveAction(prepared.action)
                     }
                 }
         }
@@ -525,51 +480,68 @@ object ActionMapper {
             if (!cardSnap.hasNonManaActivatedAbilities) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
-            ActivatedActionEmitter.preparePlayableNonManaActivatedAbilities(
-                builder = builder,
-                card = forgeCard,
-                player = player,
-                grpId = { cardSnap.grpId },
-                cardData = { _ -> snap.boundCards[fid]?.data },
-                envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
-                abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
-                autoTapSolution = { cost -> autoTapValueForCost(player, cost) },
-                abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
-                onActive = { action, abilityIndex, ability, abilityGrpId ->
-                    bindOffer(
-                        action,
-                        PlayerAction.ActivateAbility(fid, abilityIndex, ability = ability),
-                        abilityGrpId.takeIf { it != 0 },
-                        ability.id,
-                    )
-                },
-            )
+            ActivatedActionEmitter
+                .preparePlayableNonManaActivatedAbilities(
+                    card = forgeCard,
+                    player = player,
+                    grpId = { cardSnap.grpId },
+                    cardData = { _ -> snap.boundCards[fid]?.data },
+                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
+                    abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
+                    autoTapSolution = { cost -> autoTapValueForCost(player, cost) },
+                    abilities = candidates.forCard(forgeCard).activations,
+                ).forEach { prepared ->
+                    if (prepared.active) {
+                        addOffer(
+                            prepared.action,
+                            PlayerAction.ActivateAbility(fid, prepared.abilityIndex, ability = prepared.ability),
+                            prepared.abilityGrpId.takeIf { it != 0 },
+                            prepared.ability.id,
+                        )
+                    } else {
+                        builder.addInactiveAction(prepared.action)
+                    }
+                }
         }
 
         // --- Zone casts (graveyard, exile, command) ---
         PriorityActionZonePreparer.prepareZoneCasts(seatId, snap, bridge, candidates).forEach { prepared ->
             if (prepared.active) {
-                addOffer(prepared.action, checkNotNull(prepared.command))
+                addOffer(
+                    prepared.action,
+                    checkNotNull(prepared.command),
+                    prepared.stackAbilityGrpId,
+                    prepared.forgeAbilityId,
+                    prepared.spellGrpId,
+                )
             } else {
                 builder.addInactiveAction(prepared.action)
             }
         }
 
         // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
-        PriorityActionZonePreparer.prepareGraveyardActivations(
-            seatId,
-            snap,
-            builder,
-            bridge,
-            candidates,
-            ::bindOffer,
-        )
+        PriorityActionZonePreparer
+            .prepareGraveyardActivations(seatId, snap, bridge, candidates)
+            .forEach { prepared ->
+                if (prepared.active) {
+                    addOffer(
+                        prepared.action,
+                        checkNotNull(prepared.command),
+                        prepared.stackAbilityGrpId,
+                        prepared.forgeAbilityId,
+                        prepared.spellGrpId,
+                    )
+                } else {
+                    builder.addInactiveAction(prepared.action)
+                }
+            }
 
         // Pass + FloatMana always available
         addOffer(PriorityActionValue.Pass, PlayerAction.PassPriority)
         addOffer(PriorityActionValue.FloatMana, PlayerAction.PassPriority)
 
-        val values = builder.build()
+        val preparation = builder.build()
+        val values = preparation.actions
         val manaCount = values.actions.count { it is PriorityActionValue.ActivateMana }
         val landCount = values.actions.count { it is PriorityActionValue.PlayLand }
         val castCount = values.actions.count { it is PriorityActionValue.Cast }
@@ -586,10 +558,7 @@ object ActionMapper {
             values.actions.size,
         )
 
-        if (bindOffers) {
-            check(values.actions.size == offers.size) { "Every active priority action must have an executable offer" }
-        }
-        return ActionProjection(PriorityActionProjector.project(values, idResolver), offers)
+        return preparation
     }
 
     private fun emitPlayLandAction(

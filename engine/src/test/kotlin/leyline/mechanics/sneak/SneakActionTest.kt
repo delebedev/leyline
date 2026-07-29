@@ -10,6 +10,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -73,7 +74,7 @@ class SneakActionTest :
             sneakAbilityGrpId!! shouldBeGreaterThan 0
         }
 
-        test("ActionMapper.buildFromSnapshot does not crash and does not emit bogus offer without attackers") {
+        test("buildPriorityActionsForTest does not crash and does not emit bogus offer without attackers") {
             // Sneak's payCost includes "Return an unblocked attacker", so without a
             // combat state canPayManaCost returns false and no alt-cost offer should
             // appear. This pins the snapshot path shape — the same rail
@@ -90,7 +91,7 @@ class SneakActionTest :
                     .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             fromSnap shouldNot offerAltCost(sneakAbilityGrpId)
         }

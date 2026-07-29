@@ -11,6 +11,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -107,7 +108,7 @@ class ForetellActionTest :
             }
         }
 
-        test("ActionMapper.buildFromSnapshot offers Cast for foretell card in hand (snapshot path parity)") {
+        test("buildPriorityActionsForTest offers Cast for foretell card in hand (snapshot path parity)") {
             // Demon Bolt targets "creature or planeswalker". The snapshot path runs
             // hasUnmetTargeting and skips the whole card if the chosen SA has no
             // legal targets — which would also drop the foretell offer. Give the AI
@@ -127,7 +128,7 @@ class ForetellActionTest :
             val boltIid = game.humanPlayer.hand.iid("Demon Bolt")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             val foretellOffer =
                 fromSnap.actionsList.firstOrNull {

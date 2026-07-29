@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.should
 import leyline.bridge.types.ForgeCardId
+import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
@@ -45,7 +46,7 @@ class NaiveActionsCostReductionTest :
                 }
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(crabId)).value
-            val legalActions = bundleBuilder(bridge).buildActions()
+            val legalActions = buildPriorityActionsForTest(1, GsmSnapshot.capture(game, bridge, "test", 0), bridge)
             val legalAction =
                 (legalActions.actionsList + legalActions.inactiveActionsList)
                     .first { it.actionType == ActionType.Cast && it.instanceId == instanceId }

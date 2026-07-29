@@ -18,8 +18,8 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
@@ -215,7 +215,7 @@ class PuzzleBridgeTest :
         test("web test 00 actions include Cast") {
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(game, b, "test", 0), b)
             actions.actionsList.count { it.actionType.name == "Cast" } shouldBe 1
         }
 

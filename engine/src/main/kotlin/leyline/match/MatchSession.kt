@@ -1,7 +1,5 @@
 package leyline.match
 
-import leyline.bridge.handoff.ActionResponseKey
-import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PlayerLossCause
 import leyline.bridge.types.SeatId
@@ -9,6 +7,7 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.EngineCut
 import leyline.game.EngineCutCheckpoint
 import leyline.game.annotations.AnnotationLossReason
+import leyline.game.bundle.ActionCatalogPlan
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
@@ -33,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Transport-agnostic: sends messages through [MessageSink].
  * [MatchHandler] creates one per connection and delegates GRE messages here.
  */
+@Suppress("LargeClass")
 class MatchSession(
     val connection: ConnectionState,
     override val gameBridge: GameBridge,
@@ -187,7 +187,7 @@ class MatchSession(
             // The owner wait already drained every preceding playback value.
             // Allocate the phase transition next on the same causal gsId chain.
             val bb = bundleBuilder
-            val result = bb.phaseTransitionDiff(ctx.snapshot(), counter)
+            val result = bb.phaseTransitionDiff(ctx.observation(), counter)
             sendBundle(result)
 
             // Seed state snapshot for subsequent diff computation.
@@ -227,6 +227,16 @@ class MatchSession(
         return owner.reduce {
             if (autoAdvanceClosed.get()) null else action()
         }
+    }
+
+    /** Project and correlate the current owner-observed executable action window once. */
+    fun currentObservedActionCatalog(gameStateId: Int): Pair<ActionsAvailableReq, ActionCatalogPlan?> {
+        owner.assertOwnerThread()
+        val observation = ctx.observation()
+        val projection = bundleBuilder.projectObservedActions(observation)
+        val window = observation.preparedPriorityWindows[seatId]
+        val catalog = window?.let { ActionCatalogPlan(it.actionId, gameStateId, projection.offers) }
+        return projection.actions to catalog
     }
 
     /**
@@ -544,7 +554,7 @@ class MatchSession(
         revealForSeat: Int?,
     ) {
         val bb = bundleBuilder
-        val result = bb.postAction(ctx.snapshot(), counter, revealForSeat)
+        val result = bb.postAction(ctx.observation(), counter, revealForSeat)
 
         // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
         val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
@@ -567,7 +577,6 @@ class MatchSession(
         }
 
     private fun sendBundleOwned(result: BundleBuilder.BundleResult) {
-        bindActionOffers(result.actionGameStateId, result.actionOffers)
         for (gre in result.messages) {
             if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
             if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
@@ -820,30 +829,6 @@ class MatchSession(
         outbox.close()
         if (gameBridge.autoAdvanceRequester === autoAdvanceRequest) {
             gameBridge.autoAdvanceRequester = null
-        }
-    }
-
-    private fun bindActionOffers(
-        gameStateId: Int?,
-        offers: List<GameActionBridge.ActionOffer>,
-    ) {
-        if (gameStateId == null && offers.isEmpty()) return
-        val promptGameStateId = checkNotNull(gameStateId) { "Action offers require a game-state id" }
-        check(offers.isNotEmpty()) { "Cannot expose priority actions without bound engine tokens" }
-        val actionBridge = gameBridge.seat(seatId).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Cannot expose priority actions without a pending window" }
-        check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
-            val current = actionBridge.getPending()
-            val currentActionId = current?.actionId?.take(8)
-            val completed = !actionBridge.isPendingActive(pending.actionId)
-            val duplicateSelectors =
-                offers
-                    .groupBy { ActionResponseKey.from(it.action) }
-                    .filterValues { it.size > 1 }
-                    .mapValues { (_, variants) -> variants.map { Triple(it.token, it.stackAbilityGrpId, it.forgeAbilityId) } }
-            "Cannot bind priority actions to pending window ${pending.actionId.take(8)} " +
-                "(current=$currentActionId, completed=$completed, offers=${offers.size}, " +
-                "duplicates=$duplicateSelectors)"
         }
     }
 

@@ -1,11 +1,17 @@
 package leyline.game.mapping
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.UnitTag
+import leyline.bridge.handoff.ActionToken
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.ManaRequirementValue
+import leyline.game.PreparedPriorityOffer
+import leyline.game.PreparedPriorityWindow
+import leyline.game.PriorityActionSet
 import leyline.game.PriorityActionValue
 import leyline.game.PriorityAutoTapActionValue
 import leyline.game.PriorityAutoTapSolutionValue
@@ -228,6 +234,45 @@ class PriorityActionProjectorTest :
 
             cases.forEach { (value, actionType) ->
                 PriorityActionProjector.project(value, resolve).actionType shouldBe actionType
+            }
+        }
+
+        test("terminal projection resolves each action once and offers reuse the projected action") {
+            val cast = PriorityActionValue.Cast(PriorityCastKind.CAST, ForgeCardId(10), shouldStop = false)
+            val activate = PriorityActionValue.Activate(ForgeCardId(11), shouldStop = false)
+            val inactive = PriorityActionValue.PlayLand(PriorityPlayKind.LAND, ForgeCardId(12), shouldStop = false)
+            val window =
+                PreparedPriorityWindow(
+                    actionId = "priority-1",
+                    actions = PriorityActionSet(listOf(cast, activate), listOf(inactive)),
+                    offers =
+                        listOf(
+                            PreparedPriorityOffer(cast, ActionToken("cast"), ForgeCardId(10), 2),
+                            PreparedPriorityOffer(
+                                activate,
+                                ActionToken("activate"),
+                                ForgeCardId(11),
+                                3,
+                                stackAbilityGrpId = 40,
+                                forgeAbilityId = 50,
+                            ),
+                        ),
+                )
+            val resolved = mutableListOf<ForgeCardId>()
+
+            val projection =
+                PriorityActionProjector.project(window) { cardId ->
+                    resolved += cardId
+                    checkNotNull(ids[cardId])
+                }
+
+            assertSoftly {
+                resolved shouldBe listOf(ForgeCardId(10), ForgeCardId(11), ForgeCardId(12))
+                projection.offers[0].action shouldBeSameInstanceAs projection.actions.actionsList[0]
+                projection.offers[1].action shouldBeSameInstanceAs projection.actions.actionsList[1]
+                projection.offers.map { it.token } shouldBe listOf(ActionToken("cast"), ActionToken("activate"))
+                projection.offers[1].stackAbilityGrpId shouldBe 40
+                projection.offers[1].forgeAbilityId shouldBe 50
             }
         }
     })

@@ -7,7 +7,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
@@ -42,7 +42,7 @@ class HarmonizeActionTest :
             val sourceGrpId = b.cardRepository.findGrpIdByName("Winternight Stories")!!
             val harmonizeAbilityGrpId = b.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.HARMONIZE)!!
 
-            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
             val harmonizeOffer =
                 actions.actionsList.firstOrNull {
                     it.actionType == ActionType.Cast &&

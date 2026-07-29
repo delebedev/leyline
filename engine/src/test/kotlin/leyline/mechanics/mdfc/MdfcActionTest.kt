@@ -9,7 +9,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -35,7 +35,7 @@ class MdfcActionTest :
             val human = game.humanPlayer
             val iid = human.hand.iid("Silundi Vision")
 
-            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             val mainCast = actions.actionsList.firstOrNull { it.actionType == ActionType.Cast && it.instanceId == iid }
             val landFace = actionsFor(actions.actionsList, iid, ActionType.PlayMdfc).firstOrNull()
@@ -63,7 +63,7 @@ class MdfcActionTest :
             val human = game.humanPlayer
             val iid = human.hand.iid("Esika, God of the Tree")
 
-            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             val backSpell = actionsFor(actions.actionsList, iid, ActionType.CastMdfc).firstOrNull()
             assertSoftly {
@@ -83,7 +83,7 @@ class MdfcActionTest :
                 }
             val iid = game.humanPlayer.graveyard.iid("Silundi Vision")
 
-            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             actionsFor(actions.actionsList, iid, ActionType.PlayMdfc).shouldBeEmpty()
             actionsFor(actions.inactiveActionsList, iid, ActionType.PlayMdfc).shouldBeEmpty()

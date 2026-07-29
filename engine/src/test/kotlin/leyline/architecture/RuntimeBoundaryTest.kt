@@ -18,6 +18,7 @@ import leyline.game.GamePlayback
 import leyline.game.InteractivePlaybackMaterializer
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackYield
+import leyline.game.PreparedPriorityWindow
 import leyline.game.PriorityActionSet
 import leyline.game.PriorityActionValue
 import leyline.game.SeatRuntimeFacts
@@ -137,7 +138,7 @@ class RuntimeBoundaryTest :
 
         test("priority action values recursively contain boundary-safe facts") {
             val seen = mutableSetOf<Class<*>>()
-            val valuePackages = setOf("leyline.game", "leyline.bridge.types")
+            val valuePackages = setOf("leyline.game", "leyline.bridge.types", "leyline.bridge.handoff")
 
             fun isProjectValue(type: Class<*>): Boolean = !type.isEnum && type.packageName in valuePackages
 
@@ -175,6 +176,7 @@ class RuntimeBoundaryTest :
 
             visit(PriorityActionValue::class.java)
             visit(PriorityActionSet::class.java)
+            visit(PreparedPriorityWindow::class.java)
         }
 
         test("worker failure crosses the supervisor boundary as facts only") {
@@ -220,6 +222,18 @@ class RuntimeBoundaryTest :
             }
             check(violations.isEmpty()) {
                 "Match orchestration reads the live engine graph: ${violations.joinToString()}"
+            }
+        }
+
+        test("priority action projection cannot query live candidates") {
+            val mapperSource =
+                sequenceOf(
+                    cwd.resolve("src/main/kotlin/leyline/game/mapping/ActionMapper.kt"),
+                    cwd.resolve("engine/src/main/kotlin/leyline/game/mapping/ActionMapper.kt"),
+                ).first(Files::isRegularFile)
+            val source = Files.readString(mapperSource)
+            check("fun buildFromSnapshot(" !in source && "PriorityActionCandidates.query(" !in source) {
+                "Priority action projection regained a live candidate entrant"
             }
         }
 

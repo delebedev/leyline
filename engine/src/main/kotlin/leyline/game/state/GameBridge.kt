@@ -29,6 +29,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionPrompt
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
@@ -52,6 +53,8 @@ import leyline.game.EngineObservation
 import leyline.game.GamePlayback
 import leyline.game.InteractionReadiness
 import leyline.game.PlaybackYield
+import leyline.game.PreparedPriorityWindow
+import leyline.game.PriorityActionSet
 import leyline.game.SeatRuntimeFacts
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleCursor
@@ -65,6 +68,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.NaiveGsmActionCapture
 import leyline.game.mapping.ObjectMapper
@@ -498,7 +502,23 @@ class GameBridge(
             } else {
                 pendingInteractionReadiness() ?: return
             }
-        publishEngineReady(kind, materializeEngineObservation(active.game))
+        val snapshot = GsmSnapshot.captureForPlayback(active.game, this, "forge-match-1")
+        val candidates = materializePriorityCandidates(active.game)
+        val preparedPriorityWindows =
+            if (kind == InteractionReadiness.ACTION) {
+                preparePriorityWindow(snapshot, candidates) ?: return
+            } else {
+                emptyMap()
+            }
+        publishEngineReady(
+            kind,
+            materializeEngineObservation(
+                game = active.game,
+                snapshot = snapshot,
+                priorityCandidates = candidates,
+                preparedPriorityWindows = preparedPriorityWindows,
+            ),
+        )
     }
 
     internal fun publishEngineReady(
@@ -513,20 +533,67 @@ class GameBridge(
     internal fun materializeEngineObservation(
         game: Game,
         snapshot: GsmSnapshot = GsmSnapshot.captureForPlayback(game, this, "forge-match-1"),
+        priorityCandidates: Map<SeatId, PriorityActionCandidates> = materializePriorityCandidates(game),
+        preparedPriorityWindows: Map<SeatId, PreparedPriorityWindow> = emptyMap(),
     ): EngineObservation =
         EngineObservation(
             snapshot = snapshot,
             seats =
                 players.keys.associate { seat ->
                     val seatId = SeatId(seat)
-                    seatId to materializeSeatRuntimeFacts(game, seatId)
+                    seatId to materializeSeatRuntimeFacts(game, snapshot, seatId, priorityCandidates[seatId])
                 },
             hasPendingEvents = eventCollector?.hasEvents() == true,
+            preparedPriorityWindows = preparedPriorityWindows,
         )
+
+    private fun materializePriorityCandidates(game: Game): Map<SeatId, PriorityActionCandidates> =
+        players.entries
+            .associate { (seat, player) ->
+                SeatId(seat) to PriorityActionCandidates.query(game, player)
+            }
+
+    /**
+     * Prepare the current priority window before the signal semaphore wakes its
+     * consumer. Combat windows carry no priority-action preparation.
+     *
+     * Null means a priority window changed while preparation was in flight; the
+     * caller must suppress that stale readiness cut.
+     */
+    private fun preparePriorityWindow(
+        snapshot: GsmSnapshot,
+        candidates: Map<SeatId, PriorityActionCandidates>,
+    ): Map<SeatId, PreparedPriorityWindow>? {
+        val pendingPriorityWindows =
+            actionBridges
+                .toSortedMap()
+                .mapNotNull { (seat, actionBridge) ->
+                    actionBridge
+                        .getPending()
+                        ?.takeIf { it.state.kind == PendingActionKind.PRIORITY }
+                        ?.let { Triple(SeatId(seat), actionBridge, it) }
+                }
+        check(pendingPriorityWindows.size <= 1) {
+            "Multiple priority windows cannot share one readiness cut"
+        }
+        val pendingPriority = pendingPriorityWindows.singleOrNull() ?: return emptyMap()
+        val (seatId, actionBridge, pending) = pendingPriority
+        val preparation =
+            ActionMapper.prepareFromSnapshot(
+                seatId = seatId.value,
+                snap = snapshot,
+                bridge = this,
+                candidates = checkNotNull(candidates[seatId]) { "Missing priority candidates for seat ${seatId.value}" },
+            )
+        val tokens = actionBridge.prepareActionTokens(pending.actionId, preparation.commands) ?: return null
+        return mapOf(seatId to preparation.bindTokens(pending.actionId, tokens))
+    }
 
     private fun materializeSeatRuntimeFacts(
         game: Game,
+        snapshot: GsmSnapshot,
         seatId: SeatId,
+        priorityCandidates: PriorityActionCandidates?,
     ): SeatRuntimeFacts {
         val player = getPlayer(seatId)
         return SeatRuntimeFacts(
@@ -540,12 +607,40 @@ class GameBridge(
                 game.phaseHandler.combat
                     ?.attackers
                     ?.isNotEmpty() == true,
-            priorityActions = priorityActionFacts(seatId),
+            priorityActions =
+                if (player == null || priorityCandidates == null) {
+                    PriorityActionFacts(hasLegalNonManaAction = false)
+                } else {
+                    priorityCandidates.facts(player)
+                },
+            priorityActionValues =
+                if (player == null || priorityCandidates == null) {
+                    PriorityActionSet(emptyList(), emptyList())
+                } else {
+                    ActionMapper
+                        .prepareFromSnapshot(seatId.value, snapshot, this, priorityCandidates)
+                        .actions
+                },
             naiveActions = NaiveGsmActionCapture.materialize(seatId.value, this),
             combatDeclarations = CombatDeclarationCapture.capture(game, this, seatId),
             won = player?.getOutcome()?.hasWon() == true,
             lossCause = player?.getOutcome()?.lossState.toPlayerLossCause(),
         )
+    }
+
+    internal fun materializePriorityActionValues(
+        seatId: SeatId,
+        snapshot: GsmSnapshot,
+    ): PriorityActionSet {
+        val game = checkNotNull(getGame()) { "Cannot materialize priority actions without a game" }
+        val player = getPlayer(seatId) ?: return PriorityActionSet(emptyList(), emptyList())
+        return ActionMapper
+            .prepareFromSnapshot(
+                seatId.value,
+                snapshot,
+                this,
+                PriorityActionCandidates.query(game, player),
+            ).actions
     }
 
     private fun GameLossReason?.toPlayerLossCause(): PlayerLossCause? =
@@ -1564,13 +1659,6 @@ class GameBridge(
     fun pendingNumericInput(): NumericInputPrompt? = humanController?.pendingNumericInput?.prompt
 
     fun submitNumericInput(value: Int): Boolean = humanController?.pendingNumericInput?.future?.complete(value) == true
-
-    /** Priority policy input materialized while the live candidate graph stays bridge-local. */
-    fun priorityActionFacts(seatId: SeatId): PriorityActionFacts {
-        val player = getPlayer(seatId) ?: return PriorityActionFacts(hasLegalNonManaAction = false)
-        val currentGame = game ?: return PriorityActionFacts(hasLegalNonManaAction = false)
-        return PriorityActionCandidates.query(currentGame, player).facts(player)
-    }
 
     /** Resolve an engine player to its protocol seat for this match. */
     fun seatOf(player: Player?): SeatId? {

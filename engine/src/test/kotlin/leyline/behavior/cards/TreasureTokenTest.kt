@@ -10,8 +10,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
@@ -122,7 +122,7 @@ class TreasureTokenTest :
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(harness.game(), harness.bridge, "test", 0), harness.bridge)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(harness.game(), harness.bridge, "test", 0), harness.bridge)
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 

@@ -18,7 +18,6 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -344,9 +343,9 @@ class MatchFlowHarness(
             bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability)
                 ?: basicLandAbilityGrpId(card)
         val offer =
-            ActionMapper
-                .buildFromSnapshot(seatId.value, GsmSnapshot.capture(game(), bridge, "activateMana", 0), bridge)
-                .actionsList
+            accumulator.actions
+                ?.actionsList
+                .orEmpty()
                 .firstOrNull { action ->
                     action.actionType == ActionType.ActivateMana &&
                         action.instanceId == iid &&

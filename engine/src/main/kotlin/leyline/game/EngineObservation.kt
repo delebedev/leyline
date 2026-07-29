@@ -15,6 +15,7 @@ internal data class EngineObservation(
     val snapshot: GsmSnapshot,
     val seats: Map<SeatId, SeatRuntimeFacts>,
     val hasPendingEvents: Boolean,
+    val preparedPriorityWindows: Map<SeatId, PreparedPriorityWindow> = emptyMap(),
 ) {
     fun runtimeFor(seatId: SeatId): SeatRuntimeFacts = seats[seatId] ?: SeatRuntimeFacts.absent()
 
@@ -23,7 +24,8 @@ internal data class EngineObservation(
             snapshot: GsmSnapshot = GsmSnapshot.forTest(),
             seats: Map<SeatId, SeatRuntimeFacts> = emptyMap(),
             hasPendingEvents: Boolean = false,
-        ): EngineObservation = EngineObservation(snapshot, seats, hasPendingEvents)
+            preparedPriorityWindows: Map<SeatId, PreparedPriorityWindow> = emptyMap(),
+        ): EngineObservation = EngineObservation(snapshot, seats, hasPendingEvents, preparedPriorityWindows)
     }
 }
 
@@ -36,6 +38,7 @@ internal data class SeatRuntimeFacts(
     val stackEmpty: Boolean,
     val combatHasAttackers: Boolean,
     val priorityActions: PriorityActionFacts,
+    val priorityActionValues: PriorityActionSet,
     val naiveActions: List<NaiveGsmAction>,
     val combatDeclarations: CombatDeclarationFacts,
     val won: Boolean,
@@ -54,6 +57,7 @@ internal data class SeatRuntimeFacts(
                 stackEmpty = true,
                 combatHasAttackers = false,
                 priorityActions = PriorityActionFacts(hasLegalNonManaAction = false),
+                priorityActionValues = PriorityActionSet(emptyList(), emptyList()),
                 naiveActions = emptyList(),
                 combatDeclarations = CombatDeclarationFacts(),
                 won = false,

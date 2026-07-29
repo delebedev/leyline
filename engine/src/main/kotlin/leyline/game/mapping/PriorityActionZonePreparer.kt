@@ -18,6 +18,9 @@ internal object PriorityActionZonePreparer {
     data class Prepared(
         val action: PriorityActionValue,
         val command: PlayerAction?,
+        val stackAbilityGrpId: Int? = null,
+        val forgeAbilityId: Int? = null,
+        val spellGrpId: Int? = null,
     ) {
         val active: Boolean
             get() = command != null
@@ -27,7 +30,7 @@ internal object PriorityActionZonePreparer {
         seatId: Int,
         snapshot: GsmSnapshot,
         bridge: GameBridge,
-        candidates: PriorityActionCandidates?,
+        candidates: PriorityActionCandidates,
     ): List<Prepared> {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return emptyList()
         return buildList {
@@ -35,7 +38,7 @@ internal object PriorityActionZonePreparer {
                 val zone = snapshot.zones[zoneId] ?: continue
                 for (cardId in zone.contents) {
                     val card = bridge.findCard(cardId) ?: continue
-                    val castable = candidates?.forCard(card)?.casts.orEmpty()
+                    val castable = candidates.forCard(card).casts
                     val ability = castable.firstOrNull() ?: continue
                     val cardSnapshot = snapshot.objects[cardId]
                     val sourceGrpId =
@@ -94,52 +97,51 @@ internal object PriorityActionZonePreparer {
     fun prepareGraveyardActivations(
         seatId: Int,
         snapshot: GsmSnapshot,
-        builder: PriorityActionSetBuilder,
         bridge: GameBridge,
-        candidates: PriorityActionCandidates?,
-        bindOffer: (PriorityActionValue, PlayerAction, Int?, Int?) -> Unit,
-    ) {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return
+        candidates: PriorityActionCandidates,
+    ): List<Prepared> {
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return emptyList()
         val zoneId =
             when (seatId) {
                 1 -> ZoneIds.P1_GRAVEYARD
                 2 -> ZoneIds.P2_GRAVEYARD
-                else -> return
+                else -> return emptyList()
             }
-        for (cardId in snapshot.zones[zoneId]?.contents.orEmpty()) {
-            val cardSnapshot = snapshot.objects[cardId] ?: continue
-            if (!cardSnapshot.hasNonManaActivatedAbilities) continue
-            val card = bridge.findCard(cardId) ?: continue
-            val cardData = snapshot.boundCards[cardId]?.data
-            for ((abilityIndex, ability) in candidates
-                ?.forCard(card)
-                ?.activations
-                .orEmpty()
-                .withIndex()) {
-                if (!ability.canPlay()) continue
-                val abilityGrpId =
-                    bridge
-                        .abilityRegistryFor(card, cardData)
-                        ?.forSpellAbility(ability.definitionId)
-                        ?: 0
-                ActivatedActionEmitter.prepareActivatedAbilityAction(
-                    builder = builder,
-                    cardId = cardId,
-                    grpId = null,
-                    abilityGrpId = abilityGrpId,
-                    uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId),
-                    abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana,
-                    canPay = PriorityActionRailPreparer.canPayManaCost(ability, player),
-                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
-                    onActive = { action ->
-                        bindOffer(
-                            action,
-                            PlayerAction.ActivateAbility(cardId, abilityIndex, ability = ability),
-                            abilityGrpId.takeIf { it != 0 },
-                            ability.id,
-                        )
-                    },
-                )
+        return buildList {
+            for (cardId in snapshot.zones[zoneId]?.contents.orEmpty()) {
+                val cardSnapshot = snapshot.objects[cardId] ?: continue
+                if (!cardSnapshot.hasNonManaActivatedAbilities) continue
+                val card = bridge.findCard(cardId) ?: continue
+                val cardData = snapshot.boundCards[cardId]?.data
+                for ((abilityIndex, ability) in candidates.forCard(card).activations.withIndex()) {
+                    if (!ability.canPlay()) continue
+                    val abilityGrpId =
+                        bridge
+                            .abilityRegistryFor(card, cardData)
+                            ?.forSpellAbility(ability.definitionId)
+                            ?: 0
+                    val canPay = PriorityActionRailPreparer.canPayManaCost(ability, player)
+                    add(
+                        Prepared(
+                            action =
+                                ActivatedActionEmitter.prepareActivatedAbilityAction(
+                                    cardId = cardId,
+                                    grpId = null,
+                                    abilityGrpId = abilityGrpId,
+                                    uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId),
+                                    abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana,
+                                    canPay = canPay,
+                                    envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
+                                ),
+                            command =
+                                PlayerAction
+                                    .ActivateAbility(cardId, abilityIndex, ability = ability)
+                                    .takeIf { canPay },
+                            stackAbilityGrpId = abilityGrpId.takeIf { it != 0 },
+                            forgeAbilityId = ability.id,
+                        ),
+                    )
+                }
             }
         }
     }

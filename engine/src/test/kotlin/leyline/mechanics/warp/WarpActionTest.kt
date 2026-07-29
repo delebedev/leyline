@@ -13,6 +13,7 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.data.AbilityInfo
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -172,7 +173,7 @@ class WarpActionTest :
             }
         }
 
-        test("ActionMapper.buildFromSnapshot offers alt-cost Cast for Quantum Riddler (puzzle path)") {
+        test("buildPriorityActionsForTest offers alt-cost Cast for Quantum Riddler (puzzle path)") {
             // Mirrors the live puzzle (try-warp.pzl): 3 Islands, Quantum Riddler in hand.
             // Base cost 3UU is unpayable (only 3 lands). Warp {1}{U} is payable.
             // Runtime bug: puzzle path produced no alt-cost Cast offer at all.
@@ -204,7 +205,7 @@ class WarpActionTest :
             val riddlerIid = game.humanPlayer.hand.iid("Quantum Riddler")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             val warpOffer =
                 fromSnap.actionsList.firstOrNull {
@@ -219,7 +220,7 @@ class WarpActionTest :
         }
 
         test(
-            "ActionMapper.buildFromSnapshot offers alt-cost Cast for warp card in hand when mana available",
+            "buildPriorityActionsForTest offers alt-cost Cast for warp card in hand when mana available",
         ) {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -234,7 +235,7 @@ class WarpActionTest :
             val wurmIid = game.humanPlayer.hand.iid("Germinating Wurm")
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
 
             val warpOffer =
                 fromSnap.actionsList.firstOrNull {

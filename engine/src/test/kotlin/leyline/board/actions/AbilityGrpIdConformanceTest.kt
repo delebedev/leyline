@@ -5,7 +5,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
 import leyline.testkit.CardDataDeriver
@@ -39,7 +39,7 @@ class AbilityGrpIdConformanceTest :
             // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access
 
             // Build actions for seat 1
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
             // Find all Activate_add3 actions for the planeswalker
             val activateActions =
@@ -73,7 +73,7 @@ class AbilityGrpIdConformanceTest :
             val cardData = CardDataDeriver.fromForgeCard(injected.card, cardName)
             TestCardRegistry.repo.registerData(cardData, cardName)
 
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
+            val actions = buildPriorityActionsForTest(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val manaAction =
                 actions.actionsList.single {
                     it.actionType == ActionType.ActivateMana && it.instanceId == injected.instanceId

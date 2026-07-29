@@ -1,9 +1,11 @@
 package leyline.game.bundle
 
 import leyline.bridge.types.SeatId
+import leyline.game.PriorityActionSet
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PriorityActionProjector
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.mapping.ZoneMapper
@@ -89,11 +91,12 @@ object GsmBuilder {
      * Build a DealHand GSM (Diff) for a seat at mulligan time.
      * Shows both players' hand/library zones with card objects for the target seat's hand.
      */
-    fun buildDealHand(
+    internal fun buildDealHand(
         bridge: GameBridge,
         gameStateId: Int,
         seatId: Int,
         snap: GsmSnapshot,
+        priorityActions: PriorityActionSet,
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): GameStateMessage {
         val human = bridge.getPlayer(SeatId(1))
@@ -152,8 +155,7 @@ object GsmBuilder {
                 .setActivePlayer(2)
                 .setDecisionPlayer(2)
 
-        // Build actions for the viewing seat's opening hand (Cast/Play from hand)
-        val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+        val actions = PriorityActionProjector.project(priorityActions, bridge::getOrAllocInstanceId).actionsList
 
         val gsm =
             GameStateMessage
@@ -177,7 +179,7 @@ object GsmBuilder {
                 .setUpdate(GameStateUpdate.SendAndRecord)
 
         // Embed stripped actions matching expected deal-hand shape
-        for (action in actions.actionsList) {
+        for (action in actions) {
             gsm.addActions(
                 ActionInfo
                     .newBuilder()

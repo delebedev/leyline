@@ -15,8 +15,8 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
@@ -31,7 +31,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Table-driven coverage for the alt-cost Cast offer shape shared by Cleave,
  * Impending, Overload, Flashback, Jump-start, Disturb, and Escape: Forge
  * surfaces the keyword's alternative spell ability on the source card, and
- * ActionMapper.buildFromSnapshot stamps it as a Cast offer carrying the
+ * buildPriorityActionsForTest stamps it as a Cast offer carrying the
  * keyword's per-card ability grpId.
  *
  * Foretell, Plot, and Sneak ride a structurally different rail (hand-keyword
@@ -449,7 +449,7 @@ class AltCostOfferTest :
                 val sourceGrpId = b.cardRepository.findGrpIdByName(row.sourceCard)!!
                 val keywordAbilityGrpId = b.cardRepository.findKeywordAbilityGrpId(sourceGrpId, row.keywordId)!!
 
-                val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+                val actions = buildPriorityActionsForTest(1, SnapshotCapture.run(game, b, "test", 0), b)
                 val castOffers =
                     actions.actionsList.filter {
                         it.actionType == ActionType.Cast && it.instanceId == sourceIid

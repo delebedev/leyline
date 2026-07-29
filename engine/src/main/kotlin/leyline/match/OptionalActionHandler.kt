@@ -10,6 +10,7 @@ import leyline.game.bundle.PendingPromptPlan
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PriorityActionProjector
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
@@ -92,6 +93,7 @@ class OptionalActionHandler(
 
     // --- Private ---
 
+    @Suppress("LongMethod")
     private fun sendOptionalActionMessage(prompt: OptionalActionPrompt) {
         val bridge = ctx.bridge
         val hostCardId = prompt.hostCardId
@@ -185,8 +187,13 @@ class OptionalActionHandler(
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.Send)
         addReplacementPromptContext(pendingGsmBuilder, snap, hostCardId.value, commanderContext)
-        val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
-        for (action in actions.actionsList) {
+        val actions =
+            PriorityActionProjector
+                .project(
+                    ctx.runtime(counters.seatId).priorityActionValues,
+                    bridge::getOrAllocInstanceId,
+                ).actionsList
+        for (action in actions) {
             pendingGsmBuilder.addActions(
                 ActionInfo
                     .newBuilder()

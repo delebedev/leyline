@@ -4,7 +4,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
-import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.PriorityActionProjector
 import leyline.game.state.GameBridge
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -67,7 +67,12 @@ class PuzzleHandler(
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
         val gsId = session.counter.nextGsId()
         session.ensureEngineObservation()
-        val observationSnapshot = session.ctx.snapshot()
+        val observation = session.ctx.observation()
+        val window =
+            checkNotNull(observation.preparedPriorityWindows[SeatId(seatId)]) {
+                "Puzzle priority window was not prepared before owner wake"
+            }
+        val projection = PriorityActionProjector.project(window, bridge::getOrAllocInstanceId)
 
         val (bundleMsg, nextMsgId) =
             HandshakeMessages.puzzleInitialBundle(
@@ -76,7 +81,8 @@ class PuzzleHandler(
                 session.counter.currentMsgId(),
                 gsId,
                 bridge,
-                observationSnapshot,
+                observation.snapshot,
+                projection.actions,
             )
         session.counter.setMsgId(nextMsgId)
         session.counter.markGameStateGsId(gsId)
@@ -87,10 +93,7 @@ class PuzzleHandler(
 
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
         val actionBridge = bridge.seat(SeatId(seatId)).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
-        val snap = session.ctx.snapshot()
-        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
-        check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
+        check(actionBridge.bindActionCatalog(window.actionId, gsId, projection.offers)) {
             "Puzzle priority actions did not bind to the pending window"
         }
 

@@ -7,7 +7,10 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.buildPriorityActionsForTest
+import leyline.game.snapshot.GsmSnapshot
 import leyline.protocol.HandshakeMessages
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
@@ -62,6 +65,29 @@ class DealHandConformanceTest :
             for (player in gsm.playersList) {
                 player.pendingMessageType shouldBe ClientMessageType.MulliganResp_097b
             }
+        }
+
+        test("dealHand mixed-hand actions preserve exact priority projection") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
+            val snapshot = GsmSnapshot.capture(game, b, "test", 0)
+            val expected =
+                buildPriorityActionsForTest(1, snapshot, b)
+                    .actionsList
+                    .map(ActionMapper::stripActionForGsm)
+
+            val (msg, _) = HandshakeMessages.dealHand(6, 2, b, seatId = SeatId(1))
+            val actual =
+                greMessages(msg)
+                    .single()
+                    .gameStateMessage.actionsList
+                    .map { it.action }
+
+            actual shouldBe expected
         }
 
         // --- dealHandMulliganSeat2 ---
@@ -133,6 +159,38 @@ class DealHandConformanceTest :
                 mull.hasPrompt().shouldBeTrue()
                 mull.prompt.promptId shouldBe PromptIds.MULLIGAN
             }
+        }
+
+        test("mulligan group mixed-hand actions preserve exact priority projection") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
+            val snapshot = GsmSnapshot.capture(game, b, "test", 0)
+            val expected =
+                buildPriorityActionsForTest(1, snapshot, b)
+                    .actionsList
+                    .map(ActionMapper::stripActionForGsm)
+
+            val (msg, _) =
+                HandshakeMessages.groupReqBundle(
+                    msgIdStart = 10,
+                    gameStateId = 3,
+                    seatId = SeatId(1),
+                    mulliganCount = 1,
+                    handInstanceIds = emptyList(),
+                    cardsToTuck = 1,
+                    bridge = b,
+                )
+            val actual =
+                greMessages(msg)
+                    .first()
+                    .gameStateMessage.actionsList
+                    .map { it.action }
+
+            actual shouldBe expected
         }
 
         // --- initialBundle ---

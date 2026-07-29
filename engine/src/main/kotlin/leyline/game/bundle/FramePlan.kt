@@ -9,6 +9,13 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
+/** One explicitly correlated executable catalog planned for owner commit. */
+data class ActionCatalogPlan(
+    val actionId: String,
+    val gameStateId: Int,
+    val offers: List<ActionOffer>,
+)
+
 /**
  * Immutable output of one frame compilation.
  *
@@ -17,8 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  */
 class FramePlan internal constructor(
     val messages: List<GREToClientMessage>,
-    val actionOffers: List<ActionOffer>,
-    val actionGameStateId: Int?,
+    val actionCatalog: ActionCatalogPlan?,
     internal val projection: ProjectionCommit,
 ) {
     internal data class ProjectionCommit(
@@ -44,7 +50,6 @@ class FramePlan internal constructor(
     internal fun delivery(): BundleBuilder.BundleResult =
         BundleBuilder.BundleResult(
             messages = messages,
-            actionOffers = actionOffers,
-            actionGameStateId = actionGameStateId,
+            actionCatalog = actionCatalog,
         )
 }

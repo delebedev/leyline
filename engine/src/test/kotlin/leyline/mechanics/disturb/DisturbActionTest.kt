@@ -13,10 +13,10 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.mapping.buildPriorityActionsForTest
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
@@ -72,7 +72,7 @@ class DisturbActionTest :
             handDisturbSa shouldBe null
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
+            val fromSnap = buildPriorityActionsForTest(1, snap, b)
             fromSnap shouldNot offerAltCost(disturbAbilityGrpId)
         }
 
