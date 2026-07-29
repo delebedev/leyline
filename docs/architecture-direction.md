@@ -8,10 +8,12 @@ read_when:
 # Forge Runtime Architecture Direction
 
 This document defines the accepted destination for Leyline's match runtime.
-The command/yield runtime boundary has converged. Pure-compute input narrowing
-inside the frame compiler remains a separate concern and does not restore a
-second runtime authority. For concrete threads, current handoff primitives,
-and remaining deletion horizons, read
+The match-play command/yield boundary has converged from the first post-keep
+readiness cut onward. Initial handshake and mulligan materialization remain a
+named pre-play lifecycle horizon. Pure-compute input narrowing inside the diff
+core also remains a separate concern; neither horizon restores a second
+match-play authority. For concrete threads, current handoff primitives, and
+remaining deletion horizons, read
 [`bridge-threading.md`](bridge-threading.md); for the wider system shape, read
 [`architecture.md`](architecture.md).
 
@@ -272,29 +274,42 @@ usually be provable without starting a game.
 
 ## Convergence criteria
 
-The runtime has reached this direction when:
+The match-play runtime has reached this direction when:
 
-- live Forge objects are confined to one engine execution domain;
+- live Forge objects are confined to one engine execution domain after the
+  first post-keep readiness cut;
 - protocol messages are not built in Forge callbacks;
 - match-level IDs, cursors, pending interactions, and delivery order have one
   serial owner rather than shared atomics and repair paths;
 - all outbound gameplay messages enter one ordered outbox;
-- frame compilation can be replayed deterministically from immutable inputs;
+- diff-core compilation replays deterministically from equal snapshot and
+  event inputs;
 - transport handlers only decode, enqueue, adapt, and flush;
 - native and web heads consume the same match runtime;
 - worker failure and shutdown have explicit, truthful semantics.
+
+### Explicitly scoped horizons
+
+- Initial handshake and mulligan builders still take owner-side snapshots from
+  the live game before the match-play observation stream begins. They prepare
+  the same immutable priority values as match play, but they are not evidence
+  of worker confinement.
+- `PureDiffReplayTest` proves deterministic diff-core bytes for equal snapshots
+  and event facts. Removing the remaining `GameBridge` compute input from
+  `StateMapper` is tracked separately; the runtime owner and commit boundary do
+  not depend on that signature change.
 
 ### Convergence evidence
 
 | Criterion | Runtime authority | Executable evidence |
 |---|---|---|
-| Live Forge objects stay in one execution domain | `GameBridge.ActiveGame`, `EngineWorkerSupervisor`, value-only observations and tokenized priority windows | `RuntimeOwnershipArchitectureTest` sealed-runtime check; `RuntimeBoundaryTest` Forge-dependency, observation, prompt, and recursive priority-value checks |
+| Live Forge objects stay in one execution domain during match play | `GameBridge.ActiveGame`, `EngineWorkerSupervisor`, value-only observations and tokenized priority windows | `RuntimeOwnershipArchitectureTest` sealed-runtime check; `RuntimeBoundaryTest` Forge-dependency, observation, prompt, and recursive priority-value checks |
 | Forge callbacks do not construct protocol messages | `InteractivePlaybackMaterializer` publishes immutable cuts; the match owner compiles them | `RuntimeBoundaryTest.playback callback adapter cannot compile protocol output` |
-| IDs, cursors, pending interactions, commit, and delivery have one serial owner | `MatchOwner`, `OwnerProtocolState`, `FramePlan`, and `BundleBuilder.commit` | `RuntimeOwnershipArchitectureTest.MatchSession handler implementations are reachable only through the owner`; `BundleBuilderTest.compiled frame plan defers projection and counter state until commit` |
+| IDs, cursors, pending interactions, commit, and delivery have one serial owner | `MatchOwner`, `OwnerProtocolState`, `FramePlan`, and `BundleBuilder.commit` | `RuntimeOwnershipArchitectureTest.MatchSession handler implementations are reachable only through the owner`; `RuntimeBoundaryTest.prompt correlation is plain state held by the serial owner`; `BundleBuilderTest.compiled frame plan defers projection and counter state until commit` |
 | Gameplay output enters one ordered outbox | `MatchOutbox` and generation-tagged `MatchProtocolHead` | `RuntimeOwnershipArchitectureTest.match-progress delivery has one outbox terminal`; `MatchOutboxTest` sequence, failure-prefix, replacement-generation, and terminal-flush checks |
-| Equal immutable inputs replay deterministically | `FramePlan` compilation from `GsmSnapshot`, event facts, and projection state | `PureDiffReplayTest` one-turn and three-turn byte-equality checks |
+| Equal diff-core inputs replay deterministically | `StateMapper` diff compilation from snapshots, event facts, and projection registries | `PureDiffReplayTest` one-turn and three-turn byte-equality checks; full compute-input narrowing remains separately scoped above |
 | Transports only adapt and flush committed runtime output | Protocol heads remain outside `leyline.match` and `leyline.game` | `RuntimeBoundaryTest.match and game do not depend on transport implementations` |
-| Native and web consume the same match runtime | Both heads join `MatchRegistry` sessions and flush `MatchOutbox` entries | `RuntimeOwnershipArchitectureTest.match supervision owns the bridge lifecycle outside semantic state`; native and web gate suites |
+| Native and web consume the same match runtime | Both heads join `MatchRegistry` sessions and flush `MatchOutbox` entries | `WebRoutesTest.relays GRE WebSocket frames through engine session`; `WebRoutesTest.GRE relay serializes engine access per match`; `NativeMatchDoorBootstrapTest.native match bootstrap binds an active TCP channel` |
 | Worker stop and failure semantics are explicit | `MatchWorkerSupervisor` owns operations; the match owner owns terminal meaning | `EngineWorkerSupervisorTest` completion, failure-fact, stop, and timeout checks; `MatchWorkerSupervisorTest` failure, startup-stop, disconnect-race, and stale-generation checks |
 
 ## Related decisions

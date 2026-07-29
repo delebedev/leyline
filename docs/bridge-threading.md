@@ -98,10 +98,12 @@ projection computation; that compute-input extraction remains a separate
 pure-frame concern. Prompt executable graphs remain behind their value
 submission seam. Priority policy and presentation both cross as immutable
 facts; exact commands remain private to the token table. Ordinary initial
-handshake and mulligan materialization use the same bridge-local value
-preparation before the match-play observation stream begins at the first
-post-keep readiness cut. None of these horizons restores protocol construction
-or sequence allocation to an engine callback.
+handshake and mulligan materialization remain the named pre-play lifecycle
+horizon: owner-side builders snapshot the live game and use the same
+bridge-local value preparation before the match-play observation stream begins
+at the first post-keep readiness cut. This horizon is not worker confinement,
+but it does not restore protocol construction or sequence allocation to an
+engine callback.
 
 Priority-action catalogs contain value-only offers. Exact `PlayerAction`
 commands remain in `GameActionBridge`'s per-window token table while the
