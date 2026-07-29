@@ -388,19 +388,22 @@ class WebRoutesTest :
                 }
 
                 greSocket(login, matchId) {
-                    val firstAccepted = first.emit(byteArrayOf(1))
-                    val firstFrame = (incoming.receive() as Frame.Binary).readBytes()
-                    assertSoftly {
-                        firstAccepted shouldBe true
-                        firstFrame shouldBe byteArrayOf(1)
-                    }
+                    send(Frame.Binary(fin = true, data = byteArrayOf(1)))
+                    val firstFrame =
+                        withTimeoutOrNull(2_000) {
+                            (incoming.receive() as Frame.Binary).readBytes()
+                        } ?: error("first relay generation did not reach the browser")
+                    firstFrame shouldBe byteArrayOf(1)
 
                     repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
                         ReplaceableGreEngineSession(onFrame, onClosed).also { second = it }
                     }
                     val staleAccepted = first.emit(byteArrayOf(2))
                     val currentAccepted = second.emit(byteArrayOf(3))
-                    val replacementFrame = (incoming.receive() as Frame.Binary).readBytes()
+                    val replacementFrame =
+                        withTimeoutOrNull(2_000) {
+                            (incoming.receive() as Frame.Binary).readBytes()
+                        } ?: error("replacement relay generation did not reach the browser")
                     assertSoftly {
                         staleAccepted shouldBe true
                         currentAccepted shouldBe true
@@ -1199,7 +1202,9 @@ private class ReplaceableGreEngineSession(
 ) : WebGreEngineSession {
     fun emit(payload: ByteArray): Boolean = onFrame(payload)
 
-    override fun receiveFromBrowser(payload: ByteArray) = Unit
+    override fun receiveFromBrowser(payload: ByteArray) {
+        onFrame(payload)
+    }
 
     override fun close() = onClosed()
 }
