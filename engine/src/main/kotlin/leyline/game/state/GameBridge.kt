@@ -18,6 +18,8 @@ import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.ConvokeShardAssigner
+import leyline.bridge.coord.EngineWorkerExit
+import leyline.bridge.coord.EngineWorkerStop
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.forge.RevealTrackingAiController
 import leyline.bridge.handoff.DamageAssignmentPrompt
@@ -62,6 +64,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
+import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.NaiveGsmActionCapture
 import leyline.game.mapping.ObjectMapper
@@ -119,6 +122,8 @@ class GameBridge(
     val cardRepository: CardRepository,
     /** Proto builder for GameObjectInfo — uses [cardRepository] for static card data. */
     val cardProto: CardProtoBuilder = CardProtoBuilder(cardRepository),
+    /** Bounded join used when stopping the engine worker. */
+    private val workerJoinTimeoutMs: Long = 2_000L,
 ) : IdMapping,
     PlayerLookup,
     AutoPassView,
@@ -174,6 +179,9 @@ class GameBridge(
     private val frameSourceGeneration = AtomicLong()
     private val engineCuts = EngineCutQueue()
     private val engineCutListener = AtomicReference<((EngineCutCheckpoint) -> Unit)?>(null)
+    private val workerExitListener = AtomicReference<((EngineWorkerExit) -> Unit)?>(null)
+    private val workerExit = AtomicReference<EngineWorkerExit?>()
+    private val teardownPending = AtomicBoolean(false)
 
     @Volatile
     private var activeGame: ActiveGame? = null
@@ -182,6 +190,7 @@ class GameBridge(
                 if (field !== value) {
                     frameSourceGeneration.incrementAndGet()
                     engineCuts.beginGeneration()
+                    if (value != null) workerExit.set(null)
                 }
                 field = value
             }
@@ -205,6 +214,45 @@ class GameBridge(
                 null,
                 -> null
             }
+
+    internal fun observeWorkerExit(listener: (EngineWorkerExit) -> Unit) {
+        check(workerExitListener.compareAndSet(null, listener)) {
+            "Engine worker exit already observed"
+        }
+    }
+
+    internal fun stopObservingWorkerExit(listener: (EngineWorkerExit) -> Unit) {
+        workerExitListener.compareAndSet(listener, null)
+    }
+
+    internal fun publishWorkerExit(exit: EngineWorkerExit) {
+        workerExit.set(exit)
+        val reported =
+            try {
+                prioritySignal.signal()
+                exit
+            } catch (failure: Throwable) {
+                log.error("Engine worker exit wake failed", failure)
+                if (exit is EngineWorkerExit.Failed) {
+                    exit
+                } else {
+                    EngineWorkerExit.Failed(
+                        failureType = failure.javaClass.name,
+                        message = failure.message,
+                    )
+                }
+            }
+        workerExit.set(reported)
+        workerExitListener.get()?.invoke(reported)
+    }
+
+    private fun handleWorkerExit(exit: EngineWorkerExit) {
+        if (teardownPending.compareAndSet(true, false)) {
+            activeGame?.let(::retireActiveGame)
+            players.clear()
+        }
+        publishWorkerExit(exit)
+    }
 
     val abilityLineage = AbilityLineageRegistry()
 
@@ -1130,6 +1178,7 @@ class GameBridge(
         deckList1: String? = null,
         deckList2: String? = null,
         variant: String? = null,
+        continueAfterWorkerReady: () -> Boolean = { true },
     ) {
         log.info("GameBridge: initializing card database")
         GameBootstrap.initializeCardDatabase()
@@ -1170,6 +1219,8 @@ class GameBridge(
                 promptBridges = promptBridges.values.toList(),
                 mulliganBridges = mulliganBridges.values.toList(),
                 prioritySignal = prioritySignal,
+                onWorkerExit = ::handleWorkerExit,
+                workerJoinTimeoutMs = workerJoinTimeoutMs,
             )
         val collector = GameEventCollector(this)
         activeGame =
@@ -1187,6 +1238,7 @@ class GameBridge(
         // includes the current event when playback's captureAndPause runs.
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
+        if (!continueAfterWorkerReady()) return
 
         if (matchConfig.game.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
@@ -1213,6 +1265,7 @@ class GameBridge(
         deckList2: String? = null,
         variant: String? = null,
         startGameHook: Runnable? = null,
+        continueAfterWorkerReady: () -> Boolean = { true },
     ) {
         log.info("GameBridge: initializing AI-vs-AI spectator game")
         GameBootstrap.initializeCardDatabase()
@@ -1250,6 +1303,8 @@ class GameBridge(
             GameLoopController(
                 g,
                 prioritySignal = prioritySignal,
+                onWorkerExit = ::handleWorkerExit,
+                workerJoinTimeoutMs = workerJoinTimeoutMs,
             )
         activeGame = ActiveGame.Spectator(g, collector, loop)
         g.subscribeToEvents(collector)
@@ -1264,6 +1319,7 @@ class GameBridge(
         )
 
         loop.awaitStarted()
+        if (!continueAfterWorkerReady()) return
     }
 
     /** Get the current hand for a seat as client grpIds. */
@@ -1618,6 +1674,7 @@ class GameBridge(
     internal fun awaitActionPriorityCut(): EngineCutCheckpoint? {
         val deadline = System.currentTimeMillis() + priorityWaitMs
         while (true) {
+            if (workerExit.get() != null) return null
             val ready = engineCuts.latestReady()
             if (ready?.kind == InteractionReadiness.ACTION) {
                 return ready.checkpoint
@@ -1656,6 +1713,7 @@ class GameBridge(
     internal fun awaitPriorityCut(timeoutMs: Long = priorityWaitMs): EngineCutCheckpoint? {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (true) {
+            if (workerExit.get() != null) return null
             val ready = engineCuts.latestReady()
             if (ready?.kind == InteractionReadiness.GAME_OVER) {
                 log.info("GameBridge: game over detected while waiting for priority")
@@ -1811,6 +1869,7 @@ class GameBridge(
     fun startPuzzle(
         puzzle: Puzzle,
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
+        continueAfterWorkerReady: () -> Boolean = { true },
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
@@ -1884,6 +1943,8 @@ class GameBridge(
                 promptBridges = promptBridges.values.toList(),
                 mulliganBridges = mulliganBridges.values.toList(),
                 prioritySignal = prioritySignal,
+                onWorkerExit = ::handleWorkerExit,
+                workerJoinTimeoutMs = workerJoinTimeoutMs,
             )
         val collector = GameEventCollector(this)
         activeGame =
@@ -1897,6 +1958,7 @@ class GameBridge(
 
         // Playback activates after the initial Full projection commits.
         g.subscribeToEvents(collector)
+        if (!continueAfterWorkerReady()) return
 
         if (aiControllerFactory == null) {
             log.info("GameBridge: puzzle loop started, waiting for priority")
@@ -1905,6 +1967,15 @@ class GameBridge(
         } else {
             log.info("GameBridge: puzzle loop started with direct AI controller")
         }
+    }
+
+    /** Load and start a puzzle behind the engine boundary. */
+    internal fun startPuzzleFile(
+        path: String,
+        continueAfterWorkerReady: () -> Boolean = { true },
+    ) {
+        GameBootstrap.initializeLocalization()
+        startPuzzle(PuzzleSource.loadFromFile(path), continueAfterWorkerReady = continueAfterWorkerReady)
     }
 
     /**
@@ -1917,7 +1988,9 @@ class GameBridge(
     fun resetForPuzzle(puzzle: Puzzle): List<Int> {
         log.info("GameBridge: resetting for new puzzle")
 
-        shutdown()
+        check(shutdown() != EngineWorkerStop.TimedOut) {
+            "Cannot replace a puzzle while its engine worker is still alive"
+        }
 
         // Clear all mapping/tracking state from the previous game
         val deletedIds = ids.resetAll().map { it.value }
@@ -1955,11 +2028,19 @@ class GameBridge(
      * Called by [leyline.match.Match.close] for deterministic lifecycle management.
      * Idempotent — safe to call before [shutdown].
      */
-    fun teardownResources() {
-        val active = activeGame ?: return
+    fun teardownResources(): EngineWorkerStop {
+        val active = activeGame ?: return EngineWorkerStop.NotRunning
+        teardownPending.set(true)
+        val stop = loopController?.shutdown() ?: EngineWorkerStop.NotRunning
+        if (stop != EngineWorkerStop.TimedOut && teardownPending.compareAndSet(true, false)) {
+            retireActiveGame(active)
+        }
+        return stop
+    }
+
+    private fun retireActiveGame(active: ActiveGame) {
         active.game.unsubscribeFromEvents(active.eventCollector)
         playbackSubscriber?.let(active.game::unsubscribeFromEvents)
-        loopController?.shutdown()
         playbackSubscriber = null
         engineCutListener.set(null)
         activeGame = null
@@ -1970,10 +2051,11 @@ class GameBridge(
      * Tests and puzzle reset call this directly. Production code goes through
      * [leyline.match.Match.close] which calls [teardownResources] then this.
      */
-    fun shutdown() {
+    fun shutdown(): EngineWorkerStop {
         log.info("GameBridge: shutting down")
-        teardownResources()
-        players.clear()
+        val stop = teardownResources()
+        if (stop != EngineWorkerStop.TimedOut) players.clear()
+        return stop
     }
 
     // --- Puzzle internals ---

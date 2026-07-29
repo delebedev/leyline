@@ -39,12 +39,35 @@ class MatchRegistry {
     ): Match {
         val owner = ownerFor(matchId)
         var result: Match? = null
+        var created: Match? = null
         connections.compute(matchId) { _, current ->
             check(!owner.isClosed()) { "Match owner is closed" }
-            result = matches.computeIfAbsent(matchId) { factory() }
+            result =
+                matches.computeIfAbsent(matchId) {
+                    factory().also { created = it }
+                }
             current
         }
-        return checkNotNull(result)
+        created?.let { match ->
+            match.bindWorkerFailure {
+                log.error(
+                    "MatchRegistry: engine worker failed matchId={} type={} message={}",
+                    matchId,
+                    it.failureType,
+                    it.message,
+                )
+                teardownMatch(
+                    matchId = matchId,
+                    reason = MatchTeardownReason.EngineFailure,
+                    expectedMatch = match,
+                )
+            }
+        }
+        val match = checkNotNull(result)
+        check(matches[matchId] === match) {
+            "Match worker failed during startup"
+        }
+        return match
     }
 
     /** Look up a match by id. */
@@ -74,6 +97,7 @@ class MatchRegistry {
 
     internal fun publishSessionAndConnection(
         matchId: String,
+        expectedMatch: Match,
         seatId: SeatId,
         session: SessionOps,
         connection: MatchConnection,
@@ -84,6 +108,9 @@ class MatchRegistry {
         var previousConnection: MatchConnection? = null
         connections.compute(matchId) { _, current ->
             check(!owner.isClosed()) { "Match owner is closed" }
+            check(matches[matchId] === expectedMatch) {
+                "Match generation is no longer active"
+            }
             bind()
             previousSession = sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }.put(seatId.value, session)
             (current ?: ConcurrentHashMap()).also {
@@ -152,19 +179,28 @@ class MatchRegistry {
         recorder: MatchRecorder? = null,
         fallbackBridge: GameBridge? = null,
         expectedConnection: MatchConnection? = null,
+        expectedMatch: Match? = null,
     ) {
         log.info("MatchRegistry: teardown matchId={} seatId={} reason={}", matchId, seatId, reason)
 
         val owner = owners[matchId]
-        var accepted = expectedConnection == null
+        val targetMatch = matches[matchId]
+        var accepted = expectedConnection == null && (expectedMatch == null || targetMatch === expectedMatch)
         var matchConnections: Collection<MatchConnection> = emptyList()
         connections.compute(matchId) { _, current ->
             if (expectedConnection != null && current?.get(seatId?.value) !== expectedConnection) {
                 return@compute current
             }
+            if (expectedMatch != null && targetMatch !== expectedMatch) {
+                return@compute current
+            }
             accepted = true
             matchConnections = current?.values?.toList().orEmpty()
-            owner?.close()
+            if (owner == null) {
+                targetMatch?.finish()
+            } else {
+                owner.close { targetMatch?.finish() }
+            }
             null
         }
         if (!accepted) {
@@ -176,31 +212,40 @@ class MatchRegistry {
 
         val removedSessions = sessions.remove(matchId)?.values.orEmpty()
         val sessionsRemoved = removedSessions.size
-        val match = matches.remove(matchId)
+        val match = targetMatch?.takeIf { matches.remove(matchId, it) }
 
         val interactiveSessions = removedSessions.filterIsInstance<MatchSession>()
         interactiveSessions.forEach { it.retireBeforeOwnerClose() }
         removedSessions.filterIsInstance<SpectatorSession>().forEach { it.close() }
         removedSessions.filterIsInstance<FamiliarSession>().forEach { it.close() }
-        matchConnections.forEach { it.detachAfterTeardown() }
-
-        if (match != null) {
-            match.close()
-        } else {
-            fallbackBridge?.shutdown()
+        matchConnections.forEach {
+            if (reason == MatchTeardownReason.EngineFailure) {
+                it.closeAfterTeardown()
+            } else {
+                it.detachAfterTeardown()
+            }
         }
+
+        val workerStop =
+            if (match != null) {
+                match.stop()
+            } else {
+                fallbackBridge?.shutdown()
+            }
 
         owner?.awaitTermination()
         interactiveSessions.forEach { it.finishRetirementAfterOwnerClose() }
 
         log.info(
-            "MatchRegistry: teardown complete matchId={} seatId={} reason={} sessionsRemoved={} connectionsRemoved={} matchClosed={}",
+            "MatchRegistry: teardown complete matchId={} seatId={} reason={} " +
+                "sessionsRemoved={} connectionsRemoved={} matchClosed={} workerStop={}",
             matchId,
             seatId,
             reason,
             sessionsRemoved,
             matchConnections.size,
             match != null || fallbackBridge != null,
+            workerStop,
         )
     }
 

@@ -6,6 +6,7 @@ import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.coord.EngineWorkerExit
 import leyline.bridge.handoff.DamageAssignmentPrompt
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.NumericInputPrompt
@@ -127,6 +128,23 @@ class RuntimeBoundaryTest :
                 }
             check(liveFields.isEmpty()) {
                 "Worker observation values retain live fields: ${liveFields.joinToString()}"
+            }
+        }
+
+        test("worker failure crosses the supervisor boundary as facts only") {
+            val liveFields =
+                EngineWorkerExit.Failed::class.java.declaredFields.mapNotNull { field ->
+                    field.genericType.typeName
+                        .takeIf {
+                            "forge." in it ||
+                                "wotc.mtgo.gre" in it ||
+                                "Throwable" in it ||
+                                "Future" in it ||
+                                "Function" in it
+                        }?.let { "${field.name}: $it" }
+                }
+            check(liveFields.isEmpty()) {
+                "Worker failure retains live fields: ${liveFields.joinToString()}"
             }
         }
 

@@ -24,6 +24,7 @@ internal class MatchOwner(
     matchId: String,
     private val onTerminated: () -> Unit = {},
 ) {
+    private val lifecycleLock = Any()
     private val ownerThread = AtomicReference<Thread?>()
     private val closed = AtomicBoolean(false)
     private val protocolState = OwnerProtocolState()
@@ -51,21 +52,27 @@ internal class MatchOwner(
 
     fun <T> reduce(action: () -> T): T {
         if (Thread.currentThread() === ownerThread.get()) return action()
-        check(!closed.get()) { "Match owner is closed" }
+        val future =
+            synchronized(lifecycleLock) {
+                check(!closed.get()) { "Match owner is closed" }
+                executor.submit(Callable(action))
+            }
         return try {
-            executor.submit(Callable(action)).get()
+            future.get()
         } catch (error: ExecutionException) {
             throw error.cause ?: error
         }
     }
 
     fun enqueue(action: () -> Unit): Boolean {
-        if (closed.get()) return false
-        return try {
-            executor.execute(action)
-            true
-        } catch (_: RejectedExecutionException) {
-            false
+        return synchronized(lifecycleLock) {
+            if (closed.get()) return@synchronized false
+            try {
+                executor.execute(action)
+                true
+            } catch (_: RejectedExecutionException) {
+                false
+            }
         }
     }
 
@@ -142,13 +149,25 @@ internal class MatchOwner(
 
     fun isClosed(): Boolean = closed.get()
 
-    fun close() {
-        if (closed.compareAndSet(false, true)) {
-            executor.shutdown()
+    fun close() = close {}
+
+    /**
+     * Fence entrants immediately, discard queued work, and make [terminalDecision]
+     * the owner's final semantic action.
+     */
+    fun close(terminalDecision: () -> Unit) {
+        synchronized(lifecycleLock) {
+            if (!closed.compareAndSet(false, true)) return
             while (true) {
                 val pending = executor.queue.poll() ?: break
                 if (pending is java.util.concurrent.Future<*>) pending.cancel(false)
             }
+            if (isOwnerThread()) {
+                terminalDecision()
+            } else {
+                executor.execute(terminalDecision)
+            }
+            executor.shutdown()
         }
     }
 

@@ -1,5 +1,7 @@
 package leyline.match
 
+import leyline.bridge.coord.EngineWorkerExit
+import leyline.bridge.coord.EngineWorkerStop
 import leyline.game.state.GameBridge
 import java.util.concurrent.atomic.AtomicReference
 
@@ -15,13 +17,18 @@ class Match(
     val bridge: GameBridge,
 ) {
     private val stateRef = AtomicReference(MatchState.WAITING)
+    private val workerSupervisor = MatchWorkerSupervisor(bridge)
 
     /** Current lifecycle state. */
     val state: MatchState get() = stateRef.get()
 
+    /** Most recent truthful result from cooperative worker stop. */
+    val workerStop: EngineWorkerStop get() = workerSupervisor.stopOutcome()
+
     /** Optional callback fired on every state transition. Volatile for JMM visibility. */
     @Volatile var onStateChanged: ((MatchState) -> Unit)? = null
 
+    @Synchronized
     fun start(
         seed: Long? = null,
         deckList: String? = null,
@@ -29,8 +36,9 @@ class Match(
         deckList2: String? = null,
         variant: String? = null,
     ) {
-        bridge.start(seed, deckList, deckList1, deckList2, variant)
-        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+        if (stateRef.get() != MatchState.WAITING) return
+        val started = workerSupervisor.start(seed, deckList, deckList1, deckList2, variant)
+        if (started && stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
             onStateChanged?.invoke(MatchState.RUNNING)
         }
     }
@@ -45,11 +53,35 @@ class Match(
         startGameHook: Runnable? = null,
     ) {
         if (stateRef.get() != MatchState.WAITING) return
-        bridge.startAiVsAi(seed, deckList, deckList1, deckList2, variant, startGameHook)
-        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+        val started = workerSupervisor.startAiVsAi(seed, deckList, deckList1, deckList2, variant, startGameHook)
+        if (started && stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
             onStateChanged?.invoke(MatchState.RUNNING)
         }
     }
+
+    @Synchronized
+    fun startPuzzle(path: String) {
+        if (stateRef.get() != MatchState.WAITING) return
+        val started = workerSupervisor.startPuzzle(path)
+        if (started && stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+            onStateChanged?.invoke(MatchState.RUNNING)
+        }
+    }
+
+    internal fun bindWorkerFailure(handler: (EngineWorkerExit.Failed) -> Unit) {
+        workerSupervisor.bindFailureHandler(handler)
+    }
+
+    /** Semantic terminal transition invoked as the owner's final action. */
+    fun finish() {
+        val previous = stateRef.getAndSet(MatchState.FINISHED)
+        if (previous != MatchState.FINISHED) {
+            onStateChanged?.invoke(MatchState.FINISHED)
+        }
+    }
+
+    /** Operational cancellation after the owner has chosen a terminal state. */
+    fun stop(): EngineWorkerStop = workerSupervisor.stop()
 
     /**
      * Idempotent teardown: transitions to FINISHED, deterministically tears down
@@ -57,9 +89,7 @@ class Match(
      * Safe to call from any thread, multiple times.
      */
     fun close() {
-        val prev = stateRef.getAndSet(MatchState.FINISHED)
-        if (prev == MatchState.FINISHED) return // already closed
-        bridge.shutdown()
-        onStateChanged?.invoke(MatchState.FINISHED)
+        finish()
+        stop()
     }
 }

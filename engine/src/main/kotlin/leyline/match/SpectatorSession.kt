@@ -21,6 +21,7 @@ internal class SpectatorSession(
     val playerId: String = "spectator",
     override var counter: MessageCounter = gameBridge.messageCounter,
     private val owner: MatchOwner,
+    private val onTerminalDrained: () -> Unit = {},
 ) : SessionOps {
     private val bundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
     private var gameOverSent = false
@@ -157,7 +158,10 @@ internal class SpectatorSession(
         )
         sendMatchProgressOwned(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
         gameOverSent = true
-        protocolHead.afterDrained(::close)
+        protocolHead.afterDrained {
+            close()
+            onTerminalDrained()
+        }
     }
 
     override fun paceDelay(multiplier: Int) {}

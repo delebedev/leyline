@@ -9,7 +9,10 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.state.GameBridge
 import leyline.match.ConnectionState
+import leyline.match.Match
 import leyline.match.MatchSession
+import leyline.match.MatchState
+import leyline.match.MatchWorkerSupervisor
 import java.lang.reflect.Modifier
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,6 +36,16 @@ class RuntimeOwnershipArchitectureTest :
                     )
             } shouldBe emptyList()
             fields shouldContain "activeGame"
+        }
+
+        test("match supervision owns the bridge lifecycle outside semantic state") {
+            Match::class.java.declaredFields
+                .single { it.type == MatchWorkerSupervisor::class.java }
+                .let { Modifier.isPrivate(it.modifiers) shouldBe true }
+
+            val supervisorFields = MatchWorkerSupervisor::class.java.declaredFields
+            supervisorFields.single { it.type == GameBridge::class.java }
+            supervisorFields.none { it.type == MatchState::class.java } shouldBe true
         }
 
         test("MatchSession handler implementations are reachable only through the owner") {

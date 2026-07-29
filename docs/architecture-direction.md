@@ -7,14 +7,12 @@ read_when:
 ---
 # Forge Runtime Architecture Direction
 
-This document defines the accepted destination for Leyline's match runtime. It
-is not a description of the current implementation and not an execution plan.
-For the current system shape, read [`architecture.md`](architecture.md). Until a
-specific seam migrates, the contracts in
-[`bridge-threading.md`](bridge-threading.md) remain authoritative.
-
-Implementation can move incrementally, but every slice must converge on the
-ownership and data-flow rules below.
+This document defines the accepted destination for Leyline's match runtime.
+Implementation has converged at several seams but not across the complete
+projection boundary. For concrete threads, current handoff primitives, and
+remaining deletion horizons, read
+[`bridge-threading.md`](bridge-threading.md); for the wider system shape, read
+[`architecture.md`](architecture.md).
 
 ## Architectural thesis
 
@@ -227,6 +225,12 @@ Cooperative cancellation is the strongest safe promise for an in-process
 worker. Transparent recovery is not promised. Resuming a failed engine requires
 a separately proven replay or checkpoint contract; reconnecting delivery is not
 the same as reconstructing Forge state.
+
+The in-process supervisor's stop result is explicit: `NotRunning`, `Stopped`, or
+`TimedOut`. A timeout retains the worker generation and its resources until the
+thread actually exits. Worker completion publishes `Completed`, `Cancelled`,
+or immutable `Failed` facts. Failure ends the match and closes its heads without
+fabricating a winner or terminal gameplay frame.
 
 ## Testing strategy
 

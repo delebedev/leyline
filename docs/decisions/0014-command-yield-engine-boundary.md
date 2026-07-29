@@ -14,18 +14,11 @@ Accepted direction; implementation is incremental.
 ## Context
 
 Leyline adapts a synchronous, callback-driven Java rules engine to asynchronous
-client connections. The current bridge makes that work through cross-thread
-coordination: the Forge loop blocks in controller callbacks while serialized
-session entrants build and send responses. Playback can also build messages
-during engine events, and spectator mode drains from its own pump. Shared
-counters, a shared projection cursor, pending futures, signals, locks, and an
-ordering-aware queue preserve coherence across those paths.
-
-Those mechanisms are load-bearing in the current implementation. They also
-show that match ownership is distributed: Forge mutation, observation,
-protocol construction, sequencing, and delivery can advance on different
-threads. A local change at one seam therefore needs knowledge of timing and
-state held at several others.
+client connections. Before this decision was implemented, Forge mutation,
+observation, protocol construction, sequencing, and delivery could advance
+through several cross-thread paths. Shared counters, a projection cursor,
+pending futures, signals, locks, and playback ordering repair preserved
+coherence while distributing match authority.
 
 Recent decisions bind executable actions, ability identity, prompt routes, and
 annotation finalization at their originating seams. They produce the values
@@ -72,14 +65,11 @@ Forge remains the authority for rules, legality, costs, engine identity,
 causes, and final game state. Leyline remains the authority for interaction
 binding, client projection, frame cuts, visibility, protocol IDs, and delivery.
 
-## Required migration discipline
+## Migration and maintenance discipline
 
-The current contracts in [`bridge-threading.md`](../bridge-threading.md) remain
-mandatory until ownership has actually moved. In particular, do not remove the
-playback queue, shared counters, cursor coordination, or priority waits merely
-because the target has one owner.
-
-Each migration slice must:
+The current contracts in
+[`bridge-threading.md`](../bridge-threading.md) remain mandatory until
+ownership has actually moved. Further slices must:
 
 1. identify the responsibility and its current authority;
 2. introduce an immutable boundary value or single-owner operation;

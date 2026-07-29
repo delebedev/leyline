@@ -1,11 +1,9 @@
 package leyline.match
 
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
-import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.state.GameBridge
 import leyline.protocol.HandshakeMessages
@@ -52,8 +50,8 @@ class PuzzleHandler(
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
-                Match(matchId, bridge).also {
-                    startPuzzleForMatch(bridge, matchId)
+                Match(matchId, bridge).also { match ->
+                    match.startPuzzle(resolvePuzzlePath(matchId))
                 }
             }
         return match.bridge
@@ -115,18 +113,12 @@ class PuzzleHandler(
      * The configured value may be an absolute path, a cwd-relative path, or a bare
      * puzzle name (e.g. `stock-up`) — bare names resolve to `puzzles/<name>.pzl`.
      */
-    private fun startPuzzleForMatch(
-        bridge: GameBridge,
-        matchId: String,
-    ) {
-        // Puzzle constructor triggers GameState.<clinit> which needs localization
-        GameBootstrap.initializeLocalization()
-
+    private fun resolvePuzzlePath(matchId: String): String {
         val name = puzzlePath(matchId) ?: matchId.removePrefix("puzzle-")
-        val file =
+        return (
             resolvePuzzleFile(name)
                 ?: error("Puzzle not found: $name (looked in ${File(findLeylineDir(), "puzzles").absolutePath})")
-        bridge.startPuzzle(PuzzleSource.loadFromFile(file.absolutePath))
+        ).absolutePath
     }
 
     /** First existing candidate: as-given, with `.pzl`, then under `puzzles/`. */

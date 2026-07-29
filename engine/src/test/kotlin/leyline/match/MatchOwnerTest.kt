@@ -72,4 +72,17 @@ class MatchOwnerTest :
                 entrants.shutdownNow()
             }
         }
+
+        test("terminal decision is the owner's final semantic action") {
+            val owner = MatchOwner("terminal-decision")
+            val terminalThread = AtomicReference<String>()
+
+            owner.close {
+                owner.assertOwnerThread()
+                terminalThread.set(Thread.currentThread().name)
+            }
+            owner.awaitTermination()
+
+            terminalThread.get().startsWith("match-owner-terminal") shouldBe true
+        }
     })

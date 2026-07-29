@@ -388,7 +388,7 @@ class MatchRegistryTest :
             val registry = MatchRegistry()
             val matchId = "terminal-publication"
             val bridge = stubBridge()
-            registry.getOrCreateMatch(matchId) { Match(matchId, bridge) }
+            val match = registry.getOrCreateMatch(matchId) { Match(matchId, bridge) }
             val sink = ListMessageSink()
             val session =
                 MatchSession(
@@ -414,6 +414,7 @@ class MatchRegistryTest :
                                     publishNow.await()
                                     registry.publishSessionAndConnection(
                                         matchId,
+                                        match,
                                         SeatId(1),
                                         session,
                                         handler.connection,

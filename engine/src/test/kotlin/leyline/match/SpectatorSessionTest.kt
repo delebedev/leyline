@@ -1,6 +1,7 @@
 package leyline.match
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
@@ -17,6 +18,7 @@ import leyline.testkit.TestCardRegistry
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
+import kotlin.time.Duration.Companion.seconds
 
 class SpectatorSessionTest :
     FunSpec({
@@ -50,11 +52,24 @@ class SpectatorSessionTest :
             val releaseHook = CountDownLatch(1)
             val b = GameBridge(cardRepository = TestCardRegistry.repo)
             bridge = b
-            val owner = MatchOwner("test-match")
+            val registry = MatchRegistry()
+            val match = registry.getOrCreateMatch("test-match") { Match("test-match", b) }
+            val owner = registry.ownerFor("test-match")
             val sink = ListMessageSink()
-            val session = SpectatorSession(SeatId(1), "test-match", sink, b, owner = owner)
+            val session =
+                SpectatorSession(
+                    SeatId(1),
+                    "test-match",
+                    sink,
+                    b,
+                    owner = owner,
+                    onTerminalDrained = {
+                        registry.teardownMatch("test-match", MatchTeardownReason.GameOver)
+                    },
+                )
+            registry.registerSession("test-match", SeatId(1), session)
             session.startObserving()
-            b.startAiVsAi(
+            match.startAiVsAi(
                 seed = 42,
                 startGameHook =
                     Runnable {
@@ -66,16 +81,19 @@ class SpectatorSessionTest :
 
             b.publishEngineReady(InteractionReadiness.GAME_OVER)
             b.publishEngineReady(InteractionReadiness.GAME_OVER)
-            waitUntil(owner) { sink.rawMessages.isNotEmpty() }
+            eventually(5.seconds) {
+                sink.rawMessages.shouldNotBeEmpty()
+            }
 
             assertSoftly {
                 sink.rawMessages shouldHaveSize 1
                 sink.messages.shouldNotBeEmpty()
             }
             releaseHook.countDown()
-            session.close()
-            owner.close()
-            owner.awaitTermination()
+            eventually(5.seconds) {
+                registry.getMatch("test-match") shouldBe null
+                owner.isClosed() shouldBe true
+            }
         }
 
         test("owner forwards AI-vs-AI observations in sequence") {

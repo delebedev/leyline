@@ -278,6 +278,7 @@ class MatchConnection(
 
     /** Create and register a [MatchSession] bound to [bridge]. */
     private fun createAndRegisterMatchSession(bridge: GameBridge): MatchSession {
+        val expectedMatch = requireActiveMatch(bridge)
         val sink = MatchOutputMessageSink(output, dumpEnabled = true)
         val rec = recorderFactory?.invoke()
         val connection =
@@ -291,7 +292,7 @@ class MatchConnection(
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         val s = MatchSession(connection = connection, gameBridge = bridge, paceDelayMs = matchConfig.paceDelayMs)
         s.withSessionAuthority {
-            registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
+            registry.publishSessionAndConnection(matchId, expectedMatch, SeatId(seatId), s, this) {
                 bindSession(s)
             }
         }
@@ -300,9 +301,10 @@ class MatchConnection(
 
     /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
     private fun createAndRegisterFamiliarSession(counter: MessageCounter): FamiliarSession {
+        val expectedMatch = requireActiveMatch()
         val sink = MatchOutputMessageSink(output, dumpEnabled = false)
         val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter, owner = registry.ownerFor(matchId))
-        registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
+        registry.publishSessionAndConnection(matchId, expectedMatch, SeatId(seatId), s, this) {
             bindSession(s)
         }
         return s
@@ -316,6 +318,7 @@ class MatchConnection(
     }
 
     private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
+        val expectedMatch = requireActiveMatch(bridge)
         val sink = MatchOutputMessageSink(output, dumpEnabled = true)
         val s =
             SpectatorSession(
@@ -325,12 +328,29 @@ class MatchConnection(
                 bridge,
                 playerId = clientId.removeSuffix("_Familiar"),
                 owner = registry.ownerFor(matchId),
+                onTerminalDrained = {
+                    registry.teardownMatch(
+                        matchId = matchId,
+                        reason = MatchTeardownReason.GameOver,
+                        seatId = SeatId(seatId),
+                        expectedConnection = this,
+                    )
+                },
             )
-        registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
+        registry.publishSessionAndConnection(matchId, expectedMatch, SeatId(seatId), s, this) {
             bindSession(s)
         }
         return s
     }
+
+    private fun requireActiveMatch(expectedBridge: GameBridge? = null): Match =
+        checkNotNull(registry.getMatch(matchId)) {
+            "Match generation is no longer active"
+        }.also { match ->
+            check(expectedBridge == null || match.bridge === expectedBridge) {
+                "Match generation does not own this bridge"
+            }
+        }
 
     private fun handleGREMessage(msg: ClientToMatchServiceMessage) {
         val greMsg = ClientToGREMessage.parseFrom(msg.payload)
@@ -599,6 +619,11 @@ class MatchConnection(
 
     internal fun detachAfterTeardown() {
         state = MatchHandlerState.Detached
+    }
+
+    internal fun closeAfterTeardown() {
+        detachAfterTeardown()
+        output.close()
     }
 
     /**

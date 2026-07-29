@@ -7,9 +7,6 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.types.PrioritySignal
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Manages the dedicated game thread that runs the engine's game loop.
@@ -26,26 +23,52 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 3. Netty handler calls [leyline.bridge.handoff.GameActionBridge.submitAction] to unblock
  * 4. On disconnect / game reset, [shutdown] cancels pending and interrupts the thread
  */
-class GameLoopController(
+internal class GameLoopController(
     val game: Game,
     private val actionBridges: Collection<GameActionBridge> = emptyList(),
     private val promptBridges: Collection<InteractivePromptBridge> = emptyList(),
     private val mulliganBridges: Collection<MulliganBridge> = emptyList(),
     private val prioritySignal: PrioritySignal? = null,
-    private val onGameOver: () -> Unit = {},
+    onWorkerExit: (EngineWorkerExit) -> Unit = {},
+    workerJoinTimeoutMs: Long = 2_000L,
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(GameLoopController::class.java)
     }
 
-    private var gameThread: Thread? = null
-    private val running = AtomicBoolean(false)
-    private val started = CountDownLatch(1)
+    private val worker =
+        EngineWorkerSupervisor(workerJoinTimeoutMs) { exit ->
+            val classified =
+                if (exit == EngineWorkerExit.Completed && !game.isGameOver) {
+                    EngineWorkerExit.Failed(
+                        failureType = "leyline.bridge.coord.UnexpectedEngineWorkerExit",
+                        message = "Engine loop returned before game over",
+                    )
+                } else {
+                    exit
+                }
+            val reported =
+                try {
+                    prioritySignal?.signal()
+                    classified
+                } catch (failure: Throwable) {
+                    log.error("Engine worker readiness publication failed", failure)
+                    if (classified is EngineWorkerExit.Failed) {
+                        classified
+                    } else {
+                        EngineWorkerExit.Failed(
+                            failureType = failure.javaClass.name,
+                            message = failure.message,
+                        )
+                    }
+                }
+            onWorkerExit(reported)
+        }
 
     /**
      * True while the game thread is alive and the loop hasn't ended.
      */
-    val isRunning: Boolean get() = running.get()
+    val isRunning: Boolean get() = worker.isRunning
 
     /**
      * Start the full game via the engine's [forge.game.Match.startGame].
@@ -78,45 +101,14 @@ class GameLoopController(
         name: String,
         block: () -> Unit,
     ) {
-        if (!running.compareAndSet(false, true)) {
-            log.warn("Game loop already running for game ${game.id}")
-            return
-        }
-        gameThread =
-            Thread({
-                try {
-                    block()
-                    log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
-                } catch (ex: Exception) {
-                    if (running.get()) {
-                        log.error("Game loop crashed for game ${game.id}", ex)
-                    } else {
-                        log.debug("Game loop interrupted during shutdown for game ${game.id}")
-                    }
-                } finally {
-                    val completedGame = running.get() && game.isGameOver
-                    running.set(false)
-                    if (completedGame) {
-                        try {
-                            onGameOver()
-                        } catch (failure: Exception) {
-                            log.error("Game-over callback failed for game ${game.id}", failure)
-                        }
-                    }
-                    // Wake up any awaitPriority() blocked on the semaphore — game over
-                    // means no more priority stops, so without this signal the caller
-                    // waits the full 15s timeout before detecting isGameOver.
-                    prioritySignal?.signal()
-                    started.countDown()
-                }
-            }, name)
-        gameThread!!.isDaemon = true
-        gameThread!!.start()
-        started.countDown()
+        val thread =
+            worker.start(name) {
+                block()
+                log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
+            }
 
         // Wire diagnostic context into bridges so timeout messages include
         // engine thread stack trace and game state. Only used on timeout path.
-        val thread = gameThread!!
         actionBridges.forEach { it.setDiagnosticContext(game, thread) }
         promptBridges.forEach { it.setDiagnosticContext(game, thread) }
     }
@@ -124,41 +116,32 @@ class GameLoopController(
     /**
      * Shut down the game loop. Cancels any pending bridge action and interrupts the thread.
      */
-    fun shutdown() {
-        if (!running.compareAndSet(true, false)) return
+    fun shutdown(): EngineWorkerStop =
+        worker.stop {
+            log.info("Shutting down game loop for game ${game.id}")
 
-        log.info("Shutting down game loop for game ${game.id}")
+            // Signal game over so mainGameLoop's `while (!game.isGameOver())` exits cleanly.
+            // Without this, the engine thread can survive interrupt (stuck in Forge internals)
+            // and call awaitAction on the shared bridge, causing the next puzzle to auto-pass.
+            // Set age directly — Game.setGameOver() clears controllers and fires events,
+            // which corrupts state needed by the next puzzle's card registration.
+            if (!game.isGameOver) {
+                game.age = GameStage.GameOver
+            }
 
-        // Signal game over so mainGameLoop's `while (!game.isGameOver())` exits cleanly.
-        // Without this, the engine thread can survive interrupt (stuck in Forge internals)
-        // and call awaitAction on the shared bridge, causing the next puzzle to auto-pass.
-        // Set age directly — Game.setGameOver() clears controllers and fires events,
-        // which corrupts state needed by the next puzzle's card registration.
-        if (!game.isGameOver) {
-            game.age = GameStage.GameOver
+            actionBridges.forEach { it.cancelPending() }
+            promptBridges.forEach { it.cancelPending() }
+            mulliganBridges.forEach { it.cancelPending() }
         }
-
-        actionBridges.forEach { it.cancelPending() }
-        promptBridges.forEach { it.cancelPending() }
-        mulliganBridges.forEach { it.cancelPending() }
-        gameThread?.interrupt()
-
-        try {
-            gameThread?.join(2_000)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
-        gameThread = null
-    }
 
     /**
      * The daemon thread running the engine loop. Null before [start]/[startFromCurrentState].
      * Used by [leyline.bridge.BridgeTimeoutDiagnostic] to capture stack traces on timeout.
      */
-    fun getEngineThread(): Thread? = gameThread
+    fun getEngineThread(): Thread? = worker.workerThread()
 
     /**
      * Wait for the game loop thread to start (useful in tests).
      */
-    fun awaitStarted(timeoutMs: Long = 5_000): Boolean = started.await(timeoutMs, TimeUnit.MILLISECONDS)
+    fun awaitStarted(timeoutMs: Long = 5_000): Boolean = worker.awaitStarted(timeoutMs)
 }
