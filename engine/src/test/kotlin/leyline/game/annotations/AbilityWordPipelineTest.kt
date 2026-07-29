@@ -121,6 +121,60 @@ class AbilityWordPipelineTest :
             }
         }
 
+        test("multi-threshold ability words keep distinct rows across a value update") {
+            fun expendRows(value: Int) =
+                listOf(
+                    AnnotationBuilder.abilityWordActive(
+                        instanceId = 295.iid,
+                        abilityWordName = "ExpendedMana",
+                        value = value,
+                        threshold = 4,
+                        abilityGrpId = 174143.grp,
+                    ),
+                    AnnotationBuilder.abilityWordActive(
+                        instanceId = 295.iid,
+                        abilityWordName = "ExpendedMana",
+                        value = value,
+                        threshold = 8,
+                        abilityGrpId = 174144.grp,
+                    ),
+                )
+
+            val initial =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = emptyMap(),
+                    startPersistentId = 5,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult = mechanicResult(abilityWordPersistent = expendRows(value = 0)),
+                    resolveInstanceId = ::testResolver,
+                )
+            val updated =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = initial.allAnnotations.associateBy { it.id },
+                    startPersistentId = initial.nextPersistentId,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult = mechanicResult(abilityWordPersistent = expendRows(value = 4)),
+                    resolveInstanceId = ::testResolver,
+                )
+            val rows =
+                updated.allAnnotations.filter {
+                    AnnotationType.AbilityWordActive in it.typeList &&
+                        it.detailString("AbilityWordName") == "ExpendedMana"
+                }
+
+            assertSoftly {
+                rows shouldHaveSize 2
+                rows.map { it.detailInt("threshold") }.toSet() shouldBe setOf(4, 8)
+                rows.map { it.detailInt("AbilityGrpId") }.toSet() shouldBe setOf(174143, 174144)
+                rows.map { it.detailInt("value") }.toSet() shouldBe setOf(4)
+                updated.deletedIds.toSet() shouldBe initial.allAnnotations.map { it.id }.toSet()
+            }
+        }
+
         test("AbilityWordActive removed when absent from new scan") {
             val old =
                 AnnotationBuilder

@@ -122,6 +122,44 @@ class AbilityWordScannerTest :
             }
         }
 
+        test("multiple Morbid sources aggregate into one player entry") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                    addCard("Needletooth Pack", human, ZoneType.Battlefield)
+                    addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            val ai = board.game.registeredPlayers.first { it != human }
+            val morbidSourceIds =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .map { board.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+                    .toSet()
+            board.game.action.moveToGraveyard(ai.getZone(ZoneType.Battlefield).cards.single(), null)
+
+            val results =
+                AbilityWordScanner.scan(
+                    battlefieldCards =
+                        board.game.registeredPlayers.flatMap {
+                            it.getZone(ZoneType.Battlefield).cards.toList()
+                        },
+                    instanceIdResolver = { board.bridge.getOrAllocInstanceId(it) },
+                    registryResolver = { card ->
+                        val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                        board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                    },
+                )
+            val morbid = results.filter { it.abilityWordName == "Morbid" }
+
+            morbid shouldHaveSize 1
+            assertSoftly {
+                morbid.single().affectorId shouldBe 1
+                morbid.single().affectedIds.toSet() shouldBe morbidSourceIds
+            }
+        }
+
         test("Morbid card with no creature death emits no entry") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -256,6 +294,40 @@ class AbilityWordScannerTest :
                 expend.value shouldBe 3
                 expend.threshold shouldBe 4
                 expend.abilityGrpId shouldBe 174034
+            }
+        }
+
+        test("multi-threshold Expend source emits one entry per trigger ability") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Muerra, Trash Tactician", human, ZoneType.Battlefield)
+                }
+            val human = board.game.humanPlayer
+            human.expentThisTurn = 4
+            val source =
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Muerra, Trash Tactician" }
+            val sourceId = board.bridge.getOrAllocInstanceId(ForgeCardId(source.id)).value
+
+            val expend =
+                AbilityWordScanner
+                    .scan(
+                        battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                        instanceIdResolver = { board.bridge.getOrAllocInstanceId(it) },
+                        registryResolver = { card ->
+                            val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                            board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                        },
+                    ).filter { it.abilityWordName == "ExpendedMana" }
+
+            expend shouldHaveSize 2
+            assertSoftly {
+                expend.map { it.instanceId }.toSet() shouldBe setOf(sourceId)
+                expend.map { it.value }.toSet() shouldBe setOf(4)
+                expend.map { it.threshold }.toSet() shouldBe setOf(4, 8)
+                expend.map { it.abilityGrpId }.toSet() shouldBe setOf(174143, 174144)
             }
         }
 

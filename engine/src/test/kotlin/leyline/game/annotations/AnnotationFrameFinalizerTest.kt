@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.iid
+import leyline.game.mapping.ZoneIds
 import leyline.game.sid
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -14,22 +15,36 @@ class AnnotationFrameFinalizerTest :
 
         tags(UnitTag)
 
-        test("orders a complete frame before assigning contiguous ids") {
+        test("orders cross-category annotations before assigning contiguous ids") {
+            val objectIdChanged = AnnotationBuilder.objectIdChanged(origId = 300.iid, newId = 400.iid)
+            val zoneTransfer =
+                AnnotationBuilder.zoneTransfer(
+                    instanceId = 400.iid,
+                    srcZoneId = ZoneIds.P1_HAND,
+                    destZoneId = ZoneIds.STACK,
+                    category = "CastSpell",
+                )
             val manaPaid = AnnotationBuilder.manaPaid(spellInstanceId = 344.iid, landInstanceId = 281.iid)
             val cast = AnnotationBuilder.userActionTaken(instanceId = 344.iid, seatId = 1.sid, actionType = ActionType.Cast)
             val submitted = AnnotationBuilder.playerSubmittedTargets(instanceId = 344.iid, casterSeatId = 1.sid)
 
-            val result = AnnotationFrameFinalizer.finalize(listOf(manaPaid, cast, submitted), firstId = 73)
+            val result =
+                AnnotationFrameFinalizer.finalize(
+                    listOf(zoneTransfer, objectIdChanged, manaPaid, cast, submitted),
+                    firstId = 73,
+                )
 
             assertSoftly {
                 result.annotations.map { it.typeList.first() } shouldBe
                     listOf(
                         AnnotationType.PlayerSubmittedTargets,
+                        AnnotationType.ObjectIdChanged,
+                        AnnotationType.ZoneTransfer_af5a,
                         AnnotationType.ManaPaid,
                         AnnotationType.UserActionTaken,
                     )
-                result.annotations.map { it.id } shouldBe listOf(73, 74, 75)
-                result.nextId shouldBe 76
+                result.annotations.map { it.id } shouldBe listOf(73, 74, 75, 76, 77)
+                result.nextId shouldBe 78
             }
         }
 

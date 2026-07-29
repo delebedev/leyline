@@ -9,6 +9,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 
 class TransferCategoryResolverTest :
     FunSpec({
@@ -50,6 +51,11 @@ class TransferCategoryResolverTest :
             test("resolves ${case.name} fallback from its operation event") {
                 TransferCategoryResolver.categoryFromEvents(cardId, listOf(case.event)) shouldBe case.expected
             }
+        }
+
+        test("classifies Stack to Graveyard without an operation event as Countered") {
+            TransferCategoryResolver.categoryFromZonePair(Zone.Stack, Zone.Graveyard) shouldBe
+                TransferCategory.Countered
         }
 
         test("operation precedence is deterministic") {
