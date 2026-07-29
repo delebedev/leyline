@@ -16,6 +16,9 @@ import java.util.concurrent.TimeUnit
 class PrioritySignal {
     private val semaphore = Semaphore(0)
 
+    @Volatile
+    private var beforeWake: (() -> Unit)? = null
+
     /**
      * Set after a prompt resolves so the next priority check skips smart-phase-skip
      * and lets the player see the updated board. Consumed by [consumePromptResolved].
@@ -35,9 +38,19 @@ class PrioritySignal {
         return true
     }
 
+    /** Install the engine-side observation materializer that runs before a waiter wakes. */
+    fun observeBeforeWake(observer: () -> Unit) {
+        check(beforeWake == null) { "Priority signal observer already installed" }
+        beforeWake = observer
+    }
+
     /** Notify that a waiter should re-check its exit conditions. */
     fun signal() {
-        semaphore.release()
+        try {
+            beforeWake?.invoke()
+        } finally {
+            semaphore.release()
+        }
     }
 
     /**

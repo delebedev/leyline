@@ -39,6 +39,9 @@ class PerformActionRecoveryTest :
                 )
 
             session.connection.owner.reduce {
+                session.connection.owner.observeEngine(
+                    bridge.materializeEngineObservation(checkNotNull(bridge.getGame())),
+                )
                 session.connection.owner.observeOutbound(
                     listOf(
                         GREToClientMessage

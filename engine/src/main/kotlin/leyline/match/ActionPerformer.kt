@@ -68,13 +68,13 @@ class ActionPerformer(
 
         val pending =
             seatBridge.action.getPending() ?: run {
-                val runtime = bridge.runtimeFacts(counters.seatId)
+                val runtime = ctx.runtime(counters.seatId)
                 if (runtime.isGameOver && !runtime.hasPlayer) {
                     log.warn("ActionPerformer: PerformActionResp after game retirement — ignoring")
                     return
                 }
                 log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(counters.counter))
+                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.snapshot(), counters.counter))
                 return
             }
         val action = greMsg.performActionResp.actionsList.firstOrNull()
@@ -136,7 +136,7 @@ class ActionPerformer(
                 action.actionType == ActionType.CastOmen ||
                 action.actionType == ActionType.CastMdfc ||
                 action.actionType == ActionType.SpecialTurnFaceUp_add3
-        val stackWasNonEmpty = !ctx.bridge.runtimeFacts(counters.seatId).stackEmpty
+        val stackWasNonEmpty = !ctx.runtime(counters.seatId).stackEmpty
         val submitted =
             when (action.actionType) {
                 ActionType.Pass, ActionType.FloatMana -> {
@@ -225,7 +225,7 @@ class ActionPerformer(
                     // Fall through to autoPass
                 }
                 TargetingHandler.PromptResult.NONE -> {
-                    val runtime = ctx.bridge.runtimeFacts(counters.seatId)
+                    val runtime = ctx.runtime(counters.seatId)
                     if (runtime.stackEmpty) {
                         val nextPending = seatBridge.action.getPending()
                         if (nextPending?.state?.kind == PendingActionKind.DECLARE_ATTACKERS ||

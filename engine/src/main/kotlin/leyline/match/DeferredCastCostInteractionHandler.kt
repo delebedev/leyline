@@ -84,7 +84,7 @@ internal class DeferredCastCostInteractionHandler(
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(counters.counter, ctoReq)
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(ctx.snapshot(), counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} card=${facts.cardName}")
         sink.sendBundledGRE(result.messages)
         return true
@@ -141,7 +141,7 @@ internal class DeferredCastCostInteractionHandler(
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(counters.counter, ctoReq)
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(ctx.snapshot(), counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} card=${facts.cardName}")
         sink.sendBundledGRE(result.messages)
         return true
@@ -174,7 +174,7 @@ internal class DeferredCastCostInteractionHandler(
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(counters.counter, ctoReq)
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(ctx.snapshot(), counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} card=${facts.cardName}")
         sink.sendBundledGRE(result.messages)
         return true

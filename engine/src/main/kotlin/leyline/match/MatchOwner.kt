@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.game.EngineObservation
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
@@ -27,6 +28,7 @@ internal class MatchOwner(
     private val closed = AtomicBoolean(false)
     private val protocolState = OwnerProtocolState()
     private val outbox = MatchOutbox()
+    private var latestEngineObservation: EngineObservation? = null
     private val executor =
         object :
             ThreadPoolExecutor(
@@ -109,6 +111,21 @@ internal class MatchOwner(
     ) {
         assertOwnerThread()
         outbox.acknowledge(token, sequence)
+    }
+
+    fun observeEngine(observation: EngineObservation) {
+        assertOwnerThread()
+        latestEngineObservation = observation
+    }
+
+    fun clearEngineObservation() {
+        assertOwnerThread()
+        latestEngineObservation = null
+    }
+
+    fun engineObservation(): EngineObservation? {
+        assertOwnerThread()
+        return latestEngineObservation
     }
 
     fun lastPromptGsId(): Int {

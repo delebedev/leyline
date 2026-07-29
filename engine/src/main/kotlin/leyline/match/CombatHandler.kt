@@ -419,7 +419,7 @@ open class CombatHandler(
         isHumanTurn: Boolean,
         isAiTurn: Boolean,
     ): Signal {
-        val combatHasAttackers = ctx.bridge.runtimeFacts(counters.seatId).combatHasAttackers
+        val combatHasAttackers = ctx.runtime(counters.seatId).combatHasAttackers
 
         when (phase) {
             "COMBAT_DECLARE_ATTACKERS" -> {
@@ -438,7 +438,10 @@ open class CombatHandler(
                     if (pending?.state?.kind != PendingActionKind.DECLARE_ATTACKERS) {
                         return Signal.CONTINUE
                     }
-                    val req = bundles.bundleBuilder.buildDeclareAttackersReq()
+                    val req =
+                        bundles.bundleBuilder.buildDeclareAttackersReq(
+                            ctx.runtime(counters.seatId).combatDeclarations,
+                        )
                     if (req.attackersCount > 0) {
                         sendDeclareAttackersReq(req)
                         return Signal.STOP
@@ -669,8 +672,12 @@ open class CombatHandler(
      * combat state on toggled creatures + fresh DeclareAttackersReq.
      */
     private fun sendAttackerEchoBack() {
+        val runtime = ctx.runtime(counters.seatId)
         val result =
             bundles.bundleBuilder.echoAttackersBundle(
+                ctx.snapshot(),
+                runtime.combatDeclarations,
+                runtime.naiveActions,
                 counters.counter,
                 selectedAttackerIds = lastDeclaredAttackerIds,
                 selectedAttackAlternatives = lastDeclaredAttackAlternatives,
@@ -689,7 +696,14 @@ open class CombatHandler(
         req: DeclareAttackersReq? = null,
         resetSelection: Boolean = true,
     ) {
-        val result = bundles.bundleBuilder.declareAttackersBundle(counters.counter, req)
+        val runtime = ctx.runtime(counters.seatId)
+        val result =
+            bundles.bundleBuilder.declareAttackersBundle(
+                ctx.snapshot(),
+                runtime.combatDeclarations,
+                counters.counter,
+                req,
+            )
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
@@ -710,8 +724,12 @@ open class CombatHandler(
      * block state on toggled creatures + fresh DeclareBlockersReq.
      */
     private fun sendBlockerEchoBack() {
+        val runtime = ctx.runtime(counters.seatId)
         val result =
             bundles.bundleBuilder.echoBlockersBundle(
+                ctx.snapshot(),
+                runtime.combatDeclarations,
+                runtime.naiveActions,
                 counters.counter,
                 blockAssignments = lastDeclaredBlockAssignments.toMap(),
             )
@@ -720,7 +738,8 @@ open class CombatHandler(
     }
 
     private fun sendDeclareBlockersReq(): Boolean {
-        val req = bundles.bundleBuilder.buildDeclareBlockersReq()
+        val runtime = ctx.runtime(counters.seatId)
+        val req = bundles.bundleBuilder.buildDeclareBlockersReq(runtime.combatDeclarations)
 
         if (req.blockersCount == 0) {
             log.info("CombatHandler: zero legal blockers — auto-submitting empty declaration")
@@ -728,7 +747,12 @@ open class CombatHandler(
             return true // caller should auto-advance
         }
 
-        val result = bundles.bundleBuilder.declareBlockersBundle(counters.counter)
+        val result =
+            bundles.bundleBuilder.declareBlockersBundle(
+                ctx.snapshot(),
+                runtime.combatDeclarations,
+                counters.counter,
+            )
         pendingBlockersSent = true
         Tap.outboundTemplate("DeclareBlockersReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)

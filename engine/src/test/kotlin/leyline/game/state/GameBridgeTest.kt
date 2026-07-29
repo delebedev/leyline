@@ -132,6 +132,16 @@ class GameBridgeTest :
             bridge = null
         }
 
+        test("wake without a pending interaction does not publish readiness") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.wrapGame(GameBootstrap.createGame())
+
+            b.prioritySignal.signal()
+
+            b.hasPendingEngineCuts() shouldBe false
+        }
+
         test("getHandGrpIds resolves") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b

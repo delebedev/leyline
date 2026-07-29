@@ -71,18 +71,26 @@ inside the engine domain are outside this table.
 | `PrioritySignal` semaphore | Engine bridges → waiting owner | Engine publication must wake an owner that may not have started waiting yet. The wake is followed by a typed readiness marker in the engine-cut FIFO. | Engine progress is appended as owner work instead of observed through a blocking wait. |
 | `MatchSession.autoAdvanceRequested` / `running` / `closed`, `SpectatorSession.closed`, `GameBridge.autoAdvanceRequester`, `engineCutListener`, and `promptTimeoutNeedsAutoAdvance` | Engine playback + lifecycle entrants → owner queue | Interactive timeout work is coalesced; spectator cut notifications enqueue owner work; retirement or replacement suppresses stale requests. | Engine observations enqueue one generation-tagged owner command directly; owner retirement cancels it through queue lifecycle. |
 | `ClientAutoPassState` volatile options/concurrent opponent-stop set and `PhaseStopProfile` concurrent map | Owner settings → engine priority loop | Client policy changes must be visible during engine priority decisions. | Engine decisions receive an immutable policy snapshot published by the owner instead of reading mutable connection state. |
-| `GameBridge.activeGame` volatile | Engine/puzzle lifecycle → owner snapshot and handler reads | The owner still queries a live bridge whose game generation may be replaced or stopped by lifecycle work. | The engine exposes immutable generation-tagged observations; owner code no longer reads the live game holder. |
+| `GameBridge.activeGame` volatile | Engine and pre-play lifecycle → worker observation materializer | Runtime replacement and stop still publish the active generation to engine-side adapters. Match-play owner code does not read it. | The supervisor installs and retires a worker generation through one lifecycle command. |
 | `EngineCutQueue` | Engine playback/readiness → match owner | One generation-tagged FIFO orders immutable playback values before the readiness marker that lets the owner resume. | Becomes the worker-to-owner mailbox when engine execution is isolated. |
 
-The interactive playback boundary is intentionally narrower than complete
-projection purity. `GsmSnapshot` materialization still allocates projection
-identities and reads bridge caches. Owner compilation still reads
-owner-confined delayed-trigger-holder and transient linked-face baselines.
-Pending target specs remain mutable interaction facts consumed by the existing
-`buildDiff` path, and `StateMapper` retains broader bridge reads and inline
-projection computation. Moving those facts into explicit value inputs is the
-next mapper-extraction boundary; none of them restores protocol construction or
-sequence allocation to the engine callback.
+Every match-play readiness marker carries one immutable `EngineObservation`.
+The worker materializes its snapshot, per-seat policy facts, terminal outcome,
+pending-event state, naive actions, and combat legality before waking the
+owner. The owner installs that observation only while draining its exact FIFO
+position. A later worker observation therefore cannot overtake preceding
+playback or become a bridge-global "latest" value.
+
+This boundary is intentionally narrower than complete projection purity.
+`GsmSnapshot` materialization still allocates projection identities and reads
+bridge caches. `StateMapper` still receives the bridge and retains inline
+projection computation; that compute-input extraction remains a separate
+pure-frame concern. Prompt candidate and executable ability graphs remain
+behind their value/token submission seams and are tracked separately. Ordinary
+initial handshake and mulligan materialization are the named pre-play lifecycle
+horizon: the match-play observation stream begins at the first post-keep
+readiness cut. None of these horizons restores protocol construction or
+sequence allocation to an engine callback.
 
 Priority-action catalogs contain value-only offers. Exact `PlayerAction`
 commands remain in `GameActionBridge`'s per-window token table while the
@@ -108,8 +116,10 @@ flowchart LR
     MS --> WAIT[PrioritySignal wait]
 
     E[Forge engine thread] --> EVT[EventBus and GamePlayback]
-    EVT --> Y[PlaybackYield]
+    EVT --> Y[PlaybackYield with EngineObservation]
+    E --> R[Readiness with EngineObservation]
     Y --> CUT[EngineCutQueue]
+    R --> CUT
     CUT --> OWNER
     OWNER --> OUTBOX[MatchOutbox append]
     OUTBOX --> HEAD[Generation-tagged protocol head]
@@ -141,7 +151,8 @@ sequenceDiagram
     participant ENG as Engine thread
     participant AB as GameActionBridge
     participant SIG as PrioritySignal
-    participant GB as GameBridge.awaitPriorityWithTimeout
+    participant CUT as EngineCutQueue
+    participant GB as GameBridge.awaitPriorityCut
     participant SESS as Match owner
 
     SESS->>GB: awaitPriorityWithTimeout(timeout)
@@ -150,19 +161,21 @@ sequenceDiagram
     ENG->>AB: awaitAction(state)
     AB->>AB: pending.set(PendingAction)
     AB->>SIG: signal()
+    SIG->>CUT: append readiness + immutable observation
     Note over AB: future.get() blocks engine
     SIG-->>GB: permit
-    GB->>GB: drainPermits
-    GB->>GB: awaitProgress(entryGsId)
-    GB-->>SESS: true
-    SESS->>SESS: build and send bundle
+    GB->>CUT: latest readiness checkpoint
+    GB-->>SESS: checkpoint
+    SESS->>CUT: drain through checkpoint
+    SESS->>SESS: install observation, compile, commit, append
 ```
 
-The signal means "a pending item was posted." It does not establish output
-order by itself. `awaitPriorityCut` therefore appends a typed readiness marker
-to `EngineCutQueue`. The owner drains every preceding playback value through
-that marker before returning from the wait. Counter progress is not used as an
-engine-completion signal.
+The signal means "a readiness value was appended." It does not establish output
+order by itself. The signal's engine-side observer materializes and appends the
+typed readiness marker before releasing the semaphore. `awaitPriorityCut`
+returns that marker's checkpoint; the owner drains every preceding playback
+value through it before returning from the wait. Counter progress is not used
+as an engine-completion signal.
 
 ---
 

@@ -13,7 +13,6 @@ import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.RequestBuilder
@@ -344,11 +343,11 @@ class TargetingHandler(
         if (pendingPrompt != null && sendPrompt(pendingPrompt, PromptDispatchContext.POST_CAST)) {
             return true
         }
-        if (!bridge.runtimeFacts(counters.seatId).stackEmpty) {
+        if (!ctx.runtime(counters.seatId).stackEmpty) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching client behavior (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(bundles.bundleBuilder.buildActions())) {
+            if (clientAutoResolve && !ctx.runtime(counters.seatId).priorityActions.hasLegalNonManaAction) {
                 return false
             }
             sink.sendRealGameState(bridge)
@@ -756,6 +755,7 @@ class TargetingHandler(
 
         val result =
             bundles.bundleBuilder.castingTimeOptionsBundle(
+                ctx.snapshot(),
                 counters.counter,
                 ctoReq,
                 sourceCardInstanceId = cardInstanceId,
@@ -879,7 +879,7 @@ class TargetingHandler(
     }
 
     private fun sendSelectTargetsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val result = bundles.bundleBuilder.selectTargetsBundle(counters.counter, pendingPrompt)
+        val result = bundles.bundleBuilder.selectTargetsBundle(ctx.snapshot(), counters.counter, pendingPrompt)
         Tap.outboundTemplate("SelectTargetsReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
@@ -891,6 +891,7 @@ class TargetingHandler(
         val bb = bundles.bundleBuilder
         val result =
             bb.selectNBundle(
+                ctx.snapshot(),
                 counters.counter,
                 pendingPrompt,
                 route,
@@ -903,7 +904,7 @@ class TargetingHandler(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         kind: OrderRouteKind,
     ) {
-        val result = bundles.bundleBuilder.orderBundle(counters.counter, pendingPrompt, kind)
+        val result = bundles.bundleBuilder.orderBundle(ctx.snapshot(), counters.counter, pendingPrompt, kind)
         Tap.outboundTemplate("OrderReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
@@ -929,7 +930,14 @@ class TargetingHandler(
         val req = pendingPrompt.request
 
         // Resolve candidateRefs → cards + build bundle. Returns null if no cards resolved.
-        val result = bundles.bundleBuilder.resolveSurveilScryBundle(req.candidateRefs, context, counters.counter)
+        val result =
+            bundles.bundleBuilder.resolveSurveilScryBundle(
+                ctx.snapshot(),
+                req.candidateRefs,
+                req.sourceEntityId,
+                context,
+                counters.counter,
+            )
         if (result == null) {
             log.warn(
                 "TargetingHandler: surveil/scry resolve failed — candidateRefs={} (falling back)",

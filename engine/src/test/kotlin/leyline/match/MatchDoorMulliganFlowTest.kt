@@ -17,6 +17,7 @@ import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.ServerConfig
+import leyline.game.EngineObservation
 import leyline.game.state.GameResetCommand
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
@@ -338,9 +339,19 @@ class MatchDoorMulliganFlowTest :
 
             try {
                 val priorPromptId = deliverPrompt(session)
+                var observationClearedBeforeReset = false
                 val (replacement, _) =
-                    session.replaceForPuzzle(GameResetCommand { emptyList() })
+                    owner.reduce {
+                        owner.observeEngine(EngineObservation.forTest())
+                        session.replaceForPuzzle(
+                            GameResetCommand {
+                                observationClearedBeforeReset = owner.engineObservation() == null
+                                emptyList()
+                            },
+                        )
+                    }
                 val inheritedPromptId = owner.reduce(owner::lastPromptMsgId)
+                val inheritedObservation = owner.reduce(owner::engineObservation)
                 val replacementPromptId = deliverPrompt(replacement)
 
                 val (priorRejected, replacementAccepted) =
@@ -363,6 +374,8 @@ class MatchDoorMulliganFlowTest :
                 assertSoftly {
                     replacement.connection.owner shouldBeSameInstanceAs owner
                     inheritedPromptId shouldBe priorPromptId
+                    observationClearedBeforeReset shouldBe true
+                    inheritedObservation shouldBe null
                     priorRejected shouldBe true
                     replacementAccepted shouldBe false
                 }

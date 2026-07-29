@@ -56,6 +56,28 @@ class GsmSnapshot internal constructor(
         boundCards.mapValues { it.value.snapshot }
     }
 
+    internal fun withFrameIdentity(
+        matchId: String,
+        gameStateId: Int,
+    ): GsmSnapshot =
+        GsmSnapshot(
+            matchId = matchId,
+            gameStateId = gameStateId,
+            seats = seats,
+            zones = zones,
+            boundCards = boundCards,
+            stack = stack,
+            phase = phase,
+            combat = combat,
+            abilityWordEntries = abilityWordEntries,
+            pendingTriggers = pendingTriggers,
+            combatQualifications = combatQualifications,
+            persistentAnnotationState = persistentAnnotationState,
+            capturedAt = capturedAt,
+            dayTime = dayTime,
+            activePlayerSpellsCastThisTurn = activePlayerSpellsCastThisTurn,
+        )
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GsmSnapshot) return false

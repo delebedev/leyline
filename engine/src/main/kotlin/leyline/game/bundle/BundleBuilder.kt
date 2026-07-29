@@ -10,6 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.game.CombatDeclarationFacts
 import leyline.game.NaiveGsmAction
 import leyline.game.PlaybackYield
 import leyline.game.annotations.AnnotationBuilder
@@ -84,7 +85,7 @@ class BundleBuilder(
 
     fun phaseTransitionDiff(counter: MessageCounter): BundleResult = phaseTransitionDiff(bridge.requireGame(), counter)
 
-    fun echoAttackersBundle(
+    internal fun echoAttackersBundle(
         counter: MessageCounter,
         selectedAttackerIds: List<Int>,
         allLegalAttackerIds: List<Int>,
@@ -112,12 +113,23 @@ class BundleBuilder(
 
     fun buildDeclareBlockersReq(): DeclareBlockersReq = RequestBuilder.buildDeclareBlockersReq(bridge.requireGame(), SeatId(seatId), bridge)
 
+    fun buildDeclareAttackersReq(facts: CombatDeclarationFacts): DeclareAttackersReq =
+        RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), facts, bridge)
+
+    fun buildDeclareBlockersReq(facts: CombatDeclarationFacts): DeclareBlockersReq = RequestBuilder.buildDeclareBlockersReq(facts, bridge)
+
     fun declareBlockersBundle(counter: MessageCounter): BundleResult = declareBlockersBundle(bridge.requireGame(), counter)
 
     fun selectTargetsBundle(
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
     ): BundleResult = selectTargetsBundle(bridge.requireGame(), counter, prompt)
+
+    internal fun selectTargetsBundle(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+    ): BundleResult = selectTargetsBundle(null, snapshot, counter, prompt)
 
     fun selectNBundle(
         counter: MessageCounter,
@@ -126,16 +138,37 @@ class BundleBuilder(
         envelopeForReq: (SelectNReq) -> SelectNEnvelope,
     ): BundleResult = selectNBundle(bridge.requireGame(), counter, prompt, route, envelopeForReq)
 
+    internal fun selectNBundle(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        route: SelectNPromptRoute,
+        envelopeForReq: (SelectNReq) -> SelectNEnvelope,
+    ): BundleResult = selectNBundle(null, snapshot, counter, prompt, route, envelopeForReq)
+
     fun selectNBundle(
         counter: MessageCounter,
         envelope: SelectNEnvelope,
     ): BundleResult = selectNBundle(bridge.requireGame(), counter, envelope)
+
+    internal fun selectNBundle(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        envelope: SelectNEnvelope,
+    ): BundleResult = selectNBundle(null, snapshot, counter, envelope)
 
     fun orderBundle(
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
         kind: OrderRouteKind,
     ): BundleResult = orderBundle(bridge.requireGame(), counter, prompt, kind)
+
+    internal fun orderBundle(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
+    ): BundleResult = orderBundle(null, snapshot, counter, prompt, kind)
 
     fun castingTimeOptionsBundle(
         counter: MessageCounter,
@@ -151,6 +184,22 @@ class BundleBuilder(
             sourceCardGrpId,
         )
 
+    internal fun castingTimeOptionsBundle(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        req: CastingTimeOptionsReq,
+        sourceCardInstanceId: Int? = null,
+        sourceCardGrpId: Int? = null,
+    ): BundleResult =
+        castingTimeOptionsBundle(
+            null,
+            snapshot,
+            counter,
+            req,
+            sourceCardInstanceId,
+            sourceCardGrpId,
+        )
+
     fun payCostsBundle(
         counter: MessageCounter,
         req: PayCostsReq,
@@ -159,6 +208,22 @@ class BundleBuilder(
     ): BundleResult =
         payCostsBundle(
             bridge.requireGame(),
+            counter,
+            req,
+            prompt,
+            promptPersistentAnnotations,
+        )
+
+    internal fun payCostsBundle(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        req: PayCostsReq,
+        prompt: Prompt? = null,
+        promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
+    ): BundleResult =
+        payCostsBundle(
+            null,
+            snapshot,
             counter,
             req,
             prompt,
@@ -200,6 +265,12 @@ class BundleBuilder(
         val delayedTriggerHolders: List<HolderRecord>? = null,
         val transientLinkedFaceFamilyIds: Set<InstanceId>? = null,
     )
+
+    private fun observedFrameBaseline(snapshot: GsmSnapshot?): FrameProjectionBaseline =
+        FrameProjectionBaseline(
+            previousSnap = cursor.lastSent,
+            snapTemplate = snapshot,
+        )
 
     private fun buildFrameDraft(
         @Suppress("CanBeNonNullable")
@@ -670,6 +741,15 @@ class BundleBuilder(
             compilePostAction(game, counter, revealForSeat)
         }
 
+    fun postAction(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        revealForSeat: Int? = null,
+    ): BundleResult =
+        compileAndCommit(counter) {
+            compilePostAction(snapshot, counter, revealForSeat)
+        }
+
     internal fun compilePostAction(
         game: Game,
         counter: MessageCounter,
@@ -715,6 +795,46 @@ class BundleBuilder(
             diff.planDraft(BundleResult(messages, projection.offers, nextGs))
         }
 
+    private fun compilePostAction(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+        revealForSeat: Int?,
+    ): FramePlan =
+        compilePlan(counter) { plannedCounter ->
+            val diff =
+                buildFrameDiff(
+                    game = null,
+                    counter = plannedCounter,
+                    revealForSeat = revealForSeat,
+                    projectionBaseline = FrameProjectionBaseline(cursor.lastSent, snapTemplate = snapshot),
+                    includePendingPlayerSubmittedTargets = true,
+                ) { snap, events ->
+                    if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
+                        GameStateUpdate.SendHiFi
+                    } else {
+                        StateMapper.resolveUpdateType(snap, seatId)
+                    }
+                }
+            val nextGs = diff.gameStateId
+            val frame = GsmFrame.from(diff.snap)
+            val projection = buildPriorityProjection(diff.snap, idResolver = diff.idResolver::cardIid)
+            val gs = GsmBuilder.embedActions(diff.result.gsm, projection.actions, frame, recipientSeatId = seatId)
+            val messages =
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, plannedCounter.nextMsgId()) {
+                        it.gameStateMessage = gs
+                    },
+                ) + coinFlipPromptMessages(diff.events.events, nextGs, plannedCounter) +
+                    listOf(
+                        makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, plannedCounter.nextMsgId()) {
+                            it.actionsAvailableReq = projection.actions
+                            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                        },
+                    )
+
+            diff.planDraft(BundleResult(messages, projection.offers, nextGs))
+        }
+
     /**
      * State-only diff: Diff GameStateMessage without ActionsAvailableReq.
      * Used to show intermediate state (e.g. spell on stack) without
@@ -728,6 +848,14 @@ class BundleBuilder(
             compileStateOnlyDiff(game, counter)
         }
 
+    fun stateOnlyDiff(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+    ): BundleResult =
+        compileAndCommit(counter) {
+            compileStateOnlyDiff(snapshot, counter)
+        }
+
     internal fun compileStateOnlyDiff(
         game: Game,
         counter: MessageCounter,
@@ -735,6 +863,35 @@ class BundleBuilder(
         compilePlan(counter) { plannedCounter ->
             val diff =
                 buildFrameDiff(game, plannedCounter, includePendingPlayerSubmittedTargets = true) { snap, _ ->
+                    StateMapper.resolveUpdateType(snap, seatId)
+                }
+            val nextGs = diff.gameStateId
+            val gs = diff.result.gsm
+            val messages =
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, plannedCounter.nextMsgId()) {
+                        it.gameStateMessage = gs
+                    },
+                ) + coinFlipPromptMessages(diff.events.events, nextGs, plannedCounter) +
+                    listOf(
+                        buildEchoDiffGsm(plannedCounter, gs.update, previousGsId = gs.gameStateId),
+                    )
+
+            diff.planDraft(BundleResult(messages))
+        }
+
+    private fun compileStateOnlyDiff(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+    ): FramePlan =
+        compilePlan(counter) { plannedCounter ->
+            val diff =
+                buildFrameDiff(
+                    game = null,
+                    counter = plannedCounter,
+                    projectionBaseline = FrameProjectionBaseline(cursor.lastSent, snapTemplate = snapshot),
+                    includePendingPlayerSubmittedTargets = true,
+                ) { snap, _ ->
                     StateMapper.resolveUpdateType(snap, seatId)
                 }
             val nextGs = diff.gameStateId
@@ -1112,14 +1269,36 @@ class BundleBuilder(
             compilePhaseTransitionDiff(game, counter)
         }
 
+    fun phaseTransitionDiff(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+    ): BundleResult =
+        compileAndCommit(counter) {
+            compilePhaseTransitionDiff(snapshot, counter)
+        }
+
     internal fun compilePhaseTransitionDiff(
         game: Game,
+        counter: MessageCounter,
+    ): FramePlan = compilePhaseTransitionDiff(game, null, counter)
+
+    private fun compilePhaseTransitionDiff(
+        snapshot: GsmSnapshot,
+        counter: MessageCounter,
+    ): FramePlan = compilePhaseTransitionDiff(null, snapshot, counter)
+
+    private fun compilePhaseTransitionDiff(
+        @Suppress("CanBeNonNullable")
+        game: Game?,
+        snapshot: GsmSnapshot?,
         counter: MessageCounter,
     ): FramePlan =
         compilePlan(counter) { plannedCounter ->
             val prevGs = plannedCounter.currentGsId()
             val nextGs = plannedCounter.nextGsId()
-            val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+            val snap =
+                snapshot?.withFrameIdentity(matchId, nextGs)
+                    ?: GsmSnapshot.capture(checkNotNull(game), bridge, matchId, nextGs)
 
             val frame = GsmFrame.from(snap)
             val actions = ActionMapper.buildNaiveActions(seatId, bridge)
@@ -1261,6 +1440,33 @@ class BundleBuilder(
             configureRequest
         }
 
+    internal fun echoAttackersBundle(
+        snapshot: GsmSnapshot,
+        facts: CombatDeclarationFacts,
+        naiveActions: List<NaiveGsmAction>,
+        counter: MessageCounter,
+        selectedAttackerIds: List<Int>,
+        allLegalAttackerIds: List<Int>,
+        selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
+        selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+    ): BundleResult =
+        combatEchoBundle(snapshot, naiveActions, counter, allLegalAttackerIds, GREMessageType.DeclareAttackersReq_695e) {
+            val req =
+                RequestBuilder.buildDeclareAttackersReq(
+                    SeatId(seatId),
+                    facts,
+                    bridge,
+                    committedAttackerIds = selectedAttackerIds.toSet(),
+                    committedAttackAlternatives = selectedAttackAlternatives,
+                    committedDamageRecipients = selectedDamageRecipients,
+                )
+            val configure: (GREToClientMessage.Builder) -> Unit = {
+                it.declareAttackersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+            }
+            configure
+        }
+
     /**
      * Declare-attackers bundle: Diff (DeclareAttack step) + DeclareAttackersReq (prompt id=6).
      */
@@ -1288,6 +1494,39 @@ class BundleBuilder(
             }
         }
 
+    fun declareAttackersBundle(
+        snapshot: GsmSnapshot,
+        facts: CombatDeclarationFacts,
+        counter: MessageCounter,
+        prebuiltReq: DeclareAttackersReq? = null,
+    ): BundleResult =
+        compileAndCommit(counter) {
+            compilePlan(counter) { plannedCounter ->
+                val diff =
+                    buildFrameDiff(
+                        game = null,
+                        counter = plannedCounter,
+                        projectionBaseline = FrameProjectionBaseline(cursor.lastSent, snapTemplate = snapshot),
+                    ) { snap, _ ->
+                        StateMapper.resolveUpdateType(snap, seatId)
+                    }
+                val req =
+                    prebuiltReq
+                        ?: RequestBuilder.buildDeclareAttackersReq(
+                            SeatId(seatId),
+                            facts,
+                            bridge,
+                            idResolver = diff.idResolver::cardIid,
+                        )
+                diff.planDraft(
+                    promptRequestBundle(diff, plannedCounter, diff.result.gsm, GREMessageType.DeclareAttackersReq_695e) {
+                        it.declareAttackersReq = req
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+                    },
+                )
+            }
+        }
+
     /**
      * Echo-back for iterative blocker toggle: thin Diff GSM with provisional
      * blocker state on toggled creatures + fresh DeclareBlockersReq.
@@ -1295,7 +1534,7 @@ class BundleBuilder(
      * Same pattern as [echoAttackersBundle] — engine's combat object doesn't
      * track provisional blocker selections during iterative declaration.
      */
-    fun echoBlockersBundle(
+    internal fun echoBlockersBundle(
         game: Game,
         counter: MessageCounter,
         blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
@@ -1314,6 +1553,27 @@ class BundleBuilder(
                 it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
             }
             configureRequest
+        }
+
+    internal fun echoBlockersBundle(
+        snapshot: GsmSnapshot,
+        facts: CombatDeclarationFacts,
+        naiveActions: List<NaiveGsmAction>,
+        counter: MessageCounter,
+        blockAssignments: Map<Int, Int>,
+    ): BundleResult =
+        combatEchoBundle(snapshot, naiveActions, counter, blockAssignments.keys, GREMessageType.DeclareBlockersReq_695e) {
+            val req =
+                RequestBuilder.buildDeclareBlockersReq(
+                    facts,
+                    bridge,
+                    blockerAssignments = blockAssignments,
+                )
+            val configure: (GREToClientMessage.Builder) -> Unit = {
+                it.declareBlockersReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+            }
+            configure
         }
 
     private fun combatEchoBundle(
@@ -1373,6 +1633,47 @@ class BundleBuilder(
         return BundleResult(listOf(msg1, msg2))
     }
 
+    private fun combatEchoBundle(
+        snapshot: GsmSnapshot,
+        naiveActions: List<NaiveGsmAction>,
+        counter: MessageCounter,
+        includedInstanceIds: Collection<Int>,
+        requestType: GREMessageType,
+        buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
+    ): BundleResult {
+        val nextGs = counter.nextGsId()
+        val snap = snapshot.withFrameIdentity(matchId, nextGs)
+        val objects =
+            snap.objects.mapNotNull { (fid, cardSnap) ->
+                val iid = bridge.getOrAllocInstanceId(fid).value
+                if (iid !in includedInstanceIds) return@mapNotNull null
+                ObjectMapper.buildProvisionalCombatObject(
+                    cardSnap,
+                    iid,
+                    ZoneIds.BATTLEFIELD,
+                    ownerSeatId = seatId,
+                    cardProto = bridge.cardProto,
+                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
+                )
+            }
+        val actions = naiveActions.map { ActionMapper.buildNaiveGsmAction(it, bridge::getOrAllocInstanceId) }
+        val gsm =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(nextGs)
+                .addAllGameObjects(objects)
+                .setPrevGameStateId(nextGs - 1)
+                .setUpdate(GameStateUpdate.SendAndRecord)
+        embedActions(gsm, ActionsAvailableReq.newBuilder().addAllActions(actions).build(), seatId, pending = false)
+        val msg1 =
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                it.gameStateMessage = gsm.build()
+            }
+        val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), buildRequestConfig())
+        return BundleResult(listOf(msg1, msg2))
+    }
+
     /**
      * Declare-blockers bundle: Diff (DeclareBlock step) + DeclareBlockersReq (prompt id=7).
      */
@@ -1387,6 +1688,36 @@ class BundleBuilder(
                     RequestBuilder.buildDeclareBlockersReq(
                         game,
                         SeatId(seatId),
+                        bridge,
+                        idResolver = diff.idResolver::cardIid,
+                    )
+                diff.planDraft(
+                    promptRequestBundle(diff, plannedCounter, diff.result.gsm, GREMessageType.DeclareBlockersReq_695e) {
+                        it.declareBlockersReq = req
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+                    },
+                )
+            }
+        }
+
+    fun declareBlockersBundle(
+        snapshot: GsmSnapshot,
+        facts: CombatDeclarationFacts,
+        counter: MessageCounter,
+    ): BundleResult =
+        compileAndCommit(counter) {
+            compilePlan(counter) { plannedCounter ->
+                val diff =
+                    buildFrameDiff(
+                        game = null,
+                        counter = plannedCounter,
+                        projectionBaseline = FrameProjectionBaseline(cursor.lastSent, snapTemplate = snapshot),
+                    ) { snap, _ ->
+                        StateMapper.resolveUpdateType(snap, seatId)
+                    }
+                val req =
+                    RequestBuilder.buildDeclareBlockersReq(
+                        facts,
                         bridge,
                         idResolver = diff.idResolver::cardIid,
                     )
@@ -1415,6 +1746,13 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
+    ): BundleResult = selectTargetsBundle(game, null, counter, prompt)
+
+    private fun selectTargetsBundle(
+        game: Game?,
+        snapshot: GsmSnapshot?,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
     ): BundleResult =
         compileAndCommit(counter) {
             compilePlan(counter) { plannedCounter ->
@@ -1422,6 +1760,7 @@ class BundleBuilder(
                     buildFrameDiff(
                         game,
                         plannedCounter,
+                        projectionBaseline = observedFrameBaseline(snapshot),
                         annotationRiders = { _, frameIds ->
                             prompt.request.sourceEntityId?.let { sourceEntityId ->
                                 listOf(
@@ -1461,10 +1800,24 @@ class BundleBuilder(
         prompt: InteractivePromptBridge.PendingPrompt,
         route: SelectNPromptRoute,
         envelopeForReq: (SelectNReq) -> SelectNEnvelope,
+    ): BundleResult = selectNBundle(game, null, counter, prompt, route, envelopeForReq)
+
+    private fun selectNBundle(
+        game: Game?,
+        snapshot: GsmSnapshot?,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        route: SelectNPromptRoute,
+        envelopeForReq: (SelectNReq) -> SelectNEnvelope,
     ): BundleResult =
         compileAndCommit(counter) {
             compilePlan(counter) { plannedCounter ->
-                val diff = buildFrameDiff(game, plannedCounter) { _, _ -> GameStateUpdate.Send }
+                val diff =
+                    buildFrameDiff(
+                        game,
+                        plannedCounter,
+                        projectionBaseline = observedFrameBaseline(snapshot),
+                    ) { _, _ -> GameStateUpdate.Send }
                 val req = RequestBuilder.buildSelectNReq(prompt, bridge, route, diff.idResolver::cardIid)
                 diff.planDraft(selectNBundleFromDiff(diff, plannedCounter, envelopeForReq(req)))
             }
@@ -1474,10 +1827,22 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         envelope: SelectNEnvelope,
+    ): BundleResult = selectNBundle(game, null, counter, envelope)
+
+    private fun selectNBundle(
+        game: Game?,
+        snapshot: GsmSnapshot?,
+        counter: MessageCounter,
+        envelope: SelectNEnvelope,
     ): BundleResult =
         compileAndCommit(counter) {
             compilePlan(counter) { plannedCounter ->
-                val diff = buildFrameDiff(game, plannedCounter) { _, _ -> GameStateUpdate.Send }
+                val diff =
+                    buildFrameDiff(
+                        game,
+                        plannedCounter,
+                        projectionBaseline = observedFrameBaseline(snapshot),
+                    ) { _, _ -> GameStateUpdate.Send }
                 diff.planDraft(selectNBundleFromDiff(diff, plannedCounter, envelope))
             }
         }
@@ -1516,10 +1881,23 @@ class BundleBuilder(
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
         kind: OrderRouteKind,
+    ): BundleResult = orderBundle(game, null, counter, prompt, kind)
+
+    private fun orderBundle(
+        game: Game?,
+        snapshot: GsmSnapshot?,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        kind: OrderRouteKind,
     ): BundleResult =
         compileAndCommit(counter) {
             compilePlan(counter) { plannedCounter ->
-                val frameDraft = buildFrameDraft(game, plannedCounter) { _, _ -> GameStateUpdate.Send }
+                val frameDraft =
+                    buildFrameDraft(
+                        game,
+                        plannedCounter,
+                        projectionBaseline = observedFrameBaseline(snapshot),
+                    ) { _, _ -> GameStateUpdate.Send }
                 val snap = frameDraft.snap
                 val stagedMove = stagePendingOrderZoneMove(frameDraft.result.gsm, snap, prompt, frameDraft.idResolver)
                 val augmentedDraft =
@@ -1944,9 +2322,31 @@ class BundleBuilder(
         sourceCardInstanceId: Int? = null,
         sourceCardGrpId: Int? = null,
     ): BundleResult =
+        castingTimeOptionsBundle(
+            game,
+            null,
+            counter,
+            req,
+            sourceCardInstanceId,
+            sourceCardGrpId,
+        )
+
+    private fun castingTimeOptionsBundle(
+        game: Game?,
+        snapshot: GsmSnapshot?,
+        counter: MessageCounter,
+        req: CastingTimeOptionsReq,
+        sourceCardInstanceId: Int? = null,
+        sourceCardGrpId: Int? = null,
+    ): BundleResult =
         compileAndCommit(counter) {
             compilePlan(counter) { plannedCounter ->
-                val diff = buildFrameDiff(game, plannedCounter) { _, _ -> GameStateUpdate.Send }
+                val diff =
+                    buildFrameDiff(
+                        game,
+                        plannedCounter,
+                        projectionBaseline = observedFrameBaseline(snapshot),
+                    ) { _, _ -> GameStateUpdate.Send }
                 val gsBuilder =
                     diff.result.gsm
                         .toBuilder()
@@ -2032,9 +2432,31 @@ class BundleBuilder(
         prompt: Prompt? = null,
         promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
     ): BundleResult =
+        payCostsBundle(
+            game,
+            null,
+            counter,
+            req,
+            prompt,
+            promptPersistentAnnotations,
+        )
+
+    private fun payCostsBundle(
+        game: Game?,
+        snapshot: GsmSnapshot?,
+        counter: MessageCounter,
+        req: PayCostsReq,
+        prompt: Prompt? = null,
+        promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
+    ): BundleResult =
         compileAndCommit(counter) {
             compilePlan(counter) { plannedCounter ->
-                val diff = buildFrameDiff(game, plannedCounter) { _, _ -> GameStateUpdate.Send }
+                val diff =
+                    buildFrameDiff(
+                        game,
+                        plannedCounter,
+                        projectionBaseline = observedFrameBaseline(snapshot),
+                    ) { _, _ -> GameStateUpdate.Send }
                 val promptOnlyPersistentAnnotations =
                     promptPersistentAnnotations.filterNot { extra ->
                         diff.result.gsm.persistentAnnotationsList
@@ -2118,6 +2540,7 @@ class BundleBuilder(
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
+        snapshot: GsmSnapshot? = null,
     ): BundleResult {
         val prevGsId = counter.currentGsId()
         val losingTeam = if (winningTeam == 1) 2 else 1
@@ -2181,9 +2604,11 @@ class BundleBuilder(
                 .setStatus(TeamStatus.PendingLoss_a458),
         )
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
-        val game = bridge.getGame()
-        if (game != null) {
-            val gameOverSnap = GsmSnapshot.capture(game, bridge, matchId, 0)
+        val gameOverSnap =
+            snapshot ?: bridge.getGame()?.let { game ->
+                GsmSnapshot.capture(game, bridge, matchId, 0)
+            }
+        if (gameOverSnap != null) {
             val loserInfo =
                 PlayerMapper
                     .buildFromSnapshot(gameOverSnap, losingPlayerSeatId)
@@ -2388,24 +2813,23 @@ class BundleBuilder(
      * @param counter message counter for sequencing
      */
     fun resolveSurveilScryBundle(
+        snapshot: GsmSnapshot,
         candidateRefs: List<PromptCandidateRefDto>,
+        sourceEntityId: Int?,
         context: GroupingContext,
         counter: MessageCounter,
     ): BundleResult? {
-        val game = bridge.getGame() ?: return null
         val resolved =
             candidateRefs
                 .filter { it.isCard() }
                 .mapNotNull { ref ->
-                    val card = game.findById(ref.entityId)
-                    if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
+                    val cardId = ForgeCardId(ref.entityId)
+                    snapshot.objects[cardId]?.let { it to bridge.getOrAllocInstanceId(cardId).value }
                 }
         if (resolved.isEmpty()) return null
-        val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
-        if (topCardSnaps.size != resolved.size) return null
+        val topCardSnaps = resolved.map { it.first }
         val cardInstanceIds = resolved.map { it.second }
-        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
+        val sourceId = sourceEntityId?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)).value } ?: 0
         return surveilScryBundle(topCardSnaps, cardInstanceIds, sourceId, context, counter)
     }
 

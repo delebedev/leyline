@@ -115,6 +115,7 @@ internal class PayCostsInteractionHandler(
         val (req, prompt) = route.build(pendingPrompt, bridge)
         val result =
             bundles.bundleBuilder.payCostsBundle(
+                ctx.snapshot(),
                 counters.counter,
                 req,
                 prompt,

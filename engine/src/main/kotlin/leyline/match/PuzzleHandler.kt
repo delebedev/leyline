@@ -7,7 +7,6 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -69,6 +68,8 @@ class PuzzleHandler(
         val bridge = session.gameBridge
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
         val gsId = session.counter.nextGsId()
+        session.ensureEngineObservation()
+        val observationSnapshot = session.ctx.snapshot()
 
         val (bundleMsg, nextMsgId) =
             HandshakeMessages.puzzleInitialBundle(
@@ -77,6 +78,7 @@ class PuzzleHandler(
                 session.counter.currentMsgId(),
                 gsId,
                 bridge,
+                observationSnapshot,
             )
         session.counter.setMsgId(nextMsgId)
         session.counter.markGameStateGsId(gsId)
@@ -86,10 +88,9 @@ class PuzzleHandler(
         bridge.activateInteractivePlayback()
 
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
-        session.awaitEnginePriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
-        val snap = SnapshotCapture.run(checkNotNull(bridge.getGame()), bridge, matchId, gsId)
+        val snap = session.ctx.snapshot()
         val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
         check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
             "Puzzle priority actions did not bind to the pending window"

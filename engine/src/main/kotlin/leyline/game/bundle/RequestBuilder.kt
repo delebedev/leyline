@@ -2,9 +2,6 @@ package leyline.game.bundle
 
 import forge.card.mana.ManaCostShard
 import forge.game.Game
-import forge.game.card.Card
-import forge.game.combat.CombatUtil
-import forge.game.player.Player
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
@@ -19,13 +16,14 @@ import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
+import leyline.game.CombatDeclarationCapture
+import leyline.game.CombatDeclarationFacts
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Builds outbound interactive request protos (targeting, selectN, combat).
@@ -830,30 +828,26 @@ object RequestBuilder {
             .setPlayerSystemSeatId(seatId.opponent.value)
             .build()
 
-    private fun planeswalkerDamageRecipient(
-        card: Card,
-        bridge: GameBridge,
-    ): DamageRecipient =
+    private fun planeswalkerDamageRecipient(instanceId: Int): DamageRecipient =
         DamageRecipient
             .newBuilder()
             .setType(DamageRecType.PlanesWalker)
-            .setPlaneswalkerInstanceId(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+            .setPlaneswalkerInstanceId(instanceId)
             .build()
 
-    private fun legalAttackDamageRecipients(
-        player: Player,
-        card: Card,
-        seatId: SeatId,
-        bridge: GameBridge,
-    ): List<DamageRecipient> =
-        buildList {
-            for (defender in CombatUtil.getAllPossibleDefenders(player)) {
-                if (!CombatUtil.canAttack(card, defender)) continue
-                when (defender) {
-                    is Player -> add(playerDamageRecipient(seatId))
-                    is Card -> if (defender.isPlaneswalker) add(planeswalkerDamageRecipient(defender, bridge))
-                }
-            }
+    private fun damageRecipient(
+        fact: CombatDeclarationFacts.DamageRecipientFact,
+        idResolver: (ForgeCardId) -> InstanceId,
+    ): DamageRecipient =
+        when (fact) {
+            is CombatDeclarationFacts.DamageRecipientFact.PlayerSeat ->
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.Player_a0e5)
+                    .setPlayerSystemSeatId(fact.seatId.value)
+                    .build()
+            is CombatDeclarationFacts.DamageRecipientFact.Planeswalker ->
+                planeswalkerDamageRecipient(idResolver(fact.cardId).value)
         }
 
     private fun selectedAttackDamageRecipient(
@@ -892,19 +886,34 @@ object RequestBuilder {
         committedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
         idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): DeclareAttackersReq {
-        val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
+        val game = bridge.getGame() ?: return DeclareAttackersReq.getDefaultInstance()
+        return buildDeclareAttackersReq(
+            seatId = seatId,
+            facts = CombatDeclarationCapture.capture(game, bridge, seatId),
+            bridge = bridge,
+            committedAttackerIds = committedAttackerIds,
+            committedAttackAlternatives = committedAttackAlternatives,
+            committedDamageRecipients = committedDamageRecipients,
+            idResolver = idResolver,
+        )
+    }
+
+    fun buildDeclareAttackersReq(
+        seatId: SeatId,
+        facts: CombatDeclarationFacts,
+        bridge: GameBridge,
+        committedAttackerIds: Set<Int> = emptySet(),
+        committedAttackAlternatives: Map<Int, Int> = emptyMap(),
+        committedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
+    ): DeclareAttackersReq {
         val builder = DeclareAttackersReq.newBuilder()
 
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (!card.isCreature) continue
-            if (!CombatUtil.canAttack(card)) continue
-
-            val instanceId = idResolver(ForgeCardId(card.id)).value
-            val hasEnlist = card.hasKeyword("Enlist")
+        for (fact in facts.attackers) {
+            val instanceId = idResolver(fact.cardId).value
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
-            val legalRecipients = legalAttackDamageRecipients(player, card, seatId, bridge)
-            if (legalRecipients.isEmpty()) continue
+            val legalRecipients = fact.legalRecipients.map { damageRecipient(it, idResolver) }
 
             val attacker = buildAttackerOption(instanceId, legalRecipients)
             if (isCommitted && selectedAlternativeGrpId == 0) {
@@ -912,7 +921,7 @@ object RequestBuilder {
             }
             builder.addAttackers(attacker)
 
-            if (hasEnlist) {
+            if (fact.hasEnlist) {
                 val enlistAttacker = buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST)
                 if (isCommitted && selectedAlternativeGrpId == KeywordAbilityIds.ENLIST) {
                     enlistAttacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
@@ -922,7 +931,7 @@ object RequestBuilder {
 
             // qualifiedAttackers never has selectedDamageRecipient
             builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients))
-            if (hasEnlist) builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST))
+            if (fact.hasEnlist) builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST))
         }
         builder.setCanSubmitAttackers(true)
         // Conformance: client expects an empty manaCost entry entry.
@@ -945,21 +954,24 @@ object RequestBuilder {
         bridge: GameBridge,
         blockerAssignments: Map<Int, Int> = emptyMap(),
         idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
+    ): DeclareBlockersReq =
+        buildDeclareBlockersReq(
+            facts = CombatDeclarationCapture.capture(game, bridge, seatId),
+            bridge = bridge,
+            blockerAssignments = blockerAssignments,
+            idResolver = idResolver,
+        )
+
+    fun buildDeclareBlockersReq(
+        facts: CombatDeclarationFacts,
+        bridge: GameBridge,
+        blockerAssignments: Map<Int, Int> = emptyMap(),
+        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): DeclareBlockersReq {
-        val player = bridge.getPlayer(seatId) ?: return DeclareBlockersReq.getDefaultInstance()
-        val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
         val builder = DeclareBlockersReq.newBuilder()
 
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (!card.isCreature) continue
-            if (!CombatUtil.canBlock(card, combat)) continue
-
-            // Per-attacker legality: only list attackers this creature can legally block
-            // (handles flying/reach, menace, protection, etc.)
-            val legalAttackers = combat.attackers.filter { CombatUtil.canBlock(it, card) }
-            if (legalAttackers.isEmpty()) continue
-
-            val instanceId = idResolver(ForgeCardId(card.id)).value
+        for (fact in facts.blockers) {
+            val instanceId = idResolver(fact.cardId).value
             val blocker =
                 Blocker
                     .newBuilder()
@@ -970,7 +982,7 @@ object RequestBuilder {
             if (assignedAttacker != null) {
                 blocker.addSelectedAttackerInstanceIds(assignedAttacker)
             } else {
-                val legalAttackerIds = legalAttackers.map { idResolver(ForgeCardId(it.id)).value }
+                val legalAttackerIds = fact.legalAttackerIds.map { idResolver(it).value }
                 blocker.addAllAttackerInstanceIds(legalAttackerIds)
             }
             builder.addBlockers(blocker)
@@ -978,7 +990,7 @@ object RequestBuilder {
         // Conformance: client expects empty manaCost
         builder.addManaCost(ManaRequirement.getDefaultInstance())
 
-        log.info("buildDeclareBlockersReq: seat={} blockers={} assigned={}", seatId, builder.blockersCount, blockerAssignments.size)
+        log.info("buildDeclareBlockersReq: blockers={} assigned={}", builder.blockersCount, blockerAssignments.size)
         return builder.build()
     }
 

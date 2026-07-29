@@ -454,6 +454,7 @@ object HandshakeMessages {
         msgIdStart: Int,
         gameStateId: Int,
         bridge: GameBridge,
+        observationSnapshot: GsmSnapshot,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
@@ -464,8 +465,8 @@ object HandshakeMessages {
             messages.add(buildConnectResp(msgId++, seatId, deck))
         }
 
-        // Full GSM built from live game state (stage=Play, cards in zones)
-        val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
+        // Full GSM built from the readiness observation (stage=Play, cards in zones).
+        val snap = observationSnapshot.withFrameIdentity(matchId, gameStateId)
         val fullResult =
             StateMapper
                 .buildFromSnapshot(

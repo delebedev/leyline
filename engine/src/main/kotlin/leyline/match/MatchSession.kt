@@ -107,7 +107,7 @@ class MatchSession(
             override fun awaitActionPriority(): Boolean = awaitActionPriorityOwned()
         }
 
-    val ctx: SessionContext = SessionContext(gameBridge, engineCutAwaiter)
+    internal val ctx: SessionContext = SessionContext(gameBridge, engineCutAwaiter, owner::engineObservation)
 
     init {
         gameBridge.configureAutoPass(autoPassState)
@@ -187,11 +187,11 @@ class MatchSession(
             // The owner wait already drained every preceding playback value.
             // Allocate the phase transition next on the same causal gsId chain.
             val bb = bundleBuilder
-            val result = bb.phaseTransitionDiff(counter)
+            val result = bb.phaseTransitionDiff(ctx.snapshot(), counter)
             sendBundle(result)
 
             // Seed state snapshot for subsequent diff computation.
-            val snap1 = ctx.bridge.snapshot(matchId, counter.currentGsId())
+            val snap1 = ctx.snapshot().withFrameIdentity(matchId, counter.currentGsId())
             bb.cursor.lastSent = snap1
 
             // Auto-pass through phases where human has no real actions
@@ -244,6 +244,7 @@ class MatchSession(
     fun replaceForPuzzle(command: GameResetCommand): Pair<MatchSession, List<Int>> =
         owner.reduce {
             owner.assertOwnerThread()
+            owner.clearEngineObservation()
             val deletedIds = command.reset(gameBridge)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
             registry.registerSession(matchId, seatId, replacement)
@@ -281,7 +282,7 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the cursor
         // needs a matching snapshot for the first Diff to be correct.
-        val snap2 = ctx.bridge.snapshot(matchId, counter.currentGsId())
+        val snap2 = ctx.snapshot().withFrameIdentity(matchId, counter.currentGsId())
         bundleBuilder.cursor.lastSent = snap2
         return true
     }
@@ -523,16 +524,11 @@ class MatchSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) {
-        val game =
-            bridge.getGame() ?: run {
-                log.warn("MatchSession: sendRealGameState but game is null")
-                return
-            }
         if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
             engineCutAwaiter.awaitActionPriority()
         }
         if (bridge.seat(seatId).action.getPending() == null) {
-            sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
+            sendBundle(bundleBuilder.stateOnlyDiff(ctx.snapshot(), counter))
             return
         }
         sendPriorityState(bridge, revealForSeat)
@@ -547,14 +543,8 @@ class MatchSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) {
-        val game =
-            bridge.getGame() ?: run {
-                log.warn("MatchSession: sendRealGameState but game is null")
-                return
-            }
-
         val bb = bundleBuilder
-        val result = bb.postAction(game, counter, revealForSeat)
+        val result = bb.postAction(ctx.snapshot(), counter, revealForSeat)
 
         // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
         val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
@@ -605,17 +595,22 @@ class MatchSession(
     private fun sendGameOverOwned(reason: ResultReason) {
         if (gameOverCommitted) return
         val bridge = gameBridge
-        val humanWon = bridge.playerWon(seatId)
+        val observation = ctx.observation()
+        val humanWon = observation.runtimeFor(seatId).won
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
-        val lossReason = annotationLossReasonFor(reason, bridge.playerLossCause(SeatId(losingPlayerSeatId)))
+        val lossReason =
+            annotationLossReasonFor(
+                reason,
+                observation.runtimeFor(SeatId(losingPlayerSeatId)).lossCause,
+            )
 
         // If there are pending events (e.g. mana-ability sacrifice during resolution),
         // build a final diff GSM to emit those annotations before the game-over bundle.
         // This mirrors client behavior, which sends a resolution GSM before GameComplete.
         val bb = bundleBuilder
-        if (bridge.hasPendingEvents()) {
-            val resolutionBundle = bb.stateOnlyDiff(counter)
+        if (observation.runtimeFor(seatId).isGameOver && observation.hasPendingEvents) {
+            val resolutionBundle = bb.stateOnlyDiff(observation.snapshot, counter)
             sendBundledGRE(resolutionBundle.messages)
             log.debug("sendGameOver: flushed {} pending events in pre-game-over diff", resolutionBundle.messages.size)
         }
@@ -627,6 +622,7 @@ class MatchSession(
                 reason = reason,
                 losingPlayerSeatId = losingPlayerSeatId,
                 lossReason = lossReason,
+                snapshot = observation.snapshot,
             )
         sendBundledGRE(result.messages)
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
@@ -707,7 +703,7 @@ class MatchSession(
     private fun awaitActionPriorityOwned(): Boolean {
         owner.assertOwnerThread()
         val checkpoint =
-            gameBridge.awaitActionPriorityCut(seatId)
+            gameBridge.awaitActionPriorityCut()
                 ?: run {
                     drainPlaybackOwned()
                     return false
@@ -720,6 +716,13 @@ class MatchSession(
 
     override fun awaitEnginePriorityWithTimeout(timeoutMs: Long): Boolean = engineCutAwaiter.awaitPriorityWithTimeout(timeoutMs)
 
+    internal fun ensureEngineObservation() {
+        owner.assertOwnerThread()
+        if (owner.engineObservation() == null) {
+            check(awaitEnginePriority()) { "Engine observation did not become available" }
+        }
+    }
+
     private fun drainPlaybackOwned(): Boolean {
         owner.assertOwnerThread()
         val checkpoint = gameBridge.latestEngineCutCheckpoint()
@@ -731,9 +734,11 @@ class MatchSession(
         while (true) {
             val cut = gameBridge.peekEngineCutThrough(checkpoint) ?: break
             if (cut !is EngineCut.Observation) {
+                owner.observeEngine((cut as EngineCut.InteractionReady).observation)
                 gameBridge.acknowledgeEngineCut(cut)
                 continue
             }
+            owner.observeEngine(cut.value.observation)
             val results = bundleBuilder.playbackYield(cut.value, counter)
             gameBridge.acknowledgeEngineCut(cut)
             for (result in results) {
@@ -773,7 +778,7 @@ class MatchSession(
                     do {
                         if (autoAdvanceClosed.get()) return@enqueue
                         autoAdvanceRequested.set(false)
-                        if (gameBridge.getGame() == null) return@enqueue
+                        if (!ctx.runtime(seatId).hasPlayer) return@enqueue
                         log.debug("MatchSession: auto-advance pump ({})", reason)
                         autoPassEngine.autoPassAndAdvance()
                     } while (autoAdvanceRequested.get() && !autoAdvanceClosed.get())

@@ -36,7 +36,7 @@ class AutoPassEngine(
     }
 
     private fun recordDecision(decision: PriorityDecision) {
-        val runtime = ctx.bridge.runtimeFacts(counters.seatId)
+        val runtime = ctx.runtime(counters.seatId)
         log.info(
             "event=priority_decision source=session phase={} turn={} decision={}",
             runtime.phase,
@@ -57,15 +57,15 @@ class AutoPassEngine(
             // every earlier engine observation on the owner sequence.
             if (drainPlayback()) return@repeat
 
-            val runtime = bridge.runtimeFacts(counters.seatId)
+            val runtime = ctx.runtime(counters.seatId)
             if (runtime.isGameOver) {
                 sink.sendGameOver()
                 return
             }
 
             val phase = runtime.phase
-            val isHumanTurn = runtime.isHumanTurn
-            val isAiTurn = runtime.isAiTurn
+            val isHumanTurn = runtime.isPlayerTurn
+            val isAiTurn = runtime.isOpponentTurn
 
             // Damage assignment prompt (dedicated future, not action bridge).
             // Must run before combat phase SEND_STATE handling: COMBAT_DAMAGE on the
@@ -105,16 +105,16 @@ class AutoPassEngine(
                         if (drainPlayback()) return@repeat
                         if (bridge.seat(counters.seatId).action.getPending() == null) {
                             log.debug("SEND_STATE: no pending priority window at {}", phase)
-                            sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(counters.counter))
+                            sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.snapshot(), counters.counter))
                             return
                         }
-                        val facts = bridge.priorityActionFacts(counters.seatId)
+                        val facts = ctx.runtime(counters.seatId).priorityActions
                         if (facts.hasLegalNonManaAction) {
                             sink.sendPriorityState(bridge)
                             return
                         }
                         log.debug("SEND_STATE: emitting state-only diff at {}", phase)
-                        sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(counters.counter))
+                        sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.snapshot(), counters.counter))
                         // State-only diffs carry no actions — the client cannot respond.
                         // If the engine is blocked at chooseSpellAbilityToPlay with a
                         // pending pass-only action, fall through to advanceOrWait so it
@@ -143,7 +143,7 @@ class AutoPassEngine(
             // human priority window; otherwise instant-speed actions can make
             // us emit an ActionsAvailableReq while the AI still has priority.
             if (shouldCheckHumanActions(isAiTurn)) {
-                val facts = bridge.priorityActionFacts(counters.seatId)
+                val facts = runtime.priorityActions
                 val decision = checkHumanActions(isAiTurn, facts)
                 if (decision is PriorityDecision.Grant) {
                     if (drainPlayback()) return@repeat
@@ -159,17 +159,17 @@ class AutoPassEngine(
             }
         }
 
-        val finalRuntime = bridge.runtimeFacts(counters.seatId)
+        val finalRuntime = ctx.runtime(counters.seatId)
         val phase2 = finalRuntime.phase ?: "?"
         val turn2 = finalRuntime.turn
         log.warn("autoPassAndAdvance: hit max iterations ({}) at phase={} turn={}", MAX_ITERATIONS, phase2, turn2)
-        val stillAiTurn = finalRuntime.isAiTurn
+        val stillAiTurn = finalRuntime.isOpponentTurn
         if (stillAiTurn) {
             log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
         } else if (bridge.seat(counters.seatId).action.getPending() != null) {
             sink.sendRealGameState(bridge)
         } else {
-            sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(counters.counter))
+            sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.snapshot(), counters.counter))
         }
     }
 
@@ -209,8 +209,8 @@ class AutoPassEngine(
         isAiTurn: Boolean,
         facts: PriorityActionFacts? = null,
     ): PriorityDecision {
-        val runtime = ctx.bridge.runtimeFacts(counters.seatId)
-        val resolvedFacts = facts ?: ctx.bridge.priorityActionFacts(counters.seatId)
+        val runtime = ctx.runtime(counters.seatId)
+        val resolvedFacts = facts ?: runtime.priorityActions
         val hasLegalAction = runtime.hasPlayer && resolvedFacts.hasLegalNonManaAction
 
         // Full control: always grant priority (never auto-pass on session side)
@@ -260,7 +260,7 @@ class AutoPassEngine(
         isAiTurn: Boolean,
     ): LoopSignal {
         val bridge = ctx.bridge
-        val runtime = bridge.runtimeFacts(counters.seatId)
+        val runtime = ctx.runtime(counters.seatId)
         val pending = bridge.seat(counters.seatId).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, runtime.turn, isAiTurn, pending != null)
 
@@ -286,7 +286,7 @@ class AutoPassEngine(
         } else if (isAiTurn) {
             val reachedPriority = ctx.engine.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
-                if (bridge.runtimeFacts(counters.seatId).isGameOver) {
+                if (ctx.runtime(counters.seatId).isGameOver) {
                     if (drainPlayback()) return LoopSignal.CONTINUE
                     sink.sendGameOver()
                     return LoopSignal.EXIT

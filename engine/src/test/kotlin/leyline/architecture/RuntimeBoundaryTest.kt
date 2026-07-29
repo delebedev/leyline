@@ -11,10 +11,13 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.types.PriorityActionFacts
+import leyline.game.CombatDeclarationFacts
+import leyline.game.EngineObservation
 import leyline.game.GamePlayback
 import leyline.game.InteractivePlaybackMaterializer
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackYield
+import leyline.game.SeatRuntimeFacts
 import leyline.game.bundle.MessageCounter
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.NaiveGsmActionCapture
@@ -26,6 +29,7 @@ import leyline.match.MatchSession
 import leyline.match.SessionContext
 import leyline.match.SpectatorSession
 import java.lang.reflect.Modifier
+import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -95,6 +99,64 @@ class RuntimeBoundaryTest :
                 .haveFullyQualifiedName("java.util.concurrent.CompletableFuture")
                 .because("session handlers submit values through bridge-owned completion gateways")
                 .check(classes)
+        }
+
+        test("worker observations contain values only") {
+            val valueTypes =
+                listOf(
+                    EngineObservation::class.java,
+                    SeatRuntimeFacts::class.java,
+                    CombatDeclarationFacts::class.java,
+                    CombatDeclarationFacts.AttackerFact::class.java,
+                    CombatDeclarationFacts.BlockerFact::class.java,
+                    CombatDeclarationFacts.DamageRecipientFact.PlayerSeat::class.java,
+                    CombatDeclarationFacts.DamageRecipientFact.Planeswalker::class.java,
+                )
+            val liveFields =
+                valueTypes.flatMap { type ->
+                    type.declaredFields.mapNotNull { field ->
+                        field.genericType.typeName
+                            .takeIf {
+                                "forge." in it ||
+                                    "wotc.mtgo.gre" in it ||
+                                    "CompletableFuture" in it ||
+                                    "Function" in it ||
+                                    "GameBridge" in it
+                            }?.let { "${type.simpleName}.${field.name}: $it" }
+                    }
+                }
+            check(liveFields.isEmpty()) {
+                "Worker observation values retain live fields: ${liveFields.joinToString()}"
+            }
+        }
+
+        test("match orchestration cannot read the live engine graph") {
+            val matchSource =
+                sequenceOf(
+                    cwd.resolve("src/main/kotlin/leyline/match"),
+                    cwd.resolve("engine/src/main/kotlin/leyline/match"),
+                ).first(Files::isDirectory)
+            val forbidden =
+                Regex(
+                    """\.(?:getGame|requireGame|runtimeFacts)\(|""" +
+                        """\b(?:GsmSnapshot|SnapshotCapture)\.capture\(|""" +
+                        """\b(?:bridge|gameBridge|ctx\.bridge)\.snapshot\(""",
+                )
+            val violations = mutableListOf<String>()
+            Files.walk(matchSource).use { files ->
+                files
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        Files.readAllLines(file).forEachIndexed { index, line ->
+                            if (forbidden.containsMatchIn(line)) {
+                                violations += "${matchSource.relativize(file)}:${index + 1}"
+                            }
+                        }
+                    }
+            }
+            check(violations.isEmpty()) {
+                "Match orchestration reads the live engine graph: ${violations.joinToString()}"
+            }
         }
 
         test("match and game do not depend on transport implementations") {

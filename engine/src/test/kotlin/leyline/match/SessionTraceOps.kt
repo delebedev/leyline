@@ -34,6 +34,9 @@ class SessionTraceOps(
 
                 override fun awaitActionPriority(): Boolean = awaitEnginePriority()
             },
+            {
+                gameBridge.getGame()?.let(gameBridge::materializeEngineObservation)
+            },
         )
 
     override fun awaitEnginePriority(): Boolean = gameBridge.awaitPriorityWithTimeout(gameBridge.priorityWaitMs)

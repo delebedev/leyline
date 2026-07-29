@@ -42,12 +42,15 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
+import leyline.game.CombatDeclarationCapture
 import leyline.game.EngineCut
 import leyline.game.EngineCutCheckpoint
 import leyline.game.EngineCutQueue
+import leyline.game.EngineObservation
 import leyline.game.GamePlayback
 import leyline.game.InteractionReadiness
 import leyline.game.PlaybackYield
+import leyline.game.SeatRuntimeFacts
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleCursor
 import leyline.game.bundle.MessageCounter
@@ -60,6 +63,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.NaiveGsmActionCapture
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
@@ -363,6 +367,7 @@ class GameBridge(
     private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
 
     init {
+        prioritySignal.observeBeforeWake(::publishReadinessObservation)
         // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
         actionBridges[1] = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
         promptBridges[1] =
@@ -437,8 +442,77 @@ class GameBridge(
     internal fun publishPlaybackYield(value: PlaybackYield): EngineCutCheckpoint =
         engineCuts.publishObservation(value).also(::notifyEngineCutListener)
 
-    internal fun publishEngineReady(kind: InteractionReadiness): EngineCutCheckpoint =
-        engineCuts.publishReady(kind).also(::notifyEngineCutListener)
+    private fun publishReadinessObservation() {
+        val active = activeGame ?: return
+        val kind =
+            if (active.game.isGameOver) {
+                InteractionReadiness.GAME_OVER
+            } else {
+                pendingInteractionReadiness() ?: return
+            }
+        publishEngineReady(kind, materializeEngineObservation(active.game))
+    }
+
+    internal fun publishEngineReady(
+        kind: InteractionReadiness,
+        observation: EngineObservation =
+            materializeEngineObservation(checkNotNull(activeGame).game),
+    ): EngineCutCheckpoint =
+        engineCuts
+            .publishReady(kind, observation)
+            .also(::notifyEngineCutListener)
+
+    internal fun materializeEngineObservation(
+        game: Game,
+        snapshot: GsmSnapshot = GsmSnapshot.captureForPlayback(game, this, "forge-match-1"),
+    ): EngineObservation =
+        EngineObservation(
+            snapshot = snapshot,
+            seats =
+                players.keys.associate { seat ->
+                    val seatId = SeatId(seat)
+                    seatId to materializeSeatRuntimeFacts(game, seatId)
+                },
+            hasPendingEvents = eventCollector?.hasEvents() == true,
+        )
+
+    private fun materializeSeatRuntimeFacts(
+        game: Game,
+        seatId: SeatId,
+    ): SeatRuntimeFacts {
+        val player = getPlayer(seatId)
+        return SeatRuntimeFacts(
+            phase = game.phaseHandler.phase?.name,
+            turn = game.phaseHandler.turn,
+            isGameOver = game.isGameOver,
+            hasPlayer = player != null,
+            isPlayerTurn = player != null && game.phaseHandler.playerTurn == player,
+            stackEmpty = game.stack.isEmpty,
+            combatHasAttackers =
+                game.phaseHandler.combat
+                    ?.attackers
+                    ?.isNotEmpty() == true,
+            priorityActions = priorityActionFacts(seatId),
+            naiveActions = NaiveGsmActionCapture.materialize(seatId.value, this),
+            combatDeclarations = CombatDeclarationCapture.capture(game, this, seatId),
+            won = player?.getOutcome()?.hasWon() == true,
+            lossCause = player?.getOutcome()?.lossState.toPlayerLossCause(),
+        )
+    }
+
+    private fun GameLossReason?.toPlayerLossCause(): PlayerLossCause? =
+        when (this) {
+            GameLossReason.LifeReachedZero -> PlayerLossCause.LifeTotal
+            GameLossReason.Poisoned -> PlayerLossCause.Poison
+            GameLossReason.Milled -> PlayerLossCause.Milled
+            GameLossReason.Conceded -> PlayerLossCause.Concede
+            GameLossReason.CommanderDamage,
+            GameLossReason.IntentionalDraw,
+            GameLossReason.OpponentWon,
+            GameLossReason.SpellEffect,
+            -> PlayerLossCause.Other
+            null -> null
+        }
 
     internal fun peekEngineCutThrough(checkpoint: EngineCutCheckpoint): EngineCut? = engineCuts.peekThrough(checkpoint)
 
@@ -934,8 +1008,6 @@ class GameBridge(
         }
 
     /** True if the open frame has accumulated events not yet closed into a GSM. */
-    fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
-
     companion object {
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
@@ -969,7 +1041,6 @@ class GameBridge(
 
         /** Short settle delay after detecting pending state — lets engine thread finish
          *  in-flight zone moves before we snapshot. */
-        private const val SETTLE_MS = 1L
 
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 5L
@@ -1179,9 +1250,6 @@ class GameBridge(
             GameLoopController(
                 g,
                 prioritySignal = prioritySignal,
-                onGameOver = {
-                    publishEngineReady(InteractionReadiness.GAME_OVER)
-                },
             )
         activeGame = ActiveGame.Spectator(g, collector, loop)
         g.subscribeToEvents(collector)
@@ -1237,45 +1305,6 @@ class GameBridge(
 
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
 
-    data class RuntimeFacts(
-        val phase: String?,
-        val turn: Int,
-        val isGameOver: Boolean,
-        val hasPlayer: Boolean,
-        val isHumanTurn: Boolean,
-        val stackEmpty: Boolean,
-        val combatHasAttackers: Boolean,
-    ) {
-        val isAiTurn: Boolean get() = hasPlayer && !isHumanTurn
-    }
-
-    fun runtimeFacts(seatId: SeatId): RuntimeFacts {
-        val activeGame =
-            game
-                ?: return RuntimeFacts(
-                    null,
-                    0,
-                    isGameOver = true,
-                    hasPlayer = false,
-                    isHumanTurn = false,
-                    stackEmpty = true,
-                    combatHasAttackers = false,
-                )
-        val player = getPlayer(seatId)
-        return RuntimeFacts(
-            phase = activeGame.phaseHandler.phase?.name,
-            turn = activeGame.phaseHandler.turn,
-            isGameOver = activeGame.isGameOver,
-            hasPlayer = player != null,
-            isHumanTurn = player != null && activeGame.phaseHandler.playerTurn == player,
-            stackEmpty = activeGame.stack.isEmpty,
-            combatHasAttackers =
-                activeGame.phaseHandler.combat
-                    ?.attackers
-                    ?.isNotEmpty() == true,
-        )
-    }
-
     fun opponentPlayerId(seatId: SeatId): ForgePlayerId? {
         val player = getPlayer(seatId)
         return game
@@ -1286,8 +1315,6 @@ class GameBridge(
     }
 
     fun playerEntityId(seatId: SeatId): Int? = getPlayer(seatId)?.id
-
-    fun playerWon(seatId: SeatId): Boolean = getPlayer(seatId)?.getOutcome()?.hasWon() == true
 
     fun cardName(cardId: ForgeCardId): String? = game?.findById(cardId.value)?.name
 
@@ -1449,20 +1476,6 @@ class GameBridge(
         gameStateId: Int,
     ): GsmSnapshot = GsmSnapshot.capture(requireGame(), this, matchId, gameStateId)
 
-    fun playerLossCause(seatId: SeatId): PlayerLossCause? =
-        when (getPlayer(seatId)?.getOutcome()?.lossState) {
-            GameLossReason.LifeReachedZero -> PlayerLossCause.LifeTotal
-            GameLossReason.Poisoned -> PlayerLossCause.Poison
-            GameLossReason.Milled -> PlayerLossCause.Milled
-            GameLossReason.Conceded -> PlayerLossCause.Concede
-            GameLossReason.CommanderDamage,
-            GameLossReason.IntentionalDraw,
-            GameLossReason.OpponentWon,
-            GameLossReason.SpellEffect,
-            -> PlayerLossCause.Other
-            null -> null
-        }
-
     fun pendingDamageAssignment(): DamageAssignmentPrompt? = humanController?.pendingDamageAssignment?.prompt
 
     fun submitDamageAssignment(assigners: List<DamageAssignmentValue>): Boolean {
@@ -1602,16 +1615,14 @@ class GameBridge(
      * The readiness marker shares the playback FIFO so the owner can drain
      * every preceding observation before resuming.
      */
-    internal fun awaitActionPriorityCut(seatId: SeatId): EngineCutCheckpoint? {
+    internal fun awaitActionPriorityCut(): EngineCutCheckpoint? {
         val deadline = System.currentTimeMillis() + priorityWaitMs
-        val actionBridge = seat(seatId).action
         while (true) {
-            if (actionBridge.getPending() != null) {
-                return engineCuts.publishReady(InteractionReadiness.ACTION)
+            val ready = engineCuts.latestReady()
+            if (ready?.kind == InteractionReadiness.ACTION) {
+                return ready.checkpoint
             }
-            val g = game
-            if (g == null || g.isGameOver) {
-                engineCuts.publishReady(InteractionReadiness.GAME_OVER)
+            if (ready?.kind == InteractionReadiness.GAME_OVER) {
                 return null
             }
             val remaining = deadline - System.currentTimeMillis()
@@ -1645,16 +1656,13 @@ class GameBridge(
     internal fun awaitPriorityCut(timeoutMs: Long = priorityWaitMs): EngineCutCheckpoint? {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (true) {
-            // Check conditions first (handles already-pending case)
-            val g = game
-            if (g != null && g.isGameOver) {
+            val ready = engineCuts.latestReady()
+            if (ready?.kind == InteractionReadiness.GAME_OVER) {
                 log.info("GameBridge: game over detected while waiting for priority")
-                engineCuts.publishReady(InteractionReadiness.GAME_OVER)
                 return null
             }
-            if (hasPendingInteraction()) {
-                Thread.sleep(SETTLE_MS)
-                return engineCuts.publishReady(pendingInteractionReadiness())
+            if (ready != null) {
+                return ready.checkpoint
             }
 
             val remaining = deadline - System.currentTimeMillis()
@@ -1668,18 +1676,15 @@ class GameBridge(
         }
     }
 
-    private fun pendingInteractionReadiness(): InteractionReadiness =
+    private fun pendingInteractionReadiness(): InteractionReadiness? =
         when {
             humanController?.pendingDamageAssignment != null -> InteractionReadiness.DAMAGE_ASSIGNMENT
             humanController?.pendingOptionalAction != null -> InteractionReadiness.OPTIONAL_ACTION
             humanController?.pendingNumericInput != null -> InteractionReadiness.NUMERIC_INPUT
             promptBridges.values.any { it.getPendingPrompt() != null } -> InteractionReadiness.PROMPT
-            else -> InteractionReadiness.ACTION
+            actionBridges.values.any { it.getPending() != null } -> InteractionReadiness.ACTION
+            else -> null
         }
-
-    private fun hasPendingInteraction(): Boolean =
-        actionBridges.values.any { it.getPending() != null } ||
-            hasPendingNonActionInteraction()
 
     fun hasPendingNonActionInteraction(): Boolean =
         promptBridges.values.any { it.getPendingPrompt() != null } ||

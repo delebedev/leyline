@@ -59,7 +59,11 @@ internal class InteractivePlaybackMaterializer(
                 PlaybackYield(
                     sourceGeneration = reservation.sourceGeneration,
                     cutReason = cutReason,
-                    snapshot = GsmSnapshot.captureForPlayback(game, bridge, matchId),
+                    observation =
+                        bridge.materializeEngineObservation(
+                            game,
+                            GsmSnapshot.captureForPlayback(game, bridge, matchId),
+                        ),
                     events = events,
                     reservation = reservation,
                     turnStarted = turnStarted,

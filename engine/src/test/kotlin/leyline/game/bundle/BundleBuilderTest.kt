@@ -874,7 +874,11 @@ class BundleBuilderTest :
                     PlaybackYield(
                         sourceGeneration = migratedReservation.sourceGeneration,
                         cutReason = PlaybackCutReason.LAND_PLAYED,
-                        snapshot = GsmSnapshot.captureForPlayback(migrated.game, migrated.bridge, Board.TEST_MATCH_ID),
+                        observation =
+                            migrated.bridge.materializeEngineObservation(
+                                migrated.game,
+                                GsmSnapshot.captureForPlayback(migrated.game, migrated.bridge, Board.TEST_MATCH_ID),
+                            ),
                         events = migratedReservation.events,
                         reservation = migratedReservation,
                         naiveActions = NaiveGsmActionCapture.materialize(1, migrated.bridge),
@@ -910,7 +914,11 @@ class BundleBuilderTest :
                 PlaybackYield(
                     sourceGeneration = firstReservation.sourceGeneration,
                     cutReason = PlaybackCutReason.LAND_PLAYED,
-                    snapshot = GsmSnapshot.captureForPlayback(game, bridge, Board.TEST_MATCH_ID),
+                    observation =
+                        bridge.materializeEngineObservation(
+                            game,
+                            GsmSnapshot.captureForPlayback(game, bridge, Board.TEST_MATCH_ID),
+                        ),
                     events = firstReservation.events,
                     reservation = firstReservation,
                     naiveActions = NaiveGsmActionCapture.materialize(1, bridge),
@@ -921,7 +929,11 @@ class BundleBuilderTest :
                 PlaybackYield(
                     sourceGeneration = secondReservation.sourceGeneration,
                     cutReason = PlaybackCutReason.SPELL_RESOLVED,
-                    snapshot = GsmSnapshot.captureForPlayback(game, bridge, Board.TEST_MATCH_ID),
+                    observation =
+                        bridge.materializeEngineObservation(
+                            game,
+                            GsmSnapshot.captureForPlayback(game, bridge, Board.TEST_MATCH_ID),
+                        ),
                     events = secondReservation.events,
                     reservation = secondReservation,
                     naiveActions = NaiveGsmActionCapture.materialize(1, bridge),

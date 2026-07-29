@@ -31,6 +31,7 @@ internal sealed interface EngineCut {
     data class InteractionReady(
         override val checkpoint: EngineCutCheckpoint,
         val kind: InteractionReadiness,
+        val observation: EngineObservation,
     ) : EngineCut
 }
 
@@ -63,11 +64,17 @@ internal class EngineCutQueue {
     }
 
     @Synchronized
-    fun publishReady(kind: InteractionReadiness): EngineCutCheckpoint {
+    fun publishReady(
+        kind: InteractionReadiness,
+        observation: EngineObservation,
+    ): EngineCutCheckpoint {
         val checkpoint = EngineCutCheckpoint(generation, nextSequence++)
-        cuts.addLast(EngineCut.InteractionReady(checkpoint, kind))
+        cuts.addLast(EngineCut.InteractionReady(checkpoint, kind, observation))
         return checkpoint
     }
+
+    @Synchronized
+    fun latestReady(): EngineCut.InteractionReady? = cuts.filterIsInstance<EngineCut.InteractionReady>().lastOrNull()
 
     @Synchronized
     fun latestCheckpoint(): EngineCutCheckpoint = EngineCutCheckpoint(generation, nextSequence - 1)
@@ -98,13 +105,15 @@ internal class EngineCutQueue {
 internal data class PlaybackYield(
     val sourceGeneration: Long,
     val cutReason: PlaybackCutReason,
-    val snapshot: GsmSnapshot,
+    val observation: EngineObservation,
     val events: FrameEventLog,
     val reservation: GameBridge.BundleFrameReservation,
     val turnStarted: Boolean = false,
     val combatFrames: List<CombatYieldFrame> = emptyList(),
     val naiveActions: List<NaiveGsmAction> = emptyList(),
-)
+) {
+    val snapshot: GsmSnapshot get() = observation.snapshot
+}
 
 internal enum class NaiveGsmActionKind {
     CAST,

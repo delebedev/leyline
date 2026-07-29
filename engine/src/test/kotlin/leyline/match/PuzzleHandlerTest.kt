@@ -87,6 +87,7 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(session, "puzzle-bolt-face", 1)
                 val gre = sink.rawMessages.flatMap(::greMessages)
                 val actionPrompt = gre.last { it.hasActionsAvailableReq() }
+                val initialFull = gre.first { it.hasGameStateMessage() }.gameStateMessage
                 session.connection.owner.reduce {
                     session.connection.owner.lastPromptMsgId()
                 } shouldBe actionPrompt.msgId
@@ -104,6 +105,7 @@ class PuzzleHandlerTest :
                                 .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
                         ).build(),
                 )
+                val firstDiff = sink.messages.first { it.hasGameStateMessage() }.gameStateMessage
 
                 assertSoftly {
                     gre.map { it.type }.take(3) shouldBe
@@ -113,6 +115,7 @@ class PuzzleHandlerTest :
                             GREMessageType.ActionsAvailableReq_695e,
                         )
                     gre.first { it.hasGameStateMessage() }.gameStateMessage.actionsCount shouldBe 4
+                    firstDiff.prevGameStateId shouldBe initialFull.gameStateId
                     sink.messages.none { it.type == GREMessageType.IllegalRequest } shouldBe true
                     session.gameBridge shouldBeSameInstanceAs bridge
                 }

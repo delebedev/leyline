@@ -179,7 +179,7 @@ class OptionalActionHandler(
                 .setGameStateId(link.gsId)
                 .setPrevGameStateId(link.prevGsId)
                 .setPendingMessageCount(1)
-        val snap = bridge.snapshot("", link.gsId)
+        val snap = ctx.snapshot().withFrameIdentity("", link.gsId)
         pendingGsmBuilder
             .setTurnInfo(GsmFrame.from(snap).turnInfo())
             .addAllTimers(PlayerMapper.buildTimers())
@@ -282,7 +282,7 @@ class OptionalActionHandler(
     private fun sendCommanderPromptCleanup(context: CommanderReturnPromptContext) {
         val bridge = ctx.bridge
         val link = counters.counter.nextGameStateLink()
-        val snap = bridge.snapshot("", link.gsId)
+        val snap = ctx.snapshot().withFrameIdentity("", link.gsId)
         val destinationZoneId = destinationZoneId(context)
         val destinationZone = snap.zones[destinationZoneId]
         val zoneInfo =

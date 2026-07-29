@@ -77,11 +77,13 @@ internal class SpectatorSession(
         while (true) {
             when (val cut = gameBridge.peekEngineCutThrough(checkpoint) ?: break) {
                 is EngineCut.Observation -> {
+                    owner.observeEngine(cut.value.observation)
                     val results = bundleBuilder.playbackYield(cut.value, counter)
                     gameBridge.acknowledgeEngineCut(cut)
                     results.forEach { sendBundledGREDirect(it.messages) }
                 }
                 is EngineCut.InteractionReady -> {
+                    owner.observeEngine(cut.observation)
                     gameBridge.acknowledgeEngineCut(cut)
                     if (cut.kind == InteractionReadiness.GAME_OVER) {
                         sendGameOverOwned(ResultReason.Game_ae0a)
@@ -122,7 +124,10 @@ internal class SpectatorSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) = owner.reduce {
-        if (!closed.get()) sendBundledGREDirect(bundleBuilder.stateOnlyDiff(counter).messages)
+        if (!closed.get()) {
+            val snapshot = checkNotNull(owner.engineObservation()).snapshot
+            sendBundledGREDirect(bundleBuilder.stateOnlyDiff(snapshot, counter).messages)
+        }
     }
 
     override fun sendBundle(result: BundleBuilder.BundleResult) =
@@ -138,9 +143,18 @@ internal class SpectatorSession(
     private fun sendGameOverOwned(reason: ResultReason) {
         owner.assertOwnerThread()
         if (closed.get() || gameOverSent) return
-        val p1Won = gameBridge.playerWon(SeatId(1))
+        val observation = checkNotNull(owner.engineObservation())
+        val p1Won = observation.runtimeFor(SeatId(1)).won
         val winningTeam = if (p1Won) 1 else 2
-        sendBundledGREDirect(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
+        sendBundledGREDirect(
+            bundleBuilder
+                .gameOverBundle(
+                    winningTeam,
+                    counter,
+                    reason = reason,
+                    snapshot = observation.snapshot,
+                ).messages,
+        )
         sendMatchProgressOwned(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
         gameOverSent = true
         protocolHead.afterDrained(::close)
