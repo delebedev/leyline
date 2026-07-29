@@ -103,8 +103,6 @@ internal class EngineWorkerSupervisor(
         }
     }
 
-    fun workerThread(): Thread? = worker.get()
-
     fun awaitStarted(timeoutMs: Long): Boolean = started.await(timeoutMs, TimeUnit.MILLISECONDS)
 
     private companion object {

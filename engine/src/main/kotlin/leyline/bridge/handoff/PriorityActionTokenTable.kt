@@ -113,19 +113,6 @@ internal fun PlayerAction.cardIdOrNull(): ForgeCardId? =
         -> null
     }
 
-internal fun PlayerAction.abilityIdOrNull(): Int? =
-    when (this) {
-        is PlayerAction.ActivateAbility -> abilityId
-        is PlayerAction.ActivateMana -> abilityId
-        is PlayerAction.CastSpell -> abilityId
-        is PlayerAction.DeclareAttackers,
-        is PlayerAction.DeclareBlockers,
-        is PlayerAction.PlayLand,
-        PlayerAction.EndTurn,
-        PlayerAction.PassPriority,
-        -> null
-    }
-
 internal fun PlayerAction.retainsLiveAbility(): Boolean =
     when (this) {
         is PlayerAction.ActivateAbility -> ability != null

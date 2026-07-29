@@ -135,12 +135,6 @@ internal class GameLoopController(
         }
 
     /**
-     * The daemon thread running the engine loop. Null before [start]/[startFromCurrentState].
-     * Used by [leyline.bridge.BridgeTimeoutDiagnostic] to capture stack traces on timeout.
-     */
-    fun getEngineThread(): Thread? = worker.workerThread()
-
-    /**
      * Wait for the game loop thread to start (useful in tests).
      */
     fun awaitStarted(timeoutMs: Long = 5_000): Boolean = worker.awaitStarted(timeoutMs)

@@ -115,14 +115,6 @@ class InteractivePromptBridge(
         }
     }
 
-    fun pollPendingOrderZoneMove(
-        seatId: SeatId,
-        forgeCardIds: List<ForgeCardId>,
-    ): PendingOrderZoneMove? =
-        pendingOrderZoneMove(seatId, forgeCardIds)?.also {
-            consumePendingOrderZoneMove(it)
-        }
-
     // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
 
     /**

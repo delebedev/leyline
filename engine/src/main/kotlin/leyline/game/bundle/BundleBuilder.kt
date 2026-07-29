@@ -893,70 +893,6 @@ class BundleBuilder(
             )
         }
 
-    internal fun remoteActionDiffSequence(
-        game: Game,
-        counter: MessageCounter,
-        eventFrames: List<FrameEventLog>,
-        bundleFrameReservation: GameBridge.BundleFrameReservation,
-    ): List<BundleResult> =
-        counter.withAllocationLock {
-            fun compileUnsplit(): List<BundleResult> {
-                val fallbackCounter = MessageCounter.fork(counter.snapshot())
-                val plan =
-                    compilePlanOn(fallbackCounter) { sequenceCounter ->
-                        buildRemoteActionDraft(
-                            game = game,
-                            plannedCounter = sequenceCounter,
-                            eventsOverride = bundleFrameReservation.events,
-                        )
-                    }
-                return commitComposite(listOf(plan), counter, bundleFrameReservation)
-            }
-
-            if (
-                eventFrames.size > 1 &&
-                (
-                    bundleFrameReservation.events.zoneMoves.isNotEmpty() ||
-                        bridge.snapshotPendingTargetSpecs().isNotEmpty() ||
-                        cursor.lastSent?.hasCardZoneDelta(
-                            GsmSnapshot.capture(game, bridge, matchId, counter.currentGsId()),
-                        ) == true
-                )
-            ) {
-                return@withAllocationLock compileUnsplit()
-            }
-
-            val plannedCounter = MessageCounter.fork(counter.snapshot())
-            var projectionBaseline =
-                FrameProjectionBaseline(
-                    previousSnap = cursor.lastSent,
-                    delayedTriggerHolders = bridge.delayedTriggerHolders.activeRecords(),
-                    transientLinkedFaceFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds(),
-                )
-            val plans = mutableListOf<FramePlan>()
-            eventFrames.forEachIndexed { index, events ->
-                val plan =
-                    compilePlanOn(plannedCounter) { sequenceCounter ->
-                        buildRemoteActionDraft(
-                            game = game,
-                            plannedCounter = sequenceCounter,
-                            eventsOverride = events,
-                            projectionBaseline = projectionBaseline,
-                            includePendingSubmittedTargets = index == 0,
-                        )
-                    }
-                if (
-                    index < eventFrames.lastIndex &&
-                    plan.projection.mutations?.requiresCommittedBridgeState() == true
-                ) {
-                    return@withAllocationLock compileUnsplit()
-                }
-                projectionBaseline = projectionBaseline.advance(plan.projection)
-                plans += plan
-            }
-            commitComposite(plans, counter, bundleFrameReservation)
-        }
-
     internal fun playbackYield(
         input: PlaybackYield,
         counter: MessageCounter,
@@ -1361,7 +1297,6 @@ class BundleBuilder(
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
      */
-    @Suppress("UnusedParameter")
     fun echoAttackersBundle(
         game: Game,
         counter: MessageCounter,

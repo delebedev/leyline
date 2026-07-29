@@ -3,8 +3,6 @@ package leyline.bridge.coord
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
@@ -20,11 +18,11 @@ class EngineWorkerSupervisorTest :
 
         test("publishes completed exit as an immutable value") {
             val exits = LinkedBlockingQueue<EngineWorkerExit>()
-            val workerDuringExit = AtomicReference<Thread?>()
+            val runningDuringExit = AtomicReference<Boolean>()
             lateinit var supervisor: EngineWorkerSupervisor
             supervisor =
                 EngineWorkerSupervisor { exit ->
-                    workerDuringExit.set(supervisor.workerThread())
+                    runningDuringExit.set(supervisor.isRunning)
                     exits.add(exit)
                 }
 
@@ -32,8 +30,10 @@ class EngineWorkerSupervisorTest :
 
             assertSoftly {
                 exits.poll(1, TimeUnit.SECONDS) shouldBe EngineWorkerExit.Completed
-                workerDuringExit.get().shouldNotBeNull()
-                supervisor.workerThread().shouldBeNull()
+                runningDuringExit.get() shouldBe true
+            }
+            eventually(1.seconds) {
+                supervisor.isRunning shouldBe false
             }
         }
 
@@ -62,7 +62,7 @@ class EngineWorkerSupervisorTest :
                 entered.await(1, TimeUnit.SECONDS) shouldBe true
                 supervisor.stop {} shouldBe EngineWorkerStop.Stopped
                 exits.poll(1, TimeUnit.SECONDS) shouldBe EngineWorkerExit.Cancelled
-                supervisor.workerThread().shouldBeNull()
+                supervisor.isRunning shouldBe false
             }
         }
 
@@ -84,13 +84,13 @@ class EngineWorkerSupervisorTest :
             assertSoftly {
                 entered.await(1, TimeUnit.SECONDS) shouldBe true
                 supervisor.stop {} shouldBe EngineWorkerStop.TimedOut
-                supervisor.workerThread().shouldNotBeNull()
+                supervisor.isRunning shouldBe true
             }
 
             release.countDown()
             eventually(1.seconds) {
                 exits.poll() shouldBe EngineWorkerExit.Cancelled
-                supervisor.workerThread().shouldBeNull()
+                supervisor.isRunning shouldBe false
             }
         }
     })

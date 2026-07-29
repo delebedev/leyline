@@ -18,6 +18,8 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
+import leyline.game.mapping.NaiveGsmActionCapture
+import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
 import leyline.testkit.humanPlayer
@@ -276,6 +278,7 @@ class GamePlaybackFramePlanTest :
             val oldInstanceId = bridge.getOrAllocInstanceId(forgeCardId)
 
             game.humanPlayer.playLand(land, null)
+            val generatedEvents = checkNotNull(bridge.eventCollector).closeFrame().events
             val damage =
                 GameEvent.DamageDealtToPlayer(
                     sourceCardId = forgeCardId,
@@ -284,22 +287,29 @@ class GamePlaybackFramePlanTest :
                     sourceKind = DamageSourceKind.Combat,
                     changesLife = true,
                 )
-            checkNotNull(bridge.eventCollector).appendEventsForTest(listOf(damage))
-            bridge.eventCollector?.clearZoneMovesForTest()
-            val reservation = bridge.reserveBundleFrame(1)
+            val inputEvents = FrameEventLog(generatedEvents + damage)
+            val reservation = bridge.reserveBundleFrame(1).copy(events = inputEvents)
             reservation.events.zoneMoves.shouldBeEmpty()
-            val firstFrameEvents = reservation.events.events.filterNot { it === damage }
-            val results =
-                BundleBuilder(bridge, "test-match", 1).remoteActionDiffSequence(
-                    game = game,
-                    counter = counter,
-                    eventFrames =
-                        listOf(
-                            FrameEventLog(firstFrameEvents, reservation.events.zoneMoves),
-                            FrameEventLog(listOf(damage)),
+            val playbackYield =
+                PlaybackYield(
+                    sourceGeneration = reservation.sourceGeneration,
+                    cutReason = PlaybackCutReason.COMBAT_ENDED,
+                    observation =
+                        bridge.materializeEngineObservation(
+                            game,
+                            GsmSnapshot.captureForPlayback(game, bridge, "test-match"),
                         ),
-                    bundleFrameReservation = reservation,
+                    events = inputEvents,
+                    reservation = reservation,
+                    combatFrames =
+                        listOf(
+                            CombatYieldFrame(FrameEventLog(generatedEvents), emptyMap()),
+                            CombatYieldFrame(FrameEventLog(listOf(damage)), emptyMap()),
+                        ),
+                    naiveActions = NaiveGsmActionCapture.materialize(1, bridge),
                 )
+            val results =
+                BundleBuilder(bridge, "test-match", 1).playbackYield(playbackYield, counter)
 
             val gsm =
                 results
@@ -357,18 +367,28 @@ class GamePlaybackFramePlanTest :
                 )
 
             game.humanPlayer.getZone(ZoneType.Battlefield).remove(token)
-            checkNotNull(bridge.eventCollector).appendEventsForTest(events)
-            bridge.eventCollector?.clearZoneMovesForTest()
-            val reservation = bridge.reserveBundleFrame(1)
+            bridge.closeBundleFrame(1)
+            val inputEvents = FrameEventLog(events)
+            val reservation = bridge.reserveBundleFrame(1).copy(events = inputEvents)
             reservation.events.zoneMoves.shouldBeEmpty()
 
-            val results =
-                BundleBuilder(bridge, "test-match", 1).remoteActionDiffSequence(
-                    game = game,
-                    counter = counter,
-                    eventFrames = events.map { FrameEventLog(listOf(it)) },
-                    bundleFrameReservation = reservation,
+            val playbackYield =
+                PlaybackYield(
+                    sourceGeneration = reservation.sourceGeneration,
+                    cutReason = PlaybackCutReason.COMBAT_ENDED,
+                    observation =
+                        bridge.materializeEngineObservation(
+                            game,
+                            GsmSnapshot.captureForPlayback(game, bridge, "test-match"),
+                        ),
+                    events = inputEvents,
+                    reservation = reservation,
+                    combatFrames =
+                        events.map { CombatYieldFrame(FrameEventLog(listOf(it)), emptyMap()) },
+                    naiveActions = NaiveGsmActionCapture.materialize(1, bridge),
                 )
+            val results =
+                BundleBuilder(bridge, "test-match", 1).playbackYield(playbackYield, counter)
             val committedTokenId = bridge.getOrAllocInstanceId(tokenForgeCardId)
             val nextInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(1_000_000))
 

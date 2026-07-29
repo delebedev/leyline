@@ -31,6 +31,19 @@ private fun pollForPending(bridge: GameActionBridge): GameActionBridge.PendingAc
     return null
 }
 
+private fun PlayerAction.abilityIdForTest(): Int? =
+    when (this) {
+        is PlayerAction.ActivateAbility -> abilityId
+        is PlayerAction.ActivateMana -> abilityId
+        is PlayerAction.CastSpell -> abilityId
+        is PlayerAction.DeclareAttackers,
+        is PlayerAction.DeclareBlockers,
+        is PlayerAction.PlayLand,
+        PlayerAction.EndTurn,
+        PlayerAction.PassPriority,
+        -> null
+    }
+
 private fun GameActionBridge.prepareActionOfferForTest(
     action: Action,
     command: PlayerAction,
@@ -43,7 +56,7 @@ private fun GameActionBridge.prepareActionOfferForTest(
         action = action,
         token = registerActionCommand(actionId, command),
         cardId = command.cardIdOrNull(),
-        abilityId = command.abilityIdOrNull(),
+        abilityId = command.abilityIdForTest(),
         stackAbilityGrpId = stackAbilityGrpId,
         forgeAbilityId = forgeAbilityId,
         spellGrpId = spellGrpId,

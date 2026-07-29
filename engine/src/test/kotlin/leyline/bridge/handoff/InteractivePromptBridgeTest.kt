@@ -104,7 +104,7 @@ class InteractivePromptBridgeTest :
 
             bridge.resetForPuzzle()
 
-            bridge.pollPendingOrderZoneMove(SeatId(1), cardIds) shouldBe null
+            bridge.pendingOrderZoneMove(SeatId(1), cardIds) shouldBe null
         }
 
         test("cancelled prompt yields to a successor") {

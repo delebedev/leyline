@@ -196,10 +196,6 @@ class GameEventCollector(
         events.forEach(frame::add)
     }
 
-    internal fun clearZoneMovesForTest() {
-        zoneMoves.clear()
-    }
-
     // -- EventBus entry point --
 
     @Subscribe

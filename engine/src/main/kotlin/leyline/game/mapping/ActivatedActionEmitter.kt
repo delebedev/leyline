@@ -22,7 +22,6 @@ import leyline.game.data.CardData
 import leyline.game.state.AbilityRegistry
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
@@ -239,50 +238,6 @@ internal object ActivatedActionEmitter {
                 batchable = false,
             )
         }
-    }
-
-    @Suppress("LongParameterList")
-    fun emitPlayableNonManaActivatedAbilities(
-        builder: ActionsAvailableReq.Builder,
-        card: Card,
-        player: Player,
-        grpId: () -> Int,
-        cardData: (Int) -> CardData?,
-        envelope: Envelope,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
-        idResolver: (ForgeCardId) -> InstanceId,
-        autoTapSolution: (ManaCost) -> PriorityAutoTapSolutionValue? = { null },
-        skipSpecialTurnFaceUp: Boolean = false,
-        onActive: (Action, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
-        abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
-    ) {
-        val values = PriorityActionSetBuilder()
-        preparePlayableNonManaActivatedAbilities(
-            card = card,
-            player = player,
-            grpId = grpId,
-            cardData = cardData,
-            envelope = envelope,
-            abilityRegistryLookup = abilityRegistryLookup,
-            autoTapSolution = autoTapSolution,
-            skipSpecialTurnFaceUp = skipSpecialTurnFaceUp,
-            abilities = abilities,
-        ).forEach { prepared ->
-            if (prepared.active) {
-                values.addAction(prepared.action)
-                onActive(
-                    PriorityActionProjector.project(prepared.action, idResolver),
-                    prepared.abilityIndex,
-                    prepared.ability,
-                    prepared.abilityGrpId,
-                )
-            } else {
-                values.addInactiveAction(prepared.action)
-            }
-        }
-        val projected = PriorityActionProjector.project(values.build(), idResolver)
-        builder.addAllActions(projected.actionsList)
-        builder.addAllInactiveActions(projected.inactiveActionsList)
     }
 
     fun buildActivateManaAction(

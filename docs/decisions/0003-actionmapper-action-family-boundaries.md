@@ -142,7 +142,7 @@ Implemented as `ActivatedActionEmitter`.
 It may own:
 
 - `buildActivateManaAction`.
-- `emitPlayableNonManaActivatedAbilities`.
+- `preparePlayableNonManaActivatedAbilities`.
 - `emitActivatedAbilityAction`.
 - Per-card graveyard activation emission if the context boundary is ready.
 - Ability id and unique ability id resolution helpers.

@@ -127,7 +127,7 @@ class AutoPassEngineTest :
             }
         }
 
-        test("shouldCheckHumanActions waits for a pending priority window on either turn") {
+        test("shouldCheckHumanActions waits for a pending priority window") {
             val (bridge, game, counter) =
                 startWithBoard { _, human, ai ->
                     addCard("Burst Lightning", human, ZoneType.Hand)
@@ -149,10 +149,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            assertSoftly {
-                engine.shouldCheckHumanActions(isAiTurn = true) shouldBe false
-                engine.shouldCheckHumanActions(isAiTurn = false) shouldBe false
-            }
+            engine.shouldCheckHumanActions() shouldBe false
         }
 
         test("checkHumanActions — AI turn with only sorcery-speed hand actions skips") {

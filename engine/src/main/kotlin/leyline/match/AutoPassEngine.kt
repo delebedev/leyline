@@ -142,7 +142,7 @@ class AutoPassEngine(
             // AI turn, only offer actions after Forge has actually yielded a
             // human priority window; otherwise instant-speed actions can make
             // us emit an ActionsAvailableReq while the AI still has priority.
-            if (shouldCheckHumanActions(isAiTurn)) {
+            if (shouldCheckHumanActions()) {
                 val facts = runtime.priorityActions
                 val decision = checkHumanActions(isAiTurn, facts)
                 if (decision is PriorityDecision.Grant) {
@@ -173,9 +173,7 @@ class AutoPassEngine(
         }
     }
 
-    internal fun shouldCheckHumanActions(
-        @Suppress("UNUSED_PARAMETER") isAiTurn: Boolean,
-    ): Boolean =
+    internal fun shouldCheckHumanActions(): Boolean =
         ctx.bridge
             .seat(counters.seatId)
             .action
