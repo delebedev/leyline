@@ -37,6 +37,7 @@ import leyline.domain.DraftSession
 import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
+import leyline.domain.SystemPlayers
 import leyline.domain.json.productionJson
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
@@ -46,6 +47,7 @@ import leyline.domain.service.EventRegistry
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleCatalog
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 data class WebServices(
     val draftService: DraftService,
@@ -296,23 +298,53 @@ private fun Route.installSealedRoutes(services: WebServices) {
     }
 }
 
+/**
+ * Which pair the spectator feed serves next. Process-local and deliberately not
+ * persisted: the point is that consecutive viewers see different matches, not
+ * that the sequence survives a restart.
+ */
+private val spectatorRotationCursor = AtomicInteger()
+
+/**
+ * A stored deck as the decklist string the match launcher takes. Decks are held
+ * by grpId, so every entry goes back through the card repository for its name —
+ * one that resolves to nothing is dropped rather than failing the whole launch.
+ */
+private fun decklistText(
+    deck: Deck,
+    cards: CardRepository,
+): String =
+    deck.mainDeck
+        .mapNotNull { entry -> cards.findNameByGrpId(entry.grpId)?.let { "${entry.quantity} $it" } }
+        .joinToString("\n")
+
 private fun Route.installPublicRoutes(services: WebServices) {
     installPublicCardRoutes(services)
     post("/public/gre/start") {
         call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
     }
     post("/public/spectator/start") {
+        val rotation = services.deckService.listForPlayer(SystemPlayers.SPECTATOR).sortedBy { it.name }
+        if (rotation.size < 2) {
+            // Nothing seeded to play. Refusing beats launching a match nobody
+            // wants to watch; the client shows its own pairing instead.
+            call.respond(HttpStatusCode.ServiceUnavailable)
+            return@post
+        }
+        val turn = spectatorRotationCursor.getAndIncrement()
+        val seat1 = rotation[Math.floorMod(turn, rotation.size)]
+        val seat2 = rotation[Math.floorMod(turn + 1, rotation.size)]
         val launched =
             services.matchLauncher.launchGreMatch(
                 null,
                 GreStartRequest(
-                    seat1Deck = "60 Plains",
-                    seat2Deck = "60 Mountain",
+                    seat1Deck = decklistText(seat1, services.cardRepository),
+                    seat2Deck = decklistText(seat2, services.cardRepository),
                     spectatorMode = true,
                 ),
             )
         call.respond(
-            PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView("Seat One"), PublicSeatView("Seat Two")),
+            PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView(seat1.name), PublicSeatView(seat2.name)),
         )
     }
     get("/public/spectate/viewers") {
