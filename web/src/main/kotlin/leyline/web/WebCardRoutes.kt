@@ -11,6 +11,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
+import leyline.game.data.EvergreenKeywords
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -170,6 +171,7 @@ private fun CardRepository.cardMeta(grpId: Int): GreCardMetaDto {
         types = data?.typeLine(),
         subtypes = data?.subtypeLine(),
         imageUrl = name?.scryfallImageUrl(),
+        keywords = data?.let(EvergreenKeywords::of).orEmpty(),
     )
 }
 
