@@ -299,16 +299,15 @@ private fun Route.installSealedRoutes(services: WebServices) {
 }
 
 /**
- * Which pair the spectator feed serves next. Process-local and deliberately not
- * persisted: the point is that consecutive viewers see different matches, not
- * that the sequence survives a restart.
+ * Which pair the spectator feed serves next. Not persisted: consecutive viewers
+ * seeing different matches is the point, not surviving a restart.
  */
 private val spectatorRotationCursor = AtomicInteger()
 
 /**
- * A stored deck as the decklist string the match launcher takes. Decks are held
- * by grpId, so every entry goes back through the card repository for its name —
- * one that resolves to nothing is dropped rather than failing the whole launch.
+ * A stored deck as the decklist string the launcher takes. Decks are held by
+ * grpId; an entry that resolves to no name is dropped rather than failing the
+ * whole launch.
  */
 private fun decklistText(
     deck: Deck,
@@ -326,8 +325,7 @@ private fun Route.installPublicRoutes(services: WebServices) {
     post("/public/spectator/start") {
         val rotation = services.deckService.listForPlayer(SystemPlayers.SPECTATOR).sortedBy { it.name }
         if (rotation.size < 2) {
-            // Nothing seeded to play. Refusing beats launching a match nobody
-            // wants to watch; the client shows its own pairing instead.
+            // Nothing seeded. The client falls back to its own pairing.
             call.respond(HttpStatusCode.ServiceUnavailable)
             return@post
         }

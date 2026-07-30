@@ -73,9 +73,8 @@ object SeedDb {
 
     /**
      * The subset of [deckFiles] the spectator feed rotates through, in the order
-     * the rotation file lists them. A name with no matching deck file is called
-     * out rather than skipped quietly — a typo there is otherwise invisible
-     * until the feed is short a deck.
+     * the rotation file lists them. An unmatched name is reported, since a typo
+     * is otherwise invisible until the feed is short a deck.
      */
     private fun loadRotation(
         projectDir: File,
@@ -148,9 +147,8 @@ object SeedDb {
             val flavorNameAliases = ForgeFlavorNameAliases.load(projectDir)
             seedDecks(store, cardRepo, deckFiles, flavorNameAliases)
 
-            // The same lists again under the system player that owns the public
-            // feed, so the rotation is addressable without reading a real
-            // account's decks. Ids are namespaced to keep both copies distinct.
+            // Again under the system player that owns the feed, so the rotation
+            // is addressable without reading a real account's decks.
             val rotation = loadRotation(projectDir, deckFiles)
             if (rotation.isEmpty()) {
                 println("No spectator rotation — ${SPECTATOR_ROTATION_FILE} missing or lists no known decks")
