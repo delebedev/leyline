@@ -59,6 +59,8 @@ data class WebServices(
     val authService: WebAuthService,
     val greRelay: WebGreRelay = InProcessWebGreRelay(),
     val sealedSets: () -> List<LimitedSetView> = { emptyList() },
+    /** Which pair the spectator feed serves next. Per server, not persisted. */
+    val spectatorRotationCursor: AtomicInteger = AtomicInteger(),
     val puzzleCatalog: () -> List<PuzzleSummaryView> = { defaultPuzzleCatalog() },
 )
 
@@ -299,23 +301,33 @@ private fun Route.installSealedRoutes(services: WebServices) {
 }
 
 /**
- * Which pair the spectator feed serves next. Not persisted: consecutive viewers
- * seeing different matches is the point, not surviving a restart.
- */
-private val spectatorRotationCursor = AtomicInteger()
-
-/**
- * A stored deck as the decklist string the launcher takes. Decks are held by
- * grpId; an entry that resolves to no name is dropped rather than failing the
- * whole launch.
+ * A stored deck as the decklist string the launcher takes, or null if any entry
+ * fails to resolve. Null rather than a partial list: a blank or short decklist
+ * is silently replaced with a default deck downstream, so the seat would report
+ * one deck and play another.
+ *
+ * Sideboards are omitted — nothing sideboards in an unattended match.
  */
 private fun decklistText(
     deck: Deck,
     cards: CardRepository,
-): String =
-    deck.mainDeck
-        .mapNotNull { entry -> cards.findNameByGrpId(entry.grpId)?.let { "${entry.quantity} $it" } }
-        .joinToString("\n")
+): String? {
+    fun lines(entries: List<DeckCard>): List<String>? =
+        entries.map { entry ->
+            val name = cards.findNameByGrpId(entry.grpId) ?: return null
+            "${entry.quantity} $name"
+        }
+
+    val main = lines(deck.mainDeck)?.takeIf { it.isNotEmpty() } ?: return null
+    val commanders = lines(deck.commandZone) ?: return null
+    return buildString {
+        if (commanders.isNotEmpty()) {
+            appendLine("[Commander]")
+            commanders.forEach(::appendLine)
+        }
+        main.forEach(::appendLine)
+    }.trim()
+}
 
 private fun Route.installPublicRoutes(services: WebServices) {
     installPublicCardRoutes(services)
@@ -329,15 +341,22 @@ private fun Route.installPublicRoutes(services: WebServices) {
             call.respond(HttpStatusCode.ServiceUnavailable)
             return@post
         }
-        val turn = spectatorRotationCursor.getAndIncrement()
+        val turn = services.spectatorRotationCursor.getAndIncrement()
         val seat1 = rotation[Math.floorMod(turn, rotation.size)]
         val seat2 = rotation[Math.floorMod(turn + 1, rotation.size)]
+        val seat1Deck = decklistText(seat1, services.cardRepository)
+        val seat2Deck = decklistText(seat2, services.cardRepository)
+        if (seat1Deck == null || seat2Deck == null) {
+            call.application.log.warn("Spectator rotation: '{}' or '{}' has cards the repository cannot name", seat1.name, seat2.name)
+            call.respond(HttpStatusCode.ServiceUnavailable)
+            return@post
+        }
         val launched =
             services.matchLauncher.launchGreMatch(
                 null,
                 GreStartRequest(
-                    seat1Deck = decklistText(seat1, services.cardRepository),
-                    seat2Deck = decklistText(seat2, services.cardRepository),
+                    seat1Deck = seat1Deck,
+                    seat2Deck = seat2Deck,
                     spectatorMode = true,
                 ),
             )

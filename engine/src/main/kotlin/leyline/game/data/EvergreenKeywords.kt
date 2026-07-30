@@ -5,8 +5,10 @@ package leyline.game.data
  * Each is a single shared ability row every printing references, so membership
  * is an integer test rather than a match against ability text.
  *
- * Cast modifiers live in [KeywordAbilityIds] instead. Printed-only: a keyword
- * granted by an aura or an effect comes from game state, not card data.
+ * Ids are read off card rows rather than transcribed, so they are not the same
+ * values as `leyline.game.codes.KeywordGrpIds`, which disagrees for five of the
+ * keywords here. Printed-only: a keyword granted by an aura or an effect comes
+ * from game state, not card data.
  */
 object EvergreenKeywords {
     private val BY_ABILITY_ID: Map<Int, String> =

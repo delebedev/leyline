@@ -155,6 +155,15 @@ class WebRoutesTest :
             }
         }
 
+        test("spectator feed declines a deck whose cards cannot be named") {
+            withWeb(json) {
+                repos.deck.save(spectatorDeck("known-deck", "Known Deck", grpId = 100))
+                repos.deck.save(spectatorDeck("unknown-deck", "Unknown Deck", grpId = 999_999))
+
+                client.post("/api/public/spectator/start").status shouldBe HttpStatusCode.ServiceUnavailable
+            }
+        }
+
         test("mints a guest session that can start a match") {
             withWeb(json) {
                 val guest = client.post("/api/auth/guest")
