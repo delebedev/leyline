@@ -1,0 +1,7 @@
+# Decks the public spectator feed rotates through, one `data/decks` basename per
+# line. Commons-only on purpose: small card pools and short games keep it moving.
+Pauper Black Sacrifice
+Pauper Blue Tempo
+Pauper Green Stompy
+Pauper Red Burn
+Pauper White Lifegain

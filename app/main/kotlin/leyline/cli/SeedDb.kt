@@ -6,6 +6,7 @@ import leyline.domain.DeckCard
 import leyline.domain.DeckId
 import leyline.domain.Format
 import leyline.domain.PlayerId
+import leyline.domain.SystemPlayers
 import leyline.game.data.ExposedCardRepository
 import leyline.infra.persistence.SqlitePlayerStore
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -19,6 +20,7 @@ import java.util.UUID
 object SeedDb {
     private const val PLAYER_ID = "9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b"
     private const val PLAYER_NAME = "Denis"
+    private const val SPECTATOR_ROTATION_FILE = "data/spectator-rotation.txt"
 
     /** A card entry: qty, name, optional set code for precise lookup. */
     private data class CardEntry(
@@ -69,6 +71,33 @@ object SeedDb {
         return ParsedDeck(main, commander)
     }
 
+    /**
+     * The subset of [deckFiles] the spectator feed rotates through, in the order
+     * the rotation file lists them. An unmatched name is reported, since a typo
+     * is otherwise invisible until the feed is short a deck.
+     */
+    private fun loadRotation(
+        projectDir: File,
+        deckFiles: List<Pair<String, ParsedDeck>>,
+    ): List<Pair<String, ParsedDeck>> {
+        val file = File(projectDir, SPECTATOR_ROTATION_FILE)
+        if (!file.isFile) return emptyList()
+        val byName = deckFiles.toMap()
+        return file
+            .readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .mapNotNull { name ->
+                val deck = byName[name]
+                if (deck == null) {
+                    println("Spectator rotation: no deck file named '$name' — skipped")
+                    null
+                } else {
+                    name to deck
+                }
+            }
+    }
+
     /** Load deck files from data/decks/. Filename (minus .txt) becomes deck name. */
     private fun loadDeckFiles(decksDir: File): List<Pair<String, ParsedDeck>> {
         if (!decksDir.isDirectory) return emptyList()
@@ -117,6 +146,16 @@ object SeedDb {
             val cardRepo = ExposedCardRepository(cardDb)
             val flavorNameAliases = ForgeFlavorNameAliases.load(projectDir)
             seedDecks(store, cardRepo, deckFiles, flavorNameAliases)
+
+            // Again under the system player that owns the feed, so the rotation
+            // is addressable without reading a real account's decks.
+            val rotation = loadRotation(projectDir, deckFiles)
+            if (rotation.isEmpty()) {
+                println("No spectator rotation — ${SPECTATOR_ROTATION_FILE} missing or lists no known decks")
+            } else {
+                store.ensurePlayer(SystemPlayers.SPECTATOR, "Spectator")
+                seedDecks(store, cardRepo, rotation, flavorNameAliases, SystemPlayers.SPECTATOR, "spectator/")
+            }
         } else {
             println("CardDb not available — skipping deck seeding")
         }
@@ -134,6 +173,8 @@ object SeedDb {
         cardRepo: ExposedCardRepository,
         deckFiles: List<Pair<String, ParsedDeck>>,
         flavorNameAliases: Map<String, String>,
+        ownerId: PlayerId = PlayerId(PLAYER_ID),
+        deckIdPrefix: String = "",
     ) {
         data class ResolvedDeck(
             val name: String,
@@ -183,13 +224,13 @@ object SeedDb {
         }
 
         for (rd in resolved) {
-            val deckId = UUID.nameUUIDFromBytes(rd.name.toByteArray()).toString()
+            val deckId = UUID.nameUUIDFromBytes((deckIdPrefix + rd.name).toByteArray()).toString()
             val isBrawl = rd.commandZone.isNotEmpty()
             val tileId = if (isBrawl) rd.commandZone.first().grpId else rd.mainDeck.first().grpId
             val deck =
                 Deck(
                     id = DeckId(deckId),
-                    playerId = PlayerId(PLAYER_ID),
+                    playerId = ownerId,
                     name = rd.name,
                     format = if (isBrawl) Format.Brawl else Format.Standard,
                     tileId = tileId,

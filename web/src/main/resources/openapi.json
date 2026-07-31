@@ -1447,6 +1447,12 @@
                     "imageUrl": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "keywords": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "required": [

@@ -36,6 +36,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -46,11 +47,14 @@ import leyline.domain.CollationPool
 import leyline.domain.Course
 import leyline.domain.CourseId
 import leyline.domain.Deck
+import leyline.domain.DeckCard
 import leyline.domain.DeckId
 import leyline.domain.DraftSession
 import leyline.domain.DraftSessionId
 import leyline.domain.DraftStatus
+import leyline.domain.Format
 import leyline.domain.PlayerId
+import leyline.domain.SystemPlayers
 import leyline.domain.repo.CourseRepository
 import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
@@ -124,6 +128,39 @@ class WebRoutesTest :
                     body[0].jsonObject["filename"]?.jsonPrimitive?.content shouldBe "stock-up"
                     body[0].jsonObject["name"]?.jsonPrimitive?.content shouldBe "Stock Up"
                 }
+            }
+        }
+
+        test("spectator feed declines until a rotation is seeded") {
+            withWeb(json) {
+                client.post("/api/public/spectator/start").status shouldBe HttpStatusCode.ServiceUnavailable
+            }
+        }
+
+        test("spectator feed pairs rotation decks and advances on each start") {
+            withWeb(json) {
+                repos.deck.save(spectatorDeck("alpha-deck", "Alpha Deck", grpId = 100))
+                repos.deck.save(spectatorDeck("beta-deck", "Beta Deck", grpId = 101))
+
+                val first = json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
+                val second = json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
+
+                assertSoftly {
+                    first.seatName("seat1") shouldBe "Alpha Deck"
+                    first.seatName("seat2") shouldBe "Beta Deck"
+                    // Two decks, so the next start swaps the seats rather than repeating.
+                    second.seatName("seat1") shouldBe "Beta Deck"
+                    second.seatName("seat2") shouldBe "Alpha Deck"
+                }
+            }
+        }
+
+        test("spectator feed declines a deck whose cards cannot be named") {
+            withWeb(json) {
+                repos.deck.save(spectatorDeck("known-deck", "Known Deck", grpId = 100))
+                repos.deck.save(spectatorDeck("unknown-deck", "Unknown Deck", grpId = 999_999))
+
+                client.post("/api/public/spectator/start").status shouldBe HttpStatusCode.ServiceUnavailable
             }
         }
 
@@ -831,6 +868,28 @@ class WebRoutesTest :
     })
 
 private const val TEST_EMAIL = "player@example.test"
+
+private fun JsonObject.seatName(seat: String): String {
+    val seatObject = getValue(seat).jsonObject
+    return seatObject.getValue("name").jsonPrimitive.content
+}
+
+private fun spectatorDeck(
+    id: String,
+    name: String,
+    grpId: Int,
+) = Deck(
+    id = DeckId(id),
+    playerId = SystemPlayers.SPECTATOR,
+    name = name,
+    format = Format.Standard,
+    tileId = grpId,
+    mainDeck = listOf(DeckCard(grpId, 60)),
+    sideboard = emptyList(),
+    commandZone = emptyList(),
+    companions = emptyList(),
+)
+
 private const val TEST_EVENT = "QuickDraft_FDN_20260223"
 
 private fun withWeb(

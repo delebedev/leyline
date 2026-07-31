@@ -181,6 +181,8 @@ data class GreCardMetaDto(
     val types: String? = null,
     val subtypes: String? = null,
     val imageUrl: String? = null,
+    /** Evergreen keywords the card is printed with, for display as marks. */
+    val keywords: List<String> = emptyList(),
 )
 
 @Serializable
