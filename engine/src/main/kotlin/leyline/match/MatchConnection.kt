@@ -666,15 +666,8 @@ class MatchConnection(
         return DeckConverter.toDeckText(mainDeck, sideboard, commandZone, cardRepository::findNameByGrpId)
     }
 
-    /**
-     * Derive Forge game variant from the selected Arena event name.
-     * Brawl events (Play_Brawl, Play_Brawl_Historic) → "brawl".
-     * Standard/other events → null (Constructed).
-     */
-    private fun resolveGameVariant(): String? {
-        val event = coordinator?.selectedEventName ?: return null
-        return if (event.contains("Brawl", ignoreCase = true)) "brawl" else null
-    }
+    /** A runtime launch overrides the selected event; event selection remains the client-match fallback. */
+    private fun resolveGameVariant(): String? = runtimeGameVariant(resolveRuntimeMatchConfig(), coordinator?.selectedEventName)
 
     private fun parseDeckSection(
         obj: kotlinx.serialization.json.JsonObject,
@@ -688,4 +681,13 @@ class MatchConnection(
             CardEntry(grpId, qty)
         }
     }
+}
+
+/** Runtime spectator launches own their format; other matches retain event-selected format inference. */
+internal fun runtimeGameVariant(
+    runtimeConfig: RuntimeMatchConfig?,
+    selectedEventName: String?,
+): String? {
+    if (runtimeConfig?.spectatorMode == true) return runtimeConfig.gameVariant
+    return if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) "brawl" else null
 }

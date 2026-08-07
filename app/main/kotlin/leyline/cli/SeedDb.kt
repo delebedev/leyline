@@ -7,6 +7,7 @@ import leyline.domain.DeckId
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.SystemPlayers
+import leyline.domain.repo.DeckRepository
 import leyline.game.data.ExposedCardRepository
 import leyline.infra.persistence.SqlitePlayerStore
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -141,6 +142,7 @@ object SeedDb {
         val deckFiles = loadDeckFiles(decksDir)
         if (deckFiles.isEmpty()) {
             println("No deck files in ${decksDir.absolutePath} — skipping deck seeding")
+            reconcileSpectatorDecks(store, emptySet())
         } else if (cardDbFile != null) {
             val cardDb = Database.connect("jdbc:sqlite:${cardDbFile.absolutePath}", "org.sqlite.JDBC")
             val cardRepo = ExposedCardRepository(cardDb)
@@ -150,12 +152,13 @@ object SeedDb {
             // Again under the system player that owns the feed, so the rotation
             // is addressable without reading a real account's decks.
             val rotation = loadRotation(projectDir, deckFiles)
+            store.ensurePlayer(SystemPlayers.SPECTATOR, "Spectator")
             if (rotation.isEmpty()) {
                 println("No spectator rotation — ${SPECTATOR_ROTATION_FILE} missing or lists no known decks")
-            } else {
-                store.ensurePlayer(SystemPlayers.SPECTATOR, "Spectator")
-                seedDecks(store, cardRepo, rotation, flavorNameAliases, SystemPlayers.SPECTATOR, "spectator/")
             }
+            val activeRotationDeckIds =
+                seedDecks(store, cardRepo, rotation, flavorNameAliases, SystemPlayers.SPECTATOR, "spectator/")
+            reconcileSpectatorDecks(store, activeRotationDeckIds)
         } else {
             println("CardDb not available — skipping deck seeding")
         }
@@ -175,7 +178,7 @@ object SeedDb {
         flavorNameAliases: Map<String, String>,
         ownerId: PlayerId = PlayerId(PLAYER_ID),
         deckIdPrefix: String = "",
-    ) {
+    ): Set<DeckId> {
         data class ResolvedDeck(
             val name: String,
             val mainDeck: List<DeckCard>,
@@ -223,7 +226,7 @@ object SeedDb {
             error("Fix deck files before seeding (${errors.size} error(s))")
         }
 
-        for (rd in resolved) {
+        return resolved.mapTo(mutableSetOf()) { rd ->
             val deckId = UUID.nameUUIDFromBytes((deckIdPrefix + rd.name).toByteArray()).toString()
             val isBrawl = rd.commandZone.isNotEmpty()
             val tileId = if (isBrawl) rd.commandZone.first().grpId else rd.mainDeck.first().grpId
@@ -243,6 +246,7 @@ object SeedDb {
             val total = rd.mainDeck.sumOf { it.quantity } + rd.commandZone.sumOf { it.quantity }
             val suffix = if (isBrawl) " [Brawl]" else ""
             println("Seeded: ${rd.name} ($total cards)$suffix")
+            deck.id
         }
     }
 
@@ -254,4 +258,15 @@ object SeedDb {
         }
         return File(".").canonicalFile
     }
+}
+
+/** Remove persisted spectator decks that no longer belong to the declared rotation. */
+internal fun reconcileSpectatorDecks(
+    decks: DeckRepository,
+    activeDeckIds: Set<DeckId>,
+) {
+    decks
+        .findAllForPlayer(SystemPlayers.SPECTATOR)
+        .filter { it.id !in activeDeckIds }
+        .forEach { decks.delete(it.id) }
 }

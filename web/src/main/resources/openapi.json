@@ -874,6 +874,10 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "gameVariant": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "puzzle": {
                         "type": "string",
                         "nullable": true

@@ -37,7 +37,6 @@ import leyline.domain.DraftSession
 import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
-import leyline.domain.SystemPlayers
 import leyline.domain.json.productionJson
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
@@ -292,73 +291,12 @@ private suspend fun ApplicationCall.playCourse(services: WebServices) {
     respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
 }
 
-/**
- * A stored deck as the decklist string the launcher takes, or null if any entry
- * fails to resolve. Null rather than a partial list: a blank or short decklist
- * is silently replaced with a default deck downstream, so the seat would report
- * one deck and play another.
- *
- * Sideboards are omitted — nothing sideboards in an unattended match.
- */
-private fun decklistText(
-    deck: Deck,
-    cards: CardRepository,
-): String? {
-    fun lines(entries: List<DeckCard>): List<String>? =
-        entries.map { entry ->
-            val name = cards.findNameByGrpId(entry.grpId) ?: return null
-            "${entry.quantity} $name"
-        }
-
-    val main = lines(deck.mainDeck)?.takeIf { it.isNotEmpty() } ?: return null
-    val commanders = lines(deck.commandZone) ?: return null
-    return buildString {
-        if (commanders.isNotEmpty()) {
-            appendLine("[Commander]")
-            commanders.forEach(::appendLine)
-        }
-        main.forEach(::appendLine)
-    }.trim()
-}
-
 private fun Route.installPublicRoutes(services: WebServices) {
     installPublicCardRoutes(services)
     post("/public/gre/start") {
         call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
     }
-    post("/public/spectator/start") {
-        val rotation = services.deckService.listForPlayer(SystemPlayers.SPECTATOR).sortedBy { it.name }
-        if (rotation.size < 2) {
-            // Nothing seeded. The client falls back to its own pairing.
-            call.respond(HttpStatusCode.ServiceUnavailable)
-            return@post
-        }
-        val turn = services.spectatorRotationCursor.getAndIncrement()
-        val seat1 = rotation[Math.floorMod(turn, rotation.size)]
-        val seat2 = rotation[Math.floorMod(turn + 1, rotation.size)]
-        val seat1Deck = decklistText(seat1, services.cardRepository)
-        val seat2Deck = decklistText(seat2, services.cardRepository)
-        if (seat1Deck == null || seat2Deck == null) {
-            call.application.log.warn("Spectator rotation: '{}' or '{}' has cards the repository cannot name", seat1.name, seat2.name)
-            call.respond(HttpStatusCode.ServiceUnavailable)
-            return@post
-        }
-        val launched =
-            services.matchLauncher.launchGreMatch(
-                null,
-                GreStartRequest(
-                    seat1Deck = seat1Deck,
-                    seat2Deck = seat2Deck,
-                    spectatorMode = true,
-                ),
-            )
-        call.respond(
-            PublicSpectatorResponse(launched.matchId, launched.wireMatchId, PublicSeatView(seat1.name), PublicSeatView(seat2.name)),
-        )
-    }
-    get("/public/spectate/viewers") {
-        call.respond(ViewerCountView(1))
-    }
+    installPublicSpectatorRoutes(services)
     get("/puzzles") {
         call.respond(services.puzzleCatalog())
     }

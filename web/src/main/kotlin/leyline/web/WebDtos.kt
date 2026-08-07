@@ -89,6 +89,7 @@ data class GreStartRequest(
     val wireMatchId: String? = null,
     val seat1Deck: String? = null,
     val seat2Deck: String? = null,
+    val gameVariant: String? = null,
     val puzzle: String? = null,
     val spectatorMode: Boolean? = null,
 )

@@ -158,6 +158,7 @@ private class WebRuntimeMatchLauncher(
                 matchId = matchId,
                 seat1Deck = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator },
                 seat2Deck = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator },
+                gameVariant = request.gameVariant,
                 puzzle = request.puzzle,
                 spectatorMode = request.spectatorMode,
             ),

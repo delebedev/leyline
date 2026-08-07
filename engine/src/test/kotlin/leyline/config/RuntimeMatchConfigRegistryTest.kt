@@ -19,6 +19,7 @@ class RuntimeMatchConfigRegistryTest :
                         matchId = " web-gre-1 ",
                         seat1Deck = "1 Shock",
                         seat2Deck = "1 Plains",
+                        gameVariant = " brawl ",
                         spectatorMode = true,
                     ),
                 )
@@ -27,6 +28,7 @@ class RuntimeMatchConfigRegistryTest :
                 stored.matchId shouldBe "web-gre-1"
                 stored.seat1Deck shouldBe "1 Shock"
                 stored.seat2Deck shouldBe "1 Plains"
+                stored.gameVariant shouldBe "brawl"
                 stored.spectatorMode shouldBe true
                 registry.get("web-gre-1") shouldBe stored
                 registry.get(" web-gre-1 ").shouldBeNull()

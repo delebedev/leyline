@@ -8,6 +8,8 @@ data class RuntimeMatchConfig(
     val matchId: String,
     val seat1Deck: String? = null,
     val seat2Deck: String? = null,
+    /** Forge variant for a runtime-started match; null keeps the configured default. */
+    val gameVariant: String? = null,
     val puzzle: String? = null,
     val spectatorMode: Boolean? = null,
 )
@@ -41,6 +43,7 @@ class RuntimeMatchConfigRegistry {
                 matchId = matchId,
                 seat1Deck = config.seat1Deck?.trim()?.takeIf { it.isNotEmpty() },
                 seat2Deck = config.seat2Deck?.trim()?.takeIf { it.isNotEmpty() },
+                gameVariant = config.gameVariant?.trim()?.takeIf { it.isNotEmpty() },
                 puzzle = config.puzzle?.trim()?.takeIf { it.isNotEmpty() },
             )
         configs[matchId] = normalized

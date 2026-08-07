@@ -143,7 +143,35 @@ class WebRoutesTest :
                     // Two decks, so the next start swaps the seats rather than repeating.
                     second.seatName("seat1") shouldBe "Beta Deck"
                     second.seatName("seat2") shouldBe "Alpha Deck"
+                    greLaunches[0].seat1Deck shouldBe "60 Alpha Card"
+                    greLaunches[0].seat2Deck shouldBe "60 Beta Card"
+                    greLaunches[0].spectatorMode shouldBe true
                 }
+            }
+        }
+
+        test("spectator feed carries Brawl format into the match launch") {
+            withWeb(json) {
+                repos.deck.save(spectatorDeck("alpha-deck", "Alpha Deck", grpId = 100, format = Format.Brawl))
+                repos.deck.save(spectatorDeck("beta-deck", "Beta Deck", grpId = 101, format = Format.Brawl))
+
+                client.post("/api/public/spectator/start").status shouldBe HttpStatusCode.OK
+
+                assertSoftly {
+                    greLaunches.single().gameVariant shouldBe "brawl"
+                    greLaunches.single().seat1Deck shouldBe "[Commander]\n1 Alpha Card\n60 Alpha Card"
+                    greLaunches.single().seat2Deck shouldBe "[Commander]\n1 Beta Card\n60 Beta Card"
+                }
+            }
+        }
+
+        test("spectator feed declines mixed-format pairs") {
+            withWeb(json) {
+                repos.deck.save(spectatorDeck("alpha-deck", "Alpha Deck", grpId = 100))
+                repos.deck.save(spectatorDeck("beta-deck", "Beta Deck", grpId = 101, format = Format.Brawl))
+
+                client.post("/api/public/spectator/start").status shouldBe HttpStatusCode.ServiceUnavailable
+                greLaunches shouldBe emptyList()
             }
         }
 
@@ -853,15 +881,16 @@ private fun spectatorDeck(
     id: String,
     name: String,
     grpId: Int,
+    format: Format = Format.Standard,
 ) = Deck(
     id = DeckId(id),
     playerId = SystemPlayers.SPECTATOR,
     name = name,
-    format = Format.Standard,
+    format = format,
     tileId = grpId,
     mainDeck = listOf(DeckCard(grpId, 60)),
     sideboard = emptyList(),
-    commandZone = emptyList(),
+    commandZone = listOf(DeckCard(grpId, 1)).takeIf { format == Format.Brawl }.orEmpty(),
     companions = emptyList(),
 )
 
@@ -874,6 +903,7 @@ private fun withWeb(
 ) {
     testApplication {
         val repos = TestRepos()
+        val greLaunches = mutableListOf<GreStartRequest>()
         val services =
             WebServices(
                 puzzleCatalog = puzzleCatalog,
@@ -897,7 +927,10 @@ private fun withWeb(
                         override fun launchGreMatch(
                             playerId: PlayerId?,
                             request: GreStartRequest,
-                        ) = DraftPlayResponse("match-1", "wire-1")
+                        ): DraftPlayResponse {
+                            greLaunches += request
+                            return DraftPlayResponse("match-1", "wire-1")
+                        }
 
                         override fun launchCourseMatch(
                             playerId: PlayerId,
@@ -908,7 +941,7 @@ private fun withWeb(
                 sealedSets = { listOf(LimitedSetView(code = "FDN", name = "Foundations", type = "core", cardCount = 281)) },
             )
         application { installWeb(services) }
-        block(WebFixture(client, client.config { install(WebSockets) }, repos, json))
+        block(WebFixture(client, client.config { install(WebSockets) }, repos, json, greLaunches))
     }
 }
 
@@ -917,6 +950,7 @@ private class WebFixture(
     val wsClient: HttpClient,
     val repos: TestRepos,
     val json: Json,
+    val greLaunches: List<GreStartRequest>,
 ) {
     suspend fun login(email: String = TEST_EMAIL) = client.login(repos, json, email)
 
