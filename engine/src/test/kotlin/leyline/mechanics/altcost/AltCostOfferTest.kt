@@ -29,7 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
  * Table-driven coverage for the alt-cost Cast offer shape shared by Cleave,
- * Impending, Overload, Flashback, Jump-start, Disturb, and Escape: Forge
+ * Impending, Overload, Flashback, Jump-start, Disturb, Escape, and Harmonize: Forge
  * surfaces the keyword's alternative spell ability on the source card, and
  * ActionMapper.buildFromSnapshot stamps it as a Cast offer carrying the
  * keyword's per-card ability grpId.
@@ -44,7 +44,7 @@ private data class AltCostOfferRow(
     val sourceZone: ZoneType,
     val keywordId: Int,
     val seedForgeSurfaces: (game: Game, human: Player, ai: Player) -> Unit,
-    val seedOffer: (game: Game, human: Player, ai: Player) -> Unit,
+    val seedOffer: (game: Game, human: Player, ai: Player) -> Unit = seedForgeSurfaces,
     val forgeSurfaces: (SpellAbility) -> Boolean,
     val assertForgeSurfaces: (sa: SpellAbility?, abilities: List<SpellAbility>) -> Unit = { sa, _ -> sa shouldNotBe null },
     val assertOffer: (
@@ -67,15 +67,6 @@ class AltCostOfferTest :
                     sourceZone = ZoneType.Hand,
                     keywordId = KeywordAbilityIds.CLEAVE,
                     seedForgeSurfaces = { _, human, _ ->
-                        addCard("Plains", human, ZoneType.Battlefield)
-                        addCard("Swamp", human, ZoneType.Battlefield)
-                        addCard("Plains", human, ZoneType.Battlefield)
-                        addCard("Swamp", human, ZoneType.Battlefield)
-                        addCard("Plains", human, ZoneType.Battlefield)
-                        addCard("Swamp", human, ZoneType.Battlefield)
-                        addCard("Path of Peril", human, ZoneType.Hand)
-                    },
-                    seedOffer = { _, human, _ ->
                         addCard("Plains", human, ZoneType.Battlefield)
                         addCard("Swamp", human, ZoneType.Battlefield)
                         addCard("Plains", human, ZoneType.Battlefield)
@@ -143,11 +134,6 @@ class AltCostOfferTest :
                         addCard("Mizzium Mortars", human, ZoneType.Hand)
                         addCard("Serra Angel", ai, ZoneType.Battlefield)
                     },
-                    seedOffer = { _, human, ai ->
-                        repeat(6) { addCard("Mountain", human, ZoneType.Battlefield) }
-                        addCard("Mizzium Mortars", human, ZoneType.Hand)
-                        addCard("Serra Angel", ai, ZoneType.Battlefield)
-                    },
                     forgeSurfaces = { it.alternativeCost == AlternativeCost.Overload },
                     assertForgeSurfaces = { sa, abilities ->
                         val regularSa = abilities.firstOrNull { it.alternativeCost == null }
@@ -180,10 +166,6 @@ class AltCostOfferTest :
                         repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
                         addCard("Mulldrifter", human, ZoneType.Hand)
                     },
-                    seedOffer = { _, human, _ ->
-                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
-                        addCard("Mulldrifter", human, ZoneType.Hand)
-                    },
                     forgeSurfaces = { it.alternativeCost == AlternativeCost.Evoke },
                     assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
                         val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
@@ -204,10 +186,6 @@ class AltCostOfferTest :
                     sourceZone = ZoneType.Hand,
                     keywordId = KeywordAbilityIds.DASH,
                     seedForgeSurfaces = { _, human, _ ->
-                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
-                        addCard("Zurgo Bellstriker", human, ZoneType.Hand)
-                    },
-                    seedOffer = { _, human, _ ->
                         repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
                         addCard("Zurgo Bellstriker", human, ZoneType.Hand)
                     },
@@ -234,10 +212,6 @@ class AltCostOfferTest :
                         repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
                         addCard("Mayhem Patrol", human, ZoneType.Hand)
                     },
-                    seedOffer = { _, human, _ ->
-                        repeat(2) { addCard("Mountain", human, ZoneType.Battlefield) }
-                        addCard("Mayhem Patrol", human, ZoneType.Hand)
-                    },
                     forgeSurfaces = { it.alternativeCost == AlternativeCost.Blitz },
                     assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
                         val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
@@ -258,11 +232,6 @@ class AltCostOfferTest :
                     sourceZone = ZoneType.Hand,
                     keywordId = KeywordAbilityIds.EMERGE,
                     seedForgeSurfaces = { _, human, _ ->
-                        repeat(4) { addCard("Island", human, ZoneType.Battlefield) }
-                        addCard("Walking Corpse", human, ZoneType.Battlefield)
-                        addCard("Wretched Gryff", human, ZoneType.Hand)
-                    },
-                    seedOffer = { _, human, _ ->
                         repeat(4) { addCard("Island", human, ZoneType.Battlefield) }
                         addCard("Walking Corpse", human, ZoneType.Battlefield)
                         addCard("Wretched Gryff", human, ZoneType.Hand)
@@ -291,11 +260,6 @@ class AltCostOfferTest :
                         repeat(4) { addCard("Swamp", human, ZoneType.Battlefield) }
                         addCard("Spawn of Mayhem", human, ZoneType.Hand)
                     },
-                    seedOffer = { _, human, ai ->
-                        ai.setLifeLostThisTurn(1)
-                        repeat(4) { addCard("Swamp", human, ZoneType.Battlefield) }
-                        addCard("Spawn of Mayhem", human, ZoneType.Hand)
-                    },
                     forgeSurfaces = { it.alternativeCost == AlternativeCost.Spectacle },
                     assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
                         val plainOffers = castOffers.filter { it.alternativeGrpId == 0 }
@@ -316,10 +280,6 @@ class AltCostOfferTest :
                     sourceZone = ZoneType.Graveyard,
                     keywordId = KeywordAbilityIds.FLASHBACK,
                     seedForgeSurfaces = { _, human, _ ->
-                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
-                        addCard("Think Twice", human, ZoneType.Graveyard)
-                    },
-                    seedOffer = { _, human, _ ->
                         repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
                         addCard("Think Twice", human, ZoneType.Graveyard)
                     },
@@ -348,11 +308,6 @@ class AltCostOfferTest :
                         addCard("Radical Idea", human, ZoneType.Graveyard)
                         addCard("Coral Merfolk", human, ZoneType.Hand)
                     },
-                    seedOffer = { _, human, _ ->
-                        repeat(2) { addCard("Island", human, ZoneType.Battlefield) }
-                        addCard("Radical Idea", human, ZoneType.Graveyard)
-                        addCard("Coral Merfolk", human, ZoneType.Hand)
-                    },
                     forgeSurfaces = { it.isJumpstart },
                     assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
                         castOffers.shouldNotBeEmpty()
@@ -374,10 +329,6 @@ class AltCostOfferTest :
                     sourceZone = ZoneType.Graveyard,
                     keywordId = KeywordAbilityIds.DISTURB,
                     seedForgeSurfaces = { _, human, _ ->
-                        repeat(5) { addCard("Island", human, ZoneType.Battlefield) }
-                        addCard("Galedrifter", human, ZoneType.Graveyard)
-                    },
-                    seedOffer = { _, human, _ ->
                         repeat(5) { addCard("Island", human, ZoneType.Battlefield) }
                         addCard("Galedrifter", human, ZoneType.Graveyard)
                     },
@@ -409,11 +360,6 @@ class AltCostOfferTest :
                         addCard("Glimpse of Freedom", human, ZoneType.Graveyard)
                         repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
                     },
-                    seedOffer = { _, human, _ ->
-                        repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
-                        addCard("Glimpse of Freedom", human, ZoneType.Graveyard)
-                        repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
-                    },
                     forgeSurfaces = { it.alternativeCost == AlternativeCost.Escape },
                     assertOffer = { castOffers, _, _, _, _, keywordAbilityGrpId ->
                         castOffers.shouldNotBeEmpty()
@@ -424,6 +370,31 @@ class AltCostOfferTest :
                             escapeOffer!!.grpId shouldBe 0
                             escapeOffer.facetId shouldBe 0
                             escapeOffer.alternativeGrpId shouldBe keywordAbilityGrpId
+                        }
+                    },
+                ),
+                AltCostOfferRow(
+                    mechanic = "Harmonize",
+                    sourceCard = "Winternight Stories",
+                    sourceZone = ZoneType.Graveyard,
+                    keywordId = KeywordAbilityIds.HARMONIZE,
+                    seedForgeSurfaces = { _, human, _ ->
+                        repeat(5) { addCard("Island", human, ZoneType.Battlefield) }
+                        addCard("Winternight Stories", human, ZoneType.Graveyard)
+                    },
+                    forgeSurfaces = { it.alternativeCost?.name == "Harmonize" },
+                    assertForgeSurfaces = { _, abilities ->
+                        abilities.filter { it.alternativeCost?.name == "Harmonize" } shouldHaveSize 1
+                    },
+                    assertOffer = { castOffers, _, _, sourceGrpId, sourceIid, keywordAbilityGrpId ->
+                        val harmonizeOffer = castOffers.firstOrNull { it.alternativeGrpId == keywordAbilityGrpId }
+                        assertSoftly {
+                            harmonizeOffer should beAltCostOffer(keywordAbilityGrpId)
+                            harmonizeOffer!!.grpId shouldBe sourceGrpId
+                            harmonizeOffer.facetId shouldBe sourceIid
+                            harmonizeOffer.abilityGrpId shouldBe 0
+                            harmonizeOffer.alternativeSourceZcid shouldBe sourceIid
+                            harmonizeOffer should haveManaCost(generic = 4, blue = 1)
                         }
                     },
                 ),

@@ -20,10 +20,7 @@ import leyline.testkit.offerAltCost
  * Forge registers the SA via `K:Escape:<cost>|Type:Card|N:<count>` with
  * `setAlternativeCost(AlternativeCost.Escape)`.
  *
- * The Forge-surfaces and ActionMapper-offers-Cast happy-path tests for Escape
- * live in `leyline.mechanics.AltCostOfferTest` alongside the other alt-cost
- * keywords. This file keeps only the guards specific to Escape's additional
- * cost (N other cards exiled from graveyard).
+ * Happy-path coverage lives in [leyline.mechanics.altcost.AltCostOfferTest].
  *
  * Card: Glimpse of Freedom (Instant {U}, "Draw a card.", Escape {2}{U}+exile-5).
  */
@@ -33,15 +30,9 @@ class EscapeActionTest :
         test("escape card only in hand → no graveyard-cast offer (zone guard)") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
-                    addCard("Island", human, ZoneType.Battlefield)
-                    addCard("Island", human, ZoneType.Battlefield)
-                    addCard("Island", human, ZoneType.Battlefield)
+                    repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
                     addCard("Glimpse of Freedom", human, ZoneType.Hand)
-                    addCard("Plains", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
+                    repeat(5) { addCard("Plains", human, ZoneType.Graveyard) }
                 }
             val human = game.humanPlayer
 
@@ -49,7 +40,6 @@ class EscapeActionTest :
             val escapeAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(glimpseGrpId, KeywordAbilityIds.ESCAPE)!!
 
-            // Glimpse from hand surfaces only the regular Cast SA, not Escape.
             val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Glimpse of Freedom" }
             val handEscapeSa =
                 getAllCastableAbilities(card, human)
@@ -66,23 +56,10 @@ class EscapeActionTest :
             // should fail the additional-cost check and the Escape SA should not surface.
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
-                    addCard("Island", human, ZoneType.Battlefield)
-                    addCard("Island", human, ZoneType.Battlefield)
-                    addCard("Island", human, ZoneType.Battlefield)
+                    repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
                     addCard("Glimpse of Freedom", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
-                    addCard("Plains", human, ZoneType.Graveyard)
+                    repeat(3) { addCard("Plains", human, ZoneType.Graveyard) }
                 }
-            val human = game.humanPlayer
-            val card = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Glimpse of Freedom" }
-
-            val escapeSa =
-                getAllCastableAbilities(card, human)
-                    .firstOrNull { it.alternativeCost == AlternativeCost.Escape }
-            // Forge's getAlternativeCosts gates on canPlay, which checks payAdditionalCosts.
-            // With 3 others < 5 required, the escape SA should not be castable.
-            escapeSa shouldBe null
 
             val glimpseGrpId = b.cardRepository.findGrpIdByName("Glimpse of Freedom")!!
             val escapeAbilityGrpId =

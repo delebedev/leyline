@@ -53,9 +53,7 @@ class FlashbackActionTest :
         test("flashback card only in hand has no graveyard alt-cost offer") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
-                    addCard("Island", human, ZoneType.Battlefield)
-                    addCard("Island", human, ZoneType.Battlefield)
-                    addCard("Island", human, ZoneType.Battlefield)
+                    repeat(3) { addCard("Island", human, ZoneType.Battlefield) }
                     addCard("Think Twice", human, ZoneType.Hand)
                 }
             val human = game.humanPlayer
