@@ -36,13 +36,13 @@ class WarpActionTest :
     BoardTest({
 
         test("ActionMapper offers alt-cost Cast for warp card in hand when mana available") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Germinating Wurm", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
@@ -50,16 +50,7 @@ class WarpActionTest :
             warpAbilityGrpId shouldNotBe null
             warpAbilityGrpId!! shouldBeGreaterThan 0
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    cardRepository = b.cardRepository,
-                )
+            val actions = board.actions()
 
             val castOffers =
                 actions.actionsList.filter {
@@ -80,28 +71,18 @@ class WarpActionTest :
             // the per-card warp row via the Arena DB Abilities table (BaseId=371 for
             // Warp, matched by OldSchoolManaText). This test repros that shape using
             // InMemoryCardRepository.findAbilityInfo().
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Germinating Wurm", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
-                    cardRepository = b.cardRepository,
-                )
+            val actions = board.actions()
 
             val warpOffer =
                 actions.actionsList.firstOrNull {
@@ -250,80 +231,56 @@ class WarpActionTest :
 
         test("warp card in hand but insufficient mana -> no alt-cost Cast offer") {
             // Only one Forest — can't pay {1}{G}.
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Germinating Wurm", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = board.actions()
 
             actions.actionsList.count { it.alternativeGrpId == warpAbilityGrpId } shouldBe 0
             actions shouldNot offerAltCost(warpAbilityGrpId)
         }
 
         test("warp card only in library -> no alt-cost Cast offer (no speculative library-top rail)") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Germinating Wurm", human, ZoneType.Library)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = board.actions()
 
             actions.actionsList.count { it.alternativeGrpId == warpAbilityGrpId } shouldBe 0
             actions shouldNot offerAltCost(warpAbilityGrpId)
         }
 
         test("warp card in graveyard -> no alt-cost Cast offer") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Germinating Wurm", human, ZoneType.Graveyard)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
 
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val warpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = board.actions()
 
             actions.actionsList.count { it.alternativeGrpId == warpAbilityGrpId } shouldBe 0
             actions shouldNot offerAltCost(warpAbilityGrpId)
