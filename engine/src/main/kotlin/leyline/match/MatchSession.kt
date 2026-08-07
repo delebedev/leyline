@@ -684,7 +684,7 @@ class MatchSession(
 
     private fun sendBundledGREOwned(messages: List<GREToClientMessage>) {
         drainPlaybackOwned()
-        sendBundledGREDirect(messages, mirror = true)
+        sendThroughOutbox(messages, mirror = true)
     }
 
     override fun drainPlayback(): Boolean {
@@ -738,7 +738,7 @@ class MatchSession(
             gameBridge.acknowledgeEngineCut(cut)
             for (result in results) {
                 paceBeforePlaybackDelivery(delivered)
-                sendBundledGREDirect(result.messages, mirror = true)
+                sendThroughOutbox(result.messages, mirror = true)
                 delivered = true
             }
             if (gameBridge.consumePromptTimeoutNeedsAutoAdvance()) {
@@ -750,10 +750,10 @@ class MatchSession(
 
     override fun sendSeatGRE(messages: List<GREToClientMessage>) =
         reduceActive {
-            sendBundledGREDirect(messages, mirror = false)
+            sendThroughOutbox(messages, mirror = false)
         }
 
-    private fun sendBundledGREDirect(
+    private fun sendThroughOutbox(
         messages: List<GREToClientMessage>,
         mirror: Boolean,
     ) {

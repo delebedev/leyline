@@ -60,7 +60,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Naming: `xxxBundle` → [BundleResult] (multi-message). Standalone helpers
  * ([queuedGameState], [edictalPass]) return single [GREToClientMessage].
  */
-@Suppress("LargeClass") // coherent unit; split assessed 2026-04-05, marginal leverage
+@Suppress("LargeClass") // split reassessed 2026-08-08; a boundary exists but needs its own change
 class BundleBuilder(
     private val bridge: GameBridge,
     private val matchId: String,
@@ -125,11 +125,6 @@ class BundleBuilder(
         route: SelectNPromptRoute,
         envelopeForReq: (SelectNReq) -> SelectNEnvelope,
     ): BundleResult = selectNBundle(bridge.requireGame(), counter, prompt, route, envelopeForReq)
-
-    fun selectNBundle(
-        counter: MessageCounter,
-        envelope: SelectNEnvelope,
-    ): BundleResult = selectNBundle(bridge.requireGame(), counter, envelope)
 
     fun orderBundle(
         counter: MessageCounter,
@@ -661,7 +656,7 @@ class BundleBuilder(
      *   GRE 1: Diff GameStateMessage with embedded actions (only changed zones/objects)
      *   GRE 2: ActionsAvailableReq
      */
-    fun postAction(
+    internal fun postAction(
         game: Game,
         counter: MessageCounter,
         revealForSeat: Int? = null,
@@ -720,7 +715,7 @@ class BundleBuilder(
      * Used to show intermediate state (e.g. spell on stack) without
      * prompting the client for a response.
      */
-    fun stateOnlyDiff(
+    internal fun stateOnlyDiff(
         game: Game,
         counter: MessageCounter,
     ): BundleResult =
@@ -761,7 +756,7 @@ class BundleBuilder(
      * anns/pAnns/objects/zones with prevGsId chained to the content frame)
      * used for animation pacing.
      */
-    fun remoteActionDiff(
+    internal fun remoteActionDiff(
         game: Game,
         counter: MessageCounter,
         turnStarted: Boolean = false,
@@ -1104,7 +1099,7 @@ class BundleBuilder(
      *   4. PromptReq (promptId=37)
      *   5. ActionsAvailableReq (promptId=2)
      */
-    fun phaseTransitionDiff(
+    internal fun phaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
     ): BundleResult =
@@ -1236,8 +1231,7 @@ class BundleBuilder(
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
      */
-    @Suppress("UnusedParameter")
-    fun echoAttackersBundle(
+    internal fun echoAttackersBundle(
         game: Game,
         counter: MessageCounter,
         selectedAttackerIds: List<Int>,
@@ -1264,7 +1258,7 @@ class BundleBuilder(
     /**
      * Declare-attackers bundle: Diff (DeclareAttack step) + DeclareAttackersReq (prompt id=6).
      */
-    fun declareAttackersBundle(
+    internal fun declareAttackersBundle(
         game: Game,
         counter: MessageCounter,
         prebuiltReq: DeclareAttackersReq? = null,
@@ -1295,7 +1289,7 @@ class BundleBuilder(
      * Same pattern as [echoAttackersBundle] — engine's combat object doesn't
      * track provisional blocker selections during iterative declaration.
      */
-    fun echoBlockersBundle(
+    internal fun echoBlockersBundle(
         game: Game,
         counter: MessageCounter,
         blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
@@ -1376,7 +1370,7 @@ class BundleBuilder(
     /**
      * Declare-blockers bundle: Diff (DeclareBlock step) + DeclareBlockersReq (prompt id=7).
      */
-    fun declareBlockersBundle(
+    internal fun declareBlockersBundle(
         game: Game,
         counter: MessageCounter,
     ): BundleResult =
@@ -1411,7 +1405,7 @@ class BundleBuilder(
      * Sets `allowCancel=Abort` and `allowUndo=true` on the GRE wrapper
      * (client shows Cancel button and allows undo during targeting).
      */
-    fun selectTargetsBundle(
+    internal fun selectTargetsBundle(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -1455,7 +1449,7 @@ class BundleBuilder(
      * SelectN bundle: GameState + SelectNReq.
      * Used for "choose N cards" prompts (discard, sacrifice, etc.).
      */
-    fun selectNBundle(
+    internal fun selectNBundle(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -1470,7 +1464,7 @@ class BundleBuilder(
             }
         }
 
-    fun selectNBundle(
+    internal fun selectNBundle(
         game: Game,
         counter: MessageCounter,
         envelope: SelectNEnvelope,
@@ -1511,7 +1505,7 @@ class BundleBuilder(
     }
 
     /** Order bundle: GameState + OrderReq. */
-    fun orderBundle(
+    internal fun orderBundle(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -1937,7 +1931,7 @@ class BundleBuilder(
      * @param sourceCardGrpId grpId of the source card (for ability objectSourceGrpId).
      *   Null for spell-time modals.
      */
-    fun castingTimeOptionsBundle(
+    internal fun castingTimeOptionsBundle(
         game: Game,
         counter: MessageCounter,
         req: CastingTimeOptionsReq,
@@ -2025,7 +2019,7 @@ class BundleBuilder(
      *
      * The client responds with PerformActionResp (already handled).
      */
-    fun payCostsBundle(
+    internal fun payCostsBundle(
         game: Game,
         counter: MessageCounter,
         req: PayCostsReq,

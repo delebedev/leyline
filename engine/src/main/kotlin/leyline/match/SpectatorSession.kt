@@ -79,7 +79,7 @@ internal class SpectatorSession(
                 is EngineCut.Observation -> {
                     val results = bundleBuilder.playbackYield(cut.value, counter)
                     gameBridge.acknowledgeEngineCut(cut)
-                    results.forEach { sendBundledGREDirect(it.messages) }
+                    results.forEach { sendThroughOutbox(it.messages) }
                 }
                 is EngineCut.InteractionReady -> {
                     gameBridge.acknowledgeEngineCut(cut)
@@ -93,10 +93,10 @@ internal class SpectatorSession(
 
     override fun sendBundledGRE(messages: List<GREToClientMessage>) =
         owner.reduce {
-            if (!closed.get()) sendBundledGREDirect(messages)
+            if (!closed.get()) sendThroughOutbox(messages)
         }
 
-    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
+    private fun sendThroughOutbox(messages: List<GREToClientMessage>) {
         owner.assertOwnerThread()
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
@@ -122,12 +122,12 @@ internal class SpectatorSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) = owner.reduce {
-        if (!closed.get()) sendBundledGREDirect(bundleBuilder.stateOnlyDiff(counter).messages)
+        if (!closed.get()) sendThroughOutbox(bundleBuilder.stateOnlyDiff(counter).messages)
     }
 
     override fun sendBundle(result: BundleBuilder.BundleResult) =
         owner.reduce {
-            if (!closed.get()) sendBundledGREDirect(result.messages)
+            if (!closed.get()) sendThroughOutbox(result.messages)
         }
 
     override fun sendGameOver(reason: ResultReason) =
@@ -140,7 +140,7 @@ internal class SpectatorSession(
         if (closed.get() || gameOverSent) return
         val p1Won = gameBridge.playerWon(SeatId(1))
         val winningTeam = if (p1Won) 1 else 2
-        sendBundledGREDirect(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
+        sendThroughOutbox(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
         sendMatchProgressOwned(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
         gameOverSent = true
         protocolHead.afterDrained(::close)
