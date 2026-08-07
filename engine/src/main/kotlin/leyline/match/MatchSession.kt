@@ -83,7 +83,6 @@ class MatchSession(
     private fun reduceActive(action: () -> Unit) {
         if (autoAdvanceClosed.get()) return
         owner.reduce {
-            owner.assertOwnerThread()
             if (!autoAdvanceClosed.get()) {
                 drainPlaybackOwned()
                 action()
@@ -243,7 +242,6 @@ class MatchSession(
      */
     fun replaceForPuzzle(command: GameResetCommand): Pair<MatchSession, List<Int>> =
         owner.reduce {
-            owner.assertOwnerThread()
             val deletedIds = command.reset(gameBridge)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
             registry.registerSession(matchId, seatId, replacement)
@@ -768,7 +766,6 @@ class MatchSession(
         val accepted =
             owner.enqueue {
                 try {
-                    owner.assertOwnerThread()
                     drainPlaybackOwned()
                     do {
                         if (autoAdvanceClosed.get()) return@enqueue
@@ -792,7 +789,6 @@ class MatchSession(
     fun close() {
         if (!retire()) return
         owner.reduce {
-            owner.assertOwnerThread()
             finishRetirement()
         }
     }
