@@ -7,10 +7,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.GrpId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -106,28 +104,19 @@ class SneakActionTest :
             // AbilityRegistry fallback surfaces the slot grpId.
             // Here we assert the NEGATIVE guardrail: empty keyword map + no payable
             // sneak cost → no offer, and critically no NPE/IndexOutOfBounds.
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Swamp", human, ZoneType.Battlefield)
                     addCard("Swamp", human, ZoneType.Battlefield)
                     addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
                     .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
-                    abilityRegistryLookup = { card, cd -> b.abilityRegistryFor(card, cd) },
-                )
+            val actions = board.actions()
 
             actions shouldNot offerAltCost(sneakAbilityGrpId)
             // At least the base Cast inactive action should be present — the mapper ran
@@ -136,78 +125,54 @@ class SneakActionTest :
         }
 
         test("Sneak card in hand, insufficient mana → no alt-cost Cast offer") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     // No Swamps — can't pay {1}{B}.
                     addCard("Splinter's Technique", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
                     .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
-                )
+            val actions = board.actions()
 
             actions shouldNot offerAltCost(sneakAbilityGrpId)
         }
 
         test("Sneak card only in library → no alt-cost Cast offer") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Swamp", human, ZoneType.Battlefield)
                     addCard("Swamp", human, ZoneType.Battlefield)
                     addCard("Splinter's Technique", human, ZoneType.Library)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
                     .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
-                )
+            val actions = board.actions()
 
             actions shouldNot offerAltCost(sneakAbilityGrpId)
         }
 
         test("Sneak card in graveyard → no alt-cost Cast offer") {
-            val (b, game, _) =
+            val board =
                 startWithBoard { _, human, _ ->
                     addCard("Swamp", human, ZoneType.Battlefield)
                     addCard("Swamp", human, ZoneType.Battlefield)
                     addCard("Splinter's Technique", human, ZoneType.Graveyard)
                 }
-            val human = game.humanPlayer
+            val b = board.bridge
             val grpId = b.cardRepository.findGrpIdByName("Splinter's Technique")!!
             val sneakAbilityGrpId =
                 (b.cardRepository as leyline.game.InMemoryCardRepository)
                     .findKeywordAbilityGrpId(grpId, KeywordAbilityIds.SNEAK)!!
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { g -> b.cardRepository.findByGrpId(g.value) },
-                )
+            val actions = board.actions()
 
             actions shouldNot offerAltCost(sneakAbilityGrpId)
         }
