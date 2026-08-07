@@ -116,14 +116,6 @@ interface RequestRateLimiter {
     ): Boolean
 }
 
-object NoopRateLimiter : RequestRateLimiter {
-    override fun check(
-        key: String,
-        limit: Int,
-        windowMs: Long,
-    ): Boolean = true
-}
-
 class InMemoryRateLimiter : RequestRateLimiter {
     private val windows = ConcurrentHashMap<String, MutableList<Long>>()
 
@@ -332,7 +324,7 @@ class WebAuthService(
     private val store: WebAuthStore,
     private val emailSender: EmailSender,
     private val secret: String,
-    private val rateLimiter: RequestRateLimiter = NoopRateLimiter,
+    private val rateLimiter: RequestRateLimiter = InMemoryRateLimiter(),
     private val rateLimitConfig: AuthRateLimitConfig = AuthRateLimitConfig.disabled(),
     private val fixedLoginCode: String? = null,
 ) {
@@ -386,22 +378,7 @@ class WebAuthService(
             ChallengeConsumeResult.TooManyAttempts -> return VerifyLoginResult.TooManyAttempts
         }
         val player = store.findOrCreatePlayer(normalized)
-        val token = generateToken()
-        val now = Instant.now()
-        store.saveSession(
-            WebSession(
-                id = UUID.randomUUID().toString(),
-                playerId = player.playerId,
-                tokenHash = hashSessionToken(token),
-                createdAt = now,
-                lastSeenAt = now,
-                idleExpiresAt = now.plusSeconds(SESSION_IDLE_SECONDS),
-                absoluteExpiresAt = now.plusSeconds(SESSION_ABSOLUTE_SECONDS),
-                ipHash = ip?.let(::hashOpaque),
-                userAgent = userAgent,
-            ),
-        )
-        return VerifyLoginResult.Success(token, player)
+        return createSession(player, ip, userAgent)
     }
 
     /**
@@ -411,13 +388,20 @@ class WebAuthService(
      * account. Used by no-auth product surfaces (e.g. /challenges).
      */
 
-    /** Mint a guest session, or null when rate-limited (per-IP). */
     fun guestSession(
         ip: String? = null,
         userAgent: String? = null,
     ): VerifyLoginResult.Success? {
         if (!allow("guest:${ip.orEmpty()}")) return null
         val player = store.findOrCreatePlayer("guest-${UUID.randomUUID()}@$GUEST_EMAIL_DOMAIN")
+        return createSession(player, ip, userAgent)
+    }
+
+    private fun createSession(
+        player: WebPlayer,
+        ip: String?,
+        userAgent: String?,
+    ): VerifyLoginResult.Success {
         val token = generateToken()
         val now = Instant.now()
         store.saveSession(

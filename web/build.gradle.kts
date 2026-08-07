@@ -36,6 +36,7 @@ dependencies {
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(testFixtures(project(":domain")))
 }
 
 val generateOpenApi =

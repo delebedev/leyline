@@ -228,23 +228,9 @@ private fun Route.installDraftRoutes(services: WebServices) {
             if (session == null) call.respond(HttpStatusCode.NotFound) else call.respond(sessionView(session))
         }
         post("/deck") {
-            val request = call.receive<SubmitDeckRequest>()
-            val playerId = call.ownedPlayerId(services, request.playerId)
-            require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
-            val course =
-                services.courseService.setDeck(
-                    playerId,
-                    request.eventName,
-                    request.toCourseDeck(),
-                    request.toCourseSummary(),
-                )
-            call.respond(courseView(course))
+            call.submitCourseDeck(services)
         }
-        post("/play") {
-            val request = call.receive<PlayDraftRequest>()
-            val playerId = call.ownedPlayerId(services, request.playerId)
-            call.respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
-        }
+        post("/play") { call.playCourse(services) }
         delete {
             val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
@@ -274,23 +260,9 @@ private fun Route.installSealedRoutes(services: WebServices) {
             call.respond(courseView(services.courseService.join(playerId, request.eventName)))
         }
         post("/deck") {
-            val request = call.receive<SubmitDeckRequest>()
-            val playerId = call.ownedPlayerId(services, request.playerId)
-            require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
-            val course =
-                services.courseService.setDeck(
-                    playerId,
-                    request.eventName,
-                    request.toCourseDeck(),
-                    request.toCourseSummary(),
-                )
-            call.respond(courseView(course))
+            call.submitCourseDeck(services)
         }
-        post("/play") {
-            val request = call.receive<PlayDraftRequest>()
-            val playerId = call.ownedPlayerId(services, request.playerId)
-            call.respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
-        }
+        post("/play") { call.playCourse(services) }
         delete {
             val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
@@ -298,6 +270,26 @@ private fun Route.installSealedRoutes(services: WebServices) {
             call.respond(HttpStatusCode.NoContent)
         }
     }
+}
+
+private suspend fun ApplicationCall.submitCourseDeck(services: WebServices) {
+    val request = receive<SubmitDeckRequest>()
+    val playerId = ownedPlayerId(services, request.playerId)
+    require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
+    val course =
+        services.courseService.setDeck(
+            playerId,
+            request.eventName,
+            request.toCourseDeck(),
+            request.toCourseSummary(),
+        )
+    respond(courseView(course))
+}
+
+private suspend fun ApplicationCall.playCourse(services: WebServices) {
+    val request = receive<PlayDraftRequest>()
+    val playerId = ownedPlayerId(services, request.playerId)
+    respond(services.matchLauncher.launchCourseMatch(playerId, request.eventName))
 }
 
 /**

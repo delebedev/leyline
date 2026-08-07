@@ -25,7 +25,6 @@ import leyline.web.DevEmailSender
 import leyline.web.DirectWebGreEngineSession
 import leyline.web.DraftPlayResponse
 import leyline.web.GreStartRequest
-import leyline.web.InMemoryRateLimiter
 import leyline.web.InProcessWebGreRelay
 import leyline.web.LimitedSetView
 import leyline.web.ResendEmailSender
@@ -126,7 +125,6 @@ fun main(args: Array<String>) {
                     authStore,
                     emailSender,
                     secret = resolveWebAuthSecret(),
-                    rateLimiter = InMemoryRateLimiter(),
                     rateLimitConfig = AuthRateLimitConfig.fromEnv(),
                     fixedLoginCode = resolveFixedLoginCode(System.getenv()),
                 ),

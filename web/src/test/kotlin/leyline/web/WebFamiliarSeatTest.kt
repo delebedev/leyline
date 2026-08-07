@@ -13,13 +13,6 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.ServerConfig
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
-import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
-import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
-import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
-import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.CopyOnWriteArrayList
@@ -51,45 +44,6 @@ class WebFamiliarSeatTest :
                 game = GameConfig(seed = 42L, dieRollWinner = 1, skipMulligan = false),
             )
 
-        fun serviceMessage(
-            type: ClientToMatchServiceMessageType,
-            payload: com.google.protobuf.ByteString,
-        ): ByteArray =
-            ClientToMatchServiceMessage
-                .newBuilder()
-                .setClientToMatchServiceMessageType(type)
-                .setPayload(payload)
-                .build()
-                .toByteArray()
-
-        fun authBytes(clientId: String): ByteArray =
-            serviceMessage(
-                ClientToMatchServiceMessageType.AuthenticateRequest_f487,
-                AuthenticateRequest
-                    .newBuilder()
-                    .setClientId(clientId)
-                    .build()
-                    .toByteString(),
-            )
-
-        fun connectBytes(matchId: String): ByteArray =
-            serviceMessage(
-                ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487,
-                ClientToMatchDoorConnectRequest
-                    .newBuilder()
-                    .setMatchId(matchId)
-                    .setClientToGreMessageBytes(
-                        ClientToGREMessage
-                            .newBuilder()
-                            .setSystemSeatId(1)
-                            .setType(ClientMessageType.ConnectReq_097b)
-                            .setConnectReq(ConnectReq.newBuilder())
-                            .build()
-                            .toByteString(),
-                    ).build()
-                    .toByteString(),
-            )
-
         fun greTypes(frames: List<ByteArray>): List<GREMessageType> =
             frames
                 .map(MatchServiceToClientMessage::parseFrom)
@@ -117,8 +71,8 @@ class WebFamiliarSeatTest :
             val session = engine(matchId, frames)
 
             try {
-                session.receiveFromBrowser(authBytes("web-player"))
-                session.receiveFromBrowser(connectBytes(matchId))
+                session.receiveFromBrowser(authRequestBytes("web-player"))
+                session.receiveFromBrowser(connectRequestBytes(matchId, seatId = 1))
 
                 val types = greTypes(frames)
                 assertSoftly {
@@ -142,15 +96,15 @@ class WebFamiliarSeatTest :
             val session = engine(matchId, frames)
 
             try {
-                session.receiveFromBrowser(authBytes("web-player"))
-                session.receiveFromBrowser(connectBytes(matchId))
+                session.receiveFromBrowser(authRequestBytes("web-player"))
+                session.receiveFromBrowser(connectRequestBytes(matchId, seatId = 1))
                 val dealt = greTypes(frames).count { it == GREMessageType.MulliganReq_aa0d }
 
                 // Page reload: the same socket-level client hands the engine a
                 // second handshake, which re-seats seat 1 and resyncs it.
                 frames.clear()
-                session.receiveFromBrowser(authBytes("web-player"))
-                session.receiveFromBrowser(connectBytes(matchId))
+                session.receiveFromBrowser(authRequestBytes("web-player"))
+                session.receiveFromBrowser(connectRequestBytes(matchId, seatId = 1))
 
                 assertSoftly {
                     dealt shouldBe 1

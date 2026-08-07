@@ -37,220 +37,84 @@ object WebOpenApi {
             put("components", buildJsonObject { put("schemas", schemas()) })
         }
 
-    @Suppress("LongMethod")
     private fun paths(): JsonObject =
         buildJsonObject {
-            put("/gre", buildJsonObject { put("get", operation(responses = mapOf("101" to null))) })
-            put("/api/auth/me", buildJsonObject { put("get", operation(response = ref("AuthView"))) })
-            put("/api/auth/guest", buildJsonObject { put("post", operation(response = ref("AuthView"))) })
-            put("/api/puzzles", buildJsonObject { put("get", operation(response = arrayRef("PuzzleSummaryView"))) })
-            put(
-                "/api/auth/request-code",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(
-                            request = ref("RequestLoginCodeRequest"),
-                            responses =
-                                mapOf(
-                                    "204" to null,
-                                ),
-                        ),
-                    )
-                },
-            )
-            put(
-                "/api/auth/verify",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(
-                            request = ref("VerifyLoginCodeRequest"),
-                            response = ref("LoginResponse"),
-                            responses =
-                                mapOf(
-                                    "401" to null,
-                                ),
-                        ),
-                    )
-                },
-            )
-            put("/api/auth/logout", buildJsonObject { put("post", operation(responses = mapOf("204" to null))) })
-            put(
-                "/api/gre/start",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(
-                            request = ref("GreStartRequest"),
-                            response = ref("DraftPlayResponse"),
-                            responses =
-                                mapOf(
-                                    "401" to null,
-                                ),
-                        ),
-                    )
-                },
-            )
-            put(
-                "/api/public/gre/start",
-                buildJsonObject {
-                    put("post", operation(request = ref("GreStartRequest"), response = ref("DraftPlayResponse")))
-                },
-            )
-            put(
-                "/api/public/spectator/start",
-                buildJsonObject {
-                    put("post", operation(response = ref("PublicSpectatorResponse")))
-                },
-            )
-            put(
-                "/api/public/spectate/viewers",
-                buildJsonObject {
-                    put("get", operation(response = ref("ViewerCountView")))
-                },
-            )
-            put("/api/collection", buildJsonObject { put("get", operation(response = ref("CollectionView"), responses = authFailures())) })
-            put(
-                "/api/public/cards/by-grpids",
-                buildJsonObject {
-                    put("get", operation(response = mapRef("GreCardMetaDto"), responses = mapOf("400" to null)))
-                },
-            )
-            put(
-                "/api/cards/metadata",
-                buildJsonObject {
-                    put("get", operation(response = ref("CardMetadataView")))
-                },
-            )
-            put(
-                "/api/cards/search",
-                buildJsonObject {
-                    put("get", operation(response = arrayRef("DraftCardDto"), responses = mapOf("400" to null)))
-                },
-            )
-            put(
-                "/api/cards/parse-decklist",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(
-                            request = ref("ParseDecklistRequest"),
-                            response = ref("ParseDecklistResponse"),
-                            responses = mapOf("400" to null),
-                        ),
-                    )
-                },
-            )
-            put("/api/courses", buildJsonObject { put("get", operation(response = arrayRef("CourseView"), responses = authFailures())) })
-            put(
-                "/api/decks",
-                buildJsonObject {
-                    put("get", operation(response = arrayRef("DeckView"), responses = authFailures()))
-                    put("post", operation(request = ref("CreateDeckRequest"), response = ref("DeckView"), responses = authFailures()))
-                },
-            )
-            put(
-                "/api/decks/{deckId}",
-                buildJsonObject {
-                    put("get", operation(response = ref("DeckView"), responses = mapOf("404" to null)))
-                    put(
-                        "delete",
-                        operation(
-                            responses =
-                                mapOf(
-                                    "204" to null,
-                                ),
-                        ),
-                    )
-                },
-            )
-            put(
-                "/api/draft/start",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(request = ref("StartDraftRequest"), response = ref("DraftSessionView"), responses = authFailures()),
-                    )
-                },
-            )
-            put(
-                "/api/draft/pick",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(request = ref("PickDraftRequest"), response = ref("DraftSessionView"), responses = authFailures()),
-                    )
-                },
-            )
-            put(
-                "/api/draft/status",
-                buildJsonObject {
-                    put(
-                        "get",
-                        operation(
-                            response = ref("DraftSessionView"),
-                            responses =
-                                authFailures() + mapOf("404" to null),
-                        ),
-                    )
-                },
-            )
-            put(
-                "/api/draft/deck",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(
-                            request = ref("SubmitDeckRequest"),
-                            response = ref("CourseView"),
-                            responses =
-                                authFailures() + mapOf("400" to null),
-                        ),
-                    )
-                },
-            )
-            put(
-                "/api/draft/play",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(request = ref("PlayDraftRequest"), response = ref("DraftPlayResponse"), responses = authFailures()),
-                    )
-                },
-            )
-            put("/api/draft", buildJsonObject { put("delete", operation(responses = authFailures() + mapOf("204" to null))) })
-            put("/api/sealed/sets", buildJsonObject { put("get", operation(response = arrayRef("LimitedSetView"))) })
-            put(
-                "/api/sealed/start",
-                buildJsonObject {
-                    put("post", operation(request = ref("StartDraftRequest"), response = ref("CourseView"), responses = authFailures()))
-                },
-            )
-            put(
-                "/api/sealed/deck",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(
-                            request = ref("SubmitDeckRequest"),
-                            response = ref("CourseView"),
-                            responses = authFailures() + mapOf("400" to null),
-                        ),
-                    )
-                },
-            )
-            put(
-                "/api/sealed/play",
-                buildJsonObject {
-                    put(
-                        "post",
-                        operation(request = ref("PlayDraftRequest"), response = ref("DraftPlayResponse"), responses = authFailures()),
-                    )
-                },
-            )
-            put("/api/sealed", buildJsonObject { put("delete", operation(responses = authFailures() + mapOf("204" to null))) })
+            endpoints().groupBy(Endpoint::path).forEach { (path, endpoints) ->
+                put(
+                    path,
+                    buildJsonObject {
+                        endpoints.forEach { endpoint ->
+                            put(endpoint.method, operation(endpoint.request, endpoint.response, endpoint.responses))
+                        }
+                    },
+                )
+            }
         }
+
+    @Suppress("LongMethod")
+    private fun endpoints(): List<Endpoint> =
+        listOf(
+            Endpoint("/gre", "get", responses = statuses("101")),
+            Endpoint("/api/auth/me", "get", response = ref("AuthView")),
+            Endpoint("/api/auth/guest", "post", response = ref("AuthView")),
+            Endpoint("/api/puzzles", "get", response = arrayRef("PuzzleSummaryView")),
+            Endpoint("/api/auth/request-code", "post", request = ref("RequestLoginCodeRequest"), responses = statuses("204")),
+            Endpoint(
+                "/api/auth/verify",
+                "post",
+                request = ref("VerifyLoginCodeRequest"),
+                response = ref("LoginResponse"),
+                responses = statuses("401"),
+            ),
+            Endpoint("/api/auth/logout", "post", responses = statuses("204")),
+            Endpoint(
+                "/api/gre/start",
+                "post",
+                request = ref("GreStartRequest"),
+                response = ref("DraftPlayResponse"),
+                responses = statuses("401"),
+            ),
+            Endpoint("/api/public/gre/start", "post", ref("GreStartRequest"), ref("DraftPlayResponse")),
+            Endpoint("/api/public/spectator/start", "post", response = ref("PublicSpectatorResponse")),
+            Endpoint("/api/public/spectate/viewers", "get", response = ref("ViewerCountView")),
+            Endpoint("/api/collection", "get", response = ref("CollectionView"), responses = authFailures()),
+            Endpoint("/api/public/cards/by-grpids", "get", response = mapRef("GreCardMetaDto"), responses = statuses("400")),
+            Endpoint("/api/cards/metadata", "get", response = ref("CardMetadataView")),
+            Endpoint("/api/cards/search", "get", response = arrayRef("DraftCardDto"), responses = statuses("400")),
+            Endpoint(
+                "/api/cards/parse-decklist",
+                "post",
+                request = ref("ParseDecklistRequest"),
+                response = ref("ParseDecklistResponse"),
+                responses = statuses("400"),
+            ),
+            Endpoint("/api/courses", "get", response = arrayRef("CourseView"), responses = authFailures()),
+            Endpoint("/api/decks", "get", response = arrayRef("DeckView"), responses = authFailures()),
+            Endpoint("/api/decks", "post", ref("CreateDeckRequest"), ref("DeckView"), authFailures()),
+            Endpoint("/api/decks/{deckId}", "get", response = ref("DeckView"), responses = statuses("404")),
+            Endpoint("/api/decks/{deckId}", "delete", responses = statuses("204")),
+            Endpoint("/api/draft/start", "post", ref("StartDraftRequest"), ref("DraftSessionView"), authFailures()),
+            Endpoint("/api/draft/pick", "post", ref("PickDraftRequest"), ref("DraftSessionView"), authFailures()),
+            Endpoint("/api/draft/status", "get", response = ref("DraftSessionView"), responses = authFailures() + statuses("404")),
+            Endpoint("/api/draft/deck", "post", ref("SubmitDeckRequest"), ref("CourseView"), authFailures() + statuses("400")),
+            Endpoint("/api/draft/play", "post", ref("PlayDraftRequest"), ref("DraftPlayResponse"), authFailures()),
+            Endpoint("/api/draft", "delete", responses = authFailures() + statuses("204")),
+            Endpoint("/api/sealed/sets", "get", response = arrayRef("LimitedSetView")),
+            Endpoint("/api/sealed/start", "post", ref("StartDraftRequest"), ref("CourseView"), authFailures()),
+            Endpoint("/api/sealed/deck", "post", ref("SubmitDeckRequest"), ref("CourseView"), authFailures() + statuses("400")),
+            Endpoint("/api/sealed/play", "post", ref("PlayDraftRequest"), ref("DraftPlayResponse"), authFailures()),
+            Endpoint("/api/sealed", "delete", responses = authFailures() + statuses("204")),
+        )
+
+    private data class Endpoint(
+        val path: String,
+        val method: String,
+        val request: JsonObject? = null,
+        val response: JsonObject? = null,
+        val responses: Map<String, JsonElement?> = emptyMap(),
+    )
+
+    private fun statuses(vararg values: String): Map<String, JsonElement?> = values.associateWith { null }
 
     private fun authFailures(): Map<String, JsonElement?> = mapOf("401" to null, "403" to null)
 
