@@ -44,20 +44,15 @@ import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.CollationPool
-import leyline.domain.Course
-import leyline.domain.CourseId
 import leyline.domain.Deck
 import leyline.domain.DeckCard
 import leyline.domain.DeckId
-import leyline.domain.DraftSession
-import leyline.domain.DraftSessionId
-import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.SystemPlayers
-import leyline.domain.repo.CourseRepository
-import leyline.domain.repo.DeckRepository
-import leyline.domain.repo.DraftSessionRepository
+import leyline.domain.repo.InMemoryCourseRepository
+import leyline.domain.repo.InMemoryDeckRepository
+import leyline.domain.repo.InMemoryDraftSessionRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
@@ -69,15 +64,12 @@ import leyline.game.data.CardData
 import org.jetbrains.exposed.v1.jdbc.Database
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
-import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
@@ -624,35 +616,23 @@ class WebRoutesTest :
             }
         }
 
-        test("serves public card metadata by grpIds") {
+        test("serves public card metadata by grpIds, including nulls for unknown ids") {
             withWeb(json) {
-                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999")
+                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999,notanumber")
                 val cards = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
                 assertSoftly {
                     response.status shouldBe HttpStatusCode.OK
+                    cards.keys shouldBe setOf("100", "101", "999")
                     cards["100"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
                     cards["100"]!!.jsonObject["manaCost"]!!.jsonPrimitive.content shouldBe "{G}"
                     cards["100"]!!.jsonObject["types"]!!.jsonPrimitive.content shouldBe "Creature"
                     cards["100"]!!.jsonObject["subtypes"]!!.jsonPrimitive.content shouldBe "Elf"
                     cards["100"]!!.jsonObject["imageUrl"]!!.jsonPrimitive.content shouldBe
                         "https://api.scryfall.com/cards/named?exact=Alpha+Card&format=image&version=normal"
+                    cards["101"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
                     cards["999"]!!.jsonObject["grpId"]!!.jsonPrimitive.content shouldBe "999"
-                }
-            }
-        }
-
-        test("serves cards by grpids, including nulls for unknown ids") {
-            withWeb(json) {
-                val response = client.get("/api/public/cards/by-grpids?ids=100,101,999,notanumber")
-                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
-
-                assertSoftly {
-                    response.status shouldBe HttpStatusCode.OK
-                    body.keys shouldBe setOf("100", "101", "999")
-                    body["100"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Alpha Card"
-                    body["101"]!!.jsonObject["name"]!!.jsonPrimitive.content shouldBe "Beta Card"
-                    body["999"]!!.jsonObject["name"] shouldBe JsonNull
+                    cards["999"]!!.jsonObject["name"] shouldBe JsonNull
                 }
             }
         }
@@ -752,9 +732,8 @@ class WebRoutesTest :
                 val login = login()
                 val response =
                     client.post("/api/sealed/start") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                        auth(login)
+                        jsonBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
                     }
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
@@ -771,9 +750,8 @@ class WebRoutesTest :
                 val login = login()
                 val response =
                     client.post("/api/sealed/start") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
+                        auth(login)
+                        jsonBody("""{"playerId":"${login.playerId}","eventName":"QuickDraft_FDN_20260223"}""")
                     }
 
                 response.status shouldBe HttpStatusCode.BadRequest
@@ -784,15 +762,13 @@ class WebRoutesTest :
             withWeb(json) {
                 val login = login()
                 client.post("/api/sealed/start") {
-                    header(HttpHeaders.Cookie, login.cookie)
-                    contentType(ContentType.Application.Json)
-                    setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                    auth(login)
+                    jsonBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
                 }
                 val deckResponse =
                     client.post("/api/sealed/deck") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody(
+                        auth(login)
+                        jsonBody(
                             """
                             {"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307","name":"Sealed Deck",
                             "mainDeck":[{"grpId":100,"quantity":40}]}
@@ -801,13 +777,12 @@ class WebRoutesTest :
                     }
                 val playResponse =
                     client.post("/api/sealed/play") {
-                        header(HttpHeaders.Cookie, login.cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
+                        auth(login)
+                        jsonBody("""{"playerId":"${login.playerId}","eventName":"Sealed_FDN_20260307"}""")
                     }
                 val dropResponse =
                     client.delete("/api/sealed?playerId=${login.playerId}&eventName=Sealed_FDN_20260307") {
-                        header(HttpHeaders.Cookie, login.cookie)
+                        auth(login)
                     }
 
                 assertSoftly {
@@ -978,50 +953,10 @@ private class WebFixture(
     }, block)
 }
 
-private fun authRequestBytes(clientId: String): ByteArray =
-    ClientToMatchServiceMessage
-        .newBuilder()
-        .setRequestId(1)
-        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.AuthenticateRequest_f487)
-        .setPayload(
-            AuthenticateRequest
-                .newBuilder()
-                .setClientId(clientId)
-                .setPlayerName(clientId)
-                .build()
-                .toByteString(),
-        ).build()
-        .toByteArray()
-
-private fun connectRequestBytes(
-    matchId: String,
-    seatId: Int,
-): ByteArray =
-    ClientToMatchServiceMessage
-        .newBuilder()
-        .setRequestId(2)
-        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487)
-        .setPayload(
-            ClientToMatchDoorConnectRequest
-                .newBuilder()
-                .setMatchId(matchId)
-                .setClientToGreMessageBytes(
-                    ClientToGREMessage
-                        .newBuilder()
-                        .setSystemSeatId(seatId)
-                        .setType(ClientMessageType.ConnectReq_097b)
-                        .setConnectReq(ConnectReq.newBuilder())
-                        .build()
-                        .toByteString(),
-                ).build()
-                .toByteString(),
-        ).build()
-        .toByteArray()
-
 private class TestRepos {
-    val course = MemoryCourseRepo()
-    val draft = MemoryDraftRepo()
-    val deck = MemoryDeckRepo()
+    val course = InMemoryCourseRepository()
+    val draft = InMemoryDraftSessionRepository()
+    val deck = InMemoryDeckRepository()
     val emailSender = DevEmailSender()
     val enginePayloads = mutableListOf<ByteArray>()
     val relay = InProcessWebGreRelay(idleCloseGraceMs = 50)
@@ -1204,79 +1139,4 @@ private class StaticDraftDriver : DraftService.Driver {
     ) = DraftService.PickOutcome(0, 1, listOf(101), complete = false)
 
     override fun complete(sessionKey: String) = DraftService.PodOutcome(emptyList(), emptyList())
-}
-
-private class MemoryCourseRepo : CourseRepository {
-    private val courses = mutableMapOf<CourseId, Course>()
-
-    override fun findById(id: CourseId) = courses[id]
-
-    override fun findByPlayer(playerId: PlayerId) = courses.values.filter { it.playerId == playerId }
-
-    override fun findByPlayerAndEvent(
-        playerId: PlayerId,
-        eventName: String,
-    ) = courses.values.firstOrNull {
-        it.playerId == playerId &&
-            it.eventName == eventName
-    }
-
-    override fun save(course: Course) {
-        courses[course.id] = course
-    }
-
-    override fun delete(id: CourseId) {
-        courses.remove(id)
-    }
-}
-
-private class MemoryDraftRepo : DraftSessionRepository {
-    private val sessions = mutableMapOf<DraftSessionId, DraftSession>()
-
-    override fun findById(id: DraftSessionId) = sessions[id]
-
-    override fun findByPlayerAndEvent(
-        playerId: PlayerId,
-        eventName: String,
-    ) = sessions.values.firstOrNull {
-        it.playerId == playerId &&
-            it.eventName == eventName
-    }
-
-    override fun save(session: DraftSession) {
-        sessions[session.id] = session
-    }
-
-    override fun delete(id: DraftSessionId) {
-        sessions.remove(id)
-    }
-
-    override fun deleteIncomplete() {
-        sessions.values.removeIf { it.status != DraftStatus.Completed }
-    }
-
-    override fun savePodResults(
-        sessionId: DraftSessionId,
-        botDecks: List<List<Int>>,
-    ) = Unit
-
-    override fun findPodResults(sessionId: DraftSessionId): List<List<Int>> = emptyList()
-}
-
-private class MemoryDeckRepo : DeckRepository {
-    private val decks = mutableMapOf<DeckId, Deck>()
-
-    override fun findById(id: DeckId) = decks[id]
-
-    override fun findByName(name: String) = decks.values.firstOrNull { it.name == name }
-
-    override fun findAllForPlayer(playerId: PlayerId) = decks.values.filter { it.playerId == playerId }
-
-    override fun save(deck: Deck) {
-        decks[deck.id] = deck
-    }
-
-    override fun delete(id: DeckId) {
-        decks.remove(id)
-    }
 }
