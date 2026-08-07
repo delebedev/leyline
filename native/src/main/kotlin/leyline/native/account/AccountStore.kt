@@ -8,6 +8,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.mindrot.jbcrypt.BCrypt
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -41,28 +42,18 @@ class AccountStore(
         country: String = "US",
         dob: String = "1990-01-01",
     ): Account {
-        val accountId = generateId()
-        val personaId = generateId()
-        val hash = BCrypt.hashpw(password, BCrypt.gensalt())
-        val fullName = generateUniqueDisplayName(displayName)
-
-        val now =
-            java.time.Instant
-                .now()
-                .toString()
-        transaction(database) {
-            Accounts.insert {
-                it[Accounts.accountId] = accountId
-                it[Accounts.personaId] = personaId
-                it[Accounts.email] = email.lowercase()
-                it[Accounts.displayName] = fullName
-                it[Accounts.passwordHash] = hash
-                it[Accounts.country] = country
-                it[Accounts.dob] = dob
-                it[Accounts.createdAt] = now
-            }
-        }
-        return Account(accountId, personaId, email.lowercase(), fullName, country, dob, now)
+        val account =
+            Account(
+                accountId = generateId(),
+                personaId = generateId(),
+                email = email.lowercase(),
+                displayName = generateUniqueDisplayName(displayName),
+                country = country,
+                dob = dob,
+                createdAt = Instant.now().toString(),
+            )
+        insert(account, password)
+        return account
     }
 
     /**
@@ -81,24 +72,30 @@ class AccountStore(
     ): Boolean {
         val existing = findByEmail(email)
         if (existing != null) return false
+        insert(
+            Account(accountId, personaId, email.lowercase(), displayName, country, dob, Instant.now().toString()),
+            password,
+        )
+        return true
+    }
+
+    private fun insert(
+        account: Account,
+        password: String,
+    ) {
         val hash = BCrypt.hashpw(password, BCrypt.gensalt())
-        val now =
-            java.time.Instant
-                .now()
-                .toString()
         transaction(database) {
             Accounts.insert {
-                it[Accounts.accountId] = accountId
-                it[Accounts.personaId] = personaId
-                it[Accounts.email] = email.lowercase()
-                it[Accounts.displayName] = displayName
+                it[Accounts.accountId] = account.accountId
+                it[Accounts.personaId] = account.personaId
+                it[Accounts.email] = account.email
+                it[Accounts.displayName] = account.displayName
                 it[Accounts.passwordHash] = hash
-                it[Accounts.country] = country
-                it[Accounts.dob] = dob
-                it[Accounts.createdAt] = now
+                it[Accounts.country] = account.country
+                it[Accounts.dob] = account.dob
+                it[Accounts.createdAt] = account.createdAt
             }
         }
-        return true
     }
 
     /** Authenticate by email + password. Returns [Account] on success, null on failure. */

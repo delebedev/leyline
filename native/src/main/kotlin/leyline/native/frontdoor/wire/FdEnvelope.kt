@@ -1,11 +1,14 @@
 package leyline.native.frontdoor.wire
 
+import com.google.protobuf.CodedInputStream
+import com.google.protobuf.CodedOutputStream
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.zip.GZIPInputStream
 
 /**
@@ -162,12 +165,12 @@ object FdEnvelope {
         val anyJson =
             fields
                 .filter { it.wireType == WIRE_LENGTH_DELIMITED }
-                .mapNotNull { it.asString() }
+                .map { it.asString() }
                 .firstOrNull { it.startsWith("{") }
         val anyUuid =
             fields
                 .filter { it.wireType == WIRE_LENGTH_DELIMITED }
-                .mapNotNull { it.asString() }
+                .map { it.asString() }
                 .firstOrNull { UUID_PATTERN.matches(it) }
         return FdMessage(null, anyUuid, anyJson)
     }
@@ -214,7 +217,7 @@ object FdEnvelope {
         return -1
     }
 
-    private fun isLikelyUuid(s: String?): Boolean = s != null && UUID_PATTERN.matches(s)
+    private fun isLikelyUuid(s: String): Boolean = UUID_PATTERN.matches(s)
 
     // --- Response field 2 (protobuf_payload) ---
     private const val RESP_PROTO_PAYLOAD = 2 // bytes (protobuf Any)
@@ -225,11 +228,7 @@ object FdEnvelope {
      * Client's UnpackPayload may NRE on truly empty responses —
      * prefer [encodeProtoResponse] with the correct type URL.
      */
-    fun encodeEmptyResponse(transactionId: String): ByteArray {
-        val buf = ByteArrayOutputStream()
-        writeString(buf, RESP_TRANS_ID, transactionId)
-        return buf.toByteArray()
-    }
+    fun encodeEmptyResponse(transactionId: String): ByteArray = encode { writeString(RESP_TRANS_ID, transactionId) }
 
     /**
      * Encode a Response with protobuf_payload (field 2) as a google.protobuf.Any.
@@ -241,15 +240,11 @@ object FdEnvelope {
         typeUrl: String,
     ): ByteArray {
         // Build inner Any: field 1 = type_url, field 2 = empty bytes
-        val anyBuf = ByteArrayOutputStream()
-        writeString(anyBuf, ANY_TYPE_URL, typeUrl)
-        // field 2 (value) omitted = empty/default protobuf message
-        val anyBytes = anyBuf.toByteArray()
-
-        val buf = ByteArrayOutputStream()
-        writeString(buf, RESP_TRANS_ID, transactionId)
-        writeBytes(buf, RESP_PROTO_PAYLOAD, anyBytes)
-        return buf.toByteArray()
+        val anyBytes = encode { writeString(ANY_TYPE_URL, typeUrl) }
+        return encode {
+            writeString(RESP_TRANS_ID, transactionId)
+            writeByteArray(RESP_PROTO_PAYLOAD, anyBytes)
+        }
     }
 
     /**
@@ -260,12 +255,11 @@ object FdEnvelope {
     fun encodeRawProtoResponse(
         transactionId: String,
         protoPayload: ByteArray,
-    ): ByteArray {
-        val buf = ByteArrayOutputStream()
-        writeString(buf, RESP_TRANS_ID, transactionId)
-        writeBytes(buf, RESP_PROTO_PAYLOAD, protoPayload)
-        return buf.toByteArray()
-    }
+    ): ByteArray =
+        encode {
+            writeString(RESP_TRANS_ID, transactionId)
+            writeByteArray(RESP_PROTO_PAYLOAD, protoPayload)
+        }
 
     /**
      * Encode a Response envelope (S→C reply to a request) with JSON in field 3.
@@ -273,12 +267,11 @@ object FdEnvelope {
     fun encodeResponse(
         transactionId: String,
         json: String,
-    ): ByteArray {
-        val buf = ByteArrayOutputStream()
-        writeString(buf, RESP_TRANS_ID, transactionId)
-        writeBytes(buf, RESP_JSON_PAYLOAD, json.toByteArray(Charsets.UTF_8))
-        return buf.toByteArray()
-    }
+    ): ByteArray =
+        encode {
+            writeString(RESP_TRANS_ID, transactionId)
+            writeString(RESP_JSON_PAYLOAD, json)
+        }
 
     /**
      * Encode a Cmd envelope (S→C push notification, e.g. MatchCreated).
@@ -287,150 +280,55 @@ object FdEnvelope {
         cmdType: Int,
         transactionId: String,
         json: String,
-    ): ByteArray {
-        val buf = ByteArrayOutputStream()
-        writeVarintField(buf, CMD_TYPE, cmdType)
-        writeString(buf, CMD_TRANS_ID, transactionId)
-        writeBytes(buf, CMD_JSON_PAYLOAD, json.toByteArray(Charsets.UTF_8))
-        return buf.toByteArray()
-    }
+    ): ByteArray =
+        encode {
+            writeUInt32(CMD_TYPE, cmdType)
+            writeString(CMD_TRANS_ID, transactionId)
+            writeString(CMD_JSON_PAYLOAD, json)
+        }
 
     // --- Protobuf parsing primitives ---
 
     private data class ProtoField(
         val fieldNumber: Int,
         val wireType: Int,
-        val data: ByteArray,
+        val data: ByteArray = byteArrayOf(),
+        val varint: Int = 0,
     ) {
-        fun asString(): String? =
-            try {
-                String(data, Charsets.UTF_8)
-            } catch (_: Exception) {
-                null
-            }
+        fun asString(): String = String(data, Charsets.UTF_8)
 
-        fun asVarint(): Int {
-            var result = 0
-            var shift = 0
-            for (b in data) {
-                result = result or ((b.toInt() and 0x7F) shl shift)
-                if (b.toInt() and 0x80 == 0) break
-                shift += 7
-            }
-            return result
-        }
+        fun asVarint(): Int = varint
     }
 
     private fun parseProtoFields(bytes: ByteArray): List<ProtoField> {
         val fields = mutableListOf<ProtoField>()
-        var offset = 0
-        while (offset < bytes.size) {
-            val (tag, tagLen) = readVarint(bytes, offset)
-            if (tagLen == 0) break
-            offset += tagLen
-
-            val fieldNumber = tag ushr 3
-            val wireType = tag and 0x07
-
-            when (wireType) {
-                WIRE_VARINT -> {
-                    val (_, varintLen) = readVarint(bytes, offset)
-                    if (varintLen == 0) break
-                    val varintBytes = bytes.copyOfRange(offset, offset + varintLen)
-                    fields.add(ProtoField(fieldNumber, wireType, varintBytes))
-                    offset += varintLen
+        val input = CodedInputStream.newInstance(bytes)
+        try {
+            while (!input.isAtEnd) {
+                val tag = input.readTag()
+                if (tag == 0) break
+                val fieldNumber = tag ushr 3
+                val wireType = tag and 0x07
+                when (wireType) {
+                    WIRE_VARINT -> fields.add(ProtoField(fieldNumber, wireType, varint = input.readUInt32()))
+                    WIRE_LENGTH_DELIMITED ->
+                        fields.add(ProtoField(fieldNumber, wireType, data = input.readByteArray()))
+                    else -> if (!input.skipField(tag)) return fields
                 }
-                WIRE_LENGTH_DELIMITED -> {
-                    val (length, lenLen) = readVarint(bytes, offset)
-                    if (lenLen == 0) break
-                    offset += lenLen
-                    if (offset + length > bytes.size) break
-                    val data = bytes.copyOfRange(offset, offset + length)
-                    fields.add(ProtoField(fieldNumber, wireType, data))
-                    offset += length
-                }
-                0x05 -> { // 32-bit fixed
-                    if (offset + 4 > bytes.size) break
-                    fields.add(ProtoField(fieldNumber, wireType, bytes.copyOfRange(offset, offset + 4)))
-                    offset += 4
-                }
-                0x01 -> { // 64-bit fixed
-                    if (offset + 8 > bytes.size) break
-                    fields.add(ProtoField(fieldNumber, wireType, bytes.copyOfRange(offset, offset + 8)))
-                    offset += 8
-                }
-                else -> break // unknown wire type
             }
+        } catch (_: IOException) {
+            // Keep fields decoded before a malformed tail.
         }
         return fields
     }
 
-    /** Read a varint from bytes at offset. Returns (value, bytesConsumed). */
-    private fun readVarint(
-        bytes: ByteArray,
-        offset: Int,
-    ): Pair<Int, Int> {
-        var result = 0
-        var shift = 0
-        var i = offset
-        while (i < bytes.size) {
-            val b = bytes[i].toInt() and 0xFF
-            result = result or ((b and 0x7F) shl shift)
-            i++
-            if (b and 0x80 == 0) return result to (i - offset)
-            shift += 7
-            if (shift >= 35) break // overflow protection
+    private inline fun encode(block: CodedOutputStream.() -> Unit): ByteArray {
+        val bytes = ByteArrayOutputStream()
+        CodedOutputStream.newInstance(bytes).apply {
+            block()
+            flush()
         }
-        return 0 to 0
-    }
-
-    // --- Protobuf writing primitives ---
-
-    private fun writeVarintField(
-        out: ByteArrayOutputStream,
-        fieldNumber: Int,
-        value: Int,
-    ) {
-        writeTag(out, fieldNumber, WIRE_VARINT)
-        writeVarint(out, value)
-    }
-
-    private fun writeString(
-        out: ByteArrayOutputStream,
-        fieldNumber: Int,
-        value: String,
-    ) {
-        writeBytes(out, fieldNumber, value.toByteArray(Charsets.UTF_8))
-    }
-
-    private fun writeBytes(
-        out: ByteArrayOutputStream,
-        fieldNumber: Int,
-        data: ByteArray,
-    ) {
-        writeTag(out, fieldNumber, WIRE_LENGTH_DELIMITED)
-        writeVarint(out, data.size)
-        out.write(data)
-    }
-
-    private fun writeTag(
-        out: ByteArrayOutputStream,
-        fieldNumber: Int,
-        wireType: Int,
-    ) {
-        writeVarint(out, (fieldNumber shl 3) or wireType)
-    }
-
-    private fun writeVarint(
-        out: ByteArrayOutputStream,
-        value: Int,
-    ) {
-        var v = value
-        while (v and 0x7F.inv() != 0) {
-            out.write((v and 0x7F) or 0x80)
-            v = v ushr 7
-        }
-        out.write(v)
+        return bytes.toByteArray()
     }
 
     private val UUID_PATTERN = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")

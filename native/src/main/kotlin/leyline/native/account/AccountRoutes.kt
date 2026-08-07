@@ -40,8 +40,7 @@ private fun Route.loginRoute(
     tokens: TokenService,
 ) {
     post("/auth/oauth/token") {
-        val body = call.receiveText()
-        val params = parseFormEncoded(body)
+        val params = call.receiveParameters()
         val grantType = params["grant_type"]
 
         when (grantType) {
@@ -224,16 +223,3 @@ private fun profileResponseJson(account: Account): String =
         }
         put("targetedAnalyticsOptOut", false)
     }.toString()
-
-// -- Utilities ----------------------------------------------------------------
-
-private fun parseFormEncoded(body: String): Map<String, String> {
-    if (body.isBlank()) return emptyMap()
-    return body.split("&").associate { part ->
-        val (k, v) =
-            part.split("=", limit = 2).let {
-                if (it.size == 2) it[0] to it[1] else it[0] to ""
-            }
-        java.net.URLDecoder.decode(k, "UTF-8") to java.net.URLDecoder.decode(v, "UTF-8")
-    }
-}
