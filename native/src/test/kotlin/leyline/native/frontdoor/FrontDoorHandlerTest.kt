@@ -100,20 +100,25 @@ class FrontDoorHandlerTest :
         }
 
         /** Create a fresh FD channel wired to our test player. */
-        fun fdChannel(): EmbeddedChannel {
+        fun fdChannel(
+            matchmaking: MatchmakingService = matchmakingService,
+            courseService: CourseService =
+                CourseService(InMemoryCourseRepository()) { _ ->
+                    GeneratedPool(emptyList(), emptyList(), 0)
+                },
+            draftService: DraftService =
+                DraftService(InMemoryDraftSessionRepository(), stubDraftDriver(emptyList())),
+        ): EmbeddedChannel {
             val ch =
                 EmbeddedChannel(
                     FrontDoorHandler(
                         playerId = PlayerId(testPlayerId),
                         deckService = deckService,
                         playerService = playerService,
-                        matchmaking = matchmakingService,
+                        matchmaking = matchmaking,
                         collectionService = CollectionService { emptyList() },
-                        courseService =
-                            CourseService(InMemoryCourseRepository()) { _ ->
-                                GeneratedPool(emptyList(), emptyList(), 0)
-                            },
-                        draftService = DraftService(InMemoryDraftSessionRepository(), stubDraftDriver(emptyList())),
+                        courseService = courseService,
+                        draftService = draftService,
                         writer = writer,
                         bootstrapData = bootstrapData,
                     ),
@@ -191,22 +196,7 @@ class FrontDoorHandlerTest :
                         (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } },
                     ),
                 )
-            val ch =
-                EmbeddedChannel(
-                    FrontDoorHandler(
-                        playerId = PlayerId(testPlayerId),
-                        deckService = deckService,
-                        playerService = playerService,
-                        matchmaking = matchmakingService,
-                        collectionService = CollectionService { emptyList() },
-                        courseService = courseService,
-                        draftService = draftService,
-                        writer = writer,
-                        bootstrapData = bootstrapData,
-                    ),
-                )
-            channel = ch
-            return ch
+            return fdChannel(courseService = courseService, draftService = draftService)
         }
 
         // --- Tests ---
@@ -303,24 +293,7 @@ class FrontDoorHandlerTest :
                     30003,
                     matchIdFactory = { eventName -> if (eventName == "SparkyStarterDeckDuel") "puzzle-bolt-face" else "plain-match" },
                 )
-            val ch =
-                EmbeddedChannel(
-                    FrontDoorHandler(
-                        playerId = PlayerId(testPlayerId),
-                        deckService = deckService,
-                        playerService = playerService,
-                        matchmaking = puzzleAwareMatchmaking,
-                        collectionService = CollectionService { emptyList() },
-                        courseService =
-                            CourseService(InMemoryCourseRepository()) { _ ->
-                                GeneratedPool(emptyList(), emptyList(), 0)
-                            },
-                        draftService = DraftService(InMemoryDraftSessionRepository(), stubDraftDriver(emptyList())),
-                        writer = writer,
-                        bootstrapData = bootstrapData,
-                    ),
-                )
-            channel = ch
+            val ch = fdChannel(matchmaking = puzzleAwareMatchmaking)
 
             ch.writeCmd(
                 622,

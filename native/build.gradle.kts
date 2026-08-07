@@ -42,6 +42,7 @@ dependencies {
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.archunit)
+    testImplementation(testFixtures(project(":domain")))
 }
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)

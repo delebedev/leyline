@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -57,13 +58,18 @@ class AccountRoutesTest :
             testAppWithManifests(null, block)
         }
 
+        suspend fun ApplicationTestBuilder.postToken(vararg fields: Pair<String, String>): HttpResponse =
+            client.submitForm(
+                url = "/auth/oauth/token",
+                formParameters =
+                    parameters {
+                        fields.forEach { (name, value) -> append(name, value) }
+                    },
+            )
+
         test("login with valid credentials returns 200 + tokens") {
             testApp {
-                val resp =
-                    client.post("/auth/oauth/token") {
-                        setBody("grant_type=password&username=existing%40test.com&password=password123")
-                        contentType(ContentType.Application.FormUrlEncoded)
-                    }
+                val resp = postToken("grant_type" to "password", "username" to "existing@test.com", "password" to "password123")
                 resp.status shouldBe HttpStatusCode.OK
                 val body = resp.bodyAsText()
                 body shouldContain "access_token"
@@ -74,11 +80,7 @@ class AccountRoutesTest :
 
         test("login with wrong password returns 401") {
             testApp {
-                val resp =
-                    client.post("/auth/oauth/token") {
-                        setBody("grant_type=password&username=existing%40test.com&password=wrong")
-                        contentType(ContentType.Application.FormUrlEncoded)
-                    }
+                val resp = postToken("grant_type" to "password", "username" to "existing@test.com", "password" to "wrong")
                 resp.status shouldBe HttpStatusCode.Unauthorized
                 resp.bodyAsText() shouldContain "INVALID ACCOUNT CREDENTIALS"
             }
@@ -86,11 +88,7 @@ class AccountRoutesTest :
 
         test("login with unknown email returns 401") {
             testApp {
-                val resp =
-                    client.post("/auth/oauth/token") {
-                        setBody("grant_type=password&username=nobody%40test.com&password=pass")
-                        contentType(ContentType.Application.FormUrlEncoded)
-                    }
+                val resp = postToken("grant_type" to "password", "username" to "nobody@test.com", "password" to "pass")
                 resp.status shouldBe HttpStatusCode.Unauthorized
             }
         }
@@ -99,21 +97,14 @@ class AccountRoutesTest :
             testApp {
                 // First login to get a refresh token
                 val loginResp =
-                    client.post("/auth/oauth/token") {
-                        setBody("grant_type=password&username=existing%40test.com&password=password123")
-                        contentType(ContentType.Application.FormUrlEncoded)
-                    }
+                    postToken("grant_type" to "password", "username" to "existing@test.com", "password" to "password123")
                 val refreshToken =
                     """"refresh_token":"([^"]+)""""
                         .toRegex()
                         .find(loginResp.bodyAsText())!!
                         .groupValues[1]
 
-                val resp =
-                    client.post("/auth/oauth/token") {
-                        setBody("grant_type=refresh_token&refresh_token=$refreshToken")
-                        contentType(ContentType.Application.FormUrlEncoded)
-                    }
+                val resp = postToken("grant_type" to "refresh_token", "refresh_token" to refreshToken)
                 resp.status shouldBe HttpStatusCode.OK
                 resp.bodyAsText() shouldContain "access_token"
             }
@@ -138,10 +129,7 @@ class AccountRoutesTest :
             testApp {
                 // Login first
                 val loginResp =
-                    client.post("/auth/oauth/token") {
-                        setBody("grant_type=password&username=existing%40test.com&password=password123")
-                        contentType(ContentType.Application.FormUrlEncoded)
-                    }
+                    postToken("grant_type" to "password", "username" to "existing@test.com", "password" to "password123")
                 val token =
                     """"access_token":"([^"]+)""""
                         .toRegex()
