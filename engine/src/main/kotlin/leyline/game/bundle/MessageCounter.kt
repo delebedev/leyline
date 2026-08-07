@@ -5,10 +5,10 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Shared counter for GRE gsId/msgId sequencing (ADR-003).
  *
- * Interactive matches allocate through the serial match owner. Spectator
- * playback retains an independent legacy counter on its engine-thread path.
- * Frame compilation holds the allocation lock from fork through commit so
- * standalone owner builders cannot invalidate a prepared allocation.
+ * Player and spectator sessions allocate through the serial match owner and
+ * share one instance per match. Frame compilation forks a scratch counter and
+ * holds the allocation lock from fork through commit, so a standalone owner
+ * builder cannot invalidate a prepared allocation before it is committed.
  *
  * The client requires gsIds to increase monotonically across the interleaved
  * message stream. A single shared counter is the correct coordination
