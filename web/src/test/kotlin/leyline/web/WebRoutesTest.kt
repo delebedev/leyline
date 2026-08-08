@@ -184,8 +184,11 @@ class WebRoutesTest :
             }
         }
 
-        test("mints a guest session that can start a match") {
-            withWeb(json) {
+        test("mints a guest session that can start a catalog puzzle") {
+            withWeb(
+                json,
+                puzzleCatalog = { listOf(puzzleSummary("stock-up")) },
+            ) {
                 val guest = client.post("/api/auth/guest")
                 val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
                 val guestBody = json.parseToJsonElement(guest.bodyAsText()).jsonObject
@@ -233,7 +236,10 @@ class WebRoutesTest :
         }
 
         test("gre start tolerates unknown client fields") {
-            withWeb(json) {
+            withWeb(
+                json,
+                puzzleCatalog = { listOf(puzzleSummary("stock-up")) },
+            ) {
                 val guest = client.post("/api/auth/guest")
                 val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
                 val start =
@@ -243,6 +249,68 @@ class WebRoutesTest :
                     }
 
                 start.status shouldBe HttpStatusCode.OK
+            }
+        }
+
+        test("guest session cannot start an arbitrary deck match") {
+            withWeb(json) {
+                val guest = client.post("/api/auth/guest")
+                val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val start =
+                    client.post("/api/gre/start") {
+                        auth(cookie)
+                        jsonBody("""{"seat1Deck":"60 Plains","seat2Deck":"60 Island"}""")
+                    }
+
+                assertSoftly {
+                    start.status shouldBe HttpStatusCode.Forbidden
+                    greLaunches shouldBe emptyList()
+                }
+            }
+        }
+
+        test("guest session cannot supply a match id for a catalog puzzle") {
+            withWeb(
+                json,
+                puzzleCatalog = { listOf(puzzleSummary("stock-up")) },
+            ) {
+                val guest = client.post("/api/auth/guest")
+                val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
+                val start =
+                    client.post("/api/gre/start") {
+                        auth(cookie)
+                        jsonBody("""{"puzzle":"stock-up","matchId":"match-1"}""")
+                    }
+
+                assertSoftly {
+                    start.status shouldBe HttpStatusCode.Forbidden
+                    greLaunches shouldBe emptyList()
+                }
+            }
+        }
+
+        test("account session can start a deck match") {
+            withWeb(json) {
+                val login = login()
+                val start =
+                    client.post("/api/gre/start") {
+                        auth(login)
+                        jsonBody("""{"seat1Deck":"60 Plains","seat2Deck":"60 Island"}""")
+                    }
+
+                assertSoftly {
+                    start.status shouldBe HttpStatusCode.OK
+                    greLaunches.single().seat1Deck shouldBe "60 Plains"
+                }
+            }
+        }
+
+        test("does not expose a public arbitrary GRE start") {
+            withWeb(json) {
+                client
+                    .post("/api/public/gre/start") {
+                        jsonBody("""{"seat1Deck":"60 Plains"}""")
+                    }.status shouldBe HttpStatusCode.NotFound
             }
         }
 
@@ -936,6 +1004,12 @@ private fun JsonObject.seatName(seat: String): String {
     val seatObject = getValue(seat).jsonObject
     return seatObject.getValue("name").jsonPrimitive.content
 }
+
+private fun puzzleSummary(filename: String) =
+    PuzzleSummaryView(
+        filename = filename,
+        name = filename,
+    )
 
 private fun spectatorDeck(
     id: String,

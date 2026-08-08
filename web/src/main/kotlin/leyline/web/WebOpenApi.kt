@@ -74,7 +74,6 @@ object WebOpenApi {
                 response = ref("DraftPlayResponse"),
                 responses = statuses("401"),
             ),
-            Endpoint("/api/public/gre/start", "post", ref("GreStartRequest"), ref("DraftPlayResponse")),
             Endpoint("/api/public/spectator/start", "post", response = ref("PublicSpectatorResponse")),
             Endpoint("/api/public/spectate/viewers", "get", response = ref("ViewerCountView")),
             Endpoint("/api/collection", "get", response = ref("CollectionView"), responses = authFailures()),

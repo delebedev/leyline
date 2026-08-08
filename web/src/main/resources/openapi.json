@@ -151,32 +151,6 @@
                 }
             }
         },
-        "/api/public/gre/start": {
-            "post": {
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/GreStartRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DraftPlayResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/api/public/spectator/start": {
             "post": {
                 "responses": {
