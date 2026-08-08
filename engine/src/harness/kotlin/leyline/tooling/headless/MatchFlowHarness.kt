@@ -23,7 +23,6 @@ import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
-import leyline.infra.RecordedDelivery
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -113,7 +112,6 @@ class MatchFlowHarness(
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
     val allRawMessages = mutableListOf<MatchServiceToClientMessage>()
-    val allDeliveries = mutableListOf<RecordedDelivery>()
 
     /** When set, the next auto-accepted optional-action prompt declines instead.
      *  Use [declineNextOptionalAction] to set this. Cleared after one use. */
@@ -264,7 +262,6 @@ class MatchFlowHarness(
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)
         validatingSink?.seedFull(fullResult.gsm)
-        bridge.activateInteractivePlayback()
     }
 
     /**
@@ -1008,8 +1005,13 @@ class MatchFlowHarness(
     //
     // [submitWithGsId] fills the field by scanning [allMessages] — the
     // drained record of what the harness has *seen*, mirroring a real
-    // client's TCP receive view. The server's owner state can already have
-    // advanced to output that this harness has not drained yet.
+    // client's TCP receive view. Reading from `bridge.messageCounter.
+    // lastPromptGsId()` directly would race against the engine thread:
+    // the engine can emit a new prompt between the harness's read and the
+    // session's processing of the response, leaving the response stamped
+    // with an old gsId that the staleness predicate then rejects (observed
+    // on CI under load, never reproduces locally because the engine drains
+    // synchronously fast enough to hide the race).
     //
     // Tests that need to send an explicit (or stale) gsId can pass a
     // non-zero `gameStateId` on the inbound message; the wrapper leaves
@@ -1020,7 +1022,10 @@ class MatchFlowHarness(
      * 0 pre-handshake or before any prompt has been received.
      *
      * Walks [allMessages] in reverse — that's the harness's view of what
-     * the "client" has seen, independent of later server-side delivery.
+     * the "client" has seen. Deliberately does not consult
+     * `bridge.messageCounter.lastPromptGsId()`: the bridge counter is
+     * shared mutable state advanced from the engine thread, so reading it
+     * races against in-flight emissions.
      */
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
@@ -1114,7 +1119,6 @@ class MatchFlowHarness(
     private fun collectSinkMessages() {
         allMessages.addAll(sink.messages)
         allRawMessages.addAll(sink.rawMessages)
-        allDeliveries.addAll(sink.deliveries)
         accumulator.processAll(sink.messages)
         sink.clear()
     }

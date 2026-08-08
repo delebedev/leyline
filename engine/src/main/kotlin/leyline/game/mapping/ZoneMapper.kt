@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
@@ -27,9 +28,10 @@ object ZoneMapper {
     /**
      * Add hand, library, and optionally graveyard/sideboard zones for a player from snapshot.
      *
-     * Reads card lists and card state from [snap].
+     * Reads card lists from [snap]'s zones map (keyed by arena zone ID) and looks up
+     * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
      * When [gyZoneId] is null (e.g. deal-hand diff at mulligan time) no graveyard zone
-     * is emitted.
+     * is emitted. ObjectMapper still takes a live [Card]; per-card state migration is Task 6.
      */
     @Suppress("detekt:LongParameterList")
     internal fun addPlayerZonesFromSnapshot(
@@ -229,8 +231,9 @@ object ZoneMapper {
     /**
      * Add cards in a shared zone (Battlefield, Stack, Exile) from snapshot.
      *
-     * Reads the card list and object state from [snap]. Projection may run
-     * after the engine advances, so it must not consult live zone membership.
+     * Reads the card list from [snap]'s zones map for [arenaZoneId] and looks up
+     * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
+     * [bridge] resolves live card ownership to protocol seats.
      */
     // forgeZone: documents which Forge zone maps to arenaZoneId; unused — snapshot reads by arenaZoneId
     @Suppress("detekt:LongParameterList", "detekt:UnusedParameter")
@@ -241,6 +244,7 @@ object ZoneMapper {
         bridge: GameBridge,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
+        human: Player?,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ) {
         val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
@@ -252,7 +256,11 @@ object ZoneMapper {
                     log.warn("no snapshot for shared card {} in zone {} — skipping game object", fid, arenaZoneId)
                     continue
                 }
-            if (!cardSnap.isClientVisibleGamePiece) continue
+            val liveCard = bridge.findCard(fid)
+            if (liveCard == null && arenaZoneId != ZoneIds.SUPPRESSED) continue
+            // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards.
+            if (liveCard != null && liveCard.gamePieceType != forge.card.GamePieceType.CARD && !liveCard.isToken) continue
+            val ownerSeatId = liveCard?.let { bridge.seatOf(it.owner)?.value } ?: cardSnap.owner.value
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             zoneBuilder.addObjectInstanceIds(instanceId)
             gameObjects.add(
@@ -260,7 +268,7 @@ object ZoneMapper {
                     cardSnap,
                     instanceId,
                     arenaZoneId,
-                    cardSnap.owner.value,
+                    ownerSeatId,
                     bridge.cardProto,
                     Visibility.Public,
                     keywordSnapshot,

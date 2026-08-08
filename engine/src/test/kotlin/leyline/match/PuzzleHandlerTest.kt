@@ -7,12 +7,16 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.ChannelInboundHandlerAdapter
+import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.infra.ListMessageSink
+import leyline.infra.MatchOutput
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -39,6 +43,26 @@ class PuzzleHandlerTest :
         }
 
         fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
+
+        fun outbound(channel: EmbeddedChannel): List<MatchServiceToClientMessage> =
+            generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
+
+        fun channelCtx(): Pair<EmbeddedChannel, ChannelHandlerContext> {
+            val probe = object : ChannelInboundHandlerAdapter() {}
+            val channel = EmbeddedChannel(probe)
+            return channel to (channel.pipeline().context(probe) as ChannelHandlerContext)
+        }
+
+        fun output(ctx: ChannelHandlerContext) =
+            object : MatchOutput {
+                override fun send(message: MatchServiceToClientMessage) {
+                    ctx.writeAndFlush(message)
+                }
+
+                override fun close() {
+                    ctx.close()
+                }
+            }
 
         fun tempPuzzleFile(name: String): File =
             File.createTempFile("leyline-$name-", ".pzl").apply {
@@ -71,6 +95,8 @@ class PuzzleHandlerTest :
             val temp = tempPuzzleFile("bundle")
             try {
                 val handler = PuzzleHandler(puzzlePath = { temp.absolutePath }, TestCardRegistry.repo, registry)
+                val (channel, ctx) = channelCtx()
+
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-bolt-face")
                 val session =
                     MatchSession(
@@ -84,12 +110,10 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(session, "puzzle-bolt-face", 1)
-                val gre = sink.rawMessages.flatMap(::greMessages)
+                handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-bolt-face", 1)
+                val gre = outbound(channel).flatMap(::greMessages)
                 val actionPrompt = gre.last { it.hasActionsAvailableReq() }
-                session.connection.owner.reduce {
-                    session.connection.owner.lastPromptMsgId()
-                } shouldBe actionPrompt.msgId
+                session.counter.lastPromptMsgId() shouldBe actionPrompt.msgId
 
                 session.onPerformAction(
                     ClientToGREMessage
@@ -116,6 +140,7 @@ class PuzzleHandlerTest :
                     sink.messages.none { it.type == GREMessageType.IllegalRequest } shouldBe true
                     session.gameBridge shouldBeSameInstanceAs bridge
                 }
+                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()
@@ -142,7 +167,8 @@ class PuzzleHandlerTest :
                         gameBridge = first,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(session1, "puzzle-lands-only", 1)
+                val (channel1, ctx1) = channelCtx()
+                handler.sendPuzzleInitialBundle(output(ctx1), session1, "puzzle-lands-only", 1)
 
                 val sink2 = ListMessageSink()
                 val second = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
@@ -158,20 +184,17 @@ class PuzzleHandlerTest :
                         gameBridge = second,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(session2, "puzzle-lands-only", 1)
+                val (channel2, ctx2) = channelCtx()
+                handler.sendPuzzleInitialBundle(output(ctx2), session2, "puzzle-lands-only", 1)
 
                 assertSoftly {
                     first shouldBeSameInstanceAs second
                     registry.getMatch("puzzle-lands-only")!!.bridge shouldBeSameInstanceAs first
-                    sink1.rawMessages
-                        .flatMap(::greMessages)
-                        .map { it.type }
-                        .last() shouldBe GREMessageType.ActionsAvailableReq_695e
-                    sink2.rawMessages
-                        .flatMap(::greMessages)
-                        .map { it.type }
-                        .last() shouldBe GREMessageType.ActionsAvailableReq_695e
+                    outbound(channel1).flatMap(::greMessages).map { it.type }.last() shouldBe GREMessageType.ActionsAvailableReq_695e
+                    outbound(channel2).flatMap(::greMessages).map { it.type }.last() shouldBe GREMessageType.ActionsAvailableReq_695e
                 }
+                channel1.close()
+                channel2.close()
                 first.shutdown()
             } finally {
                 temp.delete()
@@ -211,6 +234,8 @@ class PuzzleHandlerTest :
                         TestCardRegistry.repo,
                         registry,
                     )
+                val (channel, ctx) = channelCtx()
+
                 handler.isPuzzleMatch("puzzle-cli-puzzle").shouldBeTrue()
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-cli-puzzle")
                 val session =
@@ -225,9 +250,9 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(session, "puzzle-cli-puzzle", 1)
+                handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-cli-puzzle", 1)
 
-                val gre = sink.rawMessages.flatMap(::greMessages)
+                val gre = outbound(channel).flatMap(::greMessages)
 
                 assertSoftly {
                     gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
@@ -236,6 +261,7 @@ class PuzzleHandlerTest :
                         .gameStateMessage.gameInfo.matchID shouldBe "puzzle-cli-puzzle"
                     bridge.isPuzzle.shouldBeTrue()
                 }
+                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()
@@ -255,6 +281,8 @@ class PuzzleHandlerTest :
                         TestCardRegistry.repo,
                         registry,
                     )
+                val (channel, ctx) = channelCtx()
+
                 handler.isPuzzleMatch("web-gre-puzzle").shouldBeTrue()
                 handler.isPuzzleMatch("web-gre-constructed").shouldBeFalse()
                 val bridge = handler.getOrCreatePuzzleBridge("web-gre-puzzle")
@@ -270,9 +298,9 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
-                handler.sendPuzzleInitialBundle(session, "web-gre-puzzle", 1)
+                handler.sendPuzzleInitialBundle(output(ctx), session, "web-gre-puzzle", 1)
 
-                val gre = sink.rawMessages.flatMap(::greMessages)
+                val gre = outbound(channel).flatMap(::greMessages)
 
                 assertSoftly {
                     gre.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
@@ -281,6 +309,7 @@ class PuzzleHandlerTest :
                         .gameStateMessage.gameInfo.matchID shouldBe "web-gre-puzzle"
                     bridge.isPuzzle.shouldBeTrue()
                 }
+                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()

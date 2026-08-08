@@ -12,8 +12,10 @@ data class PendingTargetSpecRecord(
 /**
  * Ordering-sensitive writes that `StateMapper.buildDiff` computes but does not commit.
  *
- * `buildDiff` returns a [BridgeMutations] alongside the Diff GSM. `BundleBuilder`
- * carries them through its immutable frame plan and applies them at commit.
+ * `buildDiff` returns a [BridgeMutations] alongside the Diff GSM; `BundleBuilder`
+ * applies them via [GameBridge.applyMutations] between diff and action-build. This
+ * keeps the diff pure on its ordering-sensitive outputs — required for replay
+ * round-trip.
  *
  * **Ordering invariant** (applied in [GameBridge.applyMutations]):
  * 1. `idReallocations` — id swap for zone-transferred cards (writes to [InstanceIdRegistry])

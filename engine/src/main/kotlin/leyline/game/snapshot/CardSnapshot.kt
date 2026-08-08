@@ -54,14 +54,10 @@ data class CardSnapshot(
     val currentLoyalty: Int = 0,
     /** True when Forge considers this a token. Used for GameObjectType selection. */
     val isToken: Boolean = false,
-    /** True when this engine object has a client-visible card or token identity. */
-    val isClientVisibleGamePiece: Boolean = true,
     /** True when this is a copy token (Forge copiedPermanent != null). */
     val isCopyToken: Boolean = false,
     /** Source-card grpId for tokens created by a stack ability. */
     val tokenSourceCardGrpId: Int = 0,
-    /** Forge id of the card whose ability created this token. */
-    val tokenSourceForgeCardId: ForgeCardId? = null,
     /** Stack ability iid that created this token. */
     val tokenParentAbilityInstanceId: Int = 0,
     /**

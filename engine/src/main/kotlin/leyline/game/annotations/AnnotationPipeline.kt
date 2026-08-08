@@ -122,17 +122,8 @@ object AnnotationPipeline {
     ): AnnotationPipelineResult {
         val combatTransferredIds =
             transferResult.transfers
-                .mapNotNull { transfer ->
-                    transfer.forgeCardId?.let { forgeCardId ->
-                        val combatInstanceId =
-                            if (transfer.category in deathTransferCategories) {
-                                transfer.origId
-                            } else {
-                                transfer.newId
-                            }
-                        forgeCardId to combatInstanceId
-                    }
-                }.toMap()
+                .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
+                .toMap()
         val combatResult =
             CombatAnnotations.combatAnnotations(
                 events = events,

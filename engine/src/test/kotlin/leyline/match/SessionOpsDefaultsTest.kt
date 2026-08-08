@@ -25,8 +25,6 @@ class SessionOpsDefaultsTest :
 
                 override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
 
-                override fun sendMatchProgress(message: MatchServiceToClientMessage) {}
-
                 override fun sendRealGameState(
                     bridge: GameBridge,
                     revealForSeat: Int?,
@@ -87,22 +85,6 @@ class SessionOpsDefaultsTest :
 
         test("recorder default is null") {
             ops.recorder.shouldBeNull()
-        }
-
-        test("playback delivery pacing starts between results") {
-            val delays = mutableListOf<Int>()
-            val pacing =
-                object : Pacing {
-                    override fun paceDelay(multiplier: Int) {
-                        delays += multiplier
-                    }
-                }
-
-            pacing.paceBeforePlaybackDelivery(hasDelivered = false)
-            pacing.paceBeforePlaybackDelivery(hasDelivered = true)
-            pacing.paceBeforePlaybackDelivery(hasDelivered = true)
-
-            delays shouldBe listOf(1, 1)
         }
 
         test("makeGRE default builds envelope fields") {

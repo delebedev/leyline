@@ -30,7 +30,6 @@ class GsmSnapshot internal constructor(
     val combat: CombatSnapshot?,
     val abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry>,
     val pendingTriggers: List<PendingTriggerSnapshot>,
-    val combatQualifications: List<CombatQualificationSnapshot>,
     val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
     /** Game-scope Day/Night state, mirroring `forge.game.Game.getDayTime()`.
@@ -70,7 +69,6 @@ class GsmSnapshot internal constructor(
             combat == other.combat &&
             abilityWordEntries == other.abilityWordEntries &&
             pendingTriggers == other.pendingTriggers &&
-            combatQualifications == other.combatQualifications &&
             persistentAnnotationState == other.persistentAnnotationState &&
             dayTime == other.dayTime &&
             activePlayerSpellsCastThisTurn == other.activePlayerSpellsCastThisTurn
@@ -87,7 +85,6 @@ class GsmSnapshot internal constructor(
         h = 31 * h + (combat?.hashCode() ?: 0)
         h = 31 * h + abilityWordEntries.hashCode()
         h = 31 * h + pendingTriggers.hashCode()
-        h = 31 * h + combatQualifications.hashCode()
         h = 31 * h + persistentAnnotationState.hashCode()
         h = 31 * h + (dayTime?.hashCode() ?: 0)
         h = 31 * h + activePlayerSpellsCastThisTurn
@@ -102,17 +99,6 @@ class GsmSnapshot internal constructor(
             matchId: String,
             gameStateId: Int,
         ): GsmSnapshot = SnapshotCapture.run(game, bridge, matchId, gameStateId)
-
-        /**
-         * Immutable playback input materialized while the engine is paused at a
-         * frame cut. ID/cache binding still occurs inside [SnapshotCapture];
-         * removing that capture-side projection residue is a separate boundary.
-         */
-        fun captureForPlayback(
-            game: Game,
-            bridge: GameBridge,
-            matchId: String,
-        ): GsmSnapshot = SnapshotCapture.run(game, bridge, matchId, 0)
 
         /** Test fixture builder — named args with sensible defaults. */
         @VisibleForTesting
@@ -135,7 +121,6 @@ class GsmSnapshot internal constructor(
             combat: CombatSnapshot? = null,
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             pendingTriggers: List<PendingTriggerSnapshot> = emptyList(),
-            combatQualifications: List<CombatQualificationSnapshot> = emptyList(),
             persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
             dayTime: Boolean? = null,
@@ -155,7 +140,6 @@ class GsmSnapshot internal constructor(
                 combat,
                 abilityWordEntries,
                 pendingTriggers,
-                combatQualifications,
                 persistentAnnotationState,
                 capturedAt,
                 dayTime,

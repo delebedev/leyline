@@ -71,6 +71,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-cost-select",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) =
@@ -144,6 +145,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-sac",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) = RequestBuilder.buildSacrificePayCostsReq(pending, b)
@@ -183,6 +185,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-station",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) = RequestBuilder.buildStationTapCostPayCostsReq(pending, b)
@@ -221,6 +224,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-enlist",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) = RequestBuilder.buildEnlistCostPayCostsReq(pending, b)
@@ -263,6 +267,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-teamwork",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) = RequestBuilder.buildTeamworkCostPayCostsReq(pending, b)
@@ -322,6 +327,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-convoke",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) = RequestBuilder.buildConvokeCostPayCostsReq(pending, b)
@@ -385,6 +391,7 @@ class RequestBuilderEscapeCostTest :
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "test-collect-evidence",
                     request = request,
+                    future = java.util.concurrent.CompletableFuture(),
                 )
 
             val (req, prompt) = CollectEvidencePayCostsBuilder.build(pending, b)

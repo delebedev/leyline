@@ -31,8 +31,7 @@ class PersistentAnnotationDiffTest :
     BoardTest({
 
         test("persistent annotation IDs appear on exactly one Diff GSM in a scripted scenario") {
-            val board = startGameAtMain1(seed = 42L)
-            val bridge = board.bridge
+            val (bridge, _, _) = startGameAtMain1(seed = 42L)
             val diffs = mutableListOf<GameStateMessage>()
             bridge.diffListener = { _, _, _, _, diff -> diffs.add(diff) }
 
@@ -41,7 +40,6 @@ class PersistentAnnotationDiffTest :
             // many Diff GSMs after the persistent state has changed.
             playLand(bridge) ?: error("scenario requires a playable land in opening hand")
             advanceToEndOfTurnLocal(bridge)
-            board.drainPlayback()
 
             bridge.diffListener = null
 

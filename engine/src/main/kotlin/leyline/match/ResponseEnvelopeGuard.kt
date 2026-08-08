@@ -41,11 +41,11 @@ internal object ResponseEnvelopeGuard {
 
     fun rejectMismatch(
         message: ClientToGREMessage,
-        expectedRespId: Int,
         counter: MessageCounter,
         sink: GreMessageSink,
     ): Boolean {
         if (message.type !in CORRELATED_CLIENT_MESSAGE_TYPES) return false
+        val expectedRespId = counter.lastPromptMsgId()
         if (expectedRespId != 0 && message.respId == expectedRespId) return false
 
         log.warn(

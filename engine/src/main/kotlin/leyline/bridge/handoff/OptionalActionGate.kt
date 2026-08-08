@@ -24,13 +24,13 @@ import org.slf4j.LoggerFactory
  */
 interface OwnerContext {
     /** Pending optional-action prompt (set by [OptionalActionGate], read by session handlers). */
-    var pendingOptionalAction: PendingOptionalAction?
+    var pendingOptionalAction: OptionalActionPrompt?
 
     /** Pending numeric-input prompt (set by [NumericInputGate], read by `NumericInputHandler`). */
-    var pendingNumericInput: PendingNumericInput?
+    var pendingNumericInput: NumericInputPrompt?
 
     /** Pending manual combat-damage assignment (set by [leyline.bridge.coord.PriorityLoopCoordinator], read by `CombatHandler`). */
-    var pendingDamageAssignment: PendingDamageAssignment?
+    var pendingDamageAssignment: DamageAssignmentPrompt?
 
     /** Batched damage assignments cached by `CombatHandler.onAssignDamage` for subsequent attackers. */
     val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>>
@@ -90,16 +90,12 @@ class OptionalActionGate(
         return PendingGate.await(
             publish = { owner.pendingOptionalAction = it },
             prompt = { future ->
-                PendingOptionalAction(
-                    prompt =
-                        OptionalActionPrompt(
-                            hostCardId = hostCard?.let { ForgeCardId(it.id) },
-                            hostCardName = hostCard?.name,
-                            forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
-                            customPromptId = customPromptId,
-                            commanderReturn = commanderReturn,
-                        ),
+                OptionalActionPrompt(
+                    hostCard = hostCard,
                     future = future,
+                    forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
+                    customPromptId = customPromptId,
+                    commanderReturn = commanderReturn,
                 )
             },
             signal = { actionBridge?.prioritySignal?.signal() },

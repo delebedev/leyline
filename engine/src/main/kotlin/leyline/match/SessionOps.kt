@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -15,30 +16,19 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 interface GreMessageSink {
     fun sendBundledGRE(messages: List<GREToClientMessage>)
 
-    fun sendMatchProgress(message: MatchServiceToClientMessage)
-
-    /**
-     * Send seat-specific GRE through the session sink without peer mirroring.
-     *
-     * Pre-game flows build distinct payloads for each seat. They still use the
-     * shared counter, prompt marking, recorder, and transport funnel, but must not
-     * duplicate one seat's payload onto the other connection.
-     */
-    fun sendSeatGRE(messages: List<GREToClientMessage>) = sendBundledGRE(messages)
-
     fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int? = null,
     )
 
-    fun sendPriorityState(bridge: GameBridge) = sendRealGameState(bridge)
+    fun sendPriorityState(
+        bridge: GameBridge,
+        candidates: PriorityActionCandidates,
+    ) = sendRealGameState(bridge)
 
     fun sendBundle(result: BundleBuilder.BundleResult)
 
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
-
-    /** Compile, commit, and deliver all engine observations currently published. */
-    fun drainPlayback(): Boolean = false
 
     /** Build a single GRE message with explicit IDs. */
     fun makeGRE(
@@ -47,14 +37,6 @@ interface GreMessageSink {
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage
-}
-
-interface EngineCutAwaiter {
-    fun awaitPriority(): Boolean
-
-    fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean
-
-    fun awaitActionPriority(): Boolean
 }
 
 /**
@@ -189,8 +171,4 @@ interface GameOps :
     SessionOps,
     BundleBuilderHolder {
     val gameBridge: GameBridge
-
-    fun awaitEnginePriority(): Boolean
-
-    fun awaitEnginePriorityWithTimeout(timeoutMs: Long): Boolean
 }

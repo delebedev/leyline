@@ -7,8 +7,6 @@ import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNInnerPrompt
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.StaticChoiceKind
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
@@ -63,11 +61,10 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
     builder: SelectNReq.Builder,
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,
-    idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
 ) {
     when (innerPrompt) {
         SelectNInnerPrompt.StaticChoice -> {
-            builder.setSourceIdIfPresent(prompt, bridge, idResolver)
+            builder.setSourceIdIfPresent(prompt, bridge)
             builder.setPrompt(Prompt.newBuilder())
         }
         SelectNInnerPrompt.LegendRule -> {
@@ -76,19 +73,19 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
         }
         SelectNInnerPrompt.DiscardCost -> builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
         SelectNInnerPrompt.GenericSelectN -> {
-            builder.setSourceIdIfPresent(prompt, bridge, idResolver)
+            builder.setSourceIdIfPresent(prompt, bridge)
             builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
         }
         SelectNInnerPrompt.SelectNInnerParameter -> {
-            builder.setSourceIdIfPresent(prompt, bridge, idResolver)
+            builder.setSourceIdIfPresent(prompt, bridge)
             builder.setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
         }
         SelectNInnerPrompt.ManifestDreadInnerParameter -> {
-            builder.setSourceIdIfPresent(prompt, bridge, idResolver)
+            builder.setSourceIdIfPresent(prompt, bridge)
             builder.setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
         }
         SelectNInnerPrompt.LearnInnerParameter -> {
-            builder.setSourceIdIfPresent(prompt, bridge, idResolver)
+            builder.setSourceIdIfPresent(prompt, bridge)
             builder.setSelectNInnerPrompt(PromptIds.SELECT_N_LEARN_INNER_PARAMETER)
         }
     }

@@ -2,13 +2,24 @@ package leyline.game.bundle
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.GamePlayback
+import leyline.game.InMemoryCardRepository
+import leyline.game.bundle.MessageCounter
+import leyline.game.state.GameBridge
 
 /**
  * Counter invariants for [leyline.game.bundle.MessageCounter].
- * Owner-side frame planning may fork the counter while standalone owner
- * messages allocate directly, so both paths share one allocation monitor.
+ *
+ * The shared counter is accessed by two threads:
+ *   - Game thread: GamePlayback.captureAndPause calls nextMsgId/nextGsId
+ *   - Handler thread: BundleBuilder methods call nextMsgId/nextGsId
+ *
+ * AtomicInteger guarantees no duplicates. These tests verify the basic
+ * contract and thread safety model.
  */
 class GamePlaybackCounterTest :
     FunSpec({
@@ -63,6 +74,19 @@ class GamePlaybackCounterTest :
                 counter.currentMsgId() shouldBe 99
                 counter.nextGsId() shouldBe 43
                 counter.nextMsgId() shouldBe 100
+            }
+        }
+
+        test("GamePlayback uses shared counter (no local atomics)") {
+            val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository(), messageCounter = counter)
+            val playback = GamePlayback(bridge, "test", 1, counter)
+
+            assertSoftly {
+                playback.drainQueue().shouldBeEmpty()
+                playback.hasPendingMessages().shouldBeFalse()
+                counter.nextGsId() shouldBe 11
+                counter.currentGsId() shouldBe 11
             }
         }
     })

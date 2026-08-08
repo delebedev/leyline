@@ -23,29 +23,10 @@ class MatchRegistry {
     /** matchId -> (seatId -> MatchConnection). For pre-mulligan cross-connection messaging. */
     private val connections = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchConnection>>()
 
-    /** matchId -> sole interactive execution owner, shared across reconnects and replacements. */
-    private val owners = ConcurrentHashMap<String, MatchOwner>()
-
-    internal fun ownerFor(matchId: String): MatchOwner =
-        owners.computeIfAbsent(matchId) { id ->
-            lateinit var owner: MatchOwner
-            owner = MatchOwner(id) { owners.remove(id, owner) }
-            owner
-        }
-
     fun getOrCreateMatch(
         matchId: String,
         factory: () -> Match,
-    ): Match {
-        val owner = ownerFor(matchId)
-        var result: Match? = null
-        connections.compute(matchId) { _, current ->
-            check(!owner.isClosed()) { "Match owner is closed" }
-            result = matches.computeIfAbsent(matchId) { factory() }
-            current
-        }
-        return checkNotNull(result)
-    }
+    ): Match = matches.computeIfAbsent(matchId) { factory() }
 
     /** Look up a match by id. */
     fun getMatch(matchId: String): Match? = matches[matchId]
@@ -58,46 +39,8 @@ class MatchRegistry {
         seatId: SeatId,
         session: SessionOps,
     ) {
-        val owner = ownerFor(matchId)
-        var previous: SessionOps? = null
-        connections.compute(matchId) { _, current ->
-            check(!owner.isClosed()) { "Match owner is closed" }
-            previous = sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }.put(seatId.value, session)
-            current
-        }
-        previous?.let {
-            if (it is SpectatorSession && it !== session) it.close()
-            if (it is MatchSession && it !== session) it.close()
-            if (it is FamiliarSession && it !== session) it.close()
-        }
-    }
-
-    internal fun publishSessionAndConnection(
-        matchId: String,
-        seatId: SeatId,
-        session: SessionOps,
-        connection: MatchConnection,
-        bind: () -> Unit,
-    ) {
-        val owner = ownerFor(matchId)
-        var previousSession: SessionOps? = null
-        var previousConnection: MatchConnection? = null
-        connections.compute(matchId) { _, current ->
-            check(!owner.isClosed()) { "Match owner is closed" }
-            bind()
-            previousSession = sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }.put(seatId.value, session)
-            (current ?: ConcurrentHashMap()).also {
-                previousConnection = it.put(seatId.value, connection)
-            }
-        }
-        previousSession?.let {
-            if (it is SpectatorSession && it !== session) it.close()
-            if (it is MatchSession && it !== session) it.close()
-            if (it is FamiliarSession && it !== session) it.close()
-        }
-        previousConnection?.let {
-            if (it !== connection) it.detachAfterTeardown()
-        }
+        val previous = sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }.put(seatId.value, session)
+        if (previous is SpectatorSession && previous !== session) previous.close()
     }
 
     /** Get the OTHER seat's session (seat 1 -> seat 2, seat 2 -> seat 1). */
@@ -125,17 +68,7 @@ class MatchRegistry {
         seatId: SeatId,
         connection: MatchConnection,
     ) {
-        val owner = ownerFor(matchId)
-        var previous: MatchConnection? = null
-        connections.compute(matchId) { _, current ->
-            check(!owner.isClosed()) { "Match owner is closed" }
-            (current ?: ConcurrentHashMap()).also {
-                previous = it.put(seatId.value, connection)
-            }
-        }
-        previous?.let {
-            if (it !== connection) it.detachAfterTeardown()
-        }
+        connections.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId.value] = connection
     }
 
     fun getConnection(
@@ -151,37 +84,18 @@ class MatchRegistry {
         seatId: SeatId? = null,
         recorder: MatchRecorder? = null,
         fallbackBridge: GameBridge? = null,
-        expectedConnection: MatchConnection? = null,
     ) {
         log.info("MatchRegistry: teardown matchId={} seatId={} reason={}", matchId, seatId, reason)
 
-        val owner = owners[matchId]
-        var accepted = expectedConnection == null
-        var matchConnections: Collection<MatchConnection> = emptyList()
-        connections.compute(matchId) { _, current ->
-            if (expectedConnection != null && current?.get(seatId?.value) !== expectedConnection) {
-                return@compute current
-            }
-            accepted = true
-            matchConnections = current?.values?.toList().orEmpty()
-            owner?.close()
-            null
-        }
-        if (!accepted) {
-            log.info("MatchRegistry: ignored teardown from displaced connection matchId={} seatId={}", matchId, seatId)
-            return
-        }
-
         recorder?.shutdown()
 
+        val matchConnections = connections.remove(matchId)?.values.orEmpty()
         val removedSessions = sessions.remove(matchId)?.values.orEmpty()
         val sessionsRemoved = removedSessions.size
         val match = matches.remove(matchId)
 
-        val interactiveSessions = removedSessions.filterIsInstance<MatchSession>()
-        interactiveSessions.forEach { it.retireBeforeOwnerClose() }
+        removedSessions.filterIsInstance<MatchSession>().forEach { it.close() }
         removedSessions.filterIsInstance<SpectatorSession>().forEach { it.close() }
-        removedSessions.filterIsInstance<FamiliarSession>().forEach { it.close() }
         matchConnections.forEach { it.detachAfterTeardown() }
 
         if (match != null) {
@@ -189,9 +103,6 @@ class MatchRegistry {
         } else {
             fallbackBridge?.shutdown()
         }
-
-        owner?.awaitTermination()
-        interactiveSessions.forEach { it.finishRetirementAfterOwnerClose() }
 
         log.info(
             "MatchRegistry: teardown complete matchId={} seatId={} reason={} sessionsRemoved={} connectionsRemoved={} matchClosed={}",

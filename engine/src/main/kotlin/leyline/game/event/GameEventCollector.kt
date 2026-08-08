@@ -16,7 +16,6 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
-import leyline.bridge.handoff.MonotonicPrefixQueue
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -40,14 +39,15 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  *
  * ## Frame contract
  *
- * Events accumulate in ordered concurrent queues. [reserveFrame] snapshots one
- * immutable prefix for frame compilation; [consumeFrame] removes that exact
- * prefix only after projection commit. Events appended while a frame is being
- * compiled remain queued for the next frame.
+ * Events accumulate in a per-frame [MutableList]. [closeFrame] returns the
+ * accumulated list as an immutable [FrameEventLog] and atomically swaps in a
+ * fresh empty list for the next frame. Multiple downstream consumers can each
+ * call [FrameEventLog.events]`.filterIsInstance<…>()` independently — the
+ * frozen list is shared safely.
  *
- * [closeFrame] retains the immediate reserve-and-consume contract used by
- * focused collector tests. Bundle construction uses the explicit reservation
- * lifecycle through [leyline.game.state.GameBridge].
+ * [leyline.game.mapping.StateMapper.buildFromSnapshot] closes the frame in the
+ * GATHER phase. A double-close returns an empty log; calling code does not
+ * need to defend against it because the type forbids appending past close.
  *
  * ## Event ordering
  *
@@ -72,10 +72,11 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  *
  * ## Threading
  *
- * Events fire synchronously on the engine thread. Frame compilation may run on
- * another execution domain while the engine is stopped at an interaction
- * boundary. Concurrent queues preserve producer order, and prefix consumption
- * keeps later engine events out of the committed frame.
+ * Events fire synchronously on the engine thread. [closeFrame] is also called
+ * on the engine thread (via [leyline.game.mapping.StateMapper] / GSM build).
+ * The `@Volatile` reference swap is sufficient: the engine thread's `add`
+ * happens-before the swap; the new frame starts empty; the returned list is
+ * never mutated past the swap.
  *
  * **Adding new mechanics:** When upstream Forge events lack the granularity we need
  * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
@@ -102,15 +103,16 @@ class GameEventCollector(
 ) : IGameEventVisitor.Base<Unit>() {
     private val log = LoggerFactory.getLogger(GameEventCollector::class.java)
 
-    internal data class FrameReservation(
-        val log: FrameEventLog,
-        internal val events: MonotonicPrefixQueue.Reservation<GameEvent>,
-        internal val zoneMoves: MonotonicPrefixQueue.Reservation<ZoneMove>,
-    )
+    // Atomic frame swap: engine-thread @Subscribe handlers append; closeFrame() takes
+    // the current list and installs a fresh empty one. The reference is volatile, the
+    // list itself is mutated only before the swap.
+    @Suppress("DoubleMutabilityForCollection")
+    @Volatile
+    private var frame: MutableList<GameEvent> = mutableListOf()
 
-    private val frame = MonotonicPrefixQueue<GameEvent>()
-    private val zoneMoves = MonotonicPrefixQueue<ZoneMove>()
-    private val frameConsumptionLock = Any()
+    @Suppress("DoubleMutabilityForCollection")
+    @Volatile
+    private var zoneMoves: MutableList<ZoneMove> = mutableListOf()
 
     /**
      * Stack AbilityInstance context keyed by Forge SpellAbility id. Cast events
@@ -142,63 +144,26 @@ class GameEventCollector(
      *  for trigger resolutions on the local player's turn. */
     fun isTriggerResolving(saId: Int): Boolean = pendingStackAbilities.isTriggerResolving(saId)
 
-    /** Snapshot the current ordered prefix without consuming it. */
-    internal fun reserveFrame(): FrameReservation =
-        synchronized(frameConsumptionLock) {
-            val events = frame.reserve()
-            val moves = zoneMoves.reserve()
-            FrameReservation(FrameEventLog(events.values, moves.values), events, moves)
-        }
-
-    internal fun validateFrameReservation(reservation: FrameReservation) {
-        synchronized(frameConsumptionLock) {
-            frame.validate(reservation.events)
-            zoneMoves.validate(reservation.zoneMoves)
-        }
-    }
-
-    internal fun releaseFrameReservation(reservation: FrameReservation) {
-        synchronized(frameConsumptionLock) {
-            frame.release(reservation.events)
-            zoneMoves.release(reservation.zoneMoves)
-        }
-    }
-
-    /** Consume exactly the reserved prefix, preserving events appended later. */
-    internal fun consumeFrame(reservation: FrameReservation) {
-        synchronized(frameConsumptionLock) {
-            validateFrameReservation(reservation)
-            frame.consume(reservation.events)
-            zoneMoves.consume(reservation.zoneMoves)
-        }
-    }
-
     /**
-     * Close the current frame immediately.
+     * Close the current frame: returns events accumulated since the last
+     * close in engine firing order, and starts a fresh empty frame.
      *
-     * Bundle construction reserves during compilation and consumes during
-     * projection commit instead.
+     * Called once per GSM build by [leyline.game.mapping.StateMapper.buildFromSnapshot]
+     * in the GATHER phase. A second call returns an empty log.
      */
-    fun closeFrame(): FrameEventLog =
-        synchronized(frameConsumptionLock) {
-            val reservation = reserveFrame()
-            consumeFrame(reservation)
-            reservation.log
-        }
+    fun closeFrame(): FrameEventLog {
+        val outEvents = frame
+        val outMoves = zoneMoves
+        frame = mutableListOf()
+        zoneMoves = mutableListOf()
+        return FrameEventLog(outEvents, outMoves)
+    }
 
     /** Peek at the current open frame without closing it (for tests). */
     fun peekEvents(): List<GameEvent> = frame.toList()
 
     /** True if the current frame has events accumulated. */
     fun hasEvents(): Boolean = frame.isNotEmpty()
-
-    internal fun appendEventsForTest(events: Iterable<GameEvent>) {
-        events.forEach(frame::add)
-    }
-
-    internal fun clearZoneMovesForTest() {
-        zoneMoves.clear()
-    }
 
     // -- EventBus entry point --
 
@@ -356,7 +321,7 @@ class GameEventCollector(
                 abilityGrpId == KeywordAbilityIds.ENLIST ->
                     pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
                         ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
-                else -> null
+                else -> triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
             }
         if (abilityGrpId == KeywordAbilityIds.ENLIST && triggeringObjectCardId != null) {
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
@@ -567,7 +532,7 @@ class GameEventCollector(
         //    Graveyard); ZoneChanged carries the same. For cycling/channel
         //    the discard fires before SpellAbilityCast in Forge's event order.
         val target = ForgeCardId(cardId)
-        for (ev in frame.toList().asReversed()) {
+        for (ev in frame.asReversed()) {
             when (ev) {
                 is GameEvent.CardDiscarded -> if (ev.cardId == target) return ZoneIds.handOf(seat)
                 is GameEvent.ZoneChanged ->

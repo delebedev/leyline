@@ -13,7 +13,7 @@ import kotlin.collections.iterator
  * Fingerprint: (cardInstanceId, timestamp, staticAbilityId) from Forge's
  * boost tables uniquely identifies an effect across GSMs.
  *
- * Not thread-safe — interactive callers run on the match owner.
+ * Not thread-safe — callers synchronize externally (MatchSession.sessionLock).
  */
 class EffectTracker {
     companion object {

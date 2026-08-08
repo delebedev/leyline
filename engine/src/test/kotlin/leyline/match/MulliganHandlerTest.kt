@@ -5,18 +5,32 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.ChannelInboundHandlerAdapter
+import io.netty.channel.embedded.EmbeddedChannel
 import leyline.bridge.types.SeatId
 import leyline.config.MatchConfig
 import leyline.infra.ListMessageSink
+import leyline.infra.MatchOutput
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 
 class MulliganHandlerTest :
     BoardTest({
+
+        fun channelCtx(): Pair<EmbeddedChannel, ChannelHandlerContext> {
+            val probe = object : ChannelInboundHandlerAdapter() {}
+            val channel = EmbeddedChannel(probe)
+            return channel to (channel.pipeline().context(probe) as ChannelHandlerContext)
+        }
+
+        fun outbound(channel: EmbeddedChannel): List<MatchServiceToClientMessage> =
+            generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
 
         data class SessionFixture(
             val session: MatchSession,
@@ -49,11 +63,23 @@ class MulliganHandlerTest :
             seatId: SeatId,
             session: MatchSession,
             registry: MatchRegistry = session.registry,
+            ctx: ChannelHandlerContext? = null,
         ): MulliganHandler =
             MulliganHandler(
                 MatchConfig(),
                 registry,
                 sessionProvider = { session },
+                outputProvider = {
+                    object : MatchOutput {
+                        override fun send(message: MatchServiceToClientMessage) {
+                            ctx?.writeAndFlush(message)
+                        }
+
+                        override fun close() {
+                            ctx?.close()
+                        }
+                    }
+                },
                 matchIdProvider = { session.matchId },
                 seatIdProvider = { seatId },
             )
@@ -95,12 +121,13 @@ class MulliganHandlerTest :
                     repeat(7) { addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
                 }
             val registry = MatchRegistry()
-            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
-            val mulligan = handler(SeatId(1), session, registry)
+            val (session, _) = sessionFor(SeatId(1), registry, bridge)
+            val (channel, ctx) = channelCtx()
+            val mulligan = handler(SeatId(1), session, registry, ctx)
 
             mulligan.sendMulliganReq(reportedMulliganCount = 1, numCards = 6)
 
-            val messages = sink.messages
+            val messages = outbound(channel).flatMap { it.greToClientEvent.greToClientMessagesList }
             assertSoftly {
                 messages shouldHaveSize 3
                 messages.map { it.type } shouldBe
@@ -125,12 +152,13 @@ class MulliganHandlerTest :
                     repeat(7) { addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
                 }
             val registry = MatchRegistry()
-            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
-            val mulligan = handler(SeatId(1), session, registry)
+            val (session, _) = sessionFor(SeatId(1), registry, bridge)
+            val (channel, ctx) = channelCtx()
+            val mulligan = handler(SeatId(1), session, registry, ctx)
 
             mulligan.sendDealHandPublic()
 
-            val messages = sink.messages
+            val messages = outbound(channel).flatMap { it.greToClientEvent.greToClientMessagesList }
             assertSoftly {
                 messages shouldHaveSize 1
                 messages.single().type shouldBe GREMessageType.GameStateMessage_695e

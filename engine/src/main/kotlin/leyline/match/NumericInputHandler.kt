@@ -1,7 +1,7 @@
 package leyline.match
 
 import leyline.bridge.handoff.NumericInputPrompt
-import leyline.game.bundle.PendingPromptPlan
+import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -41,11 +41,12 @@ class NumericInputHandler(
      * @return true if a `NumericInputReq` was sent (caller should exit loop).
      */
     fun checkPendingNumericInput(): Boolean {
-        val prompt = ctx.bridge.pendingNumericInput() ?: return false
+        val wpc = ctx.bridge.humanController ?: return false
+        val prompt = wpc.pendingNumericInput ?: return false
 
         log.info(
             "NumericInputHandler: numeric input pending for {} (min={}, max={})",
-            prompt.sourceCardName ?: "unknown",
+            prompt.sourceCard?.name ?: "unknown",
             prompt.min,
             prompt.max,
         )
@@ -62,8 +63,13 @@ class NumericInputHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
+        val wpc =
+            bridge.humanController ?: run {
+                log.warn("NumericInputHandler: no humanController for NumericInputResp")
+                return
+            }
         val prompt =
-            bridge.pendingNumericInput() ?: run {
+            wpc.pendingNumericInput ?: run {
                 log.warn("NumericInputHandler: no pending prompt for NumericInputResp")
                 return
             }
@@ -73,11 +79,11 @@ class NumericInputHandler(
         log.info(
             "NumericInputHandler: client picked {} for {}",
             value,
-            prompt.sourceCardName ?: "unknown",
+            prompt.sourceCard?.name ?: "unknown",
         )
 
-        bridge.submitNumericInput(value)
-        ctx.engine.awaitPriority()
+        prompt.future.complete(value)
+        bridge.awaitPriority()
         autoPass()
     }
 
@@ -85,14 +91,14 @@ class NumericInputHandler(
 
     private fun sendNumericInputReq(prompt: NumericInputPrompt) {
         val bridge = ctx.bridge
-        val sourceCardId = prompt.sourceCardId
-        if (sourceCardId == null) {
+        val sourceCard = prompt.sourceCard
+        if (sourceCard == null) {
             log.warn("NumericInputHandler: sourceCard is null — defaulting to {}", prompt.min)
-            bridge.submitNumericInput(prompt.min)
+            prompt.future.complete(prompt.min)
             return
         }
 
-        val sourceId = bridge.getOrAllocInstanceId(sourceCardId).value
+        val sourceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id)).value
 
         val req =
             NumericInputReq
@@ -116,16 +122,14 @@ class NumericInputHandler(
                         .setNumberValue(sourceId),
                 ).build()
 
-        sink.sendBundledGRE(
-            PendingPromptPlan.build(
-                counters.counter,
-                counters.seatId,
-                GREMessageType.NumericInputReq_695e,
-            ) {
-                it.numericInputReq = req
-                it.prompt = promptProto
-                it.allowCancel = AllowCancel.No_a526
-            },
-        )
+        PendingPromptEnvelope.sendBare(
+            sink,
+            counters,
+            GREMessageType.NumericInputReq_695e,
+        ) {
+            it.numericInputReq = req
+            it.prompt = promptProto
+            it.allowCancel = AllowCancel.No_a526
+        }
     }
 }

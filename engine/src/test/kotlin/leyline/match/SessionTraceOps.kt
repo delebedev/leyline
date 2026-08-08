@@ -24,21 +24,7 @@ class SessionTraceOps(
         BundleBuilder(gameBridge, matchId, seatId.value)
 
     /** Snapshot for handler construction in tests. */
-    val ctx: SessionContext =
-        SessionContext(
-            gameBridge,
-            object : EngineCutAwaiter {
-                override fun awaitPriority(): Boolean = awaitEnginePriority()
-
-                override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean = awaitEnginePriorityWithTimeout(timeoutMs)
-
-                override fun awaitActionPriority(): Boolean = awaitEnginePriority()
-            },
-        )
-
-    override fun awaitEnginePriority(): Boolean = gameBridge.awaitPriorityWithTimeout(gameBridge.priorityWaitMs)
-
-    override fun awaitEnginePriorityWithTimeout(timeoutMs: Long): Boolean = gameBridge.awaitPriorityWithTimeout(timeoutMs)
+    val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "SessionTraceOps requires non-null game" }, gameBridge)
 
     // --- Traced calls ---
 
@@ -53,8 +39,6 @@ class SessionTraceOps(
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         sentGRE.add(messages)
     }
-
-    override fun sendMatchProgress(message: MatchServiceToClientMessage) {}
 
     override fun sendRealGameState(
         bridge: GameBridge,

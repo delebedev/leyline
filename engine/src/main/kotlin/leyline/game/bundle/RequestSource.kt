@@ -2,7 +2,6 @@ package leyline.game.bundle
 
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
@@ -22,15 +21,14 @@ internal object PromptSourceResolver {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         fallbackSourceEntityId: Int? = null,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): PromptSource {
         val sourceCardInstanceId =
             (prompt.request.sourceEntityId ?: fallbackSourceEntityId)
-                ?.let { idResolver(ForgeCardId(it)).value }
+                ?.let { bridge.getOrAllocInstanceId(ForgeCardId(it)).value }
                 ?: 0
         val sourceInstanceId =
             if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
-                idResolver(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
+                bridge.getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId)).value
             } else {
                 sourceCardInstanceId
             }
@@ -44,8 +42,7 @@ internal object PromptSourceResolver {
 internal fun sourceInstanceId(
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,
-    idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
-): Int = PromptSourceResolver.resolve(prompt, bridge, idResolver = idResolver).sourceInstanceId
+): Int = PromptSourceResolver.resolve(prompt, bridge).sourceInstanceId
 
 internal fun cardIdPromptParameter(numberValue: Int? = null): PromptParameter {
     val builder =
@@ -70,9 +67,8 @@ internal fun promptWithCardId(
 internal fun SelectNReq.Builder.setSourceIdIfPresent(
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,
-    idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
 ) {
-    val source = PromptSourceResolver.resolve(prompt, bridge, idResolver = idResolver)
+    val source = PromptSourceResolver.resolve(prompt, bridge)
     if (source.hasSource) setSourceId(source.sourceInstanceId)
 }
 

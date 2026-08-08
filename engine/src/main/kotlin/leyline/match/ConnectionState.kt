@@ -30,6 +30,11 @@ class ConnectionState(
     /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
     val autoPassState = ClientAutoPassState()
 
-    /** Serial owner shared by every connection and session for this match. */
-    internal val owner = registry.ownerFor(matchId)
+    /**
+     * Serializes all game-logic entry points (Netty I/O threads are concurrent).
+     *
+     * Lives on the connection — must outlive game-level recreation (puzzle hot-swap)
+     * so concurrent inbound messages can't race the swap.
+     */
+    val sessionLock = Any()
 }

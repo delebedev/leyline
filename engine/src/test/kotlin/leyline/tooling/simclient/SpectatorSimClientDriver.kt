@@ -8,7 +8,6 @@ import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
-import leyline.match.MatchOwner
 import leyline.match.SpectatorSession
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -44,15 +43,13 @@ class SpectatorSimClientDriver(
                 matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
             )
         val sink = ListMessageSink()
-        val owner = MatchOwner(matchId)
-        val session = SpectatorSession(SeatId(1), matchId, sink, bridge, owner = owner)
+        val session = SpectatorSession(SeatId(1), matchId, sink, bridge)
         val readyForInitialBundle = CountDownLatch(1)
         val initialBundleSent = CountDownLatch(1)
         val startedAt = System.nanoTime()
         var totalMessages = 0
 
         try {
-            session.startObserving()
             bridge.startAiVsAi(
                 seed = seed,
                 deckList1 = deckList,
@@ -80,18 +77,19 @@ class SpectatorSimClientDriver(
             initialBundleSent.countDown()
 
             val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(maxDurationMs)
-            while (
-                !owner.reduce { sink.rawMessages.isNotEmpty() } &&
-                System.nanoTime() < deadline
-            ) {
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
-            }
-
-            owner.reduce {
+            while (!game.isGameOver && System.nanoTime() < deadline) {
+                session.pumpOnce()
                 if (sink.messages.isNotEmpty()) {
                     log.writeBundle(sink.messages)
                     totalMessages += sink.messages.size
+                    sink.clear()
                 }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+            }
+            session.pumpOnce()
+            if (sink.messages.isNotEmpty()) {
+                log.writeBundle(sink.messages)
+                totalMessages += sink.messages.size
                 sink.clear()
             }
             log.flush()
@@ -105,8 +103,6 @@ class SpectatorSimClientDriver(
             initialBundleSent.countDown()
             session.close()
             bridge.shutdown()
-            owner.close()
-            owner.awaitTermination()
         }
     }
 

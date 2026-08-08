@@ -123,27 +123,9 @@ class TargetingInteractionTest :
                     .selectedTargets shouldBe 1
             }
 
-            val submitMessages = after { submitTargets() }.messages
-            submitMessages.count { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe 1
+            submitTargets()
             passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
-        }
-
-        test("retired target prompt rejects submit effects and session advance") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
-            val creatureIid = humanBattlefieldCreatures().first().first
-            castSpellByName("Giant Growth").shouldBeTrue()
-            selectTargetsIterative(listOf(creatureIid))
-            val promptBridge = harness.bridge.promptBridge(SeatId(1))
-            val before = messageSnapshot()
-            promptBridge.beforeResponseRetirement = promptBridge::cancelPending
-
-            submitTargets()
-
-            assertSoftly {
-                promptBridge.getPendingPrompt() shouldBe null
-                messagesSince(before) shouldBe emptyList()
-            }
         }
 
         test("targeting prompt rejects mismatched response families without consuming the pending route") {
@@ -577,31 +559,6 @@ class TargetingInteractionTest :
                 val remainingEntry = group.targetsList.first { it.targetInstanceId == aiMerfolkIid }
                 remainingEntry.legalAction shouldBe SelectAction.Select_a1ad
                 remainingEntry.highlight shouldBe HighlightType.Tepid
-            }
-        }
-
-        test("Run Away Together — re-prompt omits a candidate that left the battlefield") {
-            startPuzzle(runAwayTogetherState, name = "RAT Invalidated Candidate")
-
-            val humanBearsIid = human.battlefield.iid("Grizzly Bears")
-            val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
-            castSpellByName("Run Away Together").shouldBeTrue()
-
-            val merfolk = ai.getZone(ForgeZoneType.Battlefield).cards.single { it.name == "Coral Merfolk" }
-            harness.game().action.moveToGraveyard(merfolk, null)
-
-            val rePrompt =
-                after { selectTargetsIterative(listOf(humanBearsIid)) }
-                    .messages
-                    .first { it.hasSelectTargetsReq() }
-                    .selectTargetsReq
-                    .getTargets(0)
-
-            assertSoftly {
-                rePrompt.targetsList shouldHaveSize 1
-                rePrompt.targetsList.single().targetInstanceId shouldBe humanBearsIid
-                rePrompt.targetsList.single().legalAction shouldBe SelectAction.Unselect
-                rePrompt.targetsList.map { it.targetInstanceId } shouldNotContain aiMerfolkIid
             }
         }
 

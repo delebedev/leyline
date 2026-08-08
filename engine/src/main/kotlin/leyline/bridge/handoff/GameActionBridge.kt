@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Thread-safe bridge between the blocking engine game loop and async Netty handlers.
@@ -27,22 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Sibling to [InteractivePromptBridge] which handles non-priority prompts (targeting, sacrifice).
  * One pending action at a time — the engine is single-threaded per game.
  */
-class GameActionBridge private constructor(
-    @Volatile private var timeoutMs: Long?,
-    val prioritySignal: PrioritySignal?,
-    private val actionCommands: PriorityActionTokenTable,
+class GameActionBridge(
+    @Volatile private var timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
+    val prioritySignal: PrioritySignal? = null,
 ) {
-    constructor(
-        timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
-        prioritySignal: PrioritySignal? = null,
-    ) : this(timeoutMs, prioritySignal, PriorityActionTokenTable())
-
-    internal constructor(
-        timeoutMs: Long?,
-        prioritySignal: PrioritySignal?,
-        tokenFactory: () -> ActionToken,
-    ) : this(timeoutMs, prioritySignal, PriorityActionTokenTable(tokenFactory))
-
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
         const val DISCONNECT_TIMEOUT_MS = 300_000L
@@ -85,59 +74,30 @@ class GameActionBridge private constructor(
     }
 
     /**
-     * One value-only priority offer.
+     * One executable priority offer.
      *
-     * The exact command remains in this bridge's private token table while
-     * Forge is blocked for the priority window. Session code receives only the
-     * opaque [token] and immutable facts needed for response handling.
+     * The command is created while Forge is blocked for this priority window
+     * and is discarded when that window completes. It deliberately contains no
+     * protocol identity; [action] is the Leyline-only projection sent to the
+     * client.
      */
     data class ActionOffer(
         val action: Action,
-        val token: ActionToken,
-        val cardId: ForgeCardId? = null,
-        val abilityId: Int? = null,
+        val command: PlayerAction,
         val stackAbilityGrpId: Int? = null,
         val forgeAbilityId: Int? = null,
         val spellGrpId: Int? = null,
     )
 
-    /** Immutable view of the current priority window; completion stays private. */
     data class PendingAction(
         val actionId: String,
         val state: PendingActionState,
-        val publishedCatalog: PublishedActionCatalog?,
+        val future: CompletableFuture<PlayerAction>,
+        @Volatile var promptGameStateId: Int? = null,
+        @Volatile var actionCatalog: Map<ActionResponseKey, List<ActionOffer>>? = null,
     )
 
-    private data class ActivePendingAction(
-        val actionId: String,
-        val state: PendingActionState,
-        val future: CompletableFuture<ActionSubmission>,
-        var publishedCatalog: PublishedActionCatalog? = null,
-    ) {
-        fun snapshot(): PendingAction = PendingAction(actionId, state, publishedCatalog)
-    }
-
-    data class PublishedActionCatalog(
-        val gameStateId: Int,
-        val catalog: Map<ActionResponseKey, List<ActionOffer>>,
-    )
-
-    data class ActionSubmission(
-        val token: ActionToken,
-        val selectedManaColor: Byte? = null,
-    )
-
-    private val lifecycleLock = Any()
-
-    @Volatile
-    private var pending: ActivePendingAction? = null
-
-    private var beforeSubmitActionToken: (() -> Unit)? = null
-
-    internal fun interceptNextActionTokenSubmission(interceptor: () -> Unit) {
-        check(beforeSubmitActionToken == null) { "Action token submission interceptor already installed" }
-        beforeSubmitActionToken = interceptor
-    }
+    private val pending = AtomicReference<PendingAction?>(null)
 
     // -- Diagnostic context (set by GameLoopController after thread launch) --
 
@@ -180,16 +140,13 @@ class GameActionBridge private constructor(
         }
 
         val actionId = UUID.randomUUID().toString()
-        val future = CompletableFuture<ActionSubmission>()
-        val action = ActivePendingAction(actionId, state, future)
+        val future = CompletableFuture<PlayerAction>()
+        val action = PendingAction(actionId, state, future)
 
-        synchronized(lifecycleLock) {
-            if (pending != null) {
-                log.warn("Action bridge already has a pending action; auto-passing")
-                DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
-                return PlayerAction.PassPriority
-            }
-            pending = action
+        if (!pending.compareAndSet(null, action)) {
+            log.warn("Action bridge already has a pending action; auto-passing")
+            DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
+            return PlayerAction.PassPriority
         }
         prioritySignal?.signal()
 
@@ -197,53 +154,32 @@ class GameActionBridge private constructor(
         deadlineMs = effectiveTimeout?.let { System.currentTimeMillis() + it }
 
         return try {
-            val submission =
-                try {
-                    if (effectiveTimeout == null) {
-                        future.get()
-                    } else {
-                        future.get(effectiveTimeout, TimeUnit.MILLISECONDS)
-                    }
-                } catch (_: TimeoutException) {
-                    val completedSubmission =
-                        synchronized(lifecycleLock) {
-                            if (pending === action && !future.isDone) {
-                                retireWindow(action, cancelFuture = true)
-                                null
-                            } else {
-                                future.getNow(null)
-                            }
-                        }
-                    if (completedSubmission != null) {
-                        return resolveSubmission(actionId, completedSubmission)
-                    }
-                    val diagnostic =
-                        BridgeTimeoutDiagnostic.buildMessage(
-                            bridgeName = "GameActionBridge",
-                            timeoutMs = checkNotNull(effectiveTimeout),
-                            game = diagnosticGame,
-                            engineThread = diagnosticThread,
-                            lastContext =
-                                "PendingAction(id=${actionId.take(8)}, phase=${state.phase}, " +
-                                    "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
-                        )
-                    log.warn("Action timed out, auto-passing\n{}", diagnostic)
-                    DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
-                    return PlayerAction.PassPriority
-                } catch (ex: Exception) {
-                    log.warn("Action await failed: ${ex.message}, auto-passing")
-                    DevCheck.failOnAutoPass { "Action await failed: ${ex.message}" }
-                    return PlayerAction.PassPriority
-                }
-            resolveSubmission(actionId, submission)
+            if (effectiveTimeout == null) {
+                future.get()
+            } else {
+                future.get(effectiveTimeout, TimeUnit.MILLISECONDS)
+            }
+        } catch (_: TimeoutException) {
+            val diagnostic =
+                BridgeTimeoutDiagnostic.buildMessage(
+                    bridgeName = "GameActionBridge",
+                    timeoutMs = checkNotNull(effectiveTimeout),
+                    game = diagnosticGame,
+                    engineThread = diagnosticThread,
+                    lastContext =
+                        "PendingAction(id=${actionId.take(8)}, phase=${state.phase}, " +
+                            "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
+                )
+            log.warn("Action timed out, auto-passing\n{}", diagnostic)
+            DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
+            PlayerAction.PassPriority
+        } catch (ex: Exception) {
+            log.warn("Action await failed: ${ex.message}, auto-passing")
+            DevCheck.failOnAutoPass { "Action await failed: ${ex.message}" }
+            PlayerAction.PassPriority
         } finally {
             deadlineMs = null
-            synchronized(lifecycleLock) {
-                if (pending === action) {
-                    pending = null
-                    clearActionCommands(actionId)
-                }
-            }
+            pending.set(null)
         }
     }
 
@@ -256,62 +192,14 @@ class GameActionBridge private constructor(
     fun submitAction(
         actionId: String,
         action: PlayerAction,
-    ): Boolean =
-        synchronized(lifecycleLock) {
-            require(!action.retainsLiveAbility()) {
-                "Live priority actions must be submitted through their bound token"
-            }
-            val current = pending ?: return false
-            if (current.actionId != actionId) {
-                log.warn("Action ID mismatch: expected=${current.actionId}, got=$actionId")
-                return false
-            }
-            if (current.future.isDone) return false
-            val token = actionCommands.register(actionId, action)
-            return current.future.complete(ActionSubmission(token))
+    ): Boolean {
+        val current = pending.get() ?: return false
+        if (current.actionId != actionId) {
+            log.warn("Action ID mismatch: expected=${current.actionId}, got=$actionId")
+            return false
         }
-
-    /**
-     * Bind one exact engine command while its originating projection branch has
-     * the live Forge handle in hand.
-     */
-    fun registerActionOffer(
-        action: Action,
-        command: PlayerAction,
-        stackAbilityGrpId: Int? = null,
-        forgeAbilityId: Int? = null,
-        spellGrpId: Int? = null,
-    ): ActionOffer =
-        synchronized(lifecycleLock) {
-            val current = checkNotNull(pending) { "Cannot bind an action offer without a pending priority window" }
-            check(!current.future.isDone) { "Cannot bind an action offer to a completed priority window" }
-            val token = registerActionCommand(current.actionId, command)
-            ActionOffer(
-                action = action,
-                token = token,
-                cardId = command.cardIdOrNull(),
-                abilityId = command.abilityIdOrNull(),
-                stackAbilityGrpId = stackAbilityGrpId,
-                forgeAbilityId = forgeAbilityId,
-                spellGrpId = spellGrpId,
-            )
-        }
-
-    /**
-     * Bind an exact command discovered by a deferred choice while the originating
-     * priority window remains blocked.
-     */
-    internal fun registerActionCommand(
-        actionId: String,
-        command: PlayerAction,
-    ): ActionToken =
-        synchronized(lifecycleLock) {
-            val current = checkNotNull(pending) { "Cannot bind an action command without a pending priority window" }
-            check(current.actionId == actionId && pending === current && !current.future.isDone) {
-                "Cannot bind an action command outside its pending priority window"
-            }
-            actionCommands.register(actionId, command)
-        }
+        return current.future.complete(action)
+    }
 
     /**
      * Atomically bind an executable priority catalog to its outbound prompt.
@@ -327,14 +215,28 @@ class GameActionBridge private constructor(
         offers: List<ActionOffer>,
     ): Boolean {
         val groupedOffers = offers.groupBy { ActionResponseKey.from(it.action) }
-        val catalog = groupedOffers.mapValues { (_, variants) -> variants.toList() }.toMap()
+        val hasAmbiguousKey =
+            groupedOffers.values.any { variants ->
+                val identities = variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct()
+                identities.size > 1 && variants.map { it.action }.distinct().size == 1
+            }
+        if (hasAmbiguousKey) {
+            log.warn(
+                "Refusing ambiguous action catalog with duplicate response keys: {}",
+                groupedOffers.filterValues { variants ->
+                    variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct().size > 1
+                },
+            )
+            return false
+        }
+        val catalog = groupedOffers
 
-        synchronized(lifecycleLock) {
-            val current =
-                pending ?: run {
-                    log.warn("Cannot bind action catalog: no pending action")
-                    return false
-                }
+        val current =
+            pending.get() ?: run {
+                log.warn("Cannot bind action catalog: no pending action")
+                return false
+            }
+        synchronized(current) {
             if (current.actionId != actionId) {
                 log.warn("Cannot bind action catalog: pending window was superseded")
                 return false
@@ -343,32 +245,10 @@ class GameActionBridge private constructor(
                 log.warn("Cannot bind action catalog: pending window already completed")
                 return false
             }
-            val ambiguousKeys =
-                groupedOffers.filterValues { variants ->
-                    val identities = variants.map { Triple(it.token, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct()
-                    identities.size > 1 && variants.map { it.action }.distinct().size == 1
-                }
-            if (ambiguousKeys.isNotEmpty()) {
-                log.warn("Refusing ambiguous action catalog with duplicate response keys: {}", ambiguousKeys)
-                clearFailedCatalog(current)
-                return false
-            }
-            val offeredTokens = offers.mapTo(mutableSetOf()) { it.token }
-            val tokensBelongToWindow = offeredTokens.all { token -> actionCommands.contains(actionId, token) }
-            if (!tokensBelongToWindow) {
-                log.warn("Cannot bind action catalog: unknown or stale action token")
-                clearFailedCatalog(current)
-                return false
-            }
-            actionCommands.retain(actionId, offeredTokens)
-            current.publishedCatalog = PublishedActionCatalog(gameStateId, catalog)
+            current.actionCatalog = catalog
+            current.promptGameStateId = gameStateId
             return true
         }
-    }
-
-    private fun clearFailedCatalog(action: ActivePendingAction) {
-        action.publishedCatalog = null
-        clearActionCommands(action.actionId)
     }
 
     /** Resolve a response only against the catalog bound to its pending window. */
@@ -376,24 +256,20 @@ class GameActionBridge private constructor(
         pendingAction: PendingAction,
         responseGameStateId: Int,
         action: Action,
-    ): ActionOffer? =
-        synchronized(lifecycleLock) {
-            val current = pending ?: return null
-            if (current.actionId != pendingAction.actionId || current.future.isDone) return null
-            val published = current.publishedCatalog ?: return null
-            if (responseGameStateId != 0 && published.gameStateId != responseGameStateId) return null
-            val catalog = published.catalog
-            val keyedMatches = catalog[ActionResponseKey.from(action)].orEmpty()
-            chooseExecutionIdentity(keyedMatches, action)?.let { return it }
-            val partialMatches = catalog.values.flatten().filter { offer -> matchesPartialResponse(offer.action, action) }
-            return chooseExecutionIdentity(partialMatches, action)
-        }
+    ): ActionOffer? {
+        if (!acceptsResponse(pendingAction, responseGameStateId)) return null
+        val catalog = pendingAction.actionCatalog ?: return null
+        val keyedMatches = catalog[ActionResponseKey.from(action)].orEmpty()
+        chooseExecutionIdentity(keyedMatches, action)?.let { return it }
+        val partialMatches = catalog.values.flatten().filter { offer -> matchesPartialResponse(offer.action, action) }
+        return chooseExecutionIdentity(partialMatches, action)
+    }
 
     private fun chooseExecutionIdentity(
         offers: List<ActionOffer>,
         response: Action,
     ): ActionOffer? {
-        val identities = offers.distinctBy { listOf(it.token, it.stackAbilityGrpId, it.forgeAbilityId, it.spellGrpId) }
+        val identities = offers.distinctBy { listOf(it.command, it.stackAbilityGrpId, it.forgeAbilityId, it.spellGrpId) }
         val exactPayloadMatches = identities.filter { it.action == response }
         if (exactPayloadMatches.size == 1) return exactPayloadMatches.single()
         if (identities.size == 1) return identities.first()
@@ -425,84 +301,9 @@ class GameActionBridge private constructor(
     fun acceptsResponse(
         pendingAction: PendingAction,
         responseGameStateId: Int,
-    ): Boolean =
-        synchronized(lifecycleLock) {
-            val current = pending ?: return false
-            if (current.actionId != pendingAction.actionId || current.future.isDone) return false
-            if (responseGameStateId == 0) return true
-            current.publishedCatalog?.gameStateId == responseGameStateId
-        }
-
-    /** True only while [token] belongs to the named, still-open priority window. */
-    internal fun acceptsActionToken(
-        actionId: String,
-        token: ActionToken,
-    ): Boolean =
-        synchronized(lifecycleLock) {
-            val current = pending ?: return false
-            current.actionId == actionId &&
-                !current.future.isDone &&
-                actionCommands.contains(actionId, token)
-        }
-
-    /**
-     * Resolve and consume a bound action without exposing its live command to
-     * session code.
-     */
-    fun submitActionToken(
-        actionId: String,
-        token: ActionToken,
-        selectedManaColor: Byte? = null,
-    ): Boolean = submitActionToken(actionId, token, selectedManaColor) {}
-
-    /**
-     * Commit session-owned preparation only after the window and token are
-     * accepted, but before the engine future can observe the submission.
-     */
-    internal fun submitActionToken(
-        actionId: String,
-        token: ActionToken,
-        selectedManaColor: Byte? = null,
-        onAccepted: () -> Unit,
     ): Boolean {
-        beforeSubmitActionToken?.let { hook ->
-            beforeSubmitActionToken = null
-            hook()
-        }
-        return synchronized(lifecycleLock) {
-            val current = pending ?: return false
-            if (current.actionId != actionId) {
-                log.warn("Action token window mismatch: expected=${current.actionId}, got=$actionId")
-                return false
-            }
-            if (!actionCommands.contains(actionId, token)) {
-                log.warn("Unknown or stale action token for window {}", actionId.take(8))
-                return false
-            }
-            if (current.future.isDone) return false
-            onAccepted()
-            current.future.complete(ActionSubmission(token, selectedManaColor))
-        }
-    }
-
-    private fun resolveSubmission(
-        actionId: String,
-        submission: ActionSubmission,
-    ): PlayerAction =
-        synchronized(lifecycleLock) {
-            val command =
-                checkNotNull(actionCommands.take(actionId, submission.token)) {
-                    "Action token was not bound to priority window ${actionId.take(8)}"
-                }
-            return when {
-                command is PlayerAction.ActivateMana && submission.selectedManaColor != null ->
-                    command.copy(selectedColor = submission.selectedManaColor)
-                else -> command
-            }
-        }
-
-    private fun clearActionCommands(actionId: String) {
-        actionCommands.clear(actionId)
+        if (responseGameStateId == 0) return true
+        return pendingAction.promptGameStateId == responseGameStateId
     }
 
     /**
@@ -517,38 +318,16 @@ class GameActionBridge private constructor(
      * state before the engine processes triggers (e.g. modal ETB).
      */
     fun getPending(): PendingAction? {
-        synchronized(lifecycleLock) {
-            val current = pending ?: return null
-            return if (current.future.isDone) null else current.snapshot()
-        }
+        val p = pending.get() ?: return null
+        return if (p.future.isDone) null else p
     }
-
-    /** True while the named priority window remains current and incomplete. */
-    fun isPendingActive(actionId: String): Boolean =
-        synchronized(lifecycleLock) {
-            val current = pending ?: return false
-            current.actionId == actionId && !current.future.isDone
-        }
 
     /**
      * Cancel any pending action (e.g. on disconnect / game reset).
      */
     fun cancelPending() {
-        synchronized(lifecycleLock) {
-            val current = pending ?: return
-            if (!current.future.isDone) {
-                retireWindow(current, cancelFuture = true)
-            }
-        }
-    }
-
-    private fun retireWindow(
-        action: ActivePendingAction,
-        cancelFuture: Boolean,
-    ) {
-        if (pending === action) pending = null
-        clearActionCommands(action.actionId)
-        if (cancelFuture) action.future.cancel(true)
+        val current = pending.getAndSet(null)
+        current?.future?.cancel(true)
     }
 }
 

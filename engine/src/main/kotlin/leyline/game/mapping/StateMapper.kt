@@ -168,7 +168,6 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
-        delayedTriggerHolderBaseline: List<HolderRecord>? = null,
         /**
          * Bundle events consumed by the annotation pipeline. Defaults to closing
          * the bridge frame via [GameBridge.closeBundleFrame] — previously this was
@@ -330,12 +329,13 @@ object StateMapper {
             bridge,
             zones,
             gameObjects,
+            human,
             keywordSnapshot,
         )
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Merged, ZoneIds.SUPPRESSED, bridge, zones, gameObjects)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Merged, ZoneIds.SUPPRESSED, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
+        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)
@@ -402,23 +402,21 @@ object StateMapper {
                 decayedCleanupSourcesThisGsm = decayedCleanupSourcesThisGsm,
                 transferResult = transferResult,
             )
-        val activeHolderRecords = delayedTriggerHolderBaseline ?: bridge.delayedTriggerHolders.activeRecords()
         val carriedHolders =
             delayedTriggerHoldersAwaitingLiveAbility(
-                activeHolders = activeHolderRecords,
+                activeHolders = bridge.delayedTriggerHolders.activeRecords(),
                 currentHolders = persistentFeedResult.currentHolders,
                 activeAnnotations = snap.persistentAnnotationState.activeAnnotations.values,
                 snap = snap,
                 bridge = bridge,
             )
         val currentHolders = persistentFeedResult.currentHolders + carriedHolders
-        val holderBatch = bridge.delayedTriggerHolders.computeBatch(currentHolders, activeHolderRecords)
-        val activeHoldersByIid = activeHolderRecords.associateBy { it.iid }
-        val removedHolderRecords = holderBatch.removed.mapNotNull(activeHoldersByIid::get)
+        val holderBatch = bridge.delayedTriggerHolders.computeBatch(currentHolders)
+        val removedHolderRecords = bridge.delayedTriggerHolders.records(holderBatch.removed)
         val delayedTriggerAffectorReplacements =
             delayedTriggerAffectorReplacements(removedHolderRecords, snap, frameIds)
         val postDiffActiveIids =
-            (activeHoldersByIid.keys + holderBatch.added.map { it.iid }) -
+            (bridge.delayedTriggerHolders.activeIids() + holderBatch.added.map { it.iid }) -
                 holderBatch.removed.toSet()
         transferResult = transferResult.withDelayedTriggerHolders(holderBatch, postDiffActiveIids, bridge)
         // Stack contents (cards) plus stack-resident Ability gameObjects — both
@@ -628,8 +626,6 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
-        delayedTriggerHolderBaseline: List<HolderRecord>? = null,
-        transientLinkedFaceFamilyBaseline: Set<InstanceId>? = null,
     ): BuildResult {
         if (prev == null) {
             // First bundle — Full GSM with mutations returned for caller-apply.
@@ -643,7 +639,6 @@ object StateMapper {
                 viewingSeatId = viewingSeatId,
                 revealForSeat = revealForSeat,
                 prev = null,
-                delayedTriggerHolderBaseline = delayedTriggerHolderBaseline,
                 events = events,
             )
         }
@@ -667,7 +662,6 @@ object StateMapper {
                 viewingSeatId = viewingSeatId,
                 revealForSeat = revealForSeat,
                 prev = prev,
-                delayedTriggerHolderBaseline = delayedTriggerHolderBaseline,
                 events = events,
             )
         }
@@ -681,7 +675,6 @@ object StateMapper {
                 bridge,
                 revealForSeat = revealForSeat,
                 prev = prev,
-                delayedTriggerHolderBaseline = delayedTriggerHolderBaseline,
                 events = events,
             )
         val current = fullResult.gsm
@@ -690,8 +683,7 @@ object StateMapper {
                 .filter { LinkedFaceCompanionProjector.isCompanionType(it.type) }
                 .mapTo(mutableSetOf()) { it.instanceId }
         val previousCompanionIds = LinkedFaceCompanionProjector.instanceIds(prev, bridge, viewingSeatId)
-        val previousTransientHiddenFamilyIds =
-            (transientLinkedFaceFamilyBaseline ?: bridge.pendingTransientLinkedFaceFamilyIds()).map { it.value }
+        val previousTransientHiddenFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds().map { it.value }
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
         val changedZoneIds =
