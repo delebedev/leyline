@@ -183,7 +183,6 @@ class MatchFlowHarness(
         puzzle: forge.gamemodes.puzzle.Puzzle,
         aiScript: List<ScriptedAction>?,
     ) {
-        GameBootstrap.initializeCardDatabase(quiet = true)
         val repo = cardRepositoryForPuzzle()
 
         bridge = newBridge(repo)
@@ -412,12 +411,17 @@ class MatchFlowHarness(
     fun passUntil(
         maxPasses: Int = 20,
         stopWhen: MatchFlowHarness.() -> Boolean,
+    ): Boolean = advanceUntil(maxPasses) { isGameOver() || stopWhen() }
+
+    private fun advanceUntil(
+        maxPasses: Int,
+        stopWhen: () -> Boolean,
     ): Boolean {
         repeat(maxPasses) {
-            if (isGameOver() || stopWhen()) return true
+            if (stopWhen()) return true
             advanceDefaultStop()
         }
-        return isGameOver() || stopWhen()
+        return stopWhen()
     }
 
     /**
@@ -436,10 +440,7 @@ class MatchFlowHarness(
         targetTurn: Int,
         maxPasses: Int = 30,
     ) {
-        repeat(maxPasses) {
-            if (turn() >= targetTurn || isGameOver()) return
-            advanceDefaultStop()
-        }
+        advanceUntil(maxPasses) { turn() >= targetTurn || isGameOver() }
     }
 
     /**
@@ -450,10 +451,7 @@ class MatchFlowHarness(
         startTurn: Int = turn(),
         maxPasses: Int = 15,
     ) {
-        repeat(maxPasses) {
-            if (isGameOver() || turn() > startTurn) return
-            advanceDefaultStop()
-        }
+        advanceUntil(maxPasses) { isGameOver() || turn() > startTurn }
     }
 
     /**
@@ -833,39 +831,29 @@ class MatchFlowHarness(
     fun activateAbility(
         cardName: String,
         abilityIndex: Int = 0,
-    ): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
-        val card =
-            player
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
-        return submitActivateAction(card, abilityIndex)
-    }
+    ): Boolean = activateAbilityInZone(cardName, ZoneType.Battlefield, abilityIndex)
 
     /** Activate an ability on a card in the player's hand (Channel, Cycling, etc.). */
     fun activateAbilityFromHand(
         cardName: String,
         abilityIndex: Int = 0,
-    ): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
-        val card =
-            player
-                .getZone(ZoneType.Hand)
-                .cards
-                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
-        return submitActivateAction(card, abilityIndex)
-    }
+    ): Boolean = activateAbilityInZone(cardName, ZoneType.Hand, abilityIndex)
 
     /** Activate an ability on a card in the player's graveyard (Unearth, Embalm, Eternalize). */
     fun activateAbilityFromGraveyard(
         cardName: String,
         abilityIndex: Int = 0,
+    ): Boolean = activateAbilityInZone(cardName, ZoneType.Graveyard, abilityIndex)
+
+    private fun activateAbilityInZone(
+        cardName: String,
+        zone: ZoneType,
+        abilityIndex: Int,
     ): Boolean {
         val player = bridge.getPlayer(seatId) ?: return false
         val card =
             player
-                .getZone(ZoneType.Graveyard)
+                .getZone(zone)
                 .cards
                 .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
         return submitActivateAction(card, abilityIndex)
