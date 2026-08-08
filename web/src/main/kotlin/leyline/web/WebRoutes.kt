@@ -110,7 +110,13 @@ fun Application.installWeb(services: WebServices) {
         route("/api") {
             installAuthRoutes(services)
             post("/gre/start") {
-                call.respond(services.matchLauncher.launchGreMatch(call.authenticatedPlayerId(services), call.receive()))
+                val player = call.authenticatedPlayer(services)
+                val request = call.receive<GreStartRequest>()
+                if (isGuestEmail(player.email) && !request.isCatalogPuzzle(services.puzzleCatalog())) {
+                    call.respond(HttpStatusCode.Forbidden)
+                    return@post
+                }
+                call.respond(services.matchLauncher.launchGreMatch(PlayerId(player.playerId), request))
             }
             installPublicRoutes(services)
             get("/collection") {
@@ -293,9 +299,6 @@ private suspend fun ApplicationCall.playCourse(services: WebServices) {
 
 private fun Route.installPublicRoutes(services: WebServices) {
     installPublicCardRoutes(services)
-    post("/public/gre/start") {
-        call.respond(services.matchLauncher.launchGreMatch(null, call.receive<GreStartRequest>().copy(spectatorMode = true)))
-    }
     installPublicSpectatorRoutes(services)
     get("/puzzles") {
         call.respond(services.puzzleCatalog())
@@ -396,13 +399,24 @@ private suspend fun ApplicationCall.respondLoginSuccess(result: VerifyLoginResul
 internal fun ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
+private fun GreStartRequest.isCatalogPuzzle(catalog: List<PuzzleSummaryView>): Boolean =
+    puzzle != null &&
+        catalog.any { it.filename == puzzle } &&
+        matchId == null &&
+        wireMatchId == null &&
+        seat1Deck == null &&
+        seat2Deck == null &&
+        spectatorMode != true
+
+private suspend fun ApplicationCall.authenticatedPlayer(services: WebServices): WebPlayer =
+    services.authService.validate(request.cookies[WEB_SESSION_COOKIE])
+        ?: run {
+            respond(HttpStatusCode.Unauthorized)
+            throw UnauthorizedPlayer()
+        }
+
 private suspend fun ApplicationCall.authenticatedPlayerId(services: WebServices): PlayerId {
-    val player =
-        services.authService.validate(request.cookies[WEB_SESSION_COOKIE])
-            ?: run {
-                respond(HttpStatusCode.Unauthorized)
-                throw UnauthorizedPlayer()
-            }
+    val player = authenticatedPlayer(services)
     return PlayerId(player.playerId)
 }
 
