@@ -3,22 +3,15 @@ package leyline.mechanics.omen
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.bridge.handoff.PendingActionState
-import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 /**
  * Omen face-cast action — `CastOmen` (action type 24).
@@ -54,31 +47,11 @@ class OmenActionTest :
             val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val actionBridge = b.seat(SeatId(1)).action
-            val selected =
-                CompletableFuture.supplyAsync {
-                    actionBridge.awaitAction(
-                        PendingActionState("Main1", 1, activePlayerId = 1, priorityPlayerId = 1),
-                    )
-                }
-            val pending =
-                (1..10_000)
-                    .asSequence()
-                    .map {
-                        Thread.yield()
-                        actionBridge.getPending()
-                    }.filterNotNull()
-                    .firstOrNull()
-                    .shouldNotBeNull()
             val projection = ActionMapper.buildProjectionFromSnapshot(1, snap, b)
             val actions = projection.actions
 
             val mainCast = actions.actionsList.firstOrNull { it.actionType == ActionType.Cast && it.instanceId == iid }
             val omen = omenOffers(actions.actionsList, iid).firstOrNull()
-            val omenOffer = projection.offers.single { it.action == omen }
-            actionBridge.bindActionCatalog(pending.actionId, 12, projection.offers) shouldBe true
-            actionBridge.submitActionToken(pending.actionId, omenOffer.token) shouldBe true
-            val command = selected.get(2, TimeUnit.SECONDS).shouldBeInstanceOf<PlayerAction.CastSpell>()
             assertSoftly {
                 mainCast shouldNotBe null
                 omen shouldNotBe null
@@ -88,9 +61,7 @@ class OmenActionTest :
                 omen.abilityGrpId shouldBe 0
                 omen.alternativeGrpId shouldBe 0
                 omen.manaCostCount shouldNotBe 0
-                omenOffer.spellGrpId shouldBe 95537
-                command.ability shouldNotBe null
-                command.ability?.cardStateName shouldBe forge.card.CardStateName.Secondary
+                projection.offers.single { it.action == omen }.spellGrpId shouldBe 95537
             }
         }
 

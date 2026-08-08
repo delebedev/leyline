@@ -55,10 +55,12 @@ class MatchConnection(
     /**
      * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
      * (auth → connect request), then freezes into [MatchHandlerState.Connected] once
-     * the session exists. A displaced transport becomes [MatchHandlerState.Detached]
-     * and cannot act on the replacement generation.
+     * the session exists. The split keeps placeholder identity out of the connected
+     * state and makes "the session exists" a type-level fact at every post-handshake
+     * dispatch rather than a `session?.onX(...)` safe-call that lies about an
+     * impossible null.
      */
-    @Volatile private var state: MatchHandlerState = MatchHandlerState.Handshaking()
+    private var state: MatchHandlerState = MatchHandlerState.Handshaking()
 
     private val handshaking: MatchHandlerState.Handshaking?
         get() = state as? MatchHandlerState.Handshaking
@@ -71,7 +73,6 @@ class MatchConnection(
             when (val s = state) {
                 is MatchHandlerState.Handshaking -> s.matchId
                 is MatchHandlerState.Connected -> s.matchId
-                MatchHandlerState.Detached -> error("Detached connection has no match identity")
             }
 
     private val clientId: String
@@ -79,7 +80,6 @@ class MatchConnection(
             when (val s = state) {
                 is MatchHandlerState.Handshaking -> s.clientId
                 is MatchHandlerState.Connected -> s.clientId
-                MatchHandlerState.Detached -> error("Detached connection has no client identity")
             }
 
     private val seatId: Int
@@ -87,7 +87,6 @@ class MatchConnection(
             when (val s = state) {
                 is MatchHandlerState.Handshaking -> s.seatId
                 is MatchHandlerState.Connected -> s.seatId
-                MatchHandlerState.Detached -> error("Detached connection has no seat identity")
             }
 
     private val isFamiliar: Boolean
@@ -95,7 +94,6 @@ class MatchConnection(
             when (val s = state) {
                 is MatchHandlerState.Handshaking -> s.isFamiliar
                 is MatchHandlerState.Connected -> s.isFamiliar
-                MatchHandlerState.Detached -> error("Detached connection has no familiar identity")
             }
 
     /**
@@ -116,6 +114,7 @@ class MatchConnection(
             matchConfig,
             registry,
             sessionProvider = { session as? GameOps },
+            outputProvider = { output },
             matchIdProvider = { matchId },
             seatIdProvider = { SeatId(seatId) },
         )
@@ -130,8 +129,9 @@ class MatchConnection(
             coordinator = coordinator,
             cardRepository = cardRepository,
             puzzleHandler = puzzleHandler,
+            output = output,
             createMatchSession = ::createAndRegisterMatchSession,
-            onFamiliarConnected = ::onFamiliarConnected,
+            createFamiliarSession = ::createAndRegisterFamiliarSession,
             createSpectatorSession = ::createAndRegisterSpectatorSession,
             sendRoomState = ::sendRoomState,
             sendInitialBundle = ::sendInitialBundle,
@@ -169,10 +169,6 @@ class MatchConnection(
     }
 
     fun receive(msg: ClientToMatchServiceMessage) {
-        if (state === MatchHandlerState.Detached) {
-            log.debug("Match Door: ignoring message on detached connection")
-            return
-        }
         Tap.inbound(msg.clientToMatchServiceMessageType)
 
         when (msg.clientToMatchServiceMessageType) {
@@ -272,7 +268,6 @@ class MatchConnection(
                     MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, session)
                 is MatchHandlerState.Connected ->
                     MatchHandlerState.Connected(s.matchId, s.clientId, s.seatId, s.isFamiliar, session)
-                MatchHandlerState.Detached -> error("Cannot bind a detached connection")
             }
     }
 
@@ -290,45 +285,28 @@ class MatchConnection(
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         val s = MatchSession(connection = connection, gameBridge = bridge, paceDelayMs = matchConfig.paceDelayMs)
-        s.withSessionAuthority {
-            registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
-                bindSession(s)
-            }
-        }
+        bindSession(s)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerConnection(matchId, SeatId(seatId), this)
         return s
     }
 
     /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
     private fun createAndRegisterFamiliarSession(counter: MessageCounter): FamiliarSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = false)
-        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter, owner = registry.ownerFor(matchId))
-        registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
-            bindSession(s)
-        }
+        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
+        bindSession(s)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerConnection(matchId, SeatId(seatId), this)
         return s
-    }
-
-    private fun onFamiliarConnected(counter: MessageCounter) {
-        registry.ownerFor(matchId).reduce {
-            createAndRegisterFamiliarSession(counter)
-            sendInitialBundleOwned()
-        }
     }
 
     private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = true)
-        val s =
-            SpectatorSession(
-                SeatId(seatId),
-                matchId,
-                sink,
-                bridge,
-                playerId = clientId.removeSuffix("_Familiar"),
-                owner = registry.ownerFor(matchId),
-            )
-        registry.publishSessionAndConnection(matchId, SeatId(seatId), s, this) {
-            bindSession(s)
-        }
+        val s = SpectatorSession(SeatId(seatId), matchId, sink, bridge, playerId = clientId.removeSuffix("_Familiar"))
+        bindSession(s)
+        registry.registerSession(matchId, SeatId(seatId), s)
+        registry.registerConnection(matchId, SeatId(seatId), this)
         return s
     }
 
@@ -341,6 +319,9 @@ class MatchConnection(
     private fun processGREMessage(greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
 
+        val activeSession = session
+        if (activeSession != null && ResponseEnvelopeGuard.rejectMismatch(greMsg, activeSession.counter, activeSession)) return
+
         // Pre-session messages drive the handshake/mulligan flow, which read session
         // state defensively through providers. Everything else is a post-handshake
         // game action that requires a live session — dispatched against Connected.
@@ -348,63 +329,17 @@ class MatchConnection(
             ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ConnectAttempt(matchId, seatId, isFamiliar))
 
             ClientMessageType.ChooseStartingPlayerResp_097b ->
-                withValidSessionResponse(greMsg) { mulliganHandler.onChooseStartingPlayer() }
+                mulliganHandler.onChooseStartingPlayer()
 
             ClientMessageType.MulliganResp_097b ->
-                withValidSessionResponse(greMsg) { mulliganHandler.onMulliganResp(greMsg) }
+                mulliganHandler.onMulliganResp(greMsg)
 
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
-            ClientMessageType.GroupResp_097b -> withValidSessionResponse(greMsg) { dispatchGroupResp(greMsg) }
+            ClientMessageType.GroupResp_097b -> dispatchGroupResp(greMsg)
 
             else -> dispatchToSession(greMsg)
         }
-    }
-
-    /**
-     * Enter the human session's current game-logic authority.
-     *
-     * Pre-game responses can arrive on the Familiar connection, whose read-only
-     * session has no authority of its own. Both connections therefore resolve the
-     * shared human [MatchSession] before driving mulligan or group-response logic.
-     */
-    private fun withSessionAuthority(action: (MatchSession) -> Unit) {
-        val authority = sessionAuthority()
-        if (authority == null) {
-            log.warn("Match Door GRE: game-logic response before session authority exists")
-            return
-        }
-        authority.withSessionAuthority { action(authority) }
-    }
-
-    /**
-     * Validate prompt correlation after entering the same authority that will
-     * consume the response. The prompt cannot advance between validation and
-     * dispatch.
-     */
-    private fun withValidSessionResponse(
-        greMsg: ClientToGREMessage,
-        action: () -> Unit,
-    ) {
-        withSessionAuthority { authority ->
-            val responseSession = session ?: authority
-            if (!ResponseEnvelopeGuard.rejectMismatch(
-                    greMsg,
-                    authority.connection.owner.lastPromptMsgId(),
-                    authority.counter,
-                    responseSession,
-                )
-            ) {
-                action()
-            }
-        }
-    }
-
-    private fun sessionAuthority(): MatchSession? {
-        val bridge = registry.getMatch(matchId)?.bridge
-        val humanSeat = bridge?.seating?.humanSeat ?: SeatId(1)
-        return (session as? MatchSession)
-            ?: (registry.getConnection(matchId, humanSeat)?.session as? MatchSession)
     }
 
     private fun dispatchGroupResp(greMsg: ClientToGREMessage) {
@@ -508,15 +443,6 @@ class MatchConnection(
     }
 
     private fun sendInitialBundle() {
-        val activeSession = session ?: return
-        if (activeSession is SpectatorSession) {
-            sendInitialBundleOwned()
-        } else {
-            registry.ownerFor(matchId).reduce(::sendInitialBundleOwned)
-        }
-    }
-
-    private fun sendInitialBundleOwned() {
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
@@ -539,32 +465,27 @@ class MatchConnection(
             )
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)
+        leyline.game.bundle.markPrompts(s.counter, msg)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
-        s.sendMatchProgress(msg)
-        if (s !is SpectatorSession) {
-            bridge.activateInteractivePlayback()
-        }
+        output.send(msg)
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {
+        createAndRegisterMatchSession(bridge)
+        mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
+        mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
+        log.info(
+            "Match Door: seat {} connected, hands seat1={} seat2={}",
+            seatId,
+            mulliganHandler.seat1Hand,
+            mulliganHandler.seat2Hand,
+        )
         sendRoomState()
-        registry.ownerFor(matchId).reduce {
-            createAndRegisterMatchSession(bridge)
-            mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
-            mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
-            log.info(
-                "Match Door: seat {} connected, hands seat1={} seat2={}",
-                seatId,
-                mulliganHandler.seat1Hand,
-                mulliganHandler.seat2Hand,
-            )
-            sendInitialBundleOwned()
-        }
+        sendInitialBundle()
     }
 
     fun disconnected() {
-        if (state === MatchHandlerState.Detached) return
         log.info("Match Door: client disconnected")
         if (isSpectatorMode() && isFamiliar) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
@@ -576,15 +497,10 @@ class MatchConnection(
             seatId = SeatId(seatId),
             recorder = session?.recorder,
             fallbackBridge = (session as? GameOps)?.gameBridge,
-            expectedConnection = this,
         )
     }
 
     fun failed(cause: Throwable) {
-        if (state === MatchHandlerState.Detached) {
-            output.close()
-            return
-        }
         log.error("Match Door error: {}", cause.message, cause)
         registry.teardownMatch(
             matchId = matchId,
@@ -592,13 +508,13 @@ class MatchConnection(
             seatId = SeatId(seatId),
             recorder = session?.recorder,
             fallbackBridge = (session as? GameOps)?.gameBridge,
-            expectedConnection = this,
         )
         output.close()
     }
 
     internal fun detachAfterTeardown() {
-        state = MatchHandlerState.Detached
+        // Connection is gone — drop session/ctx by reverting to a fresh handshake state.
+        state = MatchHandlerState.Handshaking()
     }
 
     /**
@@ -610,11 +526,9 @@ class MatchConnection(
      * post-handshake dispatch typechecks against a session that must exist instead of
      * a `session?.onX(...)` safe-call that lies about an impossible null. The
      * placeholder identity defaults live only in [Handshaking]; [Connected] carries
-     * the resolved values; [Detached] carries no match authority.
+     * the resolved values.
      */
     private sealed class MatchHandlerState {
-        data object Detached : MatchHandlerState()
-
         class Handshaking : MatchHandlerState() {
             /** Tentative until ClientToMatchDoorConnectRequest carries a non-empty matchId. */
             var matchId: String = "forge-match-1"

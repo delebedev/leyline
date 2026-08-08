@@ -49,15 +49,6 @@ class FrameIdResolver(
      */
     fun cardIid(forgeId: ForgeCardId): InstanceId = postReallocIids[forgeId] ?: bridge.getOrAllocInstanceId(forgeId)
 
-    /** Forge identity for a current or frame-planned client instance ID. */
-    fun forgeCardId(instanceId: InstanceId): ForgeCardId? =
-        postReallocIids.entries.firstOrNull { it.value == instanceId }?.key
-            ?: bridge.getForgeCardId(instanceId)
-
-    /** Add another deferred reallocation stage while retaining this frame's mappings. */
-    fun withPostReallocIids(additional: Map<ForgeCardId, InstanceId>): FrameIdResolver =
-        FrameIdResolver(bridge, postReallocIids + additional)
-
     /**
      * Iid for the synthesised stack-resident Ability gameObject keyed by
      * **Forge SpellAbility id** ([forgeAbilityId]).

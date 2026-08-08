@@ -2,9 +2,11 @@ package leyline.game.bundle
 
 import forge.card.mana.ManaCostShard
 import forge.game.Game
+import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
+import forge.game.spellability.SpellAbility
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
@@ -67,7 +69,6 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         chooserSeatId: Int = 1,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): SelectTargetsReq {
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
         val builder = SelectTargetsReq.newBuilder()
@@ -76,14 +77,14 @@ object RequestBuilder {
         selBuilder.setTargetingPlayer(chooserSeatId)
 
         // sourceId: map the spell's entity ID to its client instanceId
-        val source = targetSource(prompt, bridge, idResolver)
+        val source = targetSource(prompt, bridge)
         if (source.instanceId != 0) builder.setSourceId(source.instanceId)
         if (source.grpId != 0) builder.setAbilityGrpId(source.grpId)
         applyTargetSelectionMetadata(selBuilder, prompt, bridge, source, chooserSeatId)
         applyTargetPromptShape(prompt, bridge, builder, selBuilder, source.instanceId)
 
         for (ref in prompt.request.candidateRefs) {
-            val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId, idResolver) ?: continue
+            val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
             selBuilder.addTargets(
                 wotc.mtgo.gre.external.messaging.Messages.Target
                     .newBuilder()
@@ -105,16 +106,21 @@ object RequestBuilder {
      * - Already-selected targets: `legalAction=Unselect`, no highlight.
      * - Remaining legal candidates: `legalAction=Select_a1ad`, `highlight=Tepid`
      *   (Hot for opponent player targets, Cold for own-player).
-     * - Illegal-after-selection candidates omitted entirely. [legalCandidateIndices]
-     *   comes from engine-owned target revalidation against the blocked prompt.
+     * - Illegal-after-selection candidates omitted entirely. Legality uses
+     *   Forge's [SpellAbility.canTarget] with hypothetical selections applied
+     *   via clone-and-swap on `sa.targets` (safe because the engine thread is
+     *   blocked inside `requestChoice` between phase-1 and phase-2).
      * - `selectedTargets` set to selection count; minTargets/maxTargets preserved.
+     *
+     * When [InteractivePromptBridge.PendingPrompt.targetingSa] is null, falls back
+     * to emitting all non-selected candidates as Select — unblocks the client
+     * without a legality filter.
      */
     @Suppress("CyclomaticComplexMethod")
     fun buildSelectTargetsRePrompt(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         selectedInstanceIds: List<Int>,
-        legalCandidateIndices: Set<Int>? = null,
         chooserSeatId: Int = 1,
     ): SelectTargetsReq {
         val builder = SelectTargetsReq.newBuilder()
@@ -133,6 +139,14 @@ object RequestBuilder {
 
         val selectedSet = selectedInstanceIds.toSet()
         val opponentSeatId = if (chooserSeatId == 1) 2 else 1
+        val sa = prompt.targetingSa
+        val game = bridge.getGame()
+        val hypotheticalSelections: List<GameEntity> =
+            if (sa != null && game != null) {
+                selectedInstanceIds.mapNotNull { resolveEntityByInstanceId(it, bridge, game) }
+            } else {
+                emptyList()
+            }
 
         // When all target slots are filled (e.g. min=max=1 after one pick), the
         // re-prompt omits Select entries — only the Unselect echo remains.
@@ -154,7 +168,14 @@ object RequestBuilder {
 
             // Remaining candidate — only emit if more slots are open and still legal.
             if (!slotsRemaining) continue
-            if (legalCandidateIndices != null && ref.index !in legalCandidateIndices) continue
+            val stillLegal =
+                if (sa != null && game != null) {
+                    val candidate = resolveEntityByRef(ref, bridge, game)
+                    candidate == null || canTargetWithHypothetical(sa, candidate, hypotheticalSelections)
+                } else {
+                    true
+                }
+            if (!stillLegal) continue
 
             selBuilder.addTargets(
                 wotc.mtgo.gre.external.messaging.Messages.Target
@@ -174,12 +195,11 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         kind: OrderRouteKind,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): Pair<OrderReq, Prompt> {
         val ids =
             prompt.request.candidateRefs
                 .filter { it.isCard() }
-                .map { idResolver(ForgeCardId(it.entityId)).value }
+                .map { bridge.getOrAllocInstanceId(ForgeCardId(it.entityId)).value }
         val orderReq =
             OrderReq
                 .newBuilder()
@@ -189,7 +209,7 @@ object RequestBuilder {
                         setOrderingContext(OrderingContext.OrderingForBottom)
                     }
                 }.build()
-        val sourceInstanceId = orderSourceInstanceId(prompt, bridge, idResolver)
+        val sourceInstanceId = orderSourceInstanceId(prompt, bridge)
         val promptProto =
             promptWithCardId(orderPromptId(kind), sourceInstanceId)
         return orderReq to promptProto
@@ -263,7 +283,6 @@ object RequestBuilder {
     private fun orderSourceInstanceId(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-        idResolver: (ForgeCardId) -> InstanceId,
     ): Int =
         PromptSourceResolver
             .resolve(
@@ -275,7 +294,6 @@ object RequestBuilder {
                         ?.stack
                         ?.firstOrNull()
                         ?.id,
-                idResolver = idResolver,
             ).sourceCardInstanceId
 
     private fun applyTargetPromptShape(
@@ -302,9 +320,8 @@ object RequestBuilder {
     private fun targetSource(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): TargetSource {
-        val instanceId = sourceInstanceId(prompt, bridge, idResolver)
+        val instanceId = sourceInstanceId(prompt, bridge)
         val sourceCard = prompt.request.sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
         val grpId = sourceCard?.let { bridge.resolveGrpId(it, instanceId) } ?: 0
         return TargetSource(instanceId, grpId)
@@ -336,15 +353,64 @@ object RequestBuilder {
                 )
             null -> Unit
         }
-        if (prompt.request.targetPromptId != PromptIds.MUTATE_TARGET) return null
-        val cardName = prompt.request.sourceCardName ?: return null
+        val sa = prompt.targetingSa ?: return null
+        val cardName = sa.hostCard?.name ?: return null
         val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return null
-        return TargetPromptShape(
-            outerAbilityGrpId = KeywordAbilityIds.MUTATE,
-            targetingAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0,
-            promptId = PromptIds.MUTATE_TARGET,
-            targetSourceZoneId = ZoneIds.BATTLEFIELD,
-        )
+        return when {
+            sa.isMutate ->
+                TargetPromptShape(
+                    outerAbilityGrpId = KeywordAbilityIds.MUTATE,
+                    targetingAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0,
+                    promptId = PromptIds.MUTATE_TARGET,
+                    targetSourceZoneId = ZoneIds.BATTLEFIELD,
+                )
+            else -> null
+        }
+    }
+
+    /**
+     * Check whether [candidate] is still a legal target for [sa] given that
+     * [hypothetical] are already selected. Applied via clone-and-swap on
+     * `sa.targets` — never mutates the caller-visible TargetChoices.
+     */
+    private fun canTargetWithHypothetical(
+        sa: SpellAbility,
+        candidate: GameEntity,
+        hypothetical: List<GameEntity>,
+    ): Boolean {
+        val original = sa.targets
+        val clone = original.clone()
+        for (e in hypothetical) clone.add(e)
+        return try {
+            sa.setTargets(clone)
+            sa.canTarget(candidate)
+        } finally {
+            sa.setTargets(original)
+        }
+    }
+
+    /** Map a client instanceId (seatId for player targets, card iid otherwise) back to a Forge [GameEntity]. */
+    private fun resolveEntityByInstanceId(
+        instanceId: Int,
+        bridge: GameBridge,
+        game: Game,
+    ): GameEntity? {
+        bridge.getPlayer(SeatId(instanceId))?.let { return it }
+        val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
+        return game.findById(cardId.value)
+    }
+
+    /** Resolve a [candidateRef] (player- or card-kind) to a Forge [GameEntity]. */
+    private fun resolveEntityByRef(
+        ref: PromptCandidateRefDto,
+        bridge: GameBridge,
+        game: Game,
+    ): GameEntity? {
+        if (ref.isPlayer()) {
+            val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
+            return bridge.getPlayer(SeatId(seatId))
+        }
+        return game.findById(ref.entityId)
     }
 
     /**
@@ -356,14 +422,13 @@ object RequestBuilder {
         ref: PromptCandidateRefDto,
         bridge: GameBridge,
         opponentSeatId: Int,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): Pair<Int, HighlightType>? {
         if (ref.isPlayer()) {
             val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
             val hl = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
             return seatId to hl
         }
-        val iid = idResolver(ForgeCardId(ref.entityId)).value
+        val iid = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
         return iid to HighlightType.Tepid
     }
 
@@ -440,7 +505,6 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
         route: SelectNPromptRoute,
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): SelectNReq {
         val staticList = prompt.request.staticList
         val shape = route.shape
@@ -469,8 +533,8 @@ object RequestBuilder {
             builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
         }
 
-        builder.addSelectNIds(prompt, route, idResolver)
-        route.configureInnerPrompt(builder, prompt, bridge, idResolver)
+        builder.addSelectNIds(prompt, bridge, route)
+        route.configureInnerPrompt(builder, prompt, bridge)
         return builder.build()
     }
 
@@ -496,8 +560,8 @@ object RequestBuilder {
 
     private fun SelectNReq.Builder.addSelectNIds(
         prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
         route: SelectNPromptRoute,
-        idResolver: (ForgeCardId) -> InstanceId,
     ) {
         if (prompt.request.staticList != null) {
             if (route.staticChoice?.kind == StaticChoiceKind.Subtype) {
@@ -506,11 +570,11 @@ object RequestBuilder {
             return
         }
         prompt.request.candidateRefs.forEach { ref ->
-            addIds(idResolver(ForgeCardId(ref.entityId)).value)
+            addIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }
         // unfilteredIds — all revealed cards (superset of ids) for reveal-choose prompts.
         prompt.request.unfilteredRefs.forEach { ref ->
-            addUnfilteredIds(idResolver(ForgeCardId(ref.entityId)).value)
+            addUnfilteredIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }
     }
 
@@ -890,7 +954,6 @@ object RequestBuilder {
         committedAttackerIds: Set<Int> = emptySet(),
         committedAttackAlternatives: Map<Int, Int> = emptyMap(),
         committedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): DeclareAttackersReq {
         val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
@@ -899,7 +962,7 @@ object RequestBuilder {
             if (!card.isCreature) continue
             if (!CombatUtil.canAttack(card)) continue
 
-            val instanceId = idResolver(ForgeCardId(card.id)).value
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val hasEnlist = card.hasKeyword("Enlist")
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
@@ -944,7 +1007,6 @@ object RequestBuilder {
         seatId: SeatId,
         bridge: GameBridge,
         blockerAssignments: Map<Int, Int> = emptyMap(),
-        idResolver: (ForgeCardId) -> InstanceId = bridge::getOrAllocInstanceId,
     ): DeclareBlockersReq {
         val player = bridge.getPlayer(seatId) ?: return DeclareBlockersReq.getDefaultInstance()
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
@@ -959,7 +1021,7 @@ object RequestBuilder {
             val legalAttackers = combat.attackers.filter { CombatUtil.canBlock(it, card) }
             if (legalAttackers.isEmpty()) continue
 
-            val instanceId = idResolver(ForgeCardId(card.id)).value
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val blocker =
                 Blocker
                     .newBuilder()
@@ -970,7 +1032,7 @@ object RequestBuilder {
             if (assignedAttacker != null) {
                 blocker.addSelectedAttackerInstanceIds(assignedAttacker)
             } else {
-                val legalAttackerIds = legalAttackers.map { idResolver(ForgeCardId(it.id)).value }
+                val legalAttackerIds = legalAttackers.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
                 blocker.addAllAttackerInstanceIds(legalAttackerIds)
             }
             builder.addBlockers(blocker)

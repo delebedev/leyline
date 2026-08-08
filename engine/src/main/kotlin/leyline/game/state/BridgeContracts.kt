@@ -5,6 +5,7 @@ import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.GamePlayback
 import leyline.game.event.FrameEventLog
 
 /**
@@ -79,6 +80,9 @@ interface EventDrain {
  * unit-tested with a stub instead of a full GameBridge + Forge engine.
  */
 interface AutoPassView : PlayerLookup {
+    /** Per-seat action playback queue, when this seat has one. */
+    fun playbackFor(seatId: SeatId): GamePlayback?
+
     /** Seat-scoped bridge facade (action + prompt + mulligan bridges). */
     fun seat(seatId: SeatId): GameBridge.SeatBridges
 

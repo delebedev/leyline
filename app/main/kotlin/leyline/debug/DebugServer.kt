@@ -146,84 +146,75 @@ class DebugServer(
             respondJson(ex, """{"bestPlay":null,"reason":"no active session"}""")
             return
         }
+        val bridge = session.gameBridge
+        val game = bridge.getGame()
+        if (game == null) {
+            respondJson(ex, """{"bestPlay":null,"reason":"no game"}""")
+            return
+        }
+        val player = bridge.getPlayer(session.seatId)
+        if (player == null) {
+            respondJson(ex, """{"bestPlay":null,"reason":"no player for seat ${session.seatId.value}"}""")
+            return
+        }
 
         try {
-            val response =
-                session.withSessionAuthority {
-                    val bridge = session.gameBridge
-                    val game =
-                        bridge.getGame()
-                            ?: return@withSessionAuthority BestPlayResponse(
-                                bestPlay = null,
-                                phase = null,
-                                reason = "no game",
-                            )
-                    val player =
-                        bridge.getPlayer(session.seatId)
-                            ?: return@withSessionAuthority BestPlayResponse(
-                                bestPlay = null,
-                                phase = null,
-                                reason = "no player for seat ${session.seatId.value}",
-                            )
-                    val phaseHandler = game.phaseHandler
-                    val phase = phaseHandler.phase?.toString()
-                    val turn = phaseHandler.turn
-                    if (phase == null) {
-                        return@withSessionAuthority BestPlayResponse(
-                            bestPlay = null,
-                            phase = null,
-                            turn = turn,
-                            reason = "phase unavailable",
-                        )
-                    }
+            val phaseHandler = game.phaseHandler
+            val phase = phaseHandler.phase?.toString()
+            val turn = phaseHandler.turn
+            if (phase == null) {
+                respondJson(ex, """{"bestPlay":null,"phase":null,"turn":$turn,"reason":"phase unavailable"}""")
+                return
+            }
 
-                    val picker = SpellAbilityPicker(game, player)
-                    val bestSa = picker.chooseSpellAbilityToPlay(null)
-                    val score = picker.getScoreForChosenAbility()
-                    if (bestSa == null) {
-                        return@withSessionAuthority BestPlayResponse(
-                            bestPlay = null,
-                            phase = phase,
-                            turn = turn,
-                            reason = "no beneficial play",
-                        )
-                    }
+            val picker = SpellAbilityPicker(game, player)
+            val bestSa = picker.chooseSpellAbilityToPlay(null)
+            val score = picker.getScoreForChosenAbility()
 
-                    val card = bestSa.hostCard
-                    val forgeCardId = card?.id ?: -1
-                    val arenaInstanceId =
-                        try {
-                            bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
-                        } catch (_: Exception) {
-                            -1
-                        }
-                    val actionType =
-                        when {
-                            card?.isLand == true -> "PlayLand"
-                            bestSa.isSpell -> "CastSpell"
-                            bestSa.isActivatedAbility -> "ActivateAbility"
-                            else -> "Unknown"
-                        }
+            if (bestSa == null) {
+                respondJson(ex, """{"bestPlay":null,"phase":"$phase","turn":$turn,"reason":"no beneficial play"}""")
+                return
+            }
 
+            val card = bestSa.hostCard
+            val cardName = card?.name ?: "unknown"
+            val forgeCardId = card?.id ?: -1
+            val arenaInstanceId =
+                try {
+                    bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+                } catch (_: Exception) {
+                    -1
+                }
+
+            val actionType =
+                when {
+                    card?.isLand == true -> "PlayLand"
+                    bestSa.isSpell -> "CastSpell"
+                    bestSa.isActivatedAbility -> "ActivateAbility"
+                    else -> "Unknown"
+                }
+
+            val saDesc = SpellAbilityPicker.abilityToString(bestSa, true)
+            val targets = buildBestPlayTargets(bestSa, bridge)
+
+            respondJson(
+                ex,
+                json.encodeToString(
                     BestPlayResponse(
                         bestPlay =
                             BestPlayEntry(
-                                cardName = card?.name ?: "unknown",
+                                cardName = cardName,
                                 forgeCardId = forgeCardId,
                                 arenaInstanceId = arenaInstanceId,
                                 actionType = actionType,
                                 score = score.value,
-                                description = SpellAbilityPicker.abilityToString(bestSa, true),
-                                targets = buildBestPlayTargets(bestSa, bridge),
+                                description = saDesc,
+                                targets = targets,
                             ),
                         phase = phase,
                         turn = turn,
-                    )
-                }
-            respondJson(
-                ex,
-                json.encodeToString(
-                    response,
+                        reason = null,
+                    ),
                 ),
             )
         } catch (t: Throwable) {
@@ -319,60 +310,57 @@ class DebugServer(
             return
         }
         val bridge = session.gameBridge
-
-        val info =
-            session.withSessionAuthority {
-                val game = bridge.getGame() ?: return@withSessionAuthority null
-                val counter = session.counter
-                val gsId = counter.nextGsId()
-                val msgId = counter.nextMsgId()
-
-                val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
-                val fullGsm =
-                    StateMapper
-                        .buildFromSnapshot(
-                            snap,
-                            gsId,
-                            session.matchId,
-                            bridge,
-                            updateType = GameStateUpdate.SendAndRecord,
-                            viewingSeatId = session.seatId.value,
-                        ).gsm
-
-                val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
-                val fullGsmWithActions =
-                    GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = session.seatId.value)
-
-                val greGsm =
-                    GREToClientMessage
-                        .newBuilder()
-                        .setType(GREMessageType.GameStateMessage_695e)
-                        .setMsgId(msgId)
-                        .setGameStateId(gsId)
-                        .addSystemSeatIds(session.seatId.value)
-                        .setGameStateMessage(fullGsmWithActions)
-                        .build()
-
-                val greActions =
-                    GREToClientMessage
-                        .newBuilder()
-                        .setType(GREMessageType.ActionsAvailableReq_695e)
-                        .setMsgId(counter.nextMsgId())
-                        .setGameStateId(gsId)
-                        .addSystemSeatIds(session.seatId.value)
-                        .setActionsAvailableReq(actions)
-                        .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                        .build()
-
-                session.sendBundledGRE(listOf(greGsm, greActions))
-                bridge.bundleCursor.lastSent = snap
-
-                "Pushed full state gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
-            }
-        if (info == null) {
+        val game = bridge.getGame()
+        if (game == null) {
             respond(ex, 404, "text/plain", "No game")
             return
         }
+
+        val counter = session.counter
+        val gsId = counter.nextGsId()
+        val msgId = counter.nextMsgId()
+
+        val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
+        val fullGsm =
+            StateMapper
+                .buildFromSnapshot(
+                    snap,
+                    gsId,
+                    session.matchId,
+                    bridge,
+                    updateType = GameStateUpdate.SendAndRecord,
+                    viewingSeatId = session.seatId.value,
+                ).gsm
+
+        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
+        val fullGsmWithActions =
+            GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = session.seatId.value)
+
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .setMsgId(msgId)
+                .setGameStateId(gsId)
+                .addSystemSeatIds(session.seatId.value)
+                .setGameStateMessage(fullGsmWithActions)
+                .build()
+
+        val greActions =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .setMsgId(counter.nextMsgId())
+                .setGameStateId(gsId)
+                .addSystemSeatIds(session.seatId.value)
+                .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                .build()
+
+        session.sendBundledGRE(listOf(greGsm, greActions))
+        bridge.bundleCursor.lastSent = snap
+
+        val info = "Pushed full state gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
         log.info(info)
         respond(ex, 200, "text/plain", info)
     }
@@ -425,10 +413,7 @@ class DebugServer(
         val bridge = session?.gameBridge
 
         if (session != null && bridge != null) {
-            val label =
-                session.withSessionAuthority {
-                    hotSwapPuzzle(session, bridge, body, fileParam, puzzlePath, ex)
-                } ?: return
+            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzlePath, ex) ?: return
             respond(ex, 200, "text/plain", label)
         } else {
             if (fileParam != null) {
@@ -460,7 +445,7 @@ class DebugServer(
                 }
             }
 
-        val (newSession, deletedIds) = session.replaceForPuzzle { it.resetForPuzzle(puzzle) }
+        val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
         bridge.awaitPriority()
         val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }

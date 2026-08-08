@@ -71,8 +71,7 @@ class PureDiffReplayTest :
         test("one-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
             withBase {
                 // LIVE: drive the scenario, capture per-bundle records.
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val liveRun = mutableListOf<BundleStep>()
 
                 liveBridge.diffListener = { prev, cur, events, gsId, diff ->
@@ -83,7 +82,6 @@ class PureDiffReplayTest :
                 playLand(liveBridge)
                 castCreature(liveBridge) // null-safe: skipped if no creature in hand
                 advanceToEndOfTurn(liveBridge)
-                liveBoard.drainPlayback()
 
                 liveRun.shouldNotBeEmpty()
 
@@ -122,8 +120,7 @@ class PureDiffReplayTest :
                 // Same shape as the one-turn test but drives three turns to exercise
                 // multi-turn invariants: cross-turn annotation lifecycle, cleanup
                 // transitions, monotonic counters across bundle boundaries.
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val liveRun = mutableListOf<BundleStep>()
                 liveBridge.diffListener = { prev, cur, events, gsId, diff ->
                     liveRun.add(BundleStep(prev, cur, events.toList(), gsId, diff))
@@ -134,7 +131,6 @@ class PureDiffReplayTest :
                     castCreature(liveBridge)
                     advanceToEndOfTurn(liveBridge)
                 }
-                liveBoard.drainPlayback()
 
                 liveRun.shouldNotBeEmpty()
                 liveBridge.diffListener = null
@@ -169,8 +165,7 @@ class PureDiffReplayTest :
         // only place the forward/reverse maps advance.
         test("buildDiff defers bridge.ids realloc commits to applyMutations") {
             withBase {
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val captured = mutableListOf<BundleStep>()
                 liveBridge.diffListener = { prev, cur, events, gsId, diff ->
                     captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
@@ -178,7 +173,6 @@ class PureDiffReplayTest :
                 playLand(liveBridge)
                 castCreature(liveBridge)
                 advanceToEndOfTurn(liveBridge)
-                liveBoard.drainPlayback()
                 liveBridge.diffListener = null
 
                 captured.shouldNotBeEmpty()
@@ -228,8 +222,7 @@ class PureDiffReplayTest :
 
         test("buildDiff defers delayed-trigger holder removals to applyMutations") {
             withBase {
-                val liveBoard = startGameAtMain1(seed = SCENARIO_SEED)
-                val liveBridge = liveBoard.bridge
+                val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val captured = mutableListOf<BundleStep>()
                 liveBridge.diffListener = { prev, cur, events, gsId, diff ->
                     captured.add(BundleStep(prev, cur, events.toList(), gsId, diff))
@@ -237,7 +230,6 @@ class PureDiffReplayTest :
                 playLand(liveBridge)
                 castCreature(liveBridge)
                 advanceToEndOfTurn(liveBridge)
-                liveBoard.drainPlayback()
                 liveBridge.diffListener = null
 
                 captured.shouldNotBeEmpty()

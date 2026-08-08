@@ -26,10 +26,10 @@ internal class PromptResponseSubmitter(
         val selectedIds = greMsg.selectNResp.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(selectedIds, pendingPrompt)
 
+        recordChoiceResults(pendingPrompt, selectedIds)
+
         log.info("PromptResponseSubmitter: SelectNResp indices={}", selectedIndices)
-        submit(pendingPrompt, selectedIndices, autoPass) {
-            recordChoiceResults(pendingPrompt, selectedIds)
-        }
+        submit(pendingPrompt, selectedIndices, autoPass)
     }
 
     fun onOrderResp(
@@ -53,13 +53,12 @@ internal class PromptResponseSubmitter(
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
         val route = pendingPrompt.request.route as? ResolvedPromptRoute.PayCosts
+        if (route?.descriptor?.manaSourcePayment != null) {
+            clearManaSourcePayment(pendingPrompt.promptId)
+        }
 
         log.info("PromptResponseSubmitter: EffectCostResp indices={}", selectedIndices)
-        submit(pendingPrompt, selectedIndices, autoPass) {
-            if (route?.descriptor?.manaSourcePayment != null) {
-                clearManaSourcePayment(pendingPrompt.promptId)
-            }
-        }
+        submit(pendingPrompt, selectedIndices, autoPass)
     }
 
     private fun pendingPromptOrWarn(
@@ -87,15 +86,12 @@ internal class PromptResponseSubmitter(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
         selectedIndices: List<Int>,
         autoPass: () -> Unit,
-        onAccepted: () -> Unit = {},
     ) {
-        val submitted =
-            ctx.bridge
-                .seat(counters.seatId)
-                .prompt
-                .submitResponse(pendingPrompt.promptId, selectedIndices, onAccepted)
-        if (!submitted) return
-        ctx.engine.awaitPriority()
+        ctx.bridge
+            .seat(counters.seatId)
+            .prompt
+            .submitResponse(pendingPrompt.promptId, selectedIndices)
+        ctx.bridge.awaitPriority()
         autoPass()
     }
 

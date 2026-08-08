@@ -5,7 +5,6 @@ import forge.game.Game
 import forge.game.GameType
 import forge.game.ability.ApiType
 import forge.game.card.Card
-import forge.game.player.GameLossReason
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -14,40 +13,24 @@ import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.DevCheck
-import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.forge.RevealTrackingAiController
-import leyline.bridge.handoff.DamageAssignmentPrompt
-import leyline.bridge.handoff.DamageAssignmentValue
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
-import leyline.bridge.handoff.NumericInputPrompt
-import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.PhaseStopProfile
-import leyline.bridge.types.PlayerLossCause
-import leyline.bridge.types.PriorityActionFacts
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
-import leyline.bridge.types.opponent
 import leyline.config.MatchConfig
-import leyline.game.EngineCut
-import leyline.game.EngineCutCheckpoint
-import leyline.game.EngineCutQueue
 import leyline.game.GamePlayback
-import leyline.game.InteractionReadiness
-import leyline.game.PlaybackYield
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.BundleCursor
 import leyline.game.bundle.MessageCounter
@@ -61,9 +44,6 @@ import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
-import leyline.game.mapping.PromptIds
-import leyline.game.mapping.SearchShape
-import leyline.game.mapping.StopTypeMapping
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GrpIdResolver
@@ -72,17 +52,11 @@ import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.SettingScope
-import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -123,84 +97,13 @@ class GameBridge(
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
-    private sealed interface ActiveGame {
-        val game: Game
-        val eventCollector: GameEventCollector
-
-        data class Interactive(
-            override val game: Game,
-            override val eventCollector: GameEventCollector,
-            val humanController: BridgedPlayerController,
-            val phaseStopProfile: PhaseStopProfile,
-            val loopController: GameLoopController,
-        ) : ActiveGame
-
-        data class Spectator(
-            override val game: Game,
-            override val eventCollector: GameEventCollector,
-            val loopController: GameLoopController,
-        ) : ActiveGame
-
-        data class WrappedInteractive(
-            override val game: Game,
-            override val eventCollector: GameEventCollector,
-            val humanController: BridgedPlayerController,
-            val phaseStopProfile: PhaseStopProfile,
-        ) : ActiveGame
-
-        data class WrappedPassive(
-            override val game: Game,
-            override val eventCollector: GameEventCollector,
-        ) : ActiveGame
-
-        data class PuzzleAi(
-            override val game: Game,
-            override val eventCollector: GameEventCollector,
-            val phaseStopProfile: PhaseStopProfile,
-            val loopController: GameLoopController,
-        ) : ActiveGame
-    }
-
-    private data class HumanBindings(
-        val controller: BridgedPlayerController,
-        val phaseStopProfile: PhaseStopProfile,
-    )
-
-    private val bundleFrameLock = Any()
-    private val frameSourceGeneration = AtomicLong()
-    private val engineCuts = EngineCutQueue()
-    private val engineCutListener = AtomicReference<((EngineCutCheckpoint) -> Unit)?>(null)
-
-    @Volatile
-    private var activeGame: ActiveGame? = null
-        set(value) {
-            synchronized(bundleFrameLock) {
-                if (field !== value) {
-                    frameSourceGeneration.incrementAndGet()
-                    engineCuts.beginGeneration()
-                }
-                field = value
-            }
-        }
-
-    @get:JvmName("getActiveForgeGame")
-    private val game: Game? get() = activeGame?.game
+    private var game: Game? = null
 
     /** True when the active game uses Commander/Brawl/Oathbreaker rules. */
     val isBrawlOrCommander: Boolean
         get() = game?.let { isCommanderGame(it) } ?: false
     private val players: MutableMap<Int, Player> = mutableMapOf()
-    private val loopController: GameLoopController?
-        get() =
-            when (val active = activeGame) {
-                is ActiveGame.Interactive -> active.loopController
-                is ActiveGame.Spectator -> active.loopController
-                is ActiveGame.PuzzleAi -> active.loopController
-                is ActiveGame.WrappedInteractive,
-                is ActiveGame.WrappedPassive,
-                null,
-                -> null
-            }
+    private var loopController: GameLoopController? = null
 
     val abilityLineage = AbilityLineageRegistry()
 
@@ -345,19 +248,6 @@ class GameBridge(
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
 
-    internal data class BundleFrameReservation(
-        val sourceGeneration: Long,
-        val viewingSeatId: Int,
-        val events: FrameEventLog,
-        internal val eventReservation: GameEventCollector.FrameReservation?,
-        internal val revealReservations: List<RevealFrameReservation>,
-    )
-
-    internal data class RevealFrameReservation(
-        val seatId: Int,
-        val reservation: InteractivePromptBridge.RevealReservation,
-    )
-
     @Volatile
     var autoAdvanceRequester: ((String) -> Unit)? = null
     private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
@@ -385,7 +275,9 @@ class GameBridge(
         val action: GameActionBridge,
         val prompt: InteractivePromptBridge,
         val mulligan: MulliganBridge,
-    )
+    ) {
+        fun drainReveals(): List<InteractivePromptBridge.RevealRecord> = prompt.drainReveals()
+    }
 
     /** Parameterized accessor — throws if seat not populated. */
     fun actionBridge(seatId: SeatId): GameActionBridge = actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
@@ -399,20 +291,6 @@ class GameBridge(
 
     /** All protocol seat IDs for players in the current game. */
     fun gameSeatIds(): Set<Int> = players.keys.takeIf { it.isNotEmpty() } ?: promptBridges.keys
-
-    private fun revealBridges(viewingSeatId: Int): List<InteractivePromptBridge> =
-        if (viewingSeatId == 0) {
-            promptBridges.toSortedMap().values.toList()
-        } else {
-            listOf(promptBridge(SeatId(viewingSeatId)))
-        }
-
-    private fun revealSeats(viewingSeatId: Int): List<Pair<Int, InteractivePromptBridge>> =
-        if (viewingSeatId == 0) {
-            promptBridges.toSortedMap().toList()
-        } else {
-            listOf(viewingSeatId to promptBridge(SeatId(viewingSeatId)))
-        }
 
     /** Parameterized accessor — throws if seat not populated. */
     fun mulliganBridge(seatId: SeatId): MulliganBridge =
@@ -428,37 +306,13 @@ class GameBridge(
 
     /** Drain reveal queue(s) for a specific viewer; seat 0 drains all seats. */
     fun drainReveals(viewingSeatId: Int): List<InteractivePromptBridge.RevealRecord> =
-        synchronized(bundleFrameLock) {
-            revealBridges(viewingSeatId).flatMap { it.drainReveals() }
+        if (viewingSeatId == 0) {
+            promptBridges.toSortedMap().values.flatMap { it.drainReveals() }
+        } else {
+            seat(SeatId(viewingSeatId)).drainReveals()
         }
 
     fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
-
-    internal fun publishPlaybackYield(value: PlaybackYield): EngineCutCheckpoint =
-        engineCuts.publishObservation(value).also(::notifyEngineCutListener)
-
-    internal fun publishEngineReady(kind: InteractionReadiness): EngineCutCheckpoint =
-        engineCuts.publishReady(kind).also(::notifyEngineCutListener)
-
-    internal fun peekEngineCutThrough(checkpoint: EngineCutCheckpoint): EngineCut? = engineCuts.peekThrough(checkpoint)
-
-    internal fun acknowledgeEngineCut(cut: EngineCut) = engineCuts.acknowledge(cut)
-
-    internal fun latestEngineCutCheckpoint(): EngineCutCheckpoint = engineCuts.latestCheckpoint()
-
-    internal fun hasPendingEngineCuts(): Boolean = engineCuts.hasPending()
-
-    internal fun observeEngineCuts(listener: (EngineCutCheckpoint) -> Unit) {
-        engineCutListener.set(listener)
-    }
-
-    internal fun stopObservingEngineCuts(listener: (EngineCutCheckpoint) -> Unit) {
-        engineCutListener.compareAndSet(listener, null)
-    }
-
-    private fun notifyEngineCutListener(checkpoint: EngineCutCheckpoint) {
-        engineCutListener.get()?.invoke(checkpoint)
-    }
 
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
@@ -481,21 +335,34 @@ class GameBridge(
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
     }
 
-    /** Human player's controller for interactive modes. */
-    val humanController: BridgedPlayerController?
-        get() =
-            when (val active = activeGame) {
-                is ActiveGame.Interactive -> active.humanController
-                is ActiveGame.WrappedInteractive -> active.humanController
-                is ActiveGame.PuzzleAi,
-                is ActiveGame.Spectator,
-                is ActiveGame.WrappedPassive,
-                null,
-                -> null
-            }
+    /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
+    var humanController: BridgedPlayerController? = null
+        private set
 
-    /** Engine event subscriber retained for deterministic unsubscribe during teardown. */
-    private var playbackSubscriber: GamePlayback? = null
+    private class PlaybackRegistry {
+        private val bySeat = mutableMapOf<SeatId, GamePlayback>()
+
+        fun get(seatId: SeatId): GamePlayback? = bySeat[seatId]
+
+        fun register(
+            seatId: SeatId,
+            playback: GamePlayback,
+        ) {
+            bySeat[seatId] = playback
+        }
+
+        fun values(): Collection<GamePlayback> = bySeat.values
+
+        fun clear() = bySeat.clear()
+    }
+
+    /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
+    private val playbackRegistry = PlaybackRegistry()
+
+    /** Convenience: seat-1 playback for single-player (1vAI) matches. */
+    val playback: GamePlayback? get() = playbackFor(SeatId(1))
+
+    override fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
 
     private fun registerPlayback(
         game: Game,
@@ -507,47 +374,21 @@ class GameBridge(
                 bridge = this,
                 matchId = "forge-match-1",
                 seatId = seatId.value,
+                counter = messageCounter,
                 delayMultiplier = matchConfig.aiDelayMultiplier,
                 captureLocalActions = captureLocalActions,
             )
-        check(playbackSubscriber == null) { "Playback subscriber already registered" }
-        playbackSubscriber = playback
+        playbackRegistry.register(seatId, playback)
         game.subscribeToEvents(playback)
     }
 
-    /**
-     * Subscribe interactive playback after the initial Full projection commits.
-     *
-     * Setup events are already represented by that Full state. Subscribing
-     * earlier can reserve their event prefix before the initial projection
-     * consumes it.
-     */
-    internal fun activateInteractivePlayback() {
-        val active = checkNotNull(activeGame) { "Cannot activate playback before game start" }
-        check(active !is ActiveGame.Spectator) {
-            "Spectator playback is activated by its initial-state barrier"
-        }
-        val seatId = seating.humanSeat
-        if (playbackSubscriber != null) return
-        registerPlayback(active.game, seatId, captureLocalActions = false)
-        log.info("GameBridge: activated interactive GamePlayback for seat {}", seatId.value)
-    }
-
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
-    val eventCollector: GameEventCollector? get() = activeGame?.eventCollector
+    var eventCollector: GameEventCollector? = null
+        private set
 
     /** Phase stop profile — controls which phases the engine stops at per player. Null before start(). */
-    val phaseStopProfile: PhaseStopProfile?
-        get() =
-            when (val active = activeGame) {
-                is ActiveGame.Interactive -> active.phaseStopProfile
-                is ActiveGame.WrappedInteractive -> active.phaseStopProfile
-                is ActiveGame.PuzzleAi -> active.phaseStopProfile
-                is ActiveGame.Spectator,
-                is ActiveGame.WrappedPassive,
-                null,
-                -> null
-            }
+    var phaseStopProfile: PhaseStopProfile? = null
+        private set
 
     /**
      * Look up a Forge [Card] by [ForgeCardId]. Used by snapshot-based pipeline stages
@@ -781,8 +622,6 @@ class GameBridge(
 
     override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
-    fun planInstanceIdReallocation(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.planRealloc(forgeCardId)
-
     override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
@@ -810,7 +649,7 @@ class GameBridge(
      * Fixed order: id reallocations → limbo retires → zone recordings →
      * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
      *
-     * Called by [leyline.game.bundle.BundleBuilder] when committing a complete frame plan.
+     * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
      */
     fun applyMutations(m: BridgeMutations) {
         val nextAnnotationId =
@@ -827,111 +666,34 @@ class GameBridge(
         transientLinkedFaceFamilyIds = m.nextTransientLinkedFaceFamilyIds
     }
 
-    override fun closeFrame(): FrameEventLog =
-        synchronized(bundleFrameLock) {
-            eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
-        }
+    override fun closeFrame(): FrameEventLog = eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
 
     /**
-     * Reserve the event input for one bundle build without consuming it.
+     * Close the event frame for one bundle build: collector events + reveal records
+     * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
+     * the returned log to [leyline.game.mapping.StateMapper.buildFromSnapshot] /
+     * [leyline.game.mapping.StateMapper.buildDiff].
      *
-     * Collector events and reveal records become one immutable [FrameEventLog].
-     * [commitBundleFrame] consumes exactly this prefix after projection commit;
-     * later events remain queued for the next frame.
+     * One close per call; per-seat reveal consumption is seat-scoped. A multi-seat
+     * close (so two per-seat builds of the same snapshot see the same reveals) is
+     * a separate design concern if the pattern ever matters.
      */
-    internal fun reserveBundleFrame(viewingSeatId: Int = 0): BundleFrameReservation =
-        synchronized(bundleFrameLock) {
-            reserveBundleFrameLocked(viewingSeatId)
+    fun closeBundleFrame(viewingSeatId: Int = 0): FrameEventLog {
+        val frame = closeFrame()
+        val events = frame.events.toMutableList()
+        for (reveal in drainReveals(viewingSeatId)) {
+            events.add(
+                GameEvent.CardsRevealed(
+                    reveal.forgeCardIds,
+                    reveal.ownerSeatId,
+                    reveal.viewerSeatId,
+                    reveal.sourceZone,
+                    reveal.sourceCardId,
+                ),
+            )
         }
-
-    private fun reserveBundleFrameLocked(viewingSeatId: Int): BundleFrameReservation {
-        val collector = eventCollector
-        val eventReservation = collector?.reserveFrame()
-        val revealReservations =
-            revealSeats(viewingSeatId).map { (seatId, prompt) ->
-                RevealFrameReservation(seatId, prompt.reserveReveals())
-            }
-        val events =
-            eventReservation
-                ?.log
-                ?.events
-                .orEmpty()
-                .toMutableList()
-        for ((_, reservation) in revealReservations) {
-            for (reveal in reservation.records) {
-                events.add(
-                    GameEvent.CardsRevealed(
-                        reveal.forgeCardIds,
-                        reveal.ownerSeatId,
-                        reveal.viewerSeatId,
-                        reveal.sourceZone,
-                        reveal.sourceCardId,
-                    ),
-                )
-            }
-        }
-        return BundleFrameReservation(
-            sourceGeneration = frameSourceGeneration.get(),
-            viewingSeatId = viewingSeatId,
-            events = FrameEventLog(events, eventReservation?.log?.zoneMoves.orEmpty()),
-            eventReservation = eventReservation,
-            revealReservations = revealReservations,
-        )
+        return FrameEventLog(events, frame.zoneMoves)
     }
-
-    /**
-     * Run projection commit against the reserved input, then consume its exact
-     * event/reveal prefixes. A failed commit leaves the input available to retry.
-     */
-    internal fun <T> commitBundleFrame(
-        reservation: BundleFrameReservation,
-        commit: () -> T,
-    ): T =
-        synchronized(bundleFrameLock) {
-            check(frameSourceGeneration.get() == reservation.sourceGeneration) {
-                "Frame source generation changed before projection commit"
-            }
-            val collector = eventCollector
-            reservation.eventReservation?.let { expected ->
-                checkNotNull(collector).validateFrameReservation(expected)
-            }
-            reservation.revealReservations.forEach { expected ->
-                promptBridge(SeatId(expected.seatId)).validateRevealReservation(expected.reservation)
-            }
-
-            val result = commit()
-
-            check(frameSourceGeneration.get() == reservation.sourceGeneration) {
-                "Frame source generation changed during projection commit"
-            }
-            reservation.eventReservation?.let { expected ->
-                checkNotNull(collector).consumeFrame(expected)
-            }
-            reservation.revealReservations.forEach { expected ->
-                promptBridge(SeatId(expected.seatId)).consumeReveals(expected.reservation)
-            }
-            result
-        }
-
-    internal fun releaseBundleFrame(reservation: BundleFrameReservation) =
-        synchronized(bundleFrameLock) {
-            reservation.eventReservation?.let { eventCollector?.releaseFrameReservation(it) }
-            reservation.revealReservations.forEach { expected ->
-                promptBridge(SeatId(expected.seatId)).releaseRevealReservation(expected.reservation)
-            }
-        }
-
-    /**
-     * Close the event frame immediately.
-     *
-     * Bundle compilation uses [reserveBundleFrame] and [commitBundleFrame].
-     */
-    fun closeBundleFrame(viewingSeatId: Int = 0): FrameEventLog =
-        synchronized(bundleFrameLock) {
-            val reservation = reserveBundleFrameLocked(viewingSeatId)
-            commitBundleFrame(reservation) {}
-            reservation.events
-        }
 
     /** True if the open frame has accumulated events not yet closed into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
@@ -971,6 +733,10 @@ class GameBridge(
          *  in-flight zone moves before we snapshot. */
         private const val SETTLE_MS = 1L
 
+        /** Max time to wait for gsId to advance after detecting a pending interaction.
+         *  Capped to avoid stalling on prompts that fire before any GSM is sent. */
+        private const val PROGRESS_WAIT_MS = 50L
+
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 5L
     }
@@ -999,30 +765,21 @@ class GameBridge(
      * but don't need the game loop or player interaction.
      */
     fun wrapGame(g: Game) {
+        game = g
         populateSeatMap(g)
         // Register the bridged controller exactly as the started-game paths
         // do — a wrapped game whose cost calculations reach the default
         // controller would block on desktop input machinery.
-        val humanBindings = registerHumanController(g)
+        registerHumanController(g)
         val collector = GameEventCollector(this)
-        activeGame =
-            if (humanBindings == null) {
-                ActiveGame.WrappedPassive(g, collector)
-            } else {
-                ActiveGame.WrappedInteractive(
-                    game = g,
-                    eventCollector = collector,
-                    humanController = humanBindings.controller,
-                    phaseStopProfile = humanBindings.phaseStopProfile,
-                )
-            }
+        eventCollector = collector
         g.subscribeToEvents(collector)
     }
 
-    private fun registerHumanController(g: Game): HumanBindings? {
-        val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return null
+    private fun registerHumanController(g: Game) {
+        val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        val profile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
         val controller =
             BridgedPlayerController(
                 game = g,
@@ -1032,8 +789,9 @@ class GameBridge(
                 seating = seating,
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
-                phaseStopProfile = profile,
+                phaseStopProfile = phaseStopProfile,
             )
+        humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
         aiPlayer.addController(
             Long.MAX_VALUE - 1,
@@ -1041,7 +799,6 @@ class GameBridge(
             RevealTrackingAiController(g, aiPlayer, promptBridge(seating.humanSeat), seating.familiarSeat),
             false,
         )
-        return HumanBindings(controller, profile)
     }
 
     /**
@@ -1087,10 +844,12 @@ class GameBridge(
             } else {
                 GameBootstrap.createConstructedGame(deck1, deck2)
             }
+        game = g
+
         populateSeatMap(g)
 
         // Wire the interactive seat and retain native AI decisions with reveal observation.
-        val humanBindings = checkNotNull(registerHumanController(g)) { "Constructed game requires a human controller" }
+        registerHumanController(g)
 
         val loop =
             GameLoopController(
@@ -1100,22 +859,20 @@ class GameBridge(
                 mulliganBridges = mulliganBridges.values.toList(),
                 prioritySignal = prioritySignal,
             )
-        val collector = GameEventCollector(this)
-        activeGame =
-            ActiveGame.Interactive(
-                game = g,
-                eventCollector = collector,
-                humanController = humanBindings.controller,
-                phaseStopProfile = humanBindings.phaseStopProfile,
-                loopController = loop,
-            )
+        loopController = loop
         loop.start()
         loop.awaitStarted()
 
         // Register event collector FIRST — must fire before playback so closeFrame()
         // includes the current event when playback's captureAndPause runs.
+        val collector = GameEventCollector(this)
+        eventCollector = collector
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
+
+        // Register action playback subscriber (after collector)
+        registerPlayback(g, SeatId(1), captureLocalActions = false)
+        log.info("GameBridge: registered GamePlayback for seat 1")
 
         if (matchConfig.game.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
@@ -1163,6 +920,7 @@ class GameBridge(
             } else {
                 GameBootstrap.createAiVsAiGame(deck1, deck2)
             }
+        game = g
         populateSeatMap(g)
 
         g.players.forEachIndexed { index, player ->
@@ -1175,25 +933,16 @@ class GameBridge(
         }
 
         val collector = GameEventCollector(this)
-        val loop =
-            GameLoopController(
-                g,
-                prioritySignal = prioritySignal,
-                onGameOver = {
-                    publishEngineReady(InteractionReadiness.GAME_OVER)
-                },
-            )
-        activeGame = ActiveGame.Spectator(g, collector, loop)
+        eventCollector = collector
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for AI-vs-AI spectator game")
 
-        loop.start(
-            Runnable {
-                registerPlayback(g, SeatId(1), captureLocalActions = true)
-                log.info("GameBridge: registered spectator GamePlayback at initial-state barrier")
-                startGameHook?.run()
-            },
-        )
+        val loop = GameLoopController(g, prioritySignal = prioritySignal)
+        loopController = loop
+        loop.start(startGameHook)
+
+        registerPlayback(g, SeatId(1), captureLocalActions = true)
+        log.info("GameBridge: registered spectator GamePlayback")
 
         loop.awaitStarted()
     }
@@ -1233,275 +982,7 @@ class GameBridge(
 
     override fun getGame(): Game? = game
 
-    fun requireGame(): Game = checkNotNull(game) { "GameBridge has no active game" }
-
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
-
-    data class RuntimeFacts(
-        val phase: String?,
-        val turn: Int,
-        val isGameOver: Boolean,
-        val hasPlayer: Boolean,
-        val isHumanTurn: Boolean,
-        val stackEmpty: Boolean,
-        val combatHasAttackers: Boolean,
-    ) {
-        val isAiTurn: Boolean get() = hasPlayer && !isHumanTurn
-    }
-
-    fun runtimeFacts(seatId: SeatId): RuntimeFacts {
-        val activeGame =
-            game
-                ?: return RuntimeFacts(
-                    null,
-                    0,
-                    isGameOver = true,
-                    hasPlayer = false,
-                    isHumanTurn = false,
-                    stackEmpty = true,
-                    combatHasAttackers = false,
-                )
-        val player = getPlayer(seatId)
-        return RuntimeFacts(
-            phase = activeGame.phaseHandler.phase?.name,
-            turn = activeGame.phaseHandler.turn,
-            isGameOver = activeGame.isGameOver,
-            hasPlayer = player != null,
-            isHumanTurn = player != null && activeGame.phaseHandler.playerTurn == player,
-            stackEmpty = activeGame.stack.isEmpty,
-            combatHasAttackers =
-                activeGame.phaseHandler.combat
-                    ?.attackers
-                    ?.isNotEmpty() == true,
-        )
-    }
-
-    fun opponentPlayerId(seatId: SeatId): ForgePlayerId? {
-        val player = getPlayer(seatId)
-        return game
-            ?.players
-            ?.firstOrNull { it !== player }
-            ?.id
-            ?.let(::ForgePlayerId)
-    }
-
-    fun playerEntityId(seatId: SeatId): Int? = getPlayer(seatId)?.id
-
-    fun playerWon(seatId: SeatId): Boolean = getPlayer(seatId)?.getOutcome()?.hasWon() == true
-
-    fun cardName(cardId: ForgeCardId): String? = game?.findById(cardId.value)?.name
-
-    private val deferredCastCostInspector = DeferredCastCostInspector(this)
-
-    fun hybridCastCostFacts(
-        seatId: SeatId,
-        cardId: ForgeCardId,
-        castAbilityIndex: Int?,
-    ): HybridCastCostFacts? = deferredCastCostInspector.hybrid(seatId, cardId, castAbilityIndex)
-
-    fun optionalCastCostFacts(
-        seatId: SeatId,
-        cardId: ForgeCardId,
-        castAbilityIndex: Int?,
-        grpId: Int,
-    ): OptionalCastCostFacts? = deferredCastCostInspector.optional(seatId, cardId, castAbilityIndex, grpId)
-
-    fun alternateCastCostFacts(
-        seatId: SeatId,
-        cardId: ForgeCardId,
-    ): AlternateCastCostFacts? = deferredCastCostInspector.alternate(seatId, cardId)
-
-    fun registerAlternateCastCommands(
-        seatId: SeatId,
-        pendingActionId: String,
-        cardId: ForgeCardId,
-        ctoIds: List<Int>,
-    ): AlternateCastCommands? = deferredCastCostInspector.registerAlternateCommands(seatId, pendingActionId, cardId, ctoIds)
-
-    fun currentStackSourceCardId(fallback: Int?): ForgeCardId? =
-        (
-            fallback ?: game
-                ?.stack
-                ?.firstOrNull()
-                ?.spellAbility
-                ?.hostCard
-                ?.id
-        )?.let(::ForgeCardId)
-
-    fun convokeAssignmentPlan(
-        candidateIds: List<ForgeCardId>,
-        cost: List<Pair<ManaColor, Int>>,
-    ): Map<ForgeCardId, ManaColor> {
-        val candidates = candidateIds.mapNotNull { id -> game?.findById(id.value)?.let { id to it } }
-        return ConvokeShardAssigner
-            .assign(candidates, ManaColorMapping.paymentShardCounts(cost)) { (_, card) -> card.color }
-            .associate { (entry, shard) -> entry.first to ManaColorMapping.paymentCostColor(shard) }
-    }
-
-    fun fallbackConvokeColor(
-        cardId: ForgeCardId,
-        cost: List<Pair<ManaColor, Int>>,
-    ): ManaColor? {
-        val color = game?.findById(cardId.value)?.color ?: return null
-        return ConvokeShardAssigner
-            .assign(listOf(color), ManaColorMapping.paymentShardCounts(cost)) { it }
-            .firstOrNull()
-            ?.second
-            ?.let(ManaColorMapping::paymentCostColor)
-    }
-
-    data class SearchPromptFacts(
-        val libraryZoneId: Int,
-        val allLibraryIds: List<Int>,
-        val sourceInstanceId: Int,
-        val hostCardInstanceId: Int,
-        val promptId: Int,
-    )
-
-    fun searchPromptFacts(
-        seatId: SeatId,
-        fallbackSourceEntityId: Int?,
-    ): SearchPromptFacts {
-        val libraryIds =
-            getPlayer(seatId)
-                ?.getZone(ZoneType.Library)
-                ?.cards
-                ?.map { getOrAllocInstanceId(ForgeCardId(it.id)).value }
-                .orEmpty()
-        val stackTop = game?.stack?.firstOrNull()
-        val ability = stackTop?.spellAbility
-        val hostCardForgeId = ability?.hostCard?.id ?: fallbackSourceEntityId
-        val hostCardIid = hostCardForgeId?.let { getOrAllocInstanceId(ForgeCardId(it)).value } ?: 0
-        val sourceId =
-            when {
-                stackTop?.isAbility == true && ability != null ->
-                    getOrAllocInstanceId(FrameIdResolver.triggerStackAbilityForgeId(ability.id)).value
-                hostCardIid != 0 -> hostCardIid
-                stackTop != null -> getOrAllocInstanceId(ForgeCardId(stackTop.id)).value
-                else -> 0
-            }
-        return SearchPromptFacts(
-            libraryZoneId = ZoneIds.libraryOf(seatId),
-            allLibraryIds = libraryIds,
-            sourceInstanceId = sourceId,
-            hostCardInstanceId = hostCardIid,
-            promptId =
-                if (stackTop?.isAbility == true && SearchShape.isTypeCycling(ability)) {
-                    PromptIds.SEARCH_TYPECYCLING
-                } else {
-                    PromptIds.SEARCH
-                },
-        )
-    }
-
-    fun configureAutoPass(state: leyline.bridge.types.ClientAutoPassState) {
-        humanController?.setAutoPassState(state)
-    }
-
-    data class PhaseStopUpdate(
-        val opponentEnabled: Set<String>,
-        val opponentDisabled: Set<String>,
-    )
-
-    fun applyPhaseStops(
-        seatId: SeatId,
-        settings: SettingsMessage,
-    ): PhaseStopUpdate {
-        val profile = phaseStopProfile ?: return PhaseStopUpdate(emptySet(), emptySet())
-        val humanPlayer = getPlayer(seatId) ?: return PhaseStopUpdate(emptySet(), emptySet())
-        val aiPlayer = getPlayer(seatId.opponent) ?: return PhaseStopUpdate(emptySet(), emptySet())
-        if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
-            profile.clearAll(humanPlayer.id)
-            profile.clearAll(aiPlayer.id)
-        }
-        val stops = settings.stopsList + settings.transientStopsList
-        applyStopsForPlayer(stops, SettingScope.Team_ac6e, humanPlayer.id, profile)
-        applyStopsForPlayer(stops, SettingScope.Opponents, aiPlayer.id, profile)
-        val opponentEnabled = StopTypeMapping.parseStops(stops, SettingScope.Opponents).mapTo(mutableSetOf()) { it.name }
-        val opponentDisabled =
-            stops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType)?.name }
-                .toSet()
-        return PhaseStopUpdate(opponentEnabled, opponentDisabled)
-    }
-
-    private fun applyStopsForPlayer(
-        stops: List<wotc.mtgo.gre.external.messaging.Messages.Stop>,
-        scope: SettingScope,
-        playerId: Int,
-        profile: PhaseStopProfile,
-    ) {
-        val enabled = StopTypeMapping.parseStops(stops, scope)
-        val disabled =
-            stops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                .toSet()
-        enabled.forEach { profile.setEnabled(playerId, it, true) }
-        disabled.forEach { profile.setEnabled(playerId, it, false) }
-    }
-
-    fun snapshot(
-        matchId: String,
-        gameStateId: Int,
-    ): GsmSnapshot = GsmSnapshot.capture(requireGame(), this, matchId, gameStateId)
-
-    fun playerLossCause(seatId: SeatId): PlayerLossCause? =
-        when (getPlayer(seatId)?.getOutcome()?.lossState) {
-            GameLossReason.LifeReachedZero -> PlayerLossCause.LifeTotal
-            GameLossReason.Poisoned -> PlayerLossCause.Poison
-            GameLossReason.Milled -> PlayerLossCause.Milled
-            GameLossReason.Conceded -> PlayerLossCause.Concede
-            GameLossReason.CommanderDamage,
-            GameLossReason.IntentionalDraw,
-            GameLossReason.OpponentWon,
-            GameLossReason.SpellEffect,
-            -> PlayerLossCause.Other
-            null -> null
-        }
-
-    fun pendingDamageAssignment(): DamageAssignmentPrompt? = humanController?.pendingDamageAssignment?.prompt
-
-    fun submitDamageAssignment(assigners: List<DamageAssignmentValue>): Boolean {
-        val controller = humanController ?: return false
-        val pending = controller.pendingDamageAssignment ?: return false
-        val activeGame = game ?: return false
-        var first: Map<Card?, Int>? = null
-        assigners.forEach { assigner ->
-            val damageMap =
-                assigner.assignments
-                    .mapNotNull { assignment ->
-                        val target = assignment.targetId?.let { activeGame.findById(it.value) ?: return@mapNotNull null }
-                        target to assignment.damage
-                    }.toMap(mutableMapOf())
-            val overflow = assigner.totalDamage - damageMap.values.sum()
-            if (overflow > 0 && null !in damageMap) damageMap[null] = overflow
-            if (first == null) {
-                first = damageMap
-            } else {
-                controller.damageAssignCache[assigner.attackerId] = damageMap
-            }
-        }
-        return pending.future.complete(first?.toMutableMap() ?: mutableMapOf())
-    }
-
-    fun pendingOptionalAction(): OptionalActionPrompt? = humanController?.pendingOptionalAction?.prompt
-
-    fun submitOptionalAction(accepted: Boolean): Boolean = humanController?.pendingOptionalAction?.future?.complete(accepted) == true
-
-    fun pendingNumericInput(): NumericInputPrompt? = humanController?.pendingNumericInput?.prompt
-
-    fun submitNumericInput(value: Int): Boolean = humanController?.pendingNumericInput?.future?.complete(value) == true
-
-    /** Priority policy input materialized while the live candidate graph stays bridge-local. */
-    fun priorityActionFacts(seatId: SeatId): PriorityActionFacts {
-        val player = getPlayer(seatId) ?: return PriorityActionFacts(hasLegalNonManaAction = false)
-        val currentGame = game ?: return PriorityActionFacts(hasLegalNonManaAction = false)
-        return PriorityActionCandidates.query(currentGame, player).facts(player)
-    }
 
     /** Resolve an engine player to its protocol seat for this match. */
     fun seatOf(player: Player?): SeatId? {
@@ -1596,26 +1077,16 @@ class GameBridge(
         awaitPriorityWithTimeout(priorityWaitMs)
     }
 
-    /**
-     * Wait specifically for this seat's next executable priority window.
-     *
-     * The readiness marker shares the playback FIFO so the owner can drain
-     * every preceding observation before resuming.
-     */
-    internal fun awaitActionPriorityCut(seatId: SeatId): EngineCutCheckpoint? {
+    /** Wait specifically for this seat's next executable priority window. */
+    fun awaitActionPriority(seatId: SeatId): Boolean {
         val deadline = System.currentTimeMillis() + priorityWaitMs
         val actionBridge = seat(seatId).action
         while (true) {
-            if (actionBridge.getPending() != null) {
-                return engineCuts.publishReady(InteractionReadiness.ACTION)
-            }
+            if (actionBridge.getPending() != null) return true
             val g = game
-            if (g == null || g.isGameOver) {
-                engineCuts.publishReady(InteractionReadiness.GAME_OVER)
-                return null
-            }
+            if (g == null || g.isGameOver) return false
             val remaining = deadline - System.currentTimeMillis()
-            if (remaining <= 0) return null
+            if (remaining <= 0) return false
             prioritySignal.awaitSignal(remaining)
         }
     }
@@ -1633,49 +1104,40 @@ class GameBridge(
      * the next action-bridge priority stop is reached. Without this, casting a
      * targeted spell would appear to time out.
      *
-     * Detecting a pending interaction publishes a readiness marker into the
-     * same FIFO as playback observations. The owner drains through that marker
-     * before it resumes the interaction.
+     * After detecting a pending interaction, waits for [messageCounter] to
+     * advance (proving engine output) before returning. This prevents the
+     * caller from draining the sink before the engine has written messages.
      *
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */
-    override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean = awaitPriorityCut(timeoutMs) != null
-
-    internal fun awaitPriorityCut(timeoutMs: Long = priorityWaitMs): EngineCutCheckpoint? {
+    override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
+        val entryGsId = messageCounter.currentGsId()
         while (true) {
             // Check conditions first (handles already-pending case)
             val g = game
             if (g != null && g.isGameOver) {
                 log.info("GameBridge: game over detected while waiting for priority")
-                engineCuts.publishReady(InteractionReadiness.GAME_OVER)
-                return null
+                return false
             }
             if (hasPendingInteraction()) {
+                // Wait for engine to produce output (gsId advances), then settle
+                awaitProgress(entryGsId, deadline)
                 Thread.sleep(SETTLE_MS)
-                return engineCuts.publishReady(pendingInteractionReadiness())
+                return true
             }
 
             val remaining = deadline - System.currentTimeMillis()
             if (remaining <= 0) {
                 log.warn("GameBridge: timed out waiting for priority ({}ms)", timeoutMs)
-                return null
+                return false
             }
 
             // Wait for signal from either bridge (or timeout)
             prioritySignal.awaitSignal(remaining)
         }
     }
-
-    private fun pendingInteractionReadiness(): InteractionReadiness =
-        when {
-            humanController?.pendingDamageAssignment != null -> InteractionReadiness.DAMAGE_ASSIGNMENT
-            humanController?.pendingOptionalAction != null -> InteractionReadiness.OPTIONAL_ACTION
-            humanController?.pendingNumericInput != null -> InteractionReadiness.NUMERIC_INPUT
-            promptBridges.values.any { it.getPendingPrompt() != null } -> InteractionReadiness.PROMPT
-            else -> InteractionReadiness.ACTION
-        }
 
     private fun hasPendingInteraction(): Boolean =
         actionBridges.values.any { it.getPending() != null } ||
@@ -1686,6 +1148,22 @@ class GameBridge(
             humanController?.pendingDamageAssignment != null ||
             humanController?.pendingOptionalAction != null ||
             humanController?.pendingNumericInput != null
+
+    /**
+     * Spin until the message counter advances past [entryGsId], proving engine output.
+     * Capped at [PROGRESS_WAIT_MS] to avoid stalling on prompts that fire before any GSM.
+     */
+    private fun awaitProgress(
+        entryGsId: Int,
+        deadline: Long,
+    ) {
+        if (entryGsId == 0) return
+        val progressDeadline = minOf(deadline, System.currentTimeMillis() + PROGRESS_WAIT_MS)
+        while (messageCounter.currentGsId() <= entryGsId) {
+            if (System.currentTimeMillis() >= progressDeadline) return
+            Thread.sleep(1)
+        }
+    }
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1785,14 +1263,6 @@ class GameBridge(
         if (seatId == seating.humanSeat) mulliganBridge(seatId).submitTuck(cards)
     }
 
-    fun submitTuckInstances(
-        seatId: SeatId,
-        instanceIds: List<InstanceId>,
-    ) {
-        val selectedIds = instanceIds.mapNotNull(::getForgeCardId).mapTo(mutableSetOf()) { it.value }
-        submitTuck(seatId, getHandCards(seatId).filter { it.id in selectedIds })
-    }
-
     /** True when this bridge is running a puzzle game. */
     val isPuzzle: Boolean
         get() = game?.rules?.gameType == GameType.Puzzle
@@ -1811,6 +1281,7 @@ class GameBridge(
         GameBootstrap.initializeCardDatabase()
 
         val g = GameBootstrap.createPuzzleGame()
+        game = g
         populateSeatMap(g)
 
         // Apply puzzle state via reflection (applyGameOnThread is protected).
@@ -1850,26 +1321,24 @@ class GameBridge(
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        val profile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
-        val humanController =
-            if (aiControllerFactory == null) {
-                val controller =
-                    BridgedPlayerController(
-                        game = g,
-                        player = human,
-                        lobbyPlayer = human.lobbyPlayer,
-                        bridge = promptBridge(SeatId(1)),
-                        seating = seating,
-                        actionBridge = actionBridge(SeatId(1)),
-                        mulliganBridge = mulliganBridge(SeatId(1)),
-                        phaseStopProfile = profile,
-                    )
-                human.addController(Long.MAX_VALUE - 1, human, controller, false)
-                controller
-            } else {
-                human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
-                null
-            }
+        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        if (aiControllerFactory == null) {
+            val controller =
+                BridgedPlayerController(
+                    game = g,
+                    player = human,
+                    lobbyPlayer = human.lobbyPlayer,
+                    bridge = promptBridge(SeatId(1)),
+                    seating = seating,
+                    actionBridge = actionBridge(SeatId(1)),
+                    mulliganBridge = mulliganBridge(SeatId(1)),
+                    phaseStopProfile = phaseStopProfile,
+                )
+            humanController = controller
+            human.addController(Long.MAX_VALUE - 1, human, controller, false)
+        } else {
+            human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
+        }
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =
@@ -1880,18 +1349,16 @@ class GameBridge(
                 mulliganBridges = mulliganBridges.values.toList(),
                 prioritySignal = prioritySignal,
             )
-        val collector = GameEventCollector(this)
-        activeGame =
-            if (humanController == null) {
-                ActiveGame.PuzzleAi(g, collector, profile, loop)
-            } else {
-                ActiveGame.Interactive(g, collector, humanController, profile, loop)
-            }
+        loopController = loop
         loop.startFromCurrentState()
         loop.awaitStarted()
 
-        // Playback activates after the initial Full projection commits.
+        // Register event collector and playback (same as constructed)
+        val collector = GameEventCollector(this)
+        eventCollector = collector
         g.subscribeToEvents(collector)
+
+        registerPlayback(g, SeatId(1), captureLocalActions = false)
 
         if (aiControllerFactory == null) {
             log.info("GameBridge: puzzle loop started, waiting for priority")
@@ -1951,13 +1418,17 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
-        val active = activeGame ?: return
-        active.game.unsubscribeFromEvents(active.eventCollector)
-        playbackSubscriber?.let(active.game::unsubscribeFromEvents)
+        val g = game
+        if (g != null) {
+            eventCollector?.let { g.unsubscribeFromEvents(it) }
+            for (pb in playbackRegistry.values()) {
+                g.unsubscribeFromEvents(pb)
+            }
+        }
         loopController?.shutdown()
-        playbackSubscriber = null
-        engineCutListener.set(null)
-        activeGame = null
+        loopController = null
+        playbackRegistry.clear()
+        eventCollector = null
     }
 
     /**
@@ -1968,6 +1439,7 @@ class GameBridge(
     fun shutdown() {
         log.info("GameBridge: shutting down")
         teardownResources()
+        game = null
         players.clear()
     }
 

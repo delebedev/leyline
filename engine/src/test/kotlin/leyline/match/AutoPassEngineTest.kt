@@ -84,6 +84,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -91,7 +92,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = true)
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
@@ -113,6 +114,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -120,7 +122,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = true)
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -142,6 +144,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -171,6 +174,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -178,7 +182,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = true)
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
         }
@@ -195,6 +199,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -203,7 +208,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = false)
+            val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -222,6 +227,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -230,7 +236,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = true)
+            val decision = engine.checkHumanActions(game, isAiTurn = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -249,6 +255,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -257,7 +264,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = false)
+            val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.ClientAutoPass
@@ -279,6 +286,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -287,7 +295,7 @@ class AutoPassEngineTest :
                     autoPassState = autoPassState,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = false)
+            val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -304,6 +312,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -311,7 +320,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = false)
+            val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
         }
@@ -329,6 +338,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -336,7 +346,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(isAiTurn = false)
+            val decision = engine.checkHumanActions(game, isAiTurn = false)
 
             val grant = decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             grant.phase shouldBe "MAIN1"
@@ -352,6 +362,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -365,7 +376,7 @@ class AutoPassEngineTest :
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(isAiTurn = false)
+                engine.checkHumanActions(game, isAiTurn = false)
                 appender.list.single().formattedMessage shouldBe
                     "event=priority_decision source=session phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
             } finally {
@@ -383,6 +394,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -396,7 +408,7 @@ class AutoPassEngineTest :
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(isAiTurn = true)
+                engine.checkHumanActions(game, isAiTurn = true)
                 appender.list.size shouldBe 0
             } finally {
                 logger.detachAppender(appender)
@@ -434,6 +446,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -463,6 +476,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -488,6 +502,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -518,7 +533,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 ) {
                     override fun checkCombatPhase(
-                        phase: String?,
+                        phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
                     ): Signal = Signal.STOP
@@ -529,6 +544,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = stubCombat,
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -560,7 +576,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 ) {
                     override fun checkCombatPhase(
-                        phase: String?,
+                        phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
                     ): Signal = Signal.SEND_STATE
@@ -571,6 +587,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = stubCombat,
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
@@ -603,7 +620,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 ) {
                     override fun checkCombatPhase(
-                        phase: String?,
+                        phase: forge.game.phase.PhaseType?,
                         isHumanTurn: Boolean,
                         isAiTurn: Boolean,
                     ): Signal = Signal.SEND_STATE
@@ -614,6 +631,7 @@ class AutoPassEngineTest :
                     sink = ops,
                     counters = ops,
                     bundles = ops,
+                    pacing = ops,
                     combatHandler = stubCombat,
                     targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),

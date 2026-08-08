@@ -6,7 +6,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.GsmFrame
-import leyline.game.bundle.PendingPromptPlan
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
@@ -15,6 +14,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Handles "you may" trigger decisions via OptionalActionMessage (GRE type 45).
@@ -42,11 +42,12 @@ class OptionalActionHandler(
      * @return true if an OptionalActionMessage was sent (caller should exit loop)
      */
     fun checkPendingOptionalAction(): Boolean {
-        val prompt = ctx.bridge.pendingOptionalAction() ?: return false
+        val wpc = ctx.bridge.humanController ?: return false
+        val prompt = wpc.pendingOptionalAction ?: return false
 
         log.info(
             "OptionalActionHandler: optional trigger pending for {}",
-            prompt.hostCardName ?: "unknown",
+            prompt.hostCard?.name ?: "unknown",
         )
         sendOptionalActionMessage(prompt)
         return true
@@ -60,8 +61,13 @@ class OptionalActionHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
+        val wpc =
+            bridge.humanController ?: run {
+                log.warn("OptionalActionHandler: no humanController for OptionalActionResp")
+                return
+            }
         val prompt =
-            bridge.pendingOptionalAction() ?: run {
+            wpc.pendingOptionalAction ?: run {
                 log.warn("OptionalActionHandler: no pending prompt for OptionalActionResp")
                 return
             }
@@ -73,7 +79,7 @@ class OptionalActionHandler(
             "OptionalActionHandler: {} responded {} for {}",
             if (accepted) "Accept" else "Decline",
             resp.response,
-            prompt.hostCardName ?: "unknown",
+            prompt.hostCard?.name ?: "unknown",
         )
 
         val commanderReturn = prompt.commanderReturn
@@ -81,8 +87,8 @@ class OptionalActionHandler(
             bridge.retireToLimbo(InstanceId(commanderReturn.promptInstanceId))
         }
         bridge.prioritySignal.markPromptResolved()
-        bridge.submitOptionalAction(accepted)
-        ctx.engine.awaitActionPriority()
+        prompt.future.complete(accepted)
+        bridge.awaitActionPriority(counters.seatId)
         if (commanderReturn != null) {
             sendCommanderPromptCleanup(commanderReturn)
             sink.sendRealGameState(bridge)
@@ -94,15 +100,16 @@ class OptionalActionHandler(
 
     private fun sendOptionalActionMessage(prompt: OptionalActionPrompt) {
         val bridge = ctx.bridge
-        val hostCardId = prompt.hostCardId
-        if (hostCardId == null) {
+        val hostCard = prompt.hostCard
+        if (hostCard == null) {
             log.warn("OptionalActionHandler: hostCard is null — cannot send OptionalActionMessage")
-            bridge.submitOptionalAction(true) // auto-accept to avoid engine deadlock
+            prompt.future.complete(true) // auto-accept to avoid engine deadlock
             return
         }
 
         val commanderReturn = prompt.commanderReturn
         val isCommanderReturnPrompt = commanderReturn != null
+        val hostCardId = ForgeCardId(hostCard.id)
         val sourceId = commanderReturn?.oldInstanceId ?: bridge.getOrAllocInstanceId(hostCardId).value
         val recipientId = commanderReturn?.promptInstanceId ?: sourceId
         val optionalSourceId = if (isCommanderReturnPrompt) recipientId else sourceId
@@ -154,19 +161,17 @@ class OptionalActionHandler(
                 ).build()
 
         if (!isCommanderReturnPrompt) {
-            sink.sendBundledGRE(
-                PendingPromptPlan.build(
-                    counters.counter,
-                    counters.seatId,
-                    GREMessageType.OptionalActionMessage_695e,
-                ) {
-                    it.optionalActionMessage = optionalMsg
-                    it.prompt = promptProto
-                    // Controls Cancel button visibility, NOT whether declining is allowed.
-                    // Player can always decline via CancelNo response regardless of this value.
-                    it.allowCancel = AllowCancel.No_a526
-                },
-            )
+            PendingPromptEnvelope.sendBare(
+                sink,
+                counters,
+                GREMessageType.OptionalActionMessage_695e,
+            ) {
+                it.optionalActionMessage = optionalMsg
+                it.prompt = promptProto
+                // Controls Cancel button visibility, NOT whether declining is allowed.
+                // Player can always decline via CancelNo response regardless of this value.
+                it.allowCancel = AllowCancel.No_a526
+            }
             return
         }
         val commanderContext = checkNotNull(commanderReturn)
@@ -179,12 +184,12 @@ class OptionalActionHandler(
                 .setGameStateId(link.gsId)
                 .setPrevGameStateId(link.prevGsId)
                 .setPendingMessageCount(1)
-        val snap = bridge.snapshot("", link.gsId)
+        val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
         pendingGsmBuilder
             .setTurnInfo(GsmFrame.from(snap).turnInfo())
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.Send)
-        addReplacementPromptContext(pendingGsmBuilder, snap, hostCardId.value, commanderContext)
+        addReplacementPromptContext(pendingGsmBuilder, snap, hostCard.id, commanderContext)
         val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
         for (action in actions.actionsList) {
             pendingGsmBuilder.addActions(
@@ -282,7 +287,7 @@ class OptionalActionHandler(
     private fun sendCommanderPromptCleanup(context: CommanderReturnPromptContext) {
         val bridge = ctx.bridge
         val link = counters.counter.nextGameStateLink()
-        val snap = bridge.snapshot("", link.gsId)
+        val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
         val destinationZoneId = destinationZoneId(context)
         val destinationZone = snap.zones[destinationZoneId]
         val zoneInfo =
@@ -334,16 +339,16 @@ class OptionalActionHandler(
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun protocolZoneId(
-        zone: String,
+        zone: ForgeZoneType,
         ownerSeatId: Int,
     ): Int =
         when (zone) {
-            "Battlefield" -> ZoneIds.BATTLEFIELD
-            "Graveyard" -> ZoneIds.graveyardOf(ownerSeatId)
-            "Exile" -> ZoneIds.EXILE
-            "Hand" -> ZoneIds.handOf(ownerSeatId)
-            "Library" -> ZoneIds.libraryOf(ownerSeatId)
-            "Command" -> ZoneIds.COMMAND
+            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeatId)
+            ForgeZoneType.Exile -> ZoneIds.EXILE
+            ForgeZoneType.Hand -> ZoneIds.handOf(ownerSeatId)
+            ForgeZoneType.Library -> ZoneIds.libraryOf(ownerSeatId)
+            ForgeZoneType.Command -> ZoneIds.COMMAND
             else -> ZoneIds.LIMBO
         }
 }

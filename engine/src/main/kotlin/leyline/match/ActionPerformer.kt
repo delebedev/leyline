@@ -1,10 +1,9 @@
 package leyline.match
 
 import leyline.bridge.handoff.ActionResponseKey
-import leyline.bridge.handoff.ActionToken
 import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ClientAutoPassState
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
@@ -12,11 +11,11 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Handles the `PerformActionResp` dispatch cycle: validate the inbound action,
- * submit the selected opaque action token to the engine, and drive the post-action
+ * submit the appropriate [PlayerAction] to the engine, and drive the post-action
  * flow (awaitPriority → post-cast prompt → modal ETB check → auto-pass advance).
  *
- * **Threading:** Callers invoke on the serial match owner. This class adds no
- * synchronization of its own.
+ * **Threading:** Callers invoke inside the session lock. This class adds no
+ * locking of its own.
  *
  * **State:** Stateless between calls. [autoPassState] is a shared reference —
  * reads and writes flow through it to stay visible to other handlers.
@@ -29,7 +28,6 @@ class ActionPerformer(
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
     private val autoPassState: ClientAutoPassState,
-    private val lastPromptGsId: () -> Int,
     private val ctx: SessionContext,
 ) {
     private val log = LoggerFactory.getLogger(ActionPerformer::class.java)
@@ -52,12 +50,11 @@ class ActionPerformer(
         // not the latest counter value. Anything strictly less than the last
         // prompt is genuinely stale (a newer prompt has been emitted since).
         val clientGsId = greMsg.gameStateId
-        val promptGsId = lastPromptGsId()
-        if (clientGsId != 0 && clientGsId < promptGsId) {
+        if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
             log.warn(
                 "ActionPerformer: stale PerformActionResp gsId={} (lastPrompt={}), ignoring",
                 clientGsId,
-                promptGsId,
+                counters.counter.lastPromptGsId(),
             )
             return
         }
@@ -68,15 +65,27 @@ class ActionPerformer(
 
         val pending =
             seatBridge.action.getPending() ?: run {
-                val runtime = bridge.runtimeFacts(counters.seatId)
-                if (runtime.isGameOver && !runtime.hasPlayer) {
-                    log.warn("ActionPerformer: PerformActionResp after game retirement — ignoring")
-                    return
-                }
                 log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(counters.counter))
+                sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(ctx.game, counters.counter))
                 return
             }
+        if (!seatBridge.action.acceptsResponse(pending, clientGsId)) {
+            log.warn(
+                "ActionPerformer: PerformActionResp gsId={} does not match pending prompt gsId={} phase={}, ignoring",
+                clientGsId,
+                pending.promptGameStateId,
+                pending.state.phase,
+            )
+            return
+        }
+
+        // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
+        val autoPassPriority = greMsg.performActionResp.autoPassPriority
+        if (autoPassPriority != AutoPassPriority.None_a099) {
+            autoPassState.updateAutoPassPriority(autoPassPriority)
+            log.debug("ActionPerformer: autoPassPriority={}", autoPassPriority)
+        }
+
         val action = greMsg.performActionResp.actionsList.firstOrNull()
         if (action == null) {
             log.warn("ActionPerformer: PerformActionResp with no actions")
@@ -87,34 +96,14 @@ class ActionPerformer(
                 log.warn(
                     "ActionPerformer: action is absent from pending offer catalog: response={}, offers={}",
                     ActionResponseKey.from(action),
-                    pending.publishedCatalog?.catalog?.keys,
+                    pending.actionCatalog?.keys,
                 )
                 return
             }
-
-        val acceptedActionEffects =
-            AcceptedActionEffects(
-                autoPassPriority = greMsg.performActionResp.autoPassPriority,
-                selectedSpellCardId = offer.cardId.takeIf { action.isCastAction() },
-                selectedSpellGrpId = offer.spellGrpId,
-            )
-        val onAccepted = {
-            acceptedActionEffects.apply(autoPassState, bridge)
-            if (acceptedActionEffects.autoPassPriority != AutoPassPriority.None_a099) {
-                log.debug("ActionPerformer: autoPassPriority={}", acceptedActionEffects.autoPassPriority)
-            }
+        val command = offer.command
+        if (command is PlayerAction.CastSpell) {
+            bridge.setSelectedSpellGrpId(command.cardId, offer.spellGrpId)
         }
-
-        fun submitActionToken(
-            token: ActionToken,
-            selectedManaColor: Byte? = null,
-        ): Boolean =
-            seatBridge.action.submitActionToken(
-                pending.actionId,
-                token,
-                selectedManaColor,
-                onAccepted,
-            )
 
         // Stop decision timer — client responded
         if (bridge.matchConfig.game.timer) {
@@ -136,73 +125,50 @@ class ActionPerformer(
                 action.actionType == ActionType.CastOmen ||
                 action.actionType == ActionType.CastMdfc ||
                 action.actionType == ActionType.SpecialTurnFaceUp_add3
-        val stackWasNonEmpty = !ctx.bridge.runtimeFacts(counters.seatId).stackEmpty
-        val submitted =
-            when (action.actionType) {
-                ActionType.Pass, ActionType.FloatMana -> {
-                    submitActionToken(offer.token)
-                }
-                ActionType.Play_add3, ActionType.PlayMdfc -> {
-                    val cardId = offer.cardId
-                    val submitted = submitActionToken(offer.token)
-                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-                    submitted
-                }
-                ActionType.Cast -> {
-                    val cardId = offer.cardId ?: return
-                    val submitted =
-                        submitCastOrDefer(
-                            action,
-                            pending.actionId,
-                            offer.token,
-                            cardId,
-                            offer.abilityId,
-                            acceptedActionEffects,
-                        ) ?: return
-                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-                    submitted
-                }
-                ActionType.Activate_add3 -> {
-                    val submitted = submitActionToken(offer.token)
-                    Tap.actionResult(action.actionType, action.instanceId, offer.cardId, submitted)
-                    submitted
-                }
-                ActionType.ActivateMana -> {
-                    val submitted = submitActionToken(offer.token, selectedManaColor(action))
-                    Tap.actionResult(action.actionType, action.instanceId, offer.cardId, submitted)
-                    submitted
-                }
-                ActionType.CastMdfc, ActionType.CastAdventure, ActionType.CastOmen, ActionType.CastLeftRoom, ActionType.CastRightRoom -> {
-                    val cardId = offer.cardId ?: return
-                    val submitted =
-                        submitCastOrDefer(
-                            action,
-                            pending.actionId,
-                            offer.token,
-                            cardId,
-                            offer.abilityId,
-                            acceptedActionEffects,
-                        ) ?: return
-                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
-                    submitted
-                }
-                ActionType.SpecialTurnFaceUp_add3 -> {
-                    val submitted = submitActionToken(offer.token)
-                    Tap.actionResult(action.actionType, action.instanceId, offer.cardId, submitted)
-                    submitted
-                }
-                else -> {
-                    log.warn("ActionPerformer: rejecting unhandled action type {}", action.actionType)
-                    return
-                }
+        val game = ctx.game
+        val stackWasNonEmpty = !game.stack.isEmpty
+        when (action.actionType) {
+            ActionType.Pass -> {
+                seatBridge.action.submitAction(pending.actionId, command)
             }
-        if (!submitted) {
-            log.warn("ActionPerformer: pending priority window rejected {}", action.actionType)
-            return
+            ActionType.Play_add3, ActionType.PlayMdfc -> {
+                val cardId = (command as? PlayerAction.PlayLand)?.cardId
+                val submitted = seatBridge.action.submitAction(pending.actionId, command)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.Cast -> {
+                val cast = command as? PlayerAction.CastSpell ?: return
+                val submitted = submitCastOrDefer(action, pending.actionId, cast) ?: return
+                Tap.actionResult(action.actionType, action.instanceId, cast.cardId, submitted)
+            }
+            ActionType.Activate_add3 -> {
+                val activate = command as? PlayerAction.ActivateAbility ?: return
+                val submitted = seatBridge.action.submitAction(pending.actionId, activate)
+                Tap.actionResult(action.actionType, action.instanceId, activate.cardId, submitted)
+            }
+            ActionType.ActivateMana -> {
+                val mana = command as? PlayerAction.ActivateMana ?: return
+                val submitted = seatBridge.action.submitAction(pending.actionId, mana.copy(selectedColor = selectedManaColor(action)))
+                Tap.actionResult(action.actionType, action.instanceId, mana.cardId, submitted)
+            }
+            ActionType.CastMdfc, ActionType.CastAdventure, ActionType.CastOmen, ActionType.CastLeftRoom, ActionType.CastRightRoom -> {
+                val cast = command as? PlayerAction.CastSpell ?: return
+                val submitted = submitCastOrDefer(action, pending.actionId, cast) ?: return
+                Tap.actionResult(action.actionType, action.instanceId, cast.cardId, submitted)
+            }
+            ActionType.SpecialTurnFaceUp_add3 -> {
+                val activate = command as? PlayerAction.ActivateAbility ?: return
+                val submitted = seatBridge.action.submitAction(pending.actionId, activate)
+                Tap.actionResult(action.actionType, action.instanceId, activate.cardId, submitted)
+            }
+            else -> {
+                log.info("ActionPerformer: unhandled action type {}, passing", action.actionType)
+                seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+            }
         }
 
         // Wait for engine to reach next priority stop
-        ctx.engine.awaitPriority()
+        bridge.awaitPriority()
         autoPassEngine.drainPlayback()
 
         if (action.actionType == ActionType.ActivateMana) {
@@ -218,6 +184,7 @@ class ActionPerformer(
         // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
         // during resolution, blocking in chooseModeForAbility.
         if (stackWasNonEmpty) {
+            val g = ctx.game
             // Check for pending modal prompt from ETB trigger
             when (targetingHandler.checkPendingPrompt()) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
@@ -225,8 +192,7 @@ class ActionPerformer(
                     // Fall through to autoPass
                 }
                 TargetingHandler.PromptResult.NONE -> {
-                    val runtime = ctx.bridge.runtimeFacts(counters.seatId)
-                    if (runtime.stackEmpty) {
+                    if (g.stack.isEmpty) {
                         val nextPending = seatBridge.action.getPending()
                         if (nextPending?.state?.kind == PendingActionKind.DECLARE_ATTACKERS ||
                             nextPending?.state?.kind == PendingActionKind.DECLARE_BLOCKERS
@@ -236,7 +202,7 @@ class ActionPerformer(
                         }
                         log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
                         sink.sendRealGameState(bridge)
-                        if (runtime.isGameOver) {
+                        if (g.isGameOver) {
                             log.info("ActionPerformer: game over after stack resolution")
                             sink.sendGameOver()
                             return
@@ -279,56 +245,23 @@ class ActionPerformer(
     private fun submitCastOrDefer(
         action: Action,
         pendingActionId: String,
-        actionToken: ActionToken,
-        cardId: ForgeCardId,
-        abilityId: Int?,
-        acceptedActionEffects: AcceptedActionEffects,
+        cast: PlayerAction.CastSpell,
     ): Boolean? {
-        if (targetingHandler.checkAlternateAdditionalCostChoice(action, pendingActionId, cardId, acceptedActionEffects)) {
+        if (targetingHandler.checkAlternateAdditionalCostChoice(action, pendingActionId)) {
             Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
             return null
         }
-        if (
-            targetingHandler.checkHybridManaTypeOptions(
-                action,
-                pendingActionId,
-                actionToken,
-                cardId,
-                abilityId,
-                acceptedActionEffects,
-            )
-        ) {
+        if (targetingHandler.checkHybridManaTypeOptions(action, pendingActionId, cast.abilityId)) {
             Tap.outboundTemplate("Cast deferred — hybrid mana type prompt sent")
             return null
         }
         val skipOptionalCostPrompt =
             action.alternativeGrpId == KeywordAbilityIds.JUMP_START || action.alternativeGrpId == KeywordAbilityIds.RETRACE
-        if (!skipOptionalCostPrompt &&
-            targetingHandler.checkOptionalCosts(
-                action,
-                pendingActionId,
-                actionToken,
-                cardId,
-                abilityId,
-                acceptedActionEffects,
-            )
-        ) {
+        if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(action, pendingActionId, cast.abilityId)) {
             Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
             return null
         }
         val seatBridge = ctx.bridge.seat(counters.seatId)
-        return seatBridge.action.submitActionToken(
-            pendingActionId,
-            actionToken,
-            onAccepted = { acceptedActionEffects.apply(autoPassState, ctx.bridge) },
-        )
+        return seatBridge.action.submitAction(pendingActionId, cast)
     }
-
-    private fun Action.isCastAction(): Boolean =
-        actionType == ActionType.Cast ||
-            actionType == ActionType.CastMdfc ||
-            actionType == ActionType.CastAdventure ||
-            actionType == ActionType.CastOmen ||
-            actionType == ActionType.CastLeftRoom ||
-            actionType == ActionType.CastRightRoom
 }

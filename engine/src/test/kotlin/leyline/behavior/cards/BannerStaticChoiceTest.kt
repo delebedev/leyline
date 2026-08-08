@@ -4,7 +4,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.codes.DetailKeys
 import leyline.testkit.SessionTest
@@ -65,22 +64,6 @@ class BannerStaticChoiceTest :
                 linkInfo.affectedIdsList shouldBe listOf(6, goblinId)
                 linkInfo.detailString(DetailKeys.CHOOSE_LINK_TYPE) shouldBe "Type"
                 linkInfo.detailInt(DetailKeys.SOURCE_ABILITY_GRPID) shouldBe 176647
-            }
-        }
-
-        test("retired static choice rejects response effects and session advance") {
-            startPuzzleFile("puzzles/patchwork-banner-static-choice.pzl", validating = true)
-
-            castSpellUntilSelectNReq("Patchwork Banner")
-            val promptBridge = harness.bridge.promptBridge(SeatId(1))
-            val before = messageSnapshot()
-            promptBridge.beforeResponseRetirement = promptBridge::cancelPending
-
-            respondToSelectN(listOf(StaticChoiceIds.subtypeIdFor("Goblin")!!))
-
-            assertSoftly {
-                promptBridge.journal.drainChoiceResults() shouldBe emptyList()
-                messagesSince(before) shouldBe emptyList()
             }
         }
 

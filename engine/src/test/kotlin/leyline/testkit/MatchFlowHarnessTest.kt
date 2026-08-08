@@ -13,17 +13,14 @@ import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.handoff.PlayerAction
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.awaitFreshPending
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
@@ -188,36 +185,6 @@ class MatchFlowHarnessTest :
             }
         }
 
-        test("AI playback precedes resumed priority in one monotonic stream") {
-            val h = MatchFlowHarness(seed = AI_FIRST_SEED)
-            harness = h
-            h.connectAndKeep()
-
-            val messages = h.allMessages
-            val msgIds = messages.map { it.msgId }
-            msgIds.zipWithNext().all { (before, after) -> before < after }.shouldBeTrue()
-
-            val resumedPromptIndex = messages.indexOfLast { it.hasActionsAvailableReq() }
-            val fullIndex =
-                messages.indexOfLast {
-                    it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full
-                }
-            val playbackIndex =
-                messages
-                    .subList(fullIndex + 1, resumedPromptIndex)
-                    .indexOfLast { it.hasGameStateMessage() }
-                    .takeIf { it >= 0 }
-                    ?.plus(fullIndex + 1)
-                    ?: -1
-
-            assertSoftly {
-                fullIndex shouldBeGreaterThanOrEqualTo 0
-                playbackIndex shouldBeGreaterThan fullIndex
-                resumedPromptIndex shouldBeGreaterThan playbackIndex
-                assertGsIdChain(messages, context = "AI playback before resumed priority")
-            }
-        }
-
         test("AI-first multi-turn gsId chain unique") {
             val h = MatchFlowHarness(seed = AI_FIRST_SEED)
             harness = h
@@ -311,145 +278,32 @@ class MatchFlowHarnessTest :
             advanced.shouldBeTrue()
         }
 
-        test("late PerformActionResp cannot affect a newer unprompted pending action") {
+        test("late PerformActionResp cannot satisfy a newer unprompted pending action") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
             h.connectAndKeep()
 
             val oldPromptGsId = h.latestPromptGsId()
-            val oldPromptMsgId = h.latestPromptMsgId()
-            val owner = h.session.connection.owner
-            val ownerPromptHorizon =
-                owner.reduce {
-                    owner.lastPromptGsId() to owner.lastPromptMsgId()
-                }
-            assertSoftly {
-                ownerPromptHorizon.first shouldBe oldPromptGsId
-                ownerPromptHorizon.second shouldBe oldPromptMsgId
-            }
             val actionBridge = h.bridge.actionBridge(SeatId(1))
             val oldPending = actionBridge.getPending().shouldNotBeNull()
-            oldPending.publishedCatalog?.gameStateId shouldBe oldPromptGsId
+            oldPending.promptGameStateId shouldBe oldPromptGsId
 
             actionBridge.submitAction(oldPending.actionId, PlayerAction.PassPriority)
             val nextPending = awaitFreshPending(h.bridge, oldPending.actionId, timeoutMs = 5_000).shouldNotBeNull()
-            nextPending.publishedCatalog.shouldBeNull()
+            nextPending.promptGameStateId.shouldBeNull()
 
-            val latePassBase =
-                performAction { actionType = ActionType.Pass }
             val latePass =
-                latePassBase
+                performAction { actionType = ActionType.Pass }
                     .toBuilder()
                     .setGameStateId(oldPromptGsId)
-                    .setRespId(oldPromptMsgId)
-                    .setPerformActionResp(
-                        latePassBase.performActionResp
-                            .toBuilder()
-                            .setAutoPassPriority(AutoPassPriority.No_a099),
-                    ).build()
+                    .setRespId(h.latestPromptMsgId())
+                    .build()
             h.session.onPerformAction(latePass)
             h.drainSink()
 
             val stillPending = actionBridge.getPending().shouldNotBeNull()
-            val finalPromptHorizon =
-                owner.reduce {
-                    owner.lastPromptGsId() to owner.lastPromptMsgId()
-                }
-            assertSoftly {
-                stillPending.actionId shouldBe nextPending.actionId
-                stillPending.publishedCatalog.shouldBeNull()
-                h.session.autoPassState.autoPassPriority shouldBe AutoPassPriority.None_a099
-                finalPromptHorizon.first shouldBe oldPromptGsId
-                finalPromptHorizon.second shouldBe oldPromptMsgId
-            }
-        }
-
-        test("retired cast cannot change auto-pass or selected spell state") {
-            val h = MatchFlowHarness(validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(
-                """
-                [metadata]
-                Name:Lost cast acceptance
-                Goal:Win
-                Turns:1
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-                humanhand=Ratcatcher Trainee
-                humanbattlefield=Mountain;Mountain;Mountain;Mountain;Swamp;Swamp;Swamp
-                humanlibrary=Mountain
-                ailibrary=Forest
-                """.trimIndent(),
-            )
-
-            val card =
-                h.bridge
-                    .getPlayer(SeatId(1))
-                    .shouldNotBeNull()
-                    .getZone(forge.game.zone.ZoneType.Hand)
-                    .cards
-                    .single { it.name == "Ratcatcher Trainee" }
-            val cardId = ForgeCardId(card.id)
-            val actionBridge = h.bridge.actionBridge(SeatId(1))
-            val offer =
-                actionBridge
-                    .getPending()
-                    .shouldNotBeNull()
-                    .publishedCatalog
-                    .shouldNotBeNull()
-                    .catalog
-                    .values
-                    .flatten()
-                    .single { it.cardId == cardId && it.action.actionType == ActionType.CastAdventure }
-            offer.spellGrpId.shouldNotBeNull()
-            actionBridge.interceptNextActionTokenSubmission(actionBridge::cancelPending)
-
-            val cast =
-                performAction {
-                    actionType = ActionType.CastAdventure
-                    instanceId = offer.action.instanceId
-                    grpId = offer.action.grpId
-                }
-            val response =
-                cast
-                    .toBuilder()
-                    .setPerformActionResp(
-                        cast.performActionResp
-                            .toBuilder()
-                            .setAutoPassPriority(AutoPassPriority.No_a099),
-                    ).build()
-            h.session.onPerformAction(h.submitWithGsId(response))
-            h.drainSink()
-
-            assertSoftly {
-                h.session.autoPassState.autoPassPriority shouldBe AutoPassPriority.None_a099
-                h.bridge.consumeSelectedSpellGrpId(cardId).shouldBeNull()
-            }
-        }
-
-        test("FloatMana response advances the priority window like Pass") {
-            val h = MatchFlowHarness(seed = 42L)
-            harness = h
-            h.connectAndKeep()
-
-            val actionBridge = h.bridge.actionBridge(SeatId(1))
-            val current = actionBridge.getPending().shouldNotBeNull()
-            val response =
-                performAction { actionType = ActionType.FloatMana }
-                    .toBuilder()
-                    .setGameStateId(h.latestPromptGsId())
-                    .setRespId(h.latestPromptMsgId())
-                    .build()
-
-            h.session.onPerformAction(response)
-            h.drainSink()
-
-            val successor = awaitFreshPending(h.bridge, current.actionId, timeoutMs = 5_000).shouldNotBeNull()
-            successor.actionId shouldNotBe current.actionId
+            stillPending.actionId shouldBe nextPending.actionId
+            stillPending.promptGameStateId.shouldBeNull()
         }
 
         test("AI turn produces Diff messages") {

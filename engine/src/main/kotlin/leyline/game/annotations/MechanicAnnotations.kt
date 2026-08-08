@@ -7,10 +7,8 @@ import leyline.bridge.types.InstanceId
 import leyline.game.codes.CounterTypes
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.codes.KeywordQualifications
-import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.state.EffectTracker
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.QualificationKind
@@ -107,13 +105,6 @@ object MechanicAnnotations {
         val exileSourceLeftPlayForgeCardIds = mutableListOf<ForgeCardId>()
         val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
         val controllerRevertedForgeCardIds = mutableListOf<ForgeCardId>()
-        val enlistAffectors =
-            events
-                .filterIsInstance<GameEvent.SpellResolved>()
-                .filter { it.abilityGrpId == KeywordAbilityIds.ENLIST && it.abilityForgeId != 0 }
-                .associate { event ->
-                    event.cardId to idResolver(FrameIdResolver.triggerStackAbilityForgeId(event.abilityForgeId))
-                }
         for ((eventIndex, ev) in events.withIndex()) {
             when (ev) {
                 is GameEvent.CountersChanged -> {
@@ -247,14 +238,7 @@ object MechanicAnnotations {
                     val powerDelta = ev.newPower - ev.oldPower
                     val toughnessDelta = ev.newToughness - ev.oldToughness
                     if (powerDelta != 0 || toughnessDelta != 0) {
-                        annotations.add(
-                            AnnotationBuilder.powerToughnessModCreated(
-                                instanceId,
-                                powerDelta,
-                                toughnessDelta,
-                                affectorId = enlistAffectors[ev.cardId],
-                            ),
-                        )
+                        annotations.add(AnnotationBuilder.powerToughnessModCreated(instanceId, powerDelta, toughnessDelta))
                     }
                     log.debug(
                         "mechanic: P/T changed iid={} {}/{}→{}/{}",

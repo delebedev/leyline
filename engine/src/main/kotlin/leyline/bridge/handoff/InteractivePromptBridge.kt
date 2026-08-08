@@ -1,7 +1,6 @@
 package leyline.bridge.handoff
 
 import forge.game.Game
-import forge.game.GameObject
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.DevCheck
@@ -21,13 +20,10 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.UUID
-import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 internal class StrictPromptRefusalException(
@@ -40,9 +36,9 @@ private fun refuseStrictPrompt(message: String): Nothing = throw StrictPromptRef
  * Thread-safe bridge between the blocking engine thread and async Netty handlers.
  *
  * When the engine needs interactive input (choose cards, pick option, etc.),
- * [requestChoice] blocks the engine thread on a command queue. The message
- * handler sends a prompt to the client, and when the client responds,
- * [submitResponse] enqueues the selected indices so the engine resumes.
+ * [requestChoice] blocks the engine thread on a [CompletableFuture]. The message
+ * handler sends a prompt to the client, and when the client responds, [submitResponse]
+ * completes the future so the engine resumes.
  *
  * One pending prompt at a time — the engine is single-threaded.
  */
@@ -74,13 +70,6 @@ class InteractivePromptBridge(
     @Volatile
     var timeoutListener: (() -> Unit)? = null
 
-    @Volatile
-    var promptAbilityAdvisor: PromptAbilityAdvisor? = null
-
-    /** One-shot seam for deterministic response-retirement concurrency tests. */
-    @Volatile
-    internal var beforeResponseRetirement: (() -> Unit)? = null
-
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; consumers
@@ -101,27 +90,14 @@ class InteractivePromptBridge(
         pendingOrderZoneMoves.add(move)
     }
 
-    fun pendingOrderZoneMove(
-        seatId: SeatId,
-        forgeCardIds: List<ForgeCardId>,
-    ): PendingOrderZoneMove? =
-        pendingOrderZoneMoves.firstOrNull {
-            it.seatId == seatId && it.forgeCardIds == forgeCardIds
-        }
-
-    fun consumePendingOrderZoneMove(expected: PendingOrderZoneMove) {
-        check(pendingOrderZoneMoves.remove(expected)) {
-            "Pending order zone move changed during frame assembly"
-        }
-    }
-
     fun pollPendingOrderZoneMove(
         seatId: SeatId,
         forgeCardIds: List<ForgeCardId>,
-    ): PendingOrderZoneMove? =
-        pendingOrderZoneMove(seatId, forgeCardIds)?.also {
-            consumePendingOrderZoneMove(it)
-        }
+    ): PendingOrderZoneMove? {
+        val match = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds } ?: return null
+        pendingOrderZoneMoves.remove(match)
+        return match
+    }
 
     // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
 
@@ -186,93 +162,16 @@ class InteractivePromptBridge(
     data class PendingPrompt(
         val promptId: String,
         val request: PromptRequest,
+        val future: CompletableFuture<List<Int>>,
+        /**
+         * Live Forge SpellAbility for targeting prompts — session-only, never serialized.
+         * Enables legality checks on remaining candidates during re-prompt building.
+         * Null for non-targeting prompts.
+         */
+        val targetingSa: SpellAbility? = null,
         /** Stable definition and client row fixed at prompt creation. */
         val abilityIdentity: ResolvedAbilityIdentity? = null,
     )
-
-    private sealed interface PromptCommand {
-        fun fail(cause: Throwable) = Unit
-
-        data class Submit(
-            val selectedIndices: List<Int>,
-        ) : PromptCommand
-
-        data class RevalidateTargets(
-            val selectedIndices: List<Int>,
-            val result: CompletableFuture<Set<Int>>,
-        ) : PromptCommand {
-            override fun fail(cause: Throwable) {
-                result.completeExceptionally(cause)
-            }
-        }
-
-        data class Advise(
-            val request: PromptAdviceRequest,
-            val result: CompletableFuture<List<Int>?>,
-        ) : PromptCommand {
-            override fun fail(cause: Throwable) {
-                result.completeExceptionally(cause)
-            }
-        }
-
-        data object Cancel : PromptCommand
-    }
-
-    private data class ActivePrompt(
-        val value: PendingPrompt,
-        val targetingSa: SpellAbility?,
-        val commands: LinkedBlockingDeque<PromptCommand> = LinkedBlockingDeque(),
-        val closed: AtomicBoolean = AtomicBoolean(false),
-    ) {
-        var inFlight: PromptCommand? = null
-    }
-
-    private fun ActivePrompt.enqueue(command: PromptCommand): Boolean =
-        synchronized(this) {
-            if (closed.get()) {
-                command.fail(CancellationException("Prompt is no longer active"))
-                false
-            } else {
-                commands.putLast(command)
-                true
-            }
-        }
-
-    private fun retirePrompt(
-        active: ActivePrompt,
-        cause: Throwable,
-        terminal: PromptCommand? = null,
-        onAccepted: () -> Unit = {},
-    ): Boolean =
-        synchronized(active) {
-            if (active.closed.get() || pending.get() !== active) return@synchronized false
-            onAccepted()
-            active.closed.set(true)
-            check(pending.compareAndSet(active, null)) { "Active prompt changed during terminal retirement" }
-            active.inFlight?.fail(cause)
-            active.commands.forEach { it.fail(cause) }
-            active.commands.clear()
-            terminal?.let(active.commands::putFirst)
-            true
-        }
-
-    private fun ActivePrompt.begin(command: PromptCommand): Boolean =
-        synchronized(this) {
-            val terminal = command is PromptCommand.Submit || command == PromptCommand.Cancel
-            if (closed.get() && !terminal) {
-                command.fail(CancellationException("Prompt is no longer active"))
-                false
-            } else {
-                inFlight = command
-                true
-            }
-        }
-
-    private fun ActivePrompt.finish(command: PromptCommand) {
-        synchronized(this) {
-            if (inFlight === command) inFlight = null
-        }
-    }
 
     // ── Call history ────────────────────────────────────────────────────────
     // Records every requestChoice invocation with its outcome. The engine
@@ -355,7 +254,7 @@ class InteractivePromptBridge(
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    private val pending = AtomicReference<ActivePrompt?>(null)
+    private val pending = AtomicReference<PendingPrompt?>(null)
 
     // -- Diagnostic context (set by GameLoopController after thread launch) --
 
@@ -389,13 +288,7 @@ class InteractivePromptBridge(
         val sourceCardId: ForgeCardId? = null,
     )
 
-    internal data class RevealReservation(
-        val records: List<RevealRecord>,
-        internal val prefix: MonotonicPrefixQueue.Reservation<RevealRecord>,
-    )
-
-    private val revealQueue = MonotonicPrefixQueue<RevealRecord>()
-    private val revealConsumptionLock = Any()
+    private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
     /** Push a batch of revealed card IDs (called from engine thread via the PlayerController.reveal override). */
     fun recordReveal(
@@ -413,47 +306,22 @@ class InteractivePromptBridge(
     /** Clear all accumulated state for puzzle hot-swap. */
     fun resetForPuzzle() {
         synchronized(_history) { _history.clear() }
-        synchronized(revealConsumptionLock) { revealQueue.clear() }
+        revealQueue.clear()
         pendingOrderZoneMoves.clear()
         pendingTargetSpecs.clear()
         journal.resetForPuzzle()
-        cancelPending()
+        pending.set(null)
     }
 
-    /** Snapshot pending reveal records without consuming them. */
-    internal fun reserveReveals(): RevealReservation =
-        synchronized(revealConsumptionLock) {
-            val prefix = revealQueue.reserve()
-            RevealReservation(prefix.values, prefix)
+    /** Drain all pending reveal records (called from annotation-build thread). */
+    fun drainReveals(): List<RevealRecord> {
+        val result = mutableListOf<RevealRecord>()
+        while (true) {
+            val record = revealQueue.poll() ?: break
+            result.add(record)
         }
-
-    internal fun validateRevealReservation(reservation: RevealReservation) {
-        synchronized(revealConsumptionLock) {
-            revealQueue.validate(reservation.prefix)
-        }
+        return result
     }
-
-    internal fun releaseRevealReservation(reservation: RevealReservation) {
-        synchronized(revealConsumptionLock) {
-            revealQueue.release(reservation.prefix)
-        }
-    }
-
-    /** Consume exactly the reserved prefix, preserving records appended later. */
-    internal fun consumeReveals(reservation: RevealReservation) {
-        synchronized(revealConsumptionLock) {
-            validateRevealReservation(reservation)
-            revealQueue.consume(reservation.prefix)
-        }
-    }
-
-    /** Drain all pending reveal records immediately. */
-    fun drainReveals(): List<RevealRecord> =
-        synchronized(revealConsumptionLock) {
-            val reservation = reserveReveals()
-            consumeReveals(reservation)
-            reservation.records
-        }
 
     /**
      * Called from the engine thread (BLOCKS until client responds or timeout).
@@ -513,10 +381,10 @@ class InteractivePromptBridge(
         }
 
         val promptId = UUID.randomUUID().toString()
-        val prompt = PendingPrompt(promptId, request, targetingSa?.let { resolveAbilityIdentity(it) })
-        val active = ActivePrompt(prompt, targetingSa)
+        val future = CompletableFuture<List<Int>>()
+        val prompt = PendingPrompt(promptId, request, future, targetingSa, targetingSa?.let { resolveAbilityIdentity(it) })
 
-        if (!pending.compareAndSet(null, active)) {
+        if (!pending.compareAndSet(null, prompt)) {
             if (strict) {
                 refuseStrictPrompt(
                     "[strict] Prompt [${request.promptType}] \"${request.message}\" requested while another prompt is pending",
@@ -530,7 +398,12 @@ class InteractivePromptBridge(
 
         val startMs = System.currentTimeMillis()
         return try {
-            val result = awaitPromptCommand(active, configuredTimeoutMs)
+            val result =
+                if (configuredTimeoutMs == null) {
+                    future.get()
+                } else {
+                    future.get(configuredTimeoutMs, TimeUnit.MILLISECONDS)
+                }
             record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
             prioritySignal?.markPromptResolved()
             result
@@ -558,93 +431,9 @@ class InteractivePromptBridge(
             record(request, PromptCallStatus.ERROR, fallback, System.currentTimeMillis() - startMs)
             fallback
         } finally {
-            retirePrompt(active, CancellationException("Prompt request ended"))
+            pending.set(null)
         }
     }
-
-    private fun awaitPromptCommand(
-        active: ActivePrompt,
-        configuredTimeoutMs: Long?,
-    ): List<Int> {
-        val deadlineNanos = configuredTimeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) }
-        while (true) {
-            val command =
-                if (deadlineNanos == null) {
-                    active.commands.take()
-                } else {
-                    val remaining = deadlineNanos - System.nanoTime()
-                    if (remaining <= 0) {
-                        terminalCommandOrTimeout(active)
-                    } else {
-                        active.commands.poll(remaining, TimeUnit.NANOSECONDS) ?: terminalCommandOrTimeout(active)
-                    }
-                }
-            if (!active.begin(command)) continue
-            try {
-                when (command) {
-                    is PromptCommand.Submit -> return command.selectedIndices
-                    is PromptCommand.RevalidateTargets -> {
-                        command.result.complete(revalidateTargets(active, command.selectedIndices))
-                    }
-                    is PromptCommand.Advise -> {
-                        val advice =
-                            active.targetingSa?.let { ability ->
-                                promptAbilityAdvisor?.advise(ability, active.value.request, command.request)
-                            }
-                        command.result.complete(advice)
-                    }
-                    PromptCommand.Cancel -> promptCancelled("Prompt cancelled")
-                }
-            } catch (cause: Throwable) {
-                command.fail(cause)
-                val terminal = command is PromptCommand.Submit || command == PromptCommand.Cancel
-                if (terminal || retirePrompt(active, cause)) propagatePromptFailure(cause)
-            } finally {
-                active.finish(command)
-            }
-        }
-    }
-
-    private fun terminalCommandOrTimeout(active: ActivePrompt): PromptCommand {
-        val timeout = TimeoutException()
-        if (retirePrompt(active, timeout)) throw timeout
-        return active.commands.take()
-    }
-
-    private fun promptCancelled(message: String): Nothing = throw CancellationException(message)
-
-    private fun propagatePromptFailure(cause: Throwable): Nothing = throw cause
-
-    private fun revalidateTargets(
-        active: ActivePrompt,
-        selectedIndices: List<Int>,
-    ): Set<Int> {
-        val request = active.value.request
-        val sa = active.targetingSa ?: return request.candidateRefs.indices.toSet()
-        val game = diagnosticGame ?: sa.hostCard?.game ?: return request.candidateRefs.indices.toSet()
-        val selected = selectedIndices.mapNotNull { request.candidateRefs.getOrNull(it)?.let { ref -> resolveEntity(ref, game) } }
-        val original = sa.targets
-        val hypothetical = original.clone()
-        selected.forEach(hypothetical::add)
-        return try {
-            sa.setTargets(hypothetical)
-            request.candidateRefs.indices.filterTo(mutableSetOf()) { index ->
-                index in selectedIndices || resolveEntity(request.candidateRefs[index], game)?.let(sa::canTarget) != false
-            }
-        } finally {
-            sa.setTargets(original)
-        }
-    }
-
-    private fun resolveEntity(
-        ref: PromptCandidateRefDto,
-        game: Game,
-    ): GameObject? =
-        if (ref.isPlayer()) {
-            game.players.firstOrNull { it.id == ref.entityId }
-        } else {
-            game.findById(ref.entityId)
-        }
 
     private fun isGameLoopThread(): Boolean {
         val engineThread = diagnosticThread ?: return true
@@ -652,74 +441,21 @@ class InteractivePromptBridge(
     }
 
     /**
-     * Called from the Netty handler. Enqueues the answer so the blocked engine
-     * thread can resume.
+     * Called from the Netty handler. Completes the pending prompt future
+     * so the blocked engine thread can resume.
      *
      * @return true if the prompt was matched and completed
      */
     fun submitResponse(
         promptId: String,
         selectedIndices: List<Int>,
-        onAccepted: () -> Unit = {},
     ): Boolean {
         val current = pending.get() ?: return false
-        if (current.value.promptId != promptId) {
-            log.warn("Prompt ID mismatch: expected=${current.value.promptId}, got=$promptId")
+        if (current.promptId != promptId) {
+            log.warn("Prompt ID mismatch: expected=${current.promptId}, got=$promptId")
             return false
         }
-        val beforeRetirement = beforeResponseRetirement
-        if (beforeRetirement != null) {
-            beforeResponseRetirement = null
-            beforeRetirement()
-        }
-        return retirePrompt(
-            current,
-            CancellationException("Prompt response submitted"),
-            PromptCommand.Submit(selectedIndices),
-            onAccepted,
-        )
-    }
-
-    /**
-     * Ask the blocked engine callback which original candidate indices remain
-     * legal after the supplied selections. The session exchanges values only;
-     * the live ability stays on the engine thread.
-     */
-    fun revalidateTargetCandidates(
-        promptId: String,
-        selectedIndices: List<Int>,
-    ): Set<Int>? {
-        val current = pending.get() ?: return null
-        if (current.value.promptId != promptId || current.closed.get()) return null
-        val result = CompletableFuture<Set<Int>>()
-        if (!current.enqueue(PromptCommand.RevalidateTargets(selectedIndices, result))) return null
-        return try {
-            val waitMs = timeoutMs ?: DEFAULT_TIMEOUT_MS
-            result.get(waitMs, TimeUnit.MILLISECONDS)
-        } catch (ex: Exception) {
-            result.cancel(false)
-            log.warn("Target legality revalidation failed for prompt {}: {}", promptId.take(8), ex.message)
-            null
-        }
-    }
-
-    /** Evaluate a value-only advisor request beside the retained engine ability. */
-    fun requestPromptAdvice(
-        promptId: String,
-        request: PromptAdviceRequest,
-    ): List<Int>? {
-        val current = pending.get() ?: return null
-        if (current.value.promptId != promptId || current.closed.get()) return null
-        val result = CompletableFuture<List<Int>?>()
-        if (!current.enqueue(PromptCommand.Advise(request, result))) return null
-        return try {
-            val waitMs = timeoutMs ?: DEFAULT_TIMEOUT_MS
-            result.get(waitMs, TimeUnit.MILLISECONDS)
-        } catch (ex: Exception) {
-            result.cancel(false)
-            log.warn("Prompt advice failed for prompt {}: {}", promptId.take(8), ex.message)
-            null
-        }
+        return current.future.complete(selectedIndices)
     }
 
     /**
@@ -728,7 +464,7 @@ class InteractivePromptBridge(
      */
     fun getPendingPrompt(): PendingPrompt? {
         val p = pending.get() ?: return null
-        return if (p.closed.get()) null else p.value
+        return if (p.future.isDone) null else p
     }
 
     fun resolveAbilityIdentity(ability: SpellAbility): ResolvedAbilityIdentity? = abilityIdentityResolver?.invoke(ability)
@@ -740,7 +476,7 @@ class InteractivePromptBridge(
     fun awaitPendingPrompt(timeoutMs: Long = 5_000): PendingPrompt {
         var result: PendingPrompt? = null
         GameLoopPoller.awaitCondition(timeoutMs, pollIntervalMs = 20) {
-            result = getPendingPrompt()
+            result = pending.get()
             result != null
         }
         return checkNotNull(result) { "No prompt within ${timeoutMs}ms" }
@@ -750,14 +486,8 @@ class InteractivePromptBridge(
      * Cancel any pending prompt (e.g. on game reset / disconnect).
      */
     fun cancelPending() {
-        val current = pending.get()
-        if (current != null) {
-            retirePrompt(
-                current,
-                CancellationException("Prompt superseded"),
-                PromptCommand.Cancel,
-            )
-        }
+        val current = pending.getAndSet(null)
+        current?.future?.cancel(true)
     }
 }
 

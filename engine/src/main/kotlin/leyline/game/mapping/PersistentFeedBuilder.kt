@@ -82,7 +82,7 @@ internal object PersistentFeedBuilder {
         decayedCleanupSourcesThisGsm: Set<ForgeCardId>,
         transferResult: TransferResult,
     ): PersistentFeedBuildResult {
-        val qualification = buildQualificationAnnotations(snap, frameIds)
+        val qualification = buildQualificationAnnotations(snap, bridge, frameIds)
         val temporaryPermanent =
             buildTemporaryPermanentAnnotations(
                 snap,
@@ -122,13 +122,14 @@ internal object PersistentFeedBuilder {
 
     private fun buildQualificationAnnotations(
         snap: GsmSnapshot,
+        bridge: GameBridge,
         frameIds: FrameIdResolver,
     ): List<AnnotationInfo> =
         snap.objects.values
             .filter { it.isOnAdventure }
             .map { AnnotationBuilder.qualification(instanceId = frameIds.cardIid(it.forgeCardId)) } +
             suspectedQualificationAnnotations(snap, frameIds) +
-            CombatQualificationScanner.scan(snap, frameIds)
+            CombatQualificationScanner.scan(snap, bridge, frameIds)
 
     private fun suspectedQualificationAnnotations(
         snap: GsmSnapshot,
@@ -168,7 +169,7 @@ internal object PersistentFeedBuilder {
     ): TemporaryPermanentFeedResult {
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         val tokenSources: Map<CardSnapshot, ForgeCardId?> =
-            eotTokens.associateWith { it.tokenSourceForgeCardId }
+            eotTokens.associateWith { tokenSourceForgeId(it.forgeCardId, bridge) }
         val decayedCleanupHolders =
             decayedCleanupHoldersFromSnap(
                 decayedCleanupSourcesThisGsm,
@@ -647,6 +648,15 @@ internal object PersistentFeedBuilder {
         grpId: Int,
         bridge: GameBridge,
     ): Boolean = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TRAINING) != null
+
+    private fun tokenSourceForgeId(
+        tokenForgeId: ForgeCardId,
+        bridge: GameBridge,
+    ): ForgeCardId? {
+        val tokenCard = bridge.findCard(tokenForgeId) ?: return null
+        val sourceCard = tokenCard.tokenSpawningAbility?.hostCard ?: return null
+        return ForgeCardId(sourceCard.id)
+    }
 
     private fun mobilizeCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,

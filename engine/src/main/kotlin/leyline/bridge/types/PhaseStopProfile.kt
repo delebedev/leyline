@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Separate from [ClientAutoPassState.opponentStops] which drives session-layer
  * opponent-turn stops — see that class for why the split exists.
  *
- * Thread safety: interactive mutations happen on the match owner.
+ * Thread safety: mutations happen on the session thread under `sessionLock`.
  * Engine thread reads via [isEnabled] — callers must ensure happens-before.
  */
 class PhaseStopProfile private constructor(

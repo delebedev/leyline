@@ -4,23 +4,18 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 /**
  * Verifies that [ActionMapper.buildFromSnapshot] produces correct action shapes
@@ -213,22 +208,6 @@ class ActionMapperSnapshotTest :
                     addCard("Llanowar Elves", human, ZoneType.Hand)
                     addCard("Island", human, ZoneType.Hand)
                 }
-            val actionBridge = board.bridge.seat(SeatId(1)).action
-            val selected =
-                CompletableFuture.supplyAsync {
-                    actionBridge.awaitAction(
-                        PendingActionState("Main1", 1, activePlayerId = 1, priorityPlayerId = 1),
-                    )
-                }
-            val pending =
-                (1..10_000)
-                    .asSequence()
-                    .map {
-                        Thread.yield()
-                        actionBridge.getPending()
-                    }.filterNotNull()
-                    .firstOrNull()
-                    .shouldNotBeNull()
 
             val projection =
                 ActionMapper.buildProjectionFromSnapshot(
@@ -236,19 +215,32 @@ class ActionMapperSnapshotTest :
                     SnapshotCapture.run(board.game, board.bridge, "test", 0),
                     board.bridge,
                 )
-            actionBridge.bindActionCatalog(pending.actionId, 12, projection.offers) shouldBe true
 
             projection.offers.map { it.action } shouldBe projection.actions.actionsList
-            val cast = projection.offers.single { it.action.actionType == ActionType.Cast }
-            val land = projection.offers.single { it.action.actionType == ActionType.Play_add3 }
-            val activate = projection.offers.first { it.action.actionType == ActionType.Activate_add3 }
-            val mana = projection.offers.first { it.action.actionType == ActionType.ActivateMana }
-            actionBridge.submitActionToken(pending.actionId, cast.token) shouldBe true
-            val selectedCast = selected.get(2, TimeUnit.SECONDS).shouldBeInstanceOf<PlayerAction.CastSpell>()
+            val cast =
+                projection.offers
+                    .single { it.action.actionType == ActionType.Cast }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.CastSpell>()
+            val land =
+                projection.offers
+                    .single { it.action.actionType == ActionType.Play_add3 }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.PlayLand>()
+            val activate =
+                projection.offers
+                    .first { it.action.actionType == ActionType.Activate_add3 }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.ActivateAbility>()
+            val mana =
+                projection.offers
+                    .first { it.action.actionType == ActionType.ActivateMana }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.ActivateMana>()
 
             assertSoftly {
-                selectedCast.ability shouldNotBe null
-                selectedCast.ability?.hostCard?.name shouldBe "Llanowar Elves"
+                cast.ability shouldNotBe null
+                cast.ability?.hostCard?.name shouldBe "Llanowar Elves"
                 land.cardId shouldBe
                     ForgeCardId(
                         board.human
@@ -257,13 +249,13 @@ class ActionMapperSnapshotTest :
                             .single { it.name == "Island" }
                             .id,
                     )
-                activate.cardId shouldNotBe null
-                mana.cardId shouldNotBe null
+                activate.ability shouldNotBe null
+                activate.ability?.hostCard?.name shouldBe "Tavern Swindler"
+                mana.ability shouldNotBe null
+                mana.ability?.hostCard?.name shouldBe "Forest"
                 projection.offers
                     .filter { it.action.actionType == ActionType.Pass || it.action.actionType == ActionType.FloatMana }
-                    .map { it.token }
-                    .distinct()
-                    .size shouldBe 1
+                    .map { it.command } shouldBe listOf(PlayerAction.PassPriority, PlayerAction.PassPriority)
             }
         }
 

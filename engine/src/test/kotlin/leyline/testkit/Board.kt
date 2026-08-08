@@ -9,7 +9,6 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.SeatId
-import leyline.game.EngineCut
 import leyline.game.advanceToMain1
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -19,7 +18,6 @@ import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
@@ -51,16 +49,8 @@ class Board(
     /** Create a [BundleBuilder] with standard test constants. */
     fun bundleBuilder(): BundleBuilder = BundleBuilder(bridge, TEST_MATCH_ID, SEAT_ID)
 
-    /** Build a stateOnlyDiff and return the latest GSM. Fails if no GSM produced. */
-    fun stateOnlyDiff(): GameStateMessage {
-        val playbackMessages = drainPlayback().flatten()
-        playbackMessages
-            .lastOrNull { it.hasGameStateMessage() }
-            ?.gameStateMessage
-            ?.let { return it }
-        return bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull
-            ?: error("stateOnlyDiff returned no GSM")
-    }
+    /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
+    fun stateOnlyDiff(): GameStateMessage = bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
     /**
      * Seed the diff baseline, run [action], build a stateOnlyDiff, return the GSM.
@@ -70,7 +60,6 @@ class Board(
         checkSba: Boolean = false,
         action: () -> Unit,
     ): GameStateMessage {
-        drainPlayback()
         bridge.seedDiffBaseline(game, counter.currentGsId())
         action()
         if (checkSba) game.action.checkStateEffects(true)
@@ -79,25 +68,14 @@ class Board(
 
     /** Build a postAction bundle with standard test constants. */
     fun postAction(): BundleBuilder.BundleResult {
-        val playbackMessages = drainPlayback().flatten()
+        val playbackMessages =
+            bridge.playback
+                ?.drainQueue()
+                .orEmpty()
+                .flatten()
         val result = bundleBuilder().postAction(game, counter)
         if (playbackMessages.isEmpty()) return result
         return BundleBuilder.BundleResult(playbackMessages + result.messages)
-    }
-
-    /** Drain playback through the same compile/commit order as the match owner. */
-    fun drainPlayback(): List<List<GREToClientMessage>> {
-        val builder = bundleBuilder()
-        val interactive = mutableListOf<List<GREToClientMessage>>()
-        val checkpoint = bridge.latestEngineCutCheckpoint()
-        while (true) {
-            val cut = bridge.peekEngineCutThrough(checkpoint) ?: break
-            if (cut is EngineCut.Observation) {
-                interactive += builder.playbackYield(cut.value, counter).map { it.messages }
-            }
-            bridge.acknowledgeEngineCut(cut)
-        }
-        return interactive
     }
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
@@ -274,7 +252,6 @@ class Board(
                 "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
             }
             b.seedDiffBaseline(game, counter.currentGsId())
-            b.activateInteractivePlayback()
             return Board(b, game, counter)
         }
 
@@ -303,7 +280,6 @@ class Board(
                 "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})"
             }
             b.seedDiffBaseline(game, counter.currentGsId())
-            b.activateInteractivePlayback()
             return Board(b, game, counter)
         }
     }

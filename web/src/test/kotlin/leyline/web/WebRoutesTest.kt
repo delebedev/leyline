@@ -502,66 +502,6 @@ class WebRoutesTest :
             }
         }
 
-        test("GRE relay replacement fences stale frames and close signals") {
-            withWeb(json) {
-                val login = login()
-                val matchId = "replacement-fence"
-                lateinit var first: ReplaceableGreEngineSession
-                lateinit var second: ReplaceableGreEngineSession
-                repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
-                    ReplaceableGreEngineSession(onFrame, onClosed).also { first = it }
-                }
-
-                greSocket(login, matchId) {
-                    val firstAccepted = first.emit(byteArrayOf(1))
-                    val firstFrame = (incoming.receive() as Frame.Binary).readBytes()
-                    assertSoftly {
-                        firstAccepted shouldBe true
-                        firstFrame shouldBe byteArrayOf(1)
-                    }
-
-                    repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
-                        ReplaceableGreEngineSession(onFrame, onClosed).also { second = it }
-                    }
-                    val staleAccepted = first.emit(byteArrayOf(2))
-                    val currentAccepted = second.emit(byteArrayOf(3))
-                    val replacementFrame = (incoming.receive() as Frame.Binary).readBytes()
-                    assertSoftly {
-                        staleAccepted shouldBe true
-                        currentAccepted shouldBe true
-                        replacementFrame shouldBe byteArrayOf(3)
-                    }
-                }
-            }
-        }
-
-        test("GRE relay replacement survives the displaced generation idle timer") {
-            withWeb(json) {
-                val login = login()
-                val matchId = "replacement-idle-fence"
-                repos.registerGre(matchId, byteArrayOf(1), PlayerId(login.playerId))
-                greSocket(login, matchId) {
-                    send(Frame.Binary(fin = true, data = byteArrayOf(1)))
-                    (incoming.receive() as Frame.Binary).readBytes() shouldBe byteArrayOf(1)
-                }
-
-                val replacementClosed = AtomicBoolean(false)
-                repos.registerGre(
-                    matchId,
-                    byteArrayOf(2),
-                    PlayerId(login.playerId),
-                    closed = replacementClosed,
-                )
-                delay(100)
-
-                greSocket(login, matchId) {
-                    send(Frame.Binary(fin = true, data = byteArrayOf(2)))
-                    (incoming.receive() as Frame.Binary).readBytes() shouldBe byteArrayOf(2)
-                }
-                replacementClosed.get() shouldBe false
-            }
-        }
-
         test("engine crash disconnects attached browsers instead of hanging silently") {
             withWeb(json) {
                 val login = login()
@@ -1245,7 +1185,7 @@ private suspend fun HttpClient.roundTrip(
 
 /** Emits two frames [stepDelayMs] apart from within one [receiveFromBrowser] call. */
 private class SlowMultiStepGreEngineSession(
-    private val onFrame: (ByteArray) -> Boolean,
+    private val onFrame: (ByteArray) -> Unit,
     private val stepDelayMs: Long,
 ) : WebGreEngineSession {
     override fun receiveFromBrowser(payload: ByteArray) {
@@ -1260,7 +1200,7 @@ private class SlowMultiStepGreEngineSession(
 private class StaticGreEngineSession(
     private val received: MutableList<ByteArray>,
     private val reply: ByteArray,
-    private val onFrame: (ByteArray) -> Boolean,
+    private val onFrame: (ByteArray) -> Unit,
     private val closed: AtomicBoolean = AtomicBoolean(false),
 ) : WebGreEngineSession {
     override fun receiveFromBrowser(payload: ByteArray) {
@@ -1274,7 +1214,7 @@ private class StaticGreEngineSession(
 }
 
 private class ConcurrentProbeGreEngineSession(
-    private val onFrame: (ByteArray) -> Boolean,
+    private val onFrame: (ByteArray) -> Unit,
 ) : WebGreEngineSession {
     val receivedCount = AtomicInteger(0)
     val maxConcurrent = AtomicInteger(0)
@@ -1293,17 +1233,6 @@ private class ConcurrentProbeGreEngineSession(
     }
 
     override fun close() = Unit
-}
-
-private class ReplaceableGreEngineSession(
-    private val onFrame: (ByteArray) -> Boolean,
-    private val onClosed: () -> Unit,
-) : WebGreEngineSession {
-    fun emit(payload: ByteArray): Boolean = onFrame(payload)
-
-    override fun receiveFromBrowser(payload: ByteArray) = Unit
-
-    override fun close() = onClosed()
 }
 
 private class StaticDraftDriver : DraftService.Driver {

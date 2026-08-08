@@ -25,8 +25,9 @@ class AiTurnConformanceTest :
     BoardTest({
 
         test("AI turn produces per-action diffs via EventBus playback") {
-            val board = startGameAtMain1()
-            val (b, game, _) = board
+            val (b, game, _) = startGameAtMain1()
+
+            val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
             // Play a land to have mana, then snapshot
             playLand(b) ?: error("playLand failed at seed 42")
@@ -37,10 +38,10 @@ class AiTurnConformanceTest :
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
                 passPriority(b)
-                if (b.hasPendingEngineCuts()) break
+                if (playback.hasPendingMessages()) break
             }
 
-            val batches = board.drainPlayback()
+            val batches = playback.drainQueue()
             batches.shouldNotBeEmpty()
 
             // All messages should be GameStateMessage (no ActionsAvailableReq)
@@ -60,8 +61,9 @@ class AiTurnConformanceTest :
         }
 
         test("AI action diffs contain ZoneTransfer annotations (local AI visibility)") {
-            val board = startGameAtMain1()
-            val (b, game, _) = board
+            val (b, game, _) = startGameAtMain1()
+
+            val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
             playLand(b) ?: error("playLand failed at seed 42")
             b.seedDiffBaseline(game)
@@ -71,8 +73,8 @@ class AiTurnConformanceTest :
             @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
                 passPriority(b)
-                if (b.hasPendingEngineCuts()) {
-                    val drained = board.drainPlayback()
+                if (playback.hasPendingMessages()) {
+                    val drained = playback.drainQueue()
                     allBatches.addAll(drained)
                     // Snap-vs-snap diffs: break only when we see actual card movements
                     // (objects present in diff), not just phase-transition diffs that

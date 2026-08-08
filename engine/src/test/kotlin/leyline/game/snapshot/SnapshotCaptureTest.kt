@@ -8,9 +8,7 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 
@@ -35,8 +33,8 @@ class SnapshotCaptureTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
             val goalFid = ForgeCardId(-1)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
-            val goalIid = b.getOrAllocInstanceId(goalFid).value
+            snap.objects[goalFid]?.grpId shouldBe 0
+            snap.objects[goalFid]?.name shouldBe "Puzzle Goal"
 
             // Sanity: real card still resolves to a real grpId.
             val bearsCard =
@@ -45,17 +43,7 @@ class SnapshotCaptureTest :
                     .cards
                     .first { it.name == "Grizzly Bears" }
             val bearsSnap = snap.objects.getValue(ForgeCardId(bearsCard.id))
-            assertSoftly {
-                snap.objects[goalFid]?.grpId shouldBe 0
-                snap.objects[goalFid]?.name shouldBe "Puzzle Goal"
-                snap.objects[goalFid]?.isClientVisibleGamePiece shouldBe false
-                gsm.gameObjectsList.map { it.instanceId } shouldNotContain goalIid
-                gsm.zonesList
-                    .first { it.zoneId == ZoneIds.COMMAND }
-                    .objectInstanceIdsList shouldNotContain goalIid
-                bearsSnap.grpId shouldBeGreaterThan 0
-                bearsSnap.isClientVisibleGamePiece shouldBe true
-            }
+            bearsSnap.grpId shouldBeGreaterThan 0
         }
 
         test("Effect helper with source is omitted from snapshot zones and objects") {
