@@ -232,7 +232,7 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
-        test("mulligan then keep re-deals through MatchHandler response path") {
+        test("two mulligans then keep preserve the final redraw hand") {
             val registry = MatchRegistry()
             val matchId = "mulligan-flow-redraw"
             val mixedDeck =
@@ -270,10 +270,26 @@ class MatchDoorMulliganFlowTest :
                         6,
                     ),
                 )
-                val redrawPrompt = greOutbound(local)
-                val redrawTypes = redrawPrompt.map { it.type }
-                val redrawMulligan = redrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }.mulliganReq
-                val redrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
+                val firstRedrawPrompt = greOutbound(local)
+                val firstRedrawTypes = firstRedrawPrompt.map { it.type }
+                val firstRedrawMulligan = firstRedrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }
+                val firstRedrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
+
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.Mulligan,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge.messageCounter
+                                .lastPromptMsgId(),
+                        ),
+                        7,
+                    ),
+                )
+                val secondRedrawPrompt = greOutbound(local)
+                val secondRedrawMulligan = secondRedrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }
+                val secondRedrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
                 local.writeInbound(
                     greServiceMessage(
@@ -284,17 +300,24 @@ class MatchDoorMulliganFlowTest :
                                 .bridge.messageCounter
                                 .lastPromptMsgId(),
                         ),
-                        7,
+                        8,
                     ),
                 )
                 val postKeep = greOutbound(local).map { it.type }
+                val keptHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
                 assertSoftly {
-                    redrawTypes shouldContain GREMessageType.GameStateMessage_695e
-                    redrawTypes shouldContain GREMessageType.PromptReq
-                    redrawTypes shouldContain GREMessageType.MulliganReq_aa0d
-                    redrawMulligan.mulliganCount shouldBe 1
-                    redrawHand shouldNotBe firstHand
+                    firstRedrawTypes shouldContain GREMessageType.GameStateMessage_695e
+                    firstRedrawTypes shouldContain GREMessageType.PromptReq
+                    firstRedrawTypes shouldContain GREMessageType.MulliganReq_aa0d
+                    firstRedrawMulligan.mulliganReq.mulliganCount shouldBe 0
+                    firstRedrawMulligan.prompt.parametersList.map { it.numberValue } shouldContain 6
+                    firstRedrawHand.size shouldBe 6
+                    firstRedrawHand shouldNotBe firstHand
+                    secondRedrawMulligan.mulliganReq.mulliganCount shouldBe 0
+                    secondRedrawMulligan.prompt.parametersList.map { it.numberValue } shouldContain 5
+                    secondRedrawHand.size shouldBe 5
+                    keptHand shouldBe secondRedrawHand
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
                 }
