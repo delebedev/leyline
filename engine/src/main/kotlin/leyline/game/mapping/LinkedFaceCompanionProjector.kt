@@ -1,5 +1,7 @@
 package leyline.game.mapping
 
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.game.annotations.TransferResult
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
@@ -86,6 +88,7 @@ object LinkedFaceCompanionProjector {
         snap: GsmSnapshot,
         bridge: GameBridge,
         viewingSeatId: Int,
+        parentIidLookup: ((ForgeCardId) -> InstanceId?)? = null,
     ): Set<Int> =
         snap.boundCards.values
             .asSequence()
@@ -101,7 +104,7 @@ object LinkedFaceCompanionProjector {
                     else -> true
                 }
             }.flatMap { bound ->
-                val parentIid = bridge.getOrAllocInstanceId(bound.forgeCardId)
+                val parentIid = parentIidLookup?.invoke(bound.forgeCardId) ?: bridge.getOrAllocInstanceId(bound.forgeCardId)
                 val zoneId =
                     snap.zones.values
                         .firstOrNull { bound.forgeCardId in it.contents }

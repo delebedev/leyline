@@ -16,6 +16,7 @@ import leyline.testkit.IsolatedBoardLifecycle
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
  * Acceptance forcing function for the diff-pure refactor.
@@ -217,6 +218,39 @@ class PureDiffReplayTest :
                     if (nonTrivial.isNotEmpty()) exercisedRealloc = true
                 }
                 exercisedRealloc shouldBe true
+            }
+        }
+
+        test("tentative projection compiles identically without advancing committed identity state") {
+            withBase {
+                val (replayBridge, game, _) = startGameAtMain1(seed = SCENARIO_SEED)
+                val snap = GsmSnapshot.capture(game, replayBridge, Board.TEST_MATCH_ID, 1)
+                val before = replayBridge.ids.committedState()
+
+                fun compile() =
+                    StateMapper
+                        .buildDiff(
+                            prev = snap,
+                            cur = snap,
+                            events = FrameEventLog.EMPTY,
+                            gameStateId = 2,
+                            matchId = Board.TEST_MATCH_ID,
+                            bridge = replayBridge,
+                            updateType = GameStateUpdate.SendAndRecord,
+                            viewingSeatId = SEAT_ID,
+                        ).finalizeAnnotations()
+
+                val first = compile()
+                val afterFirst = replayBridge.ids.committedState()
+                val second = compile()
+                val afterSecond = replayBridge.ids.committedState()
+
+                assertSoftly {
+                    first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
+                    first.mutations.instanceIdTransition?.nextState shouldBe second.mutations.instanceIdTransition?.nextState
+                    afterFirst shouldBe before
+                    afterSecond shouldBe before
+                }
             }
         }
 

@@ -45,6 +45,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import kotlin.concurrent.thread
 
 /**
  * Tests for [leyline.game.bundle.BundleBuilder] proto assembly.
@@ -758,6 +759,29 @@ class BundleBuilderTest :
                 b.getInstanceIdMap() shouldBe startInstanceIds
                 b.getProtoZones() shouldBe startZones
             }
+        }
+
+        test("interleaved identity allocation retries the same projection input") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val interleavedForgeId = ForgeCardId(1_000_000)
+            var writerRan = false
+            b.diffListener = { _, _, _, _, _ ->
+                if (!writerRan) {
+                    writerRan = true
+                    val writer = thread(start = true) { b.ids.getOrAlloc(interleavedForgeId) }
+                    writer.join()
+                }
+            }
+
+            try {
+                builder.stateOnlyDiff(game, counter)
+            } finally {
+                b.diffListener = null
+            }
+
+            writerRan shouldBe true
+            b.ids.peek(interleavedForgeId)?.value shouldBe 100
         }
 
         test("replaced submitted-target rider aborts before bridge mutations commit") {

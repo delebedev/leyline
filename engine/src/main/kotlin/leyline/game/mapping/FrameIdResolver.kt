@@ -13,9 +13,8 @@ import leyline.game.state.GameBridge
  * Inside a single [StateMapper.buildDiff] call there are three different ways
  * to answer "what's the instance id of X right now?":
  *
- * - `bridge.getOrAllocInstanceId(forgeId)` — pre-realloc; the bridge holds the
- *   old iid for any zone-transferred card until `applyMutations` runs *after*
- *   `buildDiff` returns.
+ * - `bridge.getOrAllocInstanceId(forgeId)` — the active projection planner
+ *   holds the tentative iid for any allocation until the shell commit.
  * - `transfer.newId` from the active [TransferResult] — the post-realloc iid;
  *   only annotation builders that already loop over `transferResult.transfers`
  *   see this directly.
@@ -32,8 +31,9 @@ import leyline.game.state.GameBridge
  * `ZoneTransferDetector` itself runs *before* the resolver exists, and only
  * needs the offset arithmetic.
  *
- * **Threading**: pure data; no shared mutable state. Safe to construct per
- * `buildDiff` call.
+ * **Threading**: constructed inside the registry's projection scope. Its
+ * lookups are local to that scope; no registry lock spans this resolver or a
+ * Forge callback.
  */
 class FrameIdResolver(
     private val bridge: GameBridge,

@@ -18,24 +18,28 @@ data class PendingTargetSpecRecord(
  * round-trip.
  *
  * **Ordering invariant** (applied in [GameBridge.applyMutations]):
- * 1. `idReallocations` — id swap for zone-transferred cards (writes to [InstanceIdRegistry])
- * 2. `retiredIds` — old ids moved to limbo (writes to [LimboTracker])
- * 3. `zoneRecordings` — new zone assignments (writes to [DiffSnapshotter.previousZones])
- * 4. `persistentBatch` — persistent annotation state writes (writes to [PersistentAnnotationStore])
- * 5. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
- * 6. `nextAnnotationId` — transient annotation ID counter update
- * 7. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
- * 8. `nextTransientLinkedFaceFamilyIds` — one-frame hidden-zone projection lifecycle
+ * 1. `instanceIdTransition` — complete tentative identity state, validated and
+ *    installed once in [GameBridge.applyMutations]
+ * 2. `revealTransition` — tentative reveal-view map state
+ * 3. `idReallocations` — id swap description for zone-transferred cards
+ * 4. `retiredIds` — old ids moved to limbo (writes to [LimboTracker])
+ * 5. `zoneRecordings` — new zone assignments (writes to [DiffSnapshotter.previousZones])
+ * 6. `persistentBatch` — persistent annotation state writes (writes to [PersistentAnnotationStore])
+ * 7. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
+ * 8. `nextAnnotationId` — transient annotation ID counter update
+ * 9. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
+ * 10. `nextTransientLinkedFaceFamilyIds` — one-frame hidden-zone projection lifecycle
  *
  * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
  * not applied to bridge state; the rest of this batch still owns bridge writes.
  *
- * Scope: only ordering-sensitive mutations. Monotonic allocators
- * ([InstanceIdRegistry.getOrAlloc] for new cards, [EffectTracker.nextEffectId],
- * etc.) stay as in-place mutations inside `buildDiff` — their ordering doesn't
- * affect correctness.
+ * Scope: identity allocation is a complete tentative transition. Other tracker
+ * families remain explicit follow-up work; effect IDs and their lifecycle are
+ * intentionally not part of this slice.
  */
 data class BridgeMutations(
+    val instanceIdTransition: InstanceIdRegistry.Transition? = null,
+    val revealTransition: RevealProxyTracker.Transition? = null,
     val idReallocations: List<InstanceIdRegistry.IdReallocation>,
     val retiredIds: List<InstanceId>,
     val zoneRecordings: List<Pair<InstanceId, Int>>,
@@ -52,6 +56,8 @@ data class BridgeMutations(
     companion object {
         val EMPTY: BridgeMutations =
             BridgeMutations(
+                instanceIdTransition = null,
+                revealTransition = null,
                 idReallocations = emptyList(),
                 retiredIds = emptyList(),
                 zoneRecordings = emptyList(),
