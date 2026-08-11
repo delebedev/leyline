@@ -1,6 +1,8 @@
 package leyline.tooling.simclient
 
 import leyline.bridge.types.SeatId
+import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.SimDecision
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.simclient.GameStats
 import leyline.tooling.simclient.SimClientFinding
@@ -33,8 +35,15 @@ class SimClientDriver(
      * priority-window action picking only; other prompt types stay greedy.
      */
     private val forgeAi: ForgeAiPolicy? = null,
+    private val shadowAdvisor: Boolean = false,
+    private val snapshotShadow: Boolean = false,
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
+    private val snapshotProbe: SnapshotShadowProbe? = if (snapshotShadow) SnapshotShadowProbe(harness) else null
+
+    /** Snapshot-shadow fidelity buckets per prompt family; null unless [snapshotShadow] is on. */
+    internal fun snapshotShadowStats(): Map<String, SnapshotShadowProbe.Bucket>? = snapshotProbe?.stats()
+
     private var lastFlushedSize = 0
     private var stalledPrompt: String? = null
     private var stalledFingerprint: String? = null
@@ -151,6 +160,7 @@ class SimClientDriver(
         val promptStats = promptLedger.stats()
         val attemptStats = attemptLedger.stats()
         val outcome = finalOutcome()
+        snapshotProbe?.logSummary("turn=${currentTurnOrNull() ?: lastTurn},reason=$completionReason")
         return GameStats(
             turn = currentTurnOrNull() ?: lastTurn,
             gameOver = harness.isGameOver() || sawTerminalIntermission,
@@ -317,6 +327,7 @@ class SimClientDriver(
     }
 
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
+        snapshotProbe?.observe(prompt.msg)
         val beforeMessages = harness.allMessages.size
         val beforeLast = harness.allMessages.lastOrNull()
         val sourceBefore = promptProgress.sourceSnapshot(prompt)

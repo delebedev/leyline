@@ -227,11 +227,13 @@ class MatchFlowHarness(
             TestCardRegistry.repo
         }
 
+    private val effectiveMatchConfig: MatchConfig = matchConfig
+
     private fun newBridge(repo: CardRepository): GameBridge =
         GameBridge(
-            bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-            promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-            matchConfig = matchConfig,
+            bridgeTimeoutMs = effectiveMatchConfig.server.bridgeTimeoutMs,
+            promptFailsafeMs = effectiveMatchConfig.server.promptFailsafeMs,
+            matchConfig = effectiveMatchConfig,
             messageCounter = MessageCounter(),
             cardRepository = repo,
         ).also { it.priorityWaitMs = 2_000L }

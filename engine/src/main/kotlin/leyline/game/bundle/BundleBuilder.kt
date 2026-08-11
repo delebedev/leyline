@@ -2235,6 +2235,18 @@ class BundleBuilder(
             actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
 
         /**
+         * True when the only stop-worthy actions are optional activated
+         * abilities (no Cast/Play). A client with auto-pass engaged renders
+         * only the `>>` skip control for such a window and never sends a manual
+         * pass; without this, leyline waits forever. Lets that window auto-pass
+         * in step with the client's declared auto-pass intent.
+         */
+        fun onlyOptionalActivations(actions: ActionsAvailableReq): Boolean {
+            val stops = actions.actionsList.filter { ShouldStopEvaluator.shouldStop(it.actionType) }
+            return stops.isNotEmpty() && stops.all { it.actionType == ActionType.Activate_add3 }
+        }
+
+        /**
          * True when the drained [events] describe a turn-boundary or trigger-driven
          * draw — one that should be emitted as [GameStateUpdate.SendHiFi] rather
          * than the default [GameStateUpdate.SendAndRecord].

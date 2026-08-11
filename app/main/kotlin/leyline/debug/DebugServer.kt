@@ -4,9 +4,11 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.copilot.CopilotProposalService
 import leyline.domain.json.productionJson
 import leyline.game.bundle.BundleBuilder
 import leyline.game.generator.PuzzleSource
@@ -28,6 +30,8 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Endpoints:
  * - `GET /api/best-play`   → engine simulation recommendation for current board state
+ * - `GET /api/copilot-proposal` → local decision view for the pending prompt
+ * - `POST /api/copilot-consult` → stateless decision view for supplied state
  * - `POST /api/inject-full` → rebuild and push a full state update to the client
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
@@ -41,6 +45,10 @@ class DebugServer(
     private val sessionProvider: (() -> MatchSession?)? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
+    /** Card repository for session-less consults (`POST /api/copilot-consult`). */
+    private val cardRepositoryProvider: (() -> leyline.game.data.CardRepository)? = null,
+    /** One-shot seat-2 (AI) deck override by name — set via POST /api/ai-deck, consumed per match. */
+    private val aiDeckOverride: AtomicReference<String?>? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -57,11 +65,35 @@ class DebugServer(
 
         mapOf(
             "/api/best-play" to ::serveBestPlay,
+            "/api/copilot-proposal" to ::serveCopilotProposal,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
 
         srv.postContext("/api/inject-full", ::serveInjectFull)
+        srv.postContext("/api/copilot-consult", ::serveCopilotConsult)
+        srv.createContext("/api/ai-deck") { ex ->
+            try {
+                when (ex.requestMethod) {
+                    "GET" -> respondJson(ex, """{"aiDeck":${aiDeckOverride?.get()?.let { "\"$it\"" } ?: "null"}}""")
+                    "POST" -> serveSetAiDeck(ex)
+                    else -> {
+                        ex.sendResponseHeaders(405, -1)
+                        ex.close()
+                    }
+                }
+            } catch (t: Throwable) {
+                log.error("/api/ai-deck error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
         srv.createContext("/api/puzzle") { ex ->
             try {
                 when (ex.requestMethod) {
@@ -218,6 +250,81 @@ class DebugServer(
         }
     }
 
+    // --- Copilot proposal ---
+
+    /**
+     * `GET /api/copilot-proposal` — asks the Forge-AI decision brain what it
+     * would answer for the prompt the local seat is currently facing. The result
+     * is a [leyline.copilot.CopilotProposal] and this route is read-only. Missing session / game / prompt
+     * yields an `unrealizable` proposal, never an error.
+     */
+    private fun serveCopilotProposal(ex: HttpExchange) {
+        val session = sessionProvider?.invoke()
+        if (session == null) {
+            respondJson(ex, """{"intent":"unrealizable","reason":"no active session"}""")
+            return
+        }
+        val service = CopilotProposalService(session.gameBridge, session.seatId)
+        val proposal = service.propose(session.lastPromptMessage())
+        respondJson(ex, json.encodeToString(proposal))
+    }
+
+    /**
+     * `POST /api/copilot-consult` — session-less consult against a caller
+     * supplied game state. Body: `{"seat": 1, "gameState": <GameStateMessage
+     * JSON>, "prompt": <GREToClientMessage JSON>}` (proto-JSON, unknown fields
+     * ignored). Hydrates a standalone game, answers the prompt, and returns
+     * `{proposal, eval}` in the caller's own id space.
+     */
+    private fun serveCopilotConsult(ex: HttpExchange) {
+        val repo = cardRepositoryProvider?.invoke()
+        if (repo == null) {
+            respond(ex, 503, "application/json; charset=utf-8", """{"error":"no card repository configured"}""")
+            return
+        }
+        val root =
+            Json
+                .parseToJsonElement(ex.requestBody.readBytes().decodeToString())
+                .let { it as? kotlinx.serialization.json.JsonObject }
+        val gameStateJson = root?.get("gameState")
+        if (root == null || gameStateJson == null) {
+            respond(ex, 400, "application/json; charset=utf-8", """{"error":"body must be an object with a gameState field"}""")
+            return
+        }
+        val seat =
+            (root["seat"] as? kotlinx.serialization.json.JsonPrimitive)
+                ?.content
+                ?.toIntOrNull() ?: 1
+        // Accept both JSON dialects: Player.log enum spellings are rewritten
+        // to proto value names before protobuf JSON parsing.
+        val parser =
+            com.google.protobuf.util.JsonFormat
+                .parser()
+                .ignoringUnknownFields()
+
+        fun protoJson(
+            element: kotlinx.serialization.json.JsonElement,
+            descriptor: com.google.protobuf.Descriptors.Descriptor,
+        ): String =
+            leyline.protocol.PlayerLogEnumJson
+                .toGenerated(element, descriptor)
+                .toString()
+        val gsm =
+            GameStateMessage
+                .newBuilder()
+                .also { parser.merge(protoJson(gameStateJson, GameStateMessage.getDescriptor()), it) }
+                .build()
+        val prompt =
+            root["prompt"]?.let { promptJson ->
+                GREToClientMessage
+                    .newBuilder()
+                    .also { parser.merge(protoJson(promptJson, GREToClientMessage.getDescriptor()), it) }
+                    .build()
+            }
+        val result = leyline.copilot.SnapshotConsult.consult(gsm, prompt, seat, repo)
+        respondJson(ex, json.encodeToString(result))
+    }
+
     private fun buildBestPlayTargets(
         bestSa: forge.game.spellability.SpellAbility,
         bridge: GameBridge,
@@ -349,6 +456,28 @@ class DebugServer(
     private fun serveGetPuzzle(ex: HttpExchange) {
         val current = runtimePuzzle?.get()
         respondJson(ex, """{"puzzle":${if (current != null) "\"$current\"" else "null"}}""")
+    }
+
+    /**
+     * Set (or clear) the one-shot seat-2 AI deck override. Body = deck name as
+     * plain text; empty body clears. Consumed at the next match's seat-2
+     * resolution. Enables the endless self-play loop to randomize the opponent
+     * per match with no server restart.
+     */
+    private fun serveSetAiDeck(ex: HttpExchange) {
+        val name =
+            ex.requestBody
+                .bufferedReader()
+                .readText()
+                .trim()
+        if (name.isEmpty()) {
+            aiDeckOverride?.set(null)
+            respondJson(ex, """{"aiDeck":null,"cleared":true}""")
+            return
+        }
+        aiDeckOverride?.set(name)
+        log.info("AI-deck override set: {}", name)
+        respondJson(ex, """{"aiDeck":"$name"}""")
     }
 
     private fun servePuzzle(ex: HttpExchange) {

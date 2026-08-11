@@ -4,6 +4,13 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
+import leyline.copilot.ExpectedCastVariant
+import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.SimDecision
+import leyline.copilot.allowedStaticColorIds
+import leyline.copilot.chooseCastActionByVariant
+import leyline.copilot.colorSetFromStaticIds
+import leyline.copilot.sacrificeCostSelectionIds
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
@@ -227,7 +234,7 @@ class SimClientDriverPolicyTest :
         }
 
         test("forge-ai SelectTargets adapter consults exact target prompts") {
-            val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
+            val policy = ForgeAiPolicy({ MatchFlowHarness().bridge }, SeatId(1))
 
             policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 0, max = 1)) shouldBe true
@@ -272,7 +279,7 @@ class SimClientDriverPolicyTest :
         }
 
         test("forge-ai CTO adapter only consults simple modal choices") {
-            val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
+            val policy = ForgeAiPolicy({ MatchFlowHarness().bridge }, SeatId(1))
 
             policy.canChooseCastingTimeOptions(modalCtoPrompt()) shouldBe true
             policy.canChooseCastingTimeOptions(ctoPrompt()) shouldBe false
@@ -304,7 +311,7 @@ class SimClientDriverPolicyTest :
                 ).build()
 
         test("forge-ai PayCosts adapter fails closed without a pending sacrifice cost prompt") {
-            val policy = ForgeAiPolicy(MatchFlowHarness(), SeatId(1))
+            val policy = ForgeAiPolicy({ MatchFlowHarness().bridge }, SeatId(1))
 
             policy.canChooseSacrificeCostPayment(payCostsPrompt(ids = emptyList())) shouldBe false
             policy.canChooseSacrificeCostPayment(ctoPrompt()) shouldBe false

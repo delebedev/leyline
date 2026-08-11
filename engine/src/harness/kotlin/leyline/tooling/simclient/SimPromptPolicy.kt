@@ -1,16 +1,17 @@
 package leyline.tooling.simclient
 
+import leyline.copilot.DefaultDecisions
+import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.SimDecision
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
@@ -209,14 +210,9 @@ internal open class GreedyPromptPolicy(
         return SimDecision.SelectN(ids.take(count))
     }
 
-    private fun respondOrder(msg: GREToClientMessage): SimDecision = SimDecision.Order(msg.orderReq.idsList.toList())
+    private fun respondOrder(msg: GREToClientMessage): SimDecision = DefaultDecisions.order(msg)
 
-    private fun respondSearch(msg: GREToClientMessage): SimDecision {
-        val req = msg.searchReq
-        val max = if (req.maxFind > 0) req.maxFind else req.minFind
-        val count = max.coerceAtLeast(req.minFind).coerceAtLeast(1)
-        return SimDecision.Search(req.itemsSoughtList.take(count))
-    }
+    private fun respondSearch(msg: GREToClientMessage): SimDecision = DefaultDecisions.search(msg)
 
     private fun learnLessonIds(req: SelectNReq): List<Int> {
         val sideboardIds = req.idsList.filter { id -> harness.accumulator.objects[id]?.zoneId == ZoneIds.P1_SIDEBOARD }
@@ -251,46 +247,18 @@ internal open class GreedyPromptPolicy(
     }
 
     private fun respondCastingTimeOptions(msg: GREToClientMessage): SimDecision {
-        chooseSimClientManaTypeChoices(msg)?.let { return SimDecision.ManaTypeChoices(it) }
-        chooseSimClientModalGrpIds(msg)?.let { return SimDecision.ModalChoice(it) }
         val acceptOptionalCosts = System.getenv("SIMCLIENT_ACCEPT_OPTIONAL_COSTS").equals("true", ignoreCase = true)
-        return SimDecision.OptionalCost(chooseSimClientCastingTimeOptionId(msg, acceptOptionalCosts))
-    }
-
-    private fun chooseSimClientManaTypeChoices(msg: GREToClientMessage): List<Pair<Int, ManaColor>>? {
-        val options =
-            msg.castingTimeOptionsReq.castingTimeOptionReqList.filter {
-                it.castingTimeOptionType == CastingTimeOptionType.ManaType && it.hasSelectManaTypeReq()
-            }
-        if (options.isEmpty()) return null
-        return options.map { option ->
-            val color = option.selectManaTypeReq.manaColorsList.firstOrNull { it != ManaColor.TwoGeneric } ?: ManaColor.TwoGeneric
-            option.ctoId to color
-        }
+        return DefaultDecisions.castingTimeOptions(msg, acceptOptionalCosts)
     }
 
     /** Greedy: accept the offer. Declining strands chained prompts the offer gates. */
-    private fun respondOptionalAction(): SimDecision = SimDecision.OptionalAction(accept = true)
+    private fun respondOptionalAction(): SimDecision = DefaultDecisions.optionalAction()
 
-    private fun respondNumericInput(msg: GREToClientMessage): SimDecision {
-        val req = msg.numericInputReq
-        val choice =
-            if (req == null) {
-                0
-            } else {
-                req.minValue.coerceAtLeast(NUMERIC_INPUT_DEFAULT_MAX.coerceAtMost(req.maxValue))
-            }
-        return SimDecision.NumericInput(choice)
-    }
+    private fun respondNumericInput(msg: GREToClientMessage): SimDecision = DefaultDecisions.numericInput(msg)
 
-    private fun respondGroup(msg: GREToClientMessage): SimDecision = SimDecision.GroupTop(msg.groupReq.instanceIdsList.toList())
+    private fun respondGroup(msg: GREToClientMessage): SimDecision = DefaultDecisions.group(msg)
 
-    private fun respondAssignDamage(msg: GREToClientMessage): SimDecision =
-        SimDecision.AssignDamage(
-            msg.assignDamageReq.damageAssignersList.map { assigner ->
-                assigner.instanceId to assigner.assignmentsList.map { it.instanceId to it.assignedDamage }
-            },
-        )
+    private fun respondAssignDamage(msg: GREToClientMessage): SimDecision = DefaultDecisions.assignDamage(msg)
 
     private companion object {
         const val NUMERIC_INPUT_DEFAULT_MAX = 3
@@ -426,19 +394,7 @@ private fun HighlightType.targetPreference(): Int =
         -> 0
     }
 
-internal fun chooseSimClientModalGrpIds(msg: GREToClientMessage?): List<Int>? {
-    val option =
-        msg
-            ?.castingTimeOptionsReq
-            ?.castingTimeOptionReqList
-            ?.firstOrNull { it.castingTimeOptionType == CastingTimeOptionType.Modal_a7b4 && it.hasModalReq() }
-            ?: return null
-    val req = option.modalReq
-    val min = req.minSel.coerceAtLeast(0)
-    val max = if (req.maxSel > 0) req.maxSel else min
-    val count = min.coerceAtMost(max)
-    return req.modalOptionsList.map { it.grpId }.take(count)
-}
+internal fun chooseSimClientModalGrpIds(msg: GREToClientMessage?): List<Int>? = msg?.let { DefaultDecisions.modalGrpIds(it) }
 
 internal fun ActivePrompt.aarActions(): List<Action> = (payload as? PromptPayload.ActionsAvailable)?.req?.actionsList.orEmpty()
 

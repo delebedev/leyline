@@ -1,12 +1,15 @@
-package leyline.tooling.simclient
+package leyline.copilot
 
 import forge.ai.AiCostDecision
 import forge.ai.PlayerControllerAi
+import forge.ai.simulation.GameStateEvaluator
 import forge.card.ColorSet
 import forge.card.MagicColor
+import forge.game.Game
 import forge.game.GameActionUtil
 import forge.game.GameObject
 import forge.game.IEntityMap
+import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
@@ -18,8 +21,8 @@ import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.handoff.OneShotPayCostsWindowKind
 import leyline.bridge.handoff.PayCostsRouteKind
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -28,7 +31,7 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.CastRails
 import leyline.game.mapping.resolveAltGrpId
 import leyline.game.snapshot.BoundCard
-import leyline.tooling.headless.MatchFlowHarness
+import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -40,24 +43,29 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 /**
- * Forge-AI advisor that picks an AAR action to submit on behalf of the
- * simclient seat.
+ * Forge-AI advisor that picks the response the AI would submit for a pending
+ * prompt on behalf of a seat, without displacing leyline's bridged controller.
+ *
+ * Reads the live [GameBridge] through a supplier so both consumers can share
+ * it: the headless simclient (`harness.bridge`) as its volume decision engine,
+ * and the copilot proposal surface (`session.gameBridge`) which exposes the
+ * AI's chosen action for a human seat as an autoplay intent. The supplier is
+ * evaluated lazily so consult gates that never touch the bridge stay cheap and
+ * fail closed before a game is initialised.
  *
  * Builds a parallel [PlayerControllerAi] for the seat (NOT registered as the
  * Forge `Player`'s actual controller — leyline's bridged controller stays in
  * place and continues to emit GRE prompts). The advisor is consulted as a
  * read-only decision source: at a priority window we ask the AI what it would
  * play, then translate the chosen [forge.game.spellability.SpellAbility] into
- * a matching `ActionsAvailableReq` action and submit via the existing
- * `session.onPerformAction` path.
+ * a matching `ActionsAvailableReq` action.
  *
  * ## Load-bearing rules — DO NOT BREAK when adding a new translator method
  *
  * 1. **Don't register [PlayerControllerAi] as the player's controller.**
  *    Leyline's bridged `PlayerController` (extends `PlayerControllerHuman`)
  *    MUST stay registered — it's what emits GRE prompts and blocks on
- *    response futures. Swap it out and the simclient stops producing prompt
- *    traces.
+ *    response futures. Swap it out and the seat stops producing prompts.
  *
  * 2. **Wrap every Forge-AI call in [askAi].** Forge AI internals (e.g.
  *    `forge.ai.AiCostDecision`, `forge.ai.ability.AttachAi`) cast
@@ -70,28 +78,43 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
  *
  * 3. **Skip AI consult on Pass-only AARs** (caller side — see
  *    `SimClientDriver.hasCastableActionsInAar`). Forge AI's search costs
- *    50-200ms; during that window leyline's auto-pass loop consumes the
- *    priority window, and our subsequent submit lands "no pending action",
- *    causing a state resync that pollutes the trace with a spurious GSM.
- *    The driver's race guard handles this; translators here don't need to.
+ *    50-200ms; during that window an auto-pass loop can consume the priority
+ *    window, and a subsequent submit lands "no pending action", causing a
+ *    state resync. The driver's race guard handles this; translators here
+ *    don't need to.
  *
- * Scope: one consult method per adapter in [ForgeAiPromptPolicy]'s registry
- * (AAR, attackers/blockers, SelectN, SelectTargets, CTO, sacrifice
- * PayCosts). Prompt types without an adapter — and any consult that fails
- * closed — fall through to the greedy responder in [SimClientDriver].
+ * Scope: one consult method per prompt family (AAR, attackers/blockers,
+ * SelectN, SelectTargets, CTO, sacrifice PayCosts). Prompt types without a
+ * method — and any consult that fails closed — fall through to the caller's
+ * greedy responder.
  */
 class ForgeAiPolicy(
-    private val harness: MatchFlowHarness,
+    private val bridgeSupplier: () -> GameBridge,
     private val seatId: SeatId,
 ) {
-    /** Resolved on first use — bridge is `lateinit` and not ready at construction. */
+    private val bridge: GameBridge
+        get() = bridgeSupplier()
+
+    private fun game(): Game = bridge.getGame() ?: error("ForgeAiPolicy: game was not initialised")
+
+    /**
+     * Forge-AI heuristic evaluation of the current game state from this
+     * seat's perspective. Positive favours the seat; null when the game is
+     * not initialised or the evaluator throws.
+     */
+    fun evaluateGameState(): GameStateEvaluator.Score? =
+        askAi("evaluateGameState") {
+            GameStateEvaluator().getScoreForGameState(game(), seatPlayer)
+        }
+
+    /** Resolved on first use — bridge/game are not ready at construction. */
     private val seatPlayer: Player by lazy {
-        harness.bridge.getPlayer(seatId)
+        bridge.getPlayer(seatId)
             ?: error("ForgeAiPolicy: seat $seatId has no Forge player")
     }
 
     private val aiController: PlayerControllerAi by lazy {
-        PlayerControllerAi(harness.game(), seatPlayer, seatPlayer.lobbyPlayer)
+        PlayerControllerAi(game(), seatPlayer, seatPlayer.lobbyPlayer)
     }
 
     /** Resolved action ready to submit as a `PerformAction` GRE message. */
@@ -112,18 +135,18 @@ class ForgeAiPolicy(
      *   - LandAbility → first AAR action with `actionType=Play_add3` and same grpId
      *   - isSpell()    → first AAR action with `actionType=Cast`         and same grpId
      *   - non-spell activated ability → exact `Activate_add3` host iid + abilityGrpId match
-     *   - everything else → null (driver falls back to greedy / pass)
+     *   - everything else → null (caller falls back to greedy / pass)
      */
     fun chooseAarAction(
         promptActions: List<Action>,
-        skipFingerprints: Set<String> = emptySet(),
+        isSkipped: (Action) -> Boolean = { false },
     ): Choice? {
         val abilities = askAi("chooseSpellAbilityToPlay") { aiController.chooseSpellAbilityToPlay() }
         if (abilities.isNullOrEmpty()) return null
 
         for (sa in abilities) {
             val hostCard = sa.hostCard ?: continue
-            val grpId = harness.bridge.cardRepository.findGrpIdByName(hostCard.name) ?: continue
+            val grpId = bridge.cardRepository.findGrpIdByName(hostCard.name) ?: continue
             val actionType =
                 when {
                     sa is LandAbility -> ActionType.Play_add3
@@ -134,8 +157,8 @@ class ForgeAiPolicy(
             // THIS specific copy. getOrAlloc is idempotent (returns the existing
             // mapping if one exists) — no harmful side effect.
             val mappedInstanceId =
-                harness.bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
-            val match = chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, skipFingerprints) ?: continue
+                bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
+            val match = chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, isSkipped) ?: continue
             return Choice(match, match.instanceId, match.grpId, actionType, match.abilityGrpId)
         }
         return null
@@ -147,21 +170,33 @@ class ForgeAiPolicy(
         grpId: Int,
         mappedInstanceId: Int,
         promptActions: List<Action>,
-        skipFingerprints: Set<String>,
+        isSkipped: (Action) -> Boolean,
     ): Action? {
         if (actionType != ActionType.Activate_add3) {
+            // Match by grpId OR the mapped instanceId: a basic land (or any card
+            // with multiple printings) resolves findGrpIdByName to a different
+            // printing than the one the AAR offers, so a grpId-only filter drops
+            // the play. The hydrated card is rebound to the source instanceId,
+            // making it the reliable key when the grpId diverges.
             val candidates =
                 promptActions.filter {
-                    it.actionType == actionType && it.grpId == grpId && !it.isSkippedBy(skipFingerprints)
+                    it.actionType == actionType &&
+                        !isSkipped(it) &&
+                        (it.grpId == grpId || it.instanceId == mappedInstanceId)
                 }
             return chooseCastVariant(sa, grpId, candidates.filter { it.instanceId == mappedInstanceId })
                 ?: chooseCastVariant(sa, grpId, candidates)
         }
 
         val hostCard = sa.hostCard ?: return null
-        val cardData = harness.bridge.cardRepository.findByGrpId(grpId) ?: return null
-        val registry = harness.bridge.abilityRegistryFor(hostCard, cardData) ?: return null
-        return chooseActivatedAction(sa, registry, mappedInstanceId, promptActions, skipFingerprints)
+        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return null
+        val abilityGrpId = bridge.abilityRegistryFor(hostCard, cardData)?.forSpellAbility(sa.id) ?: return null
+        return promptActions.firstOrNull {
+            it.actionType == ActionType.Activate_add3 &&
+                it.instanceId == mappedInstanceId &&
+                it.abilityGrpId == abilityGrpId &&
+                !isSkipped(it)
+        }
     }
 
     private fun chooseCastVariant(
@@ -180,7 +215,7 @@ class ForgeAiPolicy(
         if (!sa.isSpell) return ExpectedCastVariant.Base
         val rails = CastRails.all.filter { it.saPredicate(sa) }
         if (rails.isEmpty()) return ExpectedCastVariant.Base
-        val altCosts = BoundCard.bindAltCosts(harness.bridge.cardRepository.findByGrpId(grpId), harness.bridge.cardRepository)
+        val altCosts = BoundCard.bindAltCosts(bridge.cardRepository.findByGrpId(grpId), bridge.cardRepository)
         val payCostPairs =
             ActionMapper
                 .computeEffectiveCost(sa, seatPlayer)
@@ -203,7 +238,7 @@ class ForgeAiPolicy(
         val probeCombat = Combat(seatPlayer)
         askAi("declareAttackers") { aiController.declareAttackers(seatPlayer, probeCombat) } ?: return null
         return probeCombat.getAttackers().map { attacker ->
-            harness.bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+            bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
         }
     }
 
@@ -212,23 +247,22 @@ class ForgeAiPolicy(
      * attackers. Uses a probe [Combat] so the consult does not mutate Forge's
      * live combat before the bridge receives a DeclareBlockers response.
      * Returns a `blockerInstanceId → attackerInstanceId` map ready for
-     * [MatchFlowHarness.declareBlockers], or null when there are no blocks.
+     * [leyline.tooling.headless.MatchFlowHarness.declareBlockers], or null when
+     * there are no blocks.
      *
      * For multi-block (one blocker assigned to several attackers) we emit one
      * entry per (blocker, attacker) pair.
      */
-    fun chooseBlockers(): Map<Int, Int>? {
-        val combat: Combat = harness.game().combat ?: return null
-        if (combat.getAttackers().isEmpty()) return null
-        val probeCombat = Combat(combat, identityEntityMap())
+    fun chooseBlockers(msg: GREToClientMessage? = null): Map<Int, Int>? {
+        val probeCombat = liveProbeCombat() ?: rebuiltCombat(msg) ?: return null
         askAi("declareBlockers") { aiController.declareBlockers(seatPlayer, probeCombat) } ?: return null
         val pairs = mutableListOf<Pair<Int, Int>>()
         for (attacker in probeCombat.getAttackers()) {
             val blockers = probeCombat.getBlockers(attacker)
             if (blockers.isNullOrEmpty()) continue
             for (blocker in blockers) {
-                val blockerId = harness.bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
-                val attackerId = harness.bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+                val blockerId = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
+                val attackerId = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
                 pairs += blockerId to attackerId
             }
         }
@@ -240,9 +274,48 @@ class ForgeAiPolicy(
         return pairs.toMap()
     }
 
+    /** Clone of the live combat, when one is actually underway. */
+    private fun liveProbeCombat(): Combat? {
+        val combat: Combat = game().combat ?: return null
+        if (combat.getAttackers().isEmpty()) return null
+        return Combat(combat, identityEntityMap())
+    }
+
+    /**
+     * Rebuild combat from the DeclareBlockersReq itself: the prompt lists every
+     * attacker each of our creatures could block. A game with no combat under way
+     * (a consult against a hydrated game) still holds the attacking cards on the
+     * battlefield, so registering them attacking us reconstructs the decision
+     * the prompt is asking about — the same prompt-derived pattern target
+     * consults use for their ability.
+     */
+    private fun rebuiltCombat(msg: GREToClientMessage?): Combat? {
+        val req = msg?.takeIf { it.hasDeclareBlockersReq() }?.declareBlockersReq ?: return null
+        val attackerIds =
+            req.blockersList
+                .flatMap { it.attackerInstanceIdsList + it.selectedAttackerInstanceIdsList }
+                .distinct()
+        val attackers = attackerIds.mapNotNull { cardForInstance(it) }
+        if (attackers.isEmpty()) return null
+        val combat = Combat(attackers.first().controller ?: return null)
+        for (card in attackers) combat.addAttacker(card, seatPlayer)
+        // Register blocks already committed on the (re-)prompt: the AI must see
+        // them the way it sees them on a live combat clone, or it re-proposes
+        // blocks past the point where the declaration has converged.
+        for (blocker in req.blockersList) {
+            if (blocker.selectedAttackerInstanceIdsCount == 0) continue
+            val blockerCard = cardForInstance(blocker.blockerInstanceId) ?: continue
+            for (attackerId in blocker.selectedAttackerInstanceIdsList) {
+                val attackerCard = cardForInstance(attackerId) ?: continue
+                combat.addBlocker(attackerCard, blockerCard)
+            }
+        }
+        return combat
+    }
+
     private fun identityEntityMap(): IEntityMap =
         object : IEntityMap {
-            override fun getGame() = harness.game()
+            override fun getGame() = game()
 
             override fun map(o: GameObject): GameObject = o
         }
@@ -280,19 +353,20 @@ class ForgeAiPolicy(
     fun chooseStaticColorSelectN(msg: GREToClientMessage): List<Int>? {
         if (!canChooseStaticColorSelectN(msg)) return null
         val req = msg.selectNReq
+        val pending = bridge.promptBridge(seatId).getPendingPrompt()
         val sa =
-            harness
-                .game()
-                .stack
-                .firstOrNull()
-                ?.spellAbility
-        val allowedIds = allowedStaticColorIds(req, emptyList())
+            pending?.targetingSa
+                ?: game()
+                    .stack
+                    .firstOrNull()
+                    ?.spellAbility
+        val allowedIds = allowedStaticColorIds(req, pending?.request?.staticOptionIds.orEmpty())
         val allowedColors = colorSetFromStaticIds(allowedIds)
         if (allowedColors.isColorless) return null
         val colors =
             askAi("chooseColors") {
                 aiController.chooseColors(
-                    "Choose a color",
+                    pending?.request?.message.orEmpty(),
                     sa,
                     req.minSel.coerceAtLeast(1),
                     (if (req.maxSel > 0) req.maxSel else req.minSel).coerceAtLeast(1),
@@ -331,18 +405,11 @@ class ForgeAiPolicy(
     private fun sacrificeCostContext(msg: GREToClientMessage): Pair<SpellAbility, CostSacrifice>? {
         if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
         if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
-        val bridge = runCatching { harness.bridge }.getOrNull() ?: return null
-        val published = bridge.currentOneShotPayCostsInteraction() ?: return null
-        if (published.windowKind != OneShotPayCostsWindowKind.Select || published.kind != PayCostsRouteKind.Sacrifice) {
-            return null
-        }
-        val sa =
-            bridge
-                .getGame()
-                ?.stack
-                ?.firstOrNull()
-                ?.spellAbility
-                ?: return null
+        val liveBridge = runCatching { bridge }.getOrNull() ?: return null
+        val pending = liveBridge.promptBridge(seatId).getPendingPrompt() ?: return null
+        val route = pending.request.route as? ResolvedPromptRoute.PayCosts ?: return null
+        if (route.descriptor.kind != PayCostsRouteKind.Sacrifice) return null
+        val sa = pending.targetingSa ?: return null
         val costPart =
             sa.payCosts
                 ?.costParts
@@ -365,39 +432,84 @@ class ForgeAiPolicy(
 
     fun chooseSelectTargets(msg: GREToClientMessage): List<Int>? {
         if (!canChooseSelectTargets(msg)) return null
-        val selectableIds =
+        val selectableList =
             msg.selectTargetsReq.targetsList
                 .asSequence()
                 .flatMap { it.targetsList.asSequence() }
                 .filter { it.legalAction == SelectAction.Select_a1ad }
                 .map { it.targetInstanceId }
-                .toSet()
+                .toList()
+        val selectableIds = selectableList.toSet()
         val minCount = msg.selectTargetsReq.targetsList.sumOf { it.minTargets.coerceAtLeast(0) }
         val maxCount =
             msg.selectTargetsReq.targetsList
                 .sumOf { group -> group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets }
                 .coerceAtLeast(minCount)
+
+        // Preferred path: let Forge's AI pick the target for the bound spell/
+        // ability. When no prompt-bound ability exists (a consult against a
+        // hydrated game hosts no pending prompt), rebuild the ability from the
+        // prompt's source card — the same card-not-stack pattern optional-cost
+        // decisions use — so the AI's considered pick survives hydration.
         val sa =
-            harness
-                .game()
-                .stack
-                .firstOrNull()
-                ?.spellAbility
-                ?: return null
-        val previousTargets = sa.targets.clone()
-        val chosenTargets =
-            try {
-                sa.targets.clear()
-                val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
-                if (!chose) return null
-                sa.targets.toList()
-            } finally {
-                sa.targets.clear()
-                sa.targets.addAll(previousTargets)
+            bridge.promptBridge(seatId).getPendingPrompt()?.targetingSa
+                ?: rebuiltTargetingSa(msg.selectTargetsReq.sourceId)
+        if (sa != null) {
+            val previousTargets = sa.targets.clone()
+            val chosenTargets =
+                try {
+                    sa.targets.clear()
+                    val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
+                    if (chose) sa.targets.toList() else null
+                } finally {
+                    sa.targets.clear()
+                    sa.targets.addAll(previousTargets)
+                }
+            if (chosenTargets != null && chosenTargets.size in minCount..maxCount) {
+                val ids = chosenTargets.mapNotNull { targetInstanceId(it) }
+                if (ids.size == chosenTargets.size && ids.size == ids.distinct().size && ids.all { it in selectableIds }) {
+                    return ids
+                }
             }
-        if (chosenTargets.size !in minCount..maxCount) return null
-        val selectedIds = chosenTargets.map { targetInstanceId(it) ?: return null }
-        return selectedIds.takeIf { ids -> ids.size == ids.distinct().size && ids.all { it in selectableIds } }
+        }
+
+        // Fallback: the AI declined or no targeting SA was bound, but the spell
+        // REQUIRES a target — pick the first minCount selectable, enemy-side
+        // first, so a removal/targeted spell resolves instead of fizzling or the
+        // engine auto-resolving it onto an arbitrary object. Mandatory targeting only.
+        if (minCount in 1..selectableList.size) {
+            return selectableList.sortedByDescending { isEnemyTarget(it) }.take(minCount)
+        }
+        // Optional targeting (min 0) the AI declined: select nothing — a legal decline,
+        // not an unrealizable prompt.
+        if (minCount == 0) return emptyList()
+        return null
+    }
+
+    /**
+     * Rebuild the targeting ability for [sourceId]'s card so target selection
+     * can run without a prompt-bound ability. First castable ability that
+     * targets wins — refining by abilityGrpId is a later slice for
+     * multi-face/adventure cards.
+     */
+    private fun rebuiltTargetingSa(sourceId: Int): SpellAbility? {
+        val card = cardForInstance(sourceId) ?: return null
+        val sa = getAllCastableAbilities(card, seatPlayer).firstOrNull { it.usesTargeting() } ?: return null
+        sa.activatingPlayer = seatPlayer
+        return sa
+    }
+
+    /**
+     * True if [instanceId] is on the opponent's side (fallback-target preference).
+     * Cards compare by controller. An id with no card mapping is a player target
+     * — players use their seatId as targeting instanceId — so compare seats;
+     * without this, player-target spells sorted both players equal and the
+     * fallback aimed at whoever sorted first: ourselves.
+     */
+    private fun isEnemyTarget(instanceId: Int): Boolean {
+        val card = cardForInstance(instanceId)
+        if (card != null) return card.controller != seatPlayer
+        return instanceId in 1..2 && instanceId != seatId.value
     }
 
     fun canChooseCastingTimeOptions(msg: GREToClientMessage): Boolean {
@@ -429,17 +541,16 @@ class ForgeAiPolicy(
                 .single()
                 .modalReq
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
-        val context =
-            harness
-                .bridge
-                .cutCoordinator
-                .modalChoices
-                .aiContext()
-                ?: return null
-        if (context.possibleFullIndices.size != modalGrpIds.size) return null
-        val sa = context.sourceAbility
-        val possible = context.possible.toMutableList()
-        if (possible.size != modalGrpIds.size) return null
+        val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
+        val sa = pending.targetingSa ?: return null
+        val possible =
+            modalPossibleAbilities(
+                sa,
+                pending.request.modalChoice
+                    ?.possible
+                    ?.map { it.fullIndex },
+                modalGrpIds.size,
+            ) ?: return null
         modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
         modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
         val previousSub = sa.subAbility
@@ -527,6 +638,21 @@ class ForgeAiPolicy(
         return result
     }
 
+    private fun modalPossibleAbilities(
+        sa: SpellAbility,
+        possibleFullIndices: List<Int>?,
+        modalOptionCount: Int,
+    ): MutableList<AbilitySub>? {
+        val fullList = sa.getAdditionalAbilityList("Choices")
+        if (possibleFullIndices != null) {
+            if (fullList == null) return null
+            val possible = possibleFullIndices.map { idx -> fullList.getOrNull(idx) ?: return null }
+            return possible.toMutableList().takeIf { it.size == modalOptionCount }
+        }
+        val possible = CharmEffect.makePossibleOptions(sa) ?: return null
+        return possible.toMutableList().takeIf { it.size == modalOptionCount }
+    }
+
     private fun selectNCount(req: SelectNReq): Int {
         val min = req.minSel.coerceAtLeast(0)
         val max = if (req.maxSel > 0) req.maxSel else min
@@ -535,11 +661,11 @@ class ForgeAiPolicy(
 
     private fun cardForInstance(instanceId: Int): Card? {
         if (instanceId == 0) return null
-        val forgeId = harness.bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
-        return harness.bridge.findCard(forgeId)
+        val forgeId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
+        return bridge.findCard(forgeId)
     }
 
-    private fun instanceIdForCard(card: Card): Int = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+    private fun instanceIdForCard(card: Card): Int = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
     private fun targetInstanceId(target: GameObject): Int? =
         when (target) {

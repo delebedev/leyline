@@ -1,5 +1,7 @@
 package leyline.tooling.simclient
 
+import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.SimDecision
 import leyline.game.mapping.ZoneIds
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -42,7 +44,9 @@ internal object ForgeAiAarAdapter : ForgeAiPromptAdapter {
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val choice = context.forgeAi.chooseAarAction(prompt.aarActions(), context.attempts.skipFingerprints()) ?: return null
+        val skipFingerprints = context.attempts.skipFingerprints()
+        val choice =
+            context.forgeAi.chooseAarAction(prompt.aarActions()) { it.isSkippedBy(skipFingerprints) } ?: return null
         return SimPromptResponse(
             decision = SimDecision.PerformAction(choice.action),
             aarActionFingerprint = choice.action.actionFingerprint(),

@@ -79,6 +79,8 @@ private fun SimClientPolicyMode.serializedName(): String =
     when (this) {
         SimClientPolicyMode.Greedy -> "greedy"
         SimClientPolicyMode.ForgeAi -> "forge-ai"
+        SimClientPolicyMode.ShadowAi -> "shadow-ai"
+        SimClientPolicyMode.SnapshotShadow -> "snapshot-shadow"
     }
 
 fun failureClass(stats: GameStats): String =
