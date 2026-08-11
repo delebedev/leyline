@@ -68,9 +68,11 @@ flowchart LR
 ```
 
 `sessionLock` can disappear only when Netty input, auto-advance, timeouts, and
-other entrants merely enqueue commands to one serial match owner. `queueLock`
-and the playback queue can disappear only when engine callbacks stop building
-protocol frames and every producer appends through that owner's ordered outbox.
+other entrants merely submit immutable signals or complete a pending reply;
+the Forge runtime thread must be the only logical match owner. `queueLock` and
+the playback queue can disappear only when engine callbacks stop building
+protocol frames and every producer commits through that runtime thread's one
+ordered output path.
 
 A read of shared state on one execution domain is a snapshot of a moving
 system. Decisions whose correctness depends on a value remaining stable must
@@ -152,7 +154,8 @@ commit function, so later failures cannot split those two baselines. An
 exception during path-specific assembly or a sink failure can still leave the
 committed projection ahead of returned or delivered output. The current runtime
 has no rollback or retry-from-old-baseline contract; the target architecture's
-ordered outbox is intended to close this remaining gap.
+single runtime commit and immutable delivery batch are intended to close this
+remaining gap.
 
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
@@ -229,11 +232,14 @@ transaction. A subscriber must not acquire `sessionLock`, perform I/O, or wait
 on an external resource. Keep `queueLock` hold time bounded and never create a
 reverse path where its drainer waits for the engine while holding the lock.
 
-**Pausing the engine thread makes observation coherent.** `GamePlayback`
-deliberately `Thread.sleep`s at key events to pace remote turns for the human
-viewer. The sleep freezes engine progress: engine state cannot mutate while the
-subscriber is running, which is the window in which it materializes a coherent
-snapshot.
+**Pausing the engine thread makes the current projection physically stable.**
+`GamePlayback` deliberately `Thread.sleep`s at key events to pace remote turns
+for the human viewer. Engine state cannot mutate concurrently while the
+subscriber runs, so the current synchronous projection can inspect it safely.
+The callback may still be inside a larger logical mutation burst. It is not a
+general worker/owner yield point: a future value boundary must journal facts in
+the subscriber and materialize them at an explicit safe point after the
+relevant operation completes.
 
 **Combat declarations are materialized unconditionally.** Unlike other events,
 which become playback frames only during remote turns,
@@ -251,4 +257,4 @@ frame produces the first half of a combat double-diff; the subsequent
 
 [`architecture.md`](architecture.md) — system shape (modules, ports, wire frame, match lifecycle).
 
-[`architecture-direction.md`](architecture-direction.md) — accepted destination for engine ownership, pure projection, and ordered delivery.
+[`architecture-direction.md`](architecture-direction.md) — accepted destination for runtime ownership, safe-point inputs, pure projection, and ordered delivery.
