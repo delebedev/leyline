@@ -646,6 +646,8 @@ class GameBridge(
 
     /**
      * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
+     * Projection callers provide one validated identity transition; the
+     * descriptive reallocations are not installed separately.
      * Fixed order: id reallocations → limbo retires → zone recordings →
      * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
      *
@@ -656,7 +658,22 @@ class GameBridge(
             checkNotNull(m.nextAnnotationId) {
                 "Cannot apply bridge mutations before annotation frame finalization"
             }
-        for (r in m.idReallocations) ids.applyRealloc(r)
+        val identityTransition = m.instanceIdTransition
+        if (identityTransition != null) {
+            check(ids.commit(identityTransition)) {
+                throw StaleInstanceIdTransitionException()
+            }
+        } else {
+            // Shell-only callers may still provide a direct realloc batch.
+            // StateMapper always supplies the complete transition above.
+            for (r in m.idReallocations) ids.applyRealloc(r)
+        }
+        val revealTransition = m.revealTransition
+        if (revealTransition != null) {
+            check(revealProxies.commit(revealTransition)) {
+                "Reveal identity transition is stale"
+            }
+        }
         for (id in m.retiredIds) retireToLimbo(id)
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
         annotations.applyBatchResult(m.persistentBatch)

@@ -70,8 +70,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * vehicles, reveals, steals) to grow the coverage before relying on the list.
  *
  * Reads of effectively-immutable / card-DB state:
- * - [leyline.game.state.GameBridge.getOrAllocInstanceId] for NEW fids (first-seen cards). Monotonic
- *   allocator; ordering-irrelevant for correctness.
+ * - [leyline.game.state.GameBridge.getOrAllocInstanceId] resolves through the
+ *   private [leyline.game.state.InstanceIdRegistry] planner during this scope.
  * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Read-only card DB.
  *
  * Reads of live Forge state (deliberate bridge boundary):
@@ -95,9 +95,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Incidental in-stage writes:
  * - `bridge.evictAbilityRegistry(...)` — cache invalidation for zone-changed
  *   and transformed cards. Side-effectful but idempotent; ordering-irrelevant.
- * - `bridge.ids.reserveNextInstanceId()` inside zone-transfer compute —
- *   reserves a counter slot without committing map writes. Monotonic, so
- *   replay on a fresh bridge starts from 1 and stays deterministic.
+ * - identity allocations are tentative and returned in [BridgeMutations]; the
+ *   registry remains unchanged until the shell validates and commits the plan.
  *
  * Any NEW in-stage bridge touch should be justified in PR review — either
  * it joins the catalog with a scope rationale, the replay test is extended
@@ -113,6 +112,14 @@ object StateMapper {
             ZoneIds.P1_GRAVEYARD,
             ZoneIds.P2_GRAVEYARD,
         )
+
+    private fun <T> withTentativeProjectionState(
+        bridge: GameBridge,
+        block: () -> T,
+    ): T =
+        bridge.ids.withTentativeState {
+            bridge.revealProxies.withTentativeState(block)
+        }
 
     data class AnnotationFrameDraft(
         val firstAnnotationId: Int,
@@ -176,6 +183,34 @@ object StateMapper {
          * mapper is pure on event inputs.
          */
         events: FrameEventLog = bridge.closeBundleFrame(viewingSeatId),
+    ): BuildResult =
+        withTentativeProjectionState(bridge) {
+            buildFromSnapshotInternal(
+                snap = snap,
+                gameStateId = gameStateId,
+                matchId = matchId,
+                bridge = bridge,
+                actions = actions,
+                updateType = updateType,
+                viewingSeatId = viewingSeatId,
+                revealForSeat = revealForSeat,
+                prev = prev,
+                events = events,
+            )
+        }
+
+    @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
+    private fun buildFromSnapshotInternal(
+        snap: GsmSnapshot,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
+        prev: GsmSnapshot? = null,
+        events: FrameEventLog,
     ): BuildResult {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -538,6 +573,8 @@ object StateMapper {
         // ═══ COLLECT mutations (always) ═══
         val mutations =
             BridgeMutations(
+                instanceIdTransition = bridge.ids.tentativeTransition(),
+                revealTransition = bridge.revealProxies.tentativeTransition(),
                 idReallocations = transferResult.idReallocations,
                 retiredIds = transferResult.retiredIds.map { InstanceId(it) },
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
@@ -626,6 +663,34 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+    ): BuildResult =
+        withTentativeProjectionState(bridge) {
+            buildDiffInternal(
+                prev = prev,
+                cur = cur,
+                events = events,
+                gameStateId = gameStateId,
+                matchId = matchId,
+                bridge = bridge,
+                actions = actions,
+                updateType = updateType,
+                viewingSeatId = viewingSeatId,
+                revealForSeat = revealForSeat,
+            )
+        }
+
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
+    private fun buildDiffInternal(
+        prev: GsmSnapshot?,
+        cur: GsmSnapshot,
+        events: FrameEventLog,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
     ): BuildResult {
         if (prev == null) {
             // First bundle — Full GSM with mutations returned for caller-apply.
@@ -682,7 +747,18 @@ object StateMapper {
             current.gameObjectsList
                 .filter { LinkedFaceCompanionProjector.isCompanionType(it.type) }
                 .mapTo(mutableSetOf()) { it.instanceId }
-        val previousCompanionIds = LinkedFaceCompanionProjector.instanceIds(prev, bridge, viewingSeatId)
+        val committedIdentity =
+            bridge.ids
+                .committedState()
+                .state
+                .forgeIdToInstanceId
+        val previousCompanionIds =
+            LinkedFaceCompanionProjector.instanceIds(
+                prev,
+                bridge,
+                viewingSeatId,
+                parentIidLookup = { forgeId -> committedIdentity[forgeId] },
+            )
         val previousTransientHiddenFamilyIds = bridge.pendingTransientLinkedFaceFamilyIds().map { it.value }
 
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
@@ -916,7 +992,11 @@ object StateMapper {
         }
         return BuildResult(
             gsm = built,
-            mutations = fullResult.mutations,
+            mutations =
+                fullResult.mutations.copy(
+                    instanceIdTransition = bridge.ids.tentativeTransition(),
+                    revealTransition = bridge.revealProxies.tentativeTransition(),
+                ),
             annotationFrameDraft = fullResult.annotationFrameDraft,
             objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
         )

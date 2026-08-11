@@ -1,6 +1,7 @@
 package leyline.game.state
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
@@ -63,5 +64,89 @@ class InstanceIdRegistryTest :
             executor.shutdown()
             executor.awaitTermination(5, TimeUnit.SECONDS) shouldBe true
             ids.size shouldBe taskCount
+        }
+
+        test("tentative allocations leave committed identity state unchanged") {
+            val reg = InstanceIdRegistry(startId = 100)
+            val before = reg.committedState()
+
+            val tentative =
+                reg.withTentativeState {
+                    reg.getOrAlloc(ForgeCardId(1))
+                    reg.reserveNextInstanceId()
+                    reg.getOrAlloc(ForgeCardId(2))
+                    reg.allocSynthetic()
+                    reg.tentativeTransition()
+                }
+
+            reg.committedState() shouldBe before
+
+            val replay =
+                reg.withTentativeState {
+                    reg.getOrAlloc(ForgeCardId(1))
+                    reg.reserveNextInstanceId()
+                    reg.getOrAlloc(ForgeCardId(2))
+                    reg.allocSynthetic()
+                    reg.tentativeTransition()
+                }
+            replay.nextState shouldBe tentative.nextState
+        }
+
+        test("discard then commit advances identity allocation exactly once") {
+            val reg = InstanceIdRegistry(startId = 100)
+
+            reg.withTentativeState {
+                reg.getOrAlloc(ForgeCardId(1))
+                reg.tentativeTransition()
+            }
+            val committedPlan =
+                reg.withTentativeState {
+                    reg.getOrAlloc(ForgeCardId(1))
+                    reg.tentativeTransition()
+                }
+
+            assertSoftly {
+                reg.commit(committedPlan) shouldBe true
+                reg.getOrAlloc(ForgeCardId(1)).value shouldBe 100
+                reg.getOrAlloc(ForgeCardId(2)).value shouldBe 101
+                reg.committedState().state.nextInstanceId shouldBe 102
+            }
+        }
+
+        test("failed tentative compilation leaves identity state unchanged") {
+            val reg = InstanceIdRegistry(startId = 100)
+            val before = reg.committedState()
+
+            shouldThrow<IllegalStateException> {
+                reg.withTentativeState {
+                    reg.getOrAlloc(ForgeCardId(1))
+                    error("compile failed")
+                }
+            }
+
+            reg.committedState() shouldBe before
+        }
+
+        test("stale transition rejects interleaved allocation without collision") {
+            val reg = InstanceIdRegistry(startId = 100)
+            val planned =
+                reg.withTentativeState {
+                    reg.getOrAlloc(ForgeCardId(1))
+                    reg.tentativeTransition()
+                }
+
+            assertSoftly {
+                reg.getOrAlloc(ForgeCardId(2)).value shouldBe 100
+                reg.commit(planned) shouldBe false
+                reg.peek(ForgeCardId(1)) shouldBe null
+            }
+
+            val retry =
+                reg.withTentativeState {
+                    reg.getOrAlloc(ForgeCardId(1)).value shouldBe 101
+                    reg.tentativeTransition()
+                }
+            reg.commit(retry) shouldBe true
+            reg.getOrAlloc(ForgeCardId(3)).value shouldBe 102
         }
     })

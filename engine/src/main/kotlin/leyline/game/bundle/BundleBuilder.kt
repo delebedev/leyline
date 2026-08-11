@@ -28,6 +28,7 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.BridgeMutations
 import leyline.game.state.GameBridge
+import leyline.game.state.StaleInstanceIdTransitionException
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -77,39 +78,49 @@ class BundleBuilder(
         val actionGameStateId: Int? = null,
     )
 
+    private data class FrameInput(
+        val gameStateId: Int,
+        val snap: GsmSnapshot,
+        val events: FrameEventLog,
+        val previousSnap: GsmSnapshot?,
+        val updateType: GameStateUpdate,
+        val revealForSeat: Int?,
+    )
+
     private data class FrameDiff(
         val gameStateId: Int,
         val snap: GsmSnapshot,
         val result: StateMapper.BuildResult,
         val events: FrameEventLog,
         val previousSnap: GsmSnapshot?,
+        val stagedOrder: Boolean = false,
     )
 
-    private fun buildFrameDraft(
+    private fun frameInput(
         game: Game,
         counter: MessageCounter,
-        revealForSeat: Int? = null,
-        eventsOverride: FrameEventLog? = null,
+        revealForSeat: Int?,
+        eventsOverride: FrameEventLog?,
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
-    ): FrameDiff {
+    ): FrameInput {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
         val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
-        val previousSnap = cursor.lastSent
-        val draft =
-            StateMapper.buildDiff(
-                previousSnap,
-                snap,
-                events,
-                nextGs,
-                matchId,
-                bridge,
-                updateType = updateType(snap, events),
-                viewingSeatId = seatId,
-                revealForSeat = revealForSeat,
-            )
-        return FrameDiff(nextGs, snap, draft, events, previousSnap)
+        return FrameInput(nextGs, snap, events, cursor.lastSent, updateType(snap, events), revealForSeat)
     }
+
+    private fun compileFrame(input: FrameInput): StateMapper.BuildResult =
+        StateMapper.buildDiff(
+            prev = input.previousSnap,
+            cur = input.snap,
+            events = input.events,
+            gameStateId = input.gameStateId,
+            matchId = matchId,
+            bridge = bridge,
+            updateType = input.updateType,
+            viewingSeatId = seatId,
+            revealForSeat = input.revealForSeat,
+        )
 
     private fun buildFrameDiff(
         game: Game,
@@ -120,32 +131,62 @@ class BundleBuilder(
         annotationRiders: (GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo> = { _, _ -> emptyList() },
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
     ): FrameDiff {
-        val frame = buildFrameDraft(game, counter, revealForSeat, eventsOverride, updateType)
+        val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType)
         val pendingSubmittedTargets =
             if (includePendingPlayerSubmittedTargets) {
                 cursor.pendingPSuT()
             } else {
                 null
             }
-        val frameDraft = checkNotNull(frame.result.annotationFrameDraft)
-        val riders = annotationRiders(frame.snap, frameDraft.idResolver).toMutableList()
-        pendingSubmittedTargets?.let { pending ->
-            riders += AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
-        }
-        return finalizeFrameDiff(frame, riders, pendingSubmittedTargets)
+        return finalizeFrameInput(input, emptyList(), pendingSubmittedTargets, annotationRiders = annotationRiders)
     }
 
-    private fun finalizeFrameDiff(
-        frame: FrameDiff,
+    private fun finalizeFrameInput(
+        input: FrameInput,
         riders: List<AnnotationInfo>,
         pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
-        cursorSnap: GsmSnapshot = frame.snap,
+        cursorSnap: GsmSnapshot = input.snap,
+        annotationRiders: ((GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo>)? = null,
     ): FrameDiff {
-        val result = finalizeStateFrame(frame.result, riders, pendingSubmittedTargets)
-        bridge.diffListener?.invoke(frame.previousSnap, frame.snap, frame.events, frame.gameStateId, result.gsm)
-        val finalized = frame.copy(result = result)
-        commitProjection(cursorSnap, result.mutations, pendingSubmittedTargets)
-        return finalized
+        repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
+            try {
+                val result =
+                    bridge.ids.withTentativeState {
+                        val draft = compileFrame(input)
+                        val attemptRiders =
+                            annotationRiders
+                                ?.invoke(
+                                    input.snap,
+                                    checkNotNull(draft.annotationFrameDraft).idResolver,
+                                )?.toMutableList()
+                                ?: riders.toMutableList()
+                        pendingSubmittedTargets?.let { pending ->
+                            attemptRiders +=
+                                AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
+                        }
+                        val finalized = finalizeStateFrame(draft, attemptRiders, pendingSubmittedTargets)
+                        bridge.diffListener?.invoke(
+                            input.previousSnap,
+                            input.snap,
+                            input.events,
+                            input.gameStateId,
+                            finalized.gsm,
+                        )
+                        commitProjection(cursorSnap, finalized.mutations, pendingSubmittedTargets)
+                        finalized
+                    }
+                return FrameDiff(
+                    input.gameStateId,
+                    input.snap,
+                    result,
+                    input.events,
+                    input.previousSnap,
+                )
+            } catch (stale: StaleInstanceIdTransitionException) {
+                if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
+            }
+        }
+        error("unreachable")
     }
 
     internal fun finalizeStateFrame(
@@ -751,16 +792,15 @@ class BundleBuilder(
         prompt: InteractivePromptBridge.PendingPrompt,
         kind: OrderRouteKind,
     ): BundleResult {
-        val frameDraft = buildFrameDraft(game, counter) { _, _ -> GameStateUpdate.Send }
-        val snap = frameDraft.snap
-        val stagedMove = stagePendingOrderZoneMove(frameDraft.result.gsm, snap, prompt)
-        val augmentedDraft =
-            stagedMove?.let { move ->
-                frameDraft.copy(result = frameDraft.result.copy(gsm = move.gsm))
-            } ?: frameDraft
-        val diff = finalizeFrameDiff(augmentedDraft, emptyList(), cursorSnap = stagedMove?.snap ?: snap)
+        val diff = buildOrderFrame(game, counter, prompt)
+        val snap = diff.snap
         val (req, promptProto) = buildOrderReq(prompt, kind)
-        val baseOrderGsm = if (stagedMove != null) diff.result.gsm else attachOrderGameObjects(diff.result.gsm, req, snap)
+        val baseOrderGsm =
+            if (diff.stagedOrder) {
+                diff.result.gsm
+            } else {
+                attachOrderGameObjects(diff.result.gsm, req, snap)
+            }
         val gs =
             baseOrderGsm
                 .toBuilder()
@@ -779,6 +819,47 @@ class BundleBuilder(
                 it.allowUndo = true
             }
         }
+    }
+
+    private fun buildOrderFrame(
+        game: Game,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
+    ): FrameDiff {
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val pendingMove = pendingOrderZoneMove(prompt)
+        repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
+            try {
+                return bridge.ids.withTentativeState {
+                    bridge.revealProxies.withTentativeState {
+                        val draft = compileFrame(input)
+                        val stagedMove = stagePendingOrderZoneMove(draft.gsm, input.snap, prompt, pendingMove)
+                        val stagedGsm = stagedMove?.gsm ?: draft.gsm
+                        val mutations =
+                            draft.mutations.copy(
+                                instanceIdTransition = bridge.ids.tentativeTransition(),
+                                revealTransition = bridge.revealProxies.tentativeTransition(),
+                                retiredIds = draft.mutations.retiredIds + (stagedMove?.retiredIds ?: emptyList()),
+                                zoneRecordings = draft.mutations.zoneRecordings + (stagedMove?.zoneRecordings ?: emptyList()),
+                            )
+                        val finalized = finalizeStateFrame(draft.copy(gsm = stagedGsm, mutations = mutations), emptyList())
+                        bridge.diffListener?.invoke(input.previousSnap, input.snap, input.events, input.gameStateId, finalized.gsm)
+                        commitProjection(stagedMove?.snap ?: input.snap, finalized.mutations)
+                        FrameDiff(
+                            input.gameStateId,
+                            input.snap,
+                            finalized,
+                            input.events,
+                            input.previousSnap,
+                            stagedMove != null,
+                        )
+                    }
+                }
+            } catch (stale: StaleInstanceIdTransitionException) {
+                if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
+            }
+        }
+        error("unreachable")
     }
 
     private fun promptRequestBundle(
@@ -801,6 +882,8 @@ class BundleBuilder(
     private data class StagedOrderMove(
         val gsm: GameStateMessage,
         val snap: GsmSnapshot,
+        val retiredIds: List<InstanceId>,
+        val zoneRecordings: List<Pair<InstanceId, Int>>,
     )
 
     private data class StagedMovedCard(
@@ -809,25 +892,28 @@ class BundleBuilder(
         val newId: InstanceId,
     )
 
-    private fun stagePendingOrderZoneMove(
-        gsm: GameStateMessage,
-        snap: GsmSnapshot,
-        prompt: InteractivePromptBridge.PendingPrompt,
-    ): StagedOrderMove? {
+    private fun pendingOrderZoneMove(prompt: InteractivePromptBridge.PendingPrompt): InteractivePromptBridge.PendingOrderZoneMove? {
         val candidateFids =
             prompt.request.candidateRefs
                 .filter { it.isCard() }
                 .map { ForgeCardId(it.entityId) }
-        val move = bridge.promptBridge(SeatId(seatId)).pollPendingOrderZoneMove(SeatId(seatId), candidateFids) ?: return null
         if (candidateFids.isEmpty()) return null
+        return bridge.promptBridge(SeatId(seatId)).pollPendingOrderZoneMove(SeatId(seatId), candidateFids)
+    }
+
+    private fun stagePendingOrderZoneMove(
+        gsm: GameStateMessage,
+        snap: GsmSnapshot,
+        prompt: InteractivePromptBridge.PendingPrompt,
+        move: InteractivePromptBridge.PendingOrderZoneMove?,
+    ): StagedOrderMove? {
+        move ?: return null
         val sourceZoneId = ZoneIds.handOf(move.seatId)
         val destZoneId = ZoneIds.libraryOf(move.seatId)
 
         val moved =
-            candidateFids.map { fid ->
+            move.forgeCardIds.map { fid ->
                 val realloc = bridge.ids.realloc(fid)
-                bridge.retireToLimbo(realloc.old)
-                bridge.recordZone(realloc.new, destZoneId)
                 StagedMovedCard(fid, realloc.old, realloc.new)
             }
         val stagedSnap = stagedOrderSnapshot(snap, move, sourceZoneId, destZoneId)
@@ -835,6 +921,8 @@ class BundleBuilder(
         return StagedOrderMove(
             gsm = stagedOrderGsm(gsm, snap, stagedSnap, move, moved, sourceIid, sourceZoneId, destZoneId),
             snap = stagedSnap,
+            retiredIds = moved.map { it.oldId },
+            zoneRecordings = moved.map { it.newId to destZoneId },
         )
     }
 
@@ -891,7 +979,7 @@ class BundleBuilder(
             listOfNotNull(
                 stagedSnap.zones[sourceZoneId]?.let { zoneInfoFor(it) },
                 stagedSnap.zones[destZoneId]?.let { zoneInfoFor(it) },
-                limboZoneInfo(),
+                limboZoneInfo(moved.map { it.oldId }),
             )
         builder.clearZones()
         builder.addAllZones(
@@ -933,13 +1021,13 @@ class BundleBuilder(
         return builder.build()
     }
 
-    private fun limboZoneInfo(): ZoneInfo =
+    private fun limboZoneInfo(extraIds: List<InstanceId> = emptyList()): ZoneInfo =
         ZoneInfo
             .newBuilder()
             .setZoneId(ZoneIds.LIMBO)
             .setType(ZoneType.Limbo)
             .setVisibility(Visibility.Public)
-            .addAllObjectInstanceIds(bridge.getLimboInstanceIds().map { it.value })
+            .addAllObjectInstanceIds((bridge.getLimboInstanceIds() + extraIds).distinct().map { it.value })
             .build()
 
     private fun orderMoveObject(
@@ -1711,6 +1799,7 @@ class BundleBuilder(
         }
 
     companion object {
+        private const val MAX_ID_TRANSITION_RETRIES = 3
         private const val COIN_FLIP_WIN_LOCALIZATION_ID = 47
         private const val COIN_FLIP_LOSS_LOCALIZATION_ID = 48
 

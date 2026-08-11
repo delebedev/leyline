@@ -181,19 +181,15 @@ object ZoneTransferDetector {
         bridge.recordPendingSpellCasts(events)
         bridge.recordPendingSpellResolutions(events)
 
-        // Compute plans without mutating forward/reverse maps. Reserve a counter
-        // slot per plan so monotonic getOrAlloc calls later in the same buildDiff
-        // cannot collide. A forward/reverse overlay resolves same-pass queries for
-        // freshly-planned fids. Caller commits the plans via bridge.applyMutations
-        // (applyRealloc per plan).
+        // Compute plans against the active identity planner. A forward/reverse
+        // overlay resolves same-pass queries for freshly-planned fids. The
+        // complete planner state returns through bridge.applyMutations.
         val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
         val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
         val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
-            val oldId = forwardOverlay[fid] ?: bridge.ids.peek(fid)
-            val newId = bridge.ids.reserveNextInstanceId()
-            forwardOverlay[fid] = newId
-            reverseOverlay[newId] = fid
-            val plan = InstanceIdRegistry.IdReallocation(oldId ?: newId, newId)
+            val plan = bridge.ids.realloc(fid)
+            forwardOverlay[fid] = plan.new
+            reverseOverlay[plan.new] = fid
             plannedReallocs.add(plan)
             plan
         }
