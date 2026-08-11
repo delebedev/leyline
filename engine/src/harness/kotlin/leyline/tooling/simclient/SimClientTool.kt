@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
@@ -135,8 +136,8 @@ class SimClientRunner(
         playerLog: PlayerLogWriter,
     ): SimClientDriver {
         val forgeAi =
-            if (config.policy == SimClientPolicyMode.ForgeAi) {
-                ForgeAiPolicy(harness, leyline.bridge.types.SeatId(1))
+            if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
+                ForgeAiPolicy({ harness.bridge }, leyline.bridge.types.SeatId(1))
             } else {
                 null
             }
@@ -148,6 +149,8 @@ class SimClientRunner(
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
                     forgeAi = forgeAi,
+                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
+                    snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
                 )
             is PuzzleSimClientRow ->
                 SimClientDriver(
@@ -157,6 +160,8 @@ class SimClientRunner(
                     maxIterations = 3_000,
                     connect = { harness.connectAndKeepPuzzleText(row.puzzleText) },
                     forgeAi = forgeAi,
+                    shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
+                    snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
                 )
         }
     }

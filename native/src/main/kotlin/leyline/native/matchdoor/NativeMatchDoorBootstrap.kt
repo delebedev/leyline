@@ -34,6 +34,7 @@ object NativeMatchDoorBootstrap {
         debugSink: MatchDebugSink,
         puzzlePath: () -> String?,
         runtimeMatchConfigs: RuntimeMatchConfigRegistry,
+        aiDeckOverride: () -> String? = { null },
     ): Channel {
         val registry = MatchRegistry()
         return ServerBootstrap()
@@ -61,6 +62,7 @@ object NativeMatchDoorBootstrap {
                                         debugSink = debugSink,
                                         puzzlePath = puzzlePath,
                                         runtimeMatchConfigs = runtimeMatchConfigs,
+                                        aiDeckOverride = aiDeckOverride,
                                     )
                                 },
                             ),

@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import leyline.copilot.SimDecision
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.simclient.PromptProgressSample
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage

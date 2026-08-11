@@ -32,11 +32,14 @@
 
 [game]
 # RNG seed for deterministic shuffles. Remove or comment out for random.
-#seed = 2
+# Fixed for reproducible autoplay runs — replay the same game to verify a
+# blocker is resolved. Rotate across a few: 42, 7, 13, 101 (each a different
+# opening/curve; pick one that exercises the mechanic under test).
+seed = 42
 
 # Which seat wins the die roll and goes first (1 = human, 2 = AI).
-# Omit or leave unset for random (default).
-#die_roll_winner = 1
+# Fixed so the reproduced game plays out identically.
+die_roll_winner = 1
 
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
 # Leave disabled when exercising mulligan flow; enable only for scripted probes
@@ -49,9 +52,11 @@ timer = false
 # AI opponent deck (name from player.db). Use "random" for a random non-selected deck.
 # In spectator_mode, "random" picks a random pair for both AI seats.
 # Omit for mirror match (same as seat 1).
-#ai_deck = "Green stompy"
+ai_deck = "Green stompy"
 
 # Run both game seats under Forge AI; attach the client as a read-only viewer.
+# Left OFF: AI-vs-AI + game-state streaming work engine-side, but the desktop
+# client render path needs work (blank board); the web client renders it fine.
 #spectator_mode = false
 
 [ai]
@@ -71,3 +76,9 @@ strict = false
 # Crash when auto-pass fires from missing data (bridge timeouts, prompt
 # timeouts, auto-resolve). Off = pass priority silently (production behavior).
 strict_pass = false
+
+# Response-envelope contracts (respId correlation) are now always enforced by
+# ResponseEnvelopeGuard — no config knob needed.
+
+# Event-driven push: leyline computes+pushes the copilot seat response in-process.
+copilot_autopush = true

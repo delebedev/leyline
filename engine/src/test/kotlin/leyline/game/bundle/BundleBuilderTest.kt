@@ -519,6 +519,38 @@ class BundleBuilderTest :
             action.actionType shouldBe Messages.ActionType.Pass
         }
 
+        test("shouldAutoPass vs onlyOptionalActivations classify AAR windows") {
+            fun aar(vararg types: Messages.ActionType) =
+                Messages.ActionsAvailableReq
+                    .newBuilder()
+                    .addAllActions(
+                        types.map {
+                            Messages.Action
+                                .newBuilder()
+                                .setActionType(it)
+                                .build()
+                        },
+                    ).build()
+
+            assertSoftly {
+                // Pass-only: auto-passable, and not an optional-activation window.
+                BundleBuilder.shouldAutoPass(aar(Messages.ActionType.Pass)).shouldBeTrue()
+                BundleBuilder.onlyOptionalActivations(aar(Messages.ActionType.Pass)).shouldBeFalse()
+
+                // Only an optional activation offered: leyline would otherwise wait
+                // forever on a client that auto-passes — this is the window the
+                // fix lets auto-pass in step with client auto-pass intent.
+                val activateOnly = aar(Messages.ActionType.Pass, Messages.ActionType.Activate_add3)
+                BundleBuilder.shouldAutoPass(activateOnly).shouldBeFalse()
+                BundleBuilder.onlyOptionalActivations(activateOnly).shouldBeTrue()
+
+                // A castable action present: neither auto-passes — real decision.
+                val withCast = aar(Messages.ActionType.Pass, Messages.ActionType.Activate_add3, Messages.ActionType.Cast)
+                BundleBuilder.shouldAutoPass(withCast).shouldBeFalse()
+                BundleBuilder.onlyOptionalActivations(withCast).shouldBeFalse()
+            }
+        }
+
         test("echo diff prevGsId uses last emitted GSM instead of gsId adjacency") {
             val counter = MessageCounter(initialGsId = 7, initialMsgId = 0)
             counter.markGameStateGsId(7)

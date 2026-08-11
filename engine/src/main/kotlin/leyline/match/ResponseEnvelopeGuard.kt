@@ -46,7 +46,10 @@ internal object ResponseEnvelopeGuard {
     ): Boolean {
         if (message.type !in CORRELATED_CLIENT_MESSAGE_TYPES) return false
         val expectedRespId = counter.lastPromptMsgId()
-        if (expectedRespId != 0 && message.respId == expectedRespId) return false
+        if (expectedRespId != 0 && message.respId == expectedRespId) {
+            counter.markResponseAccepted()
+            return false
+        }
 
         log.warn(
             "ResponseEnvelopeGuard: {} respId={} expected={}",

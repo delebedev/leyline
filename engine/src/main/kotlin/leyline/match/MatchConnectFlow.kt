@@ -7,8 +7,6 @@ import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 internal data class ConnectAttempt(
     val matchId: String,
@@ -79,8 +77,19 @@ internal class MatchConnectFlow(
                         cardRepository = cardRepository,
                     )
                 Match(attempt.matchId, bridge).also { newMatch ->
-                    if (!isSpectatorMode()) {
-                        val decks = resolveSeatDecks()
+                    // Start the game at match creation (once — CAS-guarded) so both
+                    // client connections see a running game and just send their
+                    // bundles. Mirrors the non-spectator flow; avoids two connects
+                    // racing to start it.
+                    val decks = resolveSeatDecks()
+                    if (isSpectatorMode()) {
+                        newMatch.startAiVsAi(
+                            seed = matchConfig.game.seed,
+                            deckList1 = decks.first,
+                            deckList2 = decks.second,
+                            variant = gameVariant,
+                        )
+                    } else {
                         newMatch.start(
                             seed = matchConfig.game.seed,
                             deckList1 = decks.first,
@@ -92,7 +101,7 @@ internal class MatchConnectFlow(
             }
         val bridge = match.bridge
         if (isSpectatorMode()) {
-            connectSpectator(attempt, match, gameVariant)
+            connectSpectator(attempt, match)
         } else if (attempt.familiar) {
             createFamiliarSession(bridge.messageCounter)
             sendRoomState()
@@ -105,53 +114,16 @@ internal class MatchConnectFlow(
     private fun connectSpectator(
         attempt: ConnectAttempt,
         match: Match,
-        gameVariant: String?,
     ) {
-        if (attempt.familiar) {
-            sendRoomState()
-            log.info("Match Door: spectator familiar connected, room-state-only no-op")
-            return
-        }
+        // The game is already running (started at match creation). Both connections
+        // send their initial bundle: seat 2 (familiar) carries the
+        // ChooseStartingPlayerReq handshake the client needs to leave the connecting
+        // state and render — a bare room-state no-op left it on a blank board.
+        // onChooseStartingPlayerResp is spectator-safe (deals hands;
+        // SpectatorSession.onMulliganKeep is a no-op). Only the primary streams.
         val spectator = createSpectatorSession(match.bridge)
         sendRoomState()
-        if (match.state == MatchState.WAITING) {
-            if (!startSpectatorMatch(match, gameVariant)) return
-        } else {
-            sendInitialBundle()
-        }
-        spectator.startPump()
-    }
-
-    private fun startSpectatorMatch(
-        match: Match,
-        gameVariant: String?,
-    ): Boolean {
-        val decks = resolveSeatDecks()
-        val readyForInitialBundle = CountDownLatch(1)
-        val initialBundleSent = CountDownLatch(1)
-        match.startAiVsAi(
-            seed = matchConfig.game.seed,
-            deckList1 = decks.first,
-            deckList2 = decks.second,
-            variant = gameVariant,
-            startGameHook =
-                Runnable {
-                    readyForInitialBundle.countDown()
-                    if (!initialBundleSent.await(10, TimeUnit.SECONDS)) {
-                        log.warn("Match Door: spectator initial bundle timed out, resuming AI loop")
-                    }
-                },
-        )
-        if (!readyForInitialBundle.await(10, TimeUnit.SECONDS)) {
-            log.warn("Match Door: spectator game did not reach initial bundle barrier")
-            initialBundleSent.countDown()
-            return false
-        }
-        try {
-            sendInitialBundle()
-        } finally {
-            initialBundleSent.countDown()
-        }
-        return true
+        sendInitialBundle()
+        if (!attempt.familiar) spectator.startPump()
     }
 }

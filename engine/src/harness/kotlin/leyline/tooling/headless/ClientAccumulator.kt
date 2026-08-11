@@ -18,6 +18,9 @@ class ClientAccumulator {
     /** zoneId -> ZoneInfo (latest version). */
     val zones = mutableMapOf<Int, ZoneInfo>()
 
+    /** systemSeatNumber -> PlayerInfo (latest version). Full replaces all; Diff merges per seat. */
+    val players = mutableMapOf<Int, PlayerInfo>()
+
     /** Latest turnInfo from most recent GameStateMessage. */
     var turnInfo: TurnInfo? = null
         private set
@@ -151,14 +154,17 @@ class ClientAccumulator {
             GameStateType.Full -> {
                 objects.clear()
                 zones.clear()
+                players.clear()
                 gs.gameObjectsList.forEach { objects[it.instanceId] = it }
                 gs.zonesList.forEach { zones[it.zoneId] = it }
+                gs.playersList.forEach { players[it.systemSeatNumber] = it }
             }
             GameStateType.Diff -> {
                 // Remove deleted instances first (client sends these for retired IDs)
                 gs.diffDeletedInstanceIdsList.forEach { objects.remove(it) }
                 gs.gameObjectsList.forEach { objects[it.instanceId] = it }
                 gs.zonesList.forEach { zones[it.zoneId] = it }
+                gs.playersList.forEach { players[it.systemSeatNumber] = it }
             }
             else -> {} // ignore
         }

@@ -146,6 +146,8 @@ private fun buildDebugServer(
     port = port,
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
     runtimePuzzle = server.runtimePuzzle,
+    cardRepositoryProvider = { server.cardRepo },
+    aiDeckOverride = server.aiDeckOverride,
 )
 
 private fun buildAccountServer(

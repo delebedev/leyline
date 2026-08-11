@@ -62,7 +62,7 @@ class LeylineServer(
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchConnection for grpId↔name lookups. */
-    private val cardRepo: CardRepository,
+    val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,
 ) {
@@ -84,6 +84,9 @@ class LeylineServer(
     /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
     val runtimePuzzle = AtomicReference<String?>(null)
     val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+
+    /** One-shot seat-2 (AI) deck override by name — set via POST /api/ai-deck, consumed per match. */
+    val aiDeckOverride = AtomicReference<String?>(null)
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -269,6 +272,7 @@ class LeylineServer(
                 debugSink = debugSink,
                 puzzlePath = { runtimePuzzle.get() },
                 runtimeMatchConfigs = runtimeMatchConfigs,
+                aiDeckOverride = { aiDeckOverride.getAndSet(null) },
             )
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
         return ch

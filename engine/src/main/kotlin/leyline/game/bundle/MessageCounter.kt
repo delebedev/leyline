@@ -40,6 +40,20 @@ class MessageCounter(
     private val lastPromptGsId = AtomicInteger(0)
     private val lastPromptMsgId = AtomicInteger(0)
     private val lastGameStateGsId = AtomicInteger(0)
+    private val responsesAccepted = AtomicInteger(0)
+
+    /**
+     * Count of valid client responses the host has accepted (respId matched the
+     * pending prompt). Monotonic. The event-driven push driver watches this to
+     * confirm an injected response actually landed before it stops re-injecting;
+     * see [leyline.copilot.CopilotAutopush].
+     */
+    fun responsesAccepted(): Int = responsesAccepted.get()
+
+    /** Bump [responsesAccepted]; called by the envelope guard on a valid response. */
+    fun markResponseAccepted() {
+        responsesAccepted.incrementAndGet()
+    }
 
     /** Advance gsId and return the new value. */
     fun nextGsId(): Int = gsId.incrementAndGet()

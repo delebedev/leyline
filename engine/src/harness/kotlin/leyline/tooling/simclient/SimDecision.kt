@@ -1,141 +1,78 @@
 package leyline.tooling.simclient
 
+import leyline.copilot.SimDecision
 import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
-internal sealed interface SimDecision {
-    val kind: String
-
-    data class PerformAction(
-        val action: Action,
-    ) : SimDecision {
-        override val kind: String = "perform:${action.actionType.name}"
+internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
+    when (this) {
+        is SimDecision.PerformAction ->
+            listOf(
+                "perform:${action.actionType.name}",
+                "iid=${action.instanceId}",
+                "grp=${action.grpId}",
+                "ability=${action.abilityGrpId}",
+                "alt=${action.alternativeGrpId}",
+            ).joinToString(":")
+        is SimDecision.SelectTargets -> "select-targets:${targetInstanceIds.sorted().joinToString("+")}"
+        is SimDecision.UnselectTargets -> "unselect-targets:${targetInstanceIds.sorted().joinToString("+")}"
+        SimDecision.SubmitTargets -> "submit-targets"
+        is SimDecision.SelectN -> "select-n:${selectedInstanceIds.sorted().joinToString("+")}"
+        is SimDecision.Order -> "order:${orderedInstanceIds.joinToString("+")}"
+        is SimDecision.Search -> "search:${itemsFound.sorted().joinToString("+")}"
+        is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
+        is SimDecision.AutoTapPayment -> "auto-tap-payment:$solutionIndex"
+        SimDecision.KeepHand -> "keep-hand"
+        is SimDecision.GroupTop -> "group-top:${instanceIds.joinToString("+")}"
+        is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
+        is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
+        is SimDecision.OptionalCost -> "optional-cost:$ctoId"
+        is SimDecision.ModalChoice -> "modal-choice:${selectedGrpIds.sorted().joinToString("+")}"
+        is SimDecision.ManaTypeChoices -> "mana-type:${choicesByCtoId.joinToString("+") { (ctoId, color) -> "$ctoId=$color" }}"
+        is SimDecision.NumericInput -> "numeric-input:$value"
+        is SimDecision.AssignDamage -> {
+            val assignmentDigest =
+                assigners
+                    .sortedBy { it.first }
+                    .joinToString("+") { (id, assignments) ->
+                        "$id=${assignments.sortedBy { it.first }}"
+                    }
+            "assign-damage:$assignmentDigest"
+        }
+        SimDecision.DeclareAllAttackers -> {
+            val attackerIds =
+                prompt
+                    ?.msg
+                    ?.declareAttackersReq
+                    ?.attackersList
+                    .orEmpty()
+                    .map { it.attackerInstanceId }
+                    .distinct()
+                    .sorted()
+                    .joinToString("+")
+            "declare-attackers:$attackerIds"
+        }
+        is SimDecision.DeclareAttackers -> "declare-attackers:${attackerInstanceIds.sorted().joinToString("+")}"
+        is SimDecision.DeclareBlockers -> {
+            val assignmentDigest =
+                assignments.entries
+                    .sortedBy { it.key }
+                    .joinToString("+") { "${it.key}->${it.value}" }
+            "declare-blockers:$assignmentDigest"
+        }
+        SimDecision.DeclareNoBlockers -> "declare-blockers:"
+        is SimDecision.UndeclareBlocker -> "undeclare-blocker:$blockerInstanceId"
+        SimDecision.SubmitAttackers -> "submit-attackers"
+        SimDecision.SubmitBlockers -> "submit-blockers"
+        SimDecision.CancelAction -> "cancel-action"
+        SimDecision.PassPriority -> "pass-priority"
+        SimDecision.RetirePrompt -> "retire-prompt"
+        SimDecision.WaitForEngine -> "wait-for-engine"
+        SimDecision.Terminal -> "terminal"
     }
-
-    data class SelectTargets(
-        val targetInstanceIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "select-targets"
-    }
-
-    data class SelectN(
-        val selectedInstanceIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "select-n"
-    }
-
-    data class Order(
-        val orderedInstanceIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "order"
-    }
-
-    data class Search(
-        val itemsFound: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "search"
-    }
-
-    data class EffectCost(
-        val selectedInstanceIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "effect-cost"
-    }
-
-    data class GroupTop(
-        val instanceIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "group-top"
-    }
-
-    data class GroupAway(
-        val awayInstanceIds: List<Int>,
-        val allInstanceIds: List<Int>,
-        val context: GroupingContext,
-    ) : SimDecision {
-        override val kind: String = "group-away"
-    }
-
-    data class OptionalAction(
-        val accept: Boolean,
-    ) : SimDecision {
-        override val kind: String = "optional-action"
-    }
-
-    data class OptionalCost(
-        val ctoId: Int,
-    ) : SimDecision {
-        override val kind: String = "optional-cost"
-    }
-
-    data class ModalChoice(
-        val selectedGrpIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "modal-choice"
-    }
-
-    data class ManaTypeChoices(
-        val choicesByCtoId: List<Pair<Int, ManaColor>>,
-    ) : SimDecision {
-        override val kind: String = "mana-type"
-    }
-
-    data class NumericInput(
-        val value: Int,
-    ) : SimDecision {
-        override val kind: String = "numeric-input"
-    }
-
-    data class AssignDamage(
-        val assigners: List<Pair<Int, List<Pair<Int, Int>>>>,
-    ) : SimDecision {
-        override val kind: String = "assign-damage"
-    }
-
-    data object DeclareAllAttackers : SimDecision {
-        override val kind: String = "declare-all-attackers"
-    }
-
-    data class DeclareAttackers(
-        val attackerInstanceIds: List<Int>,
-    ) : SimDecision {
-        override val kind: String = "declare-attackers"
-    }
-
-    data class DeclareBlockers(
-        val assignments: Map<Int, Int>,
-    ) : SimDecision {
-        override val kind: String = "declare-blockers"
-    }
-
-    data object DeclareNoBlockers : SimDecision {
-        override val kind: String = "declare-no-blockers"
-    }
-
-    data object CancelAction : SimDecision {
-        override val kind: String = "cancel-action"
-    }
-
-    data object PassPriority : SimDecision {
-        override val kind: String = "pass-priority"
-    }
-
-    data object RetirePrompt : SimDecision {
-        override val kind: String = "retire-prompt"
-    }
-
-    data object WaitForEngine : SimDecision {
-        override val kind: String = "wait-for-engine"
-    }
-
-    data object Terminal : SimDecision {
-        override val kind: String = "terminal"
-    }
-}
 
 internal enum class SimSubmitResult {
     Submitted,
@@ -157,10 +94,17 @@ internal class SimDecisionSubmitter(
         when (decision) {
             is SimDecision.PerformAction -> submitPerformAction(decision.action)
             is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetInstanceIds) }
+            SimDecision.SubmitTargets -> submitted { harness.submitTargets() }
+            // Consult/live-client path only; simclient uses full-list SelectTargets.
+            is SimDecision.UnselectTargets -> SimSubmitResult.NotSubmitted
             is SimDecision.SelectN -> submitted { harness.respondToSelectN(decision.selectedInstanceIds) }
             is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
             is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
             is SimDecision.EffectCost -> submitted { harness.respondToEffectCost(decision.selectedInstanceIds) }
+            // Consult/live-client path only; leyline's own server auto-resolves mana.
+            is SimDecision.AutoTapPayment -> SimSubmitResult.NotSubmitted
+            // Consult/live-client path only; scripted puzzles skip the mulligan.
+            SimDecision.KeepHand -> SimSubmitResult.NotSubmitted
             is SimDecision.GroupTop ->
                 submitted {
                     harness.respondToScry(
@@ -201,6 +145,10 @@ internal class SimDecisionSubmitter(
             is SimDecision.DeclareAttackers -> submitted { harness.declareAttackers(decision.attackerInstanceIds) }
             is SimDecision.DeclareBlockers -> submitted { harness.declareBlockers(decision.assignments) }
             SimDecision.DeclareNoBlockers -> submitted { harness.declareNoBlockers() }
+            SimDecision.SubmitAttackers -> submitted { harness.submitAttackers() }
+            SimDecision.SubmitBlockers -> submitted { harness.submitBlockers() }
+            // Consult-path only; the harness two-round-trip never emits it.
+            is SimDecision.UndeclareBlocker -> SimSubmitResult.NotSubmitted
             SimDecision.CancelAction -> submitted { harness.cancelAction() }
             SimDecision.PassPriority ->
                 if (harness.hasPendingAction()) {
