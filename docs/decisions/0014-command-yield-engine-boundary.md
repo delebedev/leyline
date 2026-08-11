@@ -1,5 +1,5 @@
 ---
-summary: "ADR: isolate the live Forge graph behind value-only commands and immutable yields, with one serial match owner committing projection and delivery."
+summary: "Partially superseded ADR: confine Forge and use value-only projection inputs; ADR 0015 replaces the mandatory owner/worker topology."
 read_when:
   - "changing engine/session ownership or bridge threading"
   - "introducing an engine worker, match supervisor, frame transaction, or outbox"
@@ -9,7 +9,15 @@ read_when:
 
 ## Status
 
-Accepted direction; implementation is incremental.
+Partially superseded by
+[`ADR 0015`](0015-functional-core-imperative-shell.md).
+
+Retained: Forge confinement, value-only projection inputs, opaque tokens for
+live handles, pure projection, atomic logical commit, and one output order.
+
+Superseded: the mandatory supervisor / serial-owner / engine-worker / outbox
+topology, process-ready contract preference, and the assumption that event
+callback timing alone identifies a coherent observation cut.
 
 ## Context
 
@@ -137,8 +145,10 @@ adds a queue without removing coordination.
 
 ### Build protocol frames directly in Forge callbacks
 
-Rejected. Callback timing is the right place to cut a coherent observation,
-not to own client visibility, counters, retries, or transport delivery.
+Rejected. A callback may append immutable facts and request a cut, but callback
+timing alone does not prove that the enclosing Forge operation is complete. A
+mutation-complete safe point establishes coherence; protocol projection,
+visibility, counters, retries, and delivery remain outside event subscribers.
 
 ### Start with one Forge process per match
 
@@ -158,4 +168,6 @@ also relies on the producer-bound values established by
 [`ADR 0011`](0011-preserve-ability-definition-identity.md), and
 [`ADR 0012`](0012-bind-prompt-routes-once.md), and extends the single-finalizer
 principle from [`ADR 0013`](0013-finalize-annotation-frames-once.md) to match
-projection commit and delivery.
+projection commit and delivery. [`ADR 0015`](0015-functional-core-imperative-shell.md)
+retains those value boundaries while moving the default logical owner to the
+per-match Forge runtime thread.

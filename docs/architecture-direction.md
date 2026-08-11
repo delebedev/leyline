@@ -1,283 +1,380 @@
 ---
-summary: "Accepted runtime direction: isolate Forge behind commands and immutable yields, serialize each match under one owner, compile frames purely, and deliver through one ordered outbox."
+summary: "Accepted runtime direction: one Forge runtime owner materializes typed safe-point inputs for a pure projection core and commits one output order."
 read_when:
   - "changing Forge ownership, bridge threading, MatchSession, GamePlayback, frame projection, or outbound delivery"
   - "planning a structural engine refactor"
-  - "deciding whether state belongs to Forge, the match runtime, projection, or a protocol head"
+  - "deciding whether state belongs to Forge, the runtime shell, projection, or a protocol head"
 ---
 # Forge Runtime Architecture Direction
 
 This document defines the accepted destination for Leyline's match runtime. It
 is not a description of the current implementation and not an execution plan.
-For the current system shape, read [`architecture.md`](architecture.md). Until a
-specific seam migrates, the contracts in
-[`bridge-threading.md`](bridge-threading.md) remain authoritative.
+For current system shape, read [`architecture.md`](architecture.md). Until a
+specific seam migrates, [`bridge-threading.md`](bridge-threading.md) remains
+authoritative.
 
-Implementation can move incrementally, but every slice must converge on the
-ownership and data-flow rules below.
+This is the evolving normative implementation contract. Update it when names,
+state decomposition, migration steps, or proof requirements change within the
+accepted boundary. [`ADR 0015`](decisions/0015-functional-core-imperative-shell.md)
+is the durable decision record: it owns the rationale, withdrawn-slice
+findings, fixed boundary, and rejected alternatives. Implementation may move
+incrementally, but every slice must converge on the rules below.
 
 ## Architectural thesis
 
-Forge is a synchronous foreign rules engine. Leyline should treat it as an
-exclusive state machine that accepts commands and yields immutable
-observations. One serial match owner translates those observations into
-client-visible frames, commits projection state, and appends output to one
-ordered outbox. Transports decode, enqueue, and flush; they do not coordinate
-the engine or repair ordering.
+Forge is a synchronous, mutable rules engine that is deterministic for an
+isolated random source and ordered commands. One per-match Forge runtime thread
+is the imperative shell and the sole logical owner of the live engine graph,
+ordered engine facts, logical protocol state, projection commit, and output
+sequence.
+
+At explicit safe points, that thread materializes a typed immutable input and
+calls a pure projection core synchronously. The core returns a tentative next
+state and frame batch. The runtime installs both in one logical commit, then
+hands the immutable batch to delivery.
+
+Transport and scheduler threads submit immutable signals or complete one
+pending reply. They do not inspect Forge, compile protocol state, or advance
+match progression.
 
 ```mermaid
 flowchart LR
-    H[Native or web head] -->|client command| M[Serial match owner]
-    M -. terminal decision .-> S[Match supervisor]
-    S -. creates, observes, stops .-> W[Engine worker]
-    M -->|EngineCommand| W
-    W --> F[Forge object graph]
-    F --> W
-    W -->|EngineYield| M
-    M -->|yield + projection state| P[Pure frame compiler]
-    P -->|FramePlan + next state| M
-    M -->|atomic commit| O[Ordered outbox]
-    O --> H
+    H[Native or web head] -->|signal or answer| R[Forge runtime thread]
+    R --> F[Forge object graph]
+    F -->|ordered facts and safe point| R
+    R -->|FrameInput plus ProjectionState| P[Pure projection core]
+    P -->|next state plus all viewer batches| R
+    R -->|atomic logical commit| B[Immutable ordered viewer batches]
+    B --> D[Head delivery]
+    S[Lifecycle supervisor] -. create, observe, cancel .-> R
 ```
 
-The names are conceptual. A future implementation may call the serial owner a
-match runtime, cell, loop, or executor. The invariant matters: one owner makes
-each match-level ordering decision.
+The runtime thread may block in a Forge controller callback while waiting for a
+client answer. Completing that bounded reply primitive is not a second logical
+owner. The runtime thread resumes, validates, executes, materializes the next
+input, and commits the result.
 
 ## Responsibility boundaries
 
 | Component | Owns | Must not own |
 |---|---|---|
-| Match supervisor | Match admission, execution-domain creation, resource policy, worker cancellation and cleanup after a terminal decision, health and failure reporting | Semantic match transitions, terminal frames, Forge state, protocol counters |
-| Serial match owner | Command serialization, semantic match lifecycle, pending interaction lifecycle, projection state, protocol counters, frame commit, ordered outbox | Live Forge objects, transport channels, rules or legality |
-| Engine worker | The live Forge graph, engine-thread callbacks, Forge event collection, immutable observation materialization | Protocol builders, client delivery, shared protocol counters |
-| Pure frame compiler | Deterministic conversion of an immutable yield and projection state into a frame plan and next state | I/O, locks, Forge reads, counter mutation, hidden queues |
-| Protocol heads | Channel lifecycle, decoding, authentication where applicable, reporting connection events, enqueueing commands, flushing outbox entries | Semantic match lifecycle, rules, match progression, projection repair |
+| Lifecycle supervisor | Match admission, runtime creation, resource policy, cooperative cancellation, cleanup, health reporting | Semantic match transitions, projection state, protocol IDs, terminal frames, Forge state |
+| Forge runtime thread | Live Forge graph, controller callbacks, ordered fact journal, retained handle tokens, pending interaction, projection state, core invocation, logical commit, output order | Transport channels, authentication, delivery retry policy |
+| Forge adapter and safe-point hooks | Translating runtime commands into Forge operations, appending immutable facts, declaring mutation-complete cuts, materializing typed inputs | Client protocol builders, delivery, shared projection mutation |
+| Pure projection core | Deterministic conversion of immutable input and prior projection state into next state and a frame batch | I/O, locks, clocks, randomness, live Forge reads, in-place allocation, reply primitives |
+| Protocol heads and delivery | Connection lifecycle, decoding, authentication where applicable, submitting signals and answers, flushing immutable committed batches | Rules, match progression, projection repair, protocol ID allocation |
 
-Forge remains the authority for rules, legality, playable abilities, cost
-candidates and payment semantics, engine identity, causes, and final game state.
-Leyline owns interaction binding, protocol projection, client instance IDs,
-frame cuts, visibility, sequencing, and delivery.
+Forge remains authoritative for rules, legality, playable abilities, costs,
+engine identity, causes, and final game state. Leyline remains authoritative for
+interaction binding, client projection, frame cuts, visibility, client object
+identity, sequencing, and delivery.
+
+This decision makes protocol projection functional. Rules execution, blocked
+interaction handling, semantic match lifecycle, cancellation, and delivery
+remain in the imperative shell. Moving another responsibility into a pure
+reducer requires separately demonstrated duplication and a separate decision.
 
 ## Non-negotiable invariants
 
-1. **One execution domain owns Forge.** Live Forge objects never leave the
-   engine worker. Any child engine or AI work completes within that ownership
-   domain before the worker yields.
-2. **One serial owner advances the match.** Client commands, engine yields,
-   timeouts, disconnects, and lifecycle signals are reduced in a single order.
-3. **The boundary carries values.** Commands and yields contain immutable data,
-   stable identities, and explicit correlation IDs—not callbacks, futures,
-   mutable engine objects, or transport handles.
-4. **Observation timing is explicit.** The engine adapter decides when a
-   coherent observation can be taken and labels the reason for the cut. A
-   projector never samples a moving Forge graph.
-5. **Projection is deterministic.** Equal immutable inputs and projection state
-   produce equal frame plans and next state.
-6. **Commit is atomic at match level.** A failed frame build advances no
-   cursor, counter, pending interaction, or delivery state. A successful plan
-   commits once before its output becomes visible.
-7. **One outbox defines delivery order.** Engine playback, prompts, lifecycle
-   messages, and ordinary state updates join the same ordered stream. No
-   transport or side queue re-sorts them later.
-8. **Heads share one game runtime.** Native and web adapters may encode
-   differently, but they consume the same committed match state and cannot
-   fork rules or progression.
+1. **One logical owner advances a match.** The Forge runtime thread owns live
+   engine state and every logical protocol transition. Other threads may submit
+   immutable signals or answers, not apply them.
+2. **The functional boundary carries values.** Core inputs contain immutable
+   data, stable identities, and explicit correlation. They contain no callbacks,
+   futures, channels, mutable engine objects, or shared counter references.
+3. **Observation timing is explicit.** An event subscriber may append a fact
+   and request a cut. Only a declared safe point may close the fact journal and
+   materialize a projection input.
+4. **State and facts are complementary.** A snapshot describes resulting state;
+   ordered facts preserve cause, grouping, and intermediate operations. Neither
+   is reconstructed from the other when information would be lost.
+5. **Projection is referentially transparent.** Equal environment, prior state,
+   input, and ordered viewer set produce equal viewer batches and equal next
+   state.
+6. **Commit is atomic at match level.** All viewer batches for one cut commit
+   together. Failed or discarded compilation advances no ID, cursor, tracker,
+   pending interaction, or output order, and retains the immutable pending cut.
+7. **One commit defines gameplay output order.** Playback, prompts, lifecycle,
+   ordinary state, spectator, and terminal batches join the same monotonic
+   order before delivery.
+8. **Heads share one runtime.** Native and web heads may decode and encode
+   differently, but they consume the same committed match progression.
 
-## Commands and yields
+## Runtime cycle
 
-Client heads enqueue match commands such as connect, disconnect, and decoded
-gameplay responses. The serial owner decides their semantic effect on the
-match, including terminal transitions and terminal output. The supervisor acts
-on that decision by cancelling the worker and releasing resources. The serial
-owner sends a smaller semantic command set into the engine worker.
+The ordinary cycle is:
 
-Illustrative engine-command families are:
+```text
+head or scheduler submits immutable signal / completes pending answer
+  -> Forge runtime consumes it at its owning interaction or safe point
+  -> Forge advances synchronously
+  -> event subscribers append immutable facts and may request cuts
+  -> a mutation-complete safe point closes one fact journal
+  -> runtime materializes PendingCut(FrameInput, prior ProjectionState)
+  -> pure core computes next ProjectionState and every ViewerBatch
+  -> runtime validates and commits the whole cut once
+  -> immutable viewer batches enter the runtime's monotonic output order
+  -> head delivery flushes without changing logical state
+```
 
-- start a match from supported initial data;
-- submit a bound priority action;
+A lifecycle signal that arrives while Forge is running waits in a bounded
+mailbox until the runtime reaches a safe point. An answer for a blocked
+controller callback completes that interaction's reply primitive directly.
+Timeout and disconnect handling use the same two mechanisms; they do not run
+session logic concurrently.
+
+## Runtime signals and typed inputs
+
+Heads and schedulers submit a small semantic signal set demonstrated by current
+interactions. Illustrative signals are:
+
+- start from supported initial game data;
+- submit a bound priority-action token;
 - submit a typed prompt answer;
-- advance an automatic or timed decision;
-- stop the match.
+- submit a timeout or automatic decision;
+- report disconnect or reconnect;
+- request cooperative stop.
 
-Illustrative yield families are:
+Signals are shell inputs, not a universal effects language. Add a shape when a
+runtime seam requires it; do not mirror the Forge API.
 
-- a coherent state observation with ordered engine facts;
-- a priority window with executable candidates and stable identities;
-- a typed interaction request;
-- a lifecycle transition such as mulligan, game over, or intermission;
-- an engine failure.
+The runtime materializes cut-specific projection inputs. Illustrative families
+are:
 
-These are not a mandate for one universal event hierarchy. Add a command or
-yield shape only when the engine boundary has demonstrated it. Prefer sealed,
-typed families over a nullable property bag.
+- resulting state plus ordered facts;
+- priority window plus immutable action views and opaque action tokens;
+- typed prompt plus immutable display and validation facts;
+- synthetic pre-mutation intent needed by the client UI;
+- mulligan, reset, game-over, or intermission transition.
 
-Every yield identifies its cause, command correlation, frame-cut reason, and
-the stable engine identities needed by projection. The worker materializes all
-required data while it exclusively owns Forge. The match owner must never call
-back into Forge to fill gaps after receiving a yield.
+Each input identifies its cause, cut reason, command correlation, and stable
+source identities. Expensive facts are family-specific. A non-priority cut does
+not enumerate priority candidates; a readiness signal that emits nothing does
+not require a full state snapshot.
 
-Exact executable handles are the deliberate exception to copying engine state,
-but not to worker ownership. For each priority window, the worker retains a
-short-lived table from opaque action token to the exact executable Forge handle.
-The yield carries each token plus immutable projection facts. Projection binds
-the client-visible action to that token; the response returns the token; the
-worker resolves the retained handle without re-enumerating abilities. The table
-is cleared when the window completes, is superseded or cancelled, or fails.
-This preserves bind-at-source execution without sending a mutable
-`SpellAbility` across the boundary.
+Exact executable handles stay in a runtime-owned, bounded table. The input
+carries a token and immutable projection facts. A response returns the token;
+the runtime resolves and consumes the handle without re-enumerating abilities.
+Completion, supersession, cancellation, and failure clear the table.
 
-The token table is not the only live crossing to retire. Today a pending
-targeting prompt retains its live `SpellAbility` so request rebuilding can
-re-check legality, and priority candidate lists carry live ability references
-through the session API. Under this architecture both become worker
-responsibilities: re-validation runs as an engine command against the retained
-handle, and candidate facts cross the boundary as immutable data plus tokens.
+The same rule applies to prompt revalidation and other operations that need a
+live Forge object. If projection needs information, materialize a value. If
+execution needs a live object, retain it behind a token. The pure core never
+uses a token to call back into Forge.
 
 ## State model
 
-The architecture distinguishes four kinds of state:
+The runtime distinguishes six state categories:
 
-- **Engine state:** the live Forge object graph. Mutable, thread-confined, and
-  never a protocol baseline.
-- **Observation:** an immutable point-in-time description plus ordered facts
-  collected since the previous cut. It explains both resulting state and the
-  operations needed for projection.
-- **Projection state:** client instance mappings, previous projected snapshot,
-  annotation lifecycle, bound action/prompt routes, protocol counters, and
-  other values needed to compile the next frame.
+- **Engine state:** the mutable Forge object graph, confined to the runtime
+  thread.
+- **Fact journal:** immutable facts appended in engine order since the last
+  committed cut; closed only at a safe point.
+- **Pending cut:** one immutable typed input plus the exact prior projection
+  state; retained until the cut commits, retries unchanged, or terminates the
+  match.
+- **Projection state:** shared client identity allocation, protocol sequence,
+  annotation and effect lifecycles, prompt/action bindings, and a map of
+  viewer-specific baselines, visibility state, and synthetic reconciliation.
+- **Interaction state:** runtime-owned reply primitives and bounded token tables
+  for currently blocked engine operations. This is shell state, not core input.
 - **Connection state:** channels, authentication, subscriptions, backpressure,
-  and retransmission bookkeeping owned by a head.
+  and retry bookkeeping owned by protocol heads.
 
-An observation is not a second rules model. It contains only facts needed to
-translate Forge's decision into a stable client contract. Snapshots describe
-resulting state; ordered engine facts preserve cause and intermediate
-operations. Neither replaces the other.
+Projection state may be decomposed into smaller immutable values. Every value
+read during compilation and changed because of compilation must be represented
+in the returned next state. Monotonic allocators and drains are state; they are
+not safe exceptions to purity.
 
-## Frame cuts and synthetic state
+Projection baselines are viewer-specific. A state compiled for one seat must
+not become another seat's unredacted baseline. Shared facts feed one complete
+multi-view transition. The compiler folds viewers in a stable declared order
+over private tentative state so shared identities are allocated once, while
+each viewer uses its own visibility and prior baseline. No viewer output becomes
+visible until the final shared state and every viewer batch commit together.
 
-Pure projection does not choose when the client should observe the game. Frame
-cuts belong at the engine adapter seam, where callback timing and mutation
-completion are known. Moving a cut can change the sequence of projector inputs,
-but it does not require projection to read live state or become effectful.
+## Safe points and frame cuts
 
-Some client-visible frames must describe intent before Forge has performed the
-corresponding mutation. Represent that explicitly as immutable pre-commit or
-synthetic observation data. Do not mutate the projection baseline ad hoc to
-pretend the engine already changed. The following real observation must
-reconcile against the committed synthetic projection deterministically.
+An EventBus callback runs synchronously on the Forge thread, but it can occur
+inside a larger engine operation. Thread confinement makes a read physically
+stable while the callback runs; it does not prove the logical operation has
+finished.
 
-## Projection and commit
+A safe point must guarantee:
 
-The central transformation is conceptually:
+1. the relevant Forge mutation burst is complete;
+2. no later fact belongs to the fact journal being closed;
+3. the runtime can materialize all required immutable data before Forge resumes;
+4. projection and logical commit complete before another cut advances the same
+   state.
+
+Closing the fact journal produces a pending cut; it does not consume it. Forge
+does not resume and a new journal does not open until that cut commits. A retry
+uses the same immutable input and prior state. If input materialization or
+compilation cannot be retried, the runtime terminates the match rather than
+losing causal facts and continuing from an advanced engine graph.
+
+The end of a complete `PhaseHandler.mainLoopStep` and the instant before a
+controller callback blocks are natural safe points. Some client-visible
+intermediate states need narrower hooks, such as after one combat declaration
+operation but before the next combat operation. Add small UI-neutral Forge
+hooks at those completed operations when required.
+
+Event subscribers should become fact appenders and cut requesters. They should
+not build protocol frames, advance projection IDs, send output, or hand a
+still-open fact sequence to another owner.
+
+Synthetic state remains valid when Forge blocks before performing a mutation
+the client UI must already display. Represent the intended state explicitly in
+the typed input and reconcile the following engine state against the committed
+synthetic baseline. Do not mutate a cursor ad hoc or make the core query the
+future engine state.
+
+## Functional projection and commit
+
+The central transition is:
 
 ```text
-EngineYield + ProjectionState + ViewerContext
-    -> FramePlan(messages, nextProjectionState, outboxEntries)
+ProjectionEnvironment
+  + ProjectionState
+  + FrameInput
+  + OrderedViewerSet
+    -> ProjectionTransition(nextState, viewerBatches)
 ```
 
-`FramePlan` is a value, not a builder holding shared mutable state. Compilation
-may validate ordering, IDs, visibility, and interaction pairing before commit.
-Only the serial match owner can commit the returned state and append the
-outbox entries.
+`ProjectionEnvironment` is immutable or read-only reference data. It excludes
+live game state, clocks, transports, reply primitives, and mutable allocators.
 
-The design permits projection to retain GRE protobuf as its output model. The
-important boundary is not "protobuf nowhere in engine"; it is that protocol
-construction is deterministic, does not run inside Forge callbacks, and is
-not split across engine, session, and transport owners.
+Compilation can validate identity, ordering, visibility, prompt pairing, and
+frame consistency before commit. It may use local mutation inside newly
+allocated private builders and fold viewers in stable order, but no mutation
+escapes unless represented in the returned complete transition.
 
-## Delivery
+The runtime installs `nextState` and assigns every viewer batch's monotonic
+output order once. No output becomes visible before that commit. A compile
+exception or rejected transition leaves the prior logical state intact and the
+pending cut available for retry or terminal handling.
 
-The outbox is the match's sole ordering authority. Each committed entry has a
-monotonic sequence and enough audience information for heads to deliver or
-adapt it. Delivery may be synchronous in the first implementation, but its
-ordering does not depend on which thread happens to call `send`.
+GRE protobuf messages may remain the output representation. The boundary is
+not "protobuf outside engine"; it is deterministic protocol construction from
+values without live Forge reads or shared logical writes.
 
-Authentication, connection negotiation, and other channel-only replies may
-remain head-local. Once a connection has joined a match, every message whose
-meaning depends on match progression—including terminal match output—comes
-from the match outbox. Heads report disconnects and delivery failures to the
-serial owner; they do not decide the semantic match transition themselves.
+## Delivery and supervision
 
-Backpressure and disconnected clients are head concerns. They can delay,
-resume, or terminate delivery according to an explicit policy; they cannot
-advance the projection cursor independently or discard an entry while making
-later entries visible.
+One logical commit order does not require a specific outbox class. The runtime
+may synchronously hand off a batch, append it to an in-memory queue, or later
+use a durable outbox. In every implementation:
 
-## Supervision and worker isolation
+- the committed batch is immutable;
+- its sequence is fixed before handoff;
+- delivery cannot reorder batches or advance projection state;
+- retry and backpressure cannot make a later batch visible before an earlier
+  required batch.
 
-The supervisor/worker split has value even for a single game. The serial match
-owner decides semantic startup, shutdown, timeout, and terminal transitions.
-The supervisor creates the execution domain, observes worker health, enforces
-resource policy, and performs cancellation and cleanup after the owner reaches
-a terminal decision. This keeps operational lifecycle work out of Forge
-callbacks and transport handlers without creating a second match authority.
+Authentication and connection negotiation may remain head-local when they do
+not depend on match progression. Gameplay and terminal meaning comes from the
+runtime commit path.
 
-"Worker" initially means a logical execution domain and may remain one
-dedicated JVM thread. The command/yield contract should nonetheless avoid live
-references and process-local callbacks so a process boundary remains possible.
-Choosing a thread or child process is a separate operational decision:
+The supervisor may create the runtime thread, observe health, request
+cooperative cancellation, enforce resource policy, and clean up after a
+terminal transition. It does not own a second copy of semantic match state.
 
-- a thread has lower overhead and simpler debugging, but cannot safely be
-  killed while arbitrary Java code is running;
-- a process can enforce memory and termination boundaries, but adds startup,
-  serialization, deployment, and diagnostics work.
+An in-process thread cannot be safely terminated during arbitrary Java code.
+Process isolation, checkpoints, and restart are separate decisions. The value
+boundary should not be distorted merely to anticipate them.
 
-Cooperative cancellation is the strongest safe promise for an in-process
-worker. Transparent recovery is not promised. Resuming a failed engine requires
-a separately proven replay or checkpoint contract; reconnecting delivery is not
-the same as reconstructing Forge state.
+Animation pacing is shell policy. It may delay Forge continuation at a safe
+point or delay delivery of an already ordered batch, but it cannot run inside
+the pure core or reorder logical output.
 
 ## Testing strategy
 
-This shape reduces dependence on broad integration tests without replacing
-them:
+The architecture creates four test altitudes:
 
-- frame compiler tests exercise protocol behavior from immutable fixtures;
-- model tests reduce command/yield sequences and assert projection state and
-  outbox order;
-- engine-adapter tests prove each cut is coherent and carries required facts;
-- replay tests run the same yield sequence through fresh projection state and
-  require byte-identical output;
-- architecture tests forbid Forge references outside the worker boundary and
-  transport dependencies inside the match runtime;
-- end-to-end tests prove the adapters, engine, and delivery loop agree.
+- **Functional-core tests:** construct projection state, synthetic snapshots,
+  ordered facts, and an ordered viewer set directly; assert every viewer batch
+  and next state without starting Forge or `GameBridge`.
+- **Safe-point adapter tests:** drive a bounded Forge operation; assert the fact
+  journal closes once, the input is complete, and no collection remains open to
+  mutation.
+- **Runtime tests:** use a fake deterministic engine driver and immutable input
+  sequence; assert reply routing, commit atomicity, output order, terminal
+  behavior, and delivery handoff.
+- **End-to-end tests:** prove Forge execution, safe points, projection,
+  bracketing, heads, and delivery agree.
 
-Rules and AI behavior still require Forge-backed tests. Protocol framing,
-ordering, visibility, ID allocation, retry, and interaction lifecycle should
-usually be provable without starting a game.
+Core purity tests must prove equal inputs produce equal complete multi-view
+output, prior state is unchanged, and a discarded transition advances nothing.
+They must also prove a failure for one viewer publishes no other viewer batch.
+Architecture tests must prevent Forge and transport types from entering the
+core.
+
+Before deleting current synchronization, run repeated varied games with strict
+state validation and exercise concurrent fact production / reply timing. Add a
+specific regression for combat bursts and collection iteration. Performance
+checks must guard against eager full snapshots and candidate enumeration at
+cuts that do not need them.
+
+Forge's current random source is process-global. Deterministic adapter replay
+runs with one active match until a small Forge seam makes randomness game- or
+runtime-owned. Concurrent game matrices remain required for ownership and
+thread-safety proof, but they do not establish independent replay equality
+before that change.
+
+Rules and AI behavior still need Forge-backed tests. Protocol framing,
+visibility, identity allocation, retry, ordering, and lifecycle reduction
+should normally be tested below that altitude.
 
 ## Migration rules
 
-- Preserve the current playback/counter/cursor contract until one serial owner
-  has taken over all three responsibilities.
-- Do not place an actor or queue facade in front of state that remains shared
-  behind it. Ownership moves with the facade or the slice is incomplete.
-- Each transitional seam has one named authority and a deletion condition for
-  its predecessor. Dual writes and shadow comparisons may diagnose a cutover,
-  but only one side can drive client-visible behavior.
-- Extract immutable values at demonstrated Forge seams. Do not mirror the full
-  Forge API or invent a generic engine DSL.
-- Keep frame-cut semantics unchanged during ownership refactors. Correctness
-  changes to emission or bracketing require their own evidence and review.
-- Split large files when a new ownership boundary exists. File size alone does
-  not justify a component.
-- Process readiness means value-only contracts and explicit failure semantics,
-  not network services, distributed coordination, or premature persistence.
+Migration order is mandatory:
+
+1. **Pure compute first.** Introduce `ProjectionState`; remove `GameBridge` and
+   in-place tracker/allocator writes from compute signatures. Add zero-Forge
+   fixture tests. Do not change threading or cut behavior.
+2. **Typed inputs second.** Materialize the smallest cut-specific values at
+   existing seams. Missing data fails explicitly. Do not introduce a universal
+   eager observation.
+3. **Safe points third.** Turn event subscribers into fact appenders and add
+   narrow Forge hooks at mutation-complete seams. Prove combat, prompt,
+   priority, reset, synthetic, and terminal cuts. Establish the pending-cut
+   retry-or-terminal state machine. Confine randomness before relying on
+   concurrent per-match deterministic replay.
+4. **Ownership fourth.** Invoke compile and commit on the Forge runtime thread;
+   make transport answer-only and delivery batch-only. Route every gameplay
+   producer through the same commit path.
+5. **Deletion last.** Remove current locks, queues, shared counters, cursor
+   repair, and owner facades only after all their producers have moved.
+
+Each slice names its current authority, destination authority, and concrete
+deletion condition. An actor facade over still-shared state is incomplete. A
+partial mutation batch that leaves allocators changing inside compute is not a
+functional core.
+
+Preserve client-visible frame semantics while moving ownership. A bracketing or
+emission change needs its own focused evidence and review. Keep changes small
+enough that one slice can be reverted without restoring a second architecture.
 
 ## Convergence criteria
 
 The runtime has reached this direction when:
 
-- live Forge objects are confined to one engine execution domain;
-- protocol messages are not built in Forge callbacks;
-- match-level IDs, cursors, pending interactions, and delivery order have one
-  serial owner rather than shared atomics and repair paths;
-- all outbound gameplay messages enter one ordered outbox;
-- frame compilation can be replayed deterministically from immutable inputs;
-- transport handlers only decode, enqueue, adapt, and flush;
-- native and web heads consume the same match runtime;
-- worker failure and shutdown have explicit, truthful semantics.
+- one per-match Forge runtime thread owns engine and logical protocol progress;
+- event subscribers append facts but do not build or send protocol output;
+- all inputs are materialized at declared mutation-complete safe points;
+- projection compiles from immutable inputs with no `GameBridge` dependency;
+- all logical allocators and lifecycles advance through returned next state;
+- all viewers for one cut compile and commit atomically against shared identity
+  allocation and viewer-specific baselines;
+- failed or discarded compilation leaves prior state unchanged, retains the
+  pending cut, and does not resume Forge;
+- ordinary, playback, prompt, spectator, lifecycle, and terminal output receive
+  order from one commit path;
+- transport handlers only decode, submit signals or answers, and deliver
+  immutable batches;
+- native and web heads consume the same runtime;
+- broad protocol tests can push synthetic state through the core without Forge;
+- performance remains bounded by cut-specific materialization.
 
 ## Related decisions
 
@@ -287,11 +384,12 @@ The runtime has reached this direction when:
   rules in Forge and frontend choices at a controller seam.
 - [`ADR 0010`](decisions/0010-bind-priority-actions-at-projection-source.md),
   [`ADR 0011`](decisions/0011-preserve-ability-definition-identity.md), and
-  [`ADR 0012`](decisions/0012-bind-prompt-routes-once.md) establish bound values
-  that can cross a command/yield boundary without reverse reconstruction. ADR
-  0010's exact executable handle moves into the worker-owned token table; its
-  bind-at-source invariant remains unchanged.
+  [`ADR 0012`](decisions/0012-bind-prompt-routes-once.md) bind action, ability,
+  and prompt information while it is strongest.
 - [`ADR 0013`](decisions/0013-finalize-annotation-frames-once.md) establishes a
-  single pure finalization point within one frame.
-- [`ADR 0014`](decisions/0014-command-yield-engine-boundary.md) records why this
-  runtime boundary was chosen.
+  single finalization point within one frame.
+- [`ADR 0014`](decisions/0014-command-yield-engine-boundary.md) established
+  Forge confinement and value-only projection inputs; its mandatory
+  owner/worker topology is superseded.
+- [`ADR 0015`](decisions/0015-functional-core-imperative-shell.md) records the
+  rationale and detailed constraints for this direction.
