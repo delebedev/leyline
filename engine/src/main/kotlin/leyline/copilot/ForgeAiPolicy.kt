@@ -402,6 +402,7 @@ class ForgeAiPolicy(
         return sacrificeCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
     }
 
+    @Suppress("ReturnCount")
     private fun sacrificeCostContext(msg: GREToClientMessage): Pair<SpellAbility, CostSacrifice>? {
         if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
         if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null

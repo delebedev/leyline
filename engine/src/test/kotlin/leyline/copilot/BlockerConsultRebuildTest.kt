@@ -1,7 +1,7 @@
 package leyline.copilot
 
 import forge.game.zone.ZoneType
-import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
@@ -84,6 +84,6 @@ class BlockerConsultRebuildTest :
                 it.blocker.instanceId shouldBe courser
                 it.attacker.instanceId shouldBe goblin
             }
-            proposal.responses.isNotEmpty().shouldBeTrue()
+            proposal.responses.shouldNotBeEmpty()
         }
     })

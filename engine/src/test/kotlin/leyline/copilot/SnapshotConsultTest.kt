@@ -15,6 +15,7 @@ import leyline.testkit.TestCardRegistry
  * in the SOURCE game's id space (instanceIds from the source GSM, not the
  * hydrated game's own allocations) with a position eval attached.
  */
+@Suppress("MissingAssertSoftly")
 class SnapshotConsultTest :
     SessionTest({
 

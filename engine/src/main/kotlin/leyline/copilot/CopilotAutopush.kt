@@ -6,33 +6,13 @@ import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
-/**
- * Event-driven push for a copilot-driven seat: when the live game prompts the
- * seat, compute the response in-process (no snapshot hydration — the game is
- * right here) and push it to the injection bridge, so the client submits it.
- *
- * This is the leyline-side half of the poll→push flip. The host emits a prompt
- * at the send seam and simultaneously computes + pushes the answer; the host is
- * then blocked awaiting that seat's action, so the game state stays fixed while
- * the response is computed off the session thread. Two-round-trip prompts
- * (combat/targeting) fall out naturally: the host re-prompts after the client's
- * first response, which re-fires the seam and pushes the next step.
- *
- * **Self-healing.** A single injected response can be silently dropped by the
- * native inject bridge. Fire-and-forget then wedges:
- * the host waits forever for a response that never arrives, no new prompt fires,
- * and the seam never re-triggers. So each push re-injects on a bounded loop and
- * confirms the response actually landed by watching
- * [leyline.game.bundle.MessageCounter.responsesAccepted] advance — the host only
- * bumps it when it accepts a valid response for the pending prompt. The happy
- * path (first inject lands) exits within one poll interval; a drop costs a few
- * spaced re-injects instead of a dead game.
- */
+/** Delivers computed prompt responses asynchronously with bounded retries. */
 class CopilotAutopush(
     private val gameBridge: GameBridge,
     private val seatId: SeatId,
@@ -50,7 +30,7 @@ class CopilotAutopush(
         const val LAND_POLL_CHECKS = 8 // ~640ms per attempt to observe a landed response
     }
 
-    /** Compute + push a response for [prompt] on the push thread, re-injecting until it lands. */
+    /** Delivers the response for [prompt] from the single delivery thread. */
     fun onPrompt(prompt: GREToClientMessage) {
         exec.submit {
             runCatching {
@@ -231,12 +211,14 @@ class CopilotAutopush(
                 }
             conn.outputStream.use { os: OutputStream -> os.write(hex.toByteArray()) }
             val code = conn.responseCode
-            conn.inputStream.use { it.readBytes() }
+            conn.inputStream.use { input: InputStream -> input.readBytes() }
             code in 200..299
         }.getOrElse {
             log.debug("autopush inject transport error: {}", it.message)
             false
         }
 
-    fun shutdown() = exec.shutdownNow()
+    fun shutdown() {
+        exec.shutdownNow()
+    }
 }

@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference
  * game. Asserts the copilot computes the response on the LIVE game (no snapshot)
  * and POSTs response bytes to the bridge.
  */
+@Suppress("SleepInsteadOfDelay", "NoThreadSleepInTests")
 class CopilotAutopushTest :
     SessionTest({
 

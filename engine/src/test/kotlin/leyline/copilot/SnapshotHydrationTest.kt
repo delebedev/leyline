@@ -19,6 +19,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * standalone game from it, and compare the hydrated Forge state against the
  * source Forge state on every field the serializer claims to carry.
  */
+@Suppress("MissingAssertSoftly")
 class SnapshotHydrationTest :
     SessionTest({
 

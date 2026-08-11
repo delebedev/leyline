@@ -40,6 +40,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.Target
 import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
+import java.util.Locale
 
 /**
  * Builds the exact `ClientToGREMessage`s the client should send in answer to a
@@ -61,6 +62,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * / [SimDecision.SubmitBlockers]).
  */
 internal object ResponseBuilder {
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
     fun build(
         decision: SimDecision,
         gsId: Int,
@@ -394,5 +396,5 @@ internal object ResponseBuilder {
 
     /** Hex-encoded messages, preserved in protocol delivery order. */
     fun hexMessages(msgs: List<ClientToGREMessage>): List<String> =
-        msgs.map { msg -> msg.toByteArray().joinToString("") { "%02x".format(it) } }
+        msgs.map { msg -> msg.toByteArray().joinToString("") { "%02x".format(Locale.ROOT, it) } }
 }

@@ -42,7 +42,7 @@ class CopilotProposalService(
 
     // GREMessageType is a large proto enum; only these families are decoded and
     // the else fallthrough to `unrealizable` is intentional, not a gap.
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    @Suppress("CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
     private fun route(prompt: GREToClientMessage): CopilotProposal =
         when (prompt.type) {
             // Opening-hand keep. Scripted skip-mulligan puzzles never emit this,

@@ -37,8 +37,9 @@ class CopilotProposalServiceTest :
             val proposal = service.propose(landAar)
 
             proposal.intent shouldBe "play_land"
-            proposal.card.shouldNotBeNull().name shouldBe "Forest"
-            proposal.responseIds shouldContain proposal.card!!.instanceId
+            val card = proposal.card.shouldNotBeNull()
+            card.name shouldBe "Forest"
+            proposal.responseIds shouldContain card.instanceId
             proposal.responses.size shouldBe 1
         }
 

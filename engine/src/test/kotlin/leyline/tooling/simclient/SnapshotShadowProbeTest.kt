@@ -23,6 +23,7 @@ import java.time.LocalDateTime
  * state hydration does not yet carry) are measured by the tool, not asserted
  * here — asserting a divergence would pin a fidelity debt in place.
  */
+@Suppress("MissingAssertSoftly")
 class SnapshotShadowProbeTest :
     FunSpec({
         tags(SimClientTag)

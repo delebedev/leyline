@@ -26,6 +26,10 @@ class MatchConfigTest :
             MatchConfig().server.mulliganWaitMs shouldBe 45_000L
         }
 
+        test("automatic response delivery defaults to disabled") {
+            MatchConfig().dev.copilotAutopush shouldBe false
+        }
+
         test("bridge timeout must be positive when configured") {
             shouldThrow<IllegalArgumentException> {
                 MatchConfig(server = ServerConfig(bridgeTimeoutMs = 0)).validate()
