@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference
  * - `GET /api/best-play`   → engine simulation recommendation for current board state
  * - `GET /api/copilot-proposal` → local decision view for the pending prompt
  * - `POST /api/copilot-consult` → stateless decision view for supplied state
- * - `POST /api/inject-full` → rebuild and push a full state update to the client
+ * - `POST /api/inject-full` → rebuild and deliver a full state update
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
  *
@@ -75,7 +75,7 @@ class DebugServer(
         srv.createContext("/api/ai-deck") { ex ->
             try {
                 when (ex.requestMethod) {
-                    "GET" -> respondJson(ex, """{"aiDeck":${aiDeckOverride?.get()?.let { "\"$it\"" } ?: "null"}}""")
+                    "GET" -> respondJson(ex, json.encodeToString(AiDeckResponse(aiDeckOverride?.get())))
                     "POST" -> serveSetAiDeck(ex)
                     else -> {
                         ex.sendResponseHeaders(405, -1)
@@ -253,10 +253,7 @@ class DebugServer(
     // --- Copilot proposal ---
 
     /**
-     * `GET /api/copilot-proposal` — asks the Forge-AI decision brain what it
-     * would answer for the prompt the local seat is currently facing. The result
-     * is a [leyline.copilot.CopilotProposal] and this route is read-only. Missing session / game / prompt
-     * yields an `unrealizable` proposal, never an error.
+     * `GET /api/copilot-proposal` returns a read-only proposal for the current prompt.
      */
     private fun serveCopilotProposal(ex: HttpExchange) {
         val session = sessionProvider?.invoke()
@@ -270,11 +267,7 @@ class DebugServer(
     }
 
     /**
-     * `POST /api/copilot-consult` — session-less consult against a caller
-     * supplied game state. Body: `{"seat": 1, "gameState": <GameStateMessage
-     * JSON>, "prompt": <GREToClientMessage JSON>}` (proto-JSON, unknown fields
-     * ignored). Hydrates a standalone game, answers the prompt, and returns
-     * `{proposal, eval}` in the caller's own id space.
+     * `POST /api/copilot-consult` consults supplied state and returns `{proposal, eval}`.
      */
     private fun serveCopilotConsult(ex: HttpExchange) {
         val repo = cardRepositoryProvider?.invoke()
@@ -472,12 +465,12 @@ class DebugServer(
                 .trim()
         if (name.isEmpty()) {
             aiDeckOverride?.set(null)
-            respondJson(ex, """{"aiDeck":null,"cleared":true}""")
+            respondJson(ex, json.encodeToString(AiDeckSetResponse(aiDeck = null, cleared = true)))
             return
         }
         aiDeckOverride?.set(name)
         log.info("AI-deck override set: {}", name)
-        respondJson(ex, """{"aiDeck":"$name"}""")
+        respondJson(ex, json.encodeToString(AiDeckResponse(name)))
     }
 
     private fun servePuzzle(ex: HttpExchange) {
@@ -674,4 +667,15 @@ class DebugServer(
         ex: HttpExchange,
         body: String,
     ) = respond(ex, 200, "application/json; charset=utf-8", body)
+
+    @Serializable
+    private data class AiDeckResponse(
+        val aiDeck: String?,
+    )
+
+    @Serializable
+    private data class AiDeckSetResponse(
+        val aiDeck: String?,
+        val cleared: Boolean,
+    )
 }

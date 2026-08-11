@@ -22,6 +22,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Proves the two-round-trip end to end: a consult-driven Giant Growth resolves
  * (the creature is buffed) with zero IllegalRequest.
  */
+@Suppress("MissingAssertSoftly")
 class ConsultTargetingFidelityTest :
     SessionTest({
 

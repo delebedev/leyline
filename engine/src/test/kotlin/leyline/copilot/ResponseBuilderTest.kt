@@ -1,6 +1,7 @@
 package leyline.copilot
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -215,6 +216,6 @@ class ResponseBuilderTest :
             msgs[0].type shouldBe ClientMessageType.GroupResp_097b
             val groups = msgs[0].groupResp.groupsList
             groups[0].idsList shouldBe listOf(1, 2, 3)
-            groups[1].idsList.isEmpty() shouldBe true
+            groups[1].idsList.shouldBeEmpty()
         }
     })

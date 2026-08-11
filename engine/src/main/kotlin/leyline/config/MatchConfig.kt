@@ -230,14 +230,10 @@ data class DevConfig(
     val strict: Boolean = false,
     @SerialName("strict_pass")
     val strictPass: Boolean = false,
-    /**
-     * Event-driven push: when the copilot seat is prompted, compute its response
-     * in-process on the live game and push it to the injection bridge, instead of
-     * an external poll/consult loop. Off by default. See [leyline.copilot.CopilotAutopush].
-     */
+    /** Enables automatic response delivery for the copilot seat. Off by default. */
     @SerialName("copilot_autopush")
     val copilotAutopush: Boolean = false,
-    /** Injection bridge base URL the autopush pushes to. */
+    /** Base URL for automatic response delivery. */
     @SerialName("copilot_bridge_url")
     val copilotBridgeUrl: String = "http://127.0.0.1:8092",
 )

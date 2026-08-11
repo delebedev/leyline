@@ -24,6 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
  * (opponent takes damage, no IllegalRequest), and a submit carrying a stale
  * respId is rejected.
  */
+@Suppress("MissingAssertSoftly")
 class TwoPhaseCombatFidelityTest :
     SessionTest({
         beforeSpec {
@@ -127,8 +128,6 @@ class TwoPhaseCombatFidelityTest :
             )
 
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
-            val bearIid = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
-
             // Deliberately submit with a wrong respId (1 — never a real prompt
             // msgId here). The host must reject it with an IllegalRequest.
             val staleSubmit =

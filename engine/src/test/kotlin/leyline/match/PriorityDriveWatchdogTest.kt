@@ -9,6 +9,7 @@ import leyline.UnitTag
  * signature is "same un-prompted pending action across staleChecks ticks";
  * a prompted window or a cleared/changed pending must never trigger a re-drive.
  */
+@Suppress("MissingAssertSoftly")
 class PriorityDriveWatchdogTest :
     FunSpec({
         tags(UnitTag)
@@ -18,7 +19,7 @@ class PriorityDriveWatchdogTest :
             staleChecks: Int = 2,
         ): Pair<PriorityDriveWatchdog, IntArray> {
             val redrives = intArrayOf(0)
-            var i = 0
+            val i = 0
             val wd =
                 PriorityDriveWatchdog(
                     probe = { probes[i.coerceAtMost(probes.size - 1)] },

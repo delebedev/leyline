@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * state — and compare the two response byte strings.
  *
  * Both consults are stamped from the same prompt (identical gsId + respId), so a
- * byte difference is a hydration-fidelity gap, not an envelope difference, and
+ * byte difference is a state-rebuild fidelity gap, not an envelope difference, and
  * hydration is the only variable between the two calls. Purely observational:
  * never submits, and passes an empty event log to the snapshot build so it never
  * drains the live bridge's open frame.
@@ -31,7 +31,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  *                    ability to answer at all)
  *   - bothUncovered — neither side has a response builder (a decoder gap, not a
  *                    hydration gap)
- *   - error        — capture / hydrate / consult threw
+ *   - error        — state rebuild or consult threw
  */
 internal class SnapshotShadowProbe(
     private val harness: MatchFlowHarness,
@@ -159,7 +159,7 @@ internal class SnapshotShadowProbe(
         return runCatching { harness.bridge.cardRepository.findNameByGrpId(obj.grpId) }.getOrNull() ?: "grp:${obj.grpId}"
     }
 
-    /** Non-invasive: full-state capture + empty event log, hydrate a throwaway game, consult. */
+    /** Non-invasive: build a full state, rebuild a throwaway game, then consult. */
     private fun snapshotProposal(prompt: GREToClientMessage): CopilotProposal {
         val game = harness.bridge.getGame() ?: error("no live game")
         val snap = GsmSnapshot.capture(game, harness.bridge, "shadow", 0)

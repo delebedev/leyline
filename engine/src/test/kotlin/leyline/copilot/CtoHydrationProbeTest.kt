@@ -1,6 +1,7 @@
 package leyline.copilot
 
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.event.FrameEventLog
@@ -16,6 +17,7 @@ import leyline.testkit.TestCardRegistry
  * state — the same comparison the snapshot-shadow probe makes, but on a prompt
  * family the deck matrix did not exercise.
  */
+@Suppress("MissingAssertSoftly")
 class CtoHydrationProbeTest :
     SessionTest({
 
@@ -54,7 +56,7 @@ class CtoHydrationProbeTest :
             // (Modal "choose one" CTO, by contrast, needs the bound stack SA and
             // does not hydrate faithfully — a distinct gap.)
             live.intent shouldBe "optional_cost"
-            live.responses.isNotEmpty().shouldBeTrue()
+            live.responses.shouldNotBeEmpty()
             snapshot.responses shouldBe live.responses
         }
     })

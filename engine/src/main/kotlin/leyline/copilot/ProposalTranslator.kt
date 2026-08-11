@@ -33,6 +33,7 @@ internal object ProposalTranslator {
             reason = reason,
         )
 
+    @Suppress("CyclomaticComplexMethod")
     fun translate(
         decision: SimDecision,
         promptType: GREMessageType,

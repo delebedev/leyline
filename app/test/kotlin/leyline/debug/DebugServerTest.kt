@@ -3,6 +3,9 @@ package leyline.debug
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URI
@@ -38,6 +41,23 @@ class DebugServerTest :
                 server.stop()
             }
         }
+
+        test("serializes deck overrides as JSON") {
+            val port = ServerSocket(0).use { it.localPort }
+            val server = DebugServer(port = port, runtimePuzzle = AtomicReference(null))
+            server.start()
+            try {
+                val response = requestBody(port, "/api/ai-deck", "Name with \\\"quote\\\"")
+
+                response.code shouldBe 200
+                Json
+                    .parseToJsonElement(response.body)
+                    .jsonObject["aiDeck"]!!
+                    .jsonPrimitive.content shouldBe "Name with \\\"quote\\\""
+            } finally {
+                server.stop()
+            }
+        }
     })
 
 private fun request(
@@ -51,6 +71,29 @@ private fun request(
     connection.readTimeout = 2_000
     return try {
         connection.responseCode
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private data class HttpResponse(
+    val code: Int,
+    val body: String,
+)
+
+private fun requestBody(
+    port: Int,
+    path: String,
+    body: String,
+): HttpResponse {
+    val connection = URI("http://127.0.0.1:$port$path").toURL().openConnection() as HttpURLConnection
+    connection.requestMethod = "POST"
+    connection.doOutput = true
+    connection.connectTimeout = 2_000
+    connection.readTimeout = 2_000
+    return try {
+        connection.outputStream.use { it.write(body.toByteArray()) }
+        HttpResponse(connection.responseCode, connection.inputStream.bufferedReader().readText())
     } finally {
         connection.disconnect()
     }

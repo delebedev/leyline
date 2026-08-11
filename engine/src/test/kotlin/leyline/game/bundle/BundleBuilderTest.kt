@@ -503,6 +503,7 @@ class BundleBuilderTest :
             }
         }
 
+        @Suppress("WeakAssertionOnly")
         test("edictalPass sends server-forced Pass action") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
             val result = pureBB().edictalPass(counter = counter)
@@ -519,6 +520,7 @@ class BundleBuilderTest :
             action.actionType shouldBe Messages.ActionType.Pass
         }
 
+        @Suppress("WeakAssertionOnly")
         test("shouldAutoPass vs onlyOptionalActivations classify AAR windows") {
             fun aar(vararg types: Messages.ActionType) =
                 Messages.ActionsAvailableReq

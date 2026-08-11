@@ -1,6 +1,9 @@
 package leyline.match
 
 import forge.game.player.GameLossReason
+import leyline.bridge.PriorityActionCandidates
+import leyline.bridge.handoff.ActionResponseKey
+import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
@@ -9,8 +12,11 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.bundle.markIfPrompt
 import leyline.game.mapping.StopTypeMapping
+import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -75,6 +81,24 @@ class MatchSession(
     private val autoAdvanceRequested = AtomicBoolean(false)
     private val autoAdvanceRunning = AtomicBoolean(false)
     private val autoAdvanceClosed = AtomicBoolean(false)
+
+    /**
+     * Last prompt-bearing GRE sent to this seat's client — the decision the
+     * client is currently facing. Read by the dev copilot proposal surface to
+     * ask the Forge-AI brain what it would answer. Purely observational.
+     */
+    @Volatile
+    private var lastPrompt: GREToClientMessage? = null
+
+    /** The prompt-bearing GRE the client is currently facing, or null before any prompt. */
+    fun lastPromptMessage(): GREToClientMessage? = lastPrompt
+
+    /** Optional automatic response delivery for this seat. */
+    private val autopush: leyline.copilot.CopilotAutopush? by lazy {
+        val dev = gameBridge.matchConfig.dev
+        if (dev.copilotAutopush) leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl) else null
+    }
+
     private val autoAdvanceRequest: (String) -> Unit = { reason -> requestAutoAdvance(reason) }
 
     /**
@@ -86,8 +110,49 @@ class MatchSession(
 
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
 
+    // Safety net for the priority-drive handoff race (see PriorityDriveWatchdog):
+    // the game-loop can create a seat priority window that no inbound response
+    // drives, orphaning it until the action-bridge timeout. The watchdog re-drives
+    // only an un-prompted, stale pending action, so it never double-prompts a
+    // healthy window. Runs off the session + game-loop threads on its own daemon.
+    private val watchdogClosed = AtomicBoolean(false)
+
+    // staleChecks=3 at WATCHDOG_INTERVAL_MS=2000 => a re-drive fires only after an
+    // orphan persists ~6s, and after firing the counter resets so the next re-drive
+    // is ~6s away. That cooldown is >> the autopush round-trip (~1s), so a re-drive's
+    // AAR + response lands before any second re-drive — no duplicate in-flight prompt,
+    // no respId thrash (the earlier 750ms/2-check cadence re-drove every ~1.5s and
+    // emitted duplicate AARs, causing the 67 guard mismatches). It only ever touches
+    // an un-prompted (actionCatalog==null) window, so it never re-prompts a healthy one.
+    private val driveWatchdog =
+        PriorityDriveWatchdog(
+            probe = {
+                gameBridge.seat(seatId).action.getPending()?.let {
+                    PriorityDriveWatchdog.Probe(it.actionId, it.actionCatalog != null)
+                }
+            },
+            redrive = { triggerAutoPass() },
+            staleChecks = 3,
+        )
+
     init {
         gameBridge.humanController?.setAutoPassState(autoPassState)
+        startDriveWatchdog()
+    }
+
+    private fun startDriveWatchdog() {
+        Thread({
+            while (!watchdogClosed.get()) {
+                try {
+                    Thread.sleep(WATCHDOG_INTERVAL_MS)
+                    if (!watchdogClosed.get()) driveWatchdog.tick()
+                } catch (_: InterruptedException) {
+                    return@Thread
+                } catch (e: Exception) {
+                    log.debug("drive watchdog tick failed: {}", e.message)
+                }
+            }
+        }, "drive-watchdog-$matchId-${seatId.value}").apply { isDaemon = true }.start()
     }
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
@@ -95,6 +160,7 @@ class MatchSession(
         CombatHandler(
             sink = this,
             counters = this,
+            bundles = this,
             pacing = this,
             ctx = ctx,
         )
@@ -117,8 +183,6 @@ class MatchSession(
             counters = this,
             ctx = ctx,
         )
-    private val orderInteractionHandler = OrderInteractionHandler(ctx)
-    private val groupingInteractionHandler = GroupingInteractionHandler(ctx)
     val autoPassEngine =
         AutoPassEngine(
             sink = this,
@@ -131,12 +195,14 @@ class MatchSession(
             numericInputHandler = numericInputHandler,
             ctx = ctx,
             autoPassState = autoPassState,
+            copilotAutopushDriven = gameBridge.matchConfig.dev.copilotAutopush,
         )
     val actionPerformer =
         ActionPerformer(
             sink = this,
             counters = this,
             matchRecorder = recorder,
+            bundles = this,
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,
             autoPassState = autoPassState,
@@ -160,12 +226,26 @@ class MatchSession(
 
             bridge.awaitPriority()
 
-            // The priority presentation is still coordinator-owned and unpublished.
-            // Replace it before draining the feed so prior AI batches retain their
-            // order and the replacement receives the next shared game-state id.
-            val pending = checkNotNull(bridge.seat(seatId).action.getPending()) { "Initial priority window was not published" }
-            bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-            drainCoordinatorFeed()
+            // Drain AI action diffs queued during awaitPriority.
+            // These have gsIds allocated by the engine thread via the shared counter
+            // during awaitPriority. Send them first (lower gsIds).
+            val playback = ctx.bridge.playbackFor(seatId)
+            if (playback != null) {
+                for (batch in playback.drainQueue()) {
+                    sendBundledGRE(batch)
+                }
+            }
+
+            // phaseTransitionDiff after AI diffs — uses the shared counter which is
+            // now past whatever the engine allocated. gsIds are higher than AI diffs
+            // but the prevGsId chain is valid (references last AI diff's gsId).
+            val bb = bundleBuilder
+            val result = bb.phaseTransitionDiff(ctx.game, counter)
+            sendBundle(result)
+
+            // Seed state snapshot for subsequent diff computation.
+            val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+            bb.cursor.lastSent = snap1
 
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()
@@ -234,6 +314,11 @@ class MatchSession(
 
         log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
 
+        // Seed state snapshot for subsequent diff computation.
+        // The puzzle initial bundle already sent the Full GSM, so the cursor
+        // needs a matching snapshot for the first Diff to be correct.
+        val snap2 = SnapshotCapture.run(ctx.game, ctx.bridge, matchId, counter.currentGsId())
+        bundleBuilder.cursor.lastSent = snap2
         return true
     }
 
@@ -286,7 +371,7 @@ class MatchSession(
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSubmitTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onSubmitTargets { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
@@ -297,7 +382,7 @@ class MatchSession(
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            orderInteractionHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
@@ -305,9 +390,10 @@ class MatchSession(
             targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
+    /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            groupingInteractionHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
@@ -319,7 +405,8 @@ class MatchSession(
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSearchResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
+            targetingHandler.onSearchResp(itemsFound) { autoPassEngine.autoPassAndAdvance() }
         }
 
     private fun withValidResponse(
@@ -344,7 +431,7 @@ class MatchSession(
                 combatHandler.onCancelAttackers { autoPassEngine.autoPassAndAdvance() }
                 return
             }
-            targetingHandler.onCancelAction(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onCancelAction { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */
@@ -467,6 +554,11 @@ class MatchSession(
      * Clear status marks a stop as disabled but does not remove it from the set.
      */
     companion object {
+        /** Priority-drive watchdog poll interval; with staleChecks=3 an orphan
+         *  recovers in ~6s (and re-drives are >= that far apart), well under the
+         *  action-bridge timeout and far longer than the autopush round-trip. */
+        private const val WATCHDOG_INTERVAL_MS = 2000L
+
         fun mergeSettings(
             existing: SettingsMessage?,
             incoming: SettingsMessage,
@@ -515,29 +607,70 @@ class MatchSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) {
+        val game =
+            bridge.getGame() ?: run {
+                log.warn("MatchSession: sendRealGameState but game is null")
+                return
+            }
         if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
             bridge.awaitActionPriority(seatId)
         }
-        if (bridge.seat(seatId).action.getPending() != null) {
-            drainCoordinatorFeed()
+        if (bridge.seat(seatId).action.getPending() == null) {
+            sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
             return
         }
-        drainCoordinatorFeed()
+        sendPriorityState(bridge, revealForSeat, null)
     }
 
-    override fun sendPriorityState(bridge: GameBridge) = drainCoordinatorFeed()
+    override fun sendPriorityState(
+        bridge: GameBridge,
+        candidates: PriorityActionCandidates,
+    ) = sendPriorityState(bridge, null, candidates)
+
+    private fun sendPriorityState(
+        bridge: GameBridge,
+        revealForSeat: Int?,
+        candidates: PriorityActionCandidates?,
+    ) {
+        val game =
+            bridge.getGame() ?: run {
+                log.warn("MatchSession: sendRealGameState but game is null")
+                return
+            }
+
+        val bb = bundleBuilder
+        val result = bb.postAction(game, counter, revealForSeat, candidates)
+
+        // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
+        val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
+        // TODO: empty diff detection — disabled for now, many legitimate empty diffs exist
+        //  (actions-only updates, phase transitions). Needs filtering by caller context.
+
+        sendBundle(result)
+
+        // Decision timer — client shows rope countdown while waiting for action
+        if (bridge.matchConfig.game.timer) {
+            val timer = bb.timerStart(counter)
+            sendBundledGRE(timer.messages)
+        }
+    }
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {
+        // Vanished priority window (game-loop superseded it mid-send): skip the
+        // whole bundle rather than emit an AAR the client can't resolve, then
+        // re-drive so the pump emits fresh state + actions for the window the
+        // game-loop actually settled on. Scoped to this rare race (not every
+        // signal) so it doesn't perturb normal GSM sequencing.
+        if (!bindActionOffers(result.actionGameStateId, result.actionOffers)) {
+            requestAutoAdvance("superseded-window re-drive")
+            return
+        }
         for (gre in result.messages) {
             if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
             if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
         }
         sendBundledGRE(result.messages)
-    }
-
-    private fun drainCoordinatorFeed() {
-        drainCoordinatorBarrier(this, gameBridge, seatId)
     }
 
     /**
@@ -638,6 +771,10 @@ class MatchSession(
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
+            if (m.type in PROMPT_GRE_TYPES) {
+                lastPrompt = m
+                autopush?.onPrompt(m)
+            }
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)
@@ -673,12 +810,49 @@ class MatchSession(
     }
 
     fun close() {
+        watchdogClosed.set(true)
         autoAdvanceClosed.set(true)
         autoAdvanceRequested.set(false)
         if (gameBridge.autoAdvanceRequester === autoAdvanceRequest) {
             gameBridge.autoAdvanceRequester = null
         }
         autoAdvanceExecutor.shutdownNow()
+        autopush?.shutdown()
+    }
+
+    /**
+     * Bind the priority catalog to the pending window. Returns false when the
+     * window vanished (the game-loop superseded/cleared it between building the
+     * bundle and binding — e.g. the mulligan→turn-1 boundary), signalling the
+     * caller to skip an unbindable priority send rather than crash the match.
+     */
+    private fun bindActionOffers(
+        gameStateId: Int?,
+        offers: List<GameActionBridge.ActionOffer>,
+    ): Boolean {
+        if (gameStateId == null && offers.isEmpty()) return true
+        val promptGameStateId = checkNotNull(gameStateId) { "Action offers require a game-state id" }
+        val actionBridge = gameBridge.seat(seatId).action
+        val pending =
+            actionBridge.getPending() ?: run {
+                // Benign race, not a fatal state: the priority window was superseded
+                // or cleared on the game-loop thread mid-send. Skip the send; the
+                // pump re-runs for the current window via prioritySignal.onSignal.
+                log.debug("bindActionOffers: no pending window (superseded mid-send), skipping priority send")
+                return false
+            }
+        check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
+            val current = actionBridge.getPending()
+            val duplicateSelectors =
+                offers
+                    .groupBy { ActionResponseKey.from(it.action) }
+                    .filterValues { it.size > 1 }
+                    .mapValues { (_, variants) -> variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) } }
+            "Cannot bind priority actions to pending window ${pending.actionId.take(8)} " +
+                "(current=${current?.actionId?.take(8)}, completed=${pending.future.isDone}, offers=${offers.size}, " +
+                "duplicates=$duplicateSelectors)"
+        }
+        return true
     }
 
     /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */

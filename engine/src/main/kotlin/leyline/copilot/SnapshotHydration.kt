@@ -108,6 +108,7 @@ object SnapshotHydration {
      * Project [gsm] into Forge puzzle-format state lines. Exposed for tests
      * and fidelity debugging.
      */
+    @Suppress("CyclomaticComplexMethod")
     fun toPuzzleLines(
         gsm: GameStateMessage,
         consultSeat: Int,
