@@ -127,7 +127,7 @@ internal object ResponseBuilder {
             // Selection toggle (XOR) — the engine echoes a fresh prompt; the
             // caller re-consults and eventually submits against the re-prompt.
             // Each attacker carries selectedDamageRecipient (the opponent
-            // player): the real client sends it and the host only commits an
+            // player): the host only commits an
             // attacker that names who it attacks — without it the attack never
             // registers and the prompt re-echoes forever.
             is SimDecision.DeclareAttackers -> {
