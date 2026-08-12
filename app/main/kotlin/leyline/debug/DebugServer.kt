@@ -288,8 +288,7 @@ class DebugServer(
             (root["seat"] as? kotlinx.serialization.json.JsonPrimitive)
                 ?.content
                 ?.toIntOrNull() ?: 1
-        // Accept both JSON dialects: Player.log enum spellings are rewritten
-        // to proto value names before protobuf JSON parsing.
+        // Normalize alternate enum spellings before protobuf JSON parsing.
         val parser =
             com.google.protobuf.util.JsonFormat
                 .parser()

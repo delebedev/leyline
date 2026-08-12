@@ -14,15 +14,14 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
  * Snapshot-fidelity probe. At each prompt the seat responds to, ask the SAME
- * decision brain ([CopilotProposalService]) twice — once on the authoritative
- * live game, once on a fresh game hydrated from that game's serialized wire
- * state — and compare the two response byte strings.
+ * decision brain ([CopilotProposalService]) twice — once on the active game,
+ * once on a fresh game hydrated from its serialized state — and compare the
+ * two response byte strings.
  *
  * Both consults are stamped from the same prompt (identical gsId + respId), so a
  * byte difference is a state-rebuild fidelity gap, not an envelope difference, and
- * hydration is the only variable between the two calls. Purely observational:
- * never submits, and passes an empty event log to the snapshot build so it never
- * drains the live bridge's open frame.
+ * hydration is the only variable between the two calls. It never submits and
+ * builds the snapshot without frame events.
  *
  * Buckets per prompt family:
  *   - match        — response bytes identical (hydration preserved the decision)
@@ -159,7 +158,7 @@ internal class SnapshotShadowProbe(
         return runCatching { harness.bridge.cardRepository.findNameByGrpId(obj.grpId) }.getOrNull() ?: "grp:${obj.grpId}"
     }
 
-    /** Non-invasive: build a full state, rebuild a throwaway game, then consult. */
+    /** Builds an isolated state for the comparison consult. */
     private fun snapshotProposal(prompt: GREToClientMessage): CopilotProposal {
         val game = harness.bridge.getGame() ?: error("no live game")
         val snap = GsmSnapshot.capture(game, harness.bridge, "shadow", 0)
