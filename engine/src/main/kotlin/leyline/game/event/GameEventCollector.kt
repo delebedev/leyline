@@ -45,9 +45,9 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  * call [FrameEventLog.events]`.filterIsInstance<…>()` independently — the
  * frozen list is shared safely.
  *
- * [leyline.game.mapping.StateMapper.buildFromSnapshot] closes the frame in the
- * GATHER phase. A double-close returns an empty log; calling code does not
- * need to defend against it because the type forbids appending past close.
+ * The projection shell closes the frame before calling StateMapper. A
+ * double-close returns an empty log; calling code does not need to defend
+ * against it because the type forbids appending past close.
  *
  * ## Event ordering
  *
@@ -72,8 +72,8 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  *
  * ## Threading
  *
- * Events fire synchronously on the engine thread. [closeFrame] is also called
- * on the engine thread (via [leyline.game.mapping.StateMapper] / GSM build).
+ * Events fire synchronously on the engine thread. The projection shell calls
+ * [closeFrame] on that same thread before GSM build.
  * The `@Volatile` reference swap is sufficient: the engine thread's `add`
  * happens-before the swap; the new frame starts empty; the returned list is
  * never mutated past the swap.
@@ -148,8 +148,8 @@ class GameEventCollector(
      * Close the current frame: returns events accumulated since the last
      * close in engine firing order, and starts a fresh empty frame.
      *
-     * Called once per GSM build by [leyline.game.mapping.StateMapper.buildFromSnapshot]
-     * in the GATHER phase. A second call returns an empty log.
+     * Called once per GSM build by the projection shell before StateMapper.
+     * A second call returns an empty log.
      */
     fun closeFrame(): FrameEventLog {
         val outEvents = frame

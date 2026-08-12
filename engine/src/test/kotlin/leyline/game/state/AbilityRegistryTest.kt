@@ -14,17 +14,44 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.AbilityKeywordFamily
+import leyline.bridge.types.ForgeCardId
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
-import leyline.game.state.AbilityRegistry
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 import leyline.testkit.BoardTest
 import leyline.testkit.CardDataDeriver
 import leyline.testkit.TestCardInjector
 
 class AbilityRegistryTest :
     BoardTest({
+
+        test("normalized frame events invalidate affected ability registries") {
+            val (bridge, _, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Pacifism", human, ZoneType.Battlefield)
+                }
+            val card =
+                bridge
+                    .getPlayer(leyline.bridge.types.SeatId(1))!!
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val cardData = bridge.cardRepository.findByGrpId(bridge.cardRepository.findGrpIdByName(card.name)!!)
+            val before = bridge.abilityRegistryFor(card, cardData)!!
+
+            bridge.invalidateAbilityRegistries(
+                listOf(GameEvent.ZoneChanged(ForgeCardId(card.id), Zone.Battlefield, Zone.Hand)),
+            )
+
+            val after = bridge.abilityRegistryFor(card, cardData)!!
+
+            after.slotLayout shouldBe before.slotLayout
+            after shouldNotBeSameInstanceAs before
+        }
 
         test("Station activated ability maps to shared abilityGrpId 373") {
             val (b, _, _) = startWithBoard { _, _, _ -> }

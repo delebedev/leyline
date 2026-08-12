@@ -29,6 +29,7 @@ import leyline.game.state.PendingTargetSpecRecord
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
 import leyline.game.state.ProjectionAnnotationJournal
+import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.QualificationKind
 import leyline.game.state.SaddledThisTurnKind
 import leyline.game.state.TargetSpecKind
@@ -638,23 +639,18 @@ object AnnotationPipeline {
     }
 
     private fun buildChoiceResultAnnotations(
-        bridge: GameBridge,
+        promptFacts: PromptProjectionFacts,
         frameIds: FrameIdResolver,
     ): List<AnnotationInfo> =
-        bridge.allSeatIds().sorted().flatMap { seatValue ->
-            bridge
-                .promptBridge(SeatId(seatValue))
-                .journal
-                .drainChoiceResults()
-                .map { result ->
-                    AnnotationBuilder.choiceResult(
-                        sourceInstanceId = frameIds.cardIid(result.sourceForgeCardId),
-                        chooserSeatId = result.chooserSeatId,
-                        choiceValue = result.choiceValue,
-                        choiceDomain = result.choiceDomain,
-                        sentiment = result.sentiment,
-                    )
-                }
+        promptFacts.choiceResults.map { fact ->
+            val result = fact.result
+            AnnotationBuilder.choiceResult(
+                sourceInstanceId = frameIds.cardIid(result.sourceForgeCardId),
+                chooserSeatId = result.chooserSeatId,
+                choiceValue = result.choiceValue,
+                choiceDomain = result.choiceDomain,
+                sentiment = result.sentiment,
+            )
         }
 
     // Local EffectTracker.DiffResult patch consumed only by the persistent-store
@@ -818,7 +814,7 @@ object AnnotationPipeline {
         }
         annotations.addAll(otherMechanic)
         annotations.addAll(earthbend.powerToughnessMods)
-        annotations.addAll(buildChoiceResultAnnotations(bridge, frameIds))
+        annotations.addAll(buildChoiceResultAnnotations(ctx.promptFacts, frameIds))
 
         if (initEffectDiff.created.isNotEmpty()) {
             val (initTransient, _) = MechanicAnnotations.effectAnnotations(initEffectDiff)
@@ -873,7 +869,7 @@ object AnnotationPipeline {
         annotations.addAll(effectTransient)
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
-        val pendingTargetSpecs = bridge.snapshotPendingTargetSpecs()
+        val pendingTargetSpecs = ctx.promptFacts.targetSpecs
         val revealState = RevealStateContributor.contribute(ctx)
         annotations.addAll(revealState.transient)
         val targetSpec = TargetSpecContributor.contribute(ctx)

@@ -9,13 +9,23 @@ import leyline.game.snapshot.GsmSnapshot
 
 /** Hidden card identities that an opponent may continue to recognize. */
 class OpponentKnowledgeTracker {
-    private val known = LinkedHashMap<ForgeCardId, InstanceId>()
+    data class State(
+        val known: Map<ForgeCardId, InstanceId>,
+    )
 
-    fun update(
+    data class Transition(
+        val version: Long,
+        val next: State,
+    )
+
+    private var version = 0L
+    private var state = State(emptyMap())
+
+    fun plan(
         snap: GsmSnapshot,
         frameIds: FrameIdResolver,
         events: List<GameEvent>,
-    ): List<InstanceId> {
+    ): Pair<List<InstanceId>, Transition> {
         val shuffledSeats = events.filterIsInstance<GameEvent.LibraryShuffled>().mapTo(mutableSetOf()) { it.seatId.value }
         val shuffledLibraryZoneIds = shuffledSeats.map(ZoneIds::libraryOf).toSet()
         val hiddenCards =
@@ -25,14 +35,30 @@ class OpponentKnowledgeTracker {
                 .flatMap { it.contents.asSequence() }
                 .associateWith(frameIds::cardIid)
 
-        known.entries.removeIf { (cardId, iid) -> hiddenCards[cardId] != iid }
+        val next = state.known.toMutableMap()
+        next.entries.removeIf { (cardId, iid) -> hiddenCards[cardId] != iid }
         events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }.forEach { reveal ->
-            reveal.cardIds.forEach { cardId -> hiddenCards[cardId]?.let { known[cardId] = it } }
+            reveal.cardIds.forEach { cardId -> hiddenCards[cardId]?.let { next[cardId] = it } }
         }
-        return known.values.toList()
+        val nextState = State(next)
+        return nextState.known.values.toList() to Transition(version, nextState)
     }
 
-    fun clear() = known.clear()
+    fun canCommit(transition: Transition): Boolean = transition.version == version
+
+    fun commit(transition: Transition): Boolean =
+        if (!canCommit(transition)) {
+            false
+        } else {
+            state = transition.next
+            version++
+            true
+        }
+
+    fun clear() {
+        state = State(emptyMap())
+        version++
+    }
 
     private companion object {
         val hiddenZoneIds =

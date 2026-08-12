@@ -104,7 +104,7 @@ class TargetSpecAnnotationTest :
                     .first { it.name == "Murder" }
 
             // Simulate completed chooseTargetsFor state: add the pending group.
-            b.seat(SeatId(1)).prompt.addPendingTargetSpec(
+            val target =
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
@@ -114,11 +114,19 @@ class TargetSpecAnnotationTest :
                         ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
-                ),
-            )
+                )
+            b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
 
             val snapTarget1 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snapTarget1, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapTarget1,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        promptFacts = b.materializePromptProjectionFacts(),
+                    ).gsm
 
             val targetAnn =
                 gs.persistentAnnotationsList.firstOrNull { ann ->
@@ -152,7 +160,7 @@ class TargetSpecAnnotationTest :
                     .cards
                     .first { it.name == "Murder" }
 
-            b.seat(SeatId(1)).prompt.addPendingTargetSpec(
+            val target =
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = spell.id,
                     spellName = spell.name,
@@ -162,11 +170,18 @@ class TargetSpecAnnotationTest :
                         ),
                     index = 1,
                     affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
-                ),
-            )
+                )
+            b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
 
             val snapTarget = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val result = StateMapper.buildFromSnapshot(snapTarget, 1, Board.TEST_MATCH_ID, b)
+            val result =
+                StateMapper.buildFromSnapshot(
+                    snapTarget,
+                    1,
+                    Board.TEST_MATCH_ID,
+                    b,
+                    promptFacts = b.materializePromptProjectionFacts(),
+                )
 
             result.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
@@ -177,13 +192,16 @@ class TargetSpecAnnotationTest :
                 .snapshotPendingTargetSpecs()
                 .size shouldBe 1
 
+            // A later identical selection must survive this older frame's commit.
+            b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
+
             b.applyMutations(result.finalizeAnnotations().mutations)
 
             b
                 .seat(SeatId(1))
                 .prompt
                 .snapshotPendingTargetSpecs()
-                .size shouldBe 0
+                .size shouldBe 1
         }
 
         test("no pending targets emits no TargetSpec") {
@@ -235,7 +253,14 @@ class TargetSpecAnnotationTest :
 
             // First GSM: pending target → TargetSpec present
             val snapTs1 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs1 = StateMapper.buildFromSnapshot(snapTs1, 1, Board.TEST_MATCH_ID, b)
+            val gs1 =
+                StateMapper.buildFromSnapshot(
+                    snapTs1,
+                    1,
+                    Board.TEST_MATCH_ID,
+                    b,
+                    promptFacts = b.materializePromptProjectionFacts(),
+                )
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true

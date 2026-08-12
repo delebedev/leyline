@@ -3,10 +3,12 @@ package leyline.bridge.handoff
 import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Per-seat typed journal of prompt side-effects. Engine thread writes via
- * [record]; engine or annotation-build thread drains via `consume*` / peek.
+ * [record]; shell materialization reads versioned entries and accepted frame
+ * commits consume or clear only those exact entries.
  * Storage is split by lifetime:
  *
  * - `drains` — [PromptSideEffect.LegendVictim] and other one-shot effects
@@ -37,10 +39,37 @@ import java.util.concurrent.ConcurrentLinkedDeque
  * serialized against concurrent consumers.
  */
 class PromptJournal {
-    private val drains = ConcurrentLinkedDeque<PromptSideEffect>()
+    private data class DrainEntry(
+        val version: Long,
+        val effect: PromptSideEffect,
+    )
+
+    data class ChoiceResultEntry(
+        val version: Long,
+        val result: PromptSideEffect.ChoiceResult,
+    )
+
+    data class RevealEntry(
+        val version: Long,
+        val reveal: PromptSideEffect.RevealStarted,
+    )
+
+    data class ConvokePaymentsEntry(
+        val version: Long,
+        val sourceForgeCardId: ForgeCardId,
+        val payments: List<PromptSideEffect.ConvokePayment>,
+    )
+
+    data class CollectEvidenceEntry(
+        val version: Long,
+        val context: PromptSideEffect.CollectEvidenceCost,
+    )
+
+    private val nextVersion = AtomicLong()
+    private val drains = ConcurrentLinkedDeque<DrainEntry>()
 
     @Volatile
-    private var currentReveal: PromptSideEffect.RevealStarted? = null
+    private var currentReveal: RevealEntry? = null
 
     @Volatile
     private var currentStash: List<Int>? = null
@@ -52,27 +81,32 @@ class PromptJournal {
     private var currentHybridManaStash: List<ManaColor>? = null
 
     @Volatile
-    private var currentCollectEvidenceCost: PromptSideEffect.CollectEvidenceCost? = null
+    private var currentCollectEvidenceCost: CollectEvidenceEntry? = null
 
     @Volatile
-    private var currentConvokePayments: Map<ForgeCardId, List<PromptSideEffect.ConvokePayment>> = emptyMap()
+    private var currentConvokePayments: Map<ForgeCardId, ConvokePaymentsEntry> = emptyMap()
 
     fun record(effect: PromptSideEffect) {
+        val version = nextVersion.incrementAndGet()
         when (effect) {
             is PromptSideEffect.ExiledUnderSource,
             is PromptSideEffect.LegendVictim,
             is PromptSideEffect.EnlistTapAffector,
             is PromptSideEffect.ChoiceResult,
-            -> drains.add(effect)
-            is PromptSideEffect.RevealStarted -> currentReveal = effect
+            -> drains.add(DrainEntry(version, effect))
+            is PromptSideEffect.RevealStarted ->
+                currentReveal = RevealEntry(version, effect.copy(allHandCardIds = effect.allHandCardIds.toList()))
             PromptSideEffect.RevealEnded -> currentReveal = null
             is PromptSideEffect.OptionalCostStash -> currentStash = effect.indices
             is PromptSideEffect.KeywordCostStash -> currentKeywordStash = effect.decisionsByKeyword
             is PromptSideEffect.HybridManaStash -> currentHybridManaStash = effect.choices
-            is PromptSideEffect.CollectEvidenceCost -> currentCollectEvidenceCost = effect
-            is PromptSideEffect.ConvokePayments ->
+            is PromptSideEffect.CollectEvidenceCost -> currentCollectEvidenceCost = CollectEvidenceEntry(version, effect)
+            is PromptSideEffect.ConvokePayments -> {
+                val payments = effect.payments.toList()
                 currentConvokePayments =
-                    currentConvokePayments + (effect.sourceForgeCardId to effect.payments)
+                    currentConvokePayments +
+                    (effect.sourceForgeCardId to ConvokePaymentsEntry(version, effect.sourceForgeCardId, payments))
+            }
         }
     }
 
@@ -80,7 +114,7 @@ class PromptJournal {
     fun consumeExiledUnderSource(id: ForgeCardId): ForgeCardId? {
         val iter = drains.iterator()
         while (iter.hasNext()) {
-            val effect = iter.next()
+            val effect = iter.next().effect
             if (effect is PromptSideEffect.ExiledUnderSource && effect.forgeCardId == id) {
                 iter.remove()
                 return effect.sourceForgeCardId
@@ -96,7 +130,7 @@ class PromptJournal {
     fun consumeEnlistTapAffector(id: ForgeCardId): ForgeCardId? {
         val iter = drains.iterator()
         while (iter.hasNext()) {
-            val effect = iter.next()
+            val effect = iter.next().effect
             if (effect is PromptSideEffect.EnlistTapAffector && effect.tappedForgeCardId == id) {
                 iter.remove()
                 return effect.attackerForgeCardId
@@ -107,7 +141,7 @@ class PromptJournal {
 
     /** Return the enlisted creature for an Enlist attacker without consuming the tap-affector entry. */
     fun peekEnlistedByAttacker(id: ForgeCardId): ForgeCardId? {
-        for (effect in drains) {
+        for ((_, effect) in drains) {
             if (effect is PromptSideEffect.EnlistTapAffector && effect.attackerForgeCardId == id) {
                 return effect.tappedForgeCardId
             }
@@ -119,7 +153,7 @@ class PromptJournal {
         val out = mutableListOf<PromptSideEffect.ChoiceResult>()
         val iter = drains.iterator()
         while (iter.hasNext()) {
-            val effect = iter.next()
+            val effect = iter.next().effect
             if (effect is PromptSideEffect.ChoiceResult) {
                 iter.remove()
                 out.add(effect)
@@ -131,7 +165,7 @@ class PromptJournal {
     private inline fun drainFirstMatching(predicate: (PromptSideEffect) -> Boolean): Boolean {
         val iter = drains.iterator()
         while (iter.hasNext()) {
-            if (predicate(iter.next())) {
+            if (predicate(iter.next().effect)) {
                 iter.remove()
                 return true
             }
@@ -140,11 +174,27 @@ class PromptJournal {
     }
 
     /** Peek the active reveal (non-draining), or null. O(1). */
-    fun activeReveal(): PromptSideEffect.RevealStarted? = currentReveal
+    fun activeReveal(): PromptSideEffect.RevealStarted? = currentReveal?.reveal
+
+    fun activeRevealEntry(): RevealEntry? = currentReveal
+
+    fun snapshotChoiceResults(): List<ChoiceResultEntry> =
+        drains.mapNotNull { entry ->
+            (entry.effect as? PromptSideEffect.ChoiceResult)?.let { ChoiceResultEntry(entry.version, it) }
+        }
+
+    fun consumeChoiceResults(entries: List<ChoiceResultEntry>) {
+        val versions = entries.mapTo(mutableSetOf()) { it.version }
+        if (versions.isNotEmpty()) drains.removeIf { it.version in versions && it.effect is PromptSideEffect.ChoiceResult }
+    }
 
     /** Force-end any active reveal (stale-clear path). Idempotent. */
     fun endActiveReveal() {
         currentReveal = null
+    }
+
+    fun clearActiveReveal(entry: RevealEntry) {
+        if (currentReveal?.version == entry.version) currentReveal = null
     }
 
     /** Consume the stashed optional cost indices, or null. */
@@ -176,19 +226,34 @@ class PromptJournal {
         currentHybridManaStash = null
     }
 
-    fun activeCollectEvidenceCost(): PromptSideEffect.CollectEvidenceCost? = currentCollectEvidenceCost
+    fun activeCollectEvidenceCost(): PromptSideEffect.CollectEvidenceCost? = currentCollectEvidenceCost?.context
+
+    fun activeCollectEvidenceEntry(): CollectEvidenceEntry? = currentCollectEvidenceCost
 
     fun clearCollectEvidenceCost() {
         currentCollectEvidenceCost = null
     }
 
-    fun activeConvokePayments(sourceForgeCardId: ForgeCardId): List<PromptSideEffect.ConvokePayment> =
-        currentConvokePayments[sourceForgeCardId].orEmpty()
+    fun clearCollectEvidenceCost(entry: CollectEvidenceEntry) {
+        if (currentCollectEvidenceCost?.version == entry.version) currentCollectEvidenceCost = null
+    }
 
-    fun activeConvokePayments(): Map<ForgeCardId, List<PromptSideEffect.ConvokePayment>> = currentConvokePayments
+    fun activeConvokePayments(sourceForgeCardId: ForgeCardId): List<PromptSideEffect.ConvokePayment> =
+        currentConvokePayments[sourceForgeCardId]?.payments.orEmpty()
+
+    fun activeConvokePayments(): Map<ForgeCardId, List<PromptSideEffect.ConvokePayment>> =
+        currentConvokePayments.mapValues { (_, entry) -> entry.payments }
+
+    fun activeConvokePaymentEntries(): List<ConvokePaymentsEntry> = currentConvokePayments.values.sortedBy { it.sourceForgeCardId.value }
 
     fun clearConvokePayments(sourceForgeCardId: ForgeCardId) {
         currentConvokePayments = currentConvokePayments - sourceForgeCardId
+    }
+
+    fun clearConvokePayments(entry: ConvokePaymentsEntry) {
+        if (currentConvokePayments[entry.sourceForgeCardId]?.version == entry.version) {
+            currentConvokePayments = currentConvokePayments - entry.sourceForgeCardId
+        }
     }
 
     fun resetForPuzzle() {

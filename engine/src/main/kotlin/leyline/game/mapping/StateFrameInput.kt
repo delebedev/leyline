@@ -1,0 +1,23 @@
+package leyline.game.mapping
+
+import leyline.game.event.FrameEventLog
+import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.PromptProjectionFacts
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
+
+/**
+ * Immutable, cut-scoped input for state projection.
+ *
+ * The shell captures snapshot and prompt facts once, normalizes ordered events,
+ * then reuses this value for every retry of the same projection attempt.
+ */
+data class StateFrameInput(
+    val gameStateId: Int,
+    val snapshot: GsmSnapshot,
+    val previousSnapshot: GsmSnapshot?,
+    val events: FrameEventLog,
+    val promptFacts: PromptProjectionFacts,
+    val updateType: GameStateUpdate,
+    val viewingSeatId: Int,
+    val revealForSeat: Int?,
+)

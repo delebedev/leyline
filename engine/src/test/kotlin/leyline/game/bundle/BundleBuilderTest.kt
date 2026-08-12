@@ -16,6 +16,7 @@ import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
@@ -788,6 +789,13 @@ class BundleBuilderTest :
                         .cards
                         .single()
                 card.addPTBoost(1, 1, 123L, 456L)
+                b.promptBridge(SeatId(1)).journal.record(
+                    PromptSideEffect.ChoiceResult(
+                        sourceForgeCardId = ForgeCardId(card.id),
+                        chooserSeatId = SeatId(1),
+                        choiceValue = 1,
+                    ),
+                )
                 val builder = bundleBuilder(b)
                 val interleavedForgeId = ForgeCardId(1_000_000)
                 var writerRan = false
@@ -823,12 +831,15 @@ class BundleBuilderTest :
                     b.ids.peek(interleavedForgeId) shouldBe b.ids.getOrAlloc(interleavedForgeId)
                 }
                 val gsm = result.messages.first().gameStateMessage
-                gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
-                b
-                    .annotationJournalSnapshot()
-                    .pendingSpellCasts
-                    .find(ForgeCardId(card.id), 100)
-                    ?.spellGrpId shouldBe 100
+                assertSoftly {
+                    gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
+                    b.promptBridge(SeatId(1)).journal.snapshotChoiceResults() shouldBe emptyList()
+                    b
+                        .annotationJournalSnapshot()
+                        .pendingSpellCasts
+                        .find(ForgeCardId(card.id), 100)
+                        ?.spellGrpId shouldBe 100
+                }
                 return result.messages.map { it.toByteArray().toList() } to b.committedEffectProjection()
             }
 
@@ -1130,6 +1141,13 @@ class BundleBuilderTest :
                     putOnTop = true,
                 )
             b.promptBridge(SeatId(1)).recordPendingOrderZoneMove(move)
+            b.promptBridge(SeatId(1)).journal.record(
+                PromptSideEffect.ChoiceResult(
+                    sourceForgeCardId = ForgeCardId(source.id),
+                    chooserSeatId = SeatId(1),
+                    choiceValue = 1,
+                ),
+            )
             val prompt =
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "failed-staged-order",
@@ -1155,6 +1173,11 @@ class BundleBuilderTest :
                 b.diffListener = null
             }
             b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe move
+            b
+                .promptBridge(SeatId(1))
+                .journal
+                .snapshotChoiceResults()
+                .size shouldBe 1
 
             val result = builder.orderBundle(game, counter, prompt, OrderRouteKind.Top)
             val gsm = result.messages.first().gameStateMessage
@@ -1166,6 +1189,11 @@ class BundleBuilderTest :
             assertSoftly {
                 stagedTypes shouldBe listOf(AnnotationType.ObjectIdChanged, AnnotationType.ZoneTransfer_af5a)
                 b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe null
+                b
+                    .promptBridge(SeatId(1))
+                    .journal
+                    .snapshotChoiceResults()
+                    .size shouldBe 0
             }
         }
 

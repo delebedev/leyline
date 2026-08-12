@@ -38,10 +38,7 @@ object RevealStateContributor : AnnotationContributor {
                 )
         }
 
-        val opponentKnowledge =
-            ctx.bridge.opponentKnowledge
-                .update(ctx.snap, ctx.frameIds, ctx.events)
-                .map(AnnotationBuilder::instanceRevealedToOpponent)
+        val opponentKnowledge = ctx.opponentKnowledge.map(AnnotationBuilder::instanceRevealedToOpponent)
 
         return Contribution(
             transient = transient,

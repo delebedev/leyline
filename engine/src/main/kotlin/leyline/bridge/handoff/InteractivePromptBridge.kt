@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 internal class StrictPromptRefusalException(
@@ -72,9 +73,8 @@ class InteractivePromptBridge(
 
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
-     * [PromptSideEffect] entries on the engine thread; consumers
-     * ([GameEventCollector], [StateMapper], [leyline.bridge.coord.CostPaymentCoordinator]) drain
-     * them during GSM assembly.
+     * [PromptSideEffect] entries on the engine thread; shell-owned consumers
+     * materialize and acknowledge them around GSM assembly.
      */
     val journal: PromptJournal = PromptJournal()
 
@@ -139,16 +139,34 @@ class InteractivePromptBridge(
         )
     }
 
-    private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTarget>()
+    data class PendingTargetEntry(
+        val version: Long,
+        val spec: PendingTarget,
+    )
+
+    private val nextPendingTargetVersion = AtomicLong()
+    private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTargetEntry>()
 
     fun addPendingTargetSpec(spec: PendingTarget) {
-        pendingTargetSpecs.add(spec)
+        pendingTargetSpecs.add(
+            PendingTargetEntry(
+                nextPendingTargetVersion.incrementAndGet(),
+                spec.copy(affectees = spec.affectees.map { it.copy() }),
+            ),
+        )
     }
 
-    fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.toList()
+    fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.map { it.spec }
+
+    fun snapshotPendingTargetSpecEntries(): List<PendingTargetEntry> = pendingTargetSpecs.toList()
 
     fun consumePendingTargetSpecs(specs: List<PendingTarget>) {
-        pendingTargetSpecs.removeIf { queued -> specs.any { queued === it } }
+        pendingTargetSpecs.removeIf { queued -> specs.any { queued.spec === it } }
+    }
+
+    fun consumePendingTargetSpecEntries(entries: List<PendingTargetEntry>) {
+        val versions = entries.mapTo(mutableSetOf()) { it.version }
+        if (versions.isNotEmpty()) pendingTargetSpecs.removeIf { it.version in versions }
     }
 
     companion object {
