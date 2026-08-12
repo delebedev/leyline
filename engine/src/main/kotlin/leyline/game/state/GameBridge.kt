@@ -73,7 +73,9 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * - [DiffSnapshotter] — zone tracking + diff-baseline/client-seen snapshots
  *
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
- * The engine thread blocks at mulligan via [MulliganBridge].
+ * The engine thread blocks at mulligan via [MulliganBridge]. Projection compile
+ * through commit is serialized per bridge; engine-thread lifecycle writes must
+ * not overlap that boundary.
  */
 class GameBridge(
     /** Timeout for player priority/action windows. Null waits indefinitely. */
@@ -96,6 +98,9 @@ class GameBridge(
     AnnotationIds,
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
+
+    /** Serializes projection compile-through-commit for bridge-owned lifecycle trackers. */
+    internal val projectionLock = Any()
 
     private var game: Game? = null
 
@@ -658,15 +663,8 @@ class GameBridge(
             checkNotNull(m.nextAnnotationId) {
                 "Cannot apply bridge mutations before annotation frame finalization"
             }
-        val identityTransition = m.instanceIdTransition
-        if (identityTransition != null) {
-            check(ids.commit(identityTransition)) {
-                throw StaleInstanceIdTransitionException()
-            }
-        } else {
-            // Shell-only callers may still provide a direct realloc batch.
-            // StateMapper always supplies the complete transition above.
-            for (r in m.idReallocations) ids.applyRealloc(r)
+        check(ids.commit(m.instanceIdTransition)) {
+            throw StaleInstanceIdTransitionException()
         }
         val revealTransition = m.revealTransition
         if (revealTransition != null) {

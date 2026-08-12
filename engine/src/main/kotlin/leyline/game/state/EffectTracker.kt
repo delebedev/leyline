@@ -88,6 +88,32 @@ class EffectTracker {
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
     private val activeKeywordEffects = mutableMapOf<KeywordFingerprint, TrackedKeywordEffect>()
 
+    internal data class State(
+        val initEmitted: Boolean,
+        val nextId: Int,
+        val activeEffects: Map<EffectFingerprint, TrackedEffect>,
+        val activeKeywordEffects: Map<KeywordFingerprint, TrackedKeywordEffect>,
+    )
+
+    /** Projection-attempt checkpoint used to replay after a stale identity plan. */
+    internal fun snapshotState(): State =
+        State(
+            initEmitted = initEmitted,
+            nextId = nextId,
+            activeEffects = activeEffects.toMap(),
+            activeKeywordEffects = activeKeywordEffects.toMap(),
+        )
+
+    /** Restore a failed projection attempt before compiling the same frame again. */
+    internal fun restoreState(state: State) {
+        initEmitted = state.initEmitted
+        nextId = state.nextId
+        activeEffects.clear()
+        activeEffects.putAll(state.activeEffects)
+        activeKeywordEffects.clear()
+        activeKeywordEffects.putAll(state.activeKeywordEffects)
+    }
+
     /** Allocate the next monotonic synthetic effect ID. */
     fun nextEffectId(): Int = nextId++
 
