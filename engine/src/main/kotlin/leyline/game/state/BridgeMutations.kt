@@ -21,14 +21,15 @@ data class PendingTargetSpecRecord(
  * 1. `instanceIdTransition` — complete tentative identity state, validated and
  *    installed once in [GameBridge.applyMutations]
  * 2. `revealTransition` — tentative reveal-view map state
- * 3. `idReallocations` — id swap description for zone-transferred cards
- * 4. `retiredIds` — old ids moved to limbo (writes to [LimboTracker])
- * 5. `zoneRecordings` — new zone assignments (writes to [DiffSnapshotter.previousZones])
- * 6. `persistentBatch` — persistent annotation state writes (writes to [PersistentAnnotationStore])
- * 7. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
- * 8. `nextAnnotationId` — transient annotation ID counter update
- * 9. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
- * 10. `nextTransientLinkedFaceFamilyIds` — one-frame hidden-zone projection lifecycle
+ * 3. `annotationJournalTransition` — all cross-frame annotation correlation state
+ * 4. `idReallocations` — id swap description for zone-transferred cards
+ * 5. `retiredIds` — old ids moved to limbo (writes to [LimboTracker])
+ * 6. `zoneRecordings` — new zone assignments (writes to [DiffSnapshotter.previousZones])
+ * 7. `persistentBatch` — persistent annotation state writes (writes to [PersistentAnnotationStore])
+ * 8. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
+ * 9. `nextAnnotationId` — transient annotation ID counter update
+ * 10. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
+ * 11. `nextTransientLinkedFaceFamilyIds` — one-frame hidden-zone projection lifecycle
  *
  * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
  * not applied to bridge state; the rest of this batch still owns bridge writes.
@@ -44,6 +45,7 @@ data class BridgeMutations(
     /** Callback facts incorporated by the accepted effect transition. */
     val consumedEarthbendResolutions: List<GameBridge.EarthbendResolution> = emptyList(),
     val revealTransition: RevealProxyTracker.Transition? = null,
+    val annotationJournalTransition: ProjectionAnnotationJournal.Transition,
     val idReallocations: List<InstanceIdRegistry.IdReallocation>,
     val retiredIds: List<InstanceId>,
     val zoneRecordings: List<Pair<InstanceId, Int>>,

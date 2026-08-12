@@ -70,6 +70,9 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * - [InstanceIdRegistry] — Forge cardId ↔ client instanceId bimap
  * - [LimboTracker] — retired instanceId history
  * - [DiffSnapshotter] — zone tracking + diff-baseline/client-seen snapshots
+ * - [ProjectionAnnotationJournal] — committed annotation correlation installed
+ *   only with an accepted projection batch; prompt journals and live Forge
+ *   reads remain separate.
  *
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
  * The engine thread blocks at mulligan via [MulliganBridge]. Projection compile
@@ -109,10 +112,8 @@ class GameBridge(
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
 
-    val abilityLineage = AbilityLineageRegistry()
-
-    private val pendingSpellCasts = PendingSpellEventRegistry<GameEvent.SpellCast>()
-    private val pendingSpellResolutions = PendingSpellEventRegistry<GameEvent.SpellResolved>()
+    /** Committed cross-frame annotation correlation. Projection writes only through a tentative planner. */
+    private var annotationJournal = ProjectionAnnotationJournal()
     private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
@@ -143,39 +144,15 @@ class GameBridge(
 
     fun consumeSelectedSpellGrpId(cardId: ForgeCardId): Int? = selectedSpellGrpIds.remove(cardId)
 
-    fun recordPendingSpellCasts(events: List<GameEvent>) {
-        events
-            .filterIsInstance<GameEvent.SpellCast>()
-            .filter { !it.isAbility && !it.isTrigger }
-            .forEach {
-                pendingSpellCasts.record(it.cardId, it.spellGrpId.takeIf { grpId -> grpId != 0 } ?: grpIdFor(it.cardId), it)
-            }
-    }
+    /** Read-only committed correlation for event collection and snapshot capture. */
+    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? = annotationJournal.pendingSpellCasts.find(cardId, cardGrpId(cardId))
 
-    fun recordPendingSpellResolutions(events: List<GameEvent>) {
-        events
-            .filterIsInstance<GameEvent.SpellResolved>()
-            .filter { !it.isAbility && !it.isTrigger }
-            .forEach {
-                pendingSpellResolutions.record(it.cardId, it.spellGrpId.takeIf { grpId -> grpId != 0 } ?: grpIdFor(it.cardId), it)
-            }
-    }
+    /** Read-only committed correlation for event collection and snapshot capture. */
+    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? =
+        annotationJournal.pendingSpellResolutions.find(cardId, cardGrpId(cardId))
 
-    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? = pendingSpellCasts.find(cardId, grpIdFor(cardId))
+    internal fun cardGrpId(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
-    fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? = pendingSpellResolutions.find(cardId, grpIdFor(cardId))
-
-    fun consumePendingSpellCast(cardId: ForgeCardId) {
-        pendingSpellCasts.consume(cardId)
-    }
-
-    fun consumePendingSpellResolution(cardId: ForgeCardId) {
-        pendingSpellResolutions.consume(cardId)
-    }
-
-    private fun grpIdFor(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
-
-    private val paradigmSourceStackIids = ConcurrentHashMap<ForgeCardId, Int>()
     private val selectedModalAbilityGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val pendingTriggerAbilityGrpIds = ConcurrentHashMap<Int, Int>()
     private val pendingTriggerCleanupGrpIds = ConcurrentHashMap<Int, Int>()
@@ -211,25 +188,11 @@ class GameBridge(
 
     fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = pendingTriggerCleanupGrpIds[triggerId]
 
-    fun recordParadigmSourceStackIid(
-        fid: ForgeCardId,
-        stackIid: Int,
-    ) {
-        paradigmSourceStackIids[fid] = stackIid
-    }
-
-    fun recordParadigmSourceStackIidIfAbsent(
-        fid: ForgeCardId,
-        stackIid: Int,
-    ) {
-        paradigmSourceStackIids.putIfAbsent(fid, stackIid)
-    }
-
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
-        paradigmSourceStackIids[fid]
+        annotationJournal.paradigmSourceStackIids[fid]
             ?: findCard(fid)
                 ?.effectSource
-                ?.let { source -> paradigmSourceStackIids[ForgeCardId(source.id)] }
+                ?.let { source -> annotationJournal.paradigmSourceStackIids[ForgeCardId(source.id)] }
 
     /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
     val prioritySignal = PrioritySignal()
@@ -537,20 +500,19 @@ class GameBridge(
 
     fun pendingTransientLinkedFaceFamilyIds(): Set<InstanceId> = transientLinkedFaceFamilyIds
 
-    private val decayedCleanupSources = linkedSetOf<ForgeCardId>()
+    fun activeDecayedCleanupSources(): Set<ForgeCardId> = annotationJournal.decayedCleanupSources
 
-    fun activeDecayedCleanupSources(): Set<ForgeCardId> = decayedCleanupSources.toSet()
+    internal fun annotationJournalSnapshot(): ProjectionAnnotationJournal = annotationJournal
 
-    fun recordDecayedCleanupSource(source: ForgeCardId) {
-        decayedCleanupSources.add(source)
-    }
+    internal fun <T> withTentativeAnnotationJournal(block: (ProjectionAnnotationJournal.Planner) -> T): T =
+        block(ProjectionAnnotationJournal.Planner(annotationJournal))
 
-    fun clearDecayedCleanupSource(source: ForgeCardId) {
-        decayedCleanupSources.remove(source)
-    }
+    internal fun canCommitAnnotationJournal(transition: ProjectionAnnotationJournal.Transition): Boolean =
+        annotationJournal == transition.expected
 
-    fun resetDecayedCleanupSources() {
-        decayedCleanupSources.clear()
+    private fun commitAnnotationJournal(transition: ProjectionAnnotationJournal.Transition) {
+        check(canCommitAnnotationJournal(transition)) { "Annotation journal transition is stale" }
+        annotationJournal = transition.next
     }
 
     /** Records callback data; synthetic ids and lifecycle changes belong to projection compilation. */
@@ -653,7 +615,8 @@ class GameBridge(
      * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
      * Projection callers provide one validated identity transition; the
      * descriptive reallocations are not installed separately.
-     * Fixed order: id reallocations → limbo retires → zone recordings →
+     * Fixed order: identity, reveal, effects, and annotation journals validate
+     * before any family installs; then id reallocations → limbo retires → zone updates →
      * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
      *
      * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
@@ -666,8 +629,12 @@ class GameBridge(
         check(canCommitEffectProjection(m.effectTransition.expected)) {
             "Synthetic-effect transition is stale"
         }
+        if (!ids.canCommit(m.instanceIdTransition)) throw StaleInstanceIdTransitionException()
         m.revealTransition?.let { transition ->
             check(revealProxies.canCommit(transition)) { "Reveal identity transition is stale" }
+        }
+        check(canCommitAnnotationJournal(m.annotationJournalTransition)) {
+            "Annotation journal transition is stale"
         }
         check(ids.commit(m.instanceIdTransition)) {
             throw StaleInstanceIdTransitionException()
@@ -679,6 +646,7 @@ class GameBridge(
             }
         }
         commitEffectProjection(m.effectTransition.expected, m.effectTransition.next)
+        commitAnnotationJournal(m.annotationJournalTransition)
         consumeEarthbendResolutions(m.consumedEarthbendResolutions)
         for (id in m.retiredIds) retireToLimbo(id)
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
@@ -1412,10 +1380,8 @@ class GameBridge(
         pendingEarthbendResolutions.clear()
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
-        abilityLineage.resetAll()
-        resetDecayedCleanupSources()
+        annotationJournal = ProjectionAnnotationJournal()
         abilityRegistries.clear()
-        paradigmSourceStackIids.clear()
         selectedModalAbilityGrpIds.clear()
         pendingTriggerAbilityGrpIds.clear()
         pendingTriggerCleanupGrpIds.clear()
@@ -1855,37 +1821,5 @@ class GameBridge(
             Thread.sleep(POLL_INTERVAL_MS)
         }
         log.warn("GameBridge: timed out waiting for engine to reach mulligan")
-    }
-}
-
-internal class PendingSpellEventRegistry<T> {
-    private val byCardId = ConcurrentHashMap<ForgeCardId, T>()
-    private val byGrpId = ConcurrentHashMap<Int, T>()
-    private val grpIdByCardId = ConcurrentHashMap<ForgeCardId, Int>()
-
-    fun record(
-        cardId: ForgeCardId,
-        grpId: Int?,
-        event: T,
-    ) {
-        val previousEvent = byCardId.put(cardId, event)
-        val previousGrpId = if (grpId == null) grpIdByCardId.remove(cardId) else grpIdByCardId.put(cardId, grpId)
-        if (previousGrpId != null && previousGrpId != grpId && previousEvent != null) {
-            byGrpId.remove(previousGrpId, previousEvent)
-        }
-        grpId?.let { byGrpId[it] = event }
-    }
-
-    fun find(
-        cardId: ForgeCardId,
-        grpId: Int?,
-    ): T? = byCardId[cardId] ?: grpId?.let { byGrpId[it] }
-
-    fun consume(cardId: ForgeCardId) {
-        val event = byCardId.remove(cardId)
-        val recordedGrpId = grpIdByCardId.remove(cardId)
-        if (event != null && recordedGrpId != null) {
-            byGrpId.remove(recordedGrpId, event)
-        }
     }
 }

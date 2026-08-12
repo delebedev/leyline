@@ -104,6 +104,8 @@ class InstanceIdRegistry(
             true
         }
 
+    fun canCommit(transition: Transition): Boolean = synchronized(lock) { version == transition.baselineVersion }
+
     /** Return the current mapped instanceId for [forgeCardId], or `null`. */
     fun peek(forgeCardId: ForgeCardId): InstanceId? =
         tentative.get()?.peek(forgeCardId) ?: synchronized(lock) { state.forgeIdToInstanceId[forgeCardId] }

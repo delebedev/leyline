@@ -226,6 +226,7 @@ class PureDiffReplayTest :
                 val (replayBridge, game, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val snap = GsmSnapshot.capture(game, replayBridge, Board.TEST_MATCH_ID, 1)
                 val before = replayBridge.ids.committedState()
+                val journalBefore = replayBridge.annotationJournalSnapshot()
 
                 fun compile() =
                     StateMapper
@@ -242,14 +243,19 @@ class PureDiffReplayTest :
 
                 val first = compile()
                 val afterFirst = replayBridge.ids.committedState()
+                val journalAfterFirst = replayBridge.annotationJournalSnapshot()
                 val second = compile()
                 val afterSecond = replayBridge.ids.committedState()
+                val journalAfterSecond = replayBridge.annotationJournalSnapshot()
 
                 assertSoftly {
                     first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
                     first.mutations.instanceIdTransition.nextState shouldBe second.mutations.instanceIdTransition.nextState
+                    first.mutations.annotationJournalTransition.next shouldBe second.mutations.annotationJournalTransition.next
                     afterFirst shouldBe before
                     afterSecond shouldBe before
+                    journalAfterFirst shouldBe journalBefore
+                    journalAfterSecond shouldBe journalBefore
                 }
             }
         }

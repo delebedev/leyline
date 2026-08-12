@@ -26,6 +26,7 @@ import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
 import leyline.game.state.HolderRecord
+import leyline.game.state.ProjectionAnnotationJournal
 import leyline.game.state.SyntheticEffectProjection
 import leyline.game.state.SyntheticEffectTransition
 import org.slf4j.LoggerFactory
@@ -85,8 +86,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Reads-then-writes on bridge-attached tracker state (not yet lifted onto snap):
  * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
  *   reveal-choose effects that span bundles.
- * - `bridge.annotations.activeStealForgeCardIds()` / `addSteals` / `removeSteals` —
- *   steal lifecycle.
+ * - prompt journal drains and live Forge snapshots remain outside the current
+ *   annotation-journal transition.
  * - `bridge.snapshotCrewState()` and `bridge.snapshotReconfigureState()` — live
  *   Forge snapshots. Their synthetic lifecycle reduction runs in the private
  *   [SyntheticEffectProjection.Planner] and returns through [BridgeMutations].
@@ -113,15 +114,22 @@ object StateMapper {
             ZoneIds.P2_GRAVEYARD,
         )
 
-    private fun <T> withTentativeProjectionState(
+    private fun withTentativeProjectionState(
         bridge: GameBridge,
-        block: () -> T,
-    ): T =
-        bridge.withTentativeEffectProjection {
-            bridge.ids.withTentativeState {
-                bridge.revealProxies.withTentativeState(block)
+        block: (ProjectionAnnotationJournal.Planner) -> BuildResult,
+    ): BuildResult =
+        bridge.withTentativeAnnotationJournal { journal ->
+            bridge.withTentativeEffectProjection {
+                bridge.ids.withTentativeState {
+                    bridge.revealProxies.withTentativeState {
+                        block(journal).withAnnotationJournalTransition(journal.transition())
+                    }
+                }
             }
         }
+
+    private fun BuildResult.withAnnotationJournalTransition(transition: ProjectionAnnotationJournal.Transition): BuildResult =
+        copy(mutations = mutations.copy(annotationJournalTransition = transition))
 
     data class AnnotationFrameDraft(
         val firstAnnotationId: Int,
@@ -188,7 +196,7 @@ object StateMapper {
          */
         events: FrameEventLog = bridge.closeBundleFrame(viewingSeatId),
     ): BuildResult =
-        withTentativeProjectionState(bridge) {
+        withTentativeProjectionState(bridge) { journal ->
             buildFromSnapshotInternal(
                 rawSnap = snap,
                 gameStateId = gameStateId,
@@ -200,6 +208,7 @@ object StateMapper {
                 revealForSeat = revealForSeat,
                 prev = prev,
                 events = events,
+                annotationJournal = journal,
             )
         }
 
@@ -215,6 +224,7 @@ object StateMapper {
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
         events: FrameEventLog,
+        annotationJournal: ProjectionAnnotationJournal.Planner,
     ): BuildResult {
         val effectPlanner = bridge.activeEffectPlanner()
         val earthbendResolutions = bridge.pendingEarthbendResolutions()
@@ -423,9 +433,10 @@ object StateMapper {
                 zones,
                 bridge,
                 eventsMutable,
+                annotationJournal,
                 zoneMoves = events.zoneMoves,
             )
-        recordParadigmSourceStackIids(transferResult, bridge)
+        recordParadigmSourceStackIids(transferResult, bridge, annotationJournal)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
@@ -447,6 +458,7 @@ object StateMapper {
                 prev = prev,
                 snap = snap,
                 frameIds = frameIds,
+                annotationJournal = annotationJournal,
             )
 
         val convokeCtx =
@@ -454,7 +466,8 @@ object StateMapper {
         val convokePaymentsBySource = convokeCtx.activeConvokePaymentsBySource()
         annotations.addAll(ConvokeContributor.contribute(convokeCtx).transient)
 
-        val decayedCleanupSourcesThisGsm = updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult, frameIds)
+        val decayedCleanupSourcesThisGsm =
+            updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult, frameIds, annotationJournal)
 
         val persistentFeedResult =
             PersistentFeedBuilder.build(
@@ -576,6 +589,7 @@ object StateMapper {
                 persistentFeeds,
                 convokePaymentsBySource,
                 transferResult = transferResult,
+                annotationJournal = annotationJournal,
             )
 
         transferResult = LinkedFaceCompanionProjector.append(transferResult, snap, bridge, frameIds)
@@ -610,6 +624,7 @@ object StateMapper {
                     ),
                 consumedEarthbendResolutions = earthbendResolutions,
                 revealTransition = bridge.revealProxies.tentativeTransition(),
+                annotationJournalTransition = annotationJournal.transition(),
                 idReallocations = transferResult.idReallocations,
                 retiredIds = transferResult.retiredIds.map { InstanceId(it) },
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
@@ -639,6 +654,7 @@ object StateMapper {
     private fun recordParadigmSourceStackIids(
         transferResult: TransferResult,
         bridge: GameBridge,
+        annotationJournal: ProjectionAnnotationJournal.Planner,
     ) {
         for (transfer in transferResult.transfers) {
             val forgeCardId = transfer.forgeCardId ?: continue
@@ -655,9 +671,9 @@ object StateMapper {
                     transfer.srcZoneId == ZoneIds.STACK &&
                     transfer.destZoneId == ZoneIds.EXILE
             if (isOriginalCast) {
-                bridge.recordParadigmSourceStackIid(forgeCardId, transfer.newId)
+                annotationJournal.recordParadigmSourceStackIid(forgeCardId, transfer.newId)
             } else if (isStackSelfExile) {
-                bridge.recordParadigmSourceStackIidIfAbsent(forgeCardId, transfer.origId)
+                annotationJournal.recordParadigmSourceStackIidIfAbsent(forgeCardId, transfer.origId)
             }
         }
     }
@@ -700,7 +716,7 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
     ): BuildResult =
-        withTentativeProjectionState(bridge) {
+        withTentativeProjectionState(bridge) { journal ->
             buildDiffInternal(
                 prev = prev,
                 cur = cur,
@@ -712,6 +728,7 @@ object StateMapper {
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
                 revealForSeat = revealForSeat,
+                annotationJournal = journal,
             )
         }
 
@@ -727,6 +744,7 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+        annotationJournal: ProjectionAnnotationJournal.Planner,
     ): BuildResult {
         if (prev == null) {
             // First bundle — Full GSM with mutations returned for caller-apply.
@@ -739,6 +757,7 @@ object StateMapper {
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
                 revealForSeat = revealForSeat,
+                annotationJournal = annotationJournal,
                 prev = null,
                 events = events,
             )
@@ -762,6 +781,7 @@ object StateMapper {
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
                 revealForSeat = revealForSeat,
+                annotationJournal = annotationJournal,
                 prev = prev,
                 events = events,
             )
@@ -775,6 +795,7 @@ object StateMapper {
                 matchId = matchId,
                 bridge = bridge,
                 revealForSeat = revealForSeat,
+                annotationJournal = annotationJournal,
                 prev = prev,
                 events = events,
             )
@@ -1259,9 +1280,10 @@ object StateMapper {
         bridge: GameBridge,
         transferResult: TransferResult,
         frameIds: FrameIdResolver,
+        annotationJournal: ProjectionAnnotationJournal.Planner,
     ): Set<ForgeCardId> {
         val ctx = AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = events)
-        val visibleThisGsm = bridge.activeDecayedCleanupSources().toMutableSet()
+        val visibleThisGsm = annotationJournal.activeDecayedCleanupSources().toMutableSet()
         val addedThisGsm = linkedSetOf<ForgeCardId>()
         for (ev in events) {
             if (ev is GameEvent.SpellResolved) {
@@ -1270,7 +1292,7 @@ object StateMapper {
                     ev.abilityGrpId.takeIf { it != 0 }
                         ?: ctx.abilityGrpIdForSource(ev.cardId)
                 if (ev.isTrigger && cleanupGrpId != null && abilityGrpId == KeywordAbilityIds.DECAYED) {
-                    bridge.recordDecayedCleanupSource(ev.cardId)
+                    annotationJournal.recordDecayedCleanupSource(ev.cardId)
                     visibleThisGsm.add(ev.cardId)
                     addedThisGsm.add(ev.cardId)
                 }
@@ -1280,20 +1302,20 @@ object StateMapper {
                     ev.abilityGrpId.takeIf { it != 0 }
                         ?: ctx.abilityGrpIdForSource(ev.cardId)
                 if (ev.isTrigger && cleanupGrpId != null && abilityGrpId == cleanupGrpId) {
-                    bridge.clearDecayedCleanupSource(ev.cardId)
+                    annotationJournal.clearDecayedCleanupSource(ev.cardId)
                     if (ev.cardId !in addedThisGsm) visibleThisGsm.remove(ev.cardId)
                 }
             } else if (ev is GameEvent.CardSacrificed) {
-                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, bridge)
+                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, annotationJournal)
             } else if (ev is GameEvent.CardDestroyed) {
-                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, bridge)
+                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, annotationJournal)
             } else if (ev is GameEvent.CardBounced) {
-                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, bridge)
+                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, annotationJournal)
             } else if (ev is GameEvent.CardExiled) {
-                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, bridge)
+                clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, annotationJournal)
             } else if (ev is GameEvent.ZoneChanged) {
                 if (ev.from == leyline.game.event.Zone.Battlefield && ev.to != leyline.game.event.Zone.Battlefield) {
-                    clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, bridge)
+                    clearDecayedCleanupSource(ev.cardId, addedThisGsm, visibleThisGsm, annotationJournal)
                 }
             }
         }
@@ -1304,9 +1326,9 @@ object StateMapper {
         sourceForgeId: ForgeCardId,
         addedThisGsm: Set<ForgeCardId>,
         visibleThisGsm: MutableSet<ForgeCardId>,
-        bridge: GameBridge,
+        annotationJournal: ProjectionAnnotationJournal.Planner,
     ) {
-        bridge.clearDecayedCleanupSource(sourceForgeId)
+        annotationJournal.clearDecayedCleanupSource(sourceForgeId)
         if (sourceForgeId !in addedThisGsm) visibleThisGsm.remove(sourceForgeId)
     }
 

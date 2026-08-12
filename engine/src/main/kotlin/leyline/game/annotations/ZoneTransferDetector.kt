@@ -14,6 +14,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.Foretell
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
+import leyline.game.state.ProjectionAnnotationJournal
 import leyline.game.state.ZoneHandoff
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -175,11 +176,16 @@ object ZoneTransferDetector {
         zones: List<ZoneInfo>,
         bridge: GameBridge,
         events: List<GameEvent>,
+        annotationJournal: ProjectionAnnotationJournal.Planner,
         zoneMoves: List<ZoneMove> = emptyList(),
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
-        bridge.recordPendingSpellCasts(events)
-        bridge.recordPendingSpellResolutions(events)
+        events.filterIsInstance<GameEvent.SpellCast>().filter { !it.isAbility && !it.isTrigger }.forEach { event ->
+            annotationJournal.recordSpellCast(event, event.spellGrpId.takeIf { it != 0 } ?: bridge.cardGrpId(event.cardId))
+        }
+        events.filterIsInstance<GameEvent.SpellResolved>().filter { !it.isAbility && !it.isTrigger }.forEach { event ->
+            annotationJournal.recordSpellResolution(event, event.spellGrpId.takeIf { it != 0 } ?: bridge.cardGrpId(event.cardId))
+        }
 
         // Compute plans against the active identity planner. A forward/reverse
         // overlay resolves same-pass queries for freshly-planned fids. The
@@ -228,23 +234,28 @@ object ZoneTransferDetector {
                         isForetoldLookup = { fid ->
                             bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
                         },
-                        pendingSpellCastLookup = { fid -> bridge.pendingSpellCast(fid) },
-                        pendingSpellResolutionLookup = { fid -> bridge.pendingSpellResolution(fid) },
+                        pendingSpellCastLookup = { fid -> annotationJournal.pendingSpellCast(fid, bridge.cardGrpId(fid)) },
+                        pendingSpellResolutionLookup = { fid -> annotationJournal.pendingSpellResolution(fid, bridge.cardGrpId(fid)) },
                         forgeCardKnown = { fid ->
                             bridge.getGame()?.let { findCard(it, fid) } != null
                         },
-                        paradigmSourceIidLookup = { fid -> bridge.paradigmSourceStackIidFor(fid) },
+                        paradigmSourceIidLookup = { fid ->
+                            annotationJournal.paradigmSourceStackIidFor(fid)
+                                ?: bridge.findCard(fid)?.effectSource?.let { source ->
+                                    annotationJournal.paradigmSourceStackIidFor(ForgeCardId(source.id))
+                                }
+                        },
                         zoneMoves = zoneMoves,
                     ),
             )
         result.transfers
             .filter { it.category == TransferCategory.CastSpell }
             .mapNotNull { it.forgeCardId }
-            .forEach { bridge.consumePendingSpellCast(it) }
+            .forEach(annotationJournal::consumeSpellCast)
         result.transfers
             .filter { it.category == TransferCategory.Resolve || it.category == TransferCategory.Countered }
             .mapNotNull { it.forgeCardId }
-            .forEach { bridge.consumePendingSpellResolution(it) }
+            .forEach(annotationJournal::consumeSpellResolution)
         return result.copy(idReallocations = plannedReallocs.toList())
     }
 
