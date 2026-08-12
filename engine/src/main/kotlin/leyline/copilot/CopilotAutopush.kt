@@ -12,7 +12,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
-/** Delivers computed prompt responses asynchronously with bounded retries. */
+/** Applies computed prompt responses asynchronously with bounded retries. */
 class CopilotAutopush(
     private val gameBridge: GameBridge,
     private val seatId: SeatId,
@@ -21,7 +21,7 @@ class CopilotAutopush(
     private val log = LoggerFactory.getLogger(CopilotAutopush::class.java)
     private val service = CopilotProposalService(gameBridge, seatId)
 
-    // Single thread: pushes are serialized, off the session thread.
+    // Serialized off the session thread to preserve prompt order.
     private val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "copilot-autopush").apply { isDaemon = true } }
 
     private companion object {
@@ -30,33 +30,20 @@ class CopilotAutopush(
         const val LAND_POLL_CHECKS = 8 // ~640ms per attempt to observe a landed response
     }
 
-    /** Delivers the response for [prompt] from the single delivery thread. */
+    /** Applies the response for [prompt] from the single delivery thread. */
     fun onPrompt(prompt: GREToClientMessage) {
         exec.submit {
             runCatching {
-                // Coalesce prompt bursts. The exec is single-threaded, so during a
-                // rapid burst (combat with many creatures) prompts queue behind this
-                // task while the engine keeps emitting. A prompt that is already
-                // superseded when we dequeue it can never land — its respId is stale,
-                // the guard rejects it, and burning MAX_INJECT_ATTEMPTS on it just
-                // lets the queue back up further. Skip straight to the latest so the
-                // queue drains to the one prompt the engine is actually awaiting.
+                // Older prompts cannot change the current state; skip them rather
+                // than consuming retry capacity needed by the active prompt.
                 if (gameBridge.messageCounter.lastPromptMsgId() > prompt.msgId) {
                     log.debug("autopush: {} msgId={} superseded at dequeue, skipping", prompt.type, prompt.msgId)
                     return@submit
                 }
                 val proposal = service.propose(prompt)
 
-                // Server-side pass. An empty priority window answered with Pass is
-                // invisible (nothing casts/animates), yet leyline stops at EVERY
-                // phase where a discretionary action (e.g. a castable instant in
-                // hand) exists. As the game races through phases that is a burst of
-                // ActionsAvailableReqs, and the HTTP inject round-trip can't drain it
-                // — a response goes stale and the game-loop parks. For a Pass on an
-                // ActionsAvailableReq, apply it directly to the action bridge and kick
-                // the async drive (the same executor path the host uses), skipping the
-                // client round-trip entirely. Real/visible actions (cast, attack,
-                // targets, modals) still inject via the bridge, so they animate.
+                // A priority pass changes only engine state, so apply it directly to
+                // avoid a delivery backlog across consecutive empty windows.
                 if (prompt.type == GREMessageType.ActionsAvailableReq_695e && proposal.intent == "pass") {
                     val actionBridge = gameBridge.seat(seatId).action
                     val pendingAction = actionBridge.getPending()
@@ -73,17 +60,8 @@ class CopilotAutopush(
                     return@submit
                 }
                 val baseline = gameBridge.messageCounter.responsesAccepted()
-                // Delivery anchor. responsesAccepted() bumps when a correlated
-                // response clears the envelope guard (respId == lastPromptMsgId),
-                // NOT when the action is applied. For a priority (AAR) inject that
-                // gap is a wedge: an unrelated accepted response — or our own inject
-                // being dropped while a stale one clears the envelope — advances the
-                // counter while the game-loop stays parked in awaitAction, and the
-                // copilot would read LANDED and stop re-injecting. Anchor to the
-                // pending action id we are answering; a bare counter bump cannot read
-                // as landed unless that specific window actually advanced. Non-AAR
-                // prompts have no priority-window anchor, so they keep the
-                // counter-only signal.
+                // Priority windows need both acceptance and a changed pending action;
+                // the acceptance counter alone does not prove the action advanced.
                 val answeredActionId =
                     if (prompt.type == GREMessageType.ActionsAvailableReq_695e) {
                         gameBridge
@@ -103,10 +81,8 @@ class CopilotAutopush(
                             log.info("autopush: {} -> intent={} landed after {} attempt(s)", prompt.type, proposal.intent, attempt)
                             return@submit
                         }
-                        // The host emitted a newer prompt without accepting this
-                        // response: it is stale, re-injecting it only draws
-                        // IllegalRequests. Abandon so the newer prompt's onPrompt
-                        // (queued behind this task) runs instead of being blocked.
+                        // A newer prompt makes this response stale; let its queued
+                        // handler take over.
                         Outcome.SUPERSEDED -> {
                             log.info(
                                 "autopush: {} intent={} superseded (prompt advanced past msgId {}), abandoning",
@@ -141,13 +117,9 @@ class CopilotAutopush(
     /**
      * Poll for the response to land or the prompt to be superseded.
      *
-     * LANDED requires the answered window to have actually advanced, not merely
-     * that [MessageCounter.responsesAccepted] bumped — see [answeredActionId].
-     * For an AAR inject the window advances when the pending priority action id
-     * changes or clears; the counter bump alone (envelope-correlated but not
-     * applied) is not enough. SUPERSEDED means a newer prompt was emitted, so
-     * [promptMsgId] is no longer the one awaiting a response. Landing wins ties so
-     * a normal two-round-trip advance (accept + re-prompt) reads as LANDED.
+     * Priority prompts land only after their pending action changes or clears;
+     * other prompts use the acceptance counter. A completed response wins a tie
+     * with a newer prompt.
      */
     private fun awaitOutcome(
         baseline: Int,
@@ -163,8 +135,7 @@ class CopilotAutopush(
             landed(baseline, answeredActionId) -> Outcome.LANDED
             gameBridge.messageCounter.lastPromptMsgId() > promptMsgId -> Outcome.SUPERSEDED
             else -> {
-                // A counter bump that never advanced the window is the false-LANDED
-                // the anchor guards against: surface it so the wedge is visible.
+                // Surface acceptance without an action advance for diagnosis.
                 if (answeredActionId != null && gameBridge.messageCounter.responsesAccepted() > baseline) {
                     log.warn(
                         "autopush: envelope accepted but priority window {} did not advance — re-injecting instead of parking",
@@ -177,13 +148,7 @@ class CopilotAutopush(
     }
 
     /**
-     * True when the answered response has actually been applied. For a priority
-     * (AAR) inject the pending action id must have changed or cleared; a bare
-     * [MessageCounter.responsesAccepted] bump does not count. Non-AAR prompts have
-     * no window anchor and fall back to the counter.
-     *
-     * Internal for direct testing — the end-to-end inject path depends on the AI
-     * choosing a non-pass action, which is not deterministic in a unit test.
+     * True once a response is accepted and, for priority, advances its pending action.
      */
     internal fun landed(
         baseline: Int,
@@ -198,7 +163,7 @@ class CopilotAutopush(
             ?.actionId != answeredActionId
     }
 
-    /** POST response bytes to the bridge's typed /respond endpoint. Returns true on a 2xx. */
+    /** Sends one serialized response. */
     private fun inject(hex: String): Boolean =
         runCatching {
             val conn =

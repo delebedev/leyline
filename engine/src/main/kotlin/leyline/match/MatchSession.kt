@@ -93,7 +93,7 @@ class MatchSession(
     /** The prompt-bearing GRE the client is currently facing, or null before any prompt. */
     fun lastPromptMessage(): GREToClientMessage? = lastPrompt
 
-    /** Optional automatic response delivery for this seat. */
+    /** Optional local prompt automation for this seat. */
     private val autopush: leyline.copilot.CopilotAutopush? by lazy {
         val dev = gameBridge.matchConfig.dev
         if (dev.copilotAutopush) leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl) else null

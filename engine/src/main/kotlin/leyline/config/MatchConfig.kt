@@ -230,10 +230,10 @@ data class DevConfig(
     val strict: Boolean = false,
     @SerialName("strict_pass")
     val strictPass: Boolean = false,
-    /** Enables automatic response delivery for the copilot seat. Off by default. */
+    /** Enables automatic local prompt handling. Off by default. */
     @SerialName("copilot_autopush")
     val copilotAutopush: Boolean = false,
-    /** Base URL for automatic response delivery. */
+    /** Endpoint for local prompt handling. */
     @SerialName("copilot_bridge_url")
     val copilotBridgeUrl: String = "http://127.0.0.1:8092",
 )
