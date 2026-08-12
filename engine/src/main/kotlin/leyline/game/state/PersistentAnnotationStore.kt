@@ -65,7 +65,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * All access is single-threaded (engine thread via StateMapper). No synchronization.
  *
  * Composed into [GameBridge] alongside [InstanceIdRegistry], [LimboTracker],
- * [DiffSnapshotter], and [EffectTracker].
+ * [DiffSnapshotter], and [EffectTracker]. Controller-steal membership belongs
+ * to the projection annotation journal and advances with [BatchResult]. Prompt
+ * journals and live Forge reads remain outside this store.
  */
 class PersistentAnnotationStore {
     /** Result of a pure [computeBatch] invocation. */
@@ -78,6 +80,8 @@ class PersistentAnnotationStore {
         val nextPersistentId: Int,
         /** Effect IDs from controller-change reverts — caller emits LayeredEffectDestroyed for each. */
         val revertedEffectIds: List<Int> = emptyList(),
+        /** Controller-steal membership after this same persistent lifecycle batch. */
+        val activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
     )
 
     companion object {
@@ -132,6 +136,7 @@ class PersistentAnnotationStore {
             transferPersistent: List<AnnotationInfo>,
             mechanicResult: MechanicAnnotationResult,
             combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
+            activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
             resolveInstanceId: (ForgeCardId) -> InstanceId,
             resolveForgeCardId: (InstanceId) -> ForgeCardId? = { null },
         ): BatchResult {
@@ -252,7 +257,10 @@ class PersistentAnnotationStore {
                     resolveForgeCardId,
                 )
 
-            return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts)
+            val nextActiveSteals =
+                (activeStealForgeCardIds + mechanicResult.controllerChangedEffects.map { it.forgeCardId }) -
+                    mechanicResult.controllerRevertedForgeCardIds.toSet()
+            return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts, nextActiveSteals)
         }
 
         private fun remapDelayedTriggerAffectors(
@@ -545,22 +553,6 @@ class PersistentAnnotationStore {
         active[ann.id] = ann
     }
 
-    /** Forge card IDs of permanents currently under stolen control (have ControllerChanged+LayeredEffect pAnn). */
-    private val activeSteals = mutableSetOf<ForgeCardId>()
-
-    /** Set of forge card IDs currently under stolen control. Used by pipeline to detect reverts. */
-    fun activeStealForgeCardIds(): Set<ForgeCardId> = activeSteals.toSet()
-
-    /** Record a steal effect for tracking. Called after computeBatch when new steals are created. */
-    fun addSteals(forgeCardIds: Collection<ForgeCardId>) {
-        activeSteals.addAll(forgeCardIds)
-    }
-
-    /** Remove steal tracking for reverted cards. */
-    fun removeSteals(forgeCardIds: Collection<ForgeCardId>) {
-        activeSteals.removeAll(forgeCardIds.toSet())
-    }
-
     // --- Snapshot / ID accessors ---
 
     /** Immutable snapshot of current active persistent annotations. */
@@ -594,10 +586,9 @@ class PersistentAnnotationStore {
         // set; deletions are implicit (the absent IDs).
     }
 
-    /** Clear all state — persistent annotations, steal tracking, and ID counters. */
+    /** Clear all state — persistent annotations and ID counters. */
     fun resetAll() {
         active.clear()
-        activeSteals.clear()
         nextAnnotationId = INITIAL_ANNOTATION_ID
         nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
     }

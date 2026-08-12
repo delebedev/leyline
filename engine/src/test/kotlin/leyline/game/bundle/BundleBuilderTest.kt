@@ -737,6 +737,7 @@ class BundleBuilderTest :
             val startInstanceIds = b.getInstanceIdMap()
             val startZones = b.getProtoZones()
             val startId = b.annotations.currentAnnotationId()
+            val startJournal = b.annotationJournalSnapshot()
             val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
             builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
             val card =
@@ -746,10 +747,20 @@ class BundleBuilderTest :
                     .single()
             moveToBattlefield(card, game)
             b.diffListener = { _, _, _, _, _ -> error("induced finalization failure") }
+            val events =
+                FrameEventLog(
+                    listOf(
+                        GameEvent.SpellCast(
+                            cardId = ForgeCardId(card.id),
+                            seatId = SeatId(1),
+                            spellGrpId = 100,
+                        ),
+                    ),
+                )
 
             try {
                 shouldThrow<IllegalStateException> {
-                    builder.stateOnlyDiff(game, counter)
+                    builder.remoteActionDiff(game, counter, eventsOverride = events)
                 }
             } finally {
                 b.diffListener = null
@@ -761,10 +772,11 @@ class BundleBuilderTest :
                 b.annotations.currentAnnotationId() shouldBe startId
                 b.getInstanceIdMap() shouldBe startInstanceIds
                 b.getProtoZones() shouldBe startZones
+                b.annotationJournalSnapshot() shouldBe startJournal
             }
         }
 
-        test("interleaved identity allocation replays effect state exactly once") {
+        test("interleaved identity allocation retries journal state exactly once") {
             fun compile(interleaveWriter: Boolean): Pair<List<List<Byte>>, leyline.game.state.SyntheticEffectProjection> {
                 val (b, game, counter) =
                     startWithBoard { _, human, _ ->
@@ -789,9 +801,19 @@ class BundleBuilderTest :
                     }
                 }
 
+                val events =
+                    FrameEventLog(
+                        listOf(
+                            GameEvent.SpellCast(
+                                cardId = ForgeCardId(card.id),
+                                seatId = SeatId(1),
+                                spellGrpId = 100,
+                            ),
+                        ),
+                    )
                 val result =
                     try {
-                        builder.stateOnlyDiff(game, counter)
+                        builder.remoteActionDiff(game, counter, eventsOverride = events)
                     } finally {
                         b.diffListener = null
                     }
@@ -802,6 +824,11 @@ class BundleBuilderTest :
                 }
                 val gsm = result.messages.first().gameStateMessage
                 gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
+                b
+                    .annotationJournalSnapshot()
+                    .pendingSpellCasts
+                    .find(ForgeCardId(card.id), 100)
+                    ?.spellGrpId shouldBe 100
                 return result.messages.map { it.toByteArray().toList() } to b.committedEffectProjection()
             }
 
