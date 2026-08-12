@@ -1,13 +1,6 @@
 package leyline.game.state
 
-import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.SeatId
-
-data class PendingTargetSpecRecord(
-    val seatId: SeatId,
-    val spec: InteractivePromptBridge.PendingTarget,
-)
 
 /**
  * Ordering-sensitive writes that `StateMapper.buildDiff` computes but does not commit.
@@ -21,12 +14,12 @@ data class PendingTargetSpecRecord(
  * 1. `instanceIdTransition` — complete tentative identity state, validated and
  *    installed once in [GameBridge.applyMutations]
  * 2. `revealTransition` — tentative reveal-view map state
- * 3. `annotationJournalTransition` — all cross-frame annotation correlation state
- * 4. `idReallocations` — id swap description for zone-transferred cards
- * 5. `retiredIds` — old ids moved to limbo (writes to [LimboTracker])
- * 6. `zoneRecordings` — new zone assignments (writes to [DiffSnapshotter.previousZones])
+ * 3. `effectTransition` — complete synthetic-effect state
+ * 4. `opponentKnowledgeTransition` — hidden-card knowledge state
+ * 5. `annotationJournalTransition` — all cross-frame annotation correlation state
+ * 6. `retiredIds` / `zoneRecordings` — identity and zone bookkeeping
  * 7. `persistentBatch` — persistent annotation state writes (writes to [PersistentAnnotationStore])
- * 8. `consumedTargetSpecs` — pending TargetSpec prompt records consumed after their persistent batch is committed
+ * 8. `promptFactConsumption` — exact observed prompt facts consumed only after their projection commits
  * 9. `nextAnnotationId` — transient annotation ID counter update
  * 10. `holderBatch` — delayed-trigger holder lifecycle writes (writes to [DelayedTriggerHolderTracker])
  * 11. `nextTransientLinkedFaceFamilyIds` — one-frame hidden-zone projection lifecycle
@@ -42,6 +35,7 @@ data class BridgeMutations(
     val instanceIdTransition: InstanceIdRegistry.Transition,
     /** Complete synthetic-effect state transition computed by the private planner. */
     val effectTransition: SyntheticEffectTransition,
+    val opponentKnowledgeTransition: OpponentKnowledgeTracker.Transition,
     /** Callback facts incorporated by the accepted effect transition. */
     val consumedEarthbendResolutions: List<GameBridge.EarthbendResolution> = emptyList(),
     val revealTransition: RevealProxyTracker.Transition? = null,
@@ -50,7 +44,7 @@ data class BridgeMutations(
     val retiredIds: List<InstanceId>,
     val zoneRecordings: List<Pair<InstanceId, Int>>,
     val persistentBatch: PersistentAnnotationStore.BatchResult,
-    val consumedTargetSpecs: List<PendingTargetSpecRecord> = emptyList(),
+    val promptFactConsumption: PromptFactConsumption = PromptFactConsumption(),
     /** Null until the complete transient frame has been finalized. */
     val nextAnnotationId: Int?,
     val holderBatch: HolderBatch,

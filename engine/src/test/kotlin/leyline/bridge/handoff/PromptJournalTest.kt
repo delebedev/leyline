@@ -61,6 +61,49 @@ class PromptJournalTest :
             }
         }
 
+        test("observed choice consumption preserves a later equal entry") {
+            val j = PromptJournal()
+            val result = PromptSideEffect.ChoiceResult(ForgeCardId(42), SeatId(1), choiceValue = 176)
+            j.record(result)
+            val observed = j.snapshotChoiceResults().single()
+            j.record(result)
+
+            j.consumeChoiceResults(listOf(observed))
+
+            j.snapshotChoiceResults().map { it.result } shouldBe listOf(result)
+        }
+
+        test("compare clear keeps replacement ambient facts") {
+            val j = PromptJournal()
+            val firstReveal = PromptSideEffect.RevealStarted(listOf(ForgeCardId(1)), SeatId(1))
+            val secondReveal = PromptSideEffect.RevealStarted(listOf(ForgeCardId(2)), SeatId(1))
+            val source = ForgeCardId(3)
+            val firstCollect = PromptSideEffect.CollectEvidenceCost(source, threshold = 4)
+            val secondCollect = PromptSideEffect.CollectEvidenceCost(source, threshold = 6)
+            val firstConvoke = PromptSideEffect.ConvokePayments(source, emptyList())
+            val secondConvoke = PromptSideEffect.ConvokePayments(source, listOf(PromptSideEffect.ConvokePayment(ForgeCardId(4), 7)))
+
+            j.record(firstReveal)
+            val observedReveal = j.activeRevealEntry()!!
+            j.record(firstCollect)
+            val observedCollect = j.activeCollectEvidenceEntry()!!
+            j.record(firstConvoke)
+            val observedConvoke = j.activeConvokePaymentEntries().single()
+            j.record(secondReveal)
+            j.record(secondCollect)
+            j.record(secondConvoke)
+
+            j.clearActiveReveal(observedReveal)
+            j.clearCollectEvidenceCost(observedCollect)
+            j.clearConvokePayments(observedConvoke)
+
+            assertSoftly {
+                j.activeReveal() shouldBe secondReveal
+                j.activeCollectEvidenceCost() shouldBe secondCollect
+                j.activeConvokePayments(source) shouldBe secondConvoke.payments
+            }
+        }
+
         test("resetForPuzzle clears everything") {
             val j = PromptJournal()
             j.record(PromptSideEffect.LegendVictim(ForgeCardId(1)))

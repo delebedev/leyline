@@ -5,7 +5,6 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
@@ -31,6 +30,7 @@ import leyline.game.state.HolderRecord
 import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PreparedDesignationKind
+import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.QualificationKind
 import leyline.game.state.TemporaryPermanentKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -81,6 +81,7 @@ internal object PersistentFeedBuilder {
         frameIds: FrameIdResolver,
         decayedCleanupSourcesThisGsm: Set<ForgeCardId>,
         transferResult: TransferResult,
+        promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
     ): PersistentFeedBuildResult {
         val qualification = buildQualificationAnnotations(snap, bridge, frameIds)
         val temporaryPermanent =
@@ -91,7 +92,7 @@ internal object PersistentFeedBuilder {
                 decayedCleanupSourcesThisGsm,
                 transferResult,
             )
-        val abilityWord = buildAbilityWordAnnotations(events, snap, prev, bridge, frameIds)
+        val abilityWord = buildAbilityWordAnnotations(events, snap, prev, bridge, frameIds, promptFacts)
         val context = PersistentFeedContext(bridge, frameIds)
         val designations = buildDesignationAnnotations(snap, context)
         val dayNightDesignation = buildDayNightDesignationAnnotations(snap)
@@ -319,6 +320,7 @@ internal object PersistentFeedBuilder {
         prev: GsmSnapshot?,
         bridge: GameBridge,
         frameIds: FrameIdResolver,
+        promptFacts: PromptProjectionFacts,
     ): List<AnnotationInfo> {
         val scanned =
             snap.abilityWordEntries.map { entry ->
@@ -342,15 +344,15 @@ internal object PersistentFeedBuilder {
                     ColorsSpentToCastFeedBuilder.build(events, frameIds).filterNot(scanned::contains),
             )
         return stackState +
-            collectEvidenceAbilityWordPersistentFromPrompt(events, bridge, frameIds) +
-            convokeCountAbilityWordPersistentFromPrompt(snap, bridge, frameIds) +
+            collectEvidenceAbilityWordPersistentFromPrompt(bridge, frameIds, promptFacts) +
+            convokeCountAbilityWordPersistentFromPrompt(snap, frameIds, promptFacts) +
             trainingAbilityWordPersistentFromEvents(events, snap, prev, bridge, frameIds)
     }
 
     private fun convokeCountAbilityWordPersistentFromPrompt(
         snap: GsmSnapshot,
-        bridge: GameBridge,
         frameIds: FrameIdResolver,
+        promptFacts: PromptProjectionFacts,
     ): List<AnnotationInfo> {
         val stackForgeIds =
             snap.zones[ZoneIds.STACK]
@@ -359,19 +361,18 @@ internal object PersistentFeedBuilder {
                 .orEmpty()
         if (stackForgeIds.isEmpty()) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
-        for (seatValue in bridge.allSeatIds().sorted()) {
-            val paymentsBySource = bridge.promptBridge(SeatId(seatValue)).journal.activeConvokePayments()
-            for ((sourceForgeCardId, payments) in paymentsBySource) {
-                if (payments.isEmpty() || sourceForgeCardId !in stackForgeIds) continue
-                annotations.add(
-                    AnnotationBuilder.abilityWordActive(
-                        instanceId = frameIds.cardIid(sourceForgeCardId),
-                        abilityWordName = "ConvokeCount",
-                        value = payments.size,
-                        abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE),
-                    ),
-                )
-            }
+        for (fact in promptFacts.convokePayments) {
+            val sourceForgeCardId = fact.sourceForgeCardId
+            val payments = fact.payments
+            if (payments.isEmpty() || sourceForgeCardId !in stackForgeIds) continue
+            annotations.add(
+                AnnotationBuilder.abilityWordActive(
+                    instanceId = frameIds.cardIid(sourceForgeCardId),
+                    abilityWordName = "ConvokeCount",
+                    value = payments.size,
+                    abilityGrpId = GrpId(KeywordAbilityIds.CONVOKE),
+                ),
+            )
         }
         return annotations
     }
@@ -529,15 +530,13 @@ internal object PersistentFeedBuilder {
             }?.first
 
     private fun collectEvidenceAbilityWordPersistentFromPrompt(
-        events: List<GameEvent>,
         bridge: GameBridge,
         frameIds: FrameIdResolver,
+        promptFacts: PromptProjectionFacts,
     ): List<AnnotationInfo> {
         val annotations = mutableListOf<AnnotationInfo>()
-        for (seatValue in bridge.allSeatIds().sorted()) {
-            val promptBridge = bridge.promptBridge(SeatId(seatValue))
-            val context = promptBridge.journal.activeCollectEvidenceCost() ?: continue
-            val clearAfterBuild = events.any { it is GameEvent.SpellCast && it.cardId == context.sourceForgeCardId }
+        for (fact in promptFacts.collectEvidenceCosts) {
+            val context = fact.context
             val sourceCard = bridge.findCard(context.sourceForgeCardId)
             val controller = sourceCard?.controller
             val abilityGrpId = sourceCard?.let { collectEvidenceAbilityGrpId(it.name, bridge) } ?: 0
@@ -551,9 +550,6 @@ internal object PersistentFeedBuilder {
                         abilityGrpId = GrpId(abilityGrpId),
                     ),
                 )
-            }
-            if (clearAfterBuild) {
-                promptBridge.journal.clearCollectEvidenceCost()
             }
         }
         return annotations

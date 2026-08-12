@@ -92,4 +92,23 @@ class InteractivePromptBridgeTest :
 
             bridge.findPendingOrderZoneMove(SeatId(1), cardIds) shouldBe null
         }
+
+        test("observed pending target consumption preserves a later equal target") {
+            val bridge = InteractivePromptBridge(timeoutMs = null)
+            val target =
+                InteractivePromptBridge.PendingTarget(
+                    spellForgeCardId = 1,
+                    spellName = "Murder",
+                    index = 1,
+                    affectorInstanceIdAtRecord = 10,
+                    affectees = listOf(InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = 2)),
+                )
+            bridge.addPendingTargetSpec(target)
+            val observed = bridge.snapshotPendingTargetSpecEntries().single()
+            bridge.addPendingTargetSpec(target)
+
+            bridge.consumePendingTargetSpecEntries(listOf(observed))
+
+            bridge.snapshotPendingTargetSpecs() shouldContainExactly listOf(target)
+        }
     })

@@ -12,6 +12,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -35,6 +36,8 @@ class AnnotationContext(
     val snap: GsmSnapshot,
     val frameIds: FrameIdResolver,
     val events: List<GameEvent>,
+    val promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+    val opponentKnowledge: List<InstanceId> = emptyList(),
     val transferResult: TransferResult? = null,
 ) {
     /** Private synthetic-effect planner for this tentative projection. */
@@ -45,21 +48,22 @@ class AnnotationContext(
      * card. Feeds mechanic-annotation resolution; the Convoke resolve emission
      * consumes the journal entries separately.
      */
-    fun activeConvokePaymentsBySource(): Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> {
-        val promptSeatIds = bridge.allSeatIds()
-        return events
+    fun activeConvokePaymentsBySource(): Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> =
+        events
             .filterIsInstance<GameEvent.SpellCast>()
             .filterNot { it.isAbility }
             .mapNotNull { ev ->
-                if (ev.seatId.value !in promptSeatIds) return@mapNotNull null
-                val payments = bridge.promptBridge(ev.seatId).journal.activeConvokePayments(ev.cardId)
+                val payments =
+                    promptFacts.convokePayments
+                        .firstOrNull { it.seatId == ev.seatId && it.sourceForgeCardId == ev.cardId }
+                        ?.payments
+                        .orEmpty()
                 if (payments.isEmpty()) {
                     null
                 } else {
                     ev.cardId to payments.map { it.toConvokePaymentRecord() }
                 }
             }.toMap()
-    }
 
     private fun PromptSideEffect.ConvokePayment.toConvokePaymentRecord(): TransferAnnotations.ConvokePaymentRecord =
         TransferAnnotations.ConvokePaymentRecord(

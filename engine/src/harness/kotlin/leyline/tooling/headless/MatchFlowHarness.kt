@@ -257,8 +257,15 @@ class MatchFlowHarness(
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
         val fullResult =
             StateMapper
-                .buildFromSnapshot(snap, 0, matchId, bridge, viewingSeatId = seatId.value)
-                .finalizeAnnotations()
+                .buildFromSnapshot(
+                    snap,
+                    0,
+                    matchId,
+                    bridge,
+                    viewingSeatId = seatId.value,
+                    events = bridge.closeBundleFrame(seatId.value),
+                    promptFacts = bridge.materializePromptProjectionFacts(),
+                ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)
         validatingSink?.seedFull(fullResult.gsm)

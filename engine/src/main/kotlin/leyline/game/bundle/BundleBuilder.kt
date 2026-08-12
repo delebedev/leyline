@@ -15,6 +15,7 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
+import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
@@ -22,6 +23,7 @@ import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
+import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
@@ -79,12 +81,7 @@ class BundleBuilder(
     )
 
     private data class FrameInput(
-        val gameStateId: Int,
-        val snap: GsmSnapshot,
-        val events: FrameEventLog,
-        val previousSnap: GsmSnapshot?,
-        val updateType: GameStateUpdate,
-        val revealForSeat: Int?,
+        val state: StateFrameInput,
     )
 
     private data class FrameDiff(
@@ -105,21 +102,33 @@ class BundleBuilder(
     ): FrameInput {
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
-        val events = eventsOverride ?: bridge.closeBundleFrame(seatId)
-        return FrameInput(nextGs, snap, events, cursor.lastSent, updateType(snap, events), revealForSeat)
+        val frameEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
+        val previousSnap = cursor.lastSent
+        val events =
+            FrameEventLog(
+                events = frameEvents.events + previousSnap?.let { SnapDeltaSynthesizer.synthesize(it, snap) }.orEmpty(),
+                zoneMoves = frameEvents.zoneMoves,
+            )
+        bridge.invalidateAbilityRegistries(events.events)
+        return FrameInput(
+            StateFrameInput(
+                gameStateId = nextGs,
+                snapshot = snap,
+                previousSnapshot = previousSnap,
+                events = events,
+                promptFacts = bridge.materializePromptProjectionFacts(),
+                updateType = updateType(snap, events),
+                viewingSeatId = seatId,
+                revealForSeat = revealForSeat,
+            ),
+        )
     }
 
     private fun compileFrame(input: FrameInput): StateMapper.BuildResult =
         StateMapper.buildDiff(
-            prev = input.previousSnap,
-            cur = input.snap,
-            events = input.events,
-            gameStateId = input.gameStateId,
+            input = input.state,
             matchId = matchId,
             bridge = bridge,
-            updateType = input.updateType,
-            viewingSeatId = seatId,
-            revealForSeat = input.revealForSeat,
         )
 
     private fun buildFrameDiff(
@@ -165,7 +174,7 @@ class BundleBuilder(
                         val attemptRiders =
                             annotationRiders
                                 ?.invoke(
-                                    input.snap,
+                                    input.state.snapshot,
                                     checkNotNull(draft.annotationFrameDraft).idResolver,
                                 )?.toMutableList()
                                 ?: riders.toMutableList()
@@ -175,21 +184,21 @@ class BundleBuilder(
                         }
                         val finalized = finalizeStateFrame(draft, attemptRiders, pendingSubmittedTargets)
                         bridge.diffListener?.invoke(
-                            input.previousSnap,
-                            input.snap,
-                            input.events,
-                            input.gameStateId,
+                            input.state.previousSnapshot,
+                            input.state.snapshot,
+                            input.state.events,
+                            input.state.gameStateId,
                             finalized.gsm,
                         )
                         commitProjection(finalized.projectionSnapshot, finalized.mutations, pendingSubmittedTargets)
                         finalized
                     }
                 return FrameDiff(
-                    input.gameStateId,
+                    input.state.gameStateId,
                     result.projectionSnapshot,
                     result,
-                    input.events,
-                    input.previousSnap,
+                    input.state.events,
+                    input.state.previousSnapshot,
                 )
             } catch (stale: StaleInstanceIdTransitionException) {
                 if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
@@ -851,7 +860,7 @@ class BundleBuilder(
                 return bridge.ids.withTentativeState {
                     bridge.revealProxies.withTentativeState {
                         val draft = compileFrame(input)
-                        val stagedMove = stagePendingOrderZoneMove(draft.gsm, input.snap, prompt, pendingMove)
+                        val stagedMove = stagePendingOrderZoneMove(draft.gsm, input.state.snapshot, prompt, pendingMove)
                         val stagedGsm = stagedMove?.gsm ?: draft.gsm
                         val mutations =
                             draft.mutations.copy(
@@ -861,17 +870,23 @@ class BundleBuilder(
                                 zoneRecordings = draft.mutations.zoneRecordings + (stagedMove?.zoneRecordings ?: emptyList()),
                             )
                         val finalized = finalizeStateFrame(draft.copy(gsm = stagedGsm, mutations = mutations), emptyList())
-                        bridge.diffListener?.invoke(input.previousSnap, input.snap, input.events, input.gameStateId, finalized.gsm)
+                        bridge.diffListener?.invoke(
+                            input.state.previousSnapshot,
+                            input.state.snapshot,
+                            input.state.events,
+                            input.state.gameStateId,
+                            finalized.gsm,
+                        )
                         commitProjection(stagedMove?.snap ?: finalized.projectionSnapshot, finalized.mutations)
                         pendingMove?.let {
                             bridge.promptBridge(SeatId(seatId)).acknowledgePendingOrderZoneMove(it)
                         }
                         FrameDiff(
-                            input.gameStateId,
+                            input.state.gameStateId,
                             finalized.projectionSnapshot,
                             finalized,
-                            input.events,
-                            input.previousSnap,
+                            input.state.events,
+                            input.state.previousSnapshot,
                             stagedMove != null,
                         )
                     }

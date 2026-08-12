@@ -566,15 +566,53 @@ class GameBridge(
 
     /** Snapshot pending target specs from all seat prompt bridges without consuming them. */
     fun snapshotPendingTargetSpecs(): List<PendingTargetSpecRecord> =
-        promptBridges.entries.flatMap { (seatId, prompt) ->
-            prompt.snapshotPendingTargetSpecs().map { PendingTargetSpecRecord(SeatId(seatId), it) }
+        promptBridges.toSortedMap().flatMap { (seatId, prompt) ->
+            prompt.snapshotPendingTargetSpecEntries().map { PendingTargetSpecRecord(SeatId(seatId), it) }
         }
 
-    /** Consume the pending target specs represented in an applied mapper result. */
-    fun consumePendingTargetSpecs(specs: List<PendingTargetSpecRecord>) {
-        specs.groupBy({ it.seatId }, { it.spec }).forEach { (seatId, targets) ->
-            promptBridge(seatId).consumePendingTargetSpecs(targets)
+    /** Materialize the prompt data projection needs for one immutable frame input. */
+    fun materializePromptProjectionFacts(): PromptProjectionFacts {
+        val choiceResults = mutableListOf<PromptProjectionFacts.ChoiceResultFact>()
+        val reveals = mutableListOf<PromptProjectionFacts.RevealFact>()
+        val convokePayments = mutableListOf<PromptProjectionFacts.ConvokePaymentsFact>()
+        val collectEvidenceCosts = mutableListOf<PromptProjectionFacts.CollectEvidenceFact>()
+        for ((seatValue, prompt) in promptBridges.toSortedMap()) {
+            val seatId = SeatId(seatValue)
+            choiceResults +=
+                prompt.journal.snapshotChoiceResults().map { PromptProjectionFacts.ChoiceResultFact(seatId, it) }
+            prompt.journal.activeRevealEntry()?.let { entry ->
+                reveals += PromptProjectionFacts.RevealFact(seatId, entry, prompt.getPendingPrompt() != null)
+            }
+            convokePayments +=
+                prompt.journal.activeConvokePaymentEntries().map { PromptProjectionFacts.ConvokePaymentsFact(seatId, it) }
+            prompt.journal.activeCollectEvidenceEntry()?.let { entry ->
+                collectEvidenceCosts += PromptProjectionFacts.CollectEvidenceFact(seatId, entry)
+            }
         }
+        return PromptProjectionFacts(
+            choiceResults = choiceResults.toList(),
+            reveals = reveals.toList(),
+            convokePayments = convokePayments.toList(),
+            collectEvidenceCosts = collectEvidenceCosts.toList(),
+            targetSpecs = snapshotPendingTargetSpecs().toList(),
+        )
+    }
+
+    /** Consume only the observed pending target records represented in an applied frame. */
+    fun consumePendingTargetSpecs(specs: List<PendingTargetSpecRecord>) {
+        specs.groupBy({ it.seatId }, { it.entry }).forEach { (seatId, entries) ->
+            promptBridge(seatId).consumePendingTargetSpecEntries(entries)
+        }
+    }
+
+    private fun consumePromptFacts(consumption: PromptFactConsumption) {
+        consumption.choiceResults.groupBy { it.seatId }.forEach { (seatId, facts) ->
+            promptBridge(seatId).journal.consumeChoiceResults(facts.map { it.entry })
+        }
+        consumption.staleReveals.forEach { fact -> promptBridge(fact.seatId).journal.clearActiveReveal(fact.entry) }
+        consumption.convokePayments.forEach { fact -> promptBridge(fact.seatId).journal.clearConvokePayments(fact.entry) }
+        consumption.collectEvidenceCosts.forEach { fact -> promptBridge(fact.seatId).journal.clearCollectEvidenceCost(fact.entry) }
+        consumePendingTargetSpecs(consumption.targetSpecs)
     }
 
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
@@ -615,9 +653,9 @@ class GameBridge(
      * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
      * Projection callers provide one validated identity transition; the
      * descriptive reallocations are not installed separately.
-     * Fixed order: identity, reveal, effects, and annotation journals validate
-     * before any family installs; then id reallocations → limbo retires → zone updates →
-     * persistent annotation batch → pending target specs → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
+     * Fixed order: identity, reveal, effects, opponent knowledge, and annotation
+     * journals validate before any family installs; then limbo retires → zone updates →
+     * persistent annotation batch → prompt facts → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
      *
      * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
      */
@@ -628,6 +666,9 @@ class GameBridge(
             }
         check(canCommitEffectProjection(m.effectTransition.expected)) {
             "Synthetic-effect transition is stale"
+        }
+        check(opponentKnowledge.canCommit(m.opponentKnowledgeTransition)) {
+            "Opponent-knowledge transition is stale"
         }
         if (!ids.canCommit(m.instanceIdTransition)) throw StaleInstanceIdTransitionException()
         m.revealTransition?.let { transition ->
@@ -646,12 +687,15 @@ class GameBridge(
             }
         }
         commitEffectProjection(m.effectTransition.expected, m.effectTransition.next)
+        check(opponentKnowledge.commit(m.opponentKnowledgeTransition)) {
+            "Opponent-knowledge transition is stale"
+        }
         commitAnnotationJournal(m.annotationJournalTransition)
         consumeEarthbendResolutions(m.consumedEarthbendResolutions)
         for (id in m.retiredIds) retireToLimbo(id)
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
         annotations.applyBatchResult(m.persistentBatch)
-        consumePendingTargetSpecs(m.consumedTargetSpecs)
+        consumePromptFacts(m.promptFactConsumption)
         annotations.setAnnotationId(nextAnnotationId)
         delayedTriggerHolders.apply(m.holderBatch)
         transientLinkedFaceFamilyIds = m.nextTransientLinkedFaceFamilyIds
@@ -1036,6 +1080,12 @@ class GameBridge(
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
     fun evictAbilityRegistry(forgeCardId: Int) {
         abilityRegistries.remove(forgeCardId)
+    }
+
+    /** Shell-side cache invalidation for normalized state-frame facts. */
+    fun invalidateAbilityRegistries(events: List<GameEvent>) {
+        events.filterIsInstance<GameEvent.CardTransformed>().forEach { evictAbilityRegistry(it.cardId.value) }
+        events.filterIsInstance<GameEvent.ZoneChanged>().forEach { evictAbilityRegistry(it.cardId.value) }
     }
 
     /**

@@ -23,7 +23,7 @@ object TargetSpecContributor : AnnotationContributor {
     override val rank: Int = 20
 
     override fun contribute(ctx: AnnotationContext): Contribution {
-        val pending = ctx.bridge.snapshotPendingTargetSpecs().map { it.spec }
+        val pending = ctx.promptFacts.targetSpecs.map { it.spec }
         return Contribution(persistent = mapOf(TargetSpecKind to buildTargetSpec(pending, ctx)))
     }
 

@@ -1,6 +1,5 @@
 package leyline.game.mapping
 
-import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -18,7 +17,6 @@ import leyline.game.bundle.GsmFrame
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
-import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.BridgeMutations
 import leyline.game.state.DelayedTriggerAffecteesKind
@@ -27,6 +25,8 @@ import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
 import leyline.game.state.HolderRecord
 import leyline.game.state.ProjectionAnnotationJournal
+import leyline.game.state.PromptFactConsumption
+import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
 import leyline.game.state.SyntheticEffectTransition
 import org.slf4j.LoggerFactory
@@ -80,22 +80,17 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Reads of live Forge state (deliberate bridge boundary):
  * - `bridge.snapshotBoosts()` / `bridge.snapshotKeywords()` — capture layered-
  *   effect snapshots for diff computation. Read-only at call site.
- * - `bridge.promptBridge(seat).journal.activeReveal()` — prompt-journal read
- *   for active-reveal detection. Journal state is still bridge-attached.
+ * - live Forge/card/reference data remains bridge-attached in this slice.
  *
  * Reads-then-writes on bridge-attached tracker state (not yet lifted onto snap):
  * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
  *   reveal-choose effects that span bundles.
- * - prompt journal drains and live Forge snapshots remain outside the current
- *   annotation-journal transition.
+ * - prompt-derived projection data arrives in [PromptProjectionFacts].
  * - `bridge.snapshotCrewState()` and `bridge.snapshotReconfigureState()` — live
  *   Forge snapshots. Their synthetic lifecycle reduction runs in the private
  *   [SyntheticEffectProjection.Planner] and returns through [BridgeMutations].
  *
- * Incidental in-stage writes:
- * - `bridge.evictAbilityRegistry(...)` — cache invalidation for zone-changed
- *   and transformed cards. Side-effectful but idempotent; ordering-irrelevant.
- * - identity and synthetic-effect allocations are tentative and returned in
+ * Identity and synthetic-effect allocations are tentative and returned in
  *   [BridgeMutations]; committed state remains unchanged until the shell
  *   validates and installs the complete plan.
  *
@@ -194,7 +189,8 @@ object StateMapper {
          * pass an explicit log so the frame closes once per bundle and the
          * mapper is pure on event inputs.
          */
-        events: FrameEventLog = bridge.closeBundleFrame(viewingSeatId),
+        events: FrameEventLog = FrameEventLog.EMPTY,
+        promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildFromSnapshotInternal(
@@ -208,6 +204,7 @@ object StateMapper {
                 revealForSeat = revealForSeat,
                 prev = prev,
                 events = events,
+                promptFacts = promptFacts,
                 annotationJournal = journal,
             )
         }
@@ -224,6 +221,7 @@ object StateMapper {
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
         events: FrameEventLog,
+        promptFacts: PromptProjectionFacts,
         annotationJournal: ProjectionAnnotationJournal.Planner,
     ): BuildResult {
         val effectPlanner = bridge.activeEffectPlanner()
@@ -257,18 +255,7 @@ object StateMapper {
 
         // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
         // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
-        // Snap delta drives PowerToughnessChanged + CardTransformed instead of a parallel
-        // diff in GameEventCollector — see SnapDeltaSynthesizer for the gating rules.
         val eventsMutable = events.events.toMutableList()
-        if (prev != null) {
-            eventsMutable += SnapDeltaSynthesizer.synthesize(prev, snap)
-        }
-        // Evict stale AbilityRegistry entries when card traits may be exposed
-        // differently on the new face or in the new zone.
-        for (ev in eventsMutable) {
-            if (ev is GameEvent.CardTransformed) bridge.evictAbilityRegistry(ev.cardId.value)
-            if (ev is GameEvent.ZoneChanged) bridge.evictAbilityRegistry(ev.cardId.value)
-        }
         val initEffectDiff = effectPlanner.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = effectPlanner.effects.diffBoosts(boostSnapshot)
@@ -355,8 +342,9 @@ object StateMapper {
         }
         zones.add(limboZone.build())
 
-        // Detect active reveal-choose effect, clearing stale state if engine skipped the choice.
-        val activeReveal = detectActiveReveal(bridge)
+        // Classify a stale reveal from materialized prompt facts. Its compare-and-clear
+        // intent returns with this draft and runs only after an accepted commit.
+        val (activeReveal, staleReveals) = detectActiveReveal(promptFacts, bridge.revealProxies.isEmpty)
         val revealedHandSeat = activeReveal?.ownerSeatId?.value
 
         // Player 1 zones
@@ -441,6 +429,8 @@ object StateMapper {
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
         val frameIds = FrameIdResolver(bridge, FrameIdResolver.postReallocIids(transferResult))
+        val (opponentKnowledge, opponentKnowledgeTransition) =
+            bridge.opponentKnowledge.plan(snap, frameIds, eventsMutable)
         val resolvedStackAbilityIids =
             eventsMutable
                 .filterIsInstance<GameEvent.SpellResolved>()
@@ -462,9 +452,18 @@ object StateMapper {
             )
 
         val convokeCtx =
-            AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = eventsMutable, transferResult = transferResult)
+            AnnotationContext(
+                bridge = bridge,
+                snap = snap,
+                frameIds = frameIds,
+                events = eventsMutable,
+                promptFacts = promptFacts,
+                opponentKnowledge = opponentKnowledge,
+                transferResult = transferResult,
+            )
         val convokePaymentsBySource = convokeCtx.activeConvokePaymentsBySource()
-        annotations.addAll(ConvokeContributor.contribute(convokeCtx).transient)
+        val convokePlan = ConvokeContributor.plan(convokeCtx)
+        annotations.addAll(convokePlan.transient)
 
         val decayedCleanupSourcesThisGsm =
             updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult, frameIds, annotationJournal)
@@ -478,6 +477,7 @@ object StateMapper {
                 frameIds = frameIds,
                 decayedCleanupSourcesThisGsm = decayedCleanupSourcesThisGsm,
                 transferResult = transferResult,
+                promptFacts = promptFacts,
             )
         val carriedHolders =
             delayedTriggerHoldersAwaitingLiveAbility(
@@ -572,6 +572,8 @@ object StateMapper {
                 snap = snap,
                 frameIds = frameIds,
                 events = eventsMutable,
+                promptFacts = promptFacts,
+                opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
             )
         val remaining =
@@ -622,6 +624,7 @@ object StateMapper {
                         expected = bridge.committedEffectProjection(),
                         next = bridge.tentativeEffectProjection(),
                     ),
+                opponentKnowledgeTransition = opponentKnowledgeTransition,
                 consumedEarthbendResolutions = earthbendResolutions,
                 revealTransition = bridge.revealProxies.tentativeTransition(),
                 annotationJournalTransition = annotationJournal.transition(),
@@ -629,7 +632,17 @@ object StateMapper {
                 retiredIds = transferResult.retiredIds.map { InstanceId(it) },
                 zoneRecordings = transferResult.zoneRecordings.map { (iid, zid) -> InstanceId(iid) to zid },
                 persistentBatch = remaining.batch,
-                consumedTargetSpecs = remaining.consumedTargetSpecs,
+                promptFactConsumption =
+                    PromptFactConsumption(
+                        choiceResults = promptFacts.choiceResults,
+                        staleReveals = staleReveals,
+                        convokePayments = convokePlan.consumedPayments,
+                        collectEvidenceCosts =
+                            promptFacts.collectEvidenceCosts.filter { fact ->
+                                eventsMutable.any { it is GameEvent.SpellCast && it.cardId == fact.context.sourceForgeCardId }
+                            },
+                        targetSpecs = remaining.consumedTargetSpecs,
+                    ),
                 nextAnnotationId = null,
                 holderBatch = holderBatch,
                 diffDeletedInstanceIds =
@@ -705,6 +718,30 @@ object StateMapper {
      */
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     fun buildDiff(
+        input: StateFrameInput,
+        matchId: String,
+        bridge: GameBridge,
+        actions: ActionsAvailableReq? = null,
+    ): BuildResult =
+        withTentativeProjectionState(bridge) { journal ->
+            buildDiffInternal(
+                prev = input.previousSnapshot,
+                cur = input.snapshot,
+                events = input.events,
+                promptFacts = input.promptFacts,
+                gameStateId = input.gameStateId,
+                matchId = matchId,
+                bridge = bridge,
+                actions = actions,
+                updateType = input.updateType,
+                viewingSeatId = input.viewingSeatId,
+                revealForSeat = input.revealForSeat,
+                annotationJournal = journal,
+            )
+        }
+
+    @Suppress("LongParameterList")
+    fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
         events: FrameEventLog,
@@ -715,12 +752,14 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+        promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildDiffInternal(
                 prev = prev,
                 cur = cur,
                 events = events,
+                promptFacts = promptFacts,
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -737,6 +776,7 @@ object StateMapper {
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
         events: FrameEventLog,
+        promptFacts: PromptProjectionFacts,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -760,6 +800,7 @@ object StateMapper {
                 annotationJournal = annotationJournal,
                 prev = null,
                 events = events,
+                promptFacts = promptFacts,
             )
         }
 
@@ -784,6 +825,7 @@ object StateMapper {
                 annotationJournal = annotationJournal,
                 prev = prev,
                 events = events,
+                promptFacts = promptFacts,
             )
         }
 
@@ -798,6 +840,7 @@ object StateMapper {
                 annotationJournal = annotationJournal,
                 prev = prev,
                 events = events,
+                promptFacts = promptFacts,
             )
         val current = fullResult.gsm
         val projectedCur = fullResult.projectionSnapshot
@@ -827,7 +870,8 @@ object StateMapper {
                 .toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
         val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
-        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(SeatId(it)).journal.activeReveal() != null }
+        val activeReveal = promptFacts.activeReveal
+        val hasActiveReveal = activeReveal != null
         // Protocol-only zones not tracked in GsmSnapshot must always be included when non-empty:
         //   - Limbo (id=30): grows monotonically; always send when it has content.
         //   - REVEALED_P1/P2 (id=18/19): synthesized by applyRevealProxies during active reveal.
@@ -835,20 +879,9 @@ object StateMapper {
         //     ZoneSnapshot still records Private, so snap equality check misses the change.
         val opponentRevealedHandZoneId: Int? =
             when {
-                hasActiveReveal -> {
-                    val ownerSeat =
-                        bridge
-                            .allSeatIds()
-                            .firstNotNullOfOrNull {
-                                bridge
-                                    .promptBridge(SeatId(it))
-                                    .journal
-                                    .activeReveal()
-                                    ?.ownerSeatId
-                                    ?.value
-                            }
-                    ownerSeat?.let { ZoneIds.handOf(it) }
-                }
+                hasActiveReveal ->
+                    activeReveal.reveal.ownerSeatId.value
+                        .let { ZoneIds.handOf(it) }
                 else -> null
             }
         val hasStackRetirement = fullResult.mutations.diffDeletedInstanceIds.isNotEmpty()
@@ -1392,22 +1425,18 @@ object StateMapper {
         }
     }
 
-    /**
-     * Find the active reveal across all seats, or null. Clears stale reveals where
-     * proxies were synthesized but the engine skipped the choice method
-     * (e.g., Duress vs all-creature hand → DiscardEffect short-circuits at max==0).
-     */
-    private fun detectActiveReveal(bridge: GameBridge): PromptSideEffect.RevealStarted? =
-        bridge.allSeatIds().firstNotNullOfOrNull { seatId ->
-            val prompt = bridge.promptBridge(SeatId(seatId))
-            val reveal = prompt.journal.activeReveal() ?: return@firstNotNullOfOrNull null
-            if (!bridge.revealProxies.isEmpty && prompt.getPendingPrompt() == null) {
-                TargetingCoordinator.Companion.endReveal(prompt) // stale — engine skipped choice
-                null
-            } else {
-                reveal
-            }
+    /** Classify stale reveal state without touching the prompt journal. */
+    private fun detectActiveReveal(
+        promptFacts: PromptProjectionFacts,
+        revealProxiesEmpty: Boolean,
+    ): Pair<PromptSideEffect.RevealStarted?, List<PromptProjectionFacts.RevealFact>> {
+        val reveal = promptFacts.activeReveal ?: return null to emptyList()
+        return if (!revealProxiesEmpty && !reveal.hasPendingPrompt) {
+            null to listOf(reveal)
+        } else {
+            reveal.reveal to emptyList()
         }
+    }
 
     /** Synthesize short-lived RevealedCard views for semantic reveal events and
      * keep them alive while a reveal-choose prompt remains active. */
