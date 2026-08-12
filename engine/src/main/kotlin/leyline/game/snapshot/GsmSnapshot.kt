@@ -46,6 +46,28 @@ class GsmSnapshot internal constructor(
      *  fallback is a no-op for consumers. */
     val activePlayerSpellsCastThisTurn: Int = 0,
 ) {
+    /** Applies cut-scoped Earthbend projection without mutating the source snapshot. */
+    internal fun withEarthbendProjection(projectionFor: (ForgeCardId) -> EarthbendProjection?): GsmSnapshot =
+        GsmSnapshot(
+            matchId = matchId,
+            gameStateId = gameStateId,
+            seats = seats,
+            zones = zones,
+            boundCards =
+                boundCards.mapValues { (forgeCardId, bound) ->
+                    bound.copy(snapshot = bound.snapshot.copy(earthbend = projectionFor(forgeCardId)))
+                },
+            stack = stack,
+            phase = phase,
+            combat = combat,
+            abilityWordEntries = abilityWordEntries,
+            pendingTriggers = pendingTriggers,
+            persistentAnnotationState = persistentAnnotationState,
+            capturedAt = capturedAt,
+            dayTime = dayTime,
+            activePlayerSpellsCastThisTurn = activePlayerSpellsCastThisTurn,
+        )
+
     /**
      * Derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
      * ForgeCardId. Memoized — diff-time loops iterate `snap.objects`

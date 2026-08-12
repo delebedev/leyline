@@ -1,5 +1,7 @@
 package leyline.game.bundle
 
+import forge.card.CardType
+import forge.card.RemoveType
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -45,6 +47,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import java.util.EnumSet
 import kotlin.concurrent.thread
 
 /**
@@ -762,7 +765,7 @@ class BundleBuilderTest :
         }
 
         test("interleaved identity allocation replays effect state exactly once") {
-            fun compile(interleaveWriter: Boolean): Pair<List<List<Byte>>, leyline.game.state.EffectTracker.State> {
+            fun compile(interleaveWriter: Boolean): Pair<List<List<Byte>>, leyline.game.state.SyntheticEffectProjection> {
                 val (b, game, counter) =
                     startWithBoard { _, human, _ ->
                         addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -799,13 +802,65 @@ class BundleBuilderTest :
                 }
                 val gsm = result.messages.first().gameStateMessage
                 gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
-                return result.messages.map { it.toByteArray().toList() } to b.effects.snapshotState()
+                return result.messages.map { it.toByteArray().toList() } to b.committedEffectProjection()
             }
 
             val control = compile(interleaveWriter = false)
             val retried = compile(interleaveWriter = true)
 
             retried shouldBe control
+        }
+
+        test("Earthbend commits its enriched snapshot and does not re-emit an unchanged target") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            val target =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            target.addNewPT(0, 0, 123L, 0L)
+            target.addChangedCardTypes(
+                CardType(listOf("Creature"), true),
+                null,
+                false,
+                EnumSet.noneOf(RemoveType::class.java),
+                123L,
+                0L,
+                true,
+                false,
+            )
+            target.addChangedCardKeywords(listOf("Haste"), null, false, 123L, null)
+            b.recordEarthbendResolution(
+                sourceCardId = ForgeCardId(target.id),
+                sourceAbilityGrpId = 42,
+                abilityForgeId = 0,
+                targetCardIds = listOf(ForgeCardId(target.id)),
+            )
+            val builder = bundleBuilder(b)
+
+            val first =
+                builder
+                    .stateOnlyDiff(game, counter)
+                    .messages
+                    .first()
+                    .gameStateMessage
+            val second =
+                builder
+                    .stateOnlyDiff(game, counter)
+                    .messages
+                    .first()
+                    .gameStateMessage
+
+            assertSoftly {
+                first.gameObjectsList.map { it.instanceId } shouldBe listOf(b.instanceId(target.id))
+                first.persistentAnnotationsList.count {
+                    AnnotationType.AddAbility_af5a in it.typeList && AnnotationType.LayeredEffect in it.typeList
+                } shouldBe 1
+                second.gameObjectsList shouldBe emptyList()
+            }
         }
 
         test("replaced submitted-target rider aborts before bridge mutations commit") {

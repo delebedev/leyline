@@ -12,6 +12,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.game.state.SyntheticEffectProjection
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
@@ -36,6 +37,9 @@ class AnnotationContext(
     val events: List<GameEvent>,
     val transferResult: TransferResult? = null,
 ) {
+    /** Private synthetic-effect planner for this tentative projection. */
+    internal val effects: SyntheticEffectProjection.Planner get() = bridge.activeEffectPlanner()
+
     /**
      * Convoke payments still pending per cast spell this frame, keyed by source
      * card. Feeds mechanic-annotation resolution; the Convoke resolve emission

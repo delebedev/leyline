@@ -33,13 +33,16 @@ data class PendingTargetSpecRecord(
  * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
  * not applied to bridge state; the rest of this batch still owns bridge writes.
  *
- * Scope: identity allocation is a complete tentative transition. Effect state
- * is checkpointed only at the projection retry boundary so a discarded stale
- * attempt can be replayed; it is not installed through this mutation batch.
- * Other tracker families remain explicit follow-up work.
+ * Scope: identity, reveal, and synthetic-effect lifecycles are complete
+ * tentative transitions. The shell validates their baselines before installing
+ * any projection state; a discarded plan leaves every family unchanged.
  */
 data class BridgeMutations(
     val instanceIdTransition: InstanceIdRegistry.Transition,
+    /** Complete synthetic-effect state transition computed by the private planner. */
+    val effectTransition: SyntheticEffectTransition,
+    /** Callback facts incorporated by the accepted effect transition. */
+    val consumedEarthbendResolutions: List<GameBridge.EarthbendResolution> = emptyList(),
     val revealTransition: RevealProxyTracker.Transition? = null,
     val idReallocations: List<InstanceIdRegistry.IdReallocation>,
     val retiredIds: List<InstanceId>,
@@ -53,4 +56,10 @@ data class BridgeMutations(
     val diffDeletedInstanceIds: List<InstanceId> = emptyList(),
     /** Linked-face family objects to delete on the following GSM. */
     val nextTransientLinkedFaceFamilyIds: Set<InstanceId> = emptySet(),
+)
+
+/** One compare-and-install transition for all synthetic effect families. */
+data class SyntheticEffectTransition(
+    val expected: SyntheticEffectProjection,
+    val next: SyntheticEffectProjection,
 )

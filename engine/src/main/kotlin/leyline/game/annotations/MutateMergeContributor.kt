@@ -18,7 +18,6 @@ object MutateMergeContributor : AnnotationContributor {
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val snap = ctx.snap
-        val bridge = ctx.bridge
         val frameIds = ctx.frameIds
         val transient = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
@@ -30,7 +29,7 @@ object MutateMergeContributor : AnnotationContributor {
             val key = componentIid to targetIid
             currentKeys.add(key)
 
-            val allocation = bridge.getOrAllocMutateMergeEffectId(componentIid, targetIid)
+            val allocation = ctx.effects.mutate.getOrAlloc(componentIid to targetIid)
             if (allocation.created) {
                 transient.add(
                     AnnotationBuilder.layeredEffectCreated(
@@ -57,7 +56,7 @@ object MutateMergeContributor : AnnotationContributor {
             )
         }
 
-        for (effectId in bridge.releaseMutateMergeEffects(currentKeys)) {
+        for (effectId in ctx.effects.mutate.releaseMissing(currentKeys)) {
             transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
         }
 

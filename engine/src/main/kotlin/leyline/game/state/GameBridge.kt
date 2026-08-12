@@ -42,7 +42,6 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.EarthbendProjection
@@ -467,10 +466,53 @@ class GameBridge(
     /** Actual hidden-zone identities whose reveal remains known to the opponent. */
     val opponentKnowledge: OpponentKnowledgeTracker = OpponentKnowledgeTracker()
 
-    /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
-    val effects = EffectTracker()
+    /** Committed synthetic-effect projection state. Compiles receive a private planner. */
+    private var syntheticEffects = SyntheticEffectProjection.initial()
+    private var effectPlanner: SyntheticEffectProjection.Planner? = null
 
-    private val earthbend = EarthbendTracker()
+    data class EarthbendResolution(
+        val sourceCardId: ForgeCardId,
+        val sourceAbilityGrpId: Int,
+        val abilityForgeId: Int,
+        val targetCardIds: List<ForgeCardId>,
+    )
+
+    private val pendingEarthbendResolutions = mutableListOf<EarthbendResolution>()
+
+    internal fun <T> withTentativeEffectProjection(block: (SyntheticEffectProjection.Planner) -> T): T {
+        check(effectPlanner == null) { "Nested synthetic-effect projection is not supported" }
+        val planner = SyntheticEffectProjection.Planner(syntheticEffects)
+        effectPlanner = planner
+        return try {
+            block(planner)
+        } finally {
+            effectPlanner = null
+        }
+    }
+
+    internal fun tentativeEffectProjection(): SyntheticEffectProjection =
+        checkNotNull(effectPlanner) { "Synthetic-effect state is only available while compiling a projection" }.freeze()
+
+    internal fun activeEffectPlanner(): SyntheticEffectProjection.Planner =
+        checkNotNull(effectPlanner) { "Synthetic-effect state is only available while compiling a projection" }
+
+    internal fun committedEffectProjection(): SyntheticEffectProjection = syntheticEffects
+
+    internal fun canCommitEffectProjection(expected: SyntheticEffectProjection): Boolean = syntheticEffects == expected
+
+    private fun commitEffectProjection(
+        expected: SyntheticEffectProjection,
+        next: SyntheticEffectProjection,
+    ) {
+        check(syntheticEffects == expected) { "Synthetic-effect transition is stale" }
+        syntheticEffects = next
+    }
+
+    internal fun pendingEarthbendResolutions(): List<EarthbendResolution> = pendingEarthbendResolutions.toList()
+
+    private fun consumeEarthbendResolutions(resolutions: List<EarthbendResolution>) {
+        pendingEarthbendResolutions.removeAll(resolutions.toSet())
+    }
 
     /** Cached token grpId per instanceId — stable across diff ticks. */
     val tokenRegistry = TokenIdentityRegistry()
@@ -511,42 +553,27 @@ class GameBridge(
         decayedCleanupSources.clear()
     }
 
+    /** Records callback data; synthetic ids and lifecycle changes belong to projection compilation. */
     fun recordEarthbendResolution(
         sourceCardId: ForgeCardId,
         sourceAbilityGrpId: Int,
         abilityForgeId: Int,
         targetCardIds: List<ForgeCardId>,
     ) {
-        val source = findCard(sourceCardId) ?: return
-        val sourceGrpId = grpIdFor(sourceCardId) ?: 0
-        val sourceIid = ids.getOrAlloc(sourceCardId)
-        val resolvingIid =
-            if (abilityForgeId != 0) {
-                ids.getOrAlloc(FrameIdResolver.Companion.triggerStackAbilityForgeId(abilityForgeId))
-            } else {
-                sourceIid
-            }
-        val targets = targetCardIds.mapNotNull { findCard(it) }
-        earthbend.recordResolution(
-            sourceInstanceId = sourceIid,
-            sourceCardGrpId = sourceGrpId,
-            sourceAbilityGrpId = sourceAbilityGrpId,
-            resolvingInstanceId = resolvingIid,
-            targetCards = targets,
-            targetInstanceId = { ids.getOrAlloc(it) },
-            nextEffectId = { effects.nextEffectId() },
-        )
+        pendingEarthbendResolutions += EarthbendResolution(sourceCardId, sourceAbilityGrpId, abilityForgeId, targetCardIds)
     }
 
-    fun earthbendProjectionFor(card: Card): EarthbendProjection? = earthbend.projectionFor(card)
+    fun earthbendProjectionFor(card: Card): EarthbendProjection? =
+        EarthbendTracker().also { it.load(syntheticEffects.earthbend) }.projectionFor(card)
 
     fun isEarthbendHasteKeyword(
         card: Card,
         timestamp: Long,
         staticId: Long,
-    ): Boolean = earthbend.isEarthbendHasteKeyword(card, timestamp, staticId)
+    ): Boolean = EarthbendTracker().also { it.load(syntheticEffects.earthbend) }.isEarthbendHasteKeyword(card, timestamp, staticId)
 
-    fun drainEarthbendFrame(): EarthbendTracker.Frame = earthbend.drainFrame(battlefieldCards())
+    internal fun drainEarthbendFrame(): EarthbendTracker.Frame =
+        checkNotNull(effectPlanner) { "Earthbend frame drain belongs to projection compilation" }.earthbend.drainFrame(battlefieldCards())
 
     data class LibraryArrangementResult(
         val seatId: SeatId,
@@ -574,33 +601,6 @@ class GameBridge(
         pendingLibraryArrangements.remove(match)
         return match
     }
-
-    private val crewEffects = SyntheticEffectLifecycle<ForgeCardId> { effects.nextEffectId() }
-    private val reconfigureEffects = SyntheticEffectLifecycle<ForgeCardId> { effects.nextEffectId() }
-
-    /** Get or allocate a synthetic effect ID for a crewed vehicle's type-change effect. */
-    internal fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int = crewEffects.getOrAllocId(vehicleId)
-
-    internal fun getOrAllocReconfigureEffectId(cardId: ForgeCardId): SyntheticEffectLifecycle.Allocation =
-        reconfigureEffects.getOrAlloc(cardId)
-
-    /** Release expired crew effects. Returns effectIds that were removed. */
-    internal fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> = crewEffects.releaseMissing(currentCrewedIds)
-
-    internal fun releaseReconfigureEffects(currentAttachedIds: Set<ForgeCardId>): List<Int> =
-        reconfigureEffects.releaseMissing(currentAttachedIds)
-
-    private val mutateMergeEffects = SyntheticEffectLifecycle<Pair<Int, Int>> { effects.nextEffectId() }
-
-    internal fun getOrAllocMutateMergeEffectId(
-        componentInstanceId: Int,
-        targetInstanceId: Int,
-    ): SyntheticEffectLifecycle.Allocation {
-        val key = componentInstanceId to targetInstanceId
-        return mutateMergeEffects.getOrAlloc(key)
-    }
-
-    internal fun releaseMutateMergeEffects(currentKeys: Set<Pair<Int, Int>>): List<Int> = mutateMergeEffects.releaseMissing(currentKeys)
 
     /** Snapshot pending target specs from all seat prompt bridges without consuming them. */
     fun snapshotPendingTargetSpecs(): List<PendingTargetSpecRecord> =
@@ -663,6 +663,12 @@ class GameBridge(
             checkNotNull(m.nextAnnotationId) {
                 "Cannot apply bridge mutations before annotation frame finalization"
             }
+        check(canCommitEffectProjection(m.effectTransition.expected)) {
+            "Synthetic-effect transition is stale"
+        }
+        m.revealTransition?.let { transition ->
+            check(revealProxies.canCommit(transition)) { "Reveal identity transition is stale" }
+        }
         check(ids.commit(m.instanceIdTransition)) {
             throw StaleInstanceIdTransitionException()
         }
@@ -672,6 +678,8 @@ class GameBridge(
                 "Reveal identity transition is stale"
             }
         }
+        commitEffectProjection(m.effectTransition.expected, m.effectTransition.next)
+        consumeEarthbendResolutions(m.consumedEarthbendResolutions)
         for (id in m.retiredIds) retireToLimbo(id)
         for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
         annotations.applyBatchResult(m.persistentBatch)
@@ -1400,15 +1408,12 @@ class GameBridge(
         val deletedIds = ids.resetAll().map { it.value }
         limbo.clear()
         diff.resetAll()
-        effects.resetAll()
-        earthbend.resetAll()
+        syntheticEffects = SyntheticEffectProjection.initial()
+        pendingEarthbendResolutions.clear()
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
         abilityLineage.resetAll()
         resetDecayedCleanupSources()
-        crewEffects.clear()
-        reconfigureEffects.clear()
-        mutateMergeEffects.clear()
         abilityRegistries.clear()
         paradigmSourceStackIids.clear()
         selectedModalAbilityGrpIds.clear()
@@ -1692,7 +1697,7 @@ class GameBridge(
      * Returns map of cardInstanceId -> keyword entries from Forge's changedCardKeywords table (Layer 6).
      * Direct parallel to [snapshotBoosts] for P/T.
      */
-    fun snapshotKeywords(): Map<Int, List<EffectTracker.KeywordEntry>> {
+    fun snapshotKeywords(earthbend: EarthbendTracker? = null): Map<Int, List<EffectTracker.KeywordEntry>> {
         val game = game ?: return emptyMap()
         val result = mutableMapOf<Int, MutableList<EffectTracker.KeywordEntry>>()
         for (player in game.players) {
@@ -1705,7 +1710,10 @@ class GameBridge(
                     val staticId = cell.columnKey
                     for (kw in cell.value.keywords) {
                         val keyword = kw.keyword.toString()
-                        if (keyword == "Haste" && isEarthbendHasteKeyword(card, timestamp, staticId)) continue
+                        val earthbendHaste =
+                            earthbend?.isEarthbendHasteKeyword(card, timestamp, staticId)
+                                ?: isEarthbendHasteKeyword(card, timestamp, staticId)
+                        if (keyword == "Haste" && earthbendHaste) continue
                         result
                             .getOrPut(instanceId.value) { mutableListOf() }
                             .add(EffectTracker.KeywordEntry(timestamp, staticId, keyword))

@@ -7,7 +7,7 @@ package leyline.game.state
  * keep an id while a key is live, allocate an id for a new key, and release ids
  * whose keys disappear from the current frame.
  */
-internal class SyntheticEffectLifecycle<K>(
+class SyntheticEffectLifecycle<K>(
     private val nextEffectId: () -> Int,
 ) {
     data class Allocation(
@@ -16,6 +16,17 @@ internal class SyntheticEffectLifecycle<K>(
     )
 
     private val active = mutableMapOf<K, Int>()
+
+    data class State<K>(
+        val active: Map<K, Int>,
+    )
+
+    fun freeze(): State<K> = State(active.toMap())
+
+    fun load(state: State<K>) {
+        active.clear()
+        active.putAll(state.active)
+    }
 
     fun getOrAllocId(key: K): Int = active.getOrPut(key, nextEffectId)
 

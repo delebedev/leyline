@@ -14,8 +14,8 @@ import leyline.game.snapshot.EarthbendProjection
  * set base P/T to 0/0, add Creature, add Haste, then add +1/+1 counters. The
  * client protocol represents that as four sibling LayeredEffect rows. Repeated
  * Earthbend on the same land refreshes those four rows, even though the engine
- * can keep equivalent older layer entries around. This tracker turns the live
- * Forge layer signature into that four-row protocol lifecycle.
+ * can keep equivalent older layer entries around. A projection planner owns the
+ * mutable tracker; its frozen value commits with the accepted frame.
  */
 class EarthbendTracker {
     data class Signature(
@@ -50,10 +50,36 @@ class EarthbendTracker {
         val active: List<Active>,
     )
 
+    /** Complete lifecycle value used by a tentative projection planner. */
+    data class State(
+        val activeByTarget: Map<ForgeCardId, Active>,
+        val pendingDestroyedLayerIds: List<Int>,
+        val pendingCreated: List<Active>,
+        val nextUniqueAbilityId: Int,
+    )
+
     private val activeByTarget = linkedMapOf<ForgeCardId, Active>()
     private val pendingDestroyedLayerIds = mutableListOf<Int>()
     private val pendingCreated = mutableListOf<Active>()
     private var nextUniqueAbilityId = INITIAL_UNIQUE_ABILITY_ID
+
+    fun freeze(): State =
+        State(
+            activeByTarget = activeByTarget.toMap(),
+            pendingDestroyedLayerIds = pendingDestroyedLayerIds.toList(),
+            pendingCreated = pendingCreated.toList(),
+            nextUniqueAbilityId = nextUniqueAbilityId,
+        )
+
+    fun load(state: State) {
+        activeByTarget.clear()
+        activeByTarget.putAll(state.activeByTarget)
+        pendingDestroyedLayerIds.clear()
+        pendingDestroyedLayerIds.addAll(state.pendingDestroyedLayerIds)
+        pendingCreated.clear()
+        pendingCreated.addAll(state.pendingCreated)
+        nextUniqueAbilityId = state.nextUniqueAbilityId
+    }
 
     fun resetAll() {
         activeByTarget.clear()

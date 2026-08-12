@@ -79,7 +79,7 @@ object AnnotationPipeline {
      * - Mechanic-scoped transient annotation independent of spine ordering →
      *   an [AnnotationContributor] entry here.
      * - Effect-id-lifecycle annotation (boost/keyword-style continuous effect)
-     *   → the [EffectTracker] diff channel (`bridge.effects` in `StateMapper`),
+     *   → the [EffectTracker] diff channel in the tentative projection planner,
      *   not this registry.
      */
     val contributors: List<AnnotationContributor> =
@@ -745,7 +745,7 @@ object AnnotationPipeline {
                 events,
                 manaPaidForgeCardIds,
                 idResolver = { fid -> frameIds.cardIid(fid) },
-                effectIdAllocator = { leyline.bridge.types.EffectId(bridge.effects.nextEffectId()) },
+                effectIdAllocator = { leyline.bridge.types.EffectId(ctx.effects.effects.nextEffectId()) },
                 activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
                 manaAbilityGrpIdResolver = { fid ->
                     val card = bridge.getGame()?.let { leyline.bridge.findCard(it, fid) }
@@ -850,7 +850,7 @@ object AnnotationPipeline {
                         null
                     }
                 },
-                uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
+                uniqueAbilityIdAllocator = { ctx.effects.effects.nextEffectId() },
                 keywordExtraAbilityGrpIds = { instanceId, keyword ->
                     if (keyword == "Menace" && instanceId.value in suspectedIids) {
                         listOf(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID)
