@@ -247,7 +247,7 @@ class PureDiffReplayTest :
 
                 assertSoftly {
                     first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
-                    first.mutations.instanceIdTransition?.nextState shouldBe second.mutations.instanceIdTransition?.nextState
+                    first.mutations.instanceIdTransition.nextState shouldBe second.mutations.instanceIdTransition.nextState
                     afterFirst shouldBe before
                     afterSecond shouldBe before
                 }

@@ -90,13 +90,13 @@ class InteractivePromptBridge(
         pendingOrderZoneMoves.add(move)
     }
 
-    fun pollPendingOrderZoneMove(
+    fun findPendingOrderZoneMove(
         seatId: SeatId,
         forgeCardIds: List<ForgeCardId>,
-    ): PendingOrderZoneMove? {
-        val match = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds } ?: return null
-        pendingOrderZoneMoves.remove(match)
-        return match
+    ): PendingOrderZoneMove? = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds }
+
+    fun acknowledgePendingOrderZoneMove(move: PendingOrderZoneMove) {
+        pendingOrderZoneMoves.remove(move)
     }
 
     // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---

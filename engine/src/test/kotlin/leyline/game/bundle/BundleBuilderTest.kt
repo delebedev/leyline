@@ -761,27 +761,51 @@ class BundleBuilderTest :
             }
         }
 
-        test("interleaved identity allocation retries the same projection input") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
-            val builder = bundleBuilder(b)
-            val interleavedForgeId = ForgeCardId(1_000_000)
-            var writerRan = false
-            b.diffListener = { _, _, _, _, _ ->
-                if (!writerRan) {
-                    writerRan = true
-                    val writer = thread(start = true) { b.ids.getOrAlloc(interleavedForgeId) }
-                    writer.join()
+        test("interleaved identity allocation replays effect state exactly once") {
+            fun compile(interleaveWriter: Boolean): Pair<List<List<Byte>>, leyline.game.state.EffectTracker.State> {
+                val (b, game, counter) =
+                    startWithBoard { _, human, _ ->
+                        addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    }
+                val card =
+                    game.humanPlayer
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .single()
+                card.addPTBoost(1, 1, 123L, 456L)
+                val builder = bundleBuilder(b)
+                val interleavedForgeId = ForgeCardId(1_000_000)
+                var writerRan = false
+                if (interleaveWriter) {
+                    b.diffListener = { _, _, _, _, _ ->
+                        if (!writerRan) {
+                            writerRan = true
+                            val writer = thread(start = true) { b.ids.getOrAlloc(interleavedForgeId) }
+                            writer.join()
+                        }
+                    }
                 }
+
+                val result =
+                    try {
+                        builder.stateOnlyDiff(game, counter)
+                    } finally {
+                        b.diffListener = null
+                    }
+
+                if (interleaveWriter) {
+                    writerRan shouldBe true
+                    b.ids.peek(interleavedForgeId) shouldBe b.ids.getOrAlloc(interleavedForgeId)
+                }
+                val gsm = result.messages.first().gameStateMessage
+                gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
+                return result.messages.map { it.toByteArray().toList() } to b.effects.snapshotState()
             }
 
-            try {
-                builder.stateOnlyDiff(game, counter)
-            } finally {
-                b.diffListener = null
-            }
+            val control = compile(interleaveWriter = false)
+            val retried = compile(interleaveWriter = true)
 
-            writerRan shouldBe true
-            b.ids.peek(interleavedForgeId)?.value shouldBe 100
+            retried shouldBe control
         }
 
         test("replaced submitted-target rider aborts before bridge mutations commit") {
@@ -996,6 +1020,70 @@ class BundleBuilderTest :
                 stagedTypes shouldBe listOf(AnnotationType.ObjectIdChanged, AnnotationType.ZoneTransfer_af5a)
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
                 b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+                b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe null
+            }
+        }
+
+        test("failed order projection retains staged zone move for retry") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            val orderedCard =
+                game.humanPlayer
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val source =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val candidate = ForgeCardId(orderedCard.id)
+            val move =
+                InteractivePromptBridge.PendingOrderZoneMove(
+                    seatId = SeatId(1),
+                    forgeCardIds = listOf(candidate),
+                    putOnTop = true,
+                )
+            b.promptBridge(SeatId(1)).recordPendingOrderZoneMove(move)
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "failed-staged-order",
+                    request =
+                        PromptRequest(
+                            promptType = "order_cards",
+                            message = "Order cards",
+                            options = listOf(orderedCard.name),
+                            candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, orderedCard.id, "Hand")),
+                            sourceEntityId = source.id,
+                            route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+            val builder = bundleBuilder(b)
+            b.diffListener = { _, _, _, _, _ -> error("induced order finalization failure") }
+
+            try {
+                shouldThrow<IllegalStateException> {
+                    builder.orderBundle(game, counter, prompt, OrderRouteKind.Top)
+                }
+            } finally {
+                b.diffListener = null
+            }
+            b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe move
+
+            val result = builder.orderBundle(game, counter, prompt, OrderRouteKind.Top)
+            val gsm = result.messages.first().gameStateMessage
+            val stagedTypes =
+                gsm.annotationsList
+                    .filter { AnnotationType.ObjectIdChanged in it.typeList || AnnotationType.ZoneTransfer_af5a in it.typeList }
+                    .map { it.typeList.first() }
+
+            assertSoftly {
+                stagedTypes shouldBe listOf(AnnotationType.ObjectIdChanged, AnnotationType.ZoneTransfer_af5a)
+                b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe null
             }
         }
 

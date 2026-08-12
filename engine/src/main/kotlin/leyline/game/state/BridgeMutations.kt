@@ -33,12 +33,13 @@ data class PendingTargetSpecRecord(
  * `diffDeletedInstanceIds` is compute-time output for GSM assembly only. It is
  * not applied to bridge state; the rest of this batch still owns bridge writes.
  *
- * Scope: identity allocation is a complete tentative transition. Other tracker
- * families remain explicit follow-up work; effect IDs and their lifecycle are
- * intentionally not part of this slice.
+ * Scope: identity allocation is a complete tentative transition. Effect state
+ * is checkpointed only at the projection retry boundary so a discarded stale
+ * attempt can be replayed; it is not installed through this mutation batch.
+ * Other tracker families remain explicit follow-up work.
  */
 data class BridgeMutations(
-    val instanceIdTransition: InstanceIdRegistry.Transition? = null,
+    val instanceIdTransition: InstanceIdRegistry.Transition,
     val revealTransition: RevealProxyTracker.Transition? = null,
     val idReallocations: List<InstanceIdRegistry.IdReallocation>,
     val retiredIds: List<InstanceId>,
@@ -52,24 +53,4 @@ data class BridgeMutations(
     val diffDeletedInstanceIds: List<InstanceId> = emptyList(),
     /** Linked-face family objects to delete on the following GSM. */
     val nextTransientLinkedFaceFamilyIds: Set<InstanceId> = emptySet(),
-) {
-    companion object {
-        val EMPTY: BridgeMutations =
-            BridgeMutations(
-                instanceIdTransition = null,
-                revealTransition = null,
-                idReallocations = emptyList(),
-                retiredIds = emptyList(),
-                zoneRecordings = emptyList(),
-                persistentBatch =
-                    PersistentAnnotationStore.BatchResult(
-                        allAnnotations = emptyList(),
-                        deletedIds = emptyList(),
-                        nextPersistentId = 1,
-                    ),
-                consumedTargetSpecs = emptyList(),
-                nextAnnotationId = 50,
-                holderBatch = HolderBatch.EMPTY,
-            )
-    }
-}
+)

@@ -90,6 +90,6 @@ class InteractivePromptBridgeTest :
 
             bridge.resetForPuzzle()
 
-            bridge.pollPendingOrderZoneMove(SeatId(1), cardIds) shouldBe null
+            bridge.findPendingOrderZoneMove(SeatId(1), cardIds) shouldBe null
         }
     })

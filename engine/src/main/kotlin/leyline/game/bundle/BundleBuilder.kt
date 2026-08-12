@@ -147,8 +147,20 @@ class BundleBuilder(
         pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
         cursorSnap: GsmSnapshot = input.snap,
         annotationRiders: ((GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo>)? = null,
+    ): FrameDiff =
+        synchronized(bridge.projectionLock) {
+            finalizeFrameInputLocked(input, riders, pendingSubmittedTargets, cursorSnap, annotationRiders)
+        }
+
+    private fun finalizeFrameInputLocked(
+        input: FrameInput,
+        riders: List<AnnotationInfo>,
+        pendingSubmittedTargets: BundleCursor.PSuTPending?,
+        cursorSnap: GsmSnapshot,
+        annotationRiders: ((GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo>)?,
     ): FrameDiff {
         repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
+            val effectState = bridge.effects.snapshotState()
             try {
                 val result =
                     bridge.ids.withTentativeState {
@@ -183,7 +195,11 @@ class BundleBuilder(
                     input.previousSnap,
                 )
             } catch (stale: StaleInstanceIdTransitionException) {
+                bridge.effects.restoreState(effectState)
                 if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
+            } catch (failure: Throwable) {
+                bridge.effects.restoreState(effectState)
+                throw failure
             }
         }
         error("unreachable")
@@ -825,10 +841,20 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
+    ): FrameDiff =
+        synchronized(bridge.projectionLock) {
+            buildOrderFrameLocked(game, counter, prompt)
+        }
+
+    private fun buildOrderFrameLocked(
+        game: Game,
+        counter: MessageCounter,
+        prompt: InteractivePromptBridge.PendingPrompt,
     ): FrameDiff {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
         val pendingMove = pendingOrderZoneMove(prompt)
         repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
+            val effectState = bridge.effects.snapshotState()
             try {
                 return bridge.ids.withTentativeState {
                     bridge.revealProxies.withTentativeState {
@@ -845,6 +871,9 @@ class BundleBuilder(
                         val finalized = finalizeStateFrame(draft.copy(gsm = stagedGsm, mutations = mutations), emptyList())
                         bridge.diffListener?.invoke(input.previousSnap, input.snap, input.events, input.gameStateId, finalized.gsm)
                         commitProjection(stagedMove?.snap ?: input.snap, finalized.mutations)
+                        pendingMove?.let {
+                            bridge.promptBridge(SeatId(seatId)).acknowledgePendingOrderZoneMove(it)
+                        }
                         FrameDiff(
                             input.gameStateId,
                             input.snap,
@@ -856,7 +885,11 @@ class BundleBuilder(
                     }
                 }
             } catch (stale: StaleInstanceIdTransitionException) {
+                bridge.effects.restoreState(effectState)
                 if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
+            } catch (failure: Throwable) {
+                bridge.effects.restoreState(effectState)
+                throw failure
             }
         }
         error("unreachable")
@@ -898,7 +931,7 @@ class BundleBuilder(
                 .filter { it.isCard() }
                 .map { ForgeCardId(it.entityId) }
         if (candidateFids.isEmpty()) return null
-        return bridge.promptBridge(SeatId(seatId)).pollPendingOrderZoneMove(SeatId(seatId), candidateFids)
+        return bridge.promptBridge(SeatId(seatId)).findPendingOrderZoneMove(SeatId(seatId), candidateFids)
     }
 
     private fun stagePendingOrderZoneMove(
