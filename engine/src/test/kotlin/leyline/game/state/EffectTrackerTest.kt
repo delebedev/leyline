@@ -31,17 +31,17 @@ class EffectTrackerTest :
             tracker.nextEffectId() shouldBe 7002
         }
 
-        test("projection checkpoint restores allocator and lifecycle state") {
+        test("frozen state seeds an equivalent private planner") {
             val tracker = EffectTracker()
-            val checkpoint = tracker.snapshotState()
+            val state = tracker.freeze()
             tracker.emitInitEffectsOnce()
             tracker.diffBoosts(
                 mapOf(100 to listOf(EffectTracker.BoostEntry(timestamp = 1L, staticId = 2L, power = 1, toughness = 1))),
             )
 
-            tracker.restoreState(checkpoint)
+            tracker.load(state)
 
-            tracker.snapshotState() shouldBe checkpoint
+            tracker.freeze() shouldBe state
         }
 
         test("diffBoosts detects new effect and returns it as created") {

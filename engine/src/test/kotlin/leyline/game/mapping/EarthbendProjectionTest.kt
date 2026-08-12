@@ -11,6 +11,7 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardProtoBuilder
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.EarthbendProjection
+import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
@@ -55,6 +56,43 @@ class EarthbendProjectionTest :
                 obj.toughness.value shouldBe 4
                 obj.uniqueAbilitiesList.first { it.grpId == 9 }.id shouldBe 203
                 obj.abilityOriginalCardGrpIdsList shouldContain 97490
+            }
+        }
+
+        test("cut-scoped Earthbend projection reaches the first mapped object") {
+            val cardId = ForgeCardId(199)
+            val snapshot =
+                GsmSnapshot
+                    .forTest(
+                        objects =
+                            mapOf(
+                                cardId to
+                                    CardSnapshot(
+                                        forgeCardId = cardId,
+                                        name = "Swamp",
+                                        grpId = 102736,
+                                        owner = SeatId(1),
+                                        controller = SeatId(1),
+                                        isOnBattlefield = true,
+                                    ),
+                            ),
+                    ).withEarthbendProjection {
+                        EarthbendProjection(sourceCardGrpId = 97490, hasteAbilityGrpId = 9, uniqueAbilityId = 203)
+                    }
+
+            val objectInfo =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap = snapshot.objects.getValue(cardId),
+                    instanceId = 199,
+                    zoneId = ZoneIds.BATTLEFIELD,
+                    ownerSeatId = 1,
+                    cardProto = CardProtoBuilder(InMemoryCardRepository()),
+                    visibility = Visibility.Public,
+                )
+
+            assertSoftly {
+                objectInfo.uniqueAbilitiesList.single { it.grpId == 9 }.id shouldBe 203
+                objectInfo.abilityOriginalCardGrpIdsList shouldContain 97490
             }
         }
     })

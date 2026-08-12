@@ -20,8 +20,8 @@ object VehicleAttachContributor : AnnotationContributor {
 
     override fun contribute(ctx: AnnotationContext): Contribution {
         val bridge = ctx.bridge
-        val (crewedThisTurn, crewTypeChange, crewExpired) = computeCrewAnnotations(bridge)
-        val (reconfigureTransient, reconfigurePersistent) = computeReconfigureAnnotations(bridge)
+        val (crewedThisTurn, crewTypeChange, crewExpired) = computeCrewAnnotations(ctx)
+        val (reconfigureTransient, reconfigurePersistent) = computeReconfigureAnnotations(ctx)
         val saddledThisTurn = computeSaddleAnnotations(bridge)
         return Contribution(
             transient = crewExpired + reconfigureTransient,
@@ -35,7 +35,8 @@ object VehicleAttachContributor : AnnotationContributor {
     }
 
     /** Crew scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */
-    private fun computeCrewAnnotations(bridge: GameBridge): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
+    private fun computeCrewAnnotations(ctx: AnnotationContext): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
+        val bridge = ctx.bridge
         val crewSnapshots = bridge.snapshotCrewState()
         val crewedThisTurn =
             crewSnapshots.map { snap ->
@@ -48,12 +49,12 @@ object VehicleAttachContributor : AnnotationContributor {
         val expired = mutableListOf<AnnotationInfo>()
 
         val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
-        for (effectId in bridge.releaseCrewEffects(currentCrewedFids)) {
+        for (effectId in ctx.effects.crew.releaseMissing(currentCrewedFids)) {
             expired.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
         }
         for (snap in crewSnapshots) {
             if (!snap.isCreature) continue
-            val effectId = EffectId(bridge.getOrAllocCrewEffectId(snap.vehicleForgeCardId))
+            val effectId = EffectId(ctx.effects.crew.getOrAllocId(snap.vehicleForgeCardId))
             typeChange.add(
                 AnnotationBuilder.modifiedTypeLayeredEffect(
                     instanceId = InstanceId(snap.vehicleInstanceId),
@@ -74,18 +75,19 @@ object VehicleAttachContributor : AnnotationContributor {
             )
         }
 
-    private fun computeReconfigureAnnotations(bridge: GameBridge): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+    private fun computeReconfigureAnnotations(ctx: AnnotationContext): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        val bridge = ctx.bridge
         val snapshots = bridge.snapshotReconfigureState()
         val current = snapshots.map { it.forgeCardId }.toSet()
         val transient = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
-        for (effectId in bridge.releaseReconfigureEffects(current)) {
+        for (effectId in ctx.effects.reconfigure.releaseMissing(current)) {
             transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
         }
 
         for (snap in snapshots) {
-            val allocation = bridge.getOrAllocReconfigureEffectId(snap.forgeCardId)
+            val allocation = ctx.effects.reconfigure.getOrAlloc(snap.forgeCardId)
             val sourceIid = InstanceId(snap.instanceId)
             val effectId = EffectId(allocation.effectId)
             if (allocation.created) {

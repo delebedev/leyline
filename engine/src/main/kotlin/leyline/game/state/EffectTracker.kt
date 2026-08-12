@@ -13,7 +13,8 @@ import kotlin.collections.iterator
  * Fingerprint: (cardInstanceId, timestamp, staticAbilityId) from Forge's
  * boost tables uniquely identifies an effect across GSMs.
  *
- * Not thread-safe — callers synchronize externally (MatchSession.sessionLock).
+ * A tracker is private to one projection planner. Its frozen value is committed
+ * atomically with the matching identity and reveal transitions.
  */
 class EffectTracker {
     companion object {
@@ -88,15 +89,15 @@ class EffectTracker {
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
     private val activeKeywordEffects = mutableMapOf<KeywordFingerprint, TrackedKeywordEffect>()
 
-    internal data class State(
+    data class State(
         val initEmitted: Boolean,
         val nextId: Int,
         val activeEffects: Map<EffectFingerprint, TrackedEffect>,
         val activeKeywordEffects: Map<KeywordFingerprint, TrackedKeywordEffect>,
     )
 
-    /** Projection-attempt checkpoint used to replay after a stale identity plan. */
-    internal fun snapshotState(): State =
+    /** Complete value state owned by a projection transition. */
+    internal fun freeze(): State =
         State(
             initEmitted = initEmitted,
             nextId = nextId,
@@ -104,8 +105,8 @@ class EffectTracker {
             activeKeywordEffects = activeKeywordEffects.toMap(),
         )
 
-    /** Restore a failed projection attempt before compiling the same frame again. */
-    internal fun restoreState(state: State) {
+    /** Build a private planner from a previously committed value. */
+    internal fun load(state: State) {
         initEmitted = state.initEmitted
         nextId = state.nextId
         activeEffects.clear()

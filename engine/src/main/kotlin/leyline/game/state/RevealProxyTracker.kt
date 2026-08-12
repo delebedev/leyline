@@ -53,6 +53,8 @@ class RevealProxyTracker {
             true
         }
 
+    fun canCommit(transition: Transition): Boolean = synchronized(lock) { version == transition.baselineVersion }
+
     fun lookup(forgeCardId: ForgeCardId): InstanceId? =
         tentative.get()?.lookup(forgeCardId) ?: synchronized(lock) { state.proxies[forgeCardId] }
 
