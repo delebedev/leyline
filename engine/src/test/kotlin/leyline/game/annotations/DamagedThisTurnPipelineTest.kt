@@ -53,8 +53,6 @@ class DamagedThisTurnPipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = ::idResolver,
-                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
-                    currentLifeTotals = mapOf(1 to 20, 2 to 20),
                 )
 
             result.annotations
@@ -91,8 +89,6 @@ class DamagedThisTurnPipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = ::idResolver,
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             result.damagedThisTurnPersistent.size shouldBe 1
@@ -112,8 +108,6 @@ class DamagedThisTurnPipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = ::idResolver,
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             result.clearDamagedThisTurn.shouldBeTrue()
@@ -133,8 +127,6 @@ class DamagedThisTurnPipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = ::idResolver,
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             assertSoftly {

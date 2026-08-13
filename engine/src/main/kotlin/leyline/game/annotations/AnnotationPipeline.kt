@@ -120,7 +120,6 @@ object AnnotationPipeline {
         actingSeat: Int,
         bridge: GameBridge,
         annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
-        prev: GsmSnapshot? = null,
         snap: GsmSnapshot? = null,
         frameIds: FrameIdResolver? = null,
     ): AnnotationPipelineResult {
@@ -135,8 +134,6 @@ object AnnotationPipeline {
                     val transferred = combatTransferredIds[fid]
                     if (transferred != null) InstanceId(transferred) else bridge.getOrAllocInstanceId(fid)
                 },
-                previousLifeTotals = prev?.let(StateZoneProjection::currentLifeTotals) ?: emptyMap(),
-                currentLifeTotals = snap?.let(StateZoneProjection::currentLifeTotals) ?: emptyMap(),
             )
         // Tests can drive computeAnnotations without a resolver; in that case
         // build a no-realloc instance from the bridge alone — `cardIid` falls

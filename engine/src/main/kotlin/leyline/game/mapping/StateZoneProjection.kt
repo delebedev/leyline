@@ -75,8 +75,6 @@ object StateZoneProjection {
         seatId: SeatId,
     ): Boolean = snap.seats.any { it.seatId == seatId }
 
-    fun currentLifeTotals(snap: GsmSnapshot): Map<Int, Int> = snap.seats.associate { it.seatId.value to it.life }
-
     fun projectSharedZone(
         snap: GsmSnapshot,
         arenaZoneId: Int,

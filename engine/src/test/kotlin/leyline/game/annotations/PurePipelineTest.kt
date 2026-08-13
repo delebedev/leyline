@@ -306,8 +306,6 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = emptyList(),
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             result.annotations.shouldBeEmpty()
@@ -331,8 +329,6 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             result.hasCombatDamage shouldBe true
@@ -369,8 +365,6 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
-                    currentLifeTotals = mapOf(1 to 20, 2 to 18),
                 )
 
             assertSoftly {
@@ -403,8 +397,6 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
-                    currentLifeTotals = mapOf(1 to 20, 2 to 15),
                 )
 
             assertSoftly {
@@ -441,8 +433,6 @@ class PurePipelineTest :
                             else -> InstanceId(fid.value + 1000)
                         }
                     },
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             result.annotations
@@ -471,8 +461,6 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = mapOf(1 to 20, 2 to 20),
-                    currentLifeTotals = mapOf(1 to 20, 2 to 15),
                 )
 
             val lifeAnnotation = result.annotations.first { it.getType(0) == AnnotationType.ModifiedLife }
@@ -512,8 +500,6 @@ class PurePipelineTest :
                             ),
                         ),
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             val (annotations, _) =
@@ -577,8 +563,6 @@ class PurePipelineTest :
                             ),
                         ),
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             val (annotations, _) =
@@ -699,8 +683,6 @@ class PurePipelineTest :
                 CombatAnnotations.combatAnnotations(
                     events = events,
                     idResolver = { fid -> InstanceId(fid.value + 1000) },
-                    previousLifeTotals = emptyMap(),
-                    currentLifeTotals = emptyMap(),
                 )
 
             result.annotations.shouldBeEmpty()

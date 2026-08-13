@@ -74,7 +74,11 @@ class BundleBuilder(
     val cursor: BundleCursor = bridge.bundleCursor,
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
-    private val stateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge)
+
+    /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
+    private val stateProjectionEnvironment by lazy {
+        StateProjectionEnvironmentCapture.from(bridge)
+    }
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
