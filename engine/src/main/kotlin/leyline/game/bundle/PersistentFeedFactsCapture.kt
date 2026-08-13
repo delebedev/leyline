@@ -22,7 +22,7 @@ object PersistentFeedFactsCapture {
                 CombatQualificationFactsCapture.scan(
                     snapshot,
                     bridge,
-                    environment.persistentFeedReferences,
+                    environment.cardReferences,
                 ),
             collectEvidence = collectEvidence(promptFacts, bridge, environment),
             endStepTokenSources = endStepTokenSources(snapshot, bridge),
@@ -36,7 +36,7 @@ object PersistentFeedFactsCapture {
         promptFacts.collectEvidenceCosts.mapNotNull { fact ->
             val source = bridge.findCard(fact.context.sourceForgeCardId) ?: return@mapNotNull null
             val controller = source.controller ?: return@mapNotNull null
-            val abilityGrpId = environment.persistentFeedReferences.collectEvidenceAbilityGrpId(source.name)
+            val abilityGrpId = environment.cardReferences.collectEvidenceAbilityGrpId(source.name)
             if (abilityGrpId == 0) return@mapNotNull null
             PersistentFeedFacts.CollectEvidenceDisplay(
                 key = fact.key,

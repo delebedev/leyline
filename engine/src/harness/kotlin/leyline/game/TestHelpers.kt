@@ -38,11 +38,10 @@ fun GameBridge.seedDiffBaseline(
     val result =
         StateMapper
             .buildFromSnapshot(
-                snap,
-                gameStateId,
-                "",
-                this,
-                stateProjectionEnvironment,
+                snap = snap,
+                gameStateId = gameStateId,
+                matchId = "",
+                environment = stateProjectionEnvironment,
                 events = events,
                 promptFacts = promptFacts,
                 persistentFeedFacts =

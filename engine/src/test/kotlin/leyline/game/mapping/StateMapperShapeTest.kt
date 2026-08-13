@@ -15,7 +15,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.StackEntry
@@ -26,6 +25,7 @@ import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
+import leyline.testkit.StateMapperShell as StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**

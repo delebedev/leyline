@@ -28,7 +28,7 @@ internal object PersistentTemporaryFeedBuilder {
         decayedCleanupSourcesThisGsm: Set<ForgeCardId>,
         transferResult: TransferResult,
         facts: PersistentFeedFacts,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): TemporaryPermanentFeedResult {
         val eotTokens = snap.objects.values.filter { it.isOnBattlefield && it.endOfTurnLeavePlay }
         val tokenSources = facts.endStepTokenSources.associate { it.tokenForgeCardId to it.sourceForgeCardId }
@@ -130,7 +130,7 @@ internal object PersistentTemporaryFeedBuilder {
         snap: GsmSnapshot,
         frameIds: FrameIdResolver,
         transferResult: TransferResult,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): List<HolderRecord> =
         sourceForgeIds.mapNotNull { sourceForgeId ->
             val bound = snap.boundCards[sourceForgeId]
@@ -161,7 +161,7 @@ internal object PersistentTemporaryFeedBuilder {
     fun decayedCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
         snap: GsmSnapshot,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
         transferResult: TransferResult? = null,
     ): Int? {
         snap.boundCards[sourceForgeId]?.decayedCleanup?.let { return it }

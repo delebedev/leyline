@@ -9,9 +9,9 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.InstanceId
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Verifies [TestCardInjector] + [CardDataDeriver] produce cards that are

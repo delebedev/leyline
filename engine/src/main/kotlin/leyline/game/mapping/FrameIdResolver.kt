@@ -13,8 +13,8 @@ import leyline.game.state.ProjectionIdentityWorkspace
  * Inside a single [StateMapper.buildDiff] call there are three different ways
  * to answer "what's the instance id of X right now?":
  *
- * - [ProjectionIdentityWorkspace.getOrAlloc] — the active projection planner
- *   holds the tentative iid for any allocation until the shell commit.
+ * - [ProjectionIdentityWorkspace.getOrAlloc] — the caller-supplied projection
+ *   workspace holds the tentative iid for any allocation until shell commit.
  * - `transfer.newId` from the active [TransferResult] — the post-realloc iid;
  *   only annotation builders that already loop over `transferResult.transfers`
  *   see this directly.
@@ -31,9 +31,8 @@ import leyline.game.state.ProjectionIdentityWorkspace
  * `ZoneTransferDetector` itself runs *before* the resolver exists, and only
  * needs the offset arithmetic.
  *
- * **Threading**: constructed inside the registry's projection scope. Its
- * lookups are local to that scope; no registry lock spans this resolver or a
- * Forge callback.
+ * **Threading**: one caller owns the supplied workspace for the resolver's
+ * lifetime. The resolver performs no ambient registry or bridge lookup.
  */
 class FrameIdResolver(
     private val identities: ProjectionIdentityWorkspace,

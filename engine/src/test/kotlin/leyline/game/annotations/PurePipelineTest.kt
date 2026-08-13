@@ -644,7 +644,12 @@ class PurePipelineTest :
                     ),
                 )
 
-            val pipeline = AnnotationPipeline.computeAnnotations(events, transferResult, actingSeat = 1, bridge = bridge)
+            val pipeline =
+                AnnotationPipeline.computeAnnotations(
+                    annotationContext(bridge, events = events, transferResult = transferResult),
+                    transferResult,
+                    actingSeat = 1,
+                )
             val ordered = AnnotationOrderEnforcer.enforce(pipeline.annotations)
 
             ordered

@@ -19,7 +19,6 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
-import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -113,7 +112,8 @@ class StateZoneTransferProjectionTest :
                                 ),
                         ),
                 )
-            val journal = AnnotationProjectionState.Planner(AnnotationProjectionState())
+            val editor = bridge.projectionStateSnapshot().editor()
+            val journal = editor.annotations
 
             val result =
                 ZoneTransferAdapter.detectZoneTransfers(
@@ -123,7 +123,7 @@ class StateZoneTransferProjectionTest :
                             stateZone(ZoneIds.STACK, ZoneType.Stack, spellIid),
                             stateZone(ZoneIds.LIMBO, ZoneType.Limbo),
                         ),
-                    bridge = bridge,
+                    editor = editor,
                     snapshot = snapshot,
                     events =
                         listOf(
@@ -133,7 +133,6 @@ class StateZoneTransferProjectionTest :
                                 manaPayments = listOf(GameEvent.ManaPayment(forestId, color = 5)),
                             ),
                         ),
-                    annotationJournal = journal,
                 )
 
             assertSoftly {
@@ -180,7 +179,8 @@ class StateZoneTransferProjectionTest :
                             ),
                         ),
                 )
-            val journal = AnnotationProjectionState.Planner(AnnotationProjectionState())
+            val editor = bridge.projectionStateSnapshot().editor()
+            val journal = editor.annotations
             journal.recordParadigmSourceStackIid(effectSourceId, 909)
 
             val result =
@@ -200,7 +200,7 @@ class StateZoneTransferProjectionTest :
                             stateZone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
                             stateZone(ZoneIds.LIMBO, ZoneType.Limbo),
                         ),
-                    bridge = bridge,
+                    editor = editor,
                     snapshot = snapshot,
                     events =
                         listOf(
@@ -213,7 +213,6 @@ class StateZoneTransferProjectionTest :
                                 abilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
                             ),
                         ),
-                    annotationJournal = journal,
                 )
 
             result.stackAbilityAppearances.single().sourceCardInstanceId shouldBe 909
@@ -225,7 +224,8 @@ class StateZoneTransferProjectionTest :
             val sourceId = ForgeCardId(9)
             val sourceStackIid = 909
             val abilityForgeId = 77
-            val journal = AnnotationProjectionState.Planner(AnnotationProjectionState())
+            val editor = bridge.projectionStateSnapshot().editor()
+            val journal = editor.annotations
             journal.recordParadigmSourceStackIid(sourceId, sourceStackIid)
             val events =
                 listOf(
@@ -251,7 +251,15 @@ class StateZoneTransferProjectionTest :
 
             val result =
                 AnnotationPipeline.computeAnnotations(
-                    events = events,
+                    ctx =
+                        AnnotationContext(
+                            editor = editor,
+                            environment = bridge.stateProjectionEnvironment,
+                            snap = GsmSnapshot.forTest(),
+                            frameIds = FrameIdResolver(editor.identities),
+                            events = events,
+                            abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                        ),
                     transferResult =
                         TransferResult(
                             transfers = emptyList(),
@@ -261,10 +269,7 @@ class StateZoneTransferProjectionTest :
                             zoneRecordings = emptyList(),
                         ),
                     actingSeat = 1,
-                    bridge = bridge,
                     annotationJournal = journal,
-                    snap = GsmSnapshot.forTest(),
-                    frameIds = FrameIdResolver(bridge.projectionIdentityWorkspace()),
                 )
 
             val created = result.annotations.single { AnnotationType.AbilityInstanceCreated in it.typeList }

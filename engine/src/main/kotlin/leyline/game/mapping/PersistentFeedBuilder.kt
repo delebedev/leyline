@@ -61,7 +61,7 @@ internal object PersistentFeedBuilder {
         transferResult: TransferResult,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): PersistentFeedBuildResult {
         val qualification = buildQualificationAnnotations(snap, frameIds, persistentFeedFacts)
         val temporaryPermanent =
@@ -297,7 +297,7 @@ internal object PersistentFeedBuilder {
     private fun buildLinkInfoAnnotations(
         snap: GsmSnapshot,
         frameIds: FrameIdResolver,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): List<AnnotationInfo> =
         snap.boundCards.values.flatMap { bound ->
             if (!bound.snapshot.isOnBattlefield) return@flatMap emptyList()
@@ -332,7 +332,7 @@ internal object PersistentFeedBuilder {
     internal fun decayedCleanupGrpIdForSource(
         sourceForgeId: ForgeCardId,
         snap: GsmSnapshot,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
         transferResult: TransferResult? = null,
     ): Int? = PersistentTemporaryFeedBuilder.decayedCleanupGrpIdForSource(sourceForgeId, snap, references, transferResult)
 }

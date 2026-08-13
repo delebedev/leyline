@@ -3,7 +3,6 @@ package leyline.board.search
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.Board
@@ -13,6 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Conformance test: library card objects during search.

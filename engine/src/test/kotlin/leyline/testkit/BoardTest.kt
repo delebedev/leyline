@@ -16,12 +16,12 @@ import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.PersistentFeedFactsCapture
-import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Base class for board-tier tests (land/mana, combat, stack, etc.).

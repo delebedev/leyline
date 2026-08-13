@@ -4,8 +4,8 @@ import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
 
-/** Narrow read-only card metadata used by persistent-feed reduction. */
-class PersistentFeedReferences internal constructor(
+/** Narrow read-only card metadata used by state projection. */
+class ProjectionCardReferences internal constructor(
     private val cards: CardRepository,
 ) {
     fun choiceSourceAbilityGrpId(data: CardData?): Int? =
@@ -17,6 +17,21 @@ class PersistentFeedReferences internal constructor(
     fun cardDataByName(cardName: String): CardData? = cards.findGrpIdByName(cardName)?.let(cards::findByGrpId)
 
     fun hasTraining(grpId: Int): Boolean = cards.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TRAINING) != null
+
+    fun isBackupAbility(
+        sourceGrpId: Int,
+        abilityGrpId: Int,
+    ): Boolean = cards.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.BACKUP) == abilityGrpId
+
+    fun targetSpecAbilityGrpId(cardName: String): Int {
+        val cardGrpId = cards.findGrpIdByName(cardName) ?: return 0
+        val card = cards.findByGrpId(cardGrpId) ?: return cardGrpId
+        return card.abilityIds
+            .firstOrNull { (abilityGrpId, _) -> cards.findAbilityInfo(abilityGrpId)?.category == SPELL_EFFECT_CATEGORY }
+            ?.first
+            ?: card.abilityIds.firstOrNull()?.first
+            ?: cardGrpId
+    }
 
     fun collectEvidenceAbilityGrpId(cardName: String): Int {
         val grpId = cards.findGrpIdByName(cardName) ?: return 0
@@ -37,5 +52,6 @@ class PersistentFeedReferences internal constructor(
         const val STATIC_ABILITY_CATEGORY = 3
         const val COLLECT_EVIDENCE_CATEGORY = 5
         const val COLLECT_EVIDENCE_SUBCATEGORY = 29
+        const val SPELL_EFFECT_CATEGORY = 4
     }
 }

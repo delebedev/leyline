@@ -11,7 +11,6 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
@@ -22,6 +21,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Treasure token grpId resolution — regression test for NPE crash.

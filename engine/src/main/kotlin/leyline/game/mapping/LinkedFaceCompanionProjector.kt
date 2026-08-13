@@ -6,7 +6,7 @@ import leyline.game.annotations.TransferResult
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.LinkedFaceRole
-import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionState
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
@@ -15,7 +15,8 @@ object LinkedFaceCompanionProjector {
     fun append(
         transferResult: TransferResult,
         snap: GsmSnapshot,
-        bridge: GameBridge,
+        editor: ProjectionState.Editor,
+        environment: StateProjectionEnvironment,
         frameIds: FrameIdResolver,
     ): TransferResult {
         val parents = transferResult.patchedObjects.toMutableList()
@@ -26,7 +27,7 @@ object LinkedFaceCompanionProjector {
                 val parent =
                     parents.firstOrNull { obj ->
                         obj.instanceId == parentIid.value && obj.type == GameObjectType.Card
-                    } ?: buildTransferredParent(bound, parentIid.value, transferResult, bridge)?.also { transferredParent ->
+                    } ?: buildTransferredParent(bound, parentIid.value, transferResult, environment)?.also { transferredParent ->
                         parents.add(transferredParent)
                         transientHiddenFamilyIds.add(transferredParent.instanceId)
                     }
@@ -34,10 +35,10 @@ object LinkedFaceCompanionProjector {
                 bound.linkedFaces.map { face ->
                     val projectedFace = face.copy(grpId = selectedStackFaceGrpId(parentIid.value, face.role, transferResult) ?: face.grpId)
                     val companionIid =
-                        bridge
-                            .getOrAllocInstanceId(FrameIdResolver.linkedFaceCompanionForgeId(parentIid, face.role))
+                        editor.identities
+                            .getOrAlloc(FrameIdResolver.linkedFaceCompanionForgeId(parentIid, face.role))
                             .value
-                    ObjectMapper.buildLinkedFaceObject(projectedFace, companionIid, parent, bridge.cardProto).also { companion ->
+                    ObjectMapper.buildLinkedFaceObject(projectedFace, companionIid, parent, environment.cardProto).also { companion ->
                         if (parent.instanceId in transientHiddenFamilyIds) {
                             transientHiddenFamilyIds.add(companion.instanceId)
                         }
@@ -68,7 +69,7 @@ object LinkedFaceCompanionProjector {
         bound: BoundCard,
         parentIid: Int,
         transferResult: TransferResult,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
     ) = transferResult.transfers
         .firstOrNull { transfer -> transfer.forgeCardId == bound.forgeCardId && transfer.newId == parentIid }
         ?.let { transfer ->
@@ -77,7 +78,7 @@ object LinkedFaceCompanionProjector {
                 instanceId = parentIid,
                 zoneId = transfer.destZoneId,
                 ownerSeatId = transfer.ownerSeatId,
-                cardProto = bridge.cardProto,
+                cardProto = environment.cardProto,
                 visibility = Visibility.Public,
                 parentLinkage = bound.parentLinkage,
             )
@@ -86,7 +87,7 @@ object LinkedFaceCompanionProjector {
     /** Reconstruct companion ids projected for a prior snapshot and viewer. */
     fun instanceIds(
         snap: GsmSnapshot,
-        bridge: GameBridge,
+        editor: ProjectionState.Editor,
         viewingSeatId: Int,
         parentIidLookup: ((ForgeCardId) -> InstanceId?)? = null,
     ): Set<Int> =
@@ -104,7 +105,7 @@ object LinkedFaceCompanionProjector {
                     else -> true
                 }
             }.flatMap { bound ->
-                val parentIid = parentIidLookup?.invoke(bound.forgeCardId) ?: bridge.getOrAllocInstanceId(bound.forgeCardId)
+                val parentIid = parentIidLookup?.invoke(bound.forgeCardId) ?: editor.identities.getOrAlloc(bound.forgeCardId)
                 val zoneId =
                     snap.zones.values
                         .firstOrNull { bound.forgeCardId in it.contents }
@@ -112,9 +113,9 @@ object LinkedFaceCompanionProjector {
                 bound.linkedFaces.asSequence().mapNotNull { face ->
                     val surrogate = FrameIdResolver.linkedFaceCompanionForgeId(parentIid, face.role)
                     if (zoneId == ZoneIds.P1_LIBRARY || zoneId == ZoneIds.P2_LIBRARY) {
-                        bridge.peekInstanceId(surrogate)?.value
+                        editor.identities.peek(surrogate)?.value
                     } else {
-                        bridge.getOrAllocInstanceId(surrogate).value
+                        editor.identities.getOrAlloc(surrogate).value
                     }
                 }
             }.toSet()

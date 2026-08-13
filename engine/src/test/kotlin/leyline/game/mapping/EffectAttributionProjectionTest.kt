@@ -59,8 +59,14 @@ class EffectAttributionProjectionTest :
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedEffectsBefore = bridge.committedEffectProjection()
 
-            val first = StateMapper.buildDiff(firstInput, "effect-attribution", bridge).finalizeAnnotations()
-            val firstRetry = StateMapper.buildDiff(firstInput, "effect-attribution", bridge).finalizeAnnotations()
+            val first = StateMapper.buildDiff(firstInput, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val firstRetry =
+                StateMapper
+                    .buildDiff(
+                        firstInput,
+                        "effect-attribution",
+                        bridge.stateProjectionEnvironment,
+                    ).finalizeAnnotations()
             val nextIdentity = checkNotNull(first.transition).nextState.identities
             val nextEffects = checkNotNull(first.transition).nextState.effects
 
@@ -101,8 +107,14 @@ class EffectAttributionProjectionTest :
                     facts = facts,
                     projectionState = checkNotNull(first.transition).nextState,
                 )
-            val stable = StateMapper.buildDiff(stableInput, "effect-attribution", bridge).finalizeAnnotations()
-            val stableRetry = StateMapper.buildDiff(stableInput, "effect-attribution", bridge).finalizeAnnotations()
+            val stable = StateMapper.buildDiff(stableInput, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val stableRetry =
+                StateMapper
+                    .buildDiff(
+                        stableInput,
+                        "effect-attribution",
+                        bridge.stateProjectionEnvironment,
+                    ).finalizeAnnotations()
 
             assertSoftly {
                 stable.gsm.toByteArray().toList() shouldBe stableRetry.gsm.toByteArray().toList()
@@ -142,8 +154,8 @@ class EffectAttributionProjectionTest :
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
 
-            val first = StateMapper.buildDiff(input, "effect-attribution", bridge).finalizeAnnotations()
-            val retry = StateMapper.buildDiff(input, "effect-attribution", bridge).finalizeAnnotations()
+            val first = StateMapper.buildDiff(input, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val retry = StateMapper.buildDiff(input, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
             val nextIdentity = checkNotNull(first.transition).nextState.identities
             val latestSourceIid = nextIdentity.forgeIdToInstanceId.getValue(latestSourceId).value
             val addAbility =

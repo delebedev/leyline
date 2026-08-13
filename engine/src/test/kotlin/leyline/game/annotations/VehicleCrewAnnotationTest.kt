@@ -13,7 +13,6 @@ import leyline.game.codes.DetailKeys
 import leyline.game.eid
 import leyline.game.grp
 import leyline.game.iid
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.Board
@@ -21,6 +20,7 @@ import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Vehicle/crew annotation tests — verifies live card type overlay in GSM objects

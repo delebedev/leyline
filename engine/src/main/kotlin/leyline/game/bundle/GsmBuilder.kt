@@ -109,7 +109,8 @@ object GsmBuilder {
             ZoneMapper.addPlayerZonesFromSnapshot(
                 SeatId(1),
                 snap,
-                bridge,
+                bridge.stateProjectionEnvironment,
+                bridge::getOrAllocInstanceId,
                 zones,
                 gameObjects,
                 ZoneIds.P1_HAND,
@@ -121,7 +122,8 @@ object GsmBuilder {
             ZoneMapper.addPlayerZonesFromSnapshot(
                 SeatId(2),
                 snap,
-                bridge,
+                bridge.stateProjectionEnvironment,
+                bridge::getOrAllocInstanceId,
                 zones,
                 gameObjects,
                 ZoneIds.P2_HAND,
@@ -472,7 +474,7 @@ object GsmBuilder {
             ZoneMapper.addInitialPlayerZonesFromSnapshot(
                 SeatId(1),
                 snap,
-                bridge,
+                bridge::getOrAllocInstanceId,
                 zones,
                 ZoneIds.P1_HAND,
                 ZoneIds.P1_LIBRARY,
@@ -485,7 +487,7 @@ object GsmBuilder {
             ZoneMapper.addInitialPlayerZonesFromSnapshot(
                 SeatId(2),
                 snap,
-                bridge,
+                bridge::getOrAllocInstanceId,
                 zones,
                 ZoneIds.P2_HAND,
                 ZoneIds.P2_LIBRARY,

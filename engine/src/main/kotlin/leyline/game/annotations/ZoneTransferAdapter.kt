@@ -7,23 +7,22 @@ import leyline.game.event.GameEvent
 import leyline.game.event.ZoneMove
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.state.AnnotationProjectionState
-import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
+import leyline.game.state.ProjectionState
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 
-/** Shell adapter for zone-transfer identity planning and journal consumption. */
+/** Zone-transfer identity planning and journal consumption within one private projection edit. */
 object ZoneTransferAdapter {
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,
-        bridge: GameBridge,
+        editor: ProjectionState.Editor,
         snapshot: GsmSnapshot,
         events: List<GameEvent>,
-        annotationJournal: AnnotationProjectionState.Planner,
         zoneMoves: List<ZoneMove> = emptyList(),
     ): TransferResult {
+        val annotationJournal = editor.annotations
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
         val cardFacts = StateZoneProjection.zoneTransferFacts(snapshot)
         val paradigmEventSources =
@@ -47,21 +46,13 @@ object ZoneTransferAdapter {
             )
         }
 
-        val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
-        val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
         val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
-            val plan = bridge.reallocInstanceId(fid)
-            forwardOverlay[fid] = plan.new
-            reverseOverlay[plan.new] = fid
+            val plan = editor.identities.realloc(fid)
             plannedReallocs.add(plan)
             plan
         }
-        val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->
-            reverseOverlay[iid] ?: bridge.getForgeCardId(iid)
-        }
-        val idLookup: (ForgeCardId) -> InstanceId = { fid ->
-            forwardOverlay[fid] ?: bridge.getOrAllocInstanceId(fid)
-        }
+        val forgeIdLookup: (InstanceId) -> ForgeCardId? = editor.identities::getForgeCardId
+        val idLookup: (ForgeCardId) -> InstanceId = editor.identities::getOrAlloc
 
         val result =
             ZoneTransferDetector.detectZoneTransfers(
@@ -70,7 +61,7 @@ object ZoneTransferAdapter {
                 events = events,
                 context =
                     ZoneTransferContext(
-                        previousZones = bridge.getProtoZones(),
+                        previousZones = editor.protoZones.toMap(),
                         forgeIdLookup = forgeIdLookup,
                         idAllocator = idAllocator,
                         idLookup = idLookup,

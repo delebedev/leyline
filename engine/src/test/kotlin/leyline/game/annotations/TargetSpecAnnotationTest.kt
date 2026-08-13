@@ -11,7 +11,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.FrameIdResolver
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
@@ -19,6 +18,7 @@ import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * TargetSpec persistent annotation tests — verifies targeting arrows emitted
@@ -62,14 +62,7 @@ class TargetSpecAnnotationTest :
                     },
                 )
             val snap = GsmSnapshot.forTest(stack = stack)
-            val ctx =
-                AnnotationContext(
-                    b,
-                    snap,
-                    FrameIdResolver(b.projectionIdentityWorkspace()),
-                    emptyList(),
-                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                )
+            val ctx = annotationContext(b, snap)
             val spec =
                 leyline.game.state.TargetSpec(
                     spellForgeCardId = source.id,

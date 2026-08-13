@@ -7,7 +7,6 @@ import leyline.config.MatchConfig
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.event.FrameEventLog
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
@@ -18,6 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
+import leyline.testkit.StateMapperShell as StateMapper
 
 data class SpectatorSimStats(
     val gameOver: Boolean,

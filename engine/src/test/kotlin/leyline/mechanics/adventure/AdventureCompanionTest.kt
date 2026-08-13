@@ -11,13 +11,13 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.FrameIdResolver
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.LinkedFaceRole
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
+import leyline.testkit.StateMapperShell as StateMapper
 
 class AdventureCompanionTest :
     BoardTest({
