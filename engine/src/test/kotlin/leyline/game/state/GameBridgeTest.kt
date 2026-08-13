@@ -27,7 +27,6 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -35,6 +34,7 @@ import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages
 import java.util.Random
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Integration tests for [leyline.game.state.GameBridge] — verifies the real Forge engine

@@ -18,11 +18,11 @@ import leyline.game.awaitFreshPending
 import leyline.game.awaitPrompt
 import leyline.game.event.FrameEventLog
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Integration test: verifies the LayeredEffect lifecycle wiring

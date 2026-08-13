@@ -1,7 +1,6 @@
 package leyline.game.mapping
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -31,24 +30,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 class StateFrameInputTest :
     FunSpec({
         tags(UnitTag)
-
-        test("raw projection rejects event-bearing input without mechanic source facts") {
-            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            val failure =
-                shouldThrow<IllegalArgumentException> {
-                    StateMapper.buildFromSnapshot(
-                        snap = GsmSnapshot.forTest(matchId = "state-frame"),
-                        gameStateId = 1,
-                        matchId = "state-frame",
-                        bridge = bridge,
-                        events = FrameEventLog(listOf(GameEvent.TokenCreated(ForgeCardId(1), SeatId(1)))),
-                        effectFacts = EffectProjectionFacts(),
-                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                    )
-                }
-
-            failure.message shouldBe "Event-bearing projection requires explicit MechanicSourceFacts"
-        }
 
         test("zero-Forge state-frame input replays prompt facts without consumption") {
             val choice = leyline.game.state.ChoiceResult(ForgeCardId(1), SeatId(1), 9, null, 2)
@@ -84,11 +65,11 @@ class StateFrameInputTest :
 
             val first =
                 StateMapper
-                    .buildDiff(input, "state-frame", bridge)
+                    .buildDiff(input, "state-frame", bridge.stateProjectionEnvironment)
                     .finalizeAnnotations()
             val second =
                 StateMapper
-                    .buildDiff(input, "state-frame", bridge)
+                    .buildDiff(input, "state-frame", bridge.stateProjectionEnvironment)
                     .finalizeAnnotations()
 
             assertSoftly {
@@ -219,8 +200,8 @@ class StateFrameInputTest :
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedIdentityBefore = bridge.getInstanceIdMap()
             val committedEffectsBefore = bridge.committedEffectProjection()
-            val first = StateMapper.buildDiff(input, "state-frame", bridge).finalizeAnnotations()
-            val second = StateMapper.buildDiff(input, "state-frame", bridge).finalizeAnnotations()
+            val first = StateMapper.buildDiff(input, "state-frame", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val second = StateMapper.buildDiff(input, "state-frame", bridge.stateProjectionEnvironment).finalizeAnnotations()
             val nextIdentity = checkNotNull(first.transition).nextState.identities
             val nextEffects = checkNotNull(first.transition).nextState.effects
             val earthbend = nextEffects.earthbend.activeByTarget.getValue(cardId)
@@ -400,8 +381,8 @@ class StateFrameInputTest :
             val committedIdentityBefore = bridge.getInstanceIdMap()
             val committedEffectsBefore = bridge.committedEffectProjection()
 
-            val first = StateMapper.buildDiff(input, "mechanic-source", bridge).finalizeAnnotations()
-            val retry = StateMapper.buildDiff(input, "mechanic-source", bridge).finalizeAnnotations()
+            val first = StateMapper.buildDiff(input, "mechanic-source", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val retry = StateMapper.buildDiff(input, "mechanic-source", bridge.stateProjectionEnvironment).finalizeAnnotations()
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe retry.gsm.toByteArray().toList()

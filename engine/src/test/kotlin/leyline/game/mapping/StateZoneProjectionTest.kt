@@ -34,7 +34,7 @@ class StateZoneProjectionTest :
             return StateProjectionEnvironment(
                 CardProtoBuilder(cards),
                 MatchProjectionConfig(isBrawl),
-                PersistentFeedReferences(cards),
+                ProjectionCardReferences(cards),
             )
         }
 
@@ -170,9 +170,11 @@ class StateZoneProjectionTest :
             val gameObjects = mutableListOf<GameObjectInfo>()
             val facts = StateZoneProjection.zoneTransferFacts(snap)
 
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             ZoneMapper.addStackAbilitiesFromSnapshot(
                 snap = snap,
-                bridge = GameBridge(cardRepository = InMemoryCardRepository()),
+                environment = bridge.stateProjectionEnvironment,
+                instanceIdLookup = bridge::getOrAllocInstanceId,
                 paradigmSourceStackIidLookup = { forgeCardId ->
                     StateZoneProjection.paradigmSourceStackIid(facts, forgeCardId) { id ->
                         if (id == sourceId) 818 else null

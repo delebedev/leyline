@@ -11,16 +11,13 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PersistentFeedSet
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustedKind
-import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.CardRevealedKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
-import leyline.game.state.GameBridge
 import leyline.game.state.InstanceRevealedToOpponentKind
 import leyline.game.state.ManaCreatureDesignationKind
 import leyline.game.state.ManaDetailsKind
@@ -115,15 +112,12 @@ object AnnotationPipeline {
     )
 
     internal fun computeAnnotations(
-        events: List<GameEvent>,
+        ctx: AnnotationContext,
         transferResult: TransferResult,
         actingSeat: Int,
-        bridge: GameBridge,
-        annotationJournal: AnnotationProjectionState.Planner = AnnotationProjectionState.Planner(AnnotationProjectionState()),
-        snap: GsmSnapshot? = null,
-        frameIds: FrameIdResolver? = null,
-        mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
+        annotationJournal: AnnotationProjectionState.Planner = ctx.editor.annotations,
     ): AnnotationPipelineResult {
+        val events = ctx.events
         val combatTransferredIds =
             transferResult.transfers
                 .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
@@ -133,14 +127,10 @@ object AnnotationPipeline {
                 events = events,
                 idResolver = { fid ->
                     val transferred = combatTransferredIds[fid]
-                    if (transferred != null) InstanceId(transferred) else bridge.getOrAllocInstanceId(fid)
+                    if (transferred != null) InstanceId(transferred) else ctx.frameIds.cardIid(fid)
                 },
             )
-        // Tests can drive computeAnnotations without a resolver; in that case
-        // build a no-realloc instance from the bridge alone — `cardIid` falls
-        // through to bridge.getOrAllocInstanceId, matching prior behaviour.
-        val resolver = frameIds ?: FrameIdResolver(bridge.projectionIdentityWorkspace())
-        val stateZoneFacts = snap?.let(StateZoneProjection::zoneTransferFacts)
+        val stateZoneFacts = StateZoneProjection.zoneTransferFacts(ctx.snap)
         val paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, eventSourceCardId ->
             StateZoneProjection.paradigmSourceStackIid(
                 facts = stateZoneFacts,
@@ -155,12 +145,9 @@ object AnnotationPipeline {
                 transferResult = transferResult,
                 actingSeat = actingSeat,
                 combatResult = combatResult,
-                bridge = bridge,
-                snap = snap,
-                frameIds = resolver,
+                ctx = ctx,
                 annotationJournal = annotationJournal,
                 paradigmSourceStackIidLookup = paradigmSourceStackIidLookup,
-                mechanicSourceFacts = mechanicSourceFacts,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
@@ -175,15 +162,13 @@ object AnnotationPipeline {
         transferResult: TransferResult,
         actingSeat: Int,
         combatResult: CombatAnnotationResult,
-        bridge: GameBridge? = null,
-        snap: GsmSnapshot? = null,
-        frameIds: FrameIdResolver? = null,
+        ctx: AnnotationContext? = null,
         annotationJournal: AnnotationProjectionState.Planner = AnnotationProjectionState.Planner(AnnotationProjectionState()),
         paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, _ ->
             annotationJournal.paradigmSourceStackIidFor(forgeCardId)
         },
-        mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
+        val frameIds = ctx?.frameIds
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
         val lethalDamageVictims =
@@ -251,16 +236,7 @@ object AnnotationPipeline {
         val snapshotAppearanceIids = transferResult.stackAbilityAppearances.map { it.abilityInstanceId }.toSet()
         val abilityLineage = annotationJournal
         val eventAbilityGrpIdsByIid =
-            if (bridge != null && snap != null && frameIds != null) {
-                val ctx =
-                    AnnotationContext(
-                        bridge,
-                        snap,
-                        frameIds,
-                        events,
-                        mechanicSourceFacts = mechanicSourceFacts,
-                        abilityExhaustionFacts = AbilityExhaustionFacts(),
-                    )
+            if (ctx != null) {
                 events
                     .filterIsInstance<GameEvent.SpellCast>()
                     .associate { cast ->
@@ -319,16 +295,7 @@ object AnnotationPipeline {
         // appearance/disappearance.
         var damageResidualLifeAnnotations = emptyList<AnnotationInfo>()
         var resolutionOwnedDamageInserted = false
-        if (bridge != null && snap != null) {
-            val ctx =
-                AnnotationContext(
-                    bridge,
-                    snap,
-                    frameIds ?: FrameIdResolver(bridge.projectionIdentityWorkspace()),
-                    events,
-                    mechanicSourceFacts = mechanicSourceFacts,
-                    abilityExhaustionFacts = AbilityExhaustionFacts(),
-                )
+        if (ctx != null) {
             emitTriggerLifecycleAnnotations(
                 ctx = ctx,
                 snapshotSourceIids = snapshotSourceIids,
@@ -736,7 +703,6 @@ object AnnotationPipeline {
         annotationJournal: AnnotationProjectionState.Planner,
     ): RemainingAnnotationsResult {
         val events = ctx.events
-        val bridge = ctx.bridge
         val snap = ctx.snap
         val frameIds = ctx.frameIds
         val castSpellManaForgeIds =
@@ -928,8 +894,8 @@ object AnnotationPipeline {
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,
                 activeStealForgeCardIds = annotationJournal.activeStealForgeCardIds(),
-                resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
-                resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
+                resolveInstanceId = ctx.editor.identities::getOrAlloc,
+                resolveForgeCardId = ctx.editor.identities::getForgeCardId,
             )
 
         // Emit LayeredEffectDestroyed for reverted steals

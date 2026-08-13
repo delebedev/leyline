@@ -19,7 +19,7 @@ internal object PersistentAbilityWordFeedBuilder {
         frameIds: FrameIdResolver,
         promptFacts: PromptProjectionFacts,
         facts: PersistentFeedFacts,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): List<AnnotationInfo> {
         val scanned =
             snap.abilityWordEntries.map { entry ->
@@ -93,7 +93,7 @@ internal object PersistentAbilityWordFeedBuilder {
         snap: GsmSnapshot,
         prev: GsmSnapshot?,
         frameIds: FrameIdResolver,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): List<AnnotationInfo> {
         val attackEvents = events.filterIsInstance<GameEvent.AttackersDeclared>()
         if (attackEvents.isEmpty()) return emptyList()

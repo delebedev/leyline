@@ -311,7 +311,7 @@ private fun projectPersistentFrame(
             transferResult = TransferResult(emptyList(), emptyList(), emptyList(), emptyList(), emptyList()),
             promptFacts = promptFacts,
             persistentFeedFacts = facts,
-            references = PersistentFeedReferences(InMemoryCardRepository()),
+            references = ProjectionCardReferences(InMemoryCardRepository()),
         )
     editor.delayedTriggerHolders.clear()
     result.currentHolders.forEach { editor.delayedTriggerHolders[it.iid] = it }

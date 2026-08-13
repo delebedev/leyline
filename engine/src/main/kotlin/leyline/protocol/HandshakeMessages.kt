@@ -504,7 +504,6 @@ object HandshakeMessages {
                     snap = snap,
                     gameStateId = gameStateId,
                     matchId = matchId,
-                    bridge = bridge,
                     environment = bridge.stateProjectionEnvironment,
                     viewingSeatId = seatId.value,
                     events = events,

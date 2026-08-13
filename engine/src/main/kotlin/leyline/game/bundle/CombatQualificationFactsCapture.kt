@@ -10,7 +10,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.game.codes.QualificationType
 import leyline.game.data.CardData
-import leyline.game.mapping.PersistentFeedReferences
+import leyline.game.mapping.ProjectionCardReferences
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.game.state.PersistentFeedFacts
@@ -37,7 +37,7 @@ internal object CombatQualificationFactsCapture {
     fun scan(
         snap: GsmSnapshot,
         bridge: GameBridge,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): List<PersistentFeedFacts.CombatQualificationRow> {
         val game = bridge.getGame() ?: return emptyList()
         if (!liveBattlefieldMatchesSnapshot(game, snap)) return emptyList()
@@ -82,7 +82,7 @@ internal object CombatQualificationFactsCapture {
         game: Game,
         snap: GsmSnapshot,
         bridge: GameBridge,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
         rows: MutableMap<RowKey, Row>,
     ) {
         for (creature in creatures) {
@@ -99,7 +99,7 @@ internal object CombatQualificationFactsCapture {
         creatures: List<Card>,
         snap: GsmSnapshot,
         bridge: GameBridge,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
         rows: MutableMap<RowKey, Row>,
     ) {
         for (blocker in creatures) {
@@ -114,7 +114,7 @@ internal object CombatQualificationFactsCapture {
         creatures: List<Card>,
         snap: GsmSnapshot,
         bridge: GameBridge,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
         rows: MutableMap<RowKey, Row>,
     ) {
         for (attacker in creatures) {
@@ -144,7 +144,7 @@ internal object CombatQualificationFactsCapture {
         qualificationType: QualificationType,
         snap: GsmSnapshot,
         bridge: GameBridge,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
         rows: MutableMap<RowKey, Row>,
     ): Row? {
         val sourceParent = sourceParent(staticAbility)
@@ -168,7 +168,7 @@ internal object CombatQualificationFactsCapture {
         sourceParent: Card,
         snap: GsmSnapshot,
         bridge: GameBridge,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): Int? {
         val host = staticAbility.hostCard
         val hostData = cardData(host, snap, references)
@@ -188,7 +188,7 @@ internal object CombatQualificationFactsCapture {
     private fun cardData(
         card: Card,
         snap: GsmSnapshot,
-        references: PersistentFeedReferences,
+        references: ProjectionCardReferences,
     ): CardData? =
         snap.boundCards[ForgeCardId(card.id)]?.data
             ?: references.cardDataByName(card.name)

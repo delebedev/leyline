@@ -10,9 +10,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.event.DamageSourceKind
 import leyline.game.event.GameEvent
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -35,12 +33,9 @@ class DamageLifeOwnershipTest :
                 )
             val pipeline =
                 AnnotationPipeline.computeAnnotations(
-                    events = events,
+                    ctx = annotationContext(bridge, events = events, transferResult = transferResult),
                     transferResult = transferResult,
                     actingSeat = 1,
-                    bridge = bridge,
-                    snap = GsmSnapshot.forTest(),
-                    frameIds = FrameIdResolver(bridge.projectionIdentityWorkspace()),
                 )
             pipeline.annotations
         }

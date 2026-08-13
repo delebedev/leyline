@@ -8,7 +8,6 @@ import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateFrameInput
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.Board
@@ -18,6 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Acceptance forcing function for the diff-pure refactor.

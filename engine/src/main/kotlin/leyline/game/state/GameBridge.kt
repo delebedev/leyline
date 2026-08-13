@@ -470,67 +470,12 @@ class GameBridge(
     // pendingProxyDeletions so the next diff emits RevealedCardDeleted +
     // diffDeletedInstanceIds.
 
-    /** Currently active RevealedCard proxy IDs, managed via [RevealProxyTracker].
-     *  Written on engine thread (during buildFromSnapshot), read serially — not concurrent. */
-    internal fun activeRevealProxies(): RevealProxyTracker.Planner =
-        checkNotNull(activeProjectionEditor.get()) {
-            "Reveal state is only available while compiling a projection"
-        }.revealProxies
-
-    internal fun planOpponentKnowledge(
-        snap: leyline.game.snapshot.GsmSnapshot,
-        frameIds: leyline.game.mapping.FrameIdResolver,
-        events: List<GameEvent>,
-    ): List<InstanceId> {
-        val editor = checkNotNull(activeProjectionEditor.get())
-        val (knownIds, next) = OpponentKnowledgeTracker.plan(editor.opponentKnowledge, snap, frameIds, events)
-        editor.opponentKnowledge = next
-        return knownIds
-    }
-
-    internal fun activeOpponentKnowledgeState(): OpponentKnowledgeTracker.State =
-        checkNotNull(activeProjectionEditor.get()).opponentKnowledge
-
-    internal fun activePersistentAnnotationState(): PersistentAnnotationState =
-        checkNotNull(activeProjectionEditor.get()).persistentAnnotations
-
-    internal fun activeHolderRecords(): Map<Int, HolderRecord> = checkNotNull(activeProjectionEditor.get()).delayedTriggerHolders
-
     /** Explicit projection identity operation for frame-local resolvers. */
     internal fun projectionIdentityWorkspace(): ProjectionIdentityWorkspace =
         activeProjectionEditor.get()?.identities ?: ProjectionIdentityWorkspace(::getOrAllocInstanceId)
 
-    internal fun applyHolderBatch(batch: HolderBatch) {
-        val holders = checkNotNull(activeProjectionEditor.get()).delayedTriggerHolders
-        batch.removed.forEach(holders::remove)
-        batch.added.forEach { holders[it.iid] = it }
-    }
-
-    internal fun applyProjectionHistory(
-        retiredIds: Collection<InstanceId>,
-        zoneRecordings: Collection<Pair<InstanceId, Int>>,
-        persistentBatch: PersistentAnnotationStore.BatchResult,
-        nextTransientLinkedFaceFamilyIds: Set<InstanceId>,
-    ) {
-        val editor = checkNotNull(activeProjectionEditor.get())
-        retiredIds.forEach { editor.limboInstanceIds += it.value }
-        zoneRecordings.forEach { (iid, zid) -> editor.protoZones[iid.value] = zid }
-        editor.persistentAnnotations =
-            PersistentAnnotationState(
-                activeAnnotations = persistentBatch.allAnnotations.associateBy { it.id },
-                nextAnnotationId = editor.persistentAnnotations.nextAnnotationId,
-                nextPersistentId = persistentBatch.nextPersistentId,
-            )
-        editor.transientLinkedFaceFamilyIds = nextTransientLinkedFaceFamilyIds
-    }
-
     private val pendingEarthbendResolutions = mutableListOf<EffectProjectionFacts.PendingEarthbendResolution>()
     private var nextEarthbendResolutionVersion = 1L
-
-    internal fun activeEffectPlanner(): SyntheticEffectProjection.Planner =
-        checkNotNull(activeProjectionEditor.get()) {
-            "Synthetic-effect state is only available while compiling a projection"
-        }.effects
 
     /** Cached token grpId per instanceId — stable across diff ticks. */
     val tokenRegistry =
@@ -780,10 +725,6 @@ class GameBridge(
 
     @VisibleForTesting
     internal fun committedEffectProjection(): SyntheticEffectProjection = projectionStateSnapshot().effects
-
-    internal fun lookupRevealProxy(cardId: ForgeCardId): InstanceId? =
-        activeProjectionEditor.get()?.revealProxies?.lookup(cardId)
-            ?: projectionStateSnapshot().revealProxies.entries[cardId]
 
     fun resetInstanceIds(): List<InstanceId> =
         updateProjection { editor ->

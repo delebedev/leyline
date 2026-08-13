@@ -11,12 +11,12 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.codes.DetailKeys
 import leyline.game.event.FrameEventLog
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Integration tests for the token identity subsystem:

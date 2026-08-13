@@ -36,7 +36,6 @@ import leyline.game.event.Zone
 import leyline.game.iid
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.sid
 import leyline.game.snapshot.CardSnapshot
@@ -56,6 +55,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Tests for [leyline.game.bundle.BundleBuilder] proto assembly.

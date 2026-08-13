@@ -220,7 +220,7 @@ class RoomActionTest :
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val result =
-                leyline.game.mapping.StateMapper
+                leyline.testkit.StateMapperShell
                     .buildFromSnapshot(
                         snap,
                         0,

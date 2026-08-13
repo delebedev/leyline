@@ -107,7 +107,6 @@ class BundleBuilder(
                             snap = snapshot,
                             gameStateId = gameStateId,
                             matchId = matchId,
-                            bridge = bridge,
                             environment = stateProjectionEnvironment,
                             viewingSeatId = seatId,
                             events = FrameEventLog.EMPTY,
@@ -212,7 +211,6 @@ class BundleBuilder(
         StateMapper.buildDiff(
             input = input.state.copy(projectionState = projectionState),
             matchId = matchId,
-            bridge = bridge,
             environment = stateProjectionEnvironment,
         )
 

@@ -7,12 +7,13 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateProjectionEnvironment
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.ConvokePayment
 import leyline.game.state.EffectProjectionFacts
-import leyline.game.state.GameBridge
 import leyline.game.state.MechanicSourceFacts
+import leyline.game.state.ProjectionState
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
 import leyline.game.state.TargetSpec
@@ -21,7 +22,7 @@ import leyline.game.state.TargetSpec
  * Bundle of the shared annotation-time resolvers used across the
  * [AnnotationPipeline] spine and (after the port slice) the contributors.
  *
- * Holds the bridge, immutable frame snapshot, scoped identities, ordered
+ * Holds the private projection editor, immutable frame snapshot, scoped identities, ordered
  * events, and cut-specific fact values used by annotation resolvers. Call sites
  * can read `ctx.counterAffectorFor(...)` without threading the full projection
  * input. [transferResult] is optional frame context for contributors that need
@@ -33,7 +34,8 @@ import leyline.game.state.TargetSpec
  * and the test harness).
  */
 class AnnotationContext(
-    val bridge: GameBridge,
+    val editor: ProjectionState.Editor,
+    val environment: StateProjectionEnvironment,
     val snap: GsmSnapshot,
     val frameIds: FrameIdResolver,
     val events: List<GameEvent>,
@@ -45,7 +47,7 @@ class AnnotationContext(
     val transferResult: TransferResult? = null,
 ) {
     /** Private synthetic-effect planner for this tentative projection. */
-    internal val effects: SyntheticEffectProjection.Planner get() = bridge.activeEffectPlanner()
+    internal val effects: SyntheticEffectProjection.Planner get() = editor.effects
 
     /**
      * Convoke payments still pending per cast spell this frame, keyed by source
@@ -95,7 +97,7 @@ class AnnotationContext(
     private fun isCounterAffectingKeywordResolution(resolved: GameEvent.SpellResolved): Boolean {
         if (resolved.abilityGrpId in counterAffectingKeywordTriggerIds) return true
         val sourceGrpId = snap.boundCards[resolved.cardId]?.snapshot?.grpId ?: return false
-        return bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.BACKUP) == resolved.abilityGrpId
+        return environment.cardReferences.isBackupAbility(sourceGrpId, resolved.abilityGrpId)
     }
 
     private fun isCounterAffectingAbilityWordResolution(resolved: GameEvent.SpellResolved): Boolean =
@@ -138,13 +140,7 @@ class AnnotationContext(
             ?.abilityGrpId
             ?.takeIf { it != 0 }
             ?.let { return it }
-        val cardGrpId = bridge.cardRepository.findGrpIdByName(spec.spellName) ?: return 0
-        val card = bridge.cardRepository.findByGrpId(cardGrpId) ?: return cardGrpId
-        return card.abilityIds
-            .firstOrNull { (abilityGrpId, _) -> bridge.cardRepository.findAbilityInfo(abilityGrpId)?.category == 4 }
-            ?.first
-            ?: card.abilityIds.firstOrNull()?.first
-            ?: cardGrpId
+        return environment.cardReferences.targetSpecAbilityGrpId(spec.spellName)
     }
 
     /** Resolve the stack object for a completed non-spell target group. */

@@ -19,7 +19,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
@@ -28,6 +27,7 @@ import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.gsm
+import leyline.testkit.StateMapperShell as StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.GameStage as ProtoGameStage
 
 /**

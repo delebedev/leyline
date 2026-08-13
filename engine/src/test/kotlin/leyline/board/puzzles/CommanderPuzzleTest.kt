@@ -6,7 +6,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
@@ -16,6 +15,7 @@ import leyline.testkit.detailIntList
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
+import leyline.testkit.StateMapperShell as StateMapper
 
 class CommanderPuzzleTest :
     BoardTest({

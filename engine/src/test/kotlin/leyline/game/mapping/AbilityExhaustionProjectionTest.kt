@@ -43,8 +43,8 @@ class AbilityExhaustionProjectionTest :
             val firstInput = exhaustionFrame(firstSnapshot, previous = null, facts = firstFacts)
             val cacheBefore = bridge.cachedAbilityRegistryCardIds()
 
-            val first = StateMapper.buildDiff(firstInput, "ability-exhaustion", bridge).finalizeAnnotations()
-            val retry = StateMapper.buildDiff(firstInput, "ability-exhaustion", bridge).finalizeAnnotations()
+            val first = StateMapper.buildDiff(firstInput, "ability-exhaustion", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val retry = StateMapper.buildDiff(firstInput, "ability-exhaustion", bridge.stateProjectionEnvironment).finalizeAnnotations()
             val firstRows = first.gsm.persistentAnnotationsList.filter { AnnotationType.AbilityExhausted in it.typeList }
 
             assertSoftly {
@@ -70,8 +70,14 @@ class AbilityExhaustionProjectionTest :
                             listOf(AbilityExhaustionFacts.Row(firstCardId, 7001, usesRemaining = 1, uniqueAbilityId = 50)),
                         ),
                 )
-            val changed = StateMapper.buildDiff(changedInput, "ability-exhaustion", bridge).finalizeAnnotations()
-            val changedRetry = StateMapper.buildDiff(changedInput, "ability-exhaustion", bridge).finalizeAnnotations()
+            val changed = StateMapper.buildDiff(changedInput, "ability-exhaustion", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val changedRetry =
+                StateMapper
+                    .buildDiff(
+                        changedInput,
+                        "ability-exhaustion",
+                        bridge.stateProjectionEnvironment,
+                    ).finalizeAnnotations()
 
             assertSoftly {
                 changed.gsm.toByteArray().toList() shouldBe changedRetry.gsm.toByteArray().toList()
@@ -96,7 +102,7 @@ class AbilityExhaustionProjectionTest :
                             checkNotNull(changed.transition).nextState,
                         ),
                         "ability-exhaustion",
-                        bridge,
+                        bridge.stateProjectionEnvironment,
                     ).finalizeAnnotations()
 
             assertSoftly {

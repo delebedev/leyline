@@ -267,11 +267,10 @@ class MatchFlowHarness(
         val fullResult =
             StateMapper
                 .buildFromSnapshot(
-                    snap,
-                    0,
-                    matchId,
-                    bridge,
-                    bridge.stateProjectionEnvironment,
+                    snap = snap,
+                    gameStateId = 0,
+                    matchId = matchId,
+                    environment = bridge.stateProjectionEnvironment,
                     viewingSeatId = seatId.value,
                     events = events,
                     promptFacts = promptFacts,

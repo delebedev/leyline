@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.CardData
@@ -8,7 +9,6 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectTracker
-import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -29,13 +29,14 @@ object ZoneMapper {
      *
      * Reads card lists and bound card values from [snap]. Missing bound cards are skipped.
      * When [gyZoneId] is null (e.g. deal-hand diff at mulligan time) no graveyard zone
-     * is emitted. The bridge supplies only stable card-proto data and instance identity.
+     * is emitted. Reference data and instance identity are supplied explicitly.
      */
-    @Suppress("detekt:LongParameterList")
+    @Suppress("detekt:LongMethod", "detekt:LongParameterList")
     internal fun addPlayerZonesFromSnapshot(
         seatId: SeatId,
         snap: GsmSnapshot,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
+        instanceIdLookup: (ForgeCardId) -> InstanceId,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
         handZoneId: Int,
@@ -59,10 +60,21 @@ object ZoneMapper {
                 .addViewers(seatId.value)
         if (revealHand) handBuilder.addViewers(seatId.opponent.value)
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = instanceIdLookup(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                addPlayerCardObjects(snap, fid, instanceId, handZoneId, seatId, bridge, cardVisibility, "hand", gameObjects)
+                addPlayerCardObjects(
+                    snap,
+                    fid,
+                    instanceId,
+                    handZoneId,
+                    seatId,
+                    environment,
+                    instanceIdLookup,
+                    cardVisibility,
+                    "hand",
+                    gameObjects,
+                )
             }
         }
         zones.add(handBuilder.build())
@@ -76,7 +88,7 @@ object ZoneMapper {
                 .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = instanceIdLookup(fid).value
             libBuilder.addObjectInstanceIds(instanceId)
             if (revealLib) {
                 addPlayerCardObjects(
@@ -85,7 +97,8 @@ object ZoneMapper {
                     instanceId,
                     libZoneId,
                     seatId,
-                    bridge,
+                    environment,
+                    instanceIdLookup,
                     Visibility.Private,
                     "library",
                     gameObjects,
@@ -104,9 +117,20 @@ object ZoneMapper {
                     .setOwnerSeatId(seatId.value)
                     .setVisibility(Visibility.Public)
             for (fid in snap.zones[gyZoneId]?.contents ?: emptyList()) {
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val instanceId = instanceIdLookup(fid).value
                 gyBuilder.addObjectInstanceIds(instanceId)
-                addPlayerCardObjects(snap, fid, instanceId, gyZoneId, seatId, bridge, Visibility.Public, "graveyard", gameObjects)
+                addPlayerCardObjects(
+                    snap,
+                    fid,
+                    instanceId,
+                    gyZoneId,
+                    seatId,
+                    environment,
+                    instanceIdLookup,
+                    Visibility.Public,
+                    "graveyard",
+                    gameObjects,
+                )
             }
             zones.add(gyBuilder.build())
         }
@@ -122,7 +146,7 @@ object ZoneMapper {
                     .setVisibility(Visibility.Private)
                     .addViewers(seatId.value)
             for (fid in snap.zones[sbZoneId]?.contents ?: emptyList()) {
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val instanceId = instanceIdLookup(fid).value
                 if (canSeeSideboard) {
                     sbBuilder.addObjectInstanceIds(instanceId)
                     addPlayerCardObjects(
@@ -131,7 +155,8 @@ object ZoneMapper {
                         instanceId,
                         sbZoneId,
                         seatId,
-                        bridge,
+                        environment,
+                        instanceIdLookup,
                         Visibility.Private,
                         "sideboard",
                         gameObjects,
@@ -155,7 +180,7 @@ object ZoneMapper {
         instanceId: Int,
         zoneId: Int,
         seatId: SeatId,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
         visibility: Visibility,
         zoneName: String,
     ): GameObjectInfo? {
@@ -169,7 +194,7 @@ object ZoneMapper {
             instanceId,
             zoneId,
             seatId.value,
-            bridge.cardProto,
+            environment.cardProto,
             visibility,
             parentLinkage = snap.boundCards[fid]?.parentLinkage,
         )
@@ -182,17 +207,18 @@ object ZoneMapper {
         instanceId: Int,
         zoneId: Int,
         seatId: SeatId,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
+        instanceIdLookup: (ForgeCardId) -> InstanceId,
         visibility: Visibility,
         zoneName: String,
         gameObjects: MutableList<GameObjectInfo>,
         addViewer: Int? = null,
     ) {
         val card =
-            buildPlayerCard(snap, fid, instanceId, zoneId, seatId, bridge, visibility, zoneName)
+            buildPlayerCard(snap, fid, instanceId, zoneId, seatId, environment, visibility, zoneName)
                 ?: return
         gameObjects.add(addViewer?.let { card.toBuilder().addViewers(it).build() } ?: card)
-        addDisturbBackObject(snap, fid, instanceId, zoneId, seatId, bridge, visibility, gameObjects)
+        addDisturbBackObject(snap, fid, instanceId, zoneId, seatId, environment, instanceIdLookup, visibility, gameObjects)
     }
 
     @Suppress("detekt:LongParameterList")
@@ -202,7 +228,8 @@ object ZoneMapper {
         sourceInstanceId: Int,
         zoneId: Int,
         seatId: SeatId,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
+        instanceIdLookup: (ForgeCardId) -> InstanceId,
         visibility: Visibility,
         gameObjects: MutableList<GameObjectInfo>,
     ) {
@@ -210,7 +237,7 @@ object ZoneMapper {
         if (bound.altCost(KeywordAbilityIds.DISTURB) == null) return
         val cardSnap = snap.objects[fid] ?: return
         if (cardSnap.othersideGrpId == 0) return
-        val backInstanceId = bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
+        val backInstanceId = instanceIdLookup(FrameIdResolver.disturbBackForgeId(fid)).value
         gameObjects.add(
             ObjectMapper.buildDisturbBackObject(
                 cardSnap,
@@ -218,7 +245,7 @@ object ZoneMapper {
                 sourceInstanceId,
                 zoneId,
                 seatId.value,
-                bridge.cardProto,
+                environment.cardProto,
                 visibility,
             ),
         )
@@ -231,7 +258,7 @@ object ZoneMapper {
         snap: GsmSnapshot,
         arenaZoneId: Int,
         environment: StateProjectionEnvironment,
-        instanceIdLookup: (ForgeCardId) -> leyline.bridge.types.InstanceId,
+        instanceIdLookup: (ForgeCardId) -> InstanceId,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
@@ -262,7 +289,8 @@ object ZoneMapper {
      */
     internal fun addStackAbilitiesFromSnapshot(
         snap: GsmSnapshot,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
+        instanceIdLookup: (ForgeCardId) -> InstanceId,
         paradigmSourceStackIidLookup: (ForgeCardId) -> Int?,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
@@ -289,8 +317,8 @@ object ZoneMapper {
                 } else {
                     FrameIdResolver.stackAbilityForgeId(entry.forgeCardId)
                 }
-            val abilityInstanceId = bridge.getOrAllocInstanceId(abilitySurrogate).value
-            val grpId = entry.grpId.takeIf { it != 0 } ?: GameBridge.FALLBACK_GRPID
+            val abilityInstanceId = instanceIdLookup(abilitySurrogate).value
+            val grpId = entry.grpId.takeIf { it != 0 } ?: 0
             // Degraded fallback: when [SnapshotCapture] couldn't resolve the source
             // card's Arena printing (synthetic test card, unrecognized token), reuse
             // the ability grpId rather than emit 0. This re-collapses grpId ==
@@ -311,7 +339,7 @@ object ZoneMapper {
                 if (grpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER) {
                     paradigmSourceStackIidLookup(entry.forgeCardId) ?: 0
                 } else {
-                    bridge.getOrAllocInstanceId(entry.forgeCardId).value
+                    instanceIdLookup(entry.forgeCardId).value
                 }
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
@@ -321,7 +349,7 @@ object ZoneMapper {
                     sourceCardGrpId = sourceCardGrpId,
                     instanceId = abilityInstanceId,
                     ownerSeatId = entry.owner.value,
-                    cardProto = bridge.cardProto,
+                    cardProto = environment.cardProto,
                     parentInstanceId = parentInstanceId,
                 ),
             )
@@ -354,7 +382,7 @@ object ZoneMapper {
     internal fun addInitialPlayerZonesFromSnapshot(
         seatId: SeatId,
         snap: GsmSnapshot,
-        bridge: GameBridge,
+        instanceIdLookup: (ForgeCardId) -> InstanceId,
         zones: MutableList<ZoneInfo>,
         handZoneId: Int,
         libZoneId: Int,
@@ -382,10 +410,10 @@ object ZoneMapper {
                 .setOwnerSeatId(seatId.value)
                 .setVisibility(Visibility.Hidden)
         for (fid in snap.zones[libZoneId]?.contents ?: emptyList()) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(fid).value)
+            libBuilder.addObjectInstanceIds(instanceIdLookup(fid).value)
         }
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(fid).value)
+            libBuilder.addObjectInstanceIds(instanceIdLookup(fid).value)
         }
         zones.add(libBuilder.build())
         // Graveyard — empty
@@ -400,7 +428,7 @@ object ZoneMapper {
                 .addViewers(seatId.value)
         val canSeeSideboard = viewingSeatId == 0 || viewingSeatId == seatId.value
         for (fid in snap.zones[sbZoneId]?.contents ?: emptyList()) {
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
+            val instanceId = instanceIdLookup(fid).value
             if (canSeeSideboard) sbBuilder.addObjectInstanceIds(instanceId)
         }
         zones.add(sbBuilder.build())

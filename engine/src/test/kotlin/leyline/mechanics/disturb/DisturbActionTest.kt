@@ -15,7 +15,6 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -23,6 +22,7 @@ import leyline.testkit.TestCardRegistry
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Disturb graveyard-cast-with-alternate-cost path — zone guard and DFC

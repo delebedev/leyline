@@ -170,20 +170,21 @@ StateFrameInput(snapshot, prev, events, typed facts, prior ProjectionState)
     └── transition: ProjectionTransition (complete next projection state)
 ```
 
-**Transactional isolation of the compute phase.** `buildDiff` edits a private
-projection editor and returns the complete next `ProjectionState` in one
-transition. A discarded or stale attempt installs nothing. `PureDiffReplayTest`
-supplies the same immutable frame input and prior projection state to assert
-equal messages and equal next state. The outer mapper still carries explicit
-read-only bridge dependencies, so this boundary is tentative and deterministic,
-not yet the final pure projection core.
+**Transactional isolation of the compute phase.** `buildDiff` creates and edits
+a private projection editor from the supplied prior value, then returns the
+complete next `ProjectionState` in one transition. It has no `GameBridge`
+dependency or ambient projection editor. A discarded or stale attempt installs
+nothing. `StateMapperValueBoundaryTest` supplies only immutable snapshots,
+facts, environment, and prior state across two frames and asserts equal messages,
+equal transitions, lifecycle changes, and unchanged discarded priors.
 
-Residual mapper dependencies are read-only card metadata and a bounded set of
-annotation/mechanic reference queries not yet present in the frame input.
-Projection history—including identities, effect lifecycle, prompt facts,
-reveal proxies, and annotation correlation—lives in `ProjectionState` or the
-typed frame facts. `StateMapper` documents representative residual reads;
-`PureDiffReplayTest` is the executable determinism contract.
+Stable card metadata and match configuration enter through the read-only
+`StateProjectionEnvironment`. Projection history—including identities, effect
+lifecycle, prompt facts, reveal proxies, and annotation correlation—lives in
+`ProjectionState` or typed frame facts. This is a bridge-free deterministic
+mapping boundary, but not yet a final projection compiler: snapshot/fact
+materialization, action and request mapping, rider finalization, and transition
+installation remain shell stages around it.
 
 **BundleBuilder.bundle** assembles outbound messages:
 
