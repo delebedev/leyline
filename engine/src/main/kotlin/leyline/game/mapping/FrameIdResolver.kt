@@ -10,7 +10,7 @@ import leyline.game.state.ProjectionIdentityWorkspace
 /**
  * Frame-local instance-id resolver.
  *
- * Inside a single [StateMapper.buildDiff] call there are three different ways
+ * Inside one [StateProjectionCompiler] call there are three different ways
  * to answer "what's the instance id of X right now?":
  *
  * - [ProjectionIdentityWorkspace.getOrAlloc] — the caller-supplied projection

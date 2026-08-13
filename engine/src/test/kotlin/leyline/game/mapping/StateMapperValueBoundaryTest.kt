@@ -45,15 +45,14 @@ class StateMapperValueBoundaryTest :
                 valueFrame(
                     snapshot = firstSnapshot,
                     previous = null,
-                    projectionState = initial,
                     exhaustionFacts =
                         AbilityExhaustionFacts(
                             listOf(AbilityExhaustionFacts.Row(cardId, 7001, usesRemaining = 0, uniqueAbilityId = 50)),
                         ),
                 )
 
-            val first = StateMapper.buildDiff(firstInput, "value-boundary", environment).finalizeAnnotations()
-            val firstRetry = StateMapper.buildDiff(firstInput, "value-boundary", environment).finalizeAnnotations()
+            val first = StateProjectionCompiler.compileOneViewer(environment, firstInput, initial)
+            val firstRetry = StateProjectionCompiler.compileOneViewer(environment, firstInput, initial)
             val firstNext = checkNotNull(first.transition).nextState
 
             assertSoftly {
@@ -72,11 +71,10 @@ class StateMapperValueBoundaryTest :
                 valueFrame(
                     snapshot = valueSnapshot(cardId, gameStateId = 2),
                     previous = first.projectionSnapshot,
-                    projectionState = firstNext,
                     exhaustionFacts = AbilityExhaustionFacts(),
                 )
-            val second = StateMapper.buildDiff(secondInput, "value-boundary", environment).finalizeAnnotations()
-            val secondRetry = StateMapper.buildDiff(secondInput, "value-boundary", environment).finalizeAnnotations()
+            val second = StateProjectionCompiler.compileOneViewer(environment, secondInput, firstNext)
+            val secondRetry = StateProjectionCompiler.compileOneViewer(environment, secondInput, firstNext)
 
             assertSoftly {
                 second.gsm.toByteArray().toList() shouldBe secondRetry.gsm.toByteArray().toList()
@@ -84,7 +82,7 @@ class StateMapperValueBoundaryTest :
                 firstNext shouldBe firstNextBefore
                 second.gsm.persistentAnnotationsList shouldBe emptyList()
                 second.gsm.diffDeletedPersistentAnnotationIdsList shouldContainExactly listOf(1)
-                second.transition?.nextState?.identities shouldBe firstNext.identities
+                second.transition.nextState.identities shouldBe firstNext.identities
             }
         }
     })
@@ -125,7 +123,6 @@ private fun valueSnapshot(
 private fun valueFrame(
     snapshot: GsmSnapshot,
     previous: GsmSnapshot?,
-    projectionState: ProjectionState,
     exhaustionFacts: AbilityExhaustionFacts,
 ): StateFrameInput =
     StateFrameInput(
@@ -141,5 +138,4 @@ private fun valueFrame(
         mechanicSourceFacts = MechanicSourceFacts(),
         abilityExhaustionFacts = exhaustionFacts,
         persistentFeedFacts = PersistentFeedFacts(),
-        projectionState = projectionState,
     )

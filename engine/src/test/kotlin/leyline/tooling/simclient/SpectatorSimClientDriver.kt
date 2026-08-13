@@ -85,19 +85,8 @@ class SpectatorSimClientDriver(
                         mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, emptyList()),
                         abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
                         projectionState = capturedProjection.copy(revision = priorProjection.revision),
-                    ).finalizeAnnotations()
-            val transition = checkNotNull(full.transition)
-            val cursor = transition.nextState.viewerCursors[0] ?: leyline.game.state.ViewerProjectionCursor()
-            bridge.commitProjection(
-                transition.copy(
-                    nextState =
-                        transition.nextState.copy(
-                            viewerCursors =
-                                transition.nextState.viewerCursors +
-                                    (0 to cursor.copy(previousSnapshot = snap)),
-                        ),
-                ),
-            )
+                    )
+            bridge.commitProjection(full.transition)
             val initial = greMessage(session.counter.nextMsgId(), full.gsm)
             log.writeBundle(listOf(initial))
             totalMessages++

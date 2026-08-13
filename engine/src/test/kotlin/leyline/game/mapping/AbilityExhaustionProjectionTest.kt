@@ -41,10 +41,13 @@ class AbilityExhaustionProjectionTest :
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val firstInput = exhaustionFrame(firstSnapshot, previous = null, facts = firstFacts)
+            val initial =
+                leyline.game.state.ProjectionState
+                    .initial()
             val cacheBefore = bridge.cachedAbilityRegistryCardIds()
 
-            val first = StateMapper.buildDiff(firstInput, "ability-exhaustion", bridge.stateProjectionEnvironment).finalizeAnnotations()
-            val retry = StateMapper.buildDiff(firstInput, "ability-exhaustion", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val first = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, firstInput, initial)
+            val retry = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, firstInput, initial)
             val firstRows = first.gsm.persistentAnnotationsList.filter { AnnotationType.AbilityExhausted in it.typeList }
 
             assertSoftly {
@@ -64,20 +67,23 @@ class AbilityExhaustionProjectionTest :
                 exhaustionFrame(
                     snapshot = changedSnapshot,
                     previous = first.projectionSnapshot,
-                    projectionState = checkNotNull(first.transition).nextState,
                     facts =
                         AbilityExhaustionFacts(
                             listOf(AbilityExhaustionFacts.Row(firstCardId, 7001, usesRemaining = 1, uniqueAbilityId = 50)),
                         ),
                 )
-            val changed = StateMapper.buildDiff(changedInput, "ability-exhaustion", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val changed =
+                StateProjectionCompiler.compileOneViewer(
+                    bridge.stateProjectionEnvironment,
+                    changedInput,
+                    first.transition.nextState,
+                )
             val changedRetry =
-                StateMapper
-                    .buildDiff(
-                        changedInput,
-                        "ability-exhaustion",
-                        bridge.stateProjectionEnvironment,
-                    ).finalizeAnnotations()
+                StateProjectionCompiler.compileOneViewer(
+                    bridge.stateProjectionEnvironment,
+                    changedInput,
+                    first.transition.nextState,
+                )
 
             assertSoftly {
                 changed.gsm.toByteArray().toList() shouldBe changedRetry.gsm.toByteArray().toList()
@@ -93,17 +99,11 @@ class AbilityExhaustionProjectionTest :
             bridge.commitProjection(checkNotNull(changed.transition))
             val deletionSnapshot = exhaustionSnapshot(firstCardId, secondCardId, 3)
             val deletion =
-                StateMapper
-                    .buildDiff(
-                        exhaustionFrame(
-                            deletionSnapshot,
-                            changed.projectionSnapshot,
-                            AbilityExhaustionFacts(),
-                            checkNotNull(changed.transition).nextState,
-                        ),
-                        "ability-exhaustion",
-                        bridge.stateProjectionEnvironment,
-                    ).finalizeAnnotations()
+                StateProjectionCompiler.compileOneViewer(
+                    bridge.stateProjectionEnvironment,
+                    exhaustionFrame(deletionSnapshot, changed.projectionSnapshot, AbilityExhaustionFacts()),
+                    changed.transition.nextState,
+                )
 
             assertSoftly {
                 deletion.gsm.persistentAnnotationsList shouldBe emptyList()
@@ -160,9 +160,6 @@ private fun exhaustionFrame(
     snapshot: GsmSnapshot,
     previous: GsmSnapshot?,
     facts: AbilityExhaustionFacts,
-    projectionState: leyline.game.state.ProjectionState =
-        leyline.game.state.ProjectionState
-            .initial(),
 ): StateFrameInput =
     StateFrameInput(
         gameStateId = snapshot.gameStateId,
@@ -177,5 +174,4 @@ private fun exhaustionFrame(
         mechanicSourceFacts = MechanicSourceFacts(),
         abilityExhaustionFacts = facts,
         persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
-        projectionState = projectionState,
     )

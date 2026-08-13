@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  *    state's `LoseDesignation` paired with incoming state's `GainDesignation`.
  *
  * The persistent `Designation` re-emission lives on the snapshot path —
- * `dayNightDesignationPersistentFromSnap` in [StateMapper.buildFromSnapshot]
+ * `dayNightDesignationPersistentFromSnap` in [StateMapper]
  * does its own thing there, so this function only handles the transient
  * change-edge annotations. Both gain and lose append at end of list — the
  * lifecycle bracket on the daybound creature ETB is already structurally

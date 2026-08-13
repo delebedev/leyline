@@ -8,7 +8,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.bundle.PersistentFeedFactsCapture
-import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateFrameInput
+import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 
@@ -36,33 +37,27 @@ fun GameBridge.seedDiffBaseline(
     val events = closeBundleFrame()
     val promptFacts = materializePromptProjectionFacts()
     val result =
-        StateMapper
-            .buildFromSnapshot(
-                snap = snap,
-                gameStateId = gameStateId,
-                matchId = "",
-                environment = stateProjectionEnvironment,
-                events = events,
-                promptFacts = promptFacts,
-                persistentFeedFacts =
-                    PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
-                effectFacts = materializeEffectProjectionFacts(),
-                mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
-                abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
-                projectionState = capturedProjection.copy(revision = priorProjection.revision),
-            ).finalizeAnnotations()
-    val transition = checkNotNull(result.transition)
-    val priorCursor = transition.nextState.viewerCursors[0] ?: leyline.game.state.ViewerProjectionCursor()
-    commitProjection(
-        transition.copy(
-            nextState =
-                transition.nextState.copy(
-                    viewerCursors =
-                        transition.nextState.viewerCursors +
-                            (0 to priorCursor.copy(previousSnapshot = snap)),
+        StateProjectionCompiler.compileOneViewer(
+            environment = stateProjectionEnvironment,
+            input =
+                StateFrameInput(
+                    gameStateId = gameStateId,
+                    snapshot = snap,
+                    previousSnapshot = null,
+                    events = events,
+                    promptFacts = promptFacts,
+                    persistentFeedFacts =
+                        PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
+                    effectFacts = materializeEffectProjectionFacts(),
+                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
+                    updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
+                    viewingSeatId = 0,
+                    revealForSeat = null,
                 ),
-        ),
-    )
+            prior = capturedProjection.copy(revision = priorProjection.revision),
+        )
+    commitProjection(result.transition)
     return snap
 }
 

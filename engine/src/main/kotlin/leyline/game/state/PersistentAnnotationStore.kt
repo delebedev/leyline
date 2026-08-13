@@ -17,8 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * attachments, counters, layered effects, controller changes, exile-under-card,
  * and entered-zone-this-turn markers. [ProjectionState] carries them
  * across GSMs until explicitly removed; the wire shape is differential —
- * [leyline.game.mapping.StateMapper.buildDiff] emits only newly-added IDs on
- * each Diff GSM, and [leyline.game.mapping.StateMapper.buildFromSnapshot]
+ * [leyline.game.mapping.StateProjectionCompiler] emits only newly-added IDs on
+ * each Diff GSM, and full state projection
  * carries the full list on Full GSMs. Removals flow through
  * `diffDeletedPersistentAnnotationIds` from [BatchResult.deletedIds].
  *
@@ -47,7 +47,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * **Drain:** [BatchResult.deletedIds] is the canonical source for the GSM's
  * `diffDeletedPersistentAnnotationIds` field — read directly at build time in
- * [leyline.game.mapping.StateMapper.buildDiff]. Each deletion ID appears in exactly one
+ * [leyline.game.mapping.StateProjectionCompiler]. Each deletion ID appears in exactly one
  * Diff GSM. Full GSMs carry the post-batch active set directly; deletions are
  * implicit (the absent IDs).
  *
@@ -109,7 +109,7 @@ object PersistentAnnotationStore {
      *
      * **Snapshot timing:** [currentActive] must be a value-snapshot taken
      * *before* the annotation pipeline runs.
-     * [leyline.game.mapping.StateMapper.buildFromSnapshot] reads it in the
+     * [leyline.game.mapping.StateMapper] reads it in the
      * GATHER phase so the COMPUTE phase (which calls this) is pure.
      *
      * @param frame phase / active-player / battlefield-iids; drives

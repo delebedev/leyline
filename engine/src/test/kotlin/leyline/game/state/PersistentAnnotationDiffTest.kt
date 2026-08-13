@@ -22,9 +22,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateType
  * them across diffs; removal is signaled separately via
  * `diffDeletedPersistentAnnotationIds`. A Full GSM carries the complete list.
  *
- * Before this guard: `StateMapper.buildDiff` embedded
- * `current.persistentAnnotationsList` verbatim on every Diff — every subsequent
- * diff re-emitted the same IDs, visible in fixture traces as `EZTT, CP` on
+ * The state compiler must emit only the persistent additions for the current
+ * transition. Re-emitting the current complete set would duplicate IDs on
  * every post-entry frame.
  */
 class PersistentAnnotationDiffTest :
@@ -33,7 +32,7 @@ class PersistentAnnotationDiffTest :
         test("persistent annotation IDs appear on exactly one Diff GSM in a scripted scenario") {
             val (bridge, _, _) = startGameAtMain1(seed = 42L)
             val diffs = mutableListOf<GameStateMessage>()
-            bridge.diffListener = { _, diff -> diffs.add(diff) }
+            bridge.diffListener = { _, _, _, diff -> diffs.add(diff) }
 
             // Scenario: play a land (creates EZTT + ColorProduction persistent
             // annotations), then pass through the full turn so we accumulate

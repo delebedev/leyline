@@ -149,14 +149,15 @@ Engine state becomes wire state through a two-stage pipeline in `engine.game`.
 
 **Stage 1 — snapshot.** `GsmSnapshot` materialization reads `forge-game` state into an immutable value: seats, zones, objects, phase, and stack. Projection-owned identity observations remain tentative until the surrounding transition installs.
 
-**Stage 2 — map.** `StateMapper` takes the snapshot, cut-scoped typed facts,
-stable reference data, and prior projection state, then returns a tentative
-`BuildResult`:
+**Stage 2 — compile one viewer.** `StateProjectionCompiler` takes the snapshot,
+cut-scoped typed facts, stable reference data, prior projection state, and a
+typed viewer intent, then returns one finalized tentative result:
 
 ```
-StateFrameInput(snapshot, prev, events, typed facts, prior ProjectionState)
-  + StateProjectionEnvironment
-    └── StateMapper.buildDiff / buildFromSnapshot
+StateFrameInput(snapshot, prev, events, typed facts)
+  + StateProjectionEnvironment + prior ProjectionState + ViewerProjectionIntent
+    └── StateProjectionCompiler.compileOneViewer
+        ├── StateMapper          → bridge-free base state draft
         ├── ObjectMapper         → GameObjectInfo[]  (cards, permanents, abilities)
         ├── ZoneMapper           → ZoneInfo[]        (hand, library, battlefield, stack, …)
         ├── PlayerMapper         → PlayerInfo[]      (life, mana pool, counters)
@@ -164,37 +165,39 @@ StateFrameInput(snapshot, prev, events, typed facts, prior ProjectionState)
         ├── CombatAnnotations / MechanicAnnotations → AnnotationMsg[]
         └── PersistentAnnotationStore.computeBatch  → retained-effect batch
   →
-  BuildResult
+  StateProjectionCompiler.Result
     ├── gsm:       GameStateMessage    (the proto to send)
     ├── output: ProjectionOutput       (assembly metadata)
     └── transition: ProjectionTransition (complete next projection state)
 ```
 
-**Transactional isolation of the compute phase.** `buildDiff` creates and edits
-a private projection editor from the supplied prior value, then returns the
-complete next `ProjectionState` in one transition. It has no `GameBridge`
-dependency or ambient projection editor. A discarded or stale attempt installs
-nothing. `StateMapperValueBoundaryTest` supplies only immutable snapshots,
-facts, environment, and prior state across two frames and asserts equal messages,
-equal transitions, lifecycle changes, and unchanged discarded priors.
+**Transactional isolation of state projection.** `compileOneViewer` creates one
+private projection editor, maps the base state, applies typed supplements and
+order-prompt synthetic state, finalizes transient annotations once, advances
+the viewer baseline, then freezes once. It has no `GameBridge` dependency or
+ambient projection editor. A discarded or stale attempt installs nothing.
+`StateProjectionCompilerTest` and `StateMapperValueBoundaryTest` supply only
+immutable snapshots, facts, environment, intent, and prior state.
 
 Stable card metadata and match configuration enter through the read-only
 `StateProjectionEnvironment`. Projection history—including identities, effect
 lifecycle, prompt facts, reveal proxies, and annotation correlation—lives in
-`ProjectionState` or typed frame facts. This is a bridge-free deterministic
-mapping boundary, but not yet a final projection compiler: snapshot/fact
-materialization, action and request mapping, rider finalization, and transition
-installation remain shell stages around it.
+`ProjectionState` or typed frame facts. This is a finalized, bridge-free
+single-view state compiler. Snapshot/fact and intent materialization, action and
+request mapping, lifecycle envelopes, transition installation, and multi-view
+atomicity remain shell stages. Full-state action projection may still extend
+the tentative state through its explicit shell editor; it cannot append
+state-frame annotations.
 
 **BundleBuilder.bundle** assembles outbound messages:
 
 ```
-  per-seat visibility filter · full vs. diff selection · frame finalization · projection commit · path-specific assembly
+  per-seat intent materialization · state compiler invocation · projection commit · path-specific assembly
 ```
 
-After compute, `BundleBuilder` finalizes the frame and installs one
-`ProjectionTransition`. Its next state includes identity history, annotation
-history, and the viewer's snap-vs-snap diff baseline. A match-scoped shell lock
+`BundleBuilder` installs the compiler's one `ProjectionTransition`. Its next
+state includes identity history, annotation history, and the viewer's snap-vs-snap
+diff baseline. A match-scoped shell lock
 preserves frame-cut order across builders while the transition install remains
 a revision-checked compare-and-set.
 
