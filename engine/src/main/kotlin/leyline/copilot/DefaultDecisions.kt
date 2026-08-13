@@ -43,7 +43,19 @@ internal object DefaultDecisions {
     fun assignDamage(msg: GREToClientMessage): SimDecision =
         SimDecision.AssignDamage(
             msg.assignDamageReq.damageAssignersList.map { da ->
-                da.instanceId to da.assignmentsList.map { it.instanceId to it.assignedDamage }
+                SimDecision.DamageAssignerDecision(
+                    instanceId = da.instanceId,
+                    totalDamage = da.totalDamage,
+                    assignments =
+                        da.assignmentsList.map { assignment ->
+                            SimDecision.DamageAssignmentDecision(
+                                instanceId = assignment.instanceId,
+                                minDamage = assignment.minDamage,
+                                maxDamage = assignment.maxDamage.takeIf { it > 0 } ?: da.totalDamage,
+                                assignedDamage = assignment.assignedDamage,
+                            )
+                        },
+                )
             },
         )
 
@@ -68,8 +80,8 @@ internal object DefaultDecisions {
         }
     }
 
-    /** First [minSel] modal grpIds for a modal casting-time choice, or null if not one. */
-    fun modalGrpIds(msg: GREToClientMessage): List<Int>? {
+    /** First [minSel] modal grpIds, bound to the casting-time option that offered them. */
+    fun modalChoice(msg: GREToClientMessage): SimDecision.ModalChoice? {
         val option =
             msg.castingTimeOptionsReq.castingTimeOptionReqList
                 .firstOrNull { it.castingTimeOptionType == CastingTimeOptionType.Modal_a7b4 && it.hasModalReq() }
@@ -77,8 +89,14 @@ internal object DefaultDecisions {
         val req = option.modalReq
         val min = req.minSel.coerceAtLeast(0)
         val max = if (req.maxSel > 0) req.maxSel else min
-        return req.modalOptionsList.map { it.grpId }.take(min.coerceAtMost(max))
+        return SimDecision.ModalChoice(
+            ctoId = option.ctoId,
+            selectedGrpIds = req.modalOptionsList.map { it.grpId }.take(min.coerceAtMost(max)),
+        )
     }
+
+    /** First [minSel] modal grpIds for callers that do not submit the response themselves. */
+    fun modalGrpIds(msg: GREToClientMessage): List<Int>? = modalChoice(msg)?.selectedGrpIds
 
     /** CastingTimeOptions: mana-type, else modal, else decline optional costs (ctoId 0). */
     fun castingTimeOptions(
@@ -86,7 +104,7 @@ internal object DefaultDecisions {
         acceptOptionalCosts: Boolean = false,
     ): SimDecision {
         manaTypeChoices(msg)?.let { return SimDecision.ManaTypeChoices(it) }
-        modalGrpIds(msg)?.let { return SimDecision.ModalChoice(it) }
+        modalChoice(msg)?.let { return it }
         val ctoId =
             if (!acceptOptionalCosts) {
                 0

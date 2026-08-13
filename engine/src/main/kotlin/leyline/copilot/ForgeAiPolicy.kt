@@ -1,6 +1,7 @@
 package leyline.copilot
 
 import forge.ai.AiCostDecision
+import forge.ai.ComputerUtilCard
 import forge.ai.PlayerControllerAi
 import forge.ai.simulation.GameStateEvaluator
 import forge.card.ColorSet
@@ -14,6 +15,7 @@ import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
 import forge.game.cost.CostSacrifice
+import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.LandAbility
@@ -40,6 +42,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 /**
@@ -163,6 +166,72 @@ class ForgeAiPolicy(
         }
         return null
     }
+
+    /**
+     * Last priority-window safeguard for a cast the normal AI declines at the
+     * end of its own turn. The AAR supplies legality and affordability: only
+     * an active Cast with a non-zero cost and a concrete auto-tap solution is
+     * eligible. Forge supplies card identity and filters out instants, Flash,
+     * and non-permanents.
+     *
+     * Forge's card evaluator ranks eligible permanents. If that evaluator
+     * fails, spending the greatest mana value before passing the turn is the
+     * conservative deterministic fallback; source instance id breaks ties.
+     */
+    internal fun chooseMain2ProactivePermanent(promptActions: List<Action>): Choice? {
+        val phase = game().phaseHandler
+        if (phase.phase != PhaseType.MAIN2 || phase.playerTurn != seatPlayer || phase.priorityPlayer != seatPlayer) return null
+
+        val candidates = promptActions.mapNotNull(::main2ProactiveCandidate)
+        if (candidates.isEmpty()) return null
+
+        val forgeBest =
+            askAi("rankMain2ProactivePermanent") {
+                ComputerUtilCard.getBestAI(candidates.map { it.card })
+            }
+        return candidates.firstOrNull { it.card === forgeBest }?.choice
+            ?: candidates
+                .sortedWith(
+                    compareByDescending<ProactiveCandidate> { it.card.getCMC() }
+                        .thenBy { it.choice.instanceId },
+                ).first()
+                .choice
+    }
+
+    private fun main2ProactiveCandidate(action: Action): ProactiveCandidate? {
+        if (action.actionType != ActionType.Cast) return null
+        if (action.manaCostList.sumOf { it.count } <= 0) return null
+        if (!action.hasAutoTapSolution() || action.autoTapSolution.autoTapActionsCount == 0) return null
+
+        val card = cardForInstance(action.instanceId) ?: return null
+        if (!card.isPermanent || card.isInstant) return null
+        val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return null
+        val mappedInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val hasSorcerySpeedAbility =
+            getAllCastableAbilities(card, seatPlayer).any { sa ->
+                sa.activatingPlayer = seatPlayer
+                sa.isSpell &&
+                    !sa.withFlash(card, seatPlayer) &&
+                    chooseMatchingAction(
+                        sa = sa,
+                        actionType = ActionType.Cast,
+                        grpId = grpId,
+                        mappedInstanceId = mappedInstanceId,
+                        promptActions = listOf(action),
+                        isSkipped = { false },
+                    ) != null
+            }
+        if (!hasSorcerySpeedAbility) return null
+        return ProactiveCandidate(
+            card = card,
+            choice = Choice(action, action.instanceId, action.grpId, ActionType.Cast, action.abilityGrpId),
+        )
+    }
+
+    private data class ProactiveCandidate(
+        val card: Card,
+        val choice: Choice,
+    )
 
     private fun chooseMatchingAction(
         sa: SpellAbility,
@@ -424,28 +493,19 @@ class ForgeAiPolicy(
         val req = msg.selectTargetsReq
         if (req.targetsCount == 0) return false
         return req.targetsList.all { group ->
-            val selectableCount = group.targetsList.count { it.legalAction == SelectAction.Select_a1ad }
             val exactRequired = group.minTargets == group.maxTargets && group.minTargets >= 0
             val optionalSingle = group.minTargets == 0 && group.maxTargets == 1
-            (exactRequired || optionalSingle) && selectableCount >= group.minTargets
+            val availableCount =
+                group.targetsList
+                    .map { it.targetInstanceId }
+                    .distinct()
+                    .size
+            (exactRequired || optionalSingle) && availableCount >= group.minTargets
         }
     }
 
-    fun chooseSelectTargets(msg: GREToClientMessage): List<Int>? {
+    fun chooseSelectTargets(msg: GREToClientMessage): TargetGroupSelections? {
         if (!canChooseSelectTargets(msg)) return null
-        val selectableList =
-            msg.selectTargetsReq.targetsList
-                .asSequence()
-                .flatMap { it.targetsList.asSequence() }
-                .filter { it.legalAction == SelectAction.Select_a1ad }
-                .map { it.targetInstanceId }
-                .toList()
-        val selectableIds = selectableList.toSet()
-        val minCount = msg.selectTargetsReq.targetsList.sumOf { it.minTargets.coerceAtLeast(0) }
-        val maxCount =
-            msg.selectTargetsReq.targetsList
-                .sumOf { group -> group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets }
-                .coerceAtLeast(minCount)
 
         // Preferred path: let Forge's AI pick the target for the bound spell/
         // ability. When no prompt-bound ability exists (a consult against a
@@ -455,36 +515,55 @@ class ForgeAiPolicy(
         val sa =
             bridge.promptBridge(seatId).getPendingPrompt()?.targetingSa
                 ?: rebuiltTargetingSa(msg.selectTargetsReq.sourceId)
-        if (sa != null) {
-            val previousTargets = sa.targets.clone()
-            val chosenTargets =
-                try {
-                    sa.targets.clear()
-                    val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
-                    if (chose) sa.targets.toList() else null
-                } finally {
-                    sa.targets.clear()
-                    sa.targets.addAll(previousTargets)
-                }
-            if (chosenTargets != null && chosenTargets.size in minCount..maxCount) {
-                val ids = chosenTargets.mapNotNull { targetInstanceId(it) }
-                if (ids.size == chosenTargets.size && ids.size == ids.distinct().size && ids.all { it in selectableIds }) {
-                    return ids
-                }
+        val preferredIds =
+            if (sa != null) {
+                val previousTargets = sa.targets.clone()
+                val chosenTargets =
+                    try {
+                        sa.targets.clear()
+                        val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
+                        if (chose) sa.targets.toList() else null
+                    } finally {
+                        sa.targets.clear()
+                        sa.targets.addAll(previousTargets)
+                    }
+                chosenTargets?.mapNotNull { targetInstanceId(it) }.orEmpty()
+            } else {
+                emptyList()
             }
-        }
+        return selectTargetPlan(msg.selectTargetsReq, preferredIds)
+    }
 
-        // Fallback: the AI declined or no targeting SA was bound, but the spell
-        // REQUIRES a target — pick the first minCount selectable, enemy-side
-        // first, so a removal/targeted spell resolves instead of fizzling or the
-        // engine auto-resolving it onto an arbitrary object. Mandatory targeting only.
-        if (minCount in 1..selectableList.size) {
-            return selectableList.sortedByDescending { isEnemyTarget(it) }.take(minCount)
+    /** Build a legal desired set independently for every target group. */
+    private fun selectTargetPlan(
+        req: SelectTargetsReq,
+        preferredIds: List<Int>,
+    ): TargetGroupSelections? {
+        val committed = TargetSelectionDiff.committedTargets(req)
+        val result = linkedMapOf<Int, List<Int>>()
+        for (group in req.targetsList) {
+            val min = group.minTargets.coerceAtLeast(0)
+            val max = group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets
+            val legalIds = group.targetsList.map { it.targetInstanceId }.distinct()
+            val desired =
+                committed[group.targetIdx]
+                    .orEmpty()
+                    .filter { it in legalIds }
+                    .distinct()
+                    .take(max)
+                    .toMutableList()
+            preferredIds.filter { it in legalIds && it !in desired }.take(max - desired.size).forEach(desired::add)
+            group.targetsList
+                .filter { it.legalAction == SelectAction.Select_a1ad && it.targetInstanceId !in desired }
+                .map { it.targetInstanceId }
+                .distinct()
+                .sortedByDescending(::isEnemyTarget)
+                .take((min - desired.size).coerceAtLeast(0))
+                .forEach(desired::add)
+            if (desired.size !in min..max) return null
+            result[group.targetIdx] = desired
         }
-        // Optional targeting (min 0) the AI declined: select nothing — a legal decline,
-        // not an unrealizable prompt.
-        if (minCount == 0) return emptyList()
-        return null
+        return result.takeIf { TargetSelectionDiff.isValid(req, it) }
     }
 
     /**
@@ -522,7 +601,7 @@ class ForgeAiPolicy(
     internal fun chooseCastingTimeOptions(msg: GREToClientMessage): SimDecision? {
         if (!canChooseCastingTimeOptions(msg)) return null
         return chooseManaTypeCastingTimeOptions(msg)?.let { SimDecision.ManaTypeChoices(it) }
-            ?: chooseModalCastingTimeOptions(msg)?.let { SimDecision.ModalChoice(it) }
+            ?: chooseModalCastingTimeOptions(msg)
             ?: chooseOptionalCastingTimeOptions(msg)?.let { SimDecision.OptionalCost(it) }
     }
 
@@ -535,12 +614,12 @@ class ForgeAiPolicy(
         }
     }
 
-    private fun chooseModalCastingTimeOptions(msg: GREToClientMessage): List<Int>? {
+    private fun chooseModalCastingTimeOptions(msg: GREToClientMessage): SimDecision.ModalChoice? {
         if (!isSimpleModalCto(msg.castingTimeOptionsReq.castingTimeOptionReqList)) return null
-        val modal =
+        val option =
             msg.castingTimeOptionsReq.castingTimeOptionReqList
                 .single()
-                .modalReq
+        val modal = option.modalReq
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
         val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
         val sa = pending.targetingSa ?: return null
@@ -552,8 +631,12 @@ class ForgeAiPolicy(
                     ?.map { it.fullIndex },
                 modalGrpIds.size,
             ) ?: return null
-        modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
-        modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
+        modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let {
+            return SimDecision.ModalChoice(option.ctoId, it)
+        }
+        modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let {
+            return SimDecision.ModalChoice(option.ctoId, it)
+        }
         val previousSub = sa.subAbility
         val previousChosen = sa.chosenList
         val chosen =
@@ -564,7 +647,9 @@ class ForgeAiPolicy(
                 sa.subAbility = previousSub
                 sa.chosenList = previousChosen
             } ?: return null
-        return modalChoiceGrpIds(chosen, possible, modalGrpIds)
+        return modalChoiceGrpIds(chosen, possible, modalGrpIds)?.let {
+            SimDecision.ModalChoice(option.ctoId, it)
+        }
     }
 
     private fun chooseOptionalCastingTimeOptions(msg: GREToClientMessage): Int? {

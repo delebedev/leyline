@@ -75,6 +75,7 @@ internal object ProposalTranslator {
 
             is SimDecision.ModalChoice ->
                 base("modal", promptType, seat).copy(
+                    ctoId = decision.ctoId,
                     modalGrpIds = decision.selectedGrpIds,
                     responseIds = decision.selectedGrpIds,
                 )
@@ -136,7 +137,7 @@ internal object ProposalTranslator {
             is SimDecision.GroupAway -> base("group", promptType, seat).copy(responseIds = decision.awayInstanceIds)
 
             is SimDecision.AssignDamage ->
-                base("assign_damage", promptType, seat).copy(responseIds = decision.assigners.map { it.first })
+                base("assign_damage", promptType, seat).copy(responseIds = decision.assigners.map { it.instanceId })
 
             is SimDecision.Order -> base("order", promptType, seat).copy(responseIds = decision.orderedInstanceIds)
 

@@ -20,6 +20,7 @@ import forge.player.PlayerControllerHuman
 import forge.util.Lang
 import forge.util.Localizer
 import leyline.bridge.forge.HeadlessGuiBase
+import leyline.bridge.types.SeatId
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -95,8 +96,9 @@ object GameBootstrap {
         return Game(players, rules, match)
     }
 
-    fun createPuzzleGame(): Game {
+    fun createPuzzleGame(controlledSeat: SeatId = SeatId(1)): Game {
         ensureLocalization()
+        require(controlledSeat.value in 1..2) { "Puzzle controlled seat must be 1 or 2" }
         val players = mutableListOf<RegisteredPlayer>()
         val deck = Deck()
 
@@ -104,13 +106,19 @@ object GameBootstrap {
             RegisteredPlayer(deck)
                 .setPlayer(GamePlayerUtil.getGuiPlayer())
         human.startingHand = 0
-        players.add(human)
 
         val ai =
             RegisteredPlayer(deck)
                 .setPlayer(LobbyPlayerAi("AI", null))
         ai.startingHand = 0
-        players.add(ai)
+
+        if (controlledSeat.value == 1) {
+            players.add(human)
+            players.add(ai)
+        } else {
+            players.add(ai)
+            players.add(human)
+        }
 
         val rules = GameRules(GameType.Puzzle)
         val match = Match(rules, players, "Forge Web")
@@ -118,7 +126,7 @@ object GameBootstrap {
 
         // Puzzle setup relies on a GUI-tagged human controller. In headless mode,
         // attach a no-op GUI so controller callbacks (mana pool/current player) don't crash.
-        val humanController = game.players.firstOrNull()?.controller
+        val humanController = game.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi }?.controller
         if (humanController is PlayerControllerHuman && humanController.gui == null) {
             humanController.gui = headlessGuiGame()
         }

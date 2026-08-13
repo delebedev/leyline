@@ -121,7 +121,7 @@ internal object ForgeAiSelectTargetsAdapter : ForgeAiPromptAdapter {
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
         val selected = context.forgeAi.chooseSelectTargets(prompt.msg) ?: return null
-        return SimPromptResponse(SimDecision.SelectTargets(selected))
+        return SimPromptResponse(SimDecision.SelectTargets(selected.values.flatten()))
     }
 }
 

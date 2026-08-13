@@ -50,7 +50,8 @@ class CopilotProposalService(
             GREMessageType.MulliganReq_aa0d -> proposalFor(SimDecision.KeepHand, prompt)
 
             GREMessageType.ActionsAvailableReq_695e -> {
-                val choice = policy.chooseAarAction(prompt.actionsAvailableReq.actionsList)
+                val actions = prompt.actionsAvailableReq.actionsList
+                val choice = policy.chooseAarAction(actions) ?: policy.chooseMain2ProactivePermanent(actions)
                 proposalFor(choice?.let { SimDecision.PerformAction(it.action) } ?: SimDecision.PassPriority, prompt)
             }
 
@@ -65,7 +66,7 @@ class CopilotProposalService(
                     val committed = TargetSelectionDiff.committedTargets(req)
                     val desired =
                         policy.chooseSelectTargets(prompt)
-                            ?: committed.toList().takeIf { committed.size in TargetSelectionDiff.requiredRange(req) }
+                            ?: committed.takeIf { TargetSelectionDiff.isValid(req, it) }
                     desired?.let { TargetSelectionDiff.step(req = req, committed = committed, desired = it) }
                 }
 
@@ -115,9 +116,10 @@ class CopilotProposalService(
             GREMessageType.DeclareAttackersReq_695e ->
                 mapDecision(prompt) {
                     policy.chooseAttackers()?.let { desired ->
+                        val req = prompt.declareAttackersReq
                         CombatDeclarationDiff.attackerStep(
-                            committed = CombatDeclarationDiff.committedAttackers(prompt.declareAttackersReq),
-                            desired = desired.toSet(),
+                            committed = CombatDeclarationDiff.committedAttackers(req),
+                            desired = CombatDeclarationDiff.qualifiedDesiredAttackers(req, desired.toSet()),
                         )
                     }
                 }
@@ -130,9 +132,17 @@ class CopilotProposalService(
             // means "no blocks", converging straight to Submit.
             GREMessageType.DeclareBlockersReq_695e ->
                 mapDecision(prompt) {
+                    val req = prompt.declareBlockersReq
+                    val committed = CombatDeclarationDiff.committedBlocks(req)
+                    val desired =
+                        CombatDeclarationDiff.fullyCommittedBlocks(req)
+                            ?: CombatDeclarationDiff.qualifiedDesiredBlocks(
+                                req,
+                                policy.chooseBlockers(prompt) ?: emptyMap(),
+                            )
                     CombatDeclarationDiff.blockerStep(
-                        committed = CombatDeclarationDiff.committedBlocks(prompt.declareBlockersReq),
-                        desired = policy.chooseBlockers(prompt) ?: emptyMap(),
+                        committed = committed,
+                        desired = desired,
                     )
                 }
 

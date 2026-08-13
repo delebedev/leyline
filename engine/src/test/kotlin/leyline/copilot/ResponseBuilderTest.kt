@@ -120,9 +120,10 @@ class ResponseBuilderTest :
         }
 
         test("modal choose-one serializes the picked grpIds as a CastingTimeOptions modal") {
-            val msgs = bytesOf(SimDecision.ModalChoice(listOf(101, 202)))
+            val msgs = bytesOf(SimDecision.ModalChoice(ctoId = 3, selectedGrpIds = listOf(101, 202)))
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.CastingTimeOptionsResp_097b
+            msgs[0].castingTimeOptionsResp.castingTimeOptionResp.ctoId shouldBe 3
             msgs[0]
                 .castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList shouldBe listOf(101, 202)
         }
@@ -202,12 +203,29 @@ class ResponseBuilderTest :
         }
 
         test("assign damage echoes each attacker's (target, damage) pairs") {
-            val msgs = bytesOf(SimDecision.AssignDamage(listOf(263 to listOf(400 to 3, 401 to 2))))
+            val decision =
+                SimDecision.AssignDamage(
+                    listOf(
+                        SimDecision.DamageAssignerDecision(
+                            instanceId = 263,
+                            totalDamage = 5,
+                            assignments =
+                                listOf(
+                                    SimDecision.DamageAssignmentDecision(400, minDamage = 3, maxDamage = 5, assignedDamage = 3),
+                                    SimDecision.DamageAssignmentDecision(401, minDamage = 2, maxDamage = 5, assignedDamage = 2),
+                                ),
+                        ),
+                    ),
+                )
+            val msgs = bytesOf(decision)
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.AssignDamageResp_097b
             val assigner = msgs[0].assignDamageResp.assignersList.single()
             assigner.instanceId shouldBe 263
-            assigner.assignmentsList.map { it.instanceId to it.assignedDamage } shouldBe listOf(400 to 3, 401 to 2)
+            assigner.totalDamage shouldBe 5
+            assigner.assignmentsList.map {
+                listOf(it.instanceId, it.minDamage, it.maxDamage, it.assignedDamage)
+            } shouldBe listOf(listOf(400, 3, 5, 3), listOf(401, 2, 5, 2))
         }
 
         test("scry keep-on-top puts every id in the top group and nothing on the bottom") {

@@ -11,6 +11,10 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.Int32Value
+import wotc.mtgo.gre.external.messaging.Messages.PlayerInfo
+import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -23,7 +27,28 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class SnapshotHydrationTest :
     SessionTest({
 
-        test("hydrated game matches source on zones, flags, counters, life, ids") {
+        test("pre-turn snapshot uses decision player and a valid puzzle turn") {
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .build()
+
+            val lines = SnapshotHydration.toPuzzleLines(gsm, 2, TestCardRegistry.repo)
+            lines.filter { it.startsWith("ActivePlayer=") || it.startsWith("Turn=") } shouldBe
+                listOf("ActivePlayer=P1", "Turn=1")
+
+            val hydrated = SnapshotHydration.hydrate(gsm, 2, TestCardRegistry.repo)
+            try {
+                hydrated.getGame().shouldNotBeNull()
+            } finally {
+                hydrated.teardownResources()
+            }
+        }
+
+        test("hydrated game matches source on zones, flags, counters, damage, attachments, life, ids") {
             val pzl =
                 """
                 [metadata]
@@ -39,9 +64,9 @@ class SnapshotHydrationTest :
                 AILife=9
 
                 humanhand=Lightning Bolt
-                humanbattlefield=Mountain|Tapped;Mountain;Goblin Fireslinger|SummonSick|Counters:P1P1=2
+                humanbattlefield=Mountain|Id:101|Tapped;Mountain|Id:102;Goblin Fireslinger|Id:103|SummonSick|Counters:P1P1=2;Pacifism|Id:104|AttachedTo:201
                 humangraveyard=Shock
-                aibattlefield=Raging Goblin
+                aibattlefield=Grizzly Bears|Id:201|Damage:1
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent()
@@ -50,17 +75,39 @@ class SnapshotHydrationTest :
             val sourceBridge = harness.bridge
             val sourceGame = sourceBridge.getGame().shouldNotBeNull()
             val snap = GsmSnapshot.capture(sourceGame, sourceBridge, "roundtrip", 0)
-            val gsm =
+            val wireGsm =
                 StateMapper
                     .buildFromSnapshot(snap, 0, "roundtrip", sourceBridge, viewingSeatId = 1)
                     .gsm
+            val goblinIid =
+                wireGsm.gameObjectsList
+                    .first { TestCardRegistry.repo.findNameByGrpId(it.grpId) == "Goblin Fireslinger" }
+                    .instanceId
+            val gsm =
+                wireGsm
+                    .toBuilder()
+                    .clearGameObjects()
+                    .addAllGameObjects(
+                        wireGsm.gameObjectsList.map { obj ->
+                            if (obj.instanceId != goblinIid) {
+                                obj
+                            } else {
+                                obj
+                                    .toBuilder()
+                                    .setPower(Int32Value.newBuilder().setValue(obj.power.value - 1))
+                                    .setToughness(Int32Value.newBuilder().setValue(obj.toughness.value - 1))
+                                    .build()
+                            }
+                        },
+                    ).build()
 
-            val hydrated =
-                SnapshotHydration.hydrate(
+            val hydratedSnapshot =
+                SnapshotHydration.hydrateWithReport(
                     gsm = gsm,
                     consultSeat = 1,
                     cardRepository = TestCardRegistry.repo,
                 )
+            val hydrated = hydratedSnapshot.bridge
             try {
                 val hydratedGame = hydrated.getGame().shouldNotBeNull()
 
@@ -87,6 +134,33 @@ class SnapshotHydrationTest :
                 val goblin = hydratedBattlefield.first { it.name == "Goblin Fireslinger" }
                 goblin.isSick shouldBe true
                 goblin.getCounters(CounterEnumType.P1P1) shouldBe 2
+                goblin.netPower shouldBe 2
+                goblin.netToughness shouldBe 2
+
+                val pacifism =
+                    hydratedGame.players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .first { it.name == "Pacifism" }
+                val bear =
+                    hydratedGame.players[1]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .first { it.name == "Grizzly Bears" }
+                bear.damage shouldBe 1
+                pacifism.entityAttachedTo shouldBe bear
+
+                hydratedSnapshot.fidelity.features.first { it.feature == "marked_damage" }.let {
+                    it.status shouldBe "carried"
+                    it.count shouldBe 1
+                }
+                hydratedSnapshot.fidelity.features.first { it.feature == "attachments" }.let {
+                    it.status shouldBe "carried"
+                    it.count shouldBe 1
+                }
+                hydratedSnapshot.fidelity.features
+                    .first { it.feature == "characteristics" }
+                    .status shouldBe "carried"
 
                 hydratedGame.phaseHandler.phase.toString() shouldBe sourceGame.phaseHandler.phase.toString()
 

@@ -16,6 +16,15 @@ import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
  * the final re-prompt.
  */
 internal object CombatDeclarationDiff {
+    /** AI-desired attackers restricted to the instanceIds qualified by this prompt. */
+    fun qualifiedDesiredAttackers(
+        req: DeclareAttackersReq,
+        desired: Set<Int>,
+    ): Set<Int> {
+        val qualified = req.qualifiedAttackersList.mapTo(mutableSetOf()) { it.attackerInstanceId }
+        return desired.filterTo(linkedSetOf()) { it in qualified }
+    }
+
     /** Committed attacker instanceIds as reflected by the (re-)prompt. */
     fun committedAttackers(req: DeclareAttackersReq): Set<Int> =
         req.attackersList
@@ -28,6 +37,29 @@ internal object CombatDeclarationDiff {
         req.blockersList
             .filter { it.selectedAttackerInstanceIdsCount > 0 }
             .associate { it.blockerInstanceId to it.selectedAttackerInstanceIdsList.first() }
+
+    /**
+     * A prompt with every listed blocker already assigned is the final
+     * re-prompt. Its committed map is authoritative: rebuilding and asking the
+     * AI again can only reinterpret a declaration the server already accepted.
+     */
+    fun fullyCommittedBlocks(req: DeclareBlockersReq): Map<Int, Int>? =
+        req.blockersList
+            .takeIf { it.isNotEmpty() && it.all { blocker -> blocker.selectedAttackerInstanceIdsCount > 0 } }
+            ?.associate { it.blockerInstanceId to it.selectedAttackerInstanceIdsList.first() }
+
+    /** AI-desired blocks restricted to each blocker's choices in this prompt. */
+    fun qualifiedDesiredBlocks(
+        req: DeclareBlockersReq,
+        desired: Map<Int, Int>,
+    ): Map<Int, Int> {
+        val qualified =
+            req.blockersList.associate { blocker ->
+                blocker.blockerInstanceId to
+                    (blocker.attackerInstanceIdsList + blocker.selectedAttackerInstanceIdsList).toSet()
+            }
+        return desired.filterTo(linkedMapOf()) { (blocker, attacker) -> attacker in qualified[blocker].orEmpty() }
+    }
 
     /**
      * Next attacker-declaration step: toggle one instanceId from the symmetric
@@ -51,7 +83,9 @@ internal object CombatDeclarationDiff {
         committed: Map<Int, Int>,
         desired: Map<Int, Int>,
     ): SimDecision {
-        val assign = desired.entries.firstOrNull { (blocker, attacker) -> committed[blocker] != attacker }
+        val reassign = desired.entries.firstOrNull { (blocker, attacker) -> committed[blocker]?.let { it != attacker } == true }
+        if (reassign != null) return SimDecision.UndeclareBlocker(reassign.key)
+        val assign = desired.entries.firstOrNull { (blocker, _) -> blocker !in committed }
         if (assign != null) return SimDecision.DeclareBlockers(mapOf(assign.key to assign.value))
         val unassign = committed.keys.firstOrNull { it !in desired }
         if (unassign != null) return SimDecision.UndeclareBlocker(unassign)
