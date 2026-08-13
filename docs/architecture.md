@@ -201,16 +201,16 @@ diff baseline. A match-scoped shell lock
 preserves frame-cut order across builders while the transition install remains
 a revision-checked compare-and-set.
 
-Ordinary engine playback closes and materializes its frame only from Forge's
-main-loop completion hook. One frame represents one completed Forge step, not
-one event or chosen action; eligible events from the same step retain their
-intra-frame order and produce no intermediate bundle. `GamePlayback` retains an
-immutable `PendingCut` containing the exact compiler input, prior projection,
-viewer intent, and fixed
-logical ids. A stale install cannot be rebased without changing that exact cut,
-so it becomes terminal and retains the cut for diagnosis. Failure after journal
-close is likewise terminal. Combat checkpoints remain an
-explicit synchronous exception until their internal safe points are migrated.
+Engine playback closes and materializes only from Forge completion hooks. The
+main-loop hook owns ordinary completed steps; narrower hooks own complete
+attacker declarations, blocker declarations, and combat teardown. Event
+subscribers only request those cuts. `GamePlayback` retains an immutable
+`PendingCut` containing the exact prior projection and every ordered frame plan
+for the closed journal, including fixed logical ids. A combat-damage journal
+may describe several frames, but they compile as one private fold and publish
+with one transition install. A stale install cannot be rebased without changing
+that exact cut, so it becomes terminal and retains the cut for diagnosis.
+Failure after journal close is likewise terminal.
 
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 

@@ -235,7 +235,7 @@ the operation that fired the event. Ordinary subscribers therefore request a
 cut only. `PhaseHandler` invokes the playback hook once after a successful
 `mainLoopStep` mutation burst, including normal early returns.
 
-**Ordinary subscribers journal intent only.** They must not close the event
+**Playback subscribers journal intent only.** They must not close the event
 journal, inspect Forge for projection, allocate message or object ids, compile,
 install, enqueue, sleep, perform I/O, or wait on an external resource. The
 completion hook owns those operations under the frame-production lock order; its
@@ -250,15 +250,19 @@ with no intermediate bundle.
 Hook exceptions propagate through `GameLoopController`, which stops the loop,
 wakes bridge waiters, and exposes the terminal cause.
 
-**Combat declarations remain named legacy checkpoints.** Unlike other events,
-which become playback frames only during remote turns,
-`GameEventAttackersDeclared` does so on both seats. The engine runs through the
-entire combat step in one burst—declare attackers, tap, blockers, damage, then
-Main2—before the next priority stop. On the human's own turn, without an
-in-combat frame, `AutoPassEngine` returns after combat is already over,
-`combat` is null, and the client never sees attackers tapped. The in-combat
-frame produces the first half of a combat double-diff; the subsequent
-`awaitPriority`-plus-send in the session's combat handler produces the second.
+**Combat cuts use narrow completion hooks.** Attacker, blocker, and combat-end
+events request typed cuts. Forge invokes the matching hook only after the whole
+declaration or teardown has finished, including declaration triggers, combat
+view updates, event dispatch, and stack unfreezing where applicable. Attacker
+declarations request a frame on both seats so local auto-pass cannot skip the
+in-combat state. A pending ordinary request for the same open journal is
+subsumed by that combat boundary.
+
+One closed combat journal can legitimately produce first-strike, regular-damage,
+and end-combat frames. The pending cut owns that complete immutable frame plan.
+Projection folds the frames over private state, publishes their batches in
+order, and installs only the final combined transition. A failure in any frame
+publishes none of them and retains the whole cut.
 
 ---
 

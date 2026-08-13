@@ -12,17 +12,29 @@ internal enum class PlaybackCutReason {
     PoisonChanged,
     TurnBegan,
     PhaseChanged,
+    AttackersDeclared,
+    BlockersDeclared,
+    CombatEnded,
+}
+
+internal enum class PlaybackCutBoundary {
+    MainLoopStep,
+    AttackersDeclared,
+    BlockersDeclared,
+    CombatEnded,
 }
 
 internal data class PlaybackCutRequest(
     val reason: PlaybackCutReason,
     val delayMs: Int,
     val turnStarted: Boolean,
+    val boundary: PlaybackCutBoundary = PlaybackCutBoundary.MainLoopStep,
 ) {
     fun aggregate(next: PlaybackCutRequest): PlaybackCutRequest =
         copy(
             delayMs = maxOf(delayMs, next.delayMs),
             turnStarted = turnStarted || next.turnStarted,
+            boundary = if (next.boundary == PlaybackCutBoundary.MainLoopStep) boundary else next.boundary,
         )
 }
 

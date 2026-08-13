@@ -451,6 +451,9 @@ class GameBridge(
         val playback = registerPlayback(game, seatId, captureLocalActions)
         game.phaseHandler.setMainGameLoopStartedHook(playback::onMainGameLoopStarted)
         game.phaseHandler.setMainLoopStepCompletionHook(playback::onMainLoopStepCompleted)
+        game.phaseHandler.setAttackersDeclaredCompletionHook(playback::onAttackersDeclaredCompleted)
+        game.phaseHandler.setBlockersDeclaredCompletionHook(playback::onBlockersDeclaredCompleted)
+        game.phaseHandler.setCombatEndedCompletionHook(playback::onCombatEndedCompleted)
     }
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
@@ -1540,6 +1543,9 @@ class GameBridge(
         if (g != null) {
             g.phaseHandler.setMainGameLoopStartedHook(null)
             g.phaseHandler.setMainLoopStepCompletionHook(null)
+            g.phaseHandler.setAttackersDeclaredCompletionHook(null)
+            g.phaseHandler.setBlockersDeclaredCompletionHook(null)
+            g.phaseHandler.setCombatEndedCompletionHook(null)
             eventCollector?.let { g.unsubscribeFromEvents(it) }
             for (pb in playbackRegistry.values()) {
                 g.unsubscribeFromEvents(pb)

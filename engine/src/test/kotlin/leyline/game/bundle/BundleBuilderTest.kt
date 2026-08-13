@@ -772,25 +772,107 @@ class BundleBuilderTest :
 
             val first = builder.compilePlaybackCut(cut)
             val retry = builder.compilePlaybackCut(cut)
+            val firstMessages = first.batches.single()
+            val retryMessages = retry.batches.single()
 
             assertSoftly {
-                retry.messages.map { it.toByteArray().toList() } shouldBe first.messages.map { it.toByteArray().toList() }
+                retryMessages.map { it.toByteArray().toList() } shouldBe firstMessages.map { it.toByteArray().toList() }
                 retry.transition shouldBe first.transition
-                first.messages.map { it.type } shouldBe
+                firstMessages.map { it.type } shouldBe
                     listOf(
                         GREMessageType.GameStateMessage_695e,
                         GREMessageType.PromptReq,
                         GREMessageType.PromptReq,
                         GREMessageType.GameStateMessage_695e,
                     )
-                first.messages.map { it.msgId } shouldBe first.messages.map { it.msgId }.sorted()
-                first.messages
+                firstMessages.map { it.msgId } shouldBe firstMessages.map { it.msgId }.sorted()
+                firstMessages
                     .map { it.msgId }
                     .toSet()
-                    .size shouldBe first.messages.size
+                    .size shouldBe firstMessages.size
                 cut.priorProjection.revision shouldBe prior.revision
                 b.projectionStateSnapshot() shouldBe afterMaterialize
                 counter.snapshot() shouldBe counterAfterMaterialize
+            }
+        }
+
+        test("multi-frame playback cut folds effective baselines and installs once") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val prior = b.projectionStateSnapshot()
+            val specs =
+                listOf(
+                    BundleBuilder.PlaybackFrameSpec(
+                        FrameEventLog(
+                            listOf(
+                                GameEvent.PhaseChanged(
+                                    1.sid,
+                                    Messages.Phase.Combat_a549.number,
+                                    Messages.Step.FirstStrikeDamage_a2cb.number,
+                                ),
+                            ),
+                        ),
+                    ),
+                    BundleBuilder.PlaybackFrameSpec(
+                        FrameEventLog(
+                            listOf(
+                                GameEvent.PhaseChanged(
+                                    1.sid,
+                                    Messages.Phase.Combat_a549.number,
+                                    Messages.Step.CombatDamage_a2cb.number,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+            val cut = builder.materializePlaybackCut(game, counter, specs)
+            val afterMaterialize = b.projectionStateSnapshot()
+
+            val first = builder.compilePlaybackCut(cut)
+            val retry = builder.compilePlaybackCut(cut)
+            val gsms = first.batches.map { it.first().gameStateMessage }
+
+            assertSoftly {
+                first.batches.map { batch -> batch.map { it.toByteArray().toList() } } shouldBe
+                    retry.batches.map { batch -> batch.map { it.toByteArray().toList() } }
+                first.transition shouldBe retry.transition
+                first.batches shouldHaveSize 2
+                gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
+                first.transition.expectedRevision shouldBe prior.revision
+                first.transition.nextState.revision shouldBe prior.revision + 1
+                b.projectionStateSnapshot() shouldBe afterMaterialize
+            }
+        }
+
+        test("failure in later playback frame retains the exact whole cut") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val cut =
+                builder.materializePlaybackCut(
+                    game,
+                    counter,
+                    listOf(
+                        BundleBuilder.PlaybackFrameSpec(FrameEventLog.EMPTY),
+                        BundleBuilder.PlaybackFrameSpec(FrameEventLog.EMPTY),
+                    ),
+                )
+            val committed = b.projectionStateSnapshot()
+            var compileCount = 0
+            b.diffListener = { _, _, _, _ ->
+                compileCount++
+                if (compileCount == 2) error("second playback frame failed")
+            }
+
+            val failure = shouldThrow<IllegalStateException> { builder.compilePlaybackCut(cut) }
+            b.diffListener = null
+            val retry = builder.compilePlaybackCut(cut)
+
+            assertSoftly {
+                failure.message shouldBe "second playback frame failed"
+                compileCount shouldBe 2
+                cut.frames shouldHaveSize 2
+                retry.batches shouldHaveSize 2
+                b.projectionStateSnapshot() shouldBe committed
             }
         }
 
@@ -938,7 +1020,7 @@ class BundleBuilderTest :
             b.autoAdvanceRequester = null
         }
 
-        test("combat checkpoint subsumes ordinary request and closes its facts once") {
+        test("combat safe point subsumes ordinary request after reversed subscriber order") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -949,6 +1031,10 @@ class BundleBuilderTest :
                     .cards
                     .single()
             val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val collector = checkNotNull(b.eventCollector)
+            game.unsubscribeFromEvents(collector)
+            game.subscribeToEvents(playback)
+            game.subscribeToEvents(collector)
             playback.visit(
                 forge.game.event.GameEventPlayerPoisoned(
                     null as forge.game.player.PlayerView?,
@@ -959,7 +1045,9 @@ class BundleBuilderTest :
             )
             game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
 
-            playback.visit(forge.game.event.GameEventCombatEnded(emptyList(), emptyList()))
+            game.fireEvent(forge.game.event.GameEventCombatEnded(emptyList(), emptyList()))
+            playback.hasPendingMessages() shouldBe false
+            playback.onCombatEndedCompleted()
             val first = playback.drainQueue()
             playback.onMainLoopStepCompleted()
 
