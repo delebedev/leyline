@@ -1,5 +1,6 @@
 package leyline.game.state
 
+import leyline.bridge.types.ForgeCardId
 import kotlin.collections.iterator
 
 /**
@@ -12,6 +13,10 @@ import kotlin.collections.iterator
  *
  * Fingerprint: (cardInstanceId, timestamp, staticAbilityId) from Forge's
  * boost tables uniquely identifies an effect across GSMs.
+ *
+ * Source attribution is creation metadata, not lifecycle identity. A matching
+ * fingerprint keeps its original source ability or affector until destruction;
+ * later observations do not refresh an already-active effect.
  *
  * A tracker is private to one projection planner. Its frozen value is committed
  * atomically with the matching identity and reveal transitions.
@@ -27,6 +32,7 @@ class EffectTracker {
         val staticId: Long,
         val power: Int,
         val toughness: Int,
+        val sourceAbilityGrpId: Int? = null,
     )
 
     data class EffectFingerprint(
@@ -40,6 +46,7 @@ class EffectTracker {
         val fingerprint: EffectFingerprint,
         val powerDelta: Int,
         val toughnessDelta: Int,
+        val sourceAbilityGrpId: Int? = null,
     ) {
         val cardInstanceId: Int get() = fingerprint.cardInstanceId
     }
@@ -55,6 +62,7 @@ class EffectTracker {
         val timestamp: Long,
         val staticId: Long,
         val keyword: String,
+        val affectorForgeCardId: ForgeCardId? = null,
     )
 
     data class KeywordFingerprint(
@@ -68,6 +76,7 @@ class EffectTracker {
         val syntheticId: Int,
         val fingerprint: KeywordFingerprint,
         val keyword: String,
+        val affectorForgeCardId: ForgeCardId? = null,
     ) {
         val cardInstanceId: Int get() = fingerprint.cardInstanceId
     }
@@ -129,7 +138,15 @@ class EffectTracker {
                 currentByCard = currentBoosts,
                 active = activeEffects,
                 fingerprintOf = { cardIid, entry -> EffectFingerprint(cardIid, entry.timestamp, entry.staticId) },
-                createTracked = { fp, entry -> TrackedEffect(nextEffectId(), fp, entry.power, entry.toughness) },
+                createTracked = { fp, entry ->
+                    TrackedEffect(
+                        nextEffectId(),
+                        fp,
+                        entry.power,
+                        entry.toughness,
+                        entry.sourceAbilityGrpId,
+                    )
+                },
             )
         return DiffResult(diff.created, diff.destroyed)
     }
@@ -147,7 +164,9 @@ class EffectTracker {
                 fingerprintOf = { cardIid, entry ->
                     KeywordFingerprint(cardIid, entry.timestamp, entry.staticId, entry.keyword)
                 },
-                createTracked = { fp, entry -> TrackedKeywordEffect(nextEffectId(), fp, entry.keyword) },
+                createTracked = { fp, entry ->
+                    TrackedKeywordEffect(nextEffectId(), fp, entry.keyword, entry.affectorForgeCardId)
+                },
             )
         return KeywordDiffResult(diff.created, diff.destroyed)
     }

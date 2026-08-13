@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
+import leyline.bridge.types.ForgeCardId
 import leyline.game.state.EffectTracker
 
 class EffectTrackerTest :
@@ -85,6 +86,23 @@ class EffectTrackerTest :
             val result = tracker.diffBoosts(boosts)
             result.created.shouldBeEmpty()
             result.destroyed.shouldBeEmpty()
+        }
+
+        test("boost attribution persists from creation without changing fingerprint identity") {
+            val tracker = EffectTracker()
+            val original = EffectTracker.BoostEntry(1L, 5L, 2, 3, sourceAbilityGrpId = 42)
+            val refreshed = original.copy(sourceAbilityGrpId = 99)
+
+            val created = tracker.diffBoosts(mapOf(100 to listOf(original))).created.single()
+            val unchanged = tracker.diffBoosts(mapOf(100 to listOf(refreshed)))
+            val destroyed = tracker.diffBoosts(emptyMap()).destroyed.single()
+
+            assertSoftly {
+                created.sourceAbilityGrpId shouldBe 42
+                unchanged.created.shouldBeEmpty()
+                unchanged.destroyed.shouldBeEmpty()
+                destroyed shouldBe created
+            }
         }
 
         test("diffBoosts handles multiple effects on same card") {
@@ -169,6 +187,29 @@ class EffectTrackerTest :
             val diff2 = tracker.diffKeywords(input)
             diff2.created.shouldBeEmpty()
             diff2.destroyed.shouldBeEmpty()
+        }
+
+        test("keyword attribution persists from creation without changing fingerprint identity") {
+            val tracker = EffectTracker()
+            val original =
+                EffectTracker.KeywordEntry(
+                    1L,
+                    5L,
+                    "Trample",
+                    affectorForgeCardId = ForgeCardId(42),
+                )
+            val refreshed = original.copy(affectorForgeCardId = ForgeCardId(99))
+
+            val created = tracker.diffKeywords(mapOf(100 to listOf(original))).created.single()
+            val unchanged = tracker.diffKeywords(mapOf(100 to listOf(refreshed)))
+            val destroyed = tracker.diffKeywords(emptyMap()).destroyed.single()
+
+            assertSoftly {
+                created.affectorForgeCardId shouldBe ForgeCardId(42)
+                unchanged.created.shouldBeEmpty()
+                unchanged.destroyed.shouldBeEmpty()
+                destroyed shouldBe created
+            }
         }
 
         test("diffKeywords destroys entry when keyword removed") {

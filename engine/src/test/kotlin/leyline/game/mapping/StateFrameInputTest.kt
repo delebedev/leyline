@@ -78,11 +78,12 @@ class StateFrameInputTest :
             val cardId = ForgeCardId(101)
             val signature = EarthbendTracker.Signature(timestamp = 10, staticId = 11)
             val targetIid = 100
-            val crewVehicleIid = 101
-            val crewSourceIid = 102
-            val reconfigureIid = 103
-            val saddleMountIid = 104
-            val saddleSourceIid = 105
+            val keywordAffectorIid = 101
+            val crewVehicleIid = 102
+            val crewSourceIid = 103
+            val reconfigureIid = 104
+            val saddleMountIid = 105
+            val saddleSourceIid = 106
             val earthbendLayerIds = listOf(7002, 7003, 7004, 7005)
             val card =
                 CardSnapshot(
@@ -115,12 +116,25 @@ class StateFrameInputTest :
                 EffectProjectionFacts(
                     boostEntries =
                         listOf(
-                            EffectProjectionFacts.BoostEntry(cardId, 1, 2, power = 2, toughness = 3),
+                            EffectProjectionFacts.BoostEntry(
+                                cardId,
+                                1,
+                                2,
+                                power = 2,
+                                toughness = 3,
+                                sourceAbilityGrpId = 777,
+                            ),
                         ),
                     keywordEntries =
                         listOf(
                             EffectProjectionFacts.KeywordEntry(cardId, 10, 11, "Haste"),
-                            EffectProjectionFacts.KeywordEntry(cardId, 12, 13, "Flying"),
+                            EffectProjectionFacts.KeywordEntry(
+                                cardId,
+                                12,
+                                13,
+                                "Flying",
+                                affectorForgeCardId = ForgeCardId(301),
+                            ),
                         ),
                     crewStates =
                         listOf(
@@ -172,6 +186,8 @@ class StateFrameInputTest :
                     effectFacts = facts,
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val committedIdentityBefore = bridge.getInstanceIdMap()
+            val committedEffectsBefore = bridge.committedEffectProjection()
             val first = StateMapper.buildDiff(input, "state-frame", bridge).finalizeAnnotations()
             val second = StateMapper.buildDiff(input, "state-frame", bridge).finalizeAnnotations()
             val nextIdentity = first.mutations.instanceIdTransition.nextState
@@ -187,12 +203,15 @@ class StateFrameInputTest :
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
                 first.mutations.effectTransition.next shouldBe second.mutations.effectTransition.next
+                bridge.getInstanceIdMap() shouldBe committedIdentityBefore
+                bridge.committedEffectProjection() shouldBe committedEffectsBefore
                 first.mutations.consumedEarthbendResolutions.map { it.version } shouldBe listOf(1)
                 first.gsm.annotationsList.map(AnnotationInfo::shape) shouldBe
-                    expectedTransientShapes(targetIid, reconfigureIid, earthbendLayerIds)
+                    expectedTransientShapes(targetIid, keywordAffectorIid, reconfigureIid, earthbendLayerIds)
                 first.gsm.persistentAnnotationsList.map(AnnotationInfo::shape) shouldBe
                     expectedPersistentShapes(
                         targetIid = targetIid,
+                        keywordAffectorIid = keywordAffectorIid,
                         crewVehicleIid = crewVehicleIid,
                         crewSourceIid = crewSourceIid,
                         reconfigureIid = reconfigureIid,
@@ -204,20 +223,23 @@ class StateFrameInputTest :
                 nextIdentity.forgeIdToInstanceId.entries.map { it.toPair() } shouldBe
                     listOf(
                         cardId to InstanceId(targetIid),
+                        ForgeCardId(301) to InstanceId(keywordAffectorIid),
                         ForgeCardId(201) to InstanceId(crewVehicleIid),
                         ForgeCardId(202) to InstanceId(crewSourceIid),
                         ForgeCardId(205) to InstanceId(reconfigureIid),
                         ForgeCardId(203) to InstanceId(saddleMountIid),
                         ForgeCardId(204) to InstanceId(saddleSourceIid),
                     )
-                nextIdentity.nextInstanceId shouldBe 106
+                nextIdentity.nextInstanceId shouldBe 107
 
                 earthbend.layers.all shouldBe earthbendLayerIds
                 earthbend.uniqueAbilityId shouldBe 200
                 nextEffects.earthbend.nextUniqueAbilityId shouldBe 201
                 boost.syntheticId shouldBe 7009
+                boost.sourceAbilityGrpId shouldBe 777
                 keyword.keyword shouldBe "Flying"
                 keyword.syntheticId shouldBe 7010
+                keyword.affectorForgeCardId shouldBe ForgeCardId(301)
                 nextEffects.crew.active shouldBe mapOf(ForgeCardId(201) to 7012)
                 nextEffects.reconfigure.active shouldBe mapOf(ForgeCardId(205) to 7013)
                 nextEffects.effects.nextId shouldBe 7014
@@ -335,6 +357,7 @@ private fun expectedAnnotation(
 
 private fun expectedTransientShapes(
     targetIid: Int,
+    keywordAffectorIid: Int,
     reconfigureIid: Int,
     earthbendLayerIds: List<Int>,
 ): List<AnnotationShape> =
@@ -364,12 +387,13 @@ private fun expectedTransientShapes(
         expectedAnnotation(60, earthbendLayerIds[2], AnnotationType.LayeredEffectCreated, affectorId = targetIid),
         expectedAnnotation(61, earthbendLayerIds[3], AnnotationType.LayeredEffectCreated, affectorId = targetIid),
         expectedAnnotation(62, 7009, AnnotationType.LayeredEffectCreated, affectorId = targetIid),
-        expectedAnnotation(63, 7010, AnnotationType.LayeredEffectCreated),
+        expectedAnnotation(63, 7010, AnnotationType.LayeredEffectCreated, affectorId = keywordAffectorIid),
         expectedAnnotation(64, 7013, AnnotationType.LayeredEffectCreated, affectorId = reconfigureIid),
     )
 
 private fun expectedPersistentShapes(
     targetIid: Int,
+    keywordAffectorIid: Int,
     crewVehicleIid: Int,
     crewSourceIid: Int,
     reconfigureIid: Int,
@@ -384,18 +408,19 @@ private fun expectedPersistentShapes(
             AnnotationType.ModifiedPower,
             AnnotationType.LayeredEffect,
             affectorId = targetIid,
-            details = listOf("effect_id" to 7009),
+            details = listOf("effect_id" to 7009, "sourceAbilityGRPID" to 777),
         ),
         expectedAnnotation(
             2,
             targetIid,
             AnnotationType.AddAbility_af5a,
             AnnotationType.LayeredEffect,
+            affectorId = keywordAffectorIid,
             details =
                 listOf(
                     "grpid" to 8,
                     "effect_id" to 7010,
-                    "originalAbilityObjectZcid" to 0,
+                    "originalAbilityObjectZcid" to keywordAffectorIid,
                     "UniqueAbilityId" to 7011,
                 ),
         ),

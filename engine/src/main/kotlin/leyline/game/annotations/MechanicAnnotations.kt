@@ -406,16 +406,14 @@ object MechanicAnnotations {
      * Pure function — converts diff results to proto annotations.
      * Returns (transient, persistent) matching the pipeline convention.
      *
-     * [sourceAbilityResolver] maps (cardInstanceId, staticId) → sourceAbilityGRPID.
-     * The staticId is the Forge StaticAbility ID from the boost table — enables
-     * per-ability resolution via AbilityRegistry (not just keyword heuristics).
-     * Used to drive ability-specific VFX (e.g. Prowess glow).
+     * Source attribution is carried by tracked lifecycle values. Forge IDs are
+     * mapped to tentative client IDs only when a created annotation is emitted.
      */
     fun effectAnnotations(
         diff: EffectTracker.DiffResult,
-        sourceAbilityResolver: ((InstanceId, Long) -> GrpId?)? = null,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
-        keywordAffectorResolver: ((String, Long, Long) -> InstanceId)? = null,
+        keywordAffectorFallbackForgeCardId: ForgeCardId? = null,
+        keywordAffectorInstanceId: ((ForgeCardId) -> InstanceId)? = null,
         boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)? = null,
         uniqueAbilityIdAllocator: (() -> Int)? = null,
         keywordExtraAbilityGrpIds: ((InstanceId, String) -> List<GrpId>)? = null,
@@ -433,14 +431,14 @@ object MechanicAnnotations {
             transient,
             persistent,
             diff,
-            sourceAbilityResolver,
             boostAffectorResolver,
         )
         addKeywordEffectAnnotations(
             transient,
             persistent,
             keywordDiff,
-            keywordAffectorResolver,
+            keywordAffectorFallbackForgeCardId,
+            keywordAffectorInstanceId,
             uniqueAbilityIdAllocator,
             keywordExtraAbilityGrpIds,
         )
@@ -452,15 +450,10 @@ object MechanicAnnotations {
         transient: MutableList<AnnotationInfo>,
         persistent: MutableList<AnnotationInfo>,
         diff: EffectTracker.DiffResult,
-        sourceAbilityResolver: ((InstanceId, Long) -> GrpId?)?,
         boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)?,
     ) {
         for (effect in diff.created) {
-            val sourceAbilityGrpId =
-                sourceAbilityResolver?.invoke(
-                    InstanceId(effect.cardInstanceId),
-                    effect.fingerprint.staticId,
-                )
+            val sourceAbilityGrpId = effect.sourceAbilityGrpId?.let(::GrpId)
             val cardIid = InstanceId(effect.cardInstanceId)
             val effectId = EffectId(effect.syntheticId)
             val affectorId = boostAffectorResolver?.invoke(effect, sourceAbilityGrpId) ?: cardIid
@@ -497,7 +490,8 @@ object MechanicAnnotations {
         transient: MutableList<AnnotationInfo>,
         persistent: MutableList<AnnotationInfo>,
         keywordDiff: EffectTracker.KeywordDiffResult,
-        keywordAffectorResolver: ((String, Long, Long) -> InstanceId)?,
+        keywordAffectorFallbackForgeCardId: ForgeCardId?,
+        keywordAffectorInstanceId: ((ForgeCardId) -> InstanceId)?,
         uniqueAbilityIdAllocator: (() -> Int)?,
         keywordExtraAbilityGrpIds: ((InstanceId, String) -> List<GrpId>)?,
     ) {
@@ -506,9 +500,12 @@ object MechanicAnnotations {
                 keywordDiff.created
                     .groupBy { Triple(it.keyword, it.fingerprint.timestamp, it.fingerprint.staticId) }
             for ((key, effects) in groups) {
-                val (keyword, timestamp, staticId) = key
+                val keyword = key.first
                 val grpId = GrpId(KeywordGrpIds.forKeyword(keyword) ?: continue)
-                val affectorId = keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: InstanceId(0)
+                val affectorForgeCardId =
+                    effects.firstNotNullOfOrNull { it.affectorForgeCardId }
+                        ?: keywordAffectorFallbackForgeCardId
+                val affectorId = affectorForgeCardId?.let { keywordAffectorInstanceId?.invoke(it) } ?: InstanceId(0)
                 addCreatedKeywordEffectAnnotations(
                     transient,
                     persistent,

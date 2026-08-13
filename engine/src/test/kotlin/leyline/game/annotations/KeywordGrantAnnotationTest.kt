@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.codes.DetailKeys
@@ -29,9 +30,9 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L, "Trample"), "Trample"),
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(425, 1L, 5L, "Trample"), "Trample"),
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(432, 1L, 5L, "Trample"), "Trample"),
+                            trackedKeyword(7010, 389, 1L, 5L, "Trample", affector = 435),
+                            trackedKeyword(7010, 425, 1L, 5L, "Trample", affector = 435),
+                            trackedKeyword(7010, 432, 1L, 5L, "Trample", affector = 435),
                         ),
                     destroyed = emptyList(),
                 )
@@ -40,7 +41,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = boostDiff,
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> InstanceId(435) },
+                    keywordAffectorInstanceId = ::identityInstanceId,
                     uniqueAbilityIdAllocator = { uniqueId++ },
                 )
 
@@ -61,7 +62,7 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(119, 1L, 5L, "Menace"), "Menace"),
+                            trackedKeyword(7010, 119, 1L, 5L, "Menace", affector = 114),
                         ),
                     destroyed = emptyList(),
                 )
@@ -70,7 +71,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = EffectTracker.DiffResult(emptyList(), emptyList()),
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> InstanceId(114) },
+                    keywordAffectorInstanceId = ::identityInstanceId,
                     uniqueAbilityIdAllocator = { uniqueId++ },
                     keywordExtraAbilityGrpIds = { instanceId, keyword ->
                         if (instanceId.value == 119 && keyword == "Menace") {
@@ -134,8 +135,8 @@ class KeywordGrantAnnotationTest :
                     created =
                         listOf(
                             // Two creatures get Flying from the same static ability (ts=2, staticId=10)
-                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(100, 2L, 10L, "Flying"), "Flying"),
-                            EffectTracker.TrackedKeywordEffect(7020, EffectTracker.KeywordFingerprint(200, 2L, 10L, "Flying"), "Flying"),
+                            trackedKeyword(7020, 100, 2L, 10L, "Flying", affector = 500),
+                            trackedKeyword(7020, 200, 2L, 10L, "Flying", affector = 500),
                         ),
                     destroyed = emptyList(),
                 )
@@ -144,7 +145,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = EffectTracker.DiffResult(emptyList(), emptyList()),
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> InstanceId(500) },
+                    keywordAffectorInstanceId = ::identityInstanceId,
                     uniqueAbilityIdAllocator = { uniqueId++ },
                 )
 
@@ -179,7 +180,7 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(100, 1L, 5L, "Trample"), "Trample"),
+                            trackedKeyword(7010, 100, 1L, 5L, "Trample", affector = 435),
                         ),
                     destroyed = emptyList(),
                 )
@@ -188,7 +189,7 @@ class KeywordGrantAnnotationTest :
                 MechanicAnnotations.effectAnnotations(
                     diff = boostDiff,
                     keywordDiff = kwDiff,
-                    keywordAffectorResolver = { _, _, _ -> InstanceId(435) },
+                    keywordAffectorInstanceId = ::identityInstanceId,
                     uniqueAbilityIdAllocator = { uniqueId++ },
                 )
 
@@ -203,3 +204,20 @@ class KeywordGrantAnnotationTest :
             }
         }
     })
+
+private fun trackedKeyword(
+    syntheticId: Int,
+    cardInstanceId: Int,
+    timestamp: Long,
+    staticId: Long,
+    keyword: String,
+    affector: Int? = null,
+): EffectTracker.TrackedKeywordEffect =
+    EffectTracker.TrackedKeywordEffect(
+        syntheticId,
+        EffectTracker.KeywordFingerprint(cardInstanceId, timestamp, staticId, keyword),
+        keyword,
+        affector?.let(::ForgeCardId),
+    )
+
+private fun identityInstanceId(forgeCardId: ForgeCardId): InstanceId = InstanceId(forgeCardId.value)

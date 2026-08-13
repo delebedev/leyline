@@ -28,7 +28,6 @@
     <ID>LongMethod:BundleBuilder.kt:BundleBuilder$fun gameOverBundle: BundleResult</ID>
     <ID>MaxLineLength:StateMapper.kt:StateMapper.BuildResult$/** Ordering-sensitive bridge mutations computed during the build. Caller applies via [leyline.game.state.GameBridge.applyMutations]. */</ID>
     <ID>NoGameInMappers:CombatQualificationScanner.kt:import forge.game.Game</ID>
-    <ID>NoGameInMappers:SourceAbilityResolverFactory.kt:import forge.game.Game</ID>
     <ID>ReturnCount:PriorityLoopCoordinator.kt:PriorityLoopCoordinator$fun chooseSpellAbility: List&lt;SpellAbility&gt;?</ID>
     <ID>UnnecessaryFilter:GameActionBridge.kt:GameActionBridge$filter { selectorMatchScore(it.action, response) == bestScore }</ID>
     <ID>UnusedVariable:AnnotationPipeline.kt:AnnotationPipeline$val snap = ctx.snap</ID>

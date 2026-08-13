@@ -10,7 +10,6 @@ import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PersistentFeedBuilder
 import leyline.game.mapping.PersistentFeedSet
-import leyline.game.mapping.SourceAbilityResolverFactory
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
@@ -836,15 +835,11 @@ object AnnotationPipeline {
             annotations.addAll(initTransient)
         }
 
-        val sourceAbilityResolver = SourceAbilityResolverFactory.build(bridge)
-        val keywordAffectorResolver =
-            SourceAbilityResolverFactory.buildKeywordAffector(bridge) {
-                events
-                    .filterIsInstance<GameEvent.SpellResolved>()
-                    .lastOrNull()
-                    ?.let { bridge.getOrAllocInstanceId(it.cardId) }
-                    ?: leyline.bridge.types.InstanceId(0)
-            }
+        val keywordAffectorFallbackForgeCardId =
+            events
+                .filterIsInstance<GameEvent.SpellResolved>()
+                .lastOrNull()
+                ?.cardId
         val suspectedIids =
             snap.boundCards.values
                 .asSequence()
@@ -854,9 +849,9 @@ object AnnotationPipeline {
         val (effectTransient, effectPersistent) =
             MechanicAnnotations.effectAnnotations(
                 diff = effectDiff,
-                sourceAbilityResolver = sourceAbilityResolver,
                 keywordDiff = keywordDiff,
-                keywordAffectorResolver = keywordAffectorResolver,
+                keywordAffectorFallbackForgeCardId = keywordAffectorFallbackForgeCardId,
+                keywordAffectorInstanceId = frameIds::cardIid,
                 boostAffectorResolver = { effect, sourceAbilityGrpId ->
                     if (sourceAbilityGrpId?.value == KeywordAbilityIds.ENLIST) {
                         events

@@ -728,6 +728,8 @@ class GameBridge(
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
 
     companion object {
+        private val PT_BOOST_KEYWORDS = listOf(KeywordAbilityIds.PROWESS, KeywordAbilityIds.ENLIST)
+
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
 
@@ -1685,6 +1687,11 @@ class GameBridge(
         val saddle = mutableListOf<EffectProjectionFacts.SaddleState>()
         val reconfigure = mutableListOf<EffectProjectionFacts.ReconfigureState>()
         val earthbendSignatures = mutableListOf<EffectProjectionFacts.BattlefieldEarthbendSignature>()
+        val battlefieldCards =
+            currentGame.players.flatMap { player ->
+                player.getZone(ZoneType.Battlefield).cards
+            }
+        val keywordAffectorByStaticId = keywordAffectorByStaticId(battlefieldCards)
 
         for (player in currentGame.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
@@ -1699,6 +1706,7 @@ class GameBridge(
                                 staticId = cell.columnKey,
                                 power = cell.value.left,
                                 toughness = cell.value.right,
+                                sourceAbilityGrpId = resolveBoostSourceAbilityGrpId(card, cell.columnKey),
                             )
                     }
                 }
@@ -1712,6 +1720,7 @@ class GameBridge(
                                     timestamp = cell.rowKey,
                                     staticId = cell.columnKey,
                                     keyword = keyword.keyword.toString(),
+                                    affectorForgeCardId = keywordAffectorByStaticId[cell.columnKey],
                                 )
                         }
                     }
@@ -1761,6 +1770,42 @@ class GameBridge(
             battlefieldEarthbendSignatures = earthbendSignatures,
         )
     }
+
+    /** Resolve boost source ability metadata while the shell owns the live Forge cut. */
+    private fun resolveBoostSourceAbilityGrpId(
+        card: Card,
+        staticId: Long,
+    ): Int? {
+        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+
+        if (staticId == 0L) {
+            return PT_BOOST_KEYWORDS.firstNotNullOfOrNull { keywordId ->
+                cardRepository.findKeywordAbilityGrpId(grpId, keywordId)
+            }
+        }
+        if (staticId > Int.MAX_VALUE) return null
+
+        val registry = abilityRegistryFor(card, cardData) ?: return null
+        val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() } ?: return null
+        return registry.forStaticAbility(sourceStatic.definitionId)
+            ?: sourceStatic.keyword?.let { keyword ->
+                keyword.abilities.firstNotNullOfOrNull { registry.forSpellAbility(it.definitionId) }
+                    ?: keyword.triggers.firstNotNullOfOrNull { registry.forTrigger(it.definitionId) }
+                    ?: keyword.staticAbilities.firstNotNullOfOrNull { registry.forStaticAbility(it.definitionId) }
+            }
+    }
+
+    /** First battlefield owner for each live static ability, in player/zone order. */
+    private fun keywordAffectorByStaticId(cards: List<Card>): Map<Long, ForgeCardId> =
+        buildMap {
+            for (card in cards) {
+                val forgeCardId = ForgeCardId(card.id)
+                for (staticAbility in card.staticAbilities.orEmpty()) {
+                    if (staticAbility.id > 0) putIfAbsent(staticAbility.id.toLong(), forgeCardId)
+                }
+            }
+        }
 
     /** Forge-only extraction; projection consumes the resulting signature value. */
     private fun earthbendSignatureFor(card: Card): EarthbendTracker.Signature? {
