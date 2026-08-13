@@ -22,7 +22,8 @@ import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateFrameInput
+import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
@@ -265,28 +266,32 @@ class MatchFlowHarness(
         val events = bridge.closeBundleFrame(seatId.value)
         val promptFacts = bridge.materializePromptProjectionFacts()
         val fullResult =
-            StateMapper
-                .buildFromSnapshot(
-                    snap = snap,
-                    gameStateId = 0,
-                    matchId = matchId,
-                    environment = bridge.stateProjectionEnvironment,
-                    viewingSeatId = seatId.value,
-                    events = events,
-                    promptFacts = promptFacts,
-                    persistentFeedFacts =
-                        PersistentFeedFactsCapture.capture(
-                            snap,
-                            promptFacts,
-                            bridge,
-                            bridge.stateProjectionEnvironment,
-                        ),
-                    effectFacts = bridge.materializeEffectProjectionFacts(),
-                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
-                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
-                    projectionState = capturedProjection.copy(revision = priorProjection.revision),
-                ).finalizeAnnotations()
-        bridge.commitProjection(checkNotNull(fullResult.transition))
+            StateProjectionCompiler.compileOneViewer(
+                environment = bridge.stateProjectionEnvironment,
+                input =
+                    StateFrameInput(
+                        gameStateId = 0,
+                        snapshot = snap,
+                        previousSnapshot = null,
+                        events = events,
+                        promptFacts = promptFacts,
+                        persistentFeedFacts =
+                            PersistentFeedFactsCapture.capture(
+                                snap,
+                                promptFacts,
+                                bridge,
+                                bridge.stateProjectionEnvironment,
+                            ),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
+                        updateType = GameStateUpdate.SendAndRecord,
+                        viewingSeatId = seatId.value,
+                        revealForSeat = null,
+                    ),
+                prior = capturedProjection.copy(revision = priorProjection.revision),
+            )
+        bridge.commitProjection(fullResult.transition)
         accumulator.seedFull(fullResult.gsm)
         validatingSink?.seedFull(fullResult.gsm)
     }

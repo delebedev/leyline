@@ -2,7 +2,7 @@ package leyline.testkit
 
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateFrameInput
-import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.StateProjectionEnvironment
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /** Shell adapter for tests that materialize projection inputs from a live bridge. */
 object StateMapperShell {
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "UnusedParameter")
     fun buildFromSnapshot(
         snap: GsmSnapshot,
         gameStateId: Int,
@@ -35,7 +35,7 @@ object StateMapperShell {
         effectFacts: EffectProjectionFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
         projectionState: ProjectionState = bridge.projectionStateSnapshot(),
-    ): StateMapper.BuildResult =
+    ): StateProjectionCompiler.Result =
         buildFromSnapshot(
             snap = snap,
             gameStateId = gameStateId,
@@ -56,7 +56,7 @@ object StateMapperShell {
             projectionState = projectionState,
         )
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "UnusedParameter")
     fun buildFromSnapshot(
         snap: GsmSnapshot,
         gameStateId: Int,
@@ -75,35 +75,38 @@ object StateMapperShell {
         mechanicSourceFacts: MechanicSourceFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
         projectionState: ProjectionState = bridge.projectionStateSnapshot(),
-    ): StateMapper.BuildResult =
-        StateMapper.buildFromSnapshot(
-            snap = snap,
-            gameStateId = gameStateId,
-            matchId = matchId,
+    ): StateProjectionCompiler.Result =
+        compile(
             environment = environment,
+            input =
+                StateFrameInput(
+                    gameStateId = gameStateId,
+                    snapshot = snap,
+                    previousSnapshot = prev,
+                    events = events,
+                    promptFacts = promptFacts,
+                    updateType = updateType,
+                    viewingSeatId = viewingSeatId,
+                    revealForSeat = revealForSeat,
+                    effectFacts = effectFacts,
+                    mechanicSourceFacts = mechanicSourceFacts,
+                    abilityExhaustionFacts = abilityExhaustionFacts,
+                    persistentFeedFacts = persistentFeedFacts,
+                ),
+            prior = projectionState,
             actions = actions,
-            updateType = updateType,
-            viewingSeatId = viewingSeatId,
-            revealForSeat = revealForSeat,
-            prev = prev,
-            events = events,
-            promptFacts = promptFacts,
-            persistentFeedFacts = persistentFeedFacts,
-            effectFacts = effectFacts,
-            mechanicSourceFacts = mechanicSourceFacts,
-            abilityExhaustionFacts = abilityExhaustionFacts,
-            projectionState = projectionState,
         )
 
+    @Suppress("UnusedParameter")
     fun buildDiff(
         input: StateFrameInput,
         matchId: String,
         bridge: GameBridge,
         environment: StateProjectionEnvironment = bridge.stateProjectionEnvironment,
         actions: ActionsAvailableReq? = null,
-    ): StateMapper.BuildResult = StateMapper.buildDiff(input, matchId, environment, actions)
+    ): StateProjectionCompiler.Result = compile(environment, input, bridge.projectionStateSnapshot(), actions)
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "UnusedParameter")
     fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
@@ -120,7 +123,7 @@ object StateMapperShell {
         effectFacts: EffectProjectionFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
         persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
-    ): StateMapper.BuildResult =
+    ): StateProjectionCompiler.Result =
         buildDiff(
             prev = prev,
             cur = cur,
@@ -140,7 +143,7 @@ object StateMapperShell {
             persistentFeedFacts = persistentFeedFacts,
         )
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "UnusedParameter")
     fun buildDiff(
         prev: GsmSnapshot?,
         cur: GsmSnapshot,
@@ -159,28 +162,38 @@ object StateMapperShell {
         abilityExhaustionFacts: AbilityExhaustionFacts,
         persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
         projectionState: ProjectionState = bridge.projectionStateSnapshot(),
-    ): StateMapper.BuildResult =
-        StateMapper.buildDiff(
-            input =
-                StateFrameInput(
-                    gameStateId = gameStateId,
-                    snapshot = cur,
-                    previousSnapshot = prev,
-                    events = events,
-                    promptFacts = promptFacts,
-                    updateType = updateType,
-                    viewingSeatId = viewingSeatId,
-                    revealForSeat = revealForSeat,
-                    effectFacts = effectFacts,
-                    mechanicSourceFacts = mechanicSourceFacts,
-                    abilityExhaustionFacts = abilityExhaustionFacts,
-                    persistentFeedFacts = persistentFeedFacts,
-                    projectionState = projectionState,
-                ),
-            matchId = matchId,
-            environment = environment,
-            actions = actions,
+    ): StateProjectionCompiler.Result =
+        compile(
+            environment,
+            StateFrameInput(
+                gameStateId = gameStateId,
+                snapshot = cur,
+                previousSnapshot = prev,
+                events = events,
+                promptFacts = promptFacts,
+                updateType = updateType,
+                viewingSeatId = viewingSeatId,
+                revealForSeat = revealForSeat,
+                effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
+                persistentFeedFacts = persistentFeedFacts,
+            ),
+            projectionState,
+            actions,
         )
+
+    private fun compile(
+        environment: StateProjectionEnvironment,
+        input: StateFrameInput,
+        prior: ProjectionState,
+        actions: ActionsAvailableReq?,
+    ): StateProjectionCompiler.Result =
+        if (actions == null) {
+            StateProjectionCompiler.compileOneViewer(environment, input, prior)
+        } else {
+            StateProjectionCompiler.compileOneViewerWithActions(environment, input, prior, actions = actions)
+        }
 
     private fun emptyMechanicSourceFactsFor(events: FrameEventLog): MechanicSourceFacts {
         require(events.events.isEmpty()) {

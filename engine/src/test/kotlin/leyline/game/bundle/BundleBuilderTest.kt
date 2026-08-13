@@ -24,7 +24,6 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
-import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
@@ -35,19 +34,29 @@ import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.iid
 import leyline.game.mapping.FrameIdResolver
+import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateFrameInput
+import leyline.game.mapping.StateProjectionCompiler
+import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.seedDiffBaseline
 import leyline.game.sid
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PhaseSnapshot
+import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.GameBridge
+import leyline.game.state.MechanicSourceFacts
+import leyline.game.state.PersistentFeedFacts
+import leyline.game.state.PromptProjectionFacts
+import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import java.util.EnumSet
 import java.util.concurrent.CountDownLatch
@@ -55,7 +64,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
-import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Tests for [leyline.game.bundle.BundleBuilder] proto assembly.
@@ -763,7 +771,7 @@ class BundleBuilderTest :
                     .cards
                     .single()
             moveToBattlefield(card, game)
-            b.diffListener = { _, _ -> error("induced finalization failure") }
+            b.diffListener = { _, _, _, _ -> error("induced finalization failure") }
             val events =
                 FrameEventLog(
                     listOf(
@@ -816,7 +824,7 @@ class BundleBuilderTest :
                 val interleavedForgeId = ForgeCardId(1_000_000)
                 var writerRan = false
                 if (interleaveWriter) {
-                    b.diffListener = { _, _ ->
+                    b.diffListener = { _, _, _, _ ->
                         if (!writerRan) {
                             writerRan = true
                             val writer = thread(start = true) { b.getOrAllocInstanceId(interleavedForgeId) }
@@ -878,7 +886,7 @@ class BundleBuilderTest :
             token.tokenSpawningAbility = creator.manaAbilities.single()
             val interleavedForgeId = ForgeCardId(1_000_001)
             var writerRan = false
-            b.diffListener = { _, _ ->
+            b.diffListener = { _, _, _, _ ->
                 if (!writerRan) {
                     writerRan = true
                     val writer = thread(start = true) { b.getOrAllocInstanceId(interleavedForgeId) }
@@ -912,7 +920,7 @@ class BundleBuilderTest :
             val listenerCalls = AtomicInteger()
             val failure = AtomicReference<Throwable?>()
             val results = arrayOfNulls<BundleBuilder.BundleResult>(2)
-            b.diffListener = { _, _ ->
+            b.diffListener = { _, _, _, _ ->
                 if (listenerCalls.incrementAndGet() == 1) {
                     firstAtInstall.countDown()
                     check(releaseFirst.await(5, TimeUnit.SECONDS))
@@ -1029,7 +1037,7 @@ class BundleBuilderTest :
             b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
             val builder = bundleBuilder(b)
             var writerRan = false
-            b.diffListener = { _, _ ->
+            b.diffListener = { _, _, _, _ ->
                 if (!writerRan) {
                     writerRan = true
                     b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
@@ -1074,24 +1082,40 @@ class BundleBuilderTest :
             val expected = checkNotNull(builder.pendingSubmittedTargets())
             b.seedDiffBaseline(game, counter.currentGsId())
             val snap = checkNotNull(builder.previousProjectionSnapshot())
-            val draft =
-                StateMapper.buildDiff(
-                    prev = snap,
-                    cur = snap,
-                    events = FrameEventLog.EMPTY,
-                    gameStateId = counter.nextGsId(),
-                    matchId = "test-match",
-                    bridge = b,
-                    effectFacts = b.materializeEffectProjectionFacts(),
-                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                )
+            val prior = b.projectionStateSnapshot()
             val startId = b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId
             builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
             val replacement = checkNotNull(builder.pendingSubmittedTargets())
-            val rider = AnnotationBuilder.playerSubmittedTargets(expected.spellInstanceId, expected.casterSeatId)
-
-            shouldThrow<IllegalStateException> {
-                builder.finalizeStateFrame(draft, listOf(rider), expected)
+            val compiled =
+                StateProjectionCompiler.compileOneViewer(
+                    b.stateProjectionEnvironment,
+                    StateFrameInput(
+                        gameStateId = counter.nextGsId(),
+                        snapshot = snap,
+                        previousSnapshot = snap,
+                        events = FrameEventLog.EMPTY,
+                        promptFacts = PromptProjectionFacts(),
+                        updateType = GameStateUpdate.SendAndRecord,
+                        viewingSeatId = 1,
+                        revealForSeat = null,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFacts(),
+                        abilityExhaustionFacts = AbilityExhaustionFacts(),
+                        persistentFeedFacts = PersistentFeedFacts(),
+                    ),
+                    prior,
+                    ViewerProjectionIntent.of(
+                        listOf(
+                            ProjectionSupplement.SubmitPendingTargets(
+                                expected.spellInstanceId,
+                                expected.casterSeatId,
+                                expected.version,
+                            ),
+                        ),
+                    ),
+                )
+            shouldThrow<StaleProjectionTransitionException> {
+                b.commitProjection(compiled.transition)
             }
 
             assertSoftly {
@@ -1367,7 +1391,7 @@ class BundleBuilderTest :
                     future = java.util.concurrent.CompletableFuture(),
                 )
             val builder = bundleBuilder(b)
-            b.diffListener = { _, _ -> error("induced order finalization failure") }
+            b.diffListener = { _, _, _, _ -> error("induced order finalization failure") }
 
             try {
                 shouldThrow<IllegalStateException> {

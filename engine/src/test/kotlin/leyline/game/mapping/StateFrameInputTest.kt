@@ -57,20 +57,14 @@ class StateFrameInputTest :
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
-                    projectionState =
-                        leyline.game.state.ProjectionState
-                            .initial(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val initial =
+                leyline.game.state.ProjectionState
+                    .initial()
 
-            val first =
-                StateMapper
-                    .buildDiff(input, "state-frame", bridge.stateProjectionEnvironment)
-                    .finalizeAnnotations()
-            val second =
-                StateMapper
-                    .buildDiff(input, "state-frame", bridge.stateProjectionEnvironment)
-                    .finalizeAnnotations()
+            val first = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
+            val second = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
@@ -193,15 +187,15 @@ class StateFrameInputTest :
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
-                    projectionState =
-                        leyline.game.state.ProjectionState
-                            .initial(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedIdentityBefore = bridge.getInstanceIdMap()
             val committedEffectsBefore = bridge.committedEffectProjection()
-            val first = StateMapper.buildDiff(input, "state-frame", bridge.stateProjectionEnvironment).finalizeAnnotations()
-            val second = StateMapper.buildDiff(input, "state-frame", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val initial =
+                leyline.game.state.ProjectionState
+                    .initial()
+            val first = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
+            val second = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
             val nextIdentity = checkNotNull(first.transition).nextState.identities
             val nextEffects = checkNotNull(first.transition).nextState.effects
             val earthbend = nextEffects.earthbend.activeByTarget.getValue(cardId)
@@ -214,7 +208,7 @@ class StateFrameInputTest :
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
-                first.transition.nextState.effects shouldBe second.transition?.nextState?.effects
+                first.transition.nextState.effects shouldBe second.transition.nextState.effects
                 bridge.getInstanceIdMap() shouldBe committedIdentityBefore
                 bridge.committedEffectProjection() shouldBe committedEffectsBefore
                 first.output.consumedEarthbendResolutionVersions shouldBe setOf(1L)
@@ -373,16 +367,16 @@ class StateFrameInputTest :
                                     token to MechanicSourceFacts.TokenCreator(tokenCreator, 71),
                                 ),
                         ),
-                    projectionState =
-                        leyline.game.state.ProjectionState
-                            .initial(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedIdentityBefore = bridge.getInstanceIdMap()
             val committedEffectsBefore = bridge.committedEffectProjection()
 
-            val first = StateMapper.buildDiff(input, "mechanic-source", bridge.stateProjectionEnvironment).finalizeAnnotations()
-            val retry = StateMapper.buildDiff(input, "mechanic-source", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val initial =
+                leyline.game.state.ProjectionState
+                    .initial()
+            val first = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
+            val retry = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe retry.gsm.toByteArray().toList()
@@ -411,9 +405,9 @@ class StateFrameInputTest :
                         ),
                     )
                 first.transition
-                    ?.nextState
-                    ?.identities
-                    ?.forgeIdToInstanceId shouldBe
+                    .nextState
+                    .identities
+                    .forgeIdToInstanceId shouldBe
                     linkedMapOf(
                         ForgeCardId(100041) to InstanceId(100),
                         ForgeCardId(100404) to InstanceId(101),
@@ -427,9 +421,9 @@ class StateFrameInputTest :
                         ForgeCardId(100071) to InstanceId(109),
                     )
                 first.transition
-                    ?.nextState
-                    ?.identities
-                    ?.nextInstanceId shouldBe 110
+                    .nextState
+                    .identities
+                    .nextInstanceId shouldBe 110
                 bridge.getInstanceIdMap() shouldBe committedIdentityBefore
                 bridge.committedEffectProjection() shouldBe committedEffectsBefore
             }

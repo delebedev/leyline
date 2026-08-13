@@ -37,7 +37,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 /**
  * Hosts the diff → annotations spine lifted out of StateMapper.
  *
- * Two entry points feed [StateMapper.buildFromSnapshot]:
+ * Two frame shapes feed [StateMapper]:
  * - [computeAnnotations] — stages 1-3: transfer + combat + trigger-lifecycle
  *   assembly into a transient/persistent [AnnotationPipelineResult].
  * - [computeRemainingAnnotations] — stages 4-5: mechanic + effect annotations

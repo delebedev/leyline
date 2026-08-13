@@ -56,17 +56,15 @@ class EffectAttributionProjectionTest :
                         ),
                 )
             val firstInput = frameInput(firstSnapshot, previous = null, facts = facts)
+            val initial =
+                leyline.game.state.ProjectionState
+                    .initial()
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedEffectsBefore = bridge.committedEffectProjection()
 
-            val first = StateMapper.buildDiff(firstInput, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val first = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, firstInput, initial)
             val firstRetry =
-                StateMapper
-                    .buildDiff(
-                        firstInput,
-                        "effect-attribution",
-                        bridge.stateProjectionEnvironment,
-                    ).finalizeAnnotations()
+                StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, firstInput, initial)
             val nextIdentity = checkNotNull(first.transition).nextState.identities
             val nextEffects = checkNotNull(first.transition).nextState.effects
 
@@ -105,23 +103,22 @@ class EffectAttributionProjectionTest :
                     stableSnapshot,
                     previous = first.projectionSnapshot,
                     facts = facts,
-                    projectionState = checkNotNull(first.transition).nextState,
                 )
-            val stable = StateMapper.buildDiff(stableInput, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val stable =
+                StateProjectionCompiler.compileOneViewer(
+                    bridge.stateProjectionEnvironment,
+                    stableInput,
+                    first.transition.nextState,
+                )
             val stableRetry =
-                StateMapper
-                    .buildDiff(
-                        stableInput,
-                        "effect-attribution",
-                        bridge.stateProjectionEnvironment,
-                    ).finalizeAnnotations()
+                StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, stableInput, first.transition.nextState)
 
             assertSoftly {
                 stable.gsm.toByteArray().toList() shouldBe stableRetry.gsm.toByteArray().toList()
                 stable.gsm.annotationsList shouldBe emptyList()
                 stable.gsm.persistentAnnotationsList shouldBe emptyList()
-                stable.transition?.nextState?.effects shouldBe nextEffects
-                stable.transition?.nextState?.identities shouldBe nextIdentity
+                stable.transition.nextState.effects shouldBe nextEffects
+                stable.transition.nextState.identities shouldBe nextIdentity
                 bridge.getInstanceIdMap() shouldBe nextIdentity.instanceIdToForgeId
                 bridge.committedEffectProjection() shouldBe nextEffects
             }
@@ -153,9 +150,12 @@ class EffectAttributionProjectionTest :
                         ),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val initial =
+                leyline.game.state.ProjectionState
+                    .initial()
 
-            val first = StateMapper.buildDiff(input, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
-            val retry = StateMapper.buildDiff(input, "effect-attribution", bridge.stateProjectionEnvironment).finalizeAnnotations()
+            val first = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
+            val retry = StateProjectionCompiler.compileOneViewer(bridge.stateProjectionEnvironment, input, initial)
             val nextIdentity = checkNotNull(first.transition).nextState.identities
             val latestSourceIid = nextIdentity.forgeIdToInstanceId.getValue(latestSourceId).value
             val addAbility =
@@ -217,9 +217,6 @@ private fun frameInput(
     previous: GsmSnapshot?,
     facts: EffectProjectionFacts,
     events: FrameEventLog = FrameEventLog.EMPTY,
-    projectionState: leyline.game.state.ProjectionState =
-        leyline.game.state.ProjectionState
-            .initial(),
 ): StateFrameInput =
     StateFrameInput(
         gameStateId = snapshot.gameStateId,
@@ -234,7 +231,6 @@ private fun frameInput(
         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
         persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
         mechanicSourceFacts = MechanicSourceFacts(),
-        projectionState = projectionState,
     )
 
 private data class EffectAnnotationShape(

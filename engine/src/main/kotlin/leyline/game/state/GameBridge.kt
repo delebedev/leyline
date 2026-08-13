@@ -448,17 +448,17 @@ class GameBridge(
     // --- Composed components ---
 
     /**
-     * Test-only observability hook — invoked per bundle after
-     * [leyline.game.mapping.StateMapper.buildDiff] finalization and immediately
-     * before projection commit. Receives the exact immutable frame input and
-     * finalized diff GSM. Currently used by [leyline.game.PureDiffReplayTest]
-     * to observe values for replay.
+     * Test-only observability hook — invoked per bundle after state projection
+     * and immediately before commit. Receives the exact input, prior state,
+     * typed viewer intent, and finalized diff GSM.
      */
     @VisibleForTesting
     @Volatile
     var diffListener: (
         (
             input: leyline.game.mapping.StateFrameInput,
+            prior: ProjectionState,
+            intent: leyline.game.mapping.ViewerProjectionIntent,
             diff: GameStateMessage,
         ) -> Unit
     )? = null
@@ -768,8 +768,7 @@ class GameBridge(
     /**
      * Close the event frame for one bundle build: collector events + reveal records
      * for [viewingSeatId] (promoted to [GameEvent.CardsRevealed]). Caller passes
-     * the returned log to [leyline.game.mapping.StateMapper.buildFromSnapshot] /
-     * [leyline.game.mapping.StateMapper.buildDiff].
+     * the returned log to [leyline.game.mapping.StateProjectionCompiler].
      *
      * One close per call; per-seat reveal consumption is seat-scoped. A multi-seat
      * close (so two per-seat builds of the same snapshot see the same reveals) is

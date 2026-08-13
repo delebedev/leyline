@@ -9,7 +9,9 @@ import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateFrameInput
+import leyline.game.mapping.StateProjectionCompiler
+import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionTransition
@@ -18,8 +20,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Pre-game handshake message factory: roomState, initialBundle, dealHand,
- * mulliganReq, settingsResp. Distinct from [StateMapper]
- * which handles in-game state diffs.
+ * mulliganReq, settingsResp. Distinct from [StateProjectionCompiler], which
+ * finalizes each viewer's in-game state projection.
  */
 @Suppress("LargeClass") // one pre-game handshake sequence and its protocol helpers
 object HandshakeMessages {
@@ -499,43 +501,40 @@ object HandshakeMessages {
         val events = bridge.closeBundleFrame(seatId.value)
         val promptFacts = bridge.materializePromptProjectionFacts()
         val fullResult =
-            StateMapper
-                .buildFromSnapshot(
-                    snap = snap,
-                    gameStateId = gameStateId,
-                    matchId = matchId,
-                    environment = bridge.stateProjectionEnvironment,
-                    viewingSeatId = seatId.value,
-                    events = events,
-                    promptFacts = promptFacts,
-                    persistentFeedFacts =
-                        PersistentFeedFactsCapture.capture(
-                            snap,
-                            promptFacts,
-                            bridge,
-                            bridge.stateProjectionEnvironment,
-                        ),
-                    effectFacts = bridge.materializeEffectProjectionFacts(),
-                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
-                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
-                    projectionState = capturedProjection.copy(revision = priorProjection.revision),
-                ).finalizeAnnotations()
-        val transition = checkNotNull(fullResult.transition)
+            StateProjectionCompiler.compileOneViewer(
+                environment = bridge.stateProjectionEnvironment,
+                input =
+                    StateFrameInput(
+                        gameStateId = gameStateId,
+                        snapshot = snap,
+                        previousSnapshot = null,
+                        events = events,
+                        promptFacts = promptFacts,
+                        persistentFeedFacts =
+                            PersistentFeedFactsCapture.capture(
+                                snap,
+                                promptFacts,
+                                bridge,
+                                bridge.stateProjectionEnvironment,
+                            ),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
+                        updateType = GameStateUpdate.SendAndRecord,
+                        viewingSeatId = seatId.value,
+                        revealForSeat = null,
+                    ),
+                prior = capturedProjection.copy(revision = priorProjection.revision),
+                intent = ViewerProjectionIntent.EMPTY,
+            )
+        val transition = fullResult.transition
         val tentative = transition.nextState.copy(revision = transition.expectedRevision)
         val (actions, nextProjection) =
             bridge.editProjection(tentative) {
                 ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
             }
-        val priorCursor = nextProjection.viewerCursors[0] ?: ViewerProjectionCursor()
         bridge.commitProjection(
-            transition.copy(
-                nextState =
-                    nextProjection.copy(
-                        viewerCursors =
-                            nextProjection.viewerCursors +
-                                (0 to priorCursor.copy(previousSnapshot = snap)),
-                    ),
-            ),
+            transition.copy(nextState = nextProjection),
         )
         val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)
 

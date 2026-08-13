@@ -123,14 +123,14 @@ acknowledgement from the sink.
 
 | Timeline | Location | Advances on | Purpose |
 |---|---|---|---|
-| Projection baseline | `ProjectionState.viewerCursors` | A `BundleBuilder` installs the completed transition before returning or enqueueing its messages | Input to the next `StateMapper.buildDiff` call |
+| Projection baseline | `ProjectionState.viewerCursors` | A `BundleBuilder` installs the completed transition before returning or enqueueing its messages | Input to the next `StateProjectionCompiler.compileOneViewer` call |
 | Sink handoff | Implicit in the sink | `sink.send(messages)` is invoked successfully | Server-side delivery attempt; this is not client acknowledgement |
 
 The current state-diff order is:
 
 ```text
-snapshot Forge state
-  -> compute and finalize the frame
+snapshot Forge state and materialize typed viewer intent
+  -> compile the finalized state frame
   -> invoke the pre-commit diff observer
   -> commit projection:
        install complete ProjectionState

@@ -8,13 +8,13 @@ import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateFrameInput
+import leyline.game.mapping.StateProjectionCompiler
+import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.IsolatedBoardLifecycle
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import leyline.testkit.StateMapperShell as StateMapper
@@ -58,13 +58,10 @@ class PureDiffReplayTest :
 
         data class BundleStep(
             val input: StateFrameInput,
+            val prior: ProjectionState,
+            val intent: ViewerProjectionIntent,
             val diff: GameStateMessage,
-        ) {
-            fun riders(): List<AnnotationInfo> =
-                diff.annotationsList
-                    .filter { annotation -> annotation.typeList.any { it in DELIVERY_RIDER_TYPES } }
-                    .map { it.toBuilder().clearId().build() }
-        }
+        )
 
         test("one-turn scripted scenario — snap-vs-snap diff byte-equal across replay") {
             withBase {
@@ -72,8 +69,8 @@ class PureDiffReplayTest :
                 val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val liveRun = mutableListOf<BundleStep>()
 
-                liveBridge.diffListener = { input, diff ->
-                    liveRun.add(BundleStep(input, diff))
+                liveBridge.diffListener = { input, prior, intent, diff ->
+                    liveRun.add(BundleStep(input, prior, intent, diff))
                 }
 
                 // Scripted scenario: play land → cast creature (if possible) → pass to end of turn.
@@ -92,16 +89,17 @@ class PureDiffReplayTest :
 
                 val replayBytes =
                     liveRun.map { step ->
-                        replayBridge.replaceProjectionStateForTest(step.input.projectionState)
                         val updateType = step.diff.update
+                        val replayPrior = replayBridge.projectionStateSnapshot()
+                        replayPrior shouldBe step.prior
                         val replayResult =
-                            StateMapper
-                                .buildDiff(
-                                    input = step.input.copy(updateType = updateType),
-                                    matchId = Board.TEST_MATCH_ID,
-                                    bridge = replayBridge,
-                                ).finalizeAnnotations(step.riders())
-                        replayBridge.commitProjection(checkNotNull(replayResult.transition))
+                            StateProjectionCompiler.compileOneViewer(
+                                replayBridge.stateProjectionEnvironment,
+                                step.input.copy(updateType = updateType),
+                                replayPrior,
+                                step.intent,
+                            )
+                        replayBridge.commitProjection(replayResult.transition)
                         replayResult.gsm.toByteArray().toList()
                     }
                 val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
@@ -116,8 +114,8 @@ class PureDiffReplayTest :
                 // transitions, monotonic counters across bundle boundaries.
                 val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val liveRun = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { input, diff ->
-                    liveRun.add(BundleStep(input, diff))
+                liveBridge.diffListener = { input, prior, intent, diff ->
+                    liveRun.add(BundleStep(input, prior, intent, diff))
                 }
 
                 repeat(3) {
@@ -133,16 +131,17 @@ class PureDiffReplayTest :
 
                 val replayBytes =
                     liveRun.map { step ->
-                        replayBridge.replaceProjectionStateForTest(step.input.projectionState)
                         val updateType = step.diff.update
+                        val replayPrior = replayBridge.projectionStateSnapshot()
+                        replayPrior shouldBe step.prior
                         val replayResult =
-                            StateMapper
-                                .buildDiff(
-                                    input = step.input.copy(updateType = updateType),
-                                    matchId = Board.TEST_MATCH_ID,
-                                    bridge = replayBridge,
-                                ).finalizeAnnotations(step.riders())
-                        replayBridge.commitProjection(checkNotNull(replayResult.transition))
+                            StateProjectionCompiler.compileOneViewer(
+                                replayBridge.stateProjectionEnvironment,
+                                step.input.copy(updateType = updateType),
+                                replayPrior,
+                                step.intent,
+                            )
+                        replayBridge.commitProjection(replayResult.transition)
                         replayResult.gsm.toByteArray().toList()
                     }
                 val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
@@ -157,8 +156,8 @@ class PureDiffReplayTest :
             withBase {
                 val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val observed = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { input, diff ->
-                    observed.add(BundleStep(input, diff))
+                liveBridge.diffListener = { input, prior, intent, diff ->
+                    observed.add(BundleStep(input, prior, intent, diff))
                 }
                 playLand(liveBridge)
                 castCreature(liveBridge)
@@ -174,16 +173,14 @@ class PureDiffReplayTest :
                 // commit), then the NEW id post-apply.
                 var exercisedRealloc = false
                 for (step in observed) {
-                    replayBridge.replaceProjectionStateForTest(step.input.projectionState)
-                    val draft =
-                        StateMapper.buildDiff(
-                            input = step.input.copy(updateType = step.diff.update),
-                            matchId = Board.TEST_MATCH_ID,
-                            bridge = replayBridge,
+                    replayBridge.replaceProjectionStateForTest(step.prior)
+                    val result =
+                        StateProjectionCompiler.compileOneViewer(
+                            replayBridge.stateProjectionEnvironment,
+                            step.input.copy(updateType = step.diff.update),
+                            step.prior,
+                            step.intent,
                         )
-                    checkNotNull(draft.annotationFrameDraft)
-                    draft.gsm.annotationsList.all { it.id == 0 } shouldBe true
-                    val result = draft.finalizeAnnotations(step.riders())
                     val nonTrivial = result.output.idReallocations.filter { it.old != it.new }
                     for (r in nonTrivial) {
                         val fid =
@@ -192,7 +189,7 @@ class PureDiffReplayTest :
                         // Pre-apply: compute must NOT have moved the forward map.
                         replayBridge.peekInstanceId(fid) shouldBe r.old
                     }
-                    replayBridge.commitProjection(checkNotNull(result.transition))
+                    replayBridge.commitProjection(result.transition)
                     for (r in nonTrivial) {
                         val fid =
                             replayBridge.getForgeCardId(r.new)
@@ -226,7 +223,7 @@ class PureDiffReplayTest :
                             viewingSeatId = SEAT_ID,
                             effectFacts = replayBridge.materializeEffectProjectionFacts(),
                             abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                        ).finalizeAnnotations()
+                        )
 
                 val first = compile()
                 val afterFirst = replayBridge.projectionStateSnapshot()
@@ -237,7 +234,7 @@ class PureDiffReplayTest :
 
                 assertSoftly {
                     first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
-                    first.transition?.nextState shouldBe second.transition?.nextState
+                    first.transition.nextState shouldBe second.transition.nextState
                     afterFirst shouldBe before
                     afterSecond shouldBe before
                     journalAfterFirst shouldBe journalBefore
@@ -250,8 +247,8 @@ class PureDiffReplayTest :
             withBase {
                 val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val observed = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { input, diff ->
-                    observed.add(BundleStep(input, diff))
+                liveBridge.diffListener = { input, prior, intent, diff ->
+                    observed.add(BundleStep(input, prior, intent, diff))
                 }
                 playLand(liveBridge)
                 castCreature(liveBridge)
@@ -264,29 +261,24 @@ class PureDiffReplayTest :
                 bridge = null
                 val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val holder = HolderRecord(iid = 777, ownerSeat = 1, objectSourceGrpId = 188698, parentIid = 100, cleanupGrpId = 189931)
-                replayBridge.replaceProjectionStateForTest(
-                    replayBridge.projectionStateSnapshot().copy(delayedTriggerHolders = mapOf(holder.iid to holder)),
-                )
-                val activeBefore = replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys
                 val step = observed.first()
+                val replayPrior = step.prior.copy(delayedTriggerHolders = mapOf(holder.iid to holder))
+                replayBridge.replaceProjectionStateForTest(replayPrior)
+                val activeBefore = replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys
                 val replayResult =
-                    StateMapper
-                        .buildDiff(
-                            input =
-                                step.input.copy(
-                                    updateType = step.diff.update,
-                                    projectionState = replayBridge.projectionStateSnapshot(),
-                                ),
-                            matchId = Board.TEST_MATCH_ID,
-                            bridge = replayBridge,
-                        ).finalizeAnnotations(step.riders())
+                    StateProjectionCompiler.compileOneViewer(
+                        replayBridge.stateProjectionEnvironment,
+                        step.input.copy(updateType = step.diff.update),
+                        replayPrior,
+                        step.intent,
+                    )
 
                 assertSoftly("holder deletion is compute-time only until mutations apply") {
                     replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys shouldBe activeBefore
                     replayResult.output.holderBatch.removed shouldBe listOf(777)
                     (777 in replayResult.gsm.diffDeletedInstanceIdsList) shouldBe true
                 }
-                replayBridge.commitProjection(checkNotNull(replayResult.transition))
+                replayBridge.commitProjection(replayResult.transition)
                 replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys shouldBe emptySet()
             }
         }
@@ -295,13 +287,6 @@ class PureDiffReplayTest :
         private const val SCENARIO_SEED = 42L
 
         private const val SEAT_ID = 1
-
-        private val DELIVERY_RIDER_TYPES =
-            setOf(
-                AnnotationType.PlayerSelectingTargets,
-                AnnotationType.PlayerSubmittedTargets,
-                AnnotationType.NewTurnStarted,
-            )
     }
 }
 

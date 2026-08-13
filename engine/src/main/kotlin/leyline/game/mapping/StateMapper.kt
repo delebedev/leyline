@@ -5,7 +5,6 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationContext
-import leyline.game.annotations.AnnotationFrameFinalizer
 import leyline.game.annotations.AnnotationPipeline
 import leyline.game.annotations.CombatAnnotationResult
 import leyline.game.annotations.ConvokeContributor
@@ -30,10 +29,8 @@ import leyline.game.state.HolderRecord
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.OpponentKnowledgeTracker
 import leyline.game.state.PersistentFeedFacts
-import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionOutput
 import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import leyline.game.state.PromptFactConsumption
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.RevealStarted
@@ -44,10 +41,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Orchestrates the GsmSnapshot → proto state-mapping pipeline.
  *
- * Two core methods:
- * - [buildFromSnapshot]: Full [GameStateMessage] from a captured [leyline.game.snapshot.GsmSnapshot].
- * - [buildDiff]: Diff GSM by snap-vs-snap field comparison. Both return one complete
- *   [ProjectionTransition] from explicit snapshot, fact, environment, and prior-state values.
+ * Builds a Full or Diff [GameStateMessage] draft from immutable frame values.
+ * [StateProjectionCompiler] owns the public finalized transition boundary.
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [leyline.game.bundle.GsmBuilder].
  * Interactive request builders (targeting, combat) live in [leyline.game.bundle.RequestBuilder].
@@ -55,16 +50,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * ## Tentative compute boundary
  *
- * Both entry points edit a private [ProjectionState.Editor]. Callers finalize
- * the complete transient list, then install the returned transition once.
- * Compute cannot change committed projection state. Identity, limbo, zones,
- * persistent annotations, delayed-trigger holders, and cursors all advance in
- * that same value. The finalizer supplies `nextAnnotationId` before install.
+ * The compiler supplies one private [ProjectionState.Editor]. This mapper adds
+ * base frame state and annotations without freezing or exposing the editor.
  *
  * [StateFrameInput] carries snapshot, event, [PromptProjectionFacts],
  * [EffectProjectionFacts], [MechanicSourceFacts], [AbilityExhaustionFacts], and
- * [PersistentFeedFacts] values for scoped projection inputs. Shell-only rider
- * finalization still prevents this object from being the final compiler boundary.
+ * [PersistentFeedFacts] values for scoped projection inputs.
  *
  * [StateMapperValueBoundaryTest] exercises the direct no-bridge contract across
  * two frames. [PureDiffReplayTest] covers broader shell-materialized replay.
@@ -86,129 +77,17 @@ object StateMapper {
             ZoneIds.P2_GRAVEYARD,
         )
 
-    private fun compileProjection(
-        prior: ProjectionState,
-        block: (ProjectionState.Editor) -> BuildResult,
-    ): BuildResult {
-        val editor = prior.editor()
-        val draft = block(editor)
-        val next = editor.freeze()
-        return draft.copy(
-            transition =
-                ProjectionTransition(
-                    expectedRevision = prior.revision,
-                    nextState = next,
-                    acknowledgements =
-                        ProjectionAcknowledgements(
-                            consumedEarthbendResolutionVersions =
-                                draft.output.consumedEarthbendResolutionVersions,
-                            promptFacts = draft.output.promptFactConsumption,
-                        ),
-                ),
-        )
-    }
-
-    data class AnnotationFrameDraft(
-        val firstAnnotationId: Int,
-        val idResolver: FrameIdResolver,
-    )
-
-    /** Result of [buildFromSnapshot] / [buildDiff] — GSM draft plus the next projection value. */
-    data class BuildResult(
+    internal data class Draft(
         val gsm: GameStateMessage,
         /** Engine snapshot used as the next viewer diff baseline. */
         val projectionSnapshot: GsmSnapshot,
         /** Compute-only metadata needed to assemble the wire result. */
         val output: ProjectionOutput,
-        /** Complete match projection state installed through one top-level compare-and-set. */
-        val transition: ProjectionTransition? = null,
-        val annotationFrameDraft: AnnotationFrameDraft?,
+        val firstAnnotationId: Int,
+        val idResolver: FrameIdResolver,
         /** Existing objects that must be re-emitted for state projected outside [CardSnapshot]. */
         val objectRefreshInstanceIds: Set<Int>,
-    ) {
-        fun finalizeAnnotations(riders: List<AnnotationInfo> = emptyList()): BuildResult {
-            val draft = checkNotNull(annotationFrameDraft) { "Annotation frame is already finalized" }
-            val finalized =
-                AnnotationFrameFinalizer.finalize(
-                    gsm.annotationsList + riders,
-                    draft.firstAnnotationId,
-                )
-            val frozenGsm =
-                gsm
-                    .toBuilder()
-                    .clearAnnotations()
-                    .addAllAnnotations(finalized.annotations)
-                    .build()
-            return copy(
-                gsm = frozenGsm,
-                transition =
-                    transition?.let { current ->
-                        current.copy(
-                            nextState =
-                                current.nextState.copy(
-                                    persistentAnnotations =
-                                        current.nextState.persistentAnnotations.copy(
-                                            nextAnnotationId = finalized.nextId,
-                                        ),
-                                ),
-                        )
-                    },
-                annotationFrameDraft = null,
-            )
-        }
-    }
-
-    /**
-     * Build a Full [GameStateMessage] from an immutable [leyline.game.snapshot.GsmSnapshot].
-     * Maps cards to client instanceIds through the supplied projection state.
-     *
-     * [viewingSeatId] controls hand visibility: opponent's hand cards get
-     * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
-     * Use 0 to include all objects (internal snapshots for diffing).
-     */
-    @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
-    fun buildFromSnapshot(
-        snap: GsmSnapshot,
-        gameStateId: Int,
-        matchId: String,
-        environment: StateProjectionEnvironment,
-        actions: ActionsAvailableReq? = null,
-        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
-        viewingSeatId: Int = 0,
-        revealForSeat: Int? = null,
-        prev: GsmSnapshot? = null,
-        /**
-         * Bundle events consumed by the annotation pipeline. The shell closes
-         * one frame and supplies the resulting immutable log.
-         */
-        events: FrameEventLog = FrameEventLog.EMPTY,
-        promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
-        persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
-        effectFacts: EffectProjectionFacts,
-        mechanicSourceFacts: MechanicSourceFacts,
-        abilityExhaustionFacts: AbilityExhaustionFacts,
-        projectionState: ProjectionState,
-    ): BuildResult =
-        compileProjection(projectionState) { editor ->
-            buildFromSnapshotInternal(
-                rawSnap = snap,
-                gameStateId = gameStateId,
-                matchId = matchId,
-                environment = environment,
-                actions = actions,
-                updateType = updateType,
-                viewingSeatId = viewingSeatId,
-                revealForSeat = revealForSeat,
-                prev = prev,
-                events = events,
-                promptFacts = promptFacts,
-                persistentFeedFacts = persistentFeedFacts,
-                effectFacts = effectFacts,
-                mechanicSourceFacts = mechanicSourceFacts,
-                abilityExhaustionFacts = abilityExhaustionFacts,
-                editor = editor,
-            )
-        }
+    )
 
     @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
     private fun buildFromSnapshotInternal(
@@ -228,7 +107,7 @@ object StateMapper {
         mechanicSourceFacts: MechanicSourceFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
         editor: ProjectionState.Editor,
-    ): BuildResult {
+    ): Draft {
         val annotationJournal = editor.annotations
         val effectPlanner = editor.effects
         val earthbendResolutions = effectFacts.pendingEarthbendResolutions
@@ -679,11 +558,12 @@ object StateMapper {
                 priorPersistentAnnotations = persistSnapshot,
             )
 
-        return BuildResult(
+        return Draft(
             gsm = built,
             projectionSnapshot = snap,
             output = output,
-            annotationFrameDraft = AnnotationFrameDraft(startAnnotationId, frameIds),
+            firstAnnotationId = startAnnotationId,
+            idResolver = frameIds,
             objectRefreshInstanceIds =
                 (keywordDiff.created + keywordDiff.destroyed)
                     .map { it.cardInstanceId }
@@ -808,8 +688,8 @@ object StateMapper {
     /**
      * Build a Diff [GameStateMessage] by snap-vs-snap field comparison.
      *
-     * Ordering-sensitive history comes from [StateFrameInput.projectionState].
-     * The result is tentative.
+     * Ordering-sensitive history comes from the compiler-supplied prior state.
+     * The result remains private to that tentative compilation.
      *
      * `prev == null` → returns the Full GSM built from `cur` (first bundle, post-handshake).
      * Otherwise emits only zones/objects whose CardSnapshot/ZoneSnapshot field-equality
@@ -817,36 +697,34 @@ object StateMapper {
      * lists are taken from the freshly-built current full GSM (current-bundle events
      * already applied).
      */
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
-    fun buildDiff(
+
+    /** Internal mapper stage owned by [StateProjectionCompiler]. */
+    internal fun buildDraft(
         input: StateFrameInput,
-        matchId: String,
         environment: StateProjectionEnvironment,
+        priorProjection: ProjectionState,
+        editor: ProjectionState.Editor,
         actions: ActionsAvailableReq? = null,
-    ): BuildResult {
-        val priorProjection = input.projectionState
-        return compileProjection(priorProjection) { editor ->
-            buildDiffInternal(
-                prev = input.previousSnapshot,
-                cur = input.snapshot,
-                events = input.events,
-                promptFacts = input.promptFacts,
-                effectFacts = input.effectFacts,
-                mechanicSourceFacts = input.mechanicSourceFacts,
-                abilityExhaustionFacts = input.abilityExhaustionFacts,
-                persistentFeedFacts = input.persistentFeedFacts,
-                gameStateId = input.gameStateId,
-                matchId = matchId,
-                environment = environment,
-                actions = actions,
-                updateType = input.updateType,
-                viewingSeatId = input.viewingSeatId,
-                revealForSeat = input.revealForSeat,
-                editor = editor,
-                priorProjection = priorProjection,
-            )
-        }
-    }
+    ): Draft =
+        buildDiffInternal(
+            prev = input.previousSnapshot,
+            cur = input.snapshot,
+            events = input.events,
+            promptFacts = input.promptFacts,
+            effectFacts = input.effectFacts,
+            mechanicSourceFacts = input.mechanicSourceFacts,
+            abilityExhaustionFacts = input.abilityExhaustionFacts,
+            persistentFeedFacts = input.persistentFeedFacts,
+            gameStateId = input.gameStateId,
+            matchId = input.snapshot.matchId,
+            environment = environment,
+            actions = actions,
+            updateType = input.updateType,
+            viewingSeatId = input.viewingSeatId,
+            revealForSeat = input.revealForSeat,
+            editor = editor,
+            priorProjection = priorProjection,
+        )
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     private fun buildDiffInternal(
@@ -867,7 +745,7 @@ object StateMapper {
         revealForSeat: Int? = null,
         editor: ProjectionState.Editor,
         priorProjection: ProjectionState,
-    ): BuildResult {
+    ): Draft {
         if (prev == null) {
             // First bundle — Full GSM with one complete transition.
             return buildFromSnapshotInternal(
@@ -1021,7 +899,7 @@ object StateMapper {
         val changedFids = cardSnapshotChangedFids + zoneMovedFids
         val currentParentIds =
             changedFids.mapTo(mutableSetOf()) { fid ->
-                checkNotNull(fullResult.annotationFrameDraft).idResolver.cardIid(fid).value
+                fullResult.idResolver.cardIid(fid).value
             }
         val changedCompanionIds =
             current.gameObjectsList
@@ -1168,11 +1046,12 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return BuildResult(
+        return Draft(
             gsm = built,
             projectionSnapshot = projectedCur,
             output = fullResult.output,
-            annotationFrameDraft = fullResult.annotationFrameDraft,
+            firstAnnotationId = fullResult.firstAnnotationId,
+            idResolver = fullResult.idResolver,
             objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
         )
     }

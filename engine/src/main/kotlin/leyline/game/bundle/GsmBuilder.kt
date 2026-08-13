@@ -64,8 +64,8 @@ data class GsmFrame(
  * game-over, and utility GSMs.
  *
  * Pure proto construction. No session state, no bridge mutation. The main
- * per-diff pipeline lives in [leyline.game.mapping.StateMapper.buildFromSnapshot] /
- * [leyline.game.mapping.StateMapper.buildDiff]; this class covers everything else.
+ * state-projection pipeline lives in [leyline.game.mapping.StateProjectionCompiler];
+ * this class covers everything else.
  */
 object GsmBuilder {
     @Suppress("UnusedPrivateProperty")

@@ -200,7 +200,7 @@ class TargetSpecAnnotationTest :
             // A later identical selection must survive this older frame's commit.
             b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
 
-            b.commitProjection(checkNotNull(result.finalizeAnnotations().transition))
+            b.commitProjection(result.transition)
 
             b
                 .seat(SeatId(1))
@@ -280,7 +280,7 @@ class TargetSpecAnnotationTest :
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true
-            b.commitProjection(checkNotNull(gs1.finalizeAnnotations().transition))
+            b.commitProjection(gs1.transition)
 
             // Second GSM: pending consumed, no new targets → TargetSpec removed
             val snapTs2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)

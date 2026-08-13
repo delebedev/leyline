@@ -138,10 +138,6 @@ class AbilityExhaustionBoundaryTest :
                     "engine/leyline/game/bundle/BundleBuilder.kt",
                     "engine/leyline/protocol/HandshakeMessages.kt",
                 )
-            rawStateMapperCallers shouldBe
-                listOf(
-                    "engine/leyline/game/bundle/BundleBuilder.kt",
-                    "engine/leyline/protocol/HandshakeMessages.kt",
-                )
+            rawStateMapperCallers shouldBe emptyList()
         }
     })
