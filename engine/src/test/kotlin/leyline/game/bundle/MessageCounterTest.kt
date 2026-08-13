@@ -119,6 +119,19 @@ class MessageCounterTest :
             c.lastPromptGsId() shouldBe 5
         }
 
+        test("tracks whether the latest prompt has been handled") {
+            val c = MessageCounter()
+
+            c.markPromptMsgId(11)
+            c.hasOutstandingPrompt() shouldBe true
+            c.markResponseAccepted(11)
+            c.hasOutstandingPrompt() shouldBe false
+            c.markPromptMsgId(13)
+            c.hasOutstandingPrompt() shouldBe true
+            c.markPromptHandled(13)
+            c.hasOutstandingPrompt() shouldBe false
+        }
+
         test("lastPromptGsId is independent of currentGsId — counter advances do not bump the horizon") {
             val c = MessageCounter()
             c.nextGsId()

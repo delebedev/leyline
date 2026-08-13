@@ -128,7 +128,11 @@ class MatchSession(
         PriorityDriveWatchdog(
             probe = {
                 gameBridge.seat(seatId).action.getPending()?.let {
-                    PriorityDriveWatchdog.Probe(it.actionId, it.actionCatalog != null)
+                    PriorityDriveWatchdog.Probe(
+                        actionId = it.actionId,
+                        prompted = it.actionCatalog != null,
+                        outstandingPrompt = counter.hasOutstandingPrompt(),
+                    )
                 }
             },
             redrive = { triggerAutoPass() },

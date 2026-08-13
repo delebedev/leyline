@@ -47,7 +47,7 @@ internal object ResponseEnvelopeGuard {
         if (message.type !in CORRELATED_CLIENT_MESSAGE_TYPES) return false
         val expectedRespId = counter.lastPromptMsgId()
         if (expectedRespId != 0 && message.respId == expectedRespId) {
-            counter.markResponseAccepted()
+            counter.markResponseAccepted(message.respId)
             return false
         }
 

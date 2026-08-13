@@ -39,6 +39,7 @@ class MessageCounter(
     private val msgId = AtomicInteger(initialMsgId)
     private val lastPromptGsId = AtomicInteger(0)
     private val lastPromptMsgId = AtomicInteger(0)
+    private val lastHandledPromptMsgId = AtomicInteger(0)
     private val lastGameStateGsId = AtomicInteger(0)
     private val responsesAccepted = AtomicInteger(0)
 
@@ -51,9 +52,18 @@ class MessageCounter(
     fun responsesAccepted(): Int = responsesAccepted.get()
 
     /** Bump [responsesAccepted]; called by the envelope guard on a valid response. */
-    fun markResponseAccepted() {
+    fun markResponseAccepted(respId: Int = lastPromptMsgId.get()) {
         responsesAccepted.incrementAndGet()
+        markPromptHandled(respId)
     }
+
+    /** Record a prompt completed without requiring an inbound client envelope. */
+    fun markPromptHandled(msgId: Int) {
+        markMonotonic(lastHandledPromptMsgId, msgId)
+    }
+
+    /** True while the newest response-bearing prompt has not been handled. */
+    fun hasOutstandingPrompt(): Boolean = lastPromptMsgId.get() > lastHandledPromptMsgId.get()
 
     /** Advance gsId and return the new value. */
     fun nextGsId(): Int = gsId.incrementAndGet()
