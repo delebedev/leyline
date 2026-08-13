@@ -32,10 +32,14 @@ import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.PendingSubmittedTargets
+import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
+import leyline.game.state.PromptFactConsumption
+import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.StaleProjectionTransitionException
 import leyline.game.state.ViewerProjectionCursor
 import org.slf4j.LoggerFactory
@@ -98,21 +102,33 @@ class BundleBuilder(
         val closesPlaybackFrame: Boolean = false,
     )
 
-    /** Immutable ordinary-playback cut. Logical ids are reserved exactly once. */
-    internal data class PlaybackCut(
+    /** One immutable frame inside an ordinary-playback cut. Logical ids are reserved exactly once. */
+    internal data class PlaybackFrameCut(
         val state: StateFrameInput,
-        val priorProjection: ProjectionState,
         val intent: ViewerProjectionIntent,
-        val actions: ActionsAvailableReq,
         val contentMsgId: Int,
         val coinFlipMsgIds: List<Int>,
         val echoLink: MessageCounter.GameStateLink,
         val echoMsgId: Int,
+        val lifeTotals: Map<Int, Int> = emptyMap(),
+    )
+
+    /** Exact initial state plus every ordered frame produced from one closed journal. */
+    internal data class PlaybackCut(
+        val priorProjection: ProjectionState,
+        val actions: ActionsAvailableReq,
+        val frames: List<PlaybackFrameCut>,
     )
 
     internal data class PreparedPlaybackCut(
-        val messages: List<GREToClientMessage>,
+        val batches: List<List<GREToClientMessage>>,
         val transition: ProjectionTransition,
+    )
+
+    internal data class PlaybackFrameSpec(
+        val events: FrameEventLog,
+        val turnStarted: Boolean = false,
+        val lifeTotals: Map<Int, Int> = emptyMap(),
     )
 
     fun fullState(
@@ -184,26 +200,30 @@ class BundleBuilder(
         counter: MessageCounter,
         revealForSeat: Int?,
         eventsOverride: FrameEventLog?,
+        priorProjectionOverride: ProjectionState? = null,
+        previousSnapshotOverride: GsmSnapshot? = null,
+        promptFactsOverride: PromptProjectionFacts? = null,
+        effectFactsOverride: EffectProjectionFacts? = null,
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
     ): FrameInput {
         val nextGs = counter.nextGsId()
-        val priorProjection = bridge.projectionStateSnapshot()
+        val priorProjection = priorProjectionOverride ?: bridge.projectionStateSnapshot()
         val (snap, capturedProjection) =
             bridge.editProjection(priorProjection) {
                 GsmSnapshot.capture(game, bridge, matchId, nextGs)
             }
         val frameEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
-        val previousSnap = bridge.viewerProjectionCursor().previousSnapshot
+        val previousSnap = previousSnapshotOverride ?: priorProjection.viewerCursors[0]?.previousSnapshot
         val events =
             FrameEventLog(
                 events = frameEvents.events + previousSnap?.let { SnapDeltaSynthesizer.synthesize(it, snap) }.orEmpty(),
                 zoneMoves = frameEvents.zoneMoves,
             )
         bridge.invalidateAbilityRegistries(events.events)
-        val effectFacts = bridge.materializeEffectProjectionFacts()
+        val effectFacts = effectFactsOverride ?: bridge.materializeEffectProjectionFacts()
         val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events)
         val abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge)
-        val promptFacts = bridge.materializePromptProjectionFacts()
+        val promptFacts = promptFactsOverride ?: bridge.materializePromptProjectionFacts()
         val persistentFeedFacts =
             PersistentFeedFactsCapture.capture(snap, promptFacts, bridge, stateProjectionEnvironment)
         return FrameInput(
@@ -250,7 +270,7 @@ class BundleBuilder(
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
     ): FrameDiff =
         synchronized(bridge.projectionBuildLock) {
-            val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType)
+            val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType = updateType)
             val pendingSubmittedTargets =
                 if (includePendingPlayerSubmittedTargets) {
                     input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
@@ -480,61 +500,165 @@ class BundleBuilder(
         counter: MessageCounter,
         turnStarted: Boolean,
         events: FrameEventLog,
+    ): PlaybackCut = materializePlaybackCut(game, counter, listOf(PlaybackFrameSpec(events, turnStarted)))
+
+    /** Materializes every frame for one closed journal before projection starts. */
+    internal fun materializePlaybackCut(
+        game: Game,
+        counter: MessageCounter,
+        frameSpecs: List<PlaybackFrameSpec>,
     ): PlaybackCut =
         synchronized(counter) {
             synchronized(bridge.projectionBuildLock) {
-                val input = frameInput(game, counter, null, events) { _, _ -> GameStateUpdate.SendHiFi }
-                val pending = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
-                val (actions, actionProjection) =
-                    bridge.editProjection(input.priorProjection) {
-                        ActionMapper.buildNaiveActions(seatId, bridge)
+                require(frameSpecs.isNotEmpty()) { "Playback cut must contain at least one frame" }
+                val initialProjection = bridge.projectionStateSnapshot()
+                val shellPromptFacts = bridge.materializePromptProjectionFacts()
+                val shellEffectFacts = bridge.materializeEffectProjectionFacts()
+                val laterEffectFacts = shellEffectFacts.withoutPendingEarthbendResolutions()
+                var captureProjection = initialProjection
+                var previousSnapshot = initialProjection.viewerCursors[0]?.previousSnapshot
+                var actions: ActionsAvailableReq? = null
+                val frames =
+                    frameSpecs.mapIndexed { index, spec ->
+                        val input =
+                            frameInput(
+                                game,
+                                counter,
+                                revealForSeat = null,
+                                eventsOverride = spec.events,
+                                priorProjectionOverride = captureProjection,
+                                previousSnapshotOverride = previousSnapshot,
+                                promptFactsOverride = if (index == 0) shellPromptFacts else PromptProjectionFacts(),
+                                effectFactsOverride = if (index == 0) shellEffectFacts else laterEffectFacts,
+                            ) { _, _ -> GameStateUpdate.SendHiFi }
+                        captureProjection = input.priorProjection
+                        previousSnapshot = input.state.snapshot
+                        if (actions == null) {
+                            val (mappedActions, actionProjection) =
+                                bridge.editProjection(captureProjection) {
+                                    ActionMapper.buildNaiveActions(seatId, bridge)
+                                }
+                            actions = mappedActions
+                            captureProjection = actionProjection.copy(revision = initialProjection.revision)
+                        }
+                        val pending = captureProjection.viewerCursors[0]?.pendingSubmittedTargets.takeIf { index == 0 }
+                        val supplements =
+                            listOfNotNull(
+                                ProjectionSupplement.NewTurnStarted.takeIf { spec.turnStarted },
+                                pending?.let {
+                                    ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)
+                                },
+                            )
+                        val contentMsgId = counter.nextMsgId()
+                        val coinFlipMsgIds =
+                            input.state.events.events
+                                .filterIsInstance<GameEvent.CoinFlipped>()
+                                .map { counter.nextMsgId() }
+                        val echoLink = counter.nextGameStateLink()
+                        val echoMsgId = counter.nextMsgId()
+                        PlaybackFrameCut(
+                            state = input.state,
+                            intent = ViewerProjectionIntent.of(supplements),
+                            contentMsgId = contentMsgId,
+                            coinFlipMsgIds = coinFlipMsgIds,
+                            echoLink = echoLink,
+                            echoMsgId = echoMsgId,
+                            lifeTotals = spec.lifeTotals.toMap(),
+                        )
                     }
-                val supplements =
-                    listOfNotNull(
-                        ProjectionSupplement.NewTurnStarted.takeIf { turnStarted },
-                        pending?.let {
-                            ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)
-                        },
-                    )
-                val contentMsgId = counter.nextMsgId()
-                val coinFlipMsgIds =
-                    input.state.events.events
-                        .filterIsInstance<GameEvent.CoinFlipped>()
-                        .map { counter.nextMsgId() }
-                val echoLink = counter.nextGameStateLink()
-                val echoMsgId = counter.nextMsgId()
                 PlaybackCut(
-                    state = input.state,
-                    priorProjection = actionProjection.copy(revision = input.priorProjection.revision),
-                    intent = ViewerProjectionIntent.of(supplements),
-                    actions = actions,
-                    contentMsgId = contentMsgId,
-                    coinFlipMsgIds = coinFlipMsgIds,
-                    echoLink = echoLink,
-                    echoMsgId = echoMsgId,
+                    priorProjection = captureProjection.copy(revision = initialProjection.revision),
+                    actions = checkNotNull(actions),
+                    frames = frames,
                 )
             }
         }
 
     internal fun compilePlaybackCut(cut: PlaybackCut): PreparedPlaybackCut {
-        val result = compileFrame(FrameInput(cut.state, cut.priorProjection), intent = cut.intent)
-        bridge.diffListener?.invoke(cut.state, cut.priorProjection, cut.intent, result.gsm)
-        val gsmBuilder = result.gsm.toBuilder()
-        for (action in cut.actions.actionsList) {
-            gsmBuilder.addActions(
-                ActionInfo
-                    .newBuilder()
-                    .setSeatId(seatId)
-                    .setAction(ActionMapper.stripActionForGsm(action)),
-            )
-        }
-        val content =
-            makeGRE(GREMessageType.GameStateMessage_695e, cut.state.gameStateId, cut.contentMsgId) {
-                it.gameStateMessage = gsmBuilder.build()
+        var framePrior = cut.priorProjection
+        var acknowledgements = ProjectionAcknowledgements()
+        val batches =
+            cut.frames.map { frame ->
+                val state = frame.state.copy(previousSnapshot = framePrior.viewerCursors[0]?.previousSnapshot)
+                val result = compileFrame(FrameInput(state, framePrior), intent = frame.intent)
+                bridge.diffListener?.invoke(state, framePrior, frame.intent, result.gsm)
+                val gsmBuilder = result.gsm.toBuilder()
+                for (action in cut.actions.actionsList) {
+                    gsmBuilder.addActions(
+                        ActionInfo
+                            .newBuilder()
+                            .setSeatId(seatId)
+                            .setAction(ActionMapper.stripActionForGsm(action)),
+                    )
+                }
+                val content =
+                    makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, frame.contentMsgId) {
+                        it.gameStateMessage = gsmBuilder.build()
+                    }
+                val prompts = coinFlipPromptMessages(state.events.events, state.gameStateId, frame.coinFlipMsgIds)
+                val echo = buildEchoDiffGsm(frame.echoLink, frame.echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId)
+                framePrior = result.transition.nextState
+                acknowledgements = acknowledgements.merge(result.transition.acknowledgements)
+                (listOf(content) + prompts + echo).withLifeTotals(frame.lifeTotals)
             }
-        val prompts = coinFlipPromptMessages(cut.state.events.events, cut.state.gameStateId, cut.coinFlipMsgIds)
-        val echo = buildEchoDiffGsm(cut.echoLink, cut.echoMsgId, GameStateUpdate.SendHiFi, cut.state.gameStateId)
-        return PreparedPlaybackCut(listOf(content) + prompts + echo, result.transition)
+        return PreparedPlaybackCut(
+            batches = batches,
+            transition =
+                ProjectionTransition(
+                    expectedRevision = cut.priorProjection.revision,
+                    nextState = framePrior.copy(revision = cut.priorProjection.revision + 1),
+                    acknowledgements = acknowledgements,
+                ),
+        )
+    }
+
+    private fun EffectProjectionFacts.withoutPendingEarthbendResolutions(): EffectProjectionFacts =
+        EffectProjectionFacts(
+            boostEntries = boostEntries,
+            keywordEntries = keywordEntries,
+            crewStates = crewStates,
+            saddleStates = saddleStates,
+            reconfigureStates = reconfigureStates,
+            battlefieldEarthbendSignatures = battlefieldEarthbendSignatures,
+        )
+
+    private fun ProjectionAcknowledgements.merge(next: ProjectionAcknowledgements): ProjectionAcknowledgements =
+        ProjectionAcknowledgements(
+            consumedEarthbendResolutionVersions =
+                consumedEarthbendResolutionVersions + next.consumedEarthbendResolutionVersions,
+            promptFacts = promptFacts.merge(next.promptFacts),
+            pendingOrderMove = next.pendingOrderMove ?: pendingOrderMove,
+        )
+
+    private fun PromptFactConsumption.merge(next: PromptFactConsumption): PromptFactConsumption =
+        PromptFactConsumption(
+            choiceResults = choiceResults + next.choiceResults,
+            staleReveals = staleReveals + next.staleReveals,
+            convokePayments = convokePayments + next.convokePayments,
+            collectEvidenceCosts = collectEvidenceCosts + next.collectEvidenceCosts,
+            targetSpecs = targetSpecs + next.targetSpecs,
+        )
+
+    private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
+        if (lifeTotals.isEmpty()) return this
+        return mapIndexed { index, message ->
+            if (index != 0 || !message.hasGameStateMessage()) return@mapIndexed message
+            val gsm = message.gameStateMessage
+            val patchedPlayers =
+                gsm.playersList.map { player ->
+                    val life = lifeTotals[player.systemSeatNumber]
+                    if (life == null) player else player.toBuilder().setLifeTotal(life).build()
+                }
+            message
+                .toBuilder()
+                .setGameStateMessage(
+                    gsm
+                        .toBuilder()
+                        .clearPlayers()
+                        .addAllPlayers(patchedPlayers)
+                        .build(),
+                ).build()
+        }
     }
 
     /**

@@ -11,6 +11,7 @@ import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.combatDamageFact
 import leyline.game.state.GameBridge
+import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.Phase
@@ -22,15 +23,12 @@ import leyline.game.event.GameEvent as LeylineGameEvent
 /**
  * Requests and delivers per-action GRE state diffs for the client.
  *
- * Ordinary EventBus callbacks only aggregate a [PlaybackCutRequest]. Forge's
- * main-loop completion hook then closes one journal, materializes one immutable
- * [PendingCut], compiles it, enqueues its fixed batch immediately before install,
- * and applies pacing. A stale exact-revision install is terminal. Any failure
- * after journal close becomes a durable [PlaybackTerminalFailure] and stops progress.
- *
- * Combat declarations, damage windows, and combat end remain synchronous named
- * checkpoints because they expose mutation-complete states inside one Forge step.
- * A combat checkpoint subsumes any ordinary request for the same open journal.
+ * EventBus callbacks only aggregate a [PlaybackCutRequest]. Forge's matching
+ * mutation-completion hook closes one journal, materializes one immutable
+ * [PendingCut], compiles its complete ordered frame plan, enqueues it immediately
+ * before one install, and applies pacing. A stale exact-revision install is
+ * terminal. Any failure after journal close becomes a durable
+ * [PlaybackTerminalFailure] and stops progress.
  *
  * Uses the shared [leyline.game.bundle.MessageCounter] for protocol sequencing. Frame
  * production follows one lock order across engine and session domains: [counter], then
@@ -69,7 +67,10 @@ class GamePlayback(
     /** Thread-safe queue of GRE message batches for the handler to drain. */
     private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
 
-    /** Ordinary callbacks aggregate until Forge completes the surrounding main-loop step. */
+    @VisibleForTesting
+    internal var beforeBatchEnqueue: ((Int, List<GREToClientMessage>) -> Unit)? = null
+
+    /** Playback callbacks aggregate until Forge reaches their matching completion boundary. */
     private var requestedCut: PlaybackCutRequest? = null
 
     @Volatile
@@ -201,15 +202,15 @@ class GamePlayback(
         // the human-seat auto-pass loop overshoots past combat before building
         // a diff, and the client never sees attackers tapped (leyline-o2q).
         if (isRemoteActing()) {
-            captureLegacyCombatCheckpoint(COMBAT_DELAY)
+            requestCut(PlaybackCutReason.AttackersDeclared, COMBAT_DELAY, boundary = PlaybackCutBoundary.AttackersDeclared)
         } else {
-            captureLegacyCombatCheckpoint(0) // no pacing delay on own turn
+            requestCut(PlaybackCutReason.AttackersDeclared, 0, boundary = PlaybackCutBoundary.AttackersDeclared)
         }
     }
 
     override fun visit(ev: GameEventBlockersDeclared) {
         if (!isRemoteActing()) return
-        captureLegacyCombatCheckpoint(COMBAT_DELAY)
+        requestCut(PlaybackCutReason.BlockersDeclared, COMBAT_DELAY, boundary = PlaybackCutBoundary.BlockersDeclared)
     }
 
     override fun visit(ev: GameEventCombatEnded) {
@@ -217,14 +218,20 @@ class GamePlayback(
         // damage/life/death annotations can sit in the collector queue until the
         // next later priority stop and get folded into a post-combat action GSM.
         if (isRemoteActing()) return
-        captureLegacyCombatCheckpoint(0)
+        requestCut(PlaybackCutReason.CombatEnded, 0, boundary = PlaybackCutBoundary.CombatEnded)
     }
 
-    /** Forge completion-hook entry point. Ordinary visitors do no projection work. */
+    /** Forge main-loop completion entry point. Event visitors do no projection work. */
     fun onMainLoopStepCompleted() {
         terminalFailure?.let { throw it }
-        flushOrdinaryCut()
+        flushRequestedCut(PlaybackCutBoundary.MainLoopStep)
     }
+
+    fun onAttackersDeclaredCompleted() = flushRequestedCut(PlaybackCutBoundary.AttackersDeclared)
+
+    fun onBlockersDeclaredCompleted() = flushRequestedCut(PlaybackCutBoundary.BlockersDeclared)
+
+    fun onCombatEndedCompleted() = flushRequestedCut(PlaybackCutBoundary.CombatEnded)
 
     /**
      * Establishes the ownership boundary between setup/mulligan state and ordinary
@@ -238,7 +245,7 @@ class GamePlayback(
         }
     }
 
-    /** A successfully installed shell frame subsumes the ordinary request for its journal. */
+    /** A successfully installed shell frame subsumes the pending request for its journal. */
     internal fun onFrameCommitted() {
         synchronized(queueLock) { requestedCut = null }
     }
@@ -283,106 +290,28 @@ class GamePlayback(
 
     // -- Internal --
 
-    /**
-     * Snapshot current game state as a diff, queue the GRE messages,
-     * update the bridge snapshot, then sleep for animation pacing.
-     *
-     * Called on the engine thread -- state is frozen, safe to serialize.
-     * Uses the shared [counter] — no seeding needed.
-     */
-    private fun captureAndPause(
-        delayMs: Int,
-        gameOverride: forge.game.Game? = null,
-        eventsOverride: FrameEventLog? = null,
-    ) {
-        val game =
-            gameOverride ?: bridge.getGame() ?: run {
-                log.debug("GamePlayback: captureAndPause during teardown (game null), skipping")
-                return
-            }
-
-        var effectiveDelay = delayMs
-        try {
-            val messageCount =
-                synchronized(counter) {
-                    synchronized(bridge.projectionBuildLock) {
-                        synchronized(queueLock) {
-                            val ordinary = requestedCut
-                            val closedEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
-                            val events = closedEvents
-                            val count =
-                                if (eventsOverride == null && events.events.shouldSplitCombatDamageWindow()) {
-                                    captureSplitCombatDamage(game, events.events)
-                                    2
-                                } else {
-                                    val messages = buildDiffMessages(game, ordinary?.turnStarted == true, events)
-                                    queue.add(messages)
-                                    if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                        bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
-                                    }
-                                    messages.size
-                                }
-                            requestedCut = null
-                            effectiveDelay = maxOf(delayMs, ordinary?.delayMs ?: 0)
-                            count
-                        }
-                    }
-                }
-
-            // No need to advance the cursor here — remoteActionDiff commits the
-            // projection baseline while queueLock is held. A redundant
-            // buildFromSnapshot with the same gsId creates a self-referential snapshot.
-
-            log.debug(
-                "action captured: phase={} turn={} queued={} msgs={}",
-                game.phaseHandler.phase,
-                game.phaseHandler.turn,
-                queue.size,
-                messageCount,
-            )
-        } catch (ex: Exception) {
-            throw terminate(
-                null,
-                MaterializationDiagnostic(PlaybackCutRequest(PlaybackCutReason.PhaseChanged, delayMs, false), eventsOverride),
-                ex,
-            )
-        }
-
-        // Pacing: sleep engine thread so client can animate
-        val adjustedDelay = (effectiveDelay * delayMultiplier).toLong()
-        if (adjustedDelay > 0) {
-            try {
-                Thread.sleep(adjustedDelay)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-            }
-        }
-    }
-
     private fun requestCut(
         reason: PlaybackCutReason,
         delayMs: Int,
         turnStarted: Boolean = false,
+        boundary: PlaybackCutBoundary = PlaybackCutBoundary.MainLoopStep,
     ) {
         terminalFailure?.let { throw it }
         synchronized(queueLock) {
-            val next = PlaybackCutRequest(reason, delayMs, turnStarted)
+            val next = PlaybackCutRequest(reason, delayMs, turnStarted, boundary)
             requestedCut = requestedCut?.aggregate(next) ?: next
         }
     }
 
-    private fun captureLegacyCombatCheckpoint(delayMs: Int) {
+    private fun flushRequestedCut(boundary: PlaybackCutBoundary) {
         terminalFailure?.let { throw it }
-        captureAndPause(delayMs = delayMs)
-    }
-
-    private fun flushOrdinaryCut() {
         val game = bridge.getGame()
         val request =
             synchronized(counter) {
                 synchronized(bridge.projectionBuildLock) {
                     synchronized(queueLock) {
                         val request = requestedCut ?: return
+                        if (request.boundary != boundary) return
                         if (game == null) {
                             failTerminal(
                                 null,
@@ -400,7 +329,11 @@ class GamePlayback(
                             try {
                                 PendingCut(
                                     request,
-                                    bundleBuilder.materializePlaybackCut(game, counter, request.turnStarted, events),
+                                    bundleBuilder.materializePlaybackCut(
+                                        game,
+                                        counter,
+                                        playbackFrameSpecs(game, request, events),
+                                    ),
                                 )
                             } catch (ex: Exception) {
                                 failTerminal(null, MaterializationDiagnostic(request, events), ex)
@@ -412,9 +345,15 @@ class GamePlayback(
                             } catch (ex: Exception) {
                                 failTerminal(pending, null, ex)
                             }
+                        val enqueued = mutableListOf<List<GREToClientMessage>>()
                         try {
-                            queue.add(prepared.messages)
+                            for ((index, batch) in prepared.batches.withIndex()) {
+                                beforeBatchEnqueue?.invoke(index, batch)
+                                queue.add(batch)
+                                enqueued += batch
+                            }
                         } catch (ex: Exception) {
+                            removeEnqueuedBatches(enqueued)
                             failTerminal(pending, null, ex)
                         }
                         var installed = false
@@ -426,7 +365,7 @@ class GamePlayback(
                                 bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
                             }
                         } catch (ex: Exception) {
-                            if (!installed) queue.remove(prepared.messages)
+                            if (!installed) removeEnqueuedBatches(enqueued)
                             failTerminal(pending, null, ex)
                         }
                         request
@@ -434,6 +373,46 @@ class GamePlayback(
                 }
             }
         pace(request.delayMs)
+    }
+
+    private fun removeEnqueuedBatches(enqueued: List<List<GREToClientMessage>>) {
+        for (batch in enqueued) {
+            val iterator = queue.iterator()
+            while (iterator.hasNext()) {
+                if (iterator.next() === batch) {
+                    iterator.remove()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun playbackFrameSpecs(
+        game: forge.game.Game,
+        request: PlaybackCutRequest,
+        events: FrameEventLog,
+    ): List<BundleBuilder.PlaybackFrameSpec> {
+        if (!events.events.shouldSplitCombatDamageWindow()) {
+            return listOf(BundleBuilder.PlaybackFrameSpec(events, turnStarted = request.turnStarted))
+        }
+        val damageFrames = events.events.combatDamageFrames(game)
+        val endCombatEvents =
+            events.events.filter { event ->
+                event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
+            }
+        return buildList {
+            damageFrames.forEach { frame ->
+                add(
+                    BundleBuilder.PlaybackFrameSpec(
+                        events = FrameEventLog(frame.events),
+                        lifeTotals = frame.lifeTotals,
+                    ),
+                )
+            }
+            if (endCombatEvents.isNotEmpty()) {
+                add(BundleBuilder.PlaybackFrameSpec(FrameEventLog(endCombatEvents)))
+            }
+        }
     }
 
     private fun terminate(
@@ -461,38 +440,6 @@ class GamePlayback(
             Thread.currentThread().interrupt()
         }
     }
-
-    private fun captureSplitCombatDamage(
-        game: forge.game.Game,
-        events: List<LeylineGameEvent>,
-    ) {
-        val damageFrames = events.combatDamageFrames(game)
-        val endCombatEvents =
-            events.filter { event ->
-                event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
-            }
-
-        for (damageFrame in damageFrames) {
-            val messages = buildDiffMessages(game, turnStarted = false, events = FrameEventLog(damageFrame.events))
-            queue.add(messages.withLifeTotals(damageFrame.lifeTotals))
-        }
-        if (endCombatEvents.isNotEmpty()) {
-            queue.add(buildDiffMessages(game, turnStarted = false, events = FrameEventLog(endCombatEvents)))
-        }
-    }
-
-    private fun buildDiffMessages(
-        game: forge.game.Game,
-        turnStarted: Boolean,
-        events: FrameEventLog,
-    ): List<GREToClientMessage> =
-        bundleBuilder
-            .remoteActionDiff(
-                game,
-                counter,
-                turnStarted = turnStarted,
-                eventsOverride = events,
-            ).messages
 
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
 
@@ -577,28 +524,6 @@ class GamePlayback(
     private fun List<LeylineGameEvent>.lifeTotals(): Map<Int, Int> =
         filterIsInstance<LeylineGameEvent.LifeChanged>()
             .associate { event -> event.seatId.value to event.newLife }
-
-    private fun List<GREToClientMessage>.withLifeTotals(lifeTotals: Map<Int, Int>): List<GREToClientMessage> {
-        if (lifeTotals.isEmpty()) return this
-        return mapIndexed { index, message ->
-            if (index != 0 || !message.hasGameStateMessage()) return@mapIndexed message
-            val gsm = message.gameStateMessage
-            val patchedPlayers =
-                gsm.playersList.map { player ->
-                    val life = lifeTotals[player.systemSeatNumber]
-                    if (life == null) player else player.toBuilder().setLifeTotal(life).build()
-                }
-            message
-                .toBuilder()
-                .setGameStateMessage(
-                    gsm
-                        .toBuilder()
-                        .clearPlayers()
-                        .addAllPlayers(patchedPlayers)
-                        .build(),
-                ).build()
-        }
-    }
 
     private fun LeylineGameEvent.PhaseChanged.isDamageStep(): Boolean =
         step == Step.FirstStrikeDamage_a2cb.number || step == Step.CombatDamage_a2cb.number

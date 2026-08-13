@@ -1,5 +1,6 @@
 package leyline.game
 
+import com.google.common.collect.ImmutableMultimap
 import forge.game.card.CardView
 import forge.game.card.CounterType
 import forge.game.player.PlayerView
@@ -22,7 +23,9 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
+import forge.game.event.GameEventAttackersDeclared as ForgeAttackersDeclared
 import forge.game.event.GameEventCardCounters as ForgeCardCounters
+import forge.game.event.GameEventCombatEnded as ForgeCombatEnded
 import forge.game.event.GameEventPlayerPoisoned as ForgePlayerPoisoned
 
 class GamePlaybackTest :
@@ -88,6 +91,35 @@ class GamePlaybackTest :
             PlaybackCutRequest(PlaybackCutReason.TurnBegan, 200, true)
                 .aggregate(PlaybackCutRequest(PlaybackCutReason.StackObjectCast, 400, false)) shouldBe
                 PlaybackCutRequest(PlaybackCutReason.TurnBegan, 400, true)
+        }
+
+        test("combat callbacks only promote the typed safe-point request") {
+            val playback = createMinimalPlayback()
+
+            playback.visit(ForgePlayerPoisoned(null as PlayerView?, null as PlayerView?, 0, 1))
+            playback.visit(ForgeAttackersDeclared(null as PlayerView?, ImmutableMultimap.of()))
+
+            assertSoftly {
+                requestedCut(playback) shouldBe
+                    PlaybackCutRequest(
+                        reason = PlaybackCutReason.PoisonChanged,
+                        delayMs = GamePlayback.COUNTER_DELAY,
+                        turnStarted = false,
+                        boundary = PlaybackCutBoundary.AttackersDeclared,
+                    )
+                playback.hasPendingMessages() shouldBe false
+            }
+        }
+
+        test("combat end callback is silent until its completion hook") {
+            val playback = createMinimalPlayback()
+
+            playback.visit(ForgeCombatEnded(emptyList(), emptyList()))
+
+            assertSoftly {
+                requestedCut(playback)?.boundary shouldBe PlaybackCutBoundary.CombatEnded
+                playback.hasPendingMessages() shouldBe false
+            }
         }
 
         test("shell frame close subsumes the ordinary request without later output") {
