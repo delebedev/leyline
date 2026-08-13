@@ -150,6 +150,7 @@ class PuzzleBridgeTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gsm.gameInfo.stage shouldBe ProtoGameStage.Play_a920
         }
@@ -167,6 +168,7 @@ class PuzzleBridgeTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val p1 = gsm.playersList.first { it.systemSeatNumber == 1 }
             val p2 = gsm.playersList.first { it.systemSeatNumber == 2 }
@@ -187,6 +189,7 @@ class PuzzleBridgeTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gsm.gameObjectsCount shouldBeGreaterThan 0
         }
@@ -237,6 +240,7 @@ class PuzzleBridgeTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gsm.gameInfo.stage shouldBe ProtoGameStage.Play_a920
             // Should have game objects (Mountain on bf, Lightning Bolt in hand)

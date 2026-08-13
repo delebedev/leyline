@@ -227,6 +227,7 @@ class RoomActionTest :
                         "test",
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     )
 
             val designations =

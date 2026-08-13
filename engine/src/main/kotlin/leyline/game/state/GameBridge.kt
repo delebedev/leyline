@@ -1040,6 +1040,14 @@ class GameBridge(
         return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
     }
 
+    @VisibleForTesting
+    internal fun cachedAbilityRegistryCardIds(): Set<ForgeCardId> = abilityRegistries.keys.mapTo(linkedSetOf(), ::ForgeCardId)
+
+    @VisibleForTesting
+    internal fun clearAbilityRegistryCacheForTesting() {
+        abilityRegistries.clear()
+    }
+
     fun resolveAbilityIdentity(
         card: Card,
         ability: SpellAbility,

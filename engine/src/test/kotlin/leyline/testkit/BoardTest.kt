@@ -12,6 +12,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.mapping.StateMapper
@@ -200,6 +201,7 @@ abstract class BoardTest(
                 b,
                 viewingSeatId = Board.SEAT_ID,
                 effectFacts = b.materializeEffectProjectionFacts(),
+                abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, b),
             ).gsm
     }
 

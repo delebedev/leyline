@@ -14,6 +14,7 @@ import leyline.game.mapping.StateZoneProjection
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustedKind
+import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.CardRevealedKind
 import leyline.game.state.CrewedThisTurnKind
@@ -49,8 +50,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * The shared annotation-time resolvers live on [AnnotationContext]; the
  * per-mechanic emitters live behind the [contributors] registry.
  * [EarthbendEmitter] and `buildAbilityExhaustedAnnotations` stay as spine-called
- * emitters in `AnnotationEmitters.kt` (see that file for why earthbend is
- * effect-diff-channel coupled and does not fit the contributor contract).
+ * emitters. Earthbend is effect-diff-channel coupled and does not fit the
+ * contributor contract; ability-exhaustion projection maps final cut rows.
  *
  * Transfer-model patchers (decayed-cleanup, delayed-trigger holders, reveal
  * proxies, redaction) deliberately stay in StateMapper: they reassign the
@@ -252,7 +253,15 @@ object AnnotationPipeline {
         val abilityLineage = annotationJournal
         val eventAbilityGrpIdsByIid =
             if (bridge != null && snap != null && frameIds != null) {
-                val ctx = AnnotationContext(bridge, snap, frameIds, events, mechanicSourceFacts = mechanicSourceFacts)
+                val ctx =
+                    AnnotationContext(
+                        bridge,
+                        snap,
+                        frameIds,
+                        events,
+                        mechanicSourceFacts = mechanicSourceFacts,
+                        abilityExhaustionFacts = AbilityExhaustionFacts(),
+                    )
                 events
                     .filterIsInstance<GameEvent.SpellCast>()
                     .associate { cast ->
@@ -319,6 +328,7 @@ object AnnotationPipeline {
                     frameIds ?: FrameIdResolver(bridge),
                     events,
                     mechanicSourceFacts = mechanicSourceFacts,
+                    abilityExhaustionFacts = AbilityExhaustionFacts(),
                 )
             emitTriggerLifecycleAnnotations(
                 ctx = ctx,
@@ -874,7 +884,7 @@ object AnnotationPipeline {
         val targetSpec = TargetSpecContributor.contribute(ctx)
         val manaDetails = ManaDetailsContributor.contribute(ctx)
         val mutateMerge = MutateMergeContributor.contribute(ctx)
-        val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(snap, bridge, frameIds)
+        val abilityExhaustedPersistent = buildAbilityExhaustedAnnotations(ctx.abilityExhaustionFacts, frameIds)
         annotations.addAll(mutateMerge.transient)
 
         // Vehicle/Attach (Crew + Saddle + Reconfigure) — invoked here so its

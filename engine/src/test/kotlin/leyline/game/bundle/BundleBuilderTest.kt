@@ -981,6 +981,7 @@ class BundleBuilderTest :
                     matchId = "test-match",
                     bridge = b,
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             val startId = b.annotations.currentAnnotationId()
             val replacement = BundleCursor.PSuTPending(888.iid, SeatId(1))

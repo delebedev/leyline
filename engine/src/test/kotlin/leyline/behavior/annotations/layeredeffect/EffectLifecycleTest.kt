@@ -65,7 +65,16 @@ class EffectLifecycleTest :
 
             // Build full state — exercises effect-fact materialization + effectAnnotations
             val snapEff1 = GsmSnapshot.capture(game, b, "test", 1)
-            val gsm1 = StateMapper.buildFromSnapshot(snapEff1, 1, "test", b, effectFacts = b.materializeEffectProjectionFacts()).gsm
+            val gsm1 =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapEff1,
+                        1,
+                        "test",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                    ).gsm
 
             gsm1 shouldNotBe null
             gsm1.gameStateId shouldBe 1
@@ -82,6 +91,7 @@ class EffectLifecycleTest :
                         "test",
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gsm2 shouldNotBe null
             gsm2.gameStateId shouldBe 2
@@ -119,6 +129,7 @@ class EffectLifecycleTest :
                 "test",
                 b,
                 effectFacts = b.materializeEffectProjectionFacts(),
+                abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
             )
 
             // Cast Giant Growth targeting Swiftspear
@@ -165,7 +176,16 @@ class EffectLifecycleTest :
             // Build full GSM as a final state sanity check; event-backed effect
             // annotations may already have been emitted by playback split frames.
             val snapEff3 = GsmSnapshot.capture(game, b, "test", 2)
-            val gsm2 = StateMapper.buildFromSnapshot(snapEff3, 2, "test", b, effectFacts = b.materializeEffectProjectionFacts()).gsm
+            val gsm2 =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapEff3,
+                        2,
+                        "test",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                    ).gsm
 
             val allTransient = playbackGsms.flatMap { it.annotationsList } + gsm2.annotationsList
             val allPersistent = playbackGsms.flatMap { it.persistentAnnotationsList } + gsm2.persistentAnnotationsList

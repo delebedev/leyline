@@ -104,6 +104,7 @@ class DisturbActionTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val source = gsm.gameObjectsList.first { it.instanceId == galedrifterIid }
             val disturbBack = gsm.gameObjectsList.first { it.instanceId == disturbBackIid }
@@ -146,6 +147,7 @@ class DisturbActionTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             full.gameObjectsList.map { it.instanceId } shouldContain disturbBackIid
             full.gameObjectsList.count { it.instanceId == disturbBackIid } shouldBe 1
@@ -163,6 +165,7 @@ class DisturbActionTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             assertSoftly {

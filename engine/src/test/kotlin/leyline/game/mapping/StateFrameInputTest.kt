@@ -45,6 +45,7 @@ class StateFrameInputTest :
                         bridge = bridge,
                         events = FrameEventLog(listOf(GameEvent.TokenCreated(ForgeCardId(1), SeatId(1)))),
                         effectFacts = EffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     )
                 }
 
@@ -74,6 +75,7 @@ class StateFrameInputTest :
                     viewingSeatId = 1,
                     revealForSeat = null,
                     effectFacts = EffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
@@ -205,6 +207,7 @@ class StateFrameInputTest :
                     viewingSeatId = 1,
                     revealForSeat = null,
                     effectFacts = facts,
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
@@ -369,6 +372,7 @@ class StateFrameInputTest :
                     viewingSeatId = 1,
                     revealForSeat = null,
                     effectFacts = EffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     mechanicSourceFacts =
                         MechanicSourceFacts(
                             sourceZoneByForgeCardId =

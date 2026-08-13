@@ -8,6 +8,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.domain.json.productionJson
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
@@ -331,6 +332,7 @@ class DebugServer(
                     updateType = GameStateUpdate.SendAndRecord,
                     viewingSeatId = session.seatId.value,
                     effectFacts = bridge.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
                 ).gsm
 
         val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
@@ -467,6 +469,7 @@ class DebugServer(
                     updateType = GameStateUpdate.SendAndRecord,
                     viewingSeatId = newSession.seatId.value,
                     effectFacts = bridge.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
                 ).gsm
 
         val projection = ActionMapper.buildProjectionFromSnapshot(newSession.seatId.value, snap, bridge)

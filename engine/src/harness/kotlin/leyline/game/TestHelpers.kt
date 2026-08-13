@@ -5,6 +5,7 @@ import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionEnvironmentCapture
@@ -43,6 +44,7 @@ fun GameBridge.seedDiffBaseline(
                 promptFacts = materializePromptProjectionFacts(),
                 effectFacts = materializeEffectProjectionFacts(),
                 mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
+                abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
             ).finalizeAnnotations()
     applyMutations(result.mutations)
     bundleCursor.lastSent = snap

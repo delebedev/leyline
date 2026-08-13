@@ -13,6 +13,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.InvariantSelection
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.bundle.MessageCounter
@@ -271,6 +272,7 @@ class MatchFlowHarness(
                     promptFacts = bridge.materializePromptProjectionFacts(),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
                     mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)

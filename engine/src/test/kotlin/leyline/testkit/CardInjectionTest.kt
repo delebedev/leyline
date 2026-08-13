@@ -39,6 +39,7 @@ class CardInjectionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val obj =
                 checkNotNull(
@@ -80,6 +81,7 @@ class CardInjectionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val obj =
                 checkNotNull(
@@ -136,6 +138,7 @@ class CardInjectionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val obj =
                 checkNotNull(

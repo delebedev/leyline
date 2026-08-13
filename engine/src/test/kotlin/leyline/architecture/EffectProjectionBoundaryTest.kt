@@ -49,7 +49,7 @@ class EffectProjectionBoundaryTest :
                 listOf(
                     "leyline/game/mapping/StateMapper.kt",
                     "leyline/game/annotations/VehicleAttachContributor.kt",
-                    "leyline/game/annotations/AnnotationEmitters.kt",
+                    "leyline/game/annotations/EarthbendEmitter.kt",
                 )
             val forbidden =
                 listOf(

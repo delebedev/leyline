@@ -47,6 +47,7 @@ class StateMapperShapeTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gs.timersCount shouldBeGreaterThanOrEqual 2
@@ -78,6 +79,7 @@ class StateMapperShapeTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
@@ -136,6 +138,7 @@ class StateMapperShapeTest :
                         b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
@@ -173,6 +176,7 @@ class StateMapperShapeTest :
                         bridge = b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val opponentSideboard = gs.zonesList.single { it.zoneId == ZoneIds.P2_SIDEBOARD }
             val objectsById = gs.gameObjectsList.associateBy { it.instanceId }
@@ -209,6 +213,7 @@ class StateMapperShapeTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gs.zonesCount shouldBeGreaterThan 0
@@ -238,6 +243,7 @@ class StateMapperShapeTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val handZone = gs.zonesList.first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
@@ -282,6 +288,7 @@ class StateMapperShapeTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             for (player in gs.playersList) {
@@ -351,6 +358,7 @@ class StateMapperShapeTest :
                         bridge = b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                         mechanicSourceFacts = MechanicSourceFacts(),
                     ).gsm
 

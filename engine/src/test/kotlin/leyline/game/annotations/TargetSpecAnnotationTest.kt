@@ -62,7 +62,14 @@ class TargetSpecAnnotationTest :
                     },
                 )
             val snap = GsmSnapshot.forTest(stack = stack)
-            val ctx = AnnotationContext(b, snap, FrameIdResolver(b), emptyList())
+            val ctx =
+                AnnotationContext(
+                    b,
+                    snap,
+                    FrameIdResolver(b),
+                    emptyList(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                )
             val spec =
                 InteractivePromptBridge.PendingTarget(
                     spellForgeCardId = source.id,
@@ -127,6 +134,7 @@ class TargetSpecAnnotationTest :
                         b,
                         promptFacts = b.materializePromptProjectionFacts(),
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val targetAnn =
@@ -183,6 +191,7 @@ class TargetSpecAnnotationTest :
                     b,
                     promptFacts = b.materializePromptProjectionFacts(),
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
 
             result.gsm.persistentAnnotationsList.any { ann ->
@@ -221,6 +230,7 @@ class TargetSpecAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gs.persistentAnnotationsList.none { ann ->
@@ -271,6 +281,7 @@ class TargetSpecAnnotationTest :
                     b,
                     promptFacts = b.materializePromptProjectionFacts(),
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
@@ -286,6 +297,7 @@ class TargetSpecAnnotationTest :
                     Board.TEST_MATCH_ID,
                     b,
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.TargetSpec in ann.typeList
