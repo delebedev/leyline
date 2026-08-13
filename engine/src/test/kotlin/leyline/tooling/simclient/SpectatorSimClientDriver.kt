@@ -67,8 +67,14 @@ class SpectatorSimClientDriver(
             val snap = GsmSnapshot.capture(game, bridge, matchId, gsId)
             val full =
                 StateMapper
-                    .buildFromSnapshot(snap, gsId, matchId, bridge, viewingSeatId = 1)
-                    .finalizeAnnotations()
+                    .buildFromSnapshot(
+                        snap,
+                        gsId,
+                        matchId,
+                        bridge,
+                        viewingSeatId = 1,
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
+                    ).finalizeAnnotations()
             bridge.applyMutations(full.mutations)
             bridge.bundleCursor.lastSent = snap
             val initial = greMessage(session.counter.nextMsgId(), full.gsm)

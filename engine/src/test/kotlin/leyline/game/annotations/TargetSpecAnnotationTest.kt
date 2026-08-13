@@ -126,6 +126,7 @@ class TargetSpecAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         promptFacts = b.materializePromptProjectionFacts(),
+                        effectFacts = b.materializeEffectProjectionFacts(),
                     ).gsm
 
             val targetAnn =
@@ -181,6 +182,7 @@ class TargetSpecAnnotationTest :
                     Board.TEST_MATCH_ID,
                     b,
                     promptFacts = b.materializePromptProjectionFacts(),
+                    effectFacts = b.materializeEffectProjectionFacts(),
                 )
 
             result.gsm.persistentAnnotationsList.any { ann ->
@@ -211,7 +213,15 @@ class TargetSpecAnnotationTest :
                 }
 
             val snapTarget2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snapTarget2, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapTarget2,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             gs.persistentAnnotationsList.none { ann ->
                 AnnotationType.TargetSpec in ann.typeList
@@ -260,6 +270,7 @@ class TargetSpecAnnotationTest :
                     Board.TEST_MATCH_ID,
                     b,
                     promptFacts = b.materializePromptProjectionFacts(),
+                    effectFacts = b.materializeEffectProjectionFacts(),
                 )
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
@@ -268,7 +279,14 @@ class TargetSpecAnnotationTest :
 
             // Second GSM: pending consumed, no new targets → TargetSpec removed
             val snapTs2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)
-            val gs2 = StateMapper.buildFromSnapshot(snapTs2, 2, Board.TEST_MATCH_ID, b)
+            val gs2 =
+                StateMapper.buildFromSnapshot(
+                    snapTs2,
+                    2,
+                    Board.TEST_MATCH_ID,
+                    b,
+                    effectFacts = b.materializeEffectProjectionFacts(),
+                )
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true

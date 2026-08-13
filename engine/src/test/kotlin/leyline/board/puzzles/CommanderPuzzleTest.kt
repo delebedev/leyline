@@ -32,7 +32,16 @@ class CommanderPuzzleTest :
             "Arabella, Abandoned Doll" should beInCommandOf(human, count = 1)
 
             val snap = GsmSnapshot.capture(board.game, board.bridge, "test", 999)
-            val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", board.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        999,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
 
             assertSoftly {
                 gsm.gameInfo.hasDeckConstraintInfo().shouldBeTrue()
@@ -67,7 +76,16 @@ class CommanderPuzzleTest :
             human.getCommanderCast(human.commanders.first()) shouldBe 1
 
             val snap = GsmSnapshot.capture(board.game, board.bridge, "test", 999)
-            val gsm = StateMapper.buildFromSnapshot(snap, 999, "test", board.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        999,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val commandZone = gsm.zonesList.first { it.zoneId == ZoneIds.COMMAND }
             val commanderDesignations =
                 gsm.persistentAnnotationsList.filter {

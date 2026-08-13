@@ -95,7 +95,16 @@ class DisturbActionTest :
             val disturbBackIid = b.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(galedrifterFid)).value
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test", b, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        "test",
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             val source = gsm.gameObjectsList.first { it.instanceId == galedrifterIid }
             val disturbBack = gsm.gameObjectsList.first { it.instanceId == disturbBackIid }
             val graveyard = gsm.zonesList.first { it.zoneId == ZoneIds.P1_GRAVEYARD }
@@ -128,7 +137,16 @@ class DisturbActionTest :
             val disturbBackIid = b.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(galedrifterFid)).value
 
             val prev = SnapshotCapture.run(game, b, "test", 1)
-            val full = StateMapper.buildFromSnapshot(prev, 1, "test", b, viewingSeatId = 1).gsm
+            val full =
+                StateMapper
+                    .buildFromSnapshot(
+                        prev,
+                        1,
+                        "test",
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             full.gameObjectsList.map { it.instanceId } shouldContain disturbBackIid
             full.gameObjectsList.count { it.instanceId == disturbBackIid } shouldBe 1
 
@@ -144,6 +162,7 @@ class DisturbActionTest :
                         "test",
                         b,
                         viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
                     ).gsm
 
             assertSoftly {

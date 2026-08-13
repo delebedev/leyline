@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import leyline.game.event.FrameEventLog
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.PromptProjectionFacts
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
@@ -20,4 +21,6 @@ data class StateFrameInput(
     val updateType: GameStateUpdate,
     val viewingSeatId: Int,
     val revealForSeat: Int?,
+    /** One immutable synthetic-effect observation for this frame cut. */
+    val effectFacts: EffectProjectionFacts,
 )

@@ -10,6 +10,7 @@ import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EarthbendTracker
+import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
@@ -17,8 +18,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * Spine-called annotation emitters that deliberately stay off the
  * [AnnotationContributor] registry.
  *
- * - [EarthbendEmitter] is effect-diff-channel coupled: a single
- *   `drainEarthbendFrame()` mutation feeds both contributor-shaped output
+ * - [EarthbendEmitter] is effect-diff-channel coupled: a single immutable
+ *   Earthbend frame drain feeds both contributor-shaped output
  *   (transient layer annotations, ManaCreatureDesignation persistent) and
  *   spine-shaped output (persistent layer annotations merged into the
  *   effect-layer persistent channel, and destroyed layer ids consumed by the
@@ -45,10 +46,11 @@ internal object EarthbendEmitter {
     )
 
     fun emit(
-        bridge: GameBridge,
+        earthbend: EarthbendTracker,
+        facts: EffectProjectionFacts,
         snap: GsmSnapshot,
     ): Result {
-        val frame = bridge.drainEarthbendFrame()
+        val frame = earthbend.drainFrame(facts.battlefieldEarthbendSignatures)
         return Result(
             destroyed =
                 frame.destroyedLayerIds.map {

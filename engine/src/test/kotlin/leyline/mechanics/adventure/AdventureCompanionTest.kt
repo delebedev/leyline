@@ -40,6 +40,7 @@ class AdventureCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
             val companion = gsm.gameObjectsList.single { it.type == GameObjectType.Adventure_a4aa }
             val hand = gsm.zonesList.single { it.zoneId == ZoneIds.P1_HAND }
@@ -71,6 +72,7 @@ class AdventureCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count { it.type == GameObjectType.Adventure_a4aa } shouldBe 0
@@ -89,6 +91,7 @@ class AdventureCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count { it.type == GameObjectType.Adventure_a4aa } shouldBe 0
@@ -187,6 +190,7 @@ class AdventureCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             assertSoftly {

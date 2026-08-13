@@ -192,7 +192,15 @@ abstract class BoardTest(
         gsId: Int,
     ): GameStateMessage {
         val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, gsId)
-        return StateMapper.buildFromSnapshot(snap, gsId, Board.TEST_MATCH_ID, b, viewingSeatId = Board.SEAT_ID).gsm
+        return StateMapper
+            .buildFromSnapshot(
+                snap,
+                gsId,
+                Board.TEST_MATCH_ID,
+                b,
+                viewingSeatId = Board.SEAT_ID,
+                effectFacts = b.materializeEffectProjectionFacts(),
+            ).gsm
     }
 
     fun playLand(b: GameBridge): PlayerAction.PlayLand? {

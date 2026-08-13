@@ -476,6 +476,7 @@ object HandshakeMessages {
                     viewingSeatId = seatId.value,
                     events = bridge.closeBundleFrame(seatId.value),
                     promptFacts = bridge.materializePromptProjectionFacts(),
+                    effectFacts = bridge.materializeEffectProjectionFacts(),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)

@@ -786,7 +786,7 @@ object AnnotationPipeline {
                         ?.let { pending -> PersistentFeedBuilder.pendingTriggerHolderInstanceId(pending.holderForgeId, bridge) }
                 },
             )
-        val earthbend = EarthbendEmitter.emit(bridge, snap)
+        val earthbend = EarthbendEmitter.emit(ctx.effects.earthbend, ctx.effectFacts, snap)
         annotations.addAll(earthbend.destroyed)
         annotations.addAll(earthbend.created)
         // Token entries belong before combat damage: a Mobilize trigger that

@@ -116,6 +116,7 @@ class TreasureTokenTest :
                         "test-treasure",
                         harness.bridge,
                         viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
                     ).gsm
             gsm.shouldNotBeNull()
             val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }

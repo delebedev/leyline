@@ -38,7 +38,15 @@ class StateMapperShapeTest :
             val (b, game) = startWithBoard { _, _, _ -> }
 
             val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             gs.timersCount shouldBeGreaterThanOrEqual 2
             val timer1 = gs.timersList.first { it.timerId == 1 }
@@ -61,7 +69,15 @@ class StateMapperShapeTest :
                 }
 
             val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
             val objectsById = gs.gameObjectsList.associateBy { it.instanceId }
@@ -110,7 +126,16 @@ class StateMapperShapeTest :
                 }
 
             val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b, viewingSeatId = 1).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val byId = gs.zonesList.associateBy { it.zoneId }
             assertSoftly {
@@ -146,6 +171,7 @@ class StateMapperShapeTest :
                         matchId = Board.TEST_MATCH_ID,
                         bridge = b,
                         viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
                     ).gsm
             val opponentSideboard = gs.zonesList.single { it.zoneId == ZoneIds.P2_SIDEBOARD }
             val objectsById = gs.gameObjectsList.associateBy { it.instanceId }
@@ -174,7 +200,15 @@ class StateMapperShapeTest :
                 }
 
             val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             gs.zonesCount shouldBeGreaterThan 0
             gs.gameObjectsCount shouldBeGreaterThan 0
@@ -195,7 +229,15 @@ class StateMapperShapeTest :
                 }
 
             val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val handZone = gs.zonesList.first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
             val handInstanceIds = handZone.objectInstanceIdsList.toSet()
@@ -231,7 +273,15 @@ class StateMapperShapeTest :
             val (b, game) = startWithBoard { _, _, _ -> }
 
             val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             for (player in gs.playersList) {
                 player.timerIdsCount shouldBeGreaterThan 0
@@ -299,6 +349,7 @@ class StateMapperShapeTest :
                         matchId = Board.TEST_MATCH_ID,
                         bridge = b,
                         viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
                     ).gsm
 
             assertSoftly {

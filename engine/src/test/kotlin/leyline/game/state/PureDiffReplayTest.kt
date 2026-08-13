@@ -107,6 +107,7 @@ class PureDiffReplayTest :
                                     bridge = replayBridge,
                                     updateType = updateType,
                                     viewingSeatId = SEAT_ID,
+                                    effectFacts = replayBridge.materializeEffectProjectionFacts(),
                                 ).finalizeAnnotations(step.riders())
                         replayBridge.applyMutations(replayResult.mutations)
                         replayResult.gsm.toByteArray().toList()
@@ -152,6 +153,7 @@ class PureDiffReplayTest :
                                     bridge = replayBridge,
                                     updateType = updateType,
                                     viewingSeatId = SEAT_ID,
+                                    effectFacts = replayBridge.materializeEffectProjectionFacts(),
                                 ).finalizeAnnotations(step.riders())
                         replayBridge.applyMutations(replayResult.mutations)
                         replayResult.gsm.toByteArray().toList()
@@ -195,6 +197,7 @@ class PureDiffReplayTest :
                             bridge = replayBridge,
                             updateType = step.diff.update,
                             viewingSeatId = SEAT_ID,
+                            effectFacts = replayBridge.materializeEffectProjectionFacts(),
                         )
                     draft.mutations.nextAnnotationId shouldBe null
                     draft.gsm.annotationsList.all { it.id == 0 } shouldBe true
@@ -239,6 +242,7 @@ class PureDiffReplayTest :
                             bridge = replayBridge,
                             updateType = GameStateUpdate.SendAndRecord,
                             viewingSeatId = SEAT_ID,
+                            effectFacts = replayBridge.materializeEffectProjectionFacts(),
                         ).finalizeAnnotations()
 
                 val first = compile()
@@ -292,6 +296,7 @@ class PureDiffReplayTest :
                             bridge = replayBridge,
                             updateType = step.diff.update,
                             viewingSeatId = SEAT_ID,
+                            effectFacts = replayBridge.materializeEffectProjectionFacts(),
                         ).finalizeAnnotations(step.riders())
 
                 assertSoftly("holder deletion is compute-time only until mutations apply") {

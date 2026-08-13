@@ -1,9 +1,6 @@
 package leyline.game.state
 
-import forge.game.card.Card
-import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.EarthbendProjection
 
@@ -15,7 +12,9 @@ import leyline.game.snapshot.EarthbendProjection
  * client protocol represents that as four sibling LayeredEffect rows. Repeated
  * Earthbend on the same land refreshes those four rows, even though the engine
  * can keep equivalent older layer entries around. A projection planner owns the
- * mutable tracker; its frozen value commits with the accepted frame.
+ * mutable tracker; its frozen value commits with the accepted frame. Projection
+ * consumes immutable Earthbend resolutions and battlefield signatures supplied
+ * by [EffectProjectionFacts], never live Forge cards.
  */
 class EarthbendTracker {
     data class Signature(
@@ -89,20 +88,23 @@ class EarthbendTracker {
     }
 
     fun recordResolution(
-        sourceInstanceId: InstanceId,
+        resolution: EffectProjectionFacts.PendingEarthbendResolution,
         sourceCardGrpId: Int,
-        sourceAbilityGrpId: Int,
-        resolvingInstanceId: InstanceId,
-        targetCards: List<Card>,
-        targetInstanceId: (ForgeCardId) -> InstanceId,
+        sourceInstanceId: Int,
+        resolvingInstanceId: Int,
+        battlefieldSignatures: List<EffectProjectionFacts.BattlefieldEarthbendSignature>,
+        targetInstanceId: (ForgeCardId) -> Int,
         nextEffectId: () -> Int,
     ) {
-        val resolvedSourceAbilityGrpId = sourceAbilityGrpId.takeIf { it != 0 } ?: sourceCardGrpId
+        val resolvedSourceAbilityGrpId = resolution.sourceAbilityGrpId.takeIf { it != 0 } ?: sourceCardGrpId
         if (resolvedSourceAbilityGrpId == 0) return
 
-        for (target in targetCards) {
-            val signature = signatureFor(target) ?: continue
-            val targetForgeId = ForgeCardId(target.id)
+        for (targetForgeId in resolution.targetCardIds) {
+            val signature =
+                battlefieldSignatures
+                    .firstOrNull { it.forgeCardId == targetForgeId }
+                    ?.signature
+                    ?: continue
             val old = activeByTarget[targetForgeId]
             if (old?.signature == signature) continue
             if (old != null) pendingDestroyedLayerIds.addAll(old.layers.all)
@@ -110,11 +112,11 @@ class EarthbendTracker {
             val active =
                 Active(
                     targetForgeCardId = targetForgeId,
-                    targetInstanceId = targetInstanceId(targetForgeId).value,
-                    sourceInstanceId = sourceInstanceId.value,
+                    targetInstanceId = targetInstanceId(targetForgeId),
+                    sourceInstanceId = sourceInstanceId,
                     sourceCardGrpId = sourceCardGrpId,
                     sourceAbilityGrpId = resolvedSourceAbilityGrpId,
-                    resolvingInstanceId = resolvingInstanceId.value,
+                    resolvingInstanceId = resolvingInstanceId,
                     signature = signature,
                     layers =
                         LayerIds(
@@ -130,9 +132,12 @@ class EarthbendTracker {
         }
     }
 
-    fun projectionFor(card: Card): EarthbendProjection? {
-        val active = activeByTarget[ForgeCardId(card.id)] ?: return null
-        if (signatureFor(card) != active.signature) return null
+    fun projectionFor(
+        forgeCardId: ForgeCardId,
+        signature: Signature?,
+    ): EarthbendProjection? {
+        val active = activeByTarget[forgeCardId] ?: return null
+        if (signature != active.signature) return null
         return EarthbendProjection(
             sourceCardGrpId = active.sourceCardGrpId,
             hasteAbilityGrpId = KeywordAbilityIds.HASTE,
@@ -141,19 +146,18 @@ class EarthbendTracker {
     }
 
     fun isEarthbendHasteKeyword(
-        card: Card,
+        forgeCardId: ForgeCardId,
         timestamp: Long,
         staticId: Long,
     ): Boolean {
-        val active = activeByTarget[ForgeCardId(card.id)] ?: return false
+        val active = activeByTarget[forgeCardId] ?: return false
         return active.signature == Signature(timestamp, staticId)
     }
 
-    fun drainFrame(battlefieldCards: Iterable<Card>): Frame {
-        val currentByForgeId = battlefieldCards.associateBy { ForgeCardId(it.id) }
+    fun drainFrame(battlefieldSignatures: List<EffectProjectionFacts.BattlefieldEarthbendSignature>): Frame {
+        val currentByForgeId = battlefieldSignatures.associateBy { it.forgeCardId }
         for ((forgeId, active) in activeByTarget.toList()) {
-            val card = currentByForgeId[forgeId]
-            if (card == null || signatureFor(card) != active.signature) {
+            if (currentByForgeId[forgeId]?.signature != active.signature) {
                 activeByTarget.remove(forgeId)
                 pendingDestroyedLayerIds.addAll(active.layers.all)
             }
@@ -170,27 +174,6 @@ class EarthbendTracker {
         pendingDestroyedLayerIds.clear()
         pendingCreated.clear()
         return frame
-    }
-
-    private fun signatureFor(card: Card): Signature? {
-        if (!card.isInZone(ZoneType.Battlefield)) return null
-        if (!card.type.isLand || !card.type.isCreature) return null
-
-        val hasteKeys =
-            card.changedCardKeywords.cellSet().mapNotNullTo(mutableSetOf()) { cell ->
-                val hasHaste = cell.value.keywords.any { it.keyword.toString() == "Haste" }
-                if (hasHaste) Signature(cell.rowKey, cell.columnKey) else null
-            }
-        if (hasteKeys.isEmpty()) return null
-
-        return card.setPTTable
-            .cellSet()
-            .asSequence()
-            .mapNotNull { cell ->
-                val value = cell.value
-                if (value.left == 0 && value.right == 0) Signature(cell.rowKey, cell.columnKey) else null
-            }.filter { it in hasteKeys }
-            .maxWithOrNull(compareBy<Signature> { it.timestamp }.thenBy { it.staticId })
     }
 
     companion object {

@@ -30,7 +30,16 @@ class CardInjectionTest :
 
             val gsId1 = board.counter.nextGsId()
             val snap1 = GsmSnapshot.capture(board.game, board.bridge, "test", gsId1)
-            val gsm = StateMapper.buildFromSnapshot(snap1, gsId1, "test", board.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap1,
+                        gsId1,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val obj =
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
@@ -62,7 +71,16 @@ class CardInjectionTest :
 
             val gsId2 = board.counter.nextGsId()
             val snap2 = GsmSnapshot.capture(board.game, board.bridge, "test", gsId2)
-            val gsm = StateMapper.buildFromSnapshot(snap2, gsId2, "test", board.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap2,
+                        gsId2,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val obj =
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },
@@ -109,7 +127,16 @@ class CardInjectionTest :
 
             val gsId3 = board.counter.nextGsId()
             val snap3 = GsmSnapshot.capture(board.game, board.bridge, "test", gsId3)
-            val gsm = StateMapper.buildFromSnapshot(snap3, gsId3, "test", board.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap3,
+                        gsId3,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val obj =
                 checkNotNull(
                     gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId },

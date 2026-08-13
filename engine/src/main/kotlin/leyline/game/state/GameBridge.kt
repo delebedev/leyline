@@ -433,14 +433,8 @@ class GameBridge(
     private var syntheticEffects = SyntheticEffectProjection.initial()
     private var effectPlanner: SyntheticEffectProjection.Planner? = null
 
-    data class EarthbendResolution(
-        val sourceCardId: ForgeCardId,
-        val sourceAbilityGrpId: Int,
-        val abilityForgeId: Int,
-        val targetCardIds: List<ForgeCardId>,
-    )
-
-    private val pendingEarthbendResolutions = mutableListOf<EarthbendResolution>()
+    private val pendingEarthbendResolutions = mutableListOf<EffectProjectionFacts.PendingEarthbendResolution>()
+    private var nextEarthbendResolutionVersion = 1L
 
     internal fun <T> withTentativeEffectProjection(block: (SyntheticEffectProjection.Planner) -> T): T {
         check(effectPlanner == null) { "Nested synthetic-effect projection is not supported" }
@@ -471,10 +465,9 @@ class GameBridge(
         syntheticEffects = next
     }
 
-    internal fun pendingEarthbendResolutions(): List<EarthbendResolution> = pendingEarthbendResolutions.toList()
-
-    private fun consumeEarthbendResolutions(resolutions: List<EarthbendResolution>) {
-        pendingEarthbendResolutions.removeAll(resolutions.toSet())
+    private fun consumeEarthbendResolutions(resolutions: List<EffectProjectionFacts.PendingEarthbendResolution>) {
+        val consumedVersions = resolutions.mapTo(hashSetOf()) { it.version }
+        pendingEarthbendResolutions.removeAll { it.version in consumedVersions }
     }
 
     /** Cached token grpId per instanceId — stable across diff ticks. */
@@ -522,20 +515,21 @@ class GameBridge(
         abilityForgeId: Int,
         targetCardIds: List<ForgeCardId>,
     ) {
-        pendingEarthbendResolutions += EarthbendResolution(sourceCardId, sourceAbilityGrpId, abilityForgeId, targetCardIds)
+        pendingEarthbendResolutions +=
+            EffectProjectionFacts.PendingEarthbendResolution(
+                version = nextEarthbendResolutionVersion++,
+                sourceCardId = sourceCardId,
+                sourceAbilityGrpId = sourceAbilityGrpId,
+                abilityForgeId = abilityForgeId,
+                targetCardIds = targetCardIds.toList(),
+            )
     }
 
     fun earthbendProjectionFor(card: Card): EarthbendProjection? =
-        EarthbendTracker().also { it.load(syntheticEffects.earthbend) }.projectionFor(card)
-
-    fun isEarthbendHasteKeyword(
-        card: Card,
-        timestamp: Long,
-        staticId: Long,
-    ): Boolean = EarthbendTracker().also { it.load(syntheticEffects.earthbend) }.isEarthbendHasteKeyword(card, timestamp, staticId)
-
-    internal fun drainEarthbendFrame(): EarthbendTracker.Frame =
-        checkNotNull(effectPlanner) { "Earthbend frame drain belongs to projection compilation" }.earthbend.drainFrame(battlefieldCards())
+        EarthbendTracker().also { it.load(syntheticEffects.earthbend) }.projectionFor(
+            ForgeCardId(card.id),
+            earthbendSignatureFor(card),
+        )
 
     data class LibraryArrangementResult(
         val seatId: SeatId,
@@ -1428,6 +1422,7 @@ class GameBridge(
         diff.resetAll()
         syntheticEffects = SyntheticEffectProjection.initial()
         pendingEarthbendResolutions.clear()
+        nextEarthbendResolutionVersion = 1L
         annotations.resetAll()
         delayedTriggerHolders.resetAll()
         annotationJournal = ProjectionAnnotationJournal()
@@ -1681,163 +1676,117 @@ class GameBridge(
         }
     }
 
-    /**
-     * Snapshot current P/T boost state for all battlefield cards.
-     * Returns map of cardInstanceId → boost entries from Forge's boostPT table.
-     */
-    fun snapshotBoosts(): Map<Int, List<EffectTracker.BoostEntry>> {
-        val game = game ?: return emptyMap()
-        val result = mutableMapOf<Int, List<EffectTracker.BoostEntry>>()
-        for (player in game.players) {
-            for (card in player.getZone(ZoneType.Battlefield).cards) {
-                val table = card.ptBoostTable
-                if (table.isEmpty) continue
-                val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
-                val entries =
-                    table.cellSet().map { cell ->
-                        EffectTracker.BoostEntry(
-                            timestamp = cell.rowKey,
-                            staticId = cell.columnKey,
-                            power = cell.value.left,
-                            toughness = cell.value.right,
-                        )
-                    }
-                result[instanceId.value] = entries
-            }
-        }
-        return result
-    }
+    /** Materialize all synthetic-effect inputs once at the bundle safe point. */
+    fun materializeEffectProjectionFacts(): EffectProjectionFacts {
+        val currentGame = game ?: return EffectProjectionFacts(pendingEarthbendResolutions = pendingEarthbendResolutions.toList())
+        val boosts = mutableListOf<EffectProjectionFacts.BoostEntry>()
+        val keywords = mutableListOf<EffectProjectionFacts.KeywordEntry>()
+        val crew = mutableListOf<EffectProjectionFacts.CrewState>()
+        val saddle = mutableListOf<EffectProjectionFacts.SaddleState>()
+        val reconfigure = mutableListOf<EffectProjectionFacts.ReconfigureState>()
+        val earthbendSignatures = mutableListOf<EffectProjectionFacts.BattlefieldEarthbendSignature>()
 
-    /**
-     * Snapshot current extrinsic keyword grants for all battlefield cards.
-     * Returns map of cardInstanceId -> keyword entries from Forge's changedCardKeywords table (Layer 6).
-     * Direct parallel to [snapshotBoosts] for P/T.
-     */
-    fun snapshotKeywords(earthbend: EarthbendTracker? = null): Map<Int, List<EffectTracker.KeywordEntry>> {
-        val game = game ?: return emptyMap()
-        val result = mutableMapOf<Int, MutableList<EffectTracker.KeywordEntry>>()
-        for (player in game.players) {
+        for (player in currentGame.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
-                val table = card.changedCardKeywords
-                if (table.isEmpty) continue
-                val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
-                for (cell in table.cellSet()) {
-                    val timestamp = cell.rowKey
-                    val staticId = cell.columnKey
-                    for (kw in cell.value.keywords) {
-                        val keyword = kw.keyword.toString()
-                        val earthbendHaste =
-                            earthbend?.isEarthbendHasteKeyword(card, timestamp, staticId)
-                                ?: isEarthbendHasteKeyword(card, timestamp, staticId)
-                        if (keyword == "Haste" && earthbendHaste) continue
-                        result
-                            .getOrPut(instanceId.value) { mutableListOf() }
-                            .add(EffectTracker.KeywordEntry(timestamp, staticId, keyword))
+                val forgeCardId = ForgeCardId(card.id)
+                val boostTable = card.ptBoostTable
+                if (!boostTable.isEmpty) {
+                    for (cell in boostTable.cellSet()) {
+                        boosts +=
+                            EffectProjectionFacts.BoostEntry(
+                                forgeCardId = forgeCardId,
+                                timestamp = cell.rowKey,
+                                staticId = cell.columnKey,
+                                power = cell.value.left,
+                                toughness = cell.value.right,
+                            )
                     }
+                }
+                val keywordTable = card.changedCardKeywords
+                if (!keywordTable.isEmpty) {
+                    for (cell in keywordTable.cellSet()) {
+                        for (keyword in cell.value.keywords) {
+                            keywords +=
+                                EffectProjectionFacts.KeywordEntry(
+                                    forgeCardId = forgeCardId,
+                                    timestamp = cell.rowKey,
+                                    staticId = cell.columnKey,
+                                    keyword = keyword.keyword.toString(),
+                                )
+                        }
+                    }
+                }
+
+                card.getCrewedByThisTurn()?.takeIf { it.isNotEmpty() }?.let { sources ->
+                    crew +=
+                        EffectProjectionFacts.CrewState(
+                            vehicleForgeCardId = forgeCardId,
+                            crewSourceForgeCardIds = sources.map { ForgeCardId(it.id) },
+                            isCreature = card.isCreature,
+                            crewAbilityGrpId = resolveCrewAbilityGrpId(card),
+                        )
+                }
+                card.getSaddledByThisTurn()?.takeIf { it.isNotEmpty() }?.let { sources ->
+                    saddle +=
+                        EffectProjectionFacts.SaddleState(
+                            mountForgeCardId = forgeCardId,
+                            saddleSourceForgeCardIds = sources.map { ForgeCardId(it.id) },
+                        )
+                }
+                val isAttached = card.attachedTo != null
+                if (isAttached && hasReconfigureUnattach(card)) {
+                    val grpId = cardRepository.findGrpIdByName(card.name)
+                    reconfigure +=
+                        EffectProjectionFacts.ReconfigureState(
+                            forgeCardId = forgeCardId,
+                            isAttached = true,
+                            isCreature = card.isCreature,
+                            attachAbilityGrpId = grpId?.let { cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.RECONFIGURE) },
+                        )
+                }
+                earthbendSignatureFor(card)?.let { signature ->
+                    earthbendSignatures +=
+                        EffectProjectionFacts.BattlefieldEarthbendSignature(forgeCardId, signature)
                 }
             }
         }
-        return result
+
+        return EffectProjectionFacts(
+            boostEntries = boosts,
+            keywordEntries = keywords,
+            crewStates = crew,
+            saddleStates = saddle,
+            reconfigureStates = reconfigure,
+            pendingEarthbendResolutions = pendingEarthbendResolutions.toList(),
+            battlefieldEarthbendSignatures = earthbendSignatures,
+        )
     }
 
-    private fun battlefieldCards(): List<Card> {
-        val game = game ?: return emptyList()
-        return game.players.flatMap { player -> player.getZone(ZoneType.Battlefield).cards }
-    }
+    /** Forge-only extraction; projection consumes the resulting signature value. */
+    private fun earthbendSignatureFor(card: Card): EarthbendTracker.Signature? {
+        if (!card.isInZone(ZoneType.Battlefield) || !card.type.isLand || !card.type.isCreature) return null
 
-    /**
-     * Snapshot of a crewed vehicle: vehicle card, its instanceId, and the
-     * instanceIds of creatures that crewed it.
-     */
-    data class CrewSnapshot(
-        val vehicleForgeCardId: ForgeCardId,
-        val vehicleInstanceId: Int,
-        val crewSourceInstanceIds: List<Int>,
-        /** True when the vehicle is currently a creature (crew resolved). */
-        val isCreature: Boolean,
-        /** Crew ability grpId, resolved from the vehicle's ability registry. */
-        val crewAbilityGrpId: Int?,
-    )
-
-    /** Snapshot of a saddled mount and the helper creatures that saddled it. */
-    data class SaddleSnapshot(
-        val mountInstanceId: Int,
-        val saddleSourceInstanceIds: List<Int>,
-    )
-
-    data class ReconfigureSnapshot(
-        val forgeCardId: ForgeCardId,
-        val instanceId: Int,
-        val attachAbilityGrpId: Int?,
-    )
-
-    /**
-     * Snapshot which vehicles are currently crewed this turn.
-     * Iterates all battlefield cards and checks `card.getCrewedByThisTurn()`.
-     */
-    fun snapshotCrewState(): List<CrewSnapshot> {
-        val game = game ?: return emptyList()
-        val result = mutableListOf<CrewSnapshot>()
-        for (player in game.players) {
-            for (card in player.getZone(ZoneType.Battlefield).cards) {
-                val crewSources = card.getCrewedByThisTurn()
-                if (crewSources == null || crewSources.isEmpty()) continue
-
-                val vehicleFid = ForgeCardId(card.id)
-                val vehicleIid = ids.getOrAlloc(vehicleFid).value
-                val sourceIids = crewSources.map { ids.getOrAlloc(ForgeCardId(it.id)).value }
-
-                // Resolve crew ability grpId (Task 4)
-                val crewAbilityGrpId = resolveCrewAbilityGrpId(card)
-
-                result.add(
-                    CrewSnapshot(
-                        vehicleForgeCardId = vehicleFid,
-                        vehicleInstanceId = vehicleIid,
-                        crewSourceInstanceIds = sourceIids,
-                        isCreature = card.isCreature,
-                        crewAbilityGrpId = crewAbilityGrpId,
-                    ),
-                )
+        val hasteKeys =
+            card.changedCardKeywords.cellSet().mapNotNullTo(mutableSetOf()) { cell ->
+                if (cell.value.keywords.any { it.keyword.toString() == "Haste" }) {
+                    EarthbendTracker.Signature(cell.rowKey, cell.columnKey)
+                } else {
+                    null
+                }
             }
-        }
-        return result
-    }
+        if (hasteKeys.isEmpty()) return null
 
-    /** Snapshot which mounts are currently saddled this turn. */
-    fun snapshotSaddleState(): List<SaddleSnapshot> {
-        val game = game ?: return emptyList()
-        val result = mutableListOf<SaddleSnapshot>()
-        for (player in game.players) {
-            for (card in player.getZone(ZoneType.Battlefield).cards) {
-                val saddleSources = card.getSaddledByThisTurn()
-                if (saddleSources == null || saddleSources.isEmpty()) continue
-
-                result.add(
-                    SaddleSnapshot(
-                        mountInstanceId = ids.getOrAlloc(ForgeCardId(card.id)).value,
-                        saddleSourceInstanceIds = saddleSources.map { ids.getOrAlloc(ForgeCardId(it.id)).value },
-                    ),
-                )
-            }
-        }
-        return result
-    }
-
-    fun snapshotReconfigureState(): List<ReconfigureSnapshot> {
-        val game = game ?: return emptyList()
-        val result = mutableListOf<ReconfigureSnapshot>()
-        for (player in game.players) {
-            for (card in player.getZone(ZoneType.Battlefield).cards) {
-                if (card.attachedTo == null || !hasReconfigureUnattach(card)) continue
-                val fid = ForgeCardId(card.id)
-                val iid = ids.getOrAlloc(fid).value
-                val grpId = cardRepository.findGrpIdByName(card.name)
-                val abilityGrpId = grpId?.let { cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.RECONFIGURE) }
-                result.add(ReconfigureSnapshot(fid, iid, abilityGrpId))
-            }
-        }
-        return result
+        return card.setPTTable
+            .cellSet()
+            .asSequence()
+            .mapNotNull { cell ->
+                if (cell.value.left == 0 && cell.value.right == 0) {
+                    EarthbendTracker.Signature(cell.rowKey, cell.columnKey)
+                } else {
+                    null
+                }
+            }.filter { it in hasteKeys }
+            .maxWithOrNull(compareBy<EarthbendTracker.Signature> { it.timestamp }.thenBy { it.staticId })
     }
 
     private fun hasReconfigureUnattach(card: Card): Boolean =

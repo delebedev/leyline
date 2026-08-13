@@ -110,6 +110,7 @@ class BundleBuilder(
                 zoneMoves = frameEvents.zoneMoves,
             )
         bridge.invalidateAbilityRegistries(events.events)
+        val effectFacts = bridge.materializeEffectProjectionFacts()
         return FrameInput(
             StateFrameInput(
                 gameStateId = nextGs,
@@ -120,6 +121,7 @@ class BundleBuilder(
                 updateType = updateType(snap, events),
                 viewingSeatId = seatId,
                 revealForSeat = revealForSeat,
+                effectFacts = effectFacts,
             ),
         )
     }
