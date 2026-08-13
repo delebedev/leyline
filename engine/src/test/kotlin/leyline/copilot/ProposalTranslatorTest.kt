@@ -136,12 +136,13 @@ class ProposalTranslatorTest :
         test("modal-choice → modal intent with grpIds") {
             val p =
                 ProposalTranslator.translate(
-                    SimDecision.ModalChoice(listOf(555)),
+                    SimDecision.ModalChoice(ctoId = 3, selectedGrpIds = listOf(555)),
                     GREMessageType.CastingTimeOptionsReq_695e,
                     seat = 1,
                     resolve,
                 )
             p.intent shouldBe "modal"
+            p.ctoId shouldBe 3
             p.modalGrpIds shouldBe listOf(555)
             p.responseIds shouldBe listOf(555)
         }

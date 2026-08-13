@@ -233,7 +233,7 @@ class SimClientDriverPolicyTest :
             chooseBoardAwareGroupAwayIds(groupPrompt(listOf(801, 802), GroupingContext.Surveil), harness) shouldBe emptyList()
         }
 
-        test("forge-ai SelectTargets adapter consults exact target prompts") {
+        test("forge-ai SelectTargets adapter consults exact and committed target prompts") {
             val policy = ForgeAiPolicy({ MatchFlowHarness().bridge }, SeatId(1))
 
             policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
@@ -241,7 +241,7 @@ class SimClientDriverPolicyTest :
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2, targetIds = listOf(2, 3))) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2)) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(max = 2)) shouldBe false
-            policy.canChooseSelectTargets(selectTargetsPrompt(legalAction = SelectAction.Unselect)) shouldBe false
+            policy.canChooseSelectTargets(selectTargetsPrompt(legalAction = SelectAction.Unselect)) shouldBe true
         }
 
         test("forge-ai cast adapter requires exact alternative action") {

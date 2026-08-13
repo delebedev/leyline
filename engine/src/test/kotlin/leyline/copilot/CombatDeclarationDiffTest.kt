@@ -79,12 +79,47 @@ class CombatDeclarationDiffTest :
             CombatDeclarationDiff.attackerStep(committed = emptySet(), desired = emptySet()) shouldBe SimDecision.SubmitAttackers
         }
 
-        test("blocker step assigns one differing blocker at a time, including reassignment") {
+        test("attacker selection ignores unqualified desires and converges through qualified toggles") {
+            val req =
+                DeclareAttackersReq
+                    .newBuilder()
+                    .addQualifiedAttackers(attacker(294, committed = false))
+                    .addQualifiedAttackers(attacker(311, committed = false))
+                    .build()
+            val desired = CombatDeclarationDiff.qualifiedDesiredAttackers(req, linkedSetOf(325, 294, 311))
+
+            CombatDeclarationDiff
+                .attackerStep(committed = emptySet(), desired = desired)
+                .shouldBeInstanceOf<SimDecision.DeclareAttackers>()
+                .attackerInstanceIds shouldBe listOf(294)
+            CombatDeclarationDiff
+                .attackerStep(committed = setOf(294), desired = desired)
+                .shouldBeInstanceOf<SimDecision.DeclareAttackers>()
+                .attackerInstanceIds shouldBe listOf(311)
+            CombatDeclarationDiff.attackerStep(committed = setOf(294, 311), desired = desired) shouldBe
+                SimDecision.SubmitAttackers
+        }
+
+        test("attacker selection submits no attackers when every desire is unqualified") {
+            val req =
+                DeclareAttackersReq
+                    .newBuilder()
+                    .addQualifiedAttackers(attacker(294, committed = false))
+                    .build()
+            val desired = CombatDeclarationDiff.qualifiedDesiredAttackers(req, linkedSetOf(325))
+
+            CombatDeclarationDiff.attackerStep(committed = emptySet(), desired = desired) shouldBe SimDecision.SubmitAttackers
+        }
+
+        test("blocker step assigns one missing blocker at a time") {
             val assign = CombatDeclarationDiff.blockerStep(committed = emptyMap(), desired = mapOf(10 to 20))
             assign.shouldBeInstanceOf<SimDecision.DeclareBlockers>().assignments shouldBe mapOf(10 to 20)
+        }
 
-            val reassign = CombatDeclarationDiff.blockerStep(committed = mapOf(10 to 20), desired = mapOf(10 to 21))
-            reassign.shouldBeInstanceOf<SimDecision.DeclareBlockers>().assignments shouldBe mapOf(10 to 21)
+        test("blocker step unassigns before reconsidering a different target") {
+            val step = CombatDeclarationDiff.blockerStep(committed = mapOf(10 to 20), desired = mapOf(10 to 21))
+
+            step.shouldBeInstanceOf<SimDecision.UndeclareBlocker>().blockerInstanceId shouldBe 10
         }
 
         test("blocker step un-toggles a committed blocker no longer desired") {
@@ -96,5 +131,47 @@ class CombatDeclarationDiffTest :
             CombatDeclarationDiff.blockerStep(committed = mapOf(10 to 20), desired = mapOf(10 to 20)) shouldBe
                 SimDecision.SubmitBlockers
             CombatDeclarationDiff.blockerStep(committed = emptyMap(), desired = emptyMap()) shouldBe SimDecision.SubmitBlockers
+        }
+
+        test("fully committed blocker prompt preserves the server-accepted map") {
+            val req =
+                DeclareBlockersReq
+                    .newBuilder()
+                    .addBlockers(blocker(10, blocking = 20))
+                    .addBlockers(blocker(11, blocking = 21))
+                    .build()
+
+            CombatDeclarationDiff.fullyCommittedBlocks(req) shouldBe mapOf(10 to 20, 11 to 21)
+        }
+
+        test("partially committed blocker prompt still requires policy evaluation") {
+            val req =
+                DeclareBlockersReq
+                    .newBuilder()
+                    .addBlockers(blocker(10, blocking = 20))
+                    .addBlockers(blocker(11))
+                    .build()
+
+            CombatDeclarationDiff.fullyCommittedBlocks(req) shouldBe null
+        }
+
+        test("blocker selection keeps only blocker-specific offered or selected attackers") {
+            val req =
+                DeclareBlockersReq
+                    .newBuilder()
+                    .addBlockers(
+                        Blocker
+                            .newBuilder()
+                            .setBlockerInstanceId(10)
+                            .addAttackerInstanceIds(20)
+                            .addAttackerInstanceIds(21),
+                    ).addBlockers(blocker(11, blocking = 22))
+                    .build()
+
+            CombatDeclarationDiff.qualifiedDesiredBlocks(
+                req,
+                linkedMapOf(10 to 21, 11 to 22, 12 to 20),
+            ) shouldBe mapOf(10 to 21, 11 to 22)
+            CombatDeclarationDiff.qualifiedDesiredBlocks(req, mapOf(10 to 99, 11 to 20)) shouldBe emptyMap()
         }
     })

@@ -108,6 +108,7 @@ internal sealed interface SimDecision {
     }
 
     data class ModalChoice(
+        val ctoId: Int,
         val selectedGrpIds: List<Int>,
     ) : SimDecision {
         override val kind: String = "modal-choice"
@@ -126,10 +127,23 @@ internal sealed interface SimDecision {
     }
 
     data class AssignDamage(
-        val assigners: List<Pair<Int, List<Pair<Int, Int>>>>,
+        val assigners: List<DamageAssignerDecision>,
     ) : SimDecision {
         override val kind: String = "assign-damage"
     }
+
+    data class DamageAssignerDecision(
+        val instanceId: Int,
+        val totalDamage: Int,
+        val assignments: List<DamageAssignmentDecision>,
+    )
+
+    data class DamageAssignmentDecision(
+        val instanceId: Int,
+        val minDamage: Int,
+        val maxDamage: Int,
+        val assignedDamage: Int,
+    )
 
     data object DeclareAllAttackers : SimDecision {
         override val kind: String = "declare-all-attackers"

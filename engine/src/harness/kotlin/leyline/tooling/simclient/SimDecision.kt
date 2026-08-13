@@ -36,9 +36,9 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.AssignDamage -> {
             val assignmentDigest =
                 assigners
-                    .sortedBy { it.first }
-                    .joinToString("+") { (id, assignments) ->
-                        "$id=${assignments.sortedBy { it.first }}"
+                    .sortedBy { it.instanceId }
+                    .joinToString("+") { assigner ->
+                        "${assigner.instanceId}=${assigner.assignments.sortedBy { it.instanceId }}"
                     }
             "assign-damage:$assignmentDigest"
         }
@@ -136,7 +136,17 @@ internal class SimDecisionSubmitter(
             is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
             is SimDecision.ManaTypeChoices -> submitted { harness.respondToManaTypeChoices(decision.choicesByCtoId) }
             is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
-            is SimDecision.AssignDamage -> submitted { harness.assignDamage(decision.assigners) }
+            is SimDecision.AssignDamage ->
+                submitted {
+                    harness.assignDamage(
+                        decision.assigners.map { assigner ->
+                            assigner.instanceId to
+                                assigner.assignments.map { assignment ->
+                                    assignment.instanceId to assignment.assignedDamage
+                                }
+                        },
+                    )
+                }
             SimDecision.DeclareAllAttackers ->
                 submitted {
                     harness.declareAllAttackers()

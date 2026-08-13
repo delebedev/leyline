@@ -31,41 +31,95 @@ class TargetSelectionDiffTest :
                 .setLegalAction(if (committed) SelectAction.Unselect else SelectAction.Select_a1ad)
                 .build()
 
-        fun req(vararg targets: Target): SelectTargetsReq =
-            SelectTargetsReq
+        fun group(
+            targetIdx: Int,
+            min: Int,
+            max: Int,
+            vararg targets: Target,
+        ): TargetSelection =
+            TargetSelection
                 .newBuilder()
-                .addTargets(TargetSelection.newBuilder().setTargetIdx(1).apply { targets.forEach { addTargets(it) } })
+                .setTargetIdx(targetIdx)
+                .setMinTargets(min)
+                .setMaxTargets(max)
+                .apply { targets.forEach { addTargets(it) } }
                 .build()
 
-        val allTargets = req(target(282, committed = false), target(283, committed = false), target(284, committed = false))
+        fun req(vararg groups: TargetSelection): SelectTargetsReq = SelectTargetsReq.newBuilder().addAllTargets(groups.toList()).build()
 
-        test("committed targets are the Unselect-marked entries") {
-            val r = req(target(282, committed = true), target(283, committed = false))
-            TargetSelectionDiff.committedTargets(r) shouldBe setOf(282)
+        val allTargets =
+            req(
+                group(
+                    targetIdx = 1,
+                    min = 1,
+                    max = 3,
+                    target(282, committed = false),
+                    target(283, committed = false),
+                    target(284, committed = false),
+                ),
+            )
+
+        test("committed targets retain their request group") {
+            val r =
+                req(
+                    group(1, 1, 1, target(282, committed = true), target(283, committed = false)),
+                    group(2, 1, 1, target(384, committed = true), target(385, committed = false)),
+                )
+            TargetSelectionDiff.committedTargets(r) shouldBe mapOf(1 to listOf(282), 2 to listOf(384))
         }
 
-        test("step selects the desired targets not yet committed, carrying the group targetIdx") {
-            val step = TargetSelectionDiff.step(allTargets, committed = emptySet(), desired = listOf(282))
+        test("step selects one desired target and carries its group targetIdx") {
+            val step = TargetSelectionDiff.step(allTargets, committed = mapOf(1 to emptyList()), desired = mapOf(1 to listOf(282, 283)))
             val sel = step.shouldBeInstanceOf<SimDecision.SelectTargets>()
             sel.targetInstanceIds shouldBe listOf(282)
             sel.targetIdx shouldBe 1
         }
 
         test("step submits once committed equals desired") {
-            TargetSelectionDiff.step(allTargets, committed = setOf(282), desired = listOf(282)) shouldBe SimDecision.SubmitTargets
+            TargetSelectionDiff.step(allTargets, committed = mapOf(1 to listOf(282)), desired = mapOf(1 to listOf(282))) shouldBe
+                SimDecision.SubmitTargets
         }
 
         test("step unselects a committed target no longer desired") {
-            val step = TargetSelectionDiff.step(allTargets, committed = setOf(282, 283), desired = listOf(282))
+            val step = TargetSelectionDiff.step(allTargets, committed = mapOf(1 to listOf(282, 283)), desired = mapOf(1 to listOf(282)))
             step.shouldBeInstanceOf<SimDecision.UnselectTargets>().targetInstanceIds shouldBe listOf(283)
         }
 
         test("step submits immediately when nothing is desired and nothing committed (declined optional)") {
-            TargetSelectionDiff.step(allTargets, committed = emptySet(), desired = emptyList()) shouldBe SimDecision.SubmitTargets
+            val optional = req(group(1, 0, 1, target(282, committed = false)))
+            TargetSelectionDiff.step(optional, committed = mapOf(1 to emptyList()), desired = mapOf(1 to emptyList())) shouldBe
+                SimDecision.SubmitTargets
         }
 
-        test("step selects all missing at once for a multi-target spell") {
-            val step = TargetSelectionDiff.step(allTargets, committed = setOf(282), desired = listOf(282, 283, 284))
-            step.shouldBeInstanceOf<SimDecision.SelectTargets>().targetInstanceIds shouldBe listOf(283, 284)
+        test("two required groups advance one group per echoed prompt") {
+            val r =
+                req(
+                    group(1, 1, 1, target(101, committed = false), target(102, committed = false)),
+                    group(2, 1, 1, target(201, committed = false), target(202, committed = false)),
+                )
+            val desired = mapOf(1 to listOf(101), 2 to listOf(201))
+
+            TargetSelectionDiff
+                .step(r, committed = mapOf(1 to emptyList(), 2 to emptyList()), desired = desired)
+                .shouldBeInstanceOf<SimDecision.SelectTargets>() shouldBe SimDecision.SelectTargets(listOf(101), targetIdx = 1)
+            TargetSelectionDiff
+                .step(r, committed = mapOf(1 to listOf(101), 2 to emptyList()), desired = desired)
+                .shouldBeInstanceOf<SimDecision.SelectTargets>() shouldBe SimDecision.SelectTargets(listOf(201), targetIdx = 2)
+            TargetSelectionDiff.step(r, committed = desired, desired = desired) shouldBe SimDecision.SubmitTargets
+        }
+
+        test("an over-full group is repaired instead of accepted by aggregate count") {
+            val r =
+                req(
+                    group(1, 1, 1, target(101, committed = false), target(102, committed = false)),
+                    group(2, 1, 1, target(201, committed = true), target(202, committed = true)),
+                )
+            val committed = TargetSelectionDiff.committedTargets(r)
+            val desired = mapOf(1 to listOf(101), 2 to listOf(201))
+
+            TargetSelectionDiff.isValid(r, committed) shouldBe false
+            TargetSelectionDiff.step(r, committed = committed, desired = committed) shouldBe null
+            TargetSelectionDiff.step(r, committed = committed, desired = desired) shouldBe
+                SimDecision.UnselectTargets(listOf(202), targetIdx = 2)
         }
     })

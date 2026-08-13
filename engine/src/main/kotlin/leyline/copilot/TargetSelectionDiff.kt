@@ -3,6 +3,8 @@ package leyline.copilot
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 
+internal typealias TargetGroupSelections = Map<Int, List<Int>>
+
 /**
  * One step of iterative target declaration — the targeting sibling of
  * [CombatDeclarationDiff]. `SelectTargetsReq` is iterative-delta: each
@@ -16,55 +18,57 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
  * else Submit.
  */
 internal object TargetSelectionDiff {
-    /**
-     * Total targets the prompt requires (summed across groups). Used to decide
-     * whether an already-committed selection can be submitted as-is when the AI
-     * can no longer re-pick from a fully-committed re-prompt.
-     */
-    fun requiredRange(req: SelectTargetsReq): IntRange {
-        val min = req.targetsList.sumOf { it.minTargets.coerceAtLeast(0) }
-        val max =
-            req.targetsList
-                .sumOf { group -> group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets }
-                .coerceAtLeast(min)
-        return min..max
-    }
+    /** Committed target instanceIds per request group, as reflected by the (re-)prompt. */
+    fun committedTargets(req: SelectTargetsReq): TargetGroupSelections =
+        req.targetsList.associate { group ->
+            group.targetIdx to
+                group.targetsList
+                    .filter { it.legalAction == SelectAction.Unselect }
+                    .map { it.targetInstanceId }
+                    .distinct()
+        }
 
-    /** Committed target instanceIds as reflected by the (re-)prompt. */
-    fun committedTargets(req: SelectTargetsReq): Set<Int> =
-        req.targetsList
-            .asSequence()
-            .flatMap { it.targetsList.asSequence() }
-            .filter { it.legalAction == SelectAction.Unselect }
-            .map { it.targetInstanceId }
-            .toSet()
+    /** Every request group independently satisfies its bounds and candidate set. */
+    fun isValid(
+        req: SelectTargetsReq,
+        selections: TargetGroupSelections,
+    ): Boolean =
+        req.targetsList.all { group ->
+            val selected = selections[group.targetIdx].orEmpty()
+            val legalIds = group.targetsList.map { it.targetInstanceId }.toSet()
+            selected.size == selected.distinct().size &&
+                selected.all { it in legalIds } &&
+                selected.size in group.minTargets.coerceAtLeast(0)..effectiveMax(group.minTargets, group.maxTargets)
+        }
 
     /**
-     * Next target-declaration step: select every desired target not yet
-     * committed, else unselect any committed target no longer desired, else
-     * Submit. Selecting the whole missing set at once is legal — the engine
-     * accumulates taps — and keeps the walk to at most select-then-submit.
-     * Each toggle carries the target group's `targetIdx` so a stricter host
-     * binds the pick to the right requirement.
+     * Next target-declaration step. Each response is one tap in one request
+     * group; the next step waits for the host's fresh prompt before continuing.
+     * Extras are removed before missing targets are added so an over-full
+     * group converges back inside its bound before another group changes.
      */
     fun step(
         req: SelectTargetsReq,
-        committed: Set<Int>,
-        desired: List<Int>,
-    ): SimDecision {
-        val missing = desired.filter { it !in committed }
-        if (missing.isNotEmpty()) return SimDecision.SelectTargets(missing, groupIdxFor(req, missing))
-        val extra = committed.filter { it !in desired }
-        if (extra.isNotEmpty()) return SimDecision.UnselectTargets(extra, groupIdxFor(req, extra))
-        return SimDecision.SubmitTargets
+        committed: TargetGroupSelections,
+        desired: TargetGroupSelections,
+    ): SimDecision? {
+        if (!isValid(req, desired)) return null
+
+        for (group in req.targetsList) {
+            val desiredIds = desired[group.targetIdx].orEmpty()
+            val extra = committed[group.targetIdx].orEmpty().firstOrNull { it !in desiredIds }
+            if (extra != null) return SimDecision.UnselectTargets(listOf(extra), group.targetIdx)
+        }
+        for (group in req.targetsList) {
+            val committedIds = committed[group.targetIdx].orEmpty()
+            val missing = desired[group.targetIdx].orEmpty().firstOrNull { it !in committedIds }
+            if (missing != null) return SimDecision.SelectTargets(listOf(missing), group.targetIdx)
+        }
+        return SimDecision.SubmitTargets.takeIf { isValid(req, committed) }
     }
 
-    /** targetIdx of the prompt group whose legal targets include any of [ids]. */
-    private fun groupIdxFor(
-        req: SelectTargetsReq,
-        ids: List<Int>,
-    ): Int =
-        req.targetsList
-            .firstOrNull { group -> group.targetsList.any { it.targetInstanceId in ids } }
-            ?.targetIdx ?: 0
+    private fun effectiveMax(
+        min: Int,
+        max: Int,
+    ): Int = max.takeIf { it >= min } ?: min
 }

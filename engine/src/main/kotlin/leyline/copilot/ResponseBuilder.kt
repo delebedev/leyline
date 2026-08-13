@@ -296,7 +296,7 @@ internal object ResponseBuilder {
                             CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
                                 CastingTimeOptionResp
                                     .newBuilder()
-                                    .setCtoId(1)
+                                    .setCtoId(decision.ctoId)
                                     .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
                                     .setChooseModalResp(
                                         ChooseModalResp.newBuilder().apply { decision.selectedGrpIds.forEach { addGrpIds(it) } },
@@ -359,15 +359,24 @@ internal object ResponseBuilder {
                     base(ClientMessageType.AssignDamageResp_097b)
                         .setAssignDamageResp(
                             AssignDamageResp.newBuilder().apply {
-                                decision.assigners.forEach { (attackerIid, assignments) ->
+                                decision.assigners.forEach { assigner ->
                                     addAssigners(
-                                        DamageAssigner.newBuilder().setInstanceId(attackerIid).apply {
-                                            assignments.forEach { (targetIid, dmg) ->
-                                                addAssignments(
-                                                    DamageAssignment.newBuilder().setInstanceId(targetIid).setAssignedDamage(dmg),
-                                                )
-                                            }
-                                        },
+                                        DamageAssigner
+                                            .newBuilder()
+                                            .setInstanceId(assigner.instanceId)
+                                            .setTotalDamage(assigner.totalDamage)
+                                            .apply {
+                                                assigner.assignments.forEach { assignment ->
+                                                    addAssignments(
+                                                        DamageAssignment
+                                                            .newBuilder()
+                                                            .setInstanceId(assignment.instanceId)
+                                                            .setMinDamage(assignment.minDamage)
+                                                            .setMaxDamage(assignment.maxDamage)
+                                                            .setAssignedDamage(assignment.assignedDamage),
+                                                    )
+                                                }
+                                            },
                                     )
                                 }
                             },

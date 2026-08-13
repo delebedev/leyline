@@ -27,13 +27,15 @@ object SnapshotConsult {
         cardRepository: CardRepository,
         matchConfig: MatchConfig = MatchConfig(),
     ): ConsultResponse {
-        val bridge = SnapshotHydration.hydrate(gsm, seat, cardRepository, matchConfig)
+        val hydrated = SnapshotHydration.hydrateWithReport(gsm, seat, cardRepository, matchConfig)
+        val bridge = hydrated.bridge
         return try {
             syncLandDrop(bridge, prompt, seat)
             val service = CopilotProposalService(bridge, SeatId(seat))
             ConsultResponse(
                 proposal = service.propose(prompt),
                 eval = service.evaluate(),
+                fidelity = hydrated.fidelity.forPrompt(prompt),
             )
         } finally {
             bridge.teardownResources()
@@ -68,6 +70,7 @@ object SnapshotConsult {
 data class ConsultResponse(
     val proposal: CopilotProposal,
     val eval: EvalScore? = null,
+    val fidelity: SnapshotFidelityReport,
 )
 
 /** Forge-AI heuristic position score from the consulted seat's perspective. */

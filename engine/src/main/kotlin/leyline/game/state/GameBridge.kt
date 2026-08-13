@@ -350,14 +350,17 @@ class GameBridge(
     private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
 
     init {
-        // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
-        actionBridges[1] =
+        configureInteractiveSeat(SeatId(1))
+    }
+
+    private fun configureInteractiveSeat(seatId: SeatId) {
+        actionBridges[seatId.value] =
             GameActionBridge(
                 timeoutMs = bridgeTimeoutMs,
                 prioritySignal = prioritySignal,
-                windowRuntime = cutCoordinator.actionWindowRuntime(SeatId(1)),
+                windowRuntime = cutCoordinator.actionWindowRuntime(seatId),
             )
-        promptBridges[1] =
+        promptBridges[seatId.value] =
             InteractivePromptBridge(timeoutMs = promptFailsafeMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
@@ -365,7 +368,7 @@ class GameBridge(
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
-        mulliganBridges[1] =
+        mulliganBridges[seatId.value] =
             MulliganBridge(
                 autoKeep = matchConfig.game.skipMulligan,
                 timeoutMs = matchConfig.server.mulliganWaitMs,
@@ -465,8 +468,8 @@ class GameBridge(
     /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
     private val playbackRegistry = PlaybackRegistry()
 
-    /** Convenience: seat-1 playback for single-player (1vAI) matches. */
-    val playback: GamePlayback? get() = playbackFor(SeatId(1))
+    /** Convenience: controlled-player playback for single-player (1vAI) matches. */
+    val playback: GamePlayback? get() = playbackFor(seating.humanSeat)
 
     override fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
 
@@ -1017,7 +1020,7 @@ class GameBridge(
         // Wire the interactive seat and retain native AI decisions with reveal observation.
         registerHumanController(g)
 
-        registerPlaybackPipeline(g, SeatId(1), captureLocalActions = false)
+        registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
         log.info("GameBridge: registered playback pipeline for seat 1")
 
         val loop =
@@ -1424,15 +1427,20 @@ class GameBridge(
      */
     fun startPuzzle(
         puzzle: Puzzle,
+        controlledSeat: SeatId = SeatId(1),
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
         beforeRuntimeStart: ((Game) -> Unit)? = null,
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
+        configureInteractiveSeat(controlledSeat)
 
-        val g = GameBootstrap.createPuzzleGame()
+        val g = GameBootstrap.createPuzzleGame(controlledSeat)
         game = g
         populateSeatMap(g)
+        check(seating.humanSeat == controlledSeat) {
+            "Puzzle controlled seat ${controlledSeat.value} resolved as human seat ${seating.humanSeat.value}"
+        }
 
         // Apply puzzle state via reflection (applyGameOnThread is protected).
         // Install temp PlayerControllers with autoKeep + zero-timeout bridges
@@ -1469,7 +1477,7 @@ class GameBridge(
         // suppress the activation modal). Seed from engine state.
         seedCounterAnnotations(g)
 
-        // Wire PlayerController for seat 1 (human) — same as constructed
+        // Wire PlayerController for the controlled seat — same as constructed
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
@@ -1480,10 +1488,10 @@ class GameBridge(
                     game = g,
                     player = human,
                     lobbyPlayer = human.lobbyPlayer,
-                    bridge = promptBridge(SeatId(1)),
+                    bridge = promptBridge(controlledSeat),
                     seating = seating,
-                    actionBridge = actionBridge(SeatId(1)),
-                    mulliganBridge = mulliganBridge(SeatId(1)),
+                    actionBridge = actionBridge(controlledSeat),
+                    mulliganBridge = mulliganBridge(controlledSeat),
                     phaseStopProfile = phaseStopProfile,
                     interactionRuntime = cutCoordinator,
                 )
