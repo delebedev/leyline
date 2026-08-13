@@ -42,8 +42,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromSnapshot]: Full [GameStateMessage] from a captured [leyline.game.snapshot.GsmSnapshot].
  * - [buildDiff]: Diff GSM by snap-vs-snap field comparison; returns [leyline.game.state.BridgeMutations]
- *   for the caller to apply via [leyline.game.state.GameBridge.applyMutations]. Compute is
- *   tentative and write-isolated, but still reads explicitly retained [GameBridge] state.
+ *   for the caller to apply via [leyline.game.state.GameBridge.applyMutations]. Transaction-managed
+ *   projection state is tentative, with its writes isolated in the returned mutations; retained
+ *   live reads and lazy caches remain.
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [leyline.game.bundle.GsmBuilder].
  * Interactive request builders (targeting, combat) live in [leyline.game.bundle.RequestBuilder].
@@ -54,7 +55,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Single contract: both [buildFromSnapshot] and [buildDiff] return an annotation
  * frame draft plus [leyline.game.state.BridgeMutations]. Callers finalize the
  * complete transient list, then apply via [leyline.game.state.GameBridge.applyMutations].
- * No inline writes during compute, no mode flags. Ordering-sensitive writes
+ * Transaction-managed projection state has no committed writes during compute.
+ * Its ordering-sensitive changes
  * (id reallocations, limbo retires, zone recordings, persistent annotation
  * batch and delayed-trigger holder lifecycle) flow through the returned
  * mutations. The finalizer supplies `nextAnnotationId` before application.
@@ -70,9 +72,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * ## Retained bridge dependencies
  *
- * These remain inside the pipeline for bounded reasons. This catalog names the
- * live, reference, and retained-state reads still present in the current cut;
- * the replay test proves only its covered scenarios.
+ * These remain inside the pipeline for bounded reasons. The examples below are
+ * not a complete dependency catalog; the replay test proves only its covered
+ * scenarios.
  *
  * Reads of effectively-immutable / card-DB state:
  * - [leyline.game.state.GameBridge.getOrAllocInstanceId] resolves through the
@@ -85,6 +87,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * - `bridge.getPlayer`, `isBrawlOrCommander`, and `getLimboInstanceIds`.
  * - `bridge.findCard` for Paradigm and exhausted-ability state, plus
  *   `bridge.cardProto` and the read-only `bridge.cardRepository`.
+ * - [AnnotationPipeline] reaches `bridge.abilityRegistryFor`, whose lookup may
+ *   populate the retained lazy mutable ability-registry cache.
  *
  * Explicit retained-state reads:
  * - `bridge.opponentKnowledge`, `delayedTriggerHolders`, and
