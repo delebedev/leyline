@@ -37,7 +37,7 @@ data class BridgeMutations(
     val effectTransition: SyntheticEffectTransition,
     val opponentKnowledgeTransition: OpponentKnowledgeTracker.Transition,
     /** Callback facts incorporated by the accepted effect transition. */
-    val consumedEarthbendResolutions: List<GameBridge.EarthbendResolution> = emptyList(),
+    val consumedEarthbendResolutions: List<EffectProjectionFacts.PendingEarthbendResolution> = emptyList(),
     val revealTransition: RevealProxyTracker.Transition? = null,
     val annotationJournalTransition: ProjectionAnnotationJournal.Transition,
     val idReallocations: List<InstanceIdRegistry.IdReallocation>,

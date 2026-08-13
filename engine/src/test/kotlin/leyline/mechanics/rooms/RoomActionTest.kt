@@ -221,7 +221,13 @@ class RoomActionTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val result =
                 leyline.game.mapping.StateMapper
-                    .buildFromSnapshot(snap, 0, "test", b)
+                    .buildFromSnapshot(
+                        snap,
+                        0,
+                        "test",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    )
 
             val designations =
                 result.gsm.persistentAnnotationsList.filter { ann ->

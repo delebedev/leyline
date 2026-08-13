@@ -11,6 +11,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
@@ -37,6 +38,7 @@ class AnnotationContext(
     val frameIds: FrameIdResolver,
     val events: List<GameEvent>,
     val promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+    val effectFacts: EffectProjectionFacts = EffectProjectionFacts(),
     val opponentKnowledge: List<InstanceId> = emptyList(),
     val transferResult: TransferResult? = null,
 ) {

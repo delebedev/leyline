@@ -330,6 +330,7 @@ class DebugServer(
                     bridge,
                     updateType = GameStateUpdate.SendAndRecord,
                     viewingSeatId = session.seatId.value,
+                    effectFacts = bridge.materializeEffectProjectionFacts(),
                 ).gsm
 
         val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
@@ -465,6 +466,7 @@ class DebugServer(
                     bridge,
                     updateType = GameStateUpdate.SendAndRecord,
                     viewingSeatId = newSession.seatId.value,
+                    effectFacts = bridge.materializeEffectProjectionFacts(),
                 ).gsm
 
         val projection = ActionMapper.buildProjectionFromSnapshot(newSession.seatId.value, snap, bridge)

@@ -114,7 +114,16 @@ class CopyTokenIntegrationTest :
 
             // Build GSM and find the copy token object
             val snapCopy1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapCopy1, 1, "test-copy", harness.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapCopy1,
+                        1,
+                        "test-copy",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val copyObj =
                 gsm.gameObjectsList
                     .firstOrNull { it.instanceId == copyIid }
@@ -136,7 +145,16 @@ class CopyTokenIntegrationTest :
             val (_, copyIid) = castAndResolveCopy()
 
             val snapCopy2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapCopy2, 1, "test-copy", harness.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapCopy2,
+                        1,
+                        "test-copy",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
 
             assertSoftly {
@@ -154,7 +172,15 @@ class CopyTokenIntegrationTest :
 
             // First GSM — establishes baseline (apply mutations so recordZone fires)
             val snapCopy3 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
-            val baselineResult = StateMapper.buildFromSnapshot(snapCopy3, 1, "test-copy", harness.bridge, viewingSeatId = 1)
+            val baselineResult =
+                StateMapper.buildFromSnapshot(
+                    snapCopy3,
+                    1,
+                    "test-copy",
+                    harness.bridge,
+                    viewingSeatId = 1,
+                    effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                )
             harness.bridge.applyMutations(baselineResult.finalizeAnnotations().mutations)
 
             // Trigger a state change (pass priority) so a diff is generated
@@ -172,6 +198,7 @@ class CopyTokenIntegrationTest :
                         "test-copy",
                         harness.bridge,
                         viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             // If the copy token appears in the diff, its fields must be intact
@@ -202,7 +229,16 @@ class CopyTokenIntegrationTest :
 
             // Build GSM — should have TemporaryPermanent persistent annotation
             val snapCopy4 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-copy", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapCopy4, 1, "test-copy", harness.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapCopy4,
+                        1,
+                        "test-copy",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val tempPerm =
                 gsm.persistentAnnotationsList
                     .firstOrNull { ann ->
@@ -280,7 +316,16 @@ class CopyTokenIntegrationTest :
             copyToken.isToken.shouldBeTrue()
 
             val snapHom1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-homunculus", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapHom1, 1, "test-homunculus", harness.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapHom1,
+                        1,
+                        "test-homunculus",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val copyObj =
                 gsm.gameObjectsList
                     .firstOrNull { it.instanceId == copyIid }
@@ -307,7 +352,16 @@ class CopyTokenIntegrationTest :
             copyToken.hasSVar("EndOfTurnLeavePlay") shouldBe false
 
             val snapHom2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-homunculus", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapHom2, 1, "test-homunculus", harness.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapHom2,
+                        1,
+                        "test-homunculus",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val tempPerm =
                 gsm.persistentAnnotationsList
                     .firstOrNull { ann ->

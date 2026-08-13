@@ -37,6 +37,7 @@ fun GameBridge.seedDiffBaseline(
                 this,
                 events = closeBundleFrame(),
                 promptFacts = materializePromptProjectionFacts(),
+                effectFacts = materializeEffectProjectionFacts(),
             ).finalizeAnnotations()
     applyMutations(result.mutations)
     bundleCursor.lastSent = snap

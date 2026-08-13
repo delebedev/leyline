@@ -92,8 +92,13 @@ class ExhaustLifecycleTest :
 
             val abilityExhausted =
                 StateMapper
-                    .buildFromSnapshot(GsmSnapshot.capture(game(), harness.bridge, "exhaust-mana-regression", 0), 1, "test", harness.bridge)
-                    .gsm
+                    .buildFromSnapshot(
+                        GsmSnapshot.capture(game(), harness.bridge, "exhaust-mana-regression", 0),
+                        1,
+                        "test",
+                        harness.bridge,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
                     .persistentAnnotationsList
                     .last {
                         AnnotationType.AbilityExhausted in it.typeList &&

@@ -7,7 +7,9 @@ import leyline.bridge.types.ForgeCardId
  *
  * A [Planner] is local to a compile attempt. Only its [freeze] result may be
  * installed on [GameBridge], together with the matching identity and reveal
- * transitions.
+ * transitions. Scoped live effect observations enter separately as immutable
+ * [EffectProjectionFacts] values; this state carries only tentative lifecycle
+ * allocations and prior committed effect state.
  */
 data class SyntheticEffectProjection(
     val effects: EffectTracker.State,

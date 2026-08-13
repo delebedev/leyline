@@ -141,7 +141,16 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/lands-only.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        "test-puzzle",
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             gsm.gameInfo.stage shouldBe ProtoGameStage.Play_a920
         }
 
@@ -149,7 +158,16 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/custom-life.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        "test-puzzle",
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             val p1 = gsm.playersList.first { it.systemSeatNumber == 1 }
             val p2 = gsm.playersList.first { it.systemSeatNumber == 2 }
             p1.lifeTotal shouldBe 7
@@ -160,7 +178,16 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/simple-attack.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        "test-puzzle",
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             gsm.gameObjectsCount shouldBeGreaterThan 0
         }
 
@@ -201,7 +228,16 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/bolt-face.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test-puzzle", b, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        "test-puzzle",
+                        b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             gsm.gameInfo.stage shouldBe ProtoGameStage.Play_a920
             // Should have game objects (Mountain on bf, Lightning Bolt in hand)
             gsm.gameObjectsCount shouldBeGreaterThanOrEqual 2

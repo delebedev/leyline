@@ -440,7 +440,16 @@ class GameBridgeTest :
             val game = b.getGame()!!
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
             val snapGb1 = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildFromSnapshot(snapGb1, 1, "test-match", b, actions).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapGb1,
+                        1,
+                        "test-match",
+                        b,
+                        actions,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             gs.actionsCount shouldBeGreaterThan 0
             assertSoftly {
@@ -490,7 +499,14 @@ class GameBridgeTest :
 
             // Build initial state to seed previousZones
             val snapGb2 = GsmSnapshot.capture(game, b, "test-match", 1)
-            val seedResult = StateMapper.buildFromSnapshot(snapGb2, 1, "test-match", b)
+            val seedResult =
+                StateMapper.buildFromSnapshot(
+                    snapGb2,
+                    1,
+                    "test-match",
+                    b,
+                    effectFacts = b.materializeEffectProjectionFacts(),
+                )
             b.applyMutations(seedResult.finalizeAnnotations().mutations)
 
             // Play a land
@@ -506,7 +522,15 @@ class GameBridgeTest :
 
             // Build post-action state — should have ZoneTransfer annotation
             val snapGb3 = GsmSnapshot.capture(game, b, "test-match", 2)
-            val gs = StateMapper.buildFromSnapshot(snapGb3, 2, "test-match", b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapGb3,
+                        2,
+                        "test-match",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             val zoneTransfers =
                 gs.annotationsList.filter {
                     it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
@@ -557,7 +581,17 @@ class GameBridgeTest :
 
             // No diff baseline — buildDiff with null prev falls back to Full
             val snapFull = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildDiff(null, snapFull, FrameEventLog.EMPTY, 1, "test-match", b).gsm
+            val gs =
+                StateMapper
+                    .buildDiff(
+                        null,
+                        snapFull,
+                        FrameEventLog.EMPTY,
+                        1,
+                        "test-match",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             gs.type shouldBe Messages.GameStateType.Full
             gs.zonesCount shouldBeGreaterThan 0
         }
@@ -593,7 +627,15 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val snapGb5 = GsmSnapshot.capture(game, b, "test-match", 1)
-            val gs = StateMapper.buildFromSnapshot(snapGb5, 1, "test-match", b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapGb5,
+                        1,
+                        "test-match",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             assertSoftly {
                 gs.zonesCount shouldBeGreaterThan 0

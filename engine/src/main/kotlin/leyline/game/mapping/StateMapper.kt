@@ -20,6 +20,9 @@ import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.BridgeMutations
 import leyline.game.state.DelayedTriggerAffecteesKind
+import leyline.game.state.EarthbendTracker
+import leyline.game.state.EffectProjectionFacts
+import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
@@ -77,17 +80,14 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   private [leyline.game.state.InstanceIdRegistry] planner during this scope.
  * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Read-only card DB.
  *
- * Reads of live Forge state (deliberate bridge boundary):
- * - `bridge.snapshotBoosts()` / `bridge.snapshotKeywords()` — capture layered-
- *   effect snapshots for diff computation. Read-only at call site.
- * - live Forge/card/reference data remains bridge-attached in this slice.
+ * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Other live
+ * Forge/card/reference data remains bridge-attached in this slice.
  *
  * Reads-then-writes on bridge-attached tracker state (not yet lifted onto snap):
  * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
  *   reveal-choose effects that span bundles.
  * - prompt-derived projection data arrives in [PromptProjectionFacts].
- * - `bridge.snapshotCrewState()` and `bridge.snapshotReconfigureState()` — live
- *   Forge snapshots. Their synthetic lifecycle reduction runs in the private
+ * - synthetic lifecycle reduction runs in the private
  *   [SyntheticEffectProjection.Planner] and returns through [BridgeMutations].
  *
  * Identity and synthetic-effect allocations are tentative and returned in
@@ -191,6 +191,7 @@ object StateMapper {
          */
         events: FrameEventLog = FrameEventLog.EMPTY,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+        effectFacts: EffectProjectionFacts,
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildFromSnapshotInternal(
@@ -205,6 +206,7 @@ object StateMapper {
                 prev = prev,
                 events = events,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
                 annotationJournal = journal,
             )
         }
@@ -222,12 +224,14 @@ object StateMapper {
         prev: GsmSnapshot? = null,
         events: FrameEventLog,
         promptFacts: PromptProjectionFacts,
+        effectFacts: EffectProjectionFacts,
         annotationJournal: ProjectionAnnotationJournal.Planner,
     ): BuildResult {
         val effectPlanner = bridge.activeEffectPlanner()
-        val earthbendResolutions = bridge.pendingEarthbendResolutions()
+        val earthbendResolutions = effectFacts.pendingEarthbendResolutions
+        val earthbendSignatures = effectFacts.battlefieldEarthbendSignatures
         for (resolution in earthbendResolutions) {
-            if (bridge.findCard(resolution.sourceCardId) == null) continue
+            if (rawSnap.boundCards[resolution.sourceCardId] == null) continue
             val sourceIid = bridge.getOrAllocInstanceId(resolution.sourceCardId)
             val resolvingIid =
                 if (resolution.abilityForgeId != 0) {
@@ -236,18 +240,21 @@ object StateMapper {
                     sourceIid
                 }
             effectPlanner.earthbend.recordResolution(
-                sourceInstanceId = sourceIid,
+                resolution = resolution,
                 sourceCardGrpId = rawSnap.boundCards[resolution.sourceCardId]?.snapshot?.grpId ?: 0,
-                sourceAbilityGrpId = resolution.sourceAbilityGrpId,
-                resolvingInstanceId = resolvingIid,
-                targetCards = resolution.targetCardIds.mapNotNull(bridge::findCard),
-                targetInstanceId = bridge::getOrAllocInstanceId,
+                sourceInstanceId = sourceIid.value,
+                resolvingInstanceId = resolvingIid.value,
+                battlefieldSignatures = earthbendSignatures,
+                targetInstanceId = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId).value },
                 nextEffectId = effectPlanner.effects::nextEffectId,
             )
         }
         val snap =
             rawSnap.withEarthbendProjection { forgeCardId ->
-                bridge.findCard(forgeCardId)?.let(effectPlanner.earthbend::projectionFor)
+                effectPlanner.earthbend.projectionFor(
+                    forgeCardId,
+                    earthbendSignatures.firstOrNull { it.forgeCardId == forgeCardId }?.signature,
+                )
             }
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -257,9 +264,9 @@ object StateMapper {
         // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
         val eventsMutable = events.events.toMutableList()
         val initEffectDiff = effectPlanner.effects.emitInitEffectsOnce()
-        val boostSnapshot = bridge.snapshotBoosts()
+        val boostSnapshot = boostEntries(effectFacts, bridge)
         val effectDiff = effectPlanner.effects.diffBoosts(boostSnapshot)
-        val keywordSnapshot = bridge.snapshotKeywords(effectPlanner.earthbend)
+        val keywordSnapshot = keywordEntries(effectFacts, effectPlanner.earthbend, bridge)
         val keywordDiff = effectPlanner.effects.diffKeywords(keywordSnapshot)
         // Persistent annotation baseline is carried on the snapshot (captured
         // at snap time in SnapshotCapture). computeBatch is pure over this value.
@@ -458,6 +465,7 @@ object StateMapper {
                 frameIds = frameIds,
                 events = eventsMutable,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
                 opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
             )
@@ -573,6 +581,7 @@ object StateMapper {
                 frameIds = frameIds,
                 events = eventsMutable,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
                 opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
             )
@@ -691,6 +700,60 @@ object StateMapper {
         }
     }
 
+    private fun boostEntries(
+        facts: EffectProjectionFacts,
+        bridge: GameBridge,
+    ): Map<Int, List<EffectTracker.BoostEntry>> {
+        val instanceIds = linkedMapOf<ForgeCardId, Int>()
+        val entriesByInstance = linkedMapOf<Int, MutableList<EffectTracker.BoostEntry>>()
+        for (entry in facts.boostEntries) {
+            val instanceId = instanceIds.getOrPut(entry.forgeCardId) { bridge.getOrAllocInstanceId(entry.forgeCardId).value }
+            entriesByInstance
+                .getOrPut(instanceId) { mutableListOf() }
+                .add(
+                    EffectTracker.BoostEntry(
+                        timestamp = entry.timestamp,
+                        staticId = entry.staticId,
+                        power = entry.power,
+                        toughness = entry.toughness,
+                    ),
+                )
+        }
+        return entriesByInstance.mapValues { (_, entries) -> entries.toList() }
+    }
+
+    private fun keywordEntries(
+        facts: EffectProjectionFacts,
+        earthbend: EarthbendTracker,
+        bridge: GameBridge,
+    ): Map<Int, List<EffectTracker.KeywordEntry>> {
+        val instanceIds = linkedMapOf<ForgeCardId, Int>()
+        val entriesByInstance = linkedMapOf<Int, MutableList<EffectTracker.KeywordEntry>>()
+        for (entry in facts.keywordEntries) {
+            val instanceId = instanceIds.getOrPut(entry.forgeCardId) { bridge.getOrAllocInstanceId(entry.forgeCardId).value }
+            if (
+                entry.keyword == "Haste" &&
+                earthbend.isEarthbendHasteKeyword(
+                    entry.forgeCardId,
+                    entry.timestamp,
+                    entry.staticId,
+                )
+            ) {
+                continue
+            }
+            entriesByInstance
+                .getOrPut(instanceId) { mutableListOf() }
+                .add(
+                    EffectTracker.KeywordEntry(
+                        timestamp = entry.timestamp,
+                        staticId = entry.staticId,
+                        keyword = entry.keyword,
+                    ),
+                )
+        }
+        return entriesByInstance.mapValues { (_, entries) -> entries.toList() }
+    }
+
     private fun stackTransferDeletedIds(transferResult: TransferResult): List<Int> =
         (
             transferResult.transfers
@@ -729,6 +792,7 @@ object StateMapper {
                 cur = input.snapshot,
                 events = input.events,
                 promptFacts = input.promptFacts,
+                effectFacts = input.effectFacts,
                 gameStateId = input.gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -753,6 +817,7 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+        effectFacts: EffectProjectionFacts,
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildDiffInternal(
@@ -760,6 +825,7 @@ object StateMapper {
                 cur = cur,
                 events = events,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -777,6 +843,7 @@ object StateMapper {
         cur: GsmSnapshot,
         events: FrameEventLog,
         promptFacts: PromptProjectionFacts,
+        effectFacts: EffectProjectionFacts,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -801,6 +868,7 @@ object StateMapper {
                 prev = null,
                 events = events,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
             )
         }
 
@@ -826,6 +894,7 @@ object StateMapper {
                 prev = prev,
                 events = events,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
             )
         }
 
@@ -841,6 +910,7 @@ object StateMapper {
                 prev = prev,
                 events = events,
                 promptFacts = promptFacts,
+                effectFacts = effectFacts,
             )
         val current = fullResult.gsm
         val projectedCur = fullResult.projectionSnapshot

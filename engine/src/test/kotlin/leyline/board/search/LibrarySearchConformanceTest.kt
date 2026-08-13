@@ -68,6 +68,7 @@ class LibrarySearchConformanceTest :
                         bridge,
                         viewingSeatId = 1,
                         revealForSeat = 1,
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             // Find library objects (seat 1 library = zone 32)
@@ -154,6 +155,7 @@ class LibrarySearchConformanceTest :
                         bridge,
                         viewingSeatId = 1,
                         revealForSeat = 1,
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }

@@ -265,6 +265,7 @@ class MatchFlowHarness(
                     viewingSeatId = seatId.value,
                     events = bridge.closeBundleFrame(seatId.value),
                     promptFacts = bridge.materializePromptProjectionFacts(),
+                    effectFacts = bridge.materializeEffectProjectionFacts(),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)

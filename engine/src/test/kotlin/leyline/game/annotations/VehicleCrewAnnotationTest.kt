@@ -39,7 +39,15 @@ class VehicleCrewAnnotationTest :
                 }
 
             val snap1 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap1, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap1,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val vehicleObj =
                 gs.gameObjectsList.first { obj ->
@@ -57,7 +65,15 @@ class VehicleCrewAnnotationTest :
                 }
 
             val snap2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap2, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap2,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val artifactObj =
                 gs.gameObjectsList.first { obj ->
@@ -75,7 +91,15 @@ class VehicleCrewAnnotationTest :
                 }
 
             val snap3 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap3, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap3,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val creatureObj =
                 gs.gameObjectsList.first { obj ->
@@ -158,7 +182,15 @@ class VehicleCrewAnnotationTest :
                 }
 
             val snap4 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap4, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap4,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val crewedAnn =
                 gs.persistentAnnotationsList.firstOrNull { ann ->
@@ -179,7 +211,15 @@ class VehicleCrewAnnotationTest :
                 }
 
             val snap5 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap5, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap5,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val typeAnn =
                 gs.persistentAnnotationsList.firstOrNull { ann ->
@@ -197,7 +237,15 @@ class VehicleCrewAnnotationTest :
                 }
 
             val snap6 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs = StateMapper.buildFromSnapshot(snap6, 1, Board.TEST_MATCH_ID, b).gsm
+            val gs =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap6,
+                        1,
+                        Board.TEST_MATCH_ID,
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
 
             gs.persistentAnnotationsList.none { ann ->
                 AnnotationType.CrewedThisTurn in ann.typeList
@@ -218,7 +266,14 @@ class VehicleCrewAnnotationTest :
 
             // First GSM: crew active
             val snapCrew1 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 1)
-            val gs1 = StateMapper.buildFromSnapshot(snapCrew1, 1, Board.TEST_MATCH_ID, b)
+            val gs1 =
+                StateMapper.buildFromSnapshot(
+                    snapCrew1,
+                    1,
+                    Board.TEST_MATCH_ID,
+                    b,
+                    effectFacts = b.materializeEffectProjectionFacts(),
+                )
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.ModifiedType in ann.typeList
             } shouldBe true
@@ -235,7 +290,14 @@ class VehicleCrewAnnotationTest :
 
             // Second GSM: crew expired
             val snapCrew2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)
-            val gs2 = StateMapper.buildFromSnapshot(snapCrew2, 2, Board.TEST_MATCH_ID, b)
+            val gs2 =
+                StateMapper.buildFromSnapshot(
+                    snapCrew2,
+                    2,
+                    Board.TEST_MATCH_ID,
+                    b,
+                    effectFacts = b.materializeEffectProjectionFacts(),
+                )
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.ModifiedType in ann.typeList
             } shouldBe true

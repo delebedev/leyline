@@ -32,7 +32,16 @@ class OmenCompanionTest :
                     .single()
             val parentIid = board.instanceId(card.id)
             val snap = SnapshotCapture.run(board.game, board.bridge, "test", 1)
-            val gsm = StateMapper.buildFromSnapshot(snap, 1, "test", board.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap,
+                        1,
+                        "test",
+                        board.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val companion = gsm.gameObjectsList.single { it.type == GameObjectType.Omen_a4aa }
             val hand = gsm.zonesList.single { it.zoneId == ZoneIds.P1_HAND }
             val descriptor =
@@ -70,6 +79,7 @@ class OmenCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             assertSoftly {
@@ -91,6 +101,7 @@ class OmenCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count {
@@ -111,6 +122,7 @@ class OmenCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count { it.type == GameObjectType.Omen_a4aa } shouldBe 0
@@ -179,6 +191,7 @@ class OmenCompanionTest :
                         "test",
                         board.bridge,
                         viewingSeatId = 1,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             assertSoftly {

@@ -63,23 +63,28 @@ class EffectLifecycleTest :
 
             val game = b.getGame()!!
 
-            // Build full state — exercises snapshotBoosts + diffBoosts + effectAnnotations
+            // Build full state — exercises effect-fact materialization + effectAnnotations
             val snapEff1 = GsmSnapshot.capture(game, b, "test", 1)
-            val gsm1 = StateMapper.buildFromSnapshot(snapEff1, 1, "test", b).gsm
+            val gsm1 = StateMapper.buildFromSnapshot(snapEff1, 1, "test", b, effectFacts = b.materializeEffectProjectionFacts()).gsm
 
             gsm1 shouldNotBe null
             gsm1.gameStateId shouldBe 1
 
             // Build a diff — should not crash even with no state changes
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 2)
-            val gsm2 = StateMapper.buildDiff(snapEff1, snapEff2, FrameEventLog.EMPTY, 2, "test", b).gsm
+            val gsm2 =
+                StateMapper
+                    .buildDiff(
+                        snapEff1,
+                        snapEff2,
+                        FrameEventLog.EMPTY,
+                        2,
+                        "test",
+                        b,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                    ).gsm
             gsm2 shouldNotBe null
             gsm2.gameStateId shouldBe 2
-
-            // Verify snapshotBoosts runs without error
-            val boosts = b.snapshotBoosts()
-            // May or may not have boosts depending on board state — just verify no crash
-            boosts shouldNotBe null
         }
 
         test("prowess cast produces correct LayeredEffect annotation shape") {
@@ -108,7 +113,13 @@ class EffectLifecycleTest :
 
             // Take initial snapshot (gsId=1)
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 1)
-            val gsm1 = StateMapper.buildFromSnapshot(snapEff2, 1, "test", b).gsm
+            StateMapper.buildFromSnapshot(
+                snapEff2,
+                1,
+                "test",
+                b,
+                effectFacts = b.materializeEffectProjectionFacts(),
+            )
 
             // Cast Giant Growth targeting Swiftspear
             val pending = awaitFreshPending(b, null).shouldNotBeNull()
@@ -154,7 +165,7 @@ class EffectLifecycleTest :
             // Build full GSM as a final state sanity check; event-backed effect
             // annotations may already have been emitted by playback split frames.
             val snapEff3 = GsmSnapshot.capture(game, b, "test", 2)
-            val gsm2 = StateMapper.buildFromSnapshot(snapEff3, 2, "test", b).gsm
+            val gsm2 = StateMapper.buildFromSnapshot(snapEff3, 2, "test", b, effectFacts = b.materializeEffectProjectionFacts()).gsm
 
             val allTransient = playbackGsms.flatMap { it.annotationsList } + gsm2.annotationsList
             val allPersistent = playbackGsms.flatMap { it.persistentAnnotationsList } + gsm2.persistentAnnotationsList

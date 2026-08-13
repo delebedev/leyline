@@ -901,6 +901,70 @@ class BundleBuilderTest :
             }
         }
 
+        test("Earthbend retries consume only the observed version and preserve a later equal entry") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            val target =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            target.addNewPT(0, 0, 123L, 0L)
+            target.addChangedCardTypes(
+                CardType(listOf("Creature"), true),
+                null,
+                false,
+                EnumSet.noneOf(RemoveType::class.java),
+                123L,
+                0L,
+                true,
+                false,
+            )
+            target.addChangedCardKeywords(listOf("Haste"), null, false, 123L, null)
+            val targetId = ForgeCardId(target.id)
+            b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
+            val builder = bundleBuilder(b)
+            var writerRan = false
+            b.diffListener = { _, _, _, _, _ ->
+                if (!writerRan) {
+                    writerRan = true
+                    b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
+                    val writer = thread(start = true) { b.ids.getOrAlloc(ForgeCardId(1_000_000)) }
+                    writer.join()
+                }
+            }
+
+            val retried =
+                try {
+                    builder.stateOnlyDiff(game, counter)
+                } finally {
+                    b.diffListener = null
+                }
+
+            val pendingAfterRetry = b.materializeEffectProjectionFacts().pendingEarthbendResolutions.map { it.version }
+            val later =
+                builder
+                    .stateOnlyDiff(game, counter)
+                    .messages
+                    .first()
+                    .gameStateMessage
+            assertSoftly {
+                writerRan shouldBe true
+                retried.messages
+                    .first()
+                    .gameStateMessage.annotationsList
+                    .flatMap { it.typeList }
+                    .count { it == AnnotationType.LayeredEffectCreated } shouldBe 4
+                pendingAfterRetry shouldBe listOf(2L)
+                later.annotationsList
+                    .flatMap { it.typeList }
+                    .count { it == AnnotationType.LayeredEffectCreated } shouldBe 0
+                b.materializeEffectProjectionFacts().pendingEarthbendResolutions shouldBe emptyList()
+            }
+        }
+
         test("replaced submitted-target rider aborts before bridge mutations commit") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val builder = bundleBuilder(b)
@@ -916,6 +980,7 @@ class BundleBuilderTest :
                     gameStateId = counter.nextGsId(),
                     matchId = "test-match",
                     bridge = b,
+                    effectFacts = b.materializeEffectProjectionFacts(),
                 )
             val startId = b.annotations.currentAnnotationId()
             val replacement = BundleCursor.PSuTPending(888.iid, SeatId(1))

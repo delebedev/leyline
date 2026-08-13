@@ -86,7 +86,16 @@ class TokenDiffStabilityTest :
             val clueIid = castInspectorAndWaitForClue()
 
             val snapClue1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 1)
-            val gsm = StateMapper.buildFromSnapshot(snapClue1, 1, "test-clue", harness.bridge, viewingSeatId = 1).gsm
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapClue1,
+                        1,
+                        "test-clue",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
             val clueObj =
                 gsm.gameObjectsList
                     .firstOrNull { it.instanceId == clueIid }
@@ -106,7 +115,16 @@ class TokenDiffStabilityTest :
 
             // First GSM — baseline
             val snapClue2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 1)
-            val gsm1 = StateMapper.buildFromSnapshot(snapClue2, 1, "test-clue", harness.bridge, viewingSeatId = 1).gsm
+            val gsm1 =
+                StateMapper
+                    .buildFromSnapshot(
+                        snapClue2,
+                        1,
+                        "test-clue",
+                        harness.bridge,
+                        viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    ).gsm
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
             clueObj1.cardTypesList shouldContain CardType.Artifact_a80b
@@ -127,6 +145,7 @@ class TokenDiffStabilityTest :
                         "test-clue",
                         harness.bridge,
                         viewingSeatId = 1,
+                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
                     ).gsm
 
             // If Clue appears in diff, fields must be intact (not stripped)
