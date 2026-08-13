@@ -446,7 +446,6 @@ object StateMapper {
                 transferResult,
                 actingSeat,
                 bridge,
-                prev = prev,
                 snap = snap,
                 frameIds = frameIds,
                 annotationJournal = annotationJournal,

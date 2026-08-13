@@ -181,7 +181,7 @@ class StateZoneProjectionTest :
             gameObjects.single().parentId shouldBe 818
         }
 
-        test("seat values drive player presence life and match configuration") {
+        test("seat values drive player presence and match configuration") {
             val snap =
                 GsmSnapshot.forTest(
                     seats = listOf(SeatSnapshot(SeatId(2), life = 13, startingLife = 20, maxHandSize = 7)),
@@ -190,7 +190,6 @@ class StateZoneProjectionTest :
             assertSoftly {
                 StateZoneProjection.hasSeat(snap, SeatId(1)) shouldBe false
                 StateZoneProjection.hasSeat(snap, SeatId(2)) shouldBe true
-                StateZoneProjection.currentLifeTotals(snap) shouldBe mapOf(2 to 13)
                 StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true)).variant shouldBe GameVariant.Brawl
                 StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true)).freeMulliganCount shouldBe 1
                 StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(false)).variant shouldBe GameVariant.Normal

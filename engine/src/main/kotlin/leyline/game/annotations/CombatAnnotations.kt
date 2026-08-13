@@ -54,16 +54,10 @@ object CombatAnnotations {
      * Takes frame values and an identity resolver for independent testability.
      *
      * [idResolver] maps forgeCardId → instanceId.
-     * [previousLifeTotals] is seatId → life total from previous GSM baseline.
-     * [currentLifeTotals] is seatId → current life total from engine.
      */
     internal fun combatAnnotations(
         events: List<GameEvent>,
         idResolver: (ForgeCardId) -> InstanceId,
-        @Suppress("UnusedParameter")
-        previousLifeTotals: Map<Int, Int>,
-        @Suppress("UnusedParameter")
-        currentLifeTotals: Map<Int, Int>,
     ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
         val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()

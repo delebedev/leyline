@@ -14,6 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
@@ -89,6 +90,41 @@ class SpectatorSessionTest :
 
                 sink.messages.shouldNotBeEmpty()
                 sink.messages.size shouldBe 2
+            } finally {
+                releaseHook.countDown()
+                session.close()
+            }
+        }
+
+        test("projection freezes Brawl configuration after spectator game starts") {
+            val reachedHook = CountDownLatch(1)
+            val releaseHook = CountDownLatch(1)
+            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            bridge = b
+            val sink = ListMessageSink()
+            val session = SpectatorSession(SeatId(1), "test-match", sink, b)
+
+            try {
+                b.startAiVsAi(
+                    seed = 42,
+                    variant = "brawl",
+                    startGameHook =
+                        Runnable {
+                            reachedHook.countDown()
+                            releaseHook.await(5, TimeUnit.SECONDS)
+                        },
+                )
+                reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+                b.bundleCursor.invalidate()
+                session.sendRealGameState(b, revealForSeat = null)
+
+                val gsm = sink.messages.first { it.hasGameStateMessage() }.gameStateMessage
+                assertSoftly {
+                    gsm.gameInfo.variant shouldBe GameVariant.Brawl
+                    gsm.gameInfo.hasDeckConstraintInfo().shouldBeTrue()
+                    gsm.gameInfo.freeMulliganCount shouldBe 1
+                }
             } finally {
                 releaseHook.countDown()
                 session.close()
