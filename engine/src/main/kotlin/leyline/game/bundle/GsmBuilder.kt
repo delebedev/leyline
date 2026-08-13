@@ -5,13 +5,13 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
 import leyline.game.mapping.ZoneMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Frozen snapshot of turn/phase/seat state for proto construction.
@@ -425,13 +425,12 @@ object GsmBuilder {
         val gameObjects = mutableListOf<GameObjectInfo>()
         if (isBrawl) {
             ZoneMapper.addSharedZoneCardsFromSnapshot(
-                snap,
-                ForgeZoneType.Command,
-                ZoneIds.COMMAND,
-                bridge,
-                zones,
-                gameObjects,
-                bridge.getPlayer(SeatId(1)),
+                snap = snap,
+                arenaZoneId = ZoneIds.COMMAND,
+                environment = StateProjectionEnvironmentCapture.from(bridge),
+                instanceIdLookup = bridge::getOrAllocInstanceId,
+                zones = zones,
+                gameObjects = gameObjects,
             )
         }
 

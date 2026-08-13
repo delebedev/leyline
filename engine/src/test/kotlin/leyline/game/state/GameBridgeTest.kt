@@ -447,7 +447,7 @@ class GameBridgeTest :
                         1,
                         "test-match",
                         b,
-                        actions,
+                        actions = actions,
                         effectFacts = b.materializeEffectProjectionFacts(),
                     ).gsm
 

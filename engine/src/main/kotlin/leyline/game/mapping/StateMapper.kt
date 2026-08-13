@@ -12,7 +12,7 @@ import leyline.game.annotations.CombatAnnotationResult
 import leyline.game.annotations.ConvokeContributor
 import leyline.game.annotations.TransferCategory
 import leyline.game.annotations.TransferResult
-import leyline.game.annotations.ZoneTransferDetector
+import leyline.game.annotations.ZoneTransferAdapter
 import leyline.game.bundle.GsmFrame
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
@@ -34,7 +34,6 @@ import leyline.game.state.SyntheticEffectProjection
 import leyline.game.state.SyntheticEffectTransition
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Orchestrates the GsmSnapshot → proto state-mapping pipeline.
@@ -83,10 +82,10 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * - `bridge.ids`, `getForgeCardId`, and [FrameIdResolver] retain identity and
  *   reverse-reference reads; allocations remain tentative.
  *
- * Explicit live engine/config reads:
- * - `bridge.getPlayer`, `isBrawlOrCommander`, and `getLimboInstanceIds`.
- * - `bridge.findCard` for Paradigm and exhausted-ability state, plus
- *   `bridge.cardProto` and the read-only `bridge.cardRepository`.
+ * Ordinary state and shared-zone semantics read only [GsmSnapshot] plus the
+ * match-scoped [StateProjectionEnvironment]. Stable card-proto data and match
+ * configuration are frozen by the shell before projection. Retained shell
+ * reads outside that layer include limbo and reveal-state tracking.
  * - [AnnotationPipeline] reaches `bridge.abilityRegistryFor`, whose lookup may
  *   populate the retained lazy mutable ability-registry cache.
  *
@@ -94,8 +93,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * - `bridge.opponentKnowledge`, `delayedTriggerHolders`, and
  *   `pendingTransientLinkedFaceFamilyIds`.
  *
- * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Other live
- * Forge/card/reference data remains bridge-attached in this slice.
+ * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Other
+ * annotation/mechanic reference data remains bridge-attached in this slice.
  *
  * Tentative planners over bridge-backed state (not yet lifted onto frame values):
  * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
@@ -191,6 +190,7 @@ object StateMapper {
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
+        environment: StateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge),
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
@@ -213,6 +213,7 @@ object StateMapper {
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
+                environment = environment,
                 actions = actions,
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
@@ -231,6 +232,7 @@ object StateMapper {
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
+        environment: StateProjectionEnvironment,
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
@@ -270,8 +272,6 @@ object StateMapper {
                     earthbendSignatures.firstOrNull { it.forgeCardId == forgeCardId }?.signature,
                 )
             }
-        val human = bridge.getPlayer(SeatId(1))
-        val ai = bridge.getPlayer(SeatId(2))
         val frame = GsmFrame.Companion.from(snap)
 
         // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
@@ -291,32 +291,7 @@ object StateMapper {
         val startAnnotationId = persistentState.nextAnnotationId
 
         // ═══ MAP: engine state → proto objects ═══
-        val isBrawl = bridge.isBrawlOrCommander
-        val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
-
-        val gameInfo =
-            GameInfo
-                .newBuilder()
-                .setMatchID(matchId)
-                .setGameNumber(1)
-                .setStage(GameStage.Play_a920)
-                .setType(GameType.Duel)
-                .setVariant(gameVariant)
-                .setMatchState(MatchState.GameInProgress)
-                .setMatchWinCondition(MatchWinCondition.SingleElimination)
-                .setMulliganType(MulliganType.London)
-        if (isBrawl) {
-            gameInfo.setDeckConstraintInfo(
-                DeckConstraintInfo
-                    .newBuilder()
-                    .setMinDeckSize(58)
-                    .setMaxDeckSize(59)
-                    .setMaxSideboardSize(1)
-                    .setMinCommanderSize(1)
-                    .setMaxCommanderSize(1),
-            )
-            gameInfo.setFreeMulliganCount(1)
-        }
+        val gameInfo = StateZoneProjection.buildGameInfo(matchId, environment.matchConfig)
 
         val player1 = PlayerMapper.buildFromSnapshot(snap, 1)
         val player2 = PlayerMapper.buildFromSnapshot(snap, 2)
@@ -369,7 +344,7 @@ object StateMapper {
         val revealedHandSeat = activeReveal?.ownerSeatId?.value
 
         // Player 1 zones
-        if (human != null) {
+        if (StateZoneProjection.hasSeat(snap, SeatId(1))) {
             ZoneMapper.addPlayerZonesFromSnapshot(
                 SeatId(1),
                 snap,
@@ -387,7 +362,7 @@ object StateMapper {
         }
 
         // Player 2 zones
-        if (ai != null) {
+        if (StateZoneProjection.hasSeat(snap, SeatId(2))) {
             ZoneMapper.addPlayerZonesFromSnapshot(
                 SeatId(2),
                 snap,
@@ -405,23 +380,27 @@ object StateMapper {
         }
 
         // Populate shared zones with cards.
-        ZoneMapper.addSharedZoneCardsFromSnapshot(
-            snap,
-            ForgeZoneType.Battlefield,
-            ZoneIds.BATTLEFIELD,
-            bridge,
-            zones,
-            gameObjects,
-            human,
-            keywordSnapshot,
-        )
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Merged, ZoneIds.SUPPRESSED, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human)
-        ZoneMapper.addSharedZoneCardsFromSnapshot(snap, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human)
+        projectSharedZone(snap, ZoneIds.BATTLEFIELD, environment, bridge, zones, gameObjects, keywordSnapshot)
+        projectSharedZone(snap, ZoneIds.STACK, environment, bridge, zones, gameObjects)
+        projectSharedZone(snap, ZoneIds.SUPPRESSED, environment, bridge, zones, gameObjects)
+        projectSharedZone(snap, ZoneIds.EXILE, environment, bridge, zones, gameObjects)
+        projectSharedZone(snap, ZoneIds.COMMAND, environment, bridge, zones, gameObjects)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
-        ZoneMapper.addStackAbilitiesFromSnapshot(snap, bridge, zones, gameObjects)
+        val stateZoneFacts = StateZoneProjection.zoneTransferFacts(snap)
+        ZoneMapper.addStackAbilitiesFromSnapshot(
+            snap = snap,
+            bridge = bridge,
+            paradigmSourceStackIidLookup = { forgeCardId ->
+                StateZoneProjection.paradigmSourceStackIid(
+                    facts = stateZoneFacts,
+                    forgeCardId = forgeCardId,
+                    stackIidLookup = annotationJournal::paradigmSourceStackIidFor,
+                )
+            },
+            zones = zones,
+            gameObjects = gameObjects,
+        )
 
         // RevealedCard proxy synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
         applyRevealProxies(activeReveal, snap, bridge, zones, gameObjects, eventsMutable)
@@ -430,22 +409,23 @@ object StateMapper {
             "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
             snap.phase.phase,
             snap.phase.turn,
-            human?.getZone(ForgeZoneType.Hand)?.size() ?: 0,
+            snap.zones[ZoneIds.P1_HAND]?.contents?.size ?: 0,
             gameObjects.size,
             zones.size,
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
         var transferResult =
-            ZoneTransferDetector.detectZoneTransfers(
+            ZoneTransferAdapter.detectZoneTransfers(
                 gameObjects,
                 zones,
                 bridge,
+                snap,
                 eventsMutable,
                 annotationJournal,
                 zoneMoves = events.zoneMoves,
             )
-        recordParadigmSourceStackIids(transferResult, bridge, annotationJournal)
+        recordParadigmSourceStackIids(transferResult, snap, annotationJournal)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer even before applyMutations runs.
@@ -623,7 +603,7 @@ object StateMapper {
         val built =
             assembleGsm(
                 gameStateId,
-                gameInfo.build(),
+                gameInfo,
                 frame,
                 transferResult,
                 remaining,
@@ -689,15 +669,12 @@ object StateMapper {
 
     private fun recordParadigmSourceStackIids(
         transferResult: TransferResult,
-        bridge: GameBridge,
+        snap: GsmSnapshot,
         annotationJournal: ProjectionAnnotationJournal.Planner,
     ) {
         for (transfer in transferResult.transfers) {
             val forgeCardId = transfer.forgeCardId ?: continue
-            val isParadigm =
-                bridge.findCard(forgeCardId)?.hasKeyword("Paradigm") == true ||
-                    bridge.cardRepository.findKeywordAbilityGrpId(transfer.grpId, KeywordAbilityIds.PARADIGM) != null
-            if (!isParadigm) continue
+            if (!StateZoneProjection.isParadigm(snap, forgeCardId)) continue
             val isOriginalCast =
                 transfer.category == TransferCategory.CastSpell &&
                     (transfer.srcZoneId == ZoneIds.P1_HAND || transfer.srcZoneId == ZoneIds.P2_HAND) &&
@@ -712,6 +689,26 @@ object StateMapper {
                 annotationJournal.recordParadigmSourceStackIidIfAbsent(forgeCardId, transfer.origId)
             }
         }
+    }
+
+    private fun projectSharedZone(
+        snap: GsmSnapshot,
+        arenaZoneId: Int,
+        environment: StateProjectionEnvironment,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+    ) {
+        ZoneMapper.addSharedZoneCardsFromSnapshot(
+            snap = snap,
+            arenaZoneId = arenaZoneId,
+            environment = environment,
+            instanceIdLookup = bridge::getOrAllocInstanceId,
+            zones = zones,
+            gameObjects = gameObjects,
+            keywordSnapshot = keywordSnapshot,
+        )
     }
 
     private fun boostEntries(
@@ -798,6 +795,7 @@ object StateMapper {
         input: StateFrameInput,
         matchId: String,
         bridge: GameBridge,
+        environment: StateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge),
         actions: ActionsAvailableReq? = null,
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
@@ -810,6 +808,7 @@ object StateMapper {
                 gameStateId = input.gameStateId,
                 matchId = matchId,
                 bridge = bridge,
+                environment = environment,
                 actions = actions,
                 updateType = input.updateType,
                 viewingSeatId = input.viewingSeatId,
@@ -826,6 +825,7 @@ object StateMapper {
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
+        environment: StateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge),
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
@@ -843,6 +843,7 @@ object StateMapper {
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
+                environment = environment,
                 actions = actions,
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
@@ -861,6 +862,7 @@ object StateMapper {
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
+        environment: StateProjectionEnvironment,
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
@@ -874,6 +876,7 @@ object StateMapper {
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
+                environment = environment,
                 actions = actions,
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
@@ -900,6 +903,7 @@ object StateMapper {
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
+                environment = environment,
                 actions = actions,
                 updateType = updateType,
                 viewingSeatId = viewingSeatId,
@@ -919,6 +923,7 @@ object StateMapper {
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
+                environment = environment,
                 revealForSeat = revealForSeat,
                 annotationJournal = annotationJournal,
                 prev = prev,

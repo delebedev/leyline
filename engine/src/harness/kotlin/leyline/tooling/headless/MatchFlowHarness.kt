@@ -20,6 +20,7 @@ import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
@@ -262,6 +263,7 @@ class MatchFlowHarness(
                     0,
                     matchId,
                     bridge,
+                    StateProjectionEnvironmentCapture.from(bridge),
                     viewingSeatId = seatId.value,
                     events = bridge.closeBundleFrame(seatId.value),
                     promptFacts = bridge.materializePromptProjectionFacts(),

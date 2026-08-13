@@ -33,8 +33,11 @@ class SnapshotCaptureTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
             val goalFid = ForgeCardId(-1)
-            snap.objects[goalFid]?.grpId shouldBe 0
-            snap.objects[goalFid]?.name shouldBe "Puzzle Goal"
+            assertSoftly {
+                snap.objects[goalFid]?.grpId shouldBe 0
+                snap.objects[goalFid]?.name shouldBe "Puzzle Goal"
+                snap.objects[goalFid]?.isProjectable shouldBe false
+            }
 
             // Sanity: real card still resolves to a real grpId.
             val bearsCard =
@@ -67,5 +70,41 @@ class SnapshotCaptureTest :
                 snap.zones.getValue(ZoneIds.BATTLEFIELD).contents shouldNotContain helperFid
                 snap.objects.keys shouldNotContain helperFid
             }
+        }
+
+        test("snapshot freezes state-zone projection facts") {
+            lateinit var forest: Card
+            lateinit var source: Card
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    human.setLife(13, null)
+                    source = addCard("Grizzly Bears", human, ZoneType.Graveyard)
+                    forest = addCard("Forest", human, ZoneType.Battlefield)
+                    forest.setEffectSource(source)
+                }
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val forestSnap = snap.objects.getValue(ForgeCardId(forest.id))
+
+            assertSoftly {
+                forestSnap.isProjectable shouldBe true
+                forestSnap.basicLandManaAbilityGrpId shouldBe 1005
+                forestSnap.effectSourceForgeCardId shouldBe ForgeCardId(source.id)
+                forestSnap.owner.value shouldBe 1
+                forestSnap.controller.value shouldBe 1
+                snap.seats.single { it.seatId.value == 1 }.life shouldBe 13
+            }
+        }
+
+        test("snapshot freezes live Paradigm membership") {
+            lateinit var paradigm: Card
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    paradigm = addCard("Germination Practicum", human, ZoneType.Hand)
+                }
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+
+            snap.objects.getValue(ForgeCardId(paradigm.id)).hasParadigmKeyword shouldBe true
         }
     })

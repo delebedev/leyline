@@ -1,20 +1,15 @@
 package leyline.game.annotations
 
-import leyline.bridge.findCard
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
-import leyline.game.data.BasicLandAbilities
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.event.ZoneMove
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.Foretell
-import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
-import leyline.game.state.ProjectionAnnotationJournal
 import leyline.game.state.ZoneHandoff
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -124,7 +119,7 @@ data class TransferResult(
     val stackAbilityDisappearances: List<StackAbilityDisappearance> = emptyList(),
     /**
      * Planned id reallocations for zone-transferred cards. Committed by
-     * [GameBridge.applyMutations] after [leyline.game.mapping.StateMapper.buildDiff] returns.
+     * [leyline.game.state.GameBridge.applyMutations] after [leyline.game.mapping.StateMapper.buildDiff] returns.
      * Empty when no zone transfers occurred.
      */
     val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
@@ -162,106 +157,8 @@ object ZoneTransferDetector {
     private val log = LoggerFactory.getLogger(ZoneTransferDetector::class.java)
 
     /**
-     * Detect zone transfers and plan instanceId reallocations.
-     *
-     * Returns a [TransferResult] with patched copies of objects/zones. Does not
-     * mutate [gameObjects] or [zones]. Id reallocations, limbo retires, and zone
-     * recordings are returned as data; the caller commits via
-     * [GameBridge.applyMutations].
-     *
-     * Delegates to the pure overload, adapting [GameBridge] calls to [ZoneTransferContext].
-     */
-    internal fun detectZoneTransfers(
-        gameObjects: List<GameObjectInfo>,
-        zones: List<ZoneInfo>,
-        bridge: GameBridge,
-        events: List<GameEvent>,
-        annotationJournal: ProjectionAnnotationJournal.Planner,
-        zoneMoves: List<ZoneMove> = emptyList(),
-    ): TransferResult {
-        val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
-        events.filterIsInstance<GameEvent.SpellCast>().filter { !it.isAbility && !it.isTrigger }.forEach { event ->
-            annotationJournal.recordSpellCast(event, event.spellGrpId.takeIf { it != 0 } ?: bridge.cardGrpId(event.cardId))
-        }
-        events.filterIsInstance<GameEvent.SpellResolved>().filter { !it.isAbility && !it.isTrigger }.forEach { event ->
-            annotationJournal.recordSpellResolution(event, event.spellGrpId.takeIf { it != 0 } ?: bridge.cardGrpId(event.cardId))
-        }
-
-        // Compute plans against the active identity planner. A forward/reverse
-        // overlay resolves same-pass queries for freshly-planned fids. The
-        // complete planner state returns through bridge.applyMutations.
-        val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
-        val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
-        val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
-            val plan = bridge.ids.realloc(fid)
-            forwardOverlay[fid] = plan.new
-            reverseOverlay[plan.new] = fid
-            plannedReallocs.add(plan)
-            plan
-        }
-        val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->
-            reverseOverlay[iid] ?: bridge.getForgeCardId(iid)
-        }
-        val idLookup: (ForgeCardId) -> InstanceId = { fid ->
-            forwardOverlay[fid] ?: bridge.getOrAllocInstanceId(fid)
-        }
-
-        val result =
-            detectZoneTransfers(
-                gameObjects = gameObjects,
-                zones = zones,
-                events = events,
-                context =
-                    ZoneTransferContext(
-                        previousZones = bridge.diff.allZones(),
-                        forgeIdLookup = forgeIdLookup,
-                        idAllocator = idAllocator,
-                        idLookup = idLookup,
-                        manaAbilityGrpIdResolver = { fid ->
-                            val card = bridge.getGame()?.let { findCard(it, fid) }
-                            val abilityGrpId =
-                                if (card != null) {
-                                    BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
-                                } else {
-                                    0
-                                }
-                            GrpId(abilityGrpId)
-                        },
-                        grpIdResolver = { fid ->
-                            val card = bridge.getGame()?.let { findCard(it, fid) }
-                            GrpId(if (card != null) bridge.cardRepository.findGrpIdByName(card.name) ?: 0 else 0)
-                        },
-                        isForetoldLookup = { fid ->
-                            bridge.getGame()?.let { findCard(it, fid) }?.let { Foretell.isForetold(it) } ?: false
-                        },
-                        pendingSpellCastLookup = { fid -> annotationJournal.pendingSpellCast(fid, bridge.cardGrpId(fid)) },
-                        pendingSpellResolutionLookup = { fid -> annotationJournal.pendingSpellResolution(fid, bridge.cardGrpId(fid)) },
-                        forgeCardKnown = { fid ->
-                            bridge.getGame()?.let { findCard(it, fid) } != null
-                        },
-                        paradigmSourceIidLookup = { fid ->
-                            annotationJournal.paradigmSourceStackIidFor(fid)
-                                ?: bridge.findCard(fid)?.effectSource?.let { source ->
-                                    annotationJournal.paradigmSourceStackIidFor(ForgeCardId(source.id))
-                                }
-                        },
-                        zoneMoves = zoneMoves,
-                    ),
-            )
-        result.transfers
-            .filter { it.category == TransferCategory.CastSpell }
-            .mapNotNull { it.forgeCardId }
-            .forEach(annotationJournal::consumeSpellCast)
-        result.transfers
-            .filter { it.category == TransferCategory.Resolve || it.category == TransferCategory.Countered }
-            .mapNotNull { it.forgeCardId }
-            .forEach(annotationJournal::consumeSpellResolution)
-        return result.copy(idReallocations = plannedReallocs.toList())
-    }
-
-    /**
      * Detect zone transfers — pure overload.
-     * Takes [ZoneTransferContext] instead of [GameBridge] for independent testability.
+     * Takes [ZoneTransferContext] instead of a bridge for independent testability.
      *
      * Returns a [TransferResult] with patched copies of objects/zones.
      * Does not mutate [gameObjects] or [zones]. Uses [idAllocator]

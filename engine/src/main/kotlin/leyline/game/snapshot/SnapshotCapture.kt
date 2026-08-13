@@ -9,6 +9,7 @@ import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
+import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
@@ -232,6 +233,7 @@ object SnapshotCapture {
                     targets = targets,
                     forgeAbilityId = entry.spellAbility?.id ?: 0,
                     runtimeTriggerId = runtimeTriggerId,
+                    effectSourceForgeCardId = sourceCard.effectSource?.let { ForgeCardId(it.id) },
                 ),
             )
         }
@@ -492,6 +494,10 @@ object SnapshotCapture {
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,
+            isProjectable = card.gamePieceType == forge.card.GamePieceType.CARD || card.isToken,
+            basicLandManaAbilityGrpId = BasicLandAbilities.byForgeSubtypeNames(type.subtypes) ?: 0,
+            effectSourceForgeCardId = card.effectSource?.let { ForgeCardId(it.id) },
+            hasParadigmKeyword = card.hasKeyword("Paradigm"),
             isLand = isLand,
             isAdventureCard = isAdventureCard,
             isOmenCard = isOmenCard,

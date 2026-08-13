@@ -73,4 +73,19 @@ class PendingStackAbilityRegistryTest :
                 registry.contextFor(8)?.identity shouldBe identity
             }
         }
+
+        test("runtime id overwrite clears stale Paradigm source and consume removes it atomically") {
+            val registry = PendingStackAbilityRegistry()
+            val identity = ResolvedAbilityIdentity(AbilityDefinitionRef.Trigger(5), 101)
+
+            registry.recordTrigger(7, ForgeCardId(42), identity, paradigmSourceCardId = ForgeCardId(9))
+            registry.contextFor(7)?.paradigmSourceCardId shouldBe ForgeCardId(9)
+
+            registry.recordTrigger(7, ForgeCardId(43), identity)
+            assertSoftly {
+                registry.contextFor(7)?.paradigmSourceCardId shouldBe null
+                registry.consume(7)?.paradigmSourceCardId shouldBe null
+                registry.contextFor(7) shouldBe null
+            }
+        }
     })

@@ -7,6 +7,7 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -473,6 +474,7 @@ object HandshakeMessages {
                     gameStateId = gameStateId,
                     matchId = matchId,
                     bridge = bridge,
+                    environment = StateProjectionEnvironmentCapture.from(bridge),
                     viewingSeatId = seatId.value,
                     events = bridge.closeBundleFrame(seatId.value),
                     promptFacts = bridge.materializePromptProjectionFacts(),

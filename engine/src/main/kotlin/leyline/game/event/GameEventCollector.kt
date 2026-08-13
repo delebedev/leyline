@@ -295,6 +295,11 @@ class GameEventCollector(
                 null
             }
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
+        val paradigmSourceCardId =
+            realCard
+                ?.effectSource
+                ?.takeIf { isTrigger && abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER }
+                ?.let { ForgeCardId(it.id) }
         if ((isTrigger || isAbility) && abilityIdentity == null) {
             log.warn(
                 "ability identity unresolved at cast card={} runtimeId={} definition={}",
@@ -327,7 +332,12 @@ class GameEventCollector(
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)
         }
         if (isTrigger && abilityForgeId != 0) {
-            pendingStackAbilities.recordTrigger(abilityForgeId, ForgeCardId(card.id), abilityIdentity)
+            pendingStackAbilities.recordTrigger(
+                abilityForgeId,
+                ForgeCardId(card.id),
+                abilityIdentity,
+                paradigmSourceCardId,
+            )
         } else if (isAbility && abilityForgeId != 0) {
             pendingStackAbilities.recordActivation(abilityForgeId, ForgeCardId(card.id), abilityIdentity)
         }
@@ -366,6 +376,7 @@ class GameEventCollector(
                 abilityForgeId = abilityForgeId,
                 abilityGrpId = abilityGrpId,
                 abilityIdentity = abilityIdentity,
+                paradigmSourceCardId = paradigmSourceCardId,
                 triggeringObjectCardId = triggeringObjectCardId,
                 triggeringObjectInstanceId = triggeringObjectInstanceId,
                 activationZoneId = activationZoneId,
@@ -660,6 +671,7 @@ class GameEventCollector(
         val abilityIdentity = context?.identity ?: bridgedIdentity
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
         val cardId = ForgeCardId(card.id)
+        val paradigmSourceCardId = context?.paradigmSourceCardId
         val spellGrpId = pendingSpellFaceGrpIds.remove(cardId) ?: bridge.pendingSpellCast(cardId)?.spellGrpId ?: 0
         val paradigmCopyStackIid = pendingParadigmCopyStackIids.remove(saId) ?: 0
         recordEarthbendResolution(card, saId, isTrigger || isAbility, abilityGrpId, ev.hasFizzled())
@@ -673,6 +685,7 @@ class GameEventCollector(
                 abilityForgeId = if (isTrigger || isAbility) saId else 0,
                 abilityGrpId = if (isTrigger || isAbility) abilityGrpId else 0,
                 abilityIdentity = if (isTrigger || isAbility) abilityIdentity else null,
+                paradigmSourceCardId = paradigmSourceCardId,
                 isParadigmCopy = !isTrigger && !isAbility && paradigmCopyStackIid != 0,
                 stackInstanceId = paradigmCopyStackIid,
                 rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,

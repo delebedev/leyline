@@ -25,6 +25,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
@@ -73,6 +74,7 @@ class BundleBuilder(
     val cursor: BundleCursor = bridge.bundleCursor,
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
+    private val stateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge)
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
@@ -131,6 +133,7 @@ class BundleBuilder(
             input = input.state,
             matchId = matchId,
             bridge = bridge,
+            environment = stateProjectionEnvironment,
         )
 
     private fun buildFrameDiff(

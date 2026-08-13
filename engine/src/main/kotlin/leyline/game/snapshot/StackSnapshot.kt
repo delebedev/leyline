@@ -59,4 +59,6 @@ data class StackEntry(
     val forgeAbilityId: Int = 0,
     /** Forge trigger identity when this stack item came from a trigger. */
     val runtimeTriggerId: Int = 0,
+    /** Forge identity of the source card behind an engine effect helper. */
+    val effectSourceForgeCardId: ForgeCardId? = null,
 )
