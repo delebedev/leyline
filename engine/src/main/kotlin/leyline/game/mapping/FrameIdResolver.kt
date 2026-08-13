@@ -43,8 +43,8 @@ class FrameIdResolver(
      * Card iid as the client will see it at the end of this frame.
      *
      * For zone-transferred cards in this frame, returns the post-realloc iid
-     * planned by `ZoneTransferDetector` (committed by `applyMutations` after
-     * `buildDiff` returns). For everything else, falls back to the bridge's
+     * planned by `ZoneTransferDetector` (committed with the frame transition).
+     * For everything else, falls back to the bridge's
      * current iid (which is the post-realloc iid for un-transferred cards).
      */
     fun cardIid(forgeId: ForgeCardId): InstanceId = postReallocIids[forgeId] ?: bridge.getOrAllocInstanceId(forgeId)

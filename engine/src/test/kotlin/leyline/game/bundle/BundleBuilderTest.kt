@@ -1,6 +1,7 @@
 package leyline.game.bundle
 
 import forge.card.CardType
+import forge.card.GamePieceType
 import forge.card.RemoveType
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
@@ -33,6 +34,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.iid
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
@@ -49,6 +51,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import java.util.EnumSet
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 /**
@@ -86,6 +92,16 @@ class BundleBuilderTest :
                 msg.hasGameStateMessage().shouldBeTrue()
                 msg.gameStateMessage.gameStateId shouldBe 42
             }
+        }
+
+        test("unavailable surveil bundle leaves projection state unchanged") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            val builder = BundleBuilder(b, "test-match", 1)
+            val before = b.projectionStateSnapshot()
+
+            builder.resolveSurveilScryBundle(emptyList(), Messages.GroupingContext.Surveil, MessageCounter()) shouldBe null
+
+            b.projectionStateSnapshot() shouldBe before
         }
 
         test("coinFlipPromptMessages emits promptId 46 notification") {
@@ -692,14 +708,14 @@ class BundleBuilderTest :
             assertSoftly {
                 rider.affectedIdsList shouldBe listOf(b.getOrAllocInstanceId(ForgeCardId(source.id)).value)
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
-                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
             }
         }
 
         test("submitted-target rider leads the finalized frame with ascending ids") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val builder = bundleBuilder(b)
-            builder.cursor.queuePSuT(777.iid, SeatId(1))
+            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
 
             val result = builder.stateOnlyDiff(game, counter)
             val gsm = result.messages.first().gameStateMessage
@@ -708,8 +724,8 @@ class BundleBuilderTest :
                 gsm.annotationsList.first().typeList shouldBe listOf(AnnotationType.PlayerSubmittedTargets)
                 gsm.annotationsList.first().affectedIdsList shouldBe listOf(777)
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
-                builder.cursor.pendingPSuT() shouldBe null
-                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+                builder.pendingSubmittedTargets() shouldBe null
+                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
             }
         }
 
@@ -723,7 +739,7 @@ class BundleBuilderTest :
             assertSoftly {
                 rider.affectedIdsList shouldBe listOf(1)
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
-                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
             }
         }
 
@@ -734,13 +750,13 @@ class BundleBuilderTest :
                 }
             val builder = bundleBuilder(b)
             b.seedDiffBaseline(game, counter.currentGsId())
-            val snap = checkNotNull(builder.cursor.lastSent)
+            val snap = checkNotNull(builder.previousProjectionSnapshot())
             val startInstanceIds = b.getInstanceIdMap()
             val startZones = b.getProtoZones()
-            val startId = b.annotations.currentAnnotationId()
-            val startJournal = b.annotationJournalSnapshot()
-            val pending = BundleCursor.PSuTPending(777.iid, SeatId(1))
-            builder.cursor.queuePSuT(pending.spellInstanceId, pending.casterSeatId)
+            val startId = b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId
+            val startJournal = b.annotationProjectionStateSnapshot()
+            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val pending = checkNotNull(builder.pendingSubmittedTargets())
             val card =
                 game.humanPlayer
                     .getZone(ZoneType.Hand)
@@ -768,12 +784,12 @@ class BundleBuilderTest :
             }
 
             assertSoftly {
-                builder.cursor.lastSent shouldBe snap
-                builder.cursor.pendingPSuT() shouldBe pending
-                b.annotations.currentAnnotationId() shouldBe startId
+                builder.previousProjectionSnapshot() shouldBe snap
+                builder.pendingSubmittedTargets() shouldBe pending
+                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe startId
                 b.getInstanceIdMap() shouldBe startInstanceIds
                 b.getProtoZones() shouldBe startZones
-                b.annotationJournalSnapshot() shouldBe startJournal
+                b.annotationProjectionStateSnapshot() shouldBe startJournal
             }
         }
 
@@ -803,7 +819,7 @@ class BundleBuilderTest :
                     b.diffListener = { _, _ ->
                         if (!writerRan) {
                             writerRan = true
-                            val writer = thread(start = true) { b.ids.getOrAlloc(interleavedForgeId) }
+                            val writer = thread(start = true) { b.getOrAllocInstanceId(interleavedForgeId) }
                             writer.join()
                         }
                     }
@@ -828,14 +844,14 @@ class BundleBuilderTest :
 
                 if (interleaveWriter) {
                     writerRan shouldBe true
-                    b.ids.peek(interleavedForgeId) shouldBe b.ids.getOrAlloc(interleavedForgeId)
+                    b.peekInstanceId(interleavedForgeId) shouldBe b.getOrAllocInstanceId(interleavedForgeId)
                 }
                 val gsm = result.messages.first().gameStateMessage
                 assertSoftly {
                     gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
                     b.promptBridge(SeatId(1)).journal.snapshotChoiceResults() shouldBe emptyList()
                     b
-                        .annotationJournalSnapshot()
+                        .annotationProjectionStateSnapshot()
                         .pendingSpellCasts
                         .find(ForgeCardId(card.id), 100)
                         ?.spellGrpId shouldBe 100
@@ -847,6 +863,92 @@ class BundleBuilderTest :
             val retried = compile(interleaveWriter = true)
 
             retried shouldBe control
+        }
+
+        test("stale retry remaps token group identity after allocation collision") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val human = game.humanPlayer
+            val creator = human.getZone(ZoneType.Battlefield).cards.single()
+            val token = addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            token.setGamePieceType(GamePieceType.TOKEN)
+            token.tokenSpawningAbility = creator.manaAbilities.single()
+            val interleavedForgeId = ForgeCardId(1_000_001)
+            var writerRan = false
+            b.diffListener = { _, _ ->
+                if (!writerRan) {
+                    writerRan = true
+                    val writer = thread(start = true) { b.getOrAllocInstanceId(interleavedForgeId) }
+                    writer.join()
+                }
+            }
+
+            try {
+                bundleBuilder(b).remoteActionDiff(game, counter)
+            } finally {
+                b.diffListener = null
+            }
+
+            val tokenIid = checkNotNull(b.peekInstanceId(ForgeCardId(token.id)))
+            val interleavedIid = checkNotNull(b.peekInstanceId(interleavedForgeId))
+            assertSoftly {
+                writerRan shouldBe true
+                checkNotNull(b.projectionStateSnapshot().tokenGrpIds[tokenIid.value]) shouldBeGreaterThan 0
+                b.projectionStateSnapshot().tokenGrpIds[interleavedIid.value] shouldBe null
+            }
+        }
+
+        test("shared projection build lock preserves frame order across builders") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            b.seedDiffBaseline(game, counter.currentGsId())
+            val firstBuilder = bundleBuilder(b)
+            val secondBuilder = bundleBuilder(b)
+            val firstAtInstall = CountDownLatch(1)
+            val releaseFirst = CountDownLatch(1)
+            val secondDone = CountDownLatch(1)
+            val listenerCalls = AtomicInteger()
+            val failure = AtomicReference<Throwable?>()
+            val results = arrayOfNulls<BundleBuilder.BundleResult>(2)
+            b.diffListener = { _, _ ->
+                if (listenerCalls.incrementAndGet() == 1) {
+                    firstAtInstall.countDown()
+                    check(releaseFirst.await(5, TimeUnit.SECONDS))
+                }
+            }
+
+            val first =
+                thread(start = true) {
+                    try {
+                        results[0] = firstBuilder.remoteActionDiff(game, counter)
+                    } catch (caught: Throwable) {
+                        failure.compareAndSet(null, caught)
+                    }
+                }
+            check(firstAtInstall.await(5, TimeUnit.SECONDS))
+            val second =
+                thread(start = true) {
+                    try {
+                        results[1] = secondBuilder.remoteActionDiff(game, counter)
+                    } catch (caught: Throwable) {
+                        failure.compareAndSet(null, caught)
+                    } finally {
+                        secondDone.countDown()
+                    }
+                }
+
+            secondDone.await(100, TimeUnit.MILLISECONDS) shouldBe false
+            releaseFirst.countDown()
+            first.join()
+            second.join()
+            b.diffListener = null
+            failure.get() shouldBe null
+            val firstGs = checkNotNull(results[0]).messages.first().gameStateId
+            val secondGs = checkNotNull(results[1]).messages.first().gameStateId
+            secondGs shouldBeGreaterThan firstGs
+            b.viewerProjectionCursor().previousSnapshot?.gameStateId shouldBe secondGs
         }
 
         test("Earthbend commits its enriched snapshot and does not re-emit an unchanged target") {
@@ -931,7 +1033,7 @@ class BundleBuilderTest :
                 if (!writerRan) {
                     writerRan = true
                     b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
-                    val writer = thread(start = true) { b.ids.getOrAlloc(ForgeCardId(1_000_000)) }
+                    val writer = thread(start = true) { b.getOrAllocInstanceId(ForgeCardId(1_000_000)) }
                     writer.join()
                 }
             }
@@ -965,13 +1067,13 @@ class BundleBuilderTest :
             }
         }
 
-        test("replaced submitted-target rider aborts before bridge mutations commit") {
+        test("same-value replacement submitted-target rider aborts before bridge mutations commit") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val builder = bundleBuilder(b)
-            val expected = BundleCursor.PSuTPending(777.iid, SeatId(1))
-            builder.cursor.queuePSuT(expected.spellInstanceId, expected.casterSeatId)
+            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val expected = checkNotNull(builder.pendingSubmittedTargets())
             b.seedDiffBaseline(game, counter.currentGsId())
-            val snap = checkNotNull(builder.cursor.lastSent)
+            val snap = checkNotNull(builder.previousProjectionSnapshot())
             val draft =
                 StateMapper.buildDiff(
                     prev = snap,
@@ -983,9 +1085,9 @@ class BundleBuilderTest :
                     effectFacts = b.materializeEffectProjectionFacts(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
-            val startId = b.annotations.currentAnnotationId()
-            val replacement = BundleCursor.PSuTPending(888.iid, SeatId(1))
-            builder.cursor.queuePSuT(replacement.spellInstanceId, replacement.casterSeatId)
+            val startId = b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId
+            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val replacement = checkNotNull(builder.pendingSubmittedTargets())
             val rider = AnnotationBuilder.playerSubmittedTargets(expected.spellInstanceId, expected.casterSeatId)
 
             shouldThrow<IllegalStateException> {
@@ -993,8 +1095,8 @@ class BundleBuilderTest :
             }
 
             assertSoftly {
-                builder.cursor.pendingPSuT() shouldBe replacement
-                b.annotations.currentAnnotationId() shouldBe startId
+                builder.pendingSubmittedTargets() shouldBe replacement
+                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe startId
             }
         }
 
@@ -1099,6 +1201,42 @@ class BundleBuilderTest :
             }
         }
 
+        test("triggered selectN installs source ability identity in frame transition") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val abilityId = 424_242
+            val route =
+                (PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) as ResolvedPromptRoute.SelectN).descriptor
+            val prompt =
+                InteractivePromptBridge.PendingPrompt(
+                    promptId = "triggered-select-n",
+                    request =
+                        PromptRequest(
+                            promptType = "choose_cards",
+                            message = "Choose",
+                            options = emptyList(),
+                            min = 0,
+                            max = 0,
+                            route = ResolvedPromptRoute.SelectN(route),
+                            isTriggeredAbility = true,
+                            forgeAbilityId = abilityId,
+                        ),
+                    future = java.util.concurrent.CompletableFuture(),
+                )
+            val revisionBefore = b.projectionStateSnapshot().revision
+
+            val result =
+                bundleBuilder(b).selectNBundle(game, counter, prompt, route) { req ->
+                    SelectNEnvelope.default(req)
+                }
+
+            val sourceId = result.messages[1].selectNReq.sourceId
+            assertSoftly {
+                b.projectionStateSnapshot().revision shouldBe revisionBefore + 1
+                sourceId shouldBe
+                    b.peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
+            }
+        }
+
         test("orderBundle shape") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val prompt =
@@ -1178,7 +1316,7 @@ class BundleBuilderTest :
             assertSoftly {
                 stagedTypes shouldBe listOf(AnnotationType.ObjectIdChanged, AnnotationType.ZoneTransfer_af5a)
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
-                b.annotations.currentAnnotationId() shouldBe gsm.annotationsList.last().id + 1
+                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
                 b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe null
             }
         }
@@ -1238,7 +1376,10 @@ class BundleBuilderTest :
             } finally {
                 b.diffListener = null
             }
-            b.promptBridge(SeatId(1)).findPendingOrderZoneMove(SeatId(1), listOf(candidate)) shouldBe move
+            b
+                .promptBridge(SeatId(1))
+                .findPendingOrderZoneMove(SeatId(1), listOf(candidate))
+                ?.copy(version = 0) shouldBe move
             b
                 .promptBridge(SeatId(1))
                 .journal

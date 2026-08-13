@@ -5,6 +5,7 @@ import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.CardProtoBuilder
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
+import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.LinkedFaceDescriptor
 import leyline.game.snapshot.ParentLinkage
 import leyline.game.snapshot.PreparedRole
@@ -184,6 +185,7 @@ object ObjectMapper {
         visibility: Visibility = Visibility.Private,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         parentLinkage: ParentLinkage? = null,
+        earthbend: EarthbendProjection? = null,
     ): GameObjectInfo {
         // Supported face-down creatures get a synthetic stencil envelope —
         // the per-card identity (name, subtypes, color, abilities) is
@@ -234,7 +236,7 @@ object ObjectMapper {
                 .setControllerSeatId(cardSnap.controller.value)
                 .setOthersideGrpId(cardSnap.othersideGrpId)
                 .applyFieldsFromSnapshot(cardSnap, parentLinkage)
-        cardSnap.earthbend?.let { earthbend ->
+        earthbend?.let { earthbend ->
             if (builder.uniqueAbilitiesList.none { it.grpId == earthbend.hasteAbilityGrpId }) {
                 builder.addUniqueAbilities(
                     UniqueAbilityInfo

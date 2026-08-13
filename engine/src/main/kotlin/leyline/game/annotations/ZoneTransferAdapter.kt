@@ -7,9 +7,9 @@ import leyline.game.event.GameEvent
 import leyline.game.event.ZoneMove
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
-import leyline.game.state.ProjectionAnnotationJournal
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 
@@ -21,7 +21,7 @@ object ZoneTransferAdapter {
         bridge: GameBridge,
         snapshot: GsmSnapshot,
         events: List<GameEvent>,
-        annotationJournal: ProjectionAnnotationJournal.Planner,
+        annotationJournal: AnnotationProjectionState.Planner,
         zoneMoves: List<ZoneMove> = emptyList(),
     ): TransferResult {
         val plannedReallocs = mutableListOf<InstanceIdRegistry.IdReallocation>()
@@ -50,7 +50,7 @@ object ZoneTransferAdapter {
         val forwardOverlay = mutableMapOf<ForgeCardId, InstanceId>()
         val reverseOverlay = mutableMapOf<InstanceId, ForgeCardId>()
         val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
-            val plan = bridge.ids.realloc(fid)
+            val plan = bridge.reallocInstanceId(fid)
             forwardOverlay[fid] = plan.new
             reverseOverlay[plan.new] = fid
             plannedReallocs.add(plan)
@@ -70,7 +70,7 @@ object ZoneTransferAdapter {
                 events = events,
                 context =
                     ZoneTransferContext(
-                        previousZones = bridge.diff.allZones(),
+                        previousZones = bridge.getProtoZones(),
                         forgeIdLookup = forgeIdLookup,
                         idAllocator = idAllocator,
                         idLookup = idLookup,

@@ -97,7 +97,7 @@ class MulliganHandler(
             -> {
                 if (!bridge.submitMull(seatId)) return
                 mulliganCount++
-                val deletedIds = bridge.ids.resetAll().map { it.value }
+                val deletedIds = bridge.resetInstanceIds().map { it.value }
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
                 sendDealHand(deletedIds)
                 sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)

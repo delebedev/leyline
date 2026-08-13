@@ -8,7 +8,7 @@ import leyline.bridge.types.InstanceId
 
 /**
  * Unit pins for the [ZoneHandoff] data shape — the realloc + retire +
- * zone-assignment bundle that callers fold into [BridgeMutations]. End-to-end
+ * zone-assignment bundle that callers fold into [ProjectionState]. End-to-end
  * coverage of the detector's handoff consumption lives in the existing zone-
  * transfer fixtures (PureDiffReplayTest, BoundCardParityTest, the per-keyword
  * tests).

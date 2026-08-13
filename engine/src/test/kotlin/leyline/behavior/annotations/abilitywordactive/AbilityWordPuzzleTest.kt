@@ -44,7 +44,7 @@ class AbilityWordPuzzleTest :
             // not re-emitted on subsequent Diffs (protocol spec). Assert on the
             // store directly — this is a computation test, not wire shape.
             val awAnns =
-                board.bridge.annotations.snapshot().values.filter {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.filter {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             assertSoftly {
@@ -67,7 +67,7 @@ class AbilityWordPuzzleTest :
 
             // Initial value from the store (baseline) — value=5.
             val aw1 =
-                board.bridge.annotations.snapshot().values.first {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.first {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             aw1.detailInt("value") shouldBe 5
@@ -81,7 +81,7 @@ class AbilityWordPuzzleTest :
 
             // Post-action store — value should be 6.
             val aw2 =
-                board.bridge.annotations.snapshot().values.first {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.first {
                     AnnotationType.AbilityWordActive in it.typeList
                 }
             aw2.detailInt("value") shouldBe 6
@@ -100,7 +100,7 @@ class AbilityWordPuzzleTest :
             board.snapshotDiff {}
 
             val expend =
-                board.bridge.annotations.snapshot().values.single {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.single {
                     AnnotationType.AbilityWordActive in it.typeList &&
                         it.detailString("AbilityWordName") == "ExpendedMana"
                 }
@@ -121,7 +121,7 @@ class AbilityWordPuzzleTest :
             val human = board.game.humanPlayer
 
             fun expendRows() =
-                board.bridge.annotations.snapshot().values.filter {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.filter {
                     AnnotationType.AbilityWordActive in it.typeList &&
                         it.detailString("AbilityWordName") == "ExpendedMana"
                 }
@@ -152,7 +152,7 @@ class AbilityWordPuzzleTest :
             val human = board.game.humanPlayer
 
             fun devotionRow() =
-                board.bridge.annotations.snapshot().values.single {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.single {
                     AnnotationType.AbilityWordActive in it.typeList && it.detailString("AbilityWordName") == "Devotion"
                 }
 
@@ -184,7 +184,7 @@ class AbilityWordPuzzleTest :
             val human = board.game.humanPlayer
 
             fun descendRow() =
-                board.bridge.annotations.snapshot().values.single {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.single {
                     AnnotationType.AbilityWordActive in it.typeList && it.detailString("AbilityWordName") == "Descend"
                 }
 
@@ -209,7 +209,7 @@ class AbilityWordPuzzleTest :
             val castAbility = source.firstSpellAbility.also { it.activatingPlayer = human }
 
             fun spellCountRow() =
-                board.bridge.annotations.snapshot().values.single {
+                board.bridge.projectionStateSnapshot().persistentAnnotations.activeAnnotations.values.single {
                     AnnotationType.AbilityWordActive in it.typeList &&
                         it.detailString("AbilityWordName") == "NumberOfSpellsCast"
                 }

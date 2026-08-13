@@ -14,6 +14,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.CardRevealedKind
 import leyline.game.state.GameBridge
+import leyline.game.state.RevealProxyTracker
 
 class RevealStateContributorTest :
     FunSpec({
@@ -23,7 +24,11 @@ class RevealStateContributorTest :
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val sourceCardId = ForgeCardId(10)
             val revealedCardId = ForgeCardId(20)
-            bridge.revealProxies.allocate(revealedCardId, InstanceId(501))
+            bridge.replaceProjectionStateForTest(
+                bridge.projectionStateSnapshot().copy(
+                    revealProxies = RevealProxyTracker.State(mapOf(revealedCardId to InstanceId(501))),
+                ),
+            )
             val transferResult =
                 TransferResult(
                     transfers =

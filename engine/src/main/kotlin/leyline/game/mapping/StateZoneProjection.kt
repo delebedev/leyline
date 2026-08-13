@@ -3,6 +3,7 @@ package leyline.game.mapping
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectTracker
 import wotc.mtgo.gre.external.messaging.Messages.DeckConstraintInfo
@@ -81,6 +82,7 @@ object StateZoneProjection {
         environment: StateProjectionEnvironment,
         instanceIdLookup: (ForgeCardId) -> InstanceId,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+        earthbendProjection: (ForgeCardId) -> EarthbendProjection? = { null },
     ): SharedZoneProjection? {
         val originalZone = snap.zones[arenaZoneId] ?: return null
         val zoneBuilder =
@@ -107,6 +109,7 @@ object StateZoneProjection {
                     Visibility.Public,
                     keywordSnapshot,
                     parentLinkage = bound.parentLinkage,
+                    earthbend = earthbendProjection(forgeCardId),
                 )
         }
         return SharedZoneProjection(zoneBuilder.build(), gameObjects.toList())

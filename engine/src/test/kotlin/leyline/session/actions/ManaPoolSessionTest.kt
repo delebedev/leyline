@@ -3,6 +3,7 @@ package leyline.session.actions
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
@@ -73,6 +74,16 @@ class ManaPoolSessionTest :
                 pool.size shouldBe 1
                 pool.hasManaFrom(landIid, ManaColor.Green_afc9).shouldBeTrue()
             }
+        }
+
+        test("unsupported mana color leaves projection state unchanged") {
+            leyline.testkit.TestCardRegistry.ensureCardRegistered("Racers' Ring")
+            startPuzzleRaw(File("../puzzles/racers-ring-draw.pzl").readText(), validating = true)
+            val before = harness.bridge.projectionStateSnapshot()
+
+            activateMana("Racers' Ring", selectedColor = ManaColor.Blue_afc9).shouldBeFalse()
+
+            harness.bridge.projectionStateSnapshot() shouldBe before
         }
     })
 

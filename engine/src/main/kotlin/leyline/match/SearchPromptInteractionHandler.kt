@@ -47,7 +47,7 @@ internal class SearchPromptInteractionHandler(
             bridge.awaitPriority()
             drainPendingPlayback()
         }
-        bundles.bundleBuilder.cursor.invalidate()
+        bundles.bundleBuilder.invalidateProjectionBaseline()
         sink.sendRealGameState(bridge)
         autoPass()
     }

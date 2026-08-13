@@ -26,8 +26,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * Completed target groups are recorded after chooseTargetsFor and stored on
  * InteractivePromptBridge. The mapper computes from pending records without
- * consuming them; GameBridge.applyMutations consumes them after the persistent
- * annotation batch is committed.
+ * consuming them; transition acknowledgement consumes the exact version after
+ * projection state is installed.
  */
 class TargetSpecAnnotationTest :
     BoardTest({
@@ -71,12 +71,12 @@ class TargetSpecAnnotationTest :
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             val spec =
-                InteractivePromptBridge.PendingTarget(
+                leyline.game.state.TargetSpec(
                     spellForgeCardId = source.id,
                     spellName = source.name,
                     index = 1,
                     affectorInstanceIdAtRecord = 0,
-                    affectees = listOf(InteractivePromptBridge.PendingTarget.TargetAffectee(targetSeatId = 2)),
+                    affectees = listOf(leyline.game.state.TargetAffectee(null, 2, null)),
                     isStackAbility = true,
                     abilityIdentity =
                         ResolvedAbilityIdentity(
@@ -84,6 +84,7 @@ class TargetSpecAnnotationTest :
                             abilityGrpId = abilityGrpId,
                         ),
                     forgeAbilityId = secondAbilityId,
+                    promptId = null,
                 )
 
             ctx.targetSpecStackAbilityIid(spec) shouldBe
@@ -206,7 +207,7 @@ class TargetSpecAnnotationTest :
             // A later identical selection must survive this older frame's commit.
             b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
 
-            b.applyMutations(result.finalizeAnnotations().mutations)
+            b.commitProjection(checkNotNull(result.finalizeAnnotations().transition))
 
             b
                 .seat(SeatId(1))
@@ -286,7 +287,7 @@ class TargetSpecAnnotationTest :
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true
-            b.applyMutations(gs1.finalizeAnnotations().mutations)
+            b.commitProjection(checkNotNull(gs1.finalizeAnnotations().transition))
 
             // Second GSM: pending consumed, no new targets → TargetSpec removed
             val snapTs2 = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, 2)

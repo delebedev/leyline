@@ -8,7 +8,6 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.mapping.StateMapper
-import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 
@@ -19,9 +18,7 @@ import leyline.game.state.GameBridge
  */
 
 /**
- * Build a Full GSM, apply its [leyline.game.state.BridgeMutations], and seed the shared
- * [leyline.game.bundle.BundleCursor] so the next bundle built through any `BundleBuilder`
- * bound to this bridge starts from a valid diff baseline.
+ * Build and install a Full GSM transition, including the next diff baseline.
  *
  * Returns the captured snapshot — tests that drive subsequent `buildDiff`
  * calls directly (not via a BundleBuilder) can pass it as `prev` explicitly.
@@ -30,7 +27,11 @@ fun GameBridge.seedDiffBaseline(
     game: Game,
     gameStateId: Int = 0,
 ): GsmSnapshot {
-    val snap = GsmSnapshot.capture(game, this, "", gameStateId)
+    val priorProjection = projectionStateSnapshot()
+    val (snap, capturedProjection) =
+        editProjection(priorProjection) {
+            GsmSnapshot.capture(game, this, "", gameStateId)
+        }
     val events = closeBundleFrame()
     val result =
         StateMapper
@@ -39,15 +40,26 @@ fun GameBridge.seedDiffBaseline(
                 gameStateId,
                 "",
                 this,
-                StateProjectionEnvironmentCapture.from(this),
+                stateProjectionEnvironment,
                 events = events,
                 promptFacts = materializePromptProjectionFacts(),
                 effectFacts = materializeEffectProjectionFacts(),
                 mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
                 abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
+                projectionState = capturedProjection.copy(revision = priorProjection.revision),
             ).finalizeAnnotations()
-    applyMutations(result.mutations)
-    bundleCursor.lastSent = snap
+    val transition = checkNotNull(result.transition)
+    val priorCursor = transition.nextState.viewerCursors[0] ?: leyline.game.state.ViewerProjectionCursor()
+    commitProjection(
+        transition.copy(
+            nextState =
+                transition.nextState.copy(
+                    viewerCursors =
+                        transition.nextState.viewerCursors +
+                            (0 to priorCursor.copy(previousSnapshot = snap)),
+                ),
+        ),
+    )
     return snap
 }
 

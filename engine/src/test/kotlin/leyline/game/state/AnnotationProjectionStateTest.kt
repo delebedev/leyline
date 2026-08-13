@@ -9,14 +9,14 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.event.GameEvent
 
-class ProjectionAnnotationJournalTest :
+class AnnotationProjectionStateTest :
     FunSpec({
         tags(UnitTag)
 
         test("discarded journal reduction leaves every lifecycle family unchanged") {
-            val before = ProjectionAnnotationJournal()
+            val before = AnnotationProjectionState()
 
-            val discarded = ProjectionAnnotationJournal.Planner(before)
+            val discarded = AnnotationProjectionState.Planner(before)
             discarded.recordAbility(AbilityWireIdentity(132, 118, 28, 147760))
             discarded.recordSpellCast(GameEvent.SpellCast(ForgeCardId(1), SeatId(1), spellGrpId = 95537), 95537)
             discarded.recordSpellResolution(GameEvent.SpellResolved(ForgeCardId(1), hasFizzled = false, spellGrpId = 95537), 95537)
@@ -25,49 +25,48 @@ class ProjectionAnnotationJournalTest :
             discarded.replaceActiveSteals(setOf(ForgeCardId(4)))
 
             assertSoftly {
-                before shouldBe ProjectionAnnotationJournal()
+                before shouldBe AnnotationProjectionState()
                 discarded
-                    .transition()
-                    .next.abilityLineage
+                    .freeze()
+                    .abilityLineage
                     .find(132)
                     ?.sourceIidAtCreate shouldBe 118
                 discarded
-                    .transition()
-                    .next.pendingSpellCasts
+                    .freeze()
+                    .pendingSpellCasts
                     .find(ForgeCardId(1), 95537)
                     ?.spellGrpId shouldBe 95537
                 discarded
-                    .transition()
-                    .next.pendingSpellResolutions
+                    .freeze()
+                    .pendingSpellResolutions
                     .find(ForgeCardId(1), 95537)
                     ?.spellGrpId shouldBe 95537
-                discarded.transition().next.paradigmSourceStackIids[ForgeCardId(2)] shouldBe 134
-                discarded.transition().next.decayedCleanupSources shouldBe setOf(ForgeCardId(3))
-                discarded.transition().next.activeStealForgeCardIds shouldBe setOf(ForgeCardId(4))
+                discarded.freeze().paradigmSourceStackIids[ForgeCardId(2)] shouldBe 134
+                discarded.freeze().decayedCleanupSources shouldBe setOf(ForgeCardId(3))
+                discarded.freeze().activeStealForgeCardIds shouldBe setOf(ForgeCardId(4))
             }
         }
 
         test("equal reductions produce an equal next journal with same-frame lookup and consume") {
-            fun reduce(): ProjectionAnnotationJournal.Transition {
-                val planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal())
+            fun reduce(): AnnotationProjectionState {
+                val planner = AnnotationProjectionState.Planner(AnnotationProjectionState())
                 val cast = GameEvent.SpellCast(ForgeCardId(1), SeatId(1), spellGrpId = 95537)
                 planner.recordSpellCast(cast, 95537)
                 planner.pendingSpellCast(ForgeCardId(1), 95537) shouldBe cast
                 planner.consumeSpellCast(ForgeCardId(1))
                 planner.recordAbility(AbilityWireIdentity(132, 118, 28, 147760))
                 planner.consumeAbility(132)?.abilityGrpId shouldBe 147760
-                return planner.transition()
+                return planner.freeze()
             }
 
             val first = reduce()
             val second = reduce()
 
             assertSoftly {
-                first.next shouldBe second.next
-                first.next.pendingSpellCasts
+                first shouldBe second
+                first.pendingSpellCasts
                     .find(ForgeCardId(1), 95537)
                     .shouldBeNull()
-                first.expected shouldBe ProjectionAnnotationJournal()
             }
         }
 
@@ -96,7 +95,7 @@ class ProjectionAnnotationJournalTest :
         }
 
         test("all annotation journal lifecycles reduce from one tentative value") {
-            val planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal())
+            val planner = AnnotationProjectionState.Planner(AnnotationProjectionState())
             val cardId = ForgeCardId(1)
             val cast = GameEvent.SpellCast(cardId, SeatId(1), spellGrpId = 95537)
             val resolution = GameEvent.SpellResolved(cardId, hasFizzled = false, spellGrpId = 95537)
@@ -114,7 +113,7 @@ class ProjectionAnnotationJournalTest :
             planner.replaceActiveSteals(setOf(cardId))
             planner.replaceActiveSteals(emptySet())
 
-            val next = planner.transition().next
+            val next = planner.freeze()
             assertSoftly {
                 next.abilityLineage.find(132).shouldBeNull()
                 next.pendingSpellCasts.find(cardId, 95537).shouldBeNull()

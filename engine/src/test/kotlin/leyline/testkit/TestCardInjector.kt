@@ -77,7 +77,7 @@ object TestCardInjector {
         val grpId = TestCardRegistry.ensureCardRegistered(cardName)
 
         // 3. Allocate instanceId in InstanceIdRegistry
-        val instanceId = bridge.ids.getOrAlloc(ForgeCardId(card.id)).value
+        val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
 
         log.info(
             "Injected '{}' → {} (grpId={}, instanceId={}, forgeId={})",

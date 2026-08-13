@@ -31,12 +31,6 @@ class EarthbendProjectionTest :
                     netPower = 4,
                     netToughness = 4,
                     liveCardTypeNumbers = listOf(CardType.Creature.number, CardType.Land_a80b.number),
-                    earthbend =
-                        EarthbendProjection(
-                            sourceCardGrpId = 97490,
-                            hasteAbilityGrpId = 9,
-                            uniqueAbilityId = 203,
-                        ),
                 )
 
             val obj =
@@ -47,6 +41,7 @@ class EarthbendProjectionTest :
                     ownerSeatId = 1,
                     cardProto = CardProtoBuilder(InMemoryCardRepository()),
                     visibility = Visibility.Public,
+                    earthbend = EarthbendProjection(97490, 9, 203),
                 )
 
             assertSoftly {
@@ -62,23 +57,20 @@ class EarthbendProjectionTest :
         test("cut-scoped Earthbend projection reaches the first mapped object") {
             val cardId = ForgeCardId(199)
             val snapshot =
-                GsmSnapshot
-                    .forTest(
-                        objects =
-                            mapOf(
-                                cardId to
-                                    CardSnapshot(
-                                        forgeCardId = cardId,
-                                        name = "Swamp",
-                                        grpId = 102736,
-                                        owner = SeatId(1),
-                                        controller = SeatId(1),
-                                        isOnBattlefield = true,
-                                    ),
-                            ),
-                    ).withEarthbendProjection {
-                        EarthbendProjection(sourceCardGrpId = 97490, hasteAbilityGrpId = 9, uniqueAbilityId = 203)
-                    }
+                GsmSnapshot.forTest(
+                    objects =
+                        mapOf(
+                            cardId to
+                                CardSnapshot(
+                                    forgeCardId = cardId,
+                                    name = "Swamp",
+                                    grpId = 102736,
+                                    owner = SeatId(1),
+                                    controller = SeatId(1),
+                                    isOnBattlefield = true,
+                                ),
+                        ),
+                )
 
             val objectInfo =
                 ObjectMapper.buildFromSnapshot(
@@ -88,6 +80,7 @@ class EarthbendProjectionTest :
                     ownerSeatId = 1,
                     cardProto = CardProtoBuilder(InMemoryCardRepository()),
                     visibility = Visibility.Public,
+                    earthbend = EarthbendProjection(97490, 9, 203),
                 )
 
             assertSoftly {

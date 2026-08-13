@@ -30,7 +30,6 @@ class GsmSnapshot internal constructor(
     val combat: CombatSnapshot?,
     val abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry>,
     val pendingTriggers: List<PendingTriggerSnapshot>,
-    val persistentAnnotationState: PersistentAnnotationState,
     val capturedAt: CaptureMarker,
     /** Game-scope Day/Night state, mirroring `forge.game.Game.getDayTime()`.
      *  `null` = neither (pre-first-transition), `false` = Day, `true` = Night.
@@ -46,28 +45,6 @@ class GsmSnapshot internal constructor(
      *  fallback is a no-op for consumers. */
     val activePlayerSpellsCastThisTurn: Int = 0,
 ) {
-    /** Applies cut-scoped Earthbend projection without mutating the source snapshot. */
-    internal fun withEarthbendProjection(projectionFor: (ForgeCardId) -> EarthbendProjection?): GsmSnapshot =
-        GsmSnapshot(
-            matchId = matchId,
-            gameStateId = gameStateId,
-            seats = seats,
-            zones = zones,
-            boundCards =
-                boundCards.mapValues { (forgeCardId, bound) ->
-                    bound.copy(snapshot = bound.snapshot.copy(earthbend = projectionFor(forgeCardId)))
-                },
-            stack = stack,
-            phase = phase,
-            combat = combat,
-            abilityWordEntries = abilityWordEntries,
-            pendingTriggers = pendingTriggers,
-            persistentAnnotationState = persistentAnnotationState,
-            capturedAt = capturedAt,
-            dayTime = dayTime,
-            activePlayerSpellsCastThisTurn = activePlayerSpellsCastThisTurn,
-        )
-
     /**
      * Derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
      * ForgeCardId. Memoized — diff-time loops iterate `snap.objects`
@@ -91,7 +68,6 @@ class GsmSnapshot internal constructor(
             combat == other.combat &&
             abilityWordEntries == other.abilityWordEntries &&
             pendingTriggers == other.pendingTriggers &&
-            persistentAnnotationState == other.persistentAnnotationState &&
             dayTime == other.dayTime &&
             activePlayerSpellsCastThisTurn == other.activePlayerSpellsCastThisTurn
     }
@@ -107,7 +83,6 @@ class GsmSnapshot internal constructor(
         h = 31 * h + (combat?.hashCode() ?: 0)
         h = 31 * h + abilityWordEntries.hashCode()
         h = 31 * h + pendingTriggers.hashCode()
-        h = 31 * h + persistentAnnotationState.hashCode()
         h = 31 * h + (dayTime?.hashCode() ?: 0)
         h = 31 * h + activePlayerSpellsCastThisTurn
         return h
@@ -143,7 +118,6 @@ class GsmSnapshot internal constructor(
             combat: CombatSnapshot? = null,
             abilityWordEntries: List<AbilityWordScanner.AbilityWordEntry> = emptyList(),
             pendingTriggers: List<PendingTriggerSnapshot> = emptyList(),
-            persistentAnnotationState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
             capturedAt: CaptureMarker = CaptureMarker.unknown(),
             dayTime: Boolean? = null,
             activePlayerSpellsCastThisTurn: Int = 0,
@@ -162,7 +136,6 @@ class GsmSnapshot internal constructor(
                 combat,
                 abilityWordEntries,
                 pendingTriggers,
-                persistentAnnotationState,
                 capturedAt,
                 dayTime,
                 activePlayerSpellsCastThisTurn,

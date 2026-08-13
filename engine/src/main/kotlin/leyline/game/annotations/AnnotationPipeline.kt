@@ -16,6 +16,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustedKind
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.AbilityWireIdentity
+import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.CardRevealedKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.EffectTracker
@@ -27,13 +28,12 @@ import leyline.game.state.ManaDetailsKind
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
-import leyline.game.state.PendingTargetSpecRecord
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentAnnotationStore
-import leyline.game.state.ProjectionAnnotationJournal
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.QualificationKind
 import leyline.game.state.SaddledThisTurnKind
+import leyline.game.state.TargetSpecFact
 import leyline.game.state.TargetSpecKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -105,7 +105,7 @@ object AnnotationPipeline {
         val transient: List<AnnotationInfo>,
         val persistent: List<AnnotationInfo>,
         val batch: PersistentAnnotationStore.BatchResult,
-        val consumedTargetSpecs: List<PendingTargetSpecRecord>,
+        val consumedTargetSpecs: List<TargetSpecFact>,
     )
 
     /** Stages 2-3 of the annotation pipeline: transfers → annotations + combat. */
@@ -120,7 +120,7 @@ object AnnotationPipeline {
         transferResult: TransferResult,
         actingSeat: Int,
         bridge: GameBridge,
-        annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
+        annotationJournal: AnnotationProjectionState.Planner = AnnotationProjectionState.Planner(AnnotationProjectionState()),
         snap: GsmSnapshot? = null,
         frameIds: FrameIdResolver? = null,
         mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
@@ -179,7 +179,7 @@ object AnnotationPipeline {
         bridge: GameBridge? = null,
         snap: GsmSnapshot? = null,
         frameIds: FrameIdResolver? = null,
-        annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
+        annotationJournal: AnnotationProjectionState.Planner = AnnotationProjectionState.Planner(AnnotationProjectionState()),
         paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, _ ->
             annotationJournal.paradigmSourceStackIidFor(forgeCardId)
         },
@@ -536,7 +536,7 @@ object AnnotationPipeline {
         snapshotDisappearanceIids: Set<Int>,
         annotations: MutableList<AnnotationInfo>,
         transferPersistent: MutableList<AnnotationInfo>,
-        annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
+        annotationJournal: AnnotationProjectionState.Planner = AnnotationProjectionState.Planner(AnnotationProjectionState()),
         paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, _ ->
             annotationJournal.paradigmSourceStackIidFor(forgeCardId)
         },
@@ -734,7 +734,7 @@ object AnnotationPipeline {
         persistentFeeds: PersistentFeedSet = PersistentFeedSet(),
         convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
         transferResult: TransferResult,
-        annotationJournal: ProjectionAnnotationJournal.Planner,
+        annotationJournal: AnnotationProjectionState.Planner,
     ): RemainingAnnotationsResult {
         val events = ctx.events
         val bridge = ctx.bridge
@@ -919,7 +919,7 @@ object AnnotationPipeline {
                     },
             )
         val batch =
-            PersistentAnnotationStore.Companion.computeBatch(
+            PersistentAnnotationStore.computeBatch(
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
                 frame = frameContext,

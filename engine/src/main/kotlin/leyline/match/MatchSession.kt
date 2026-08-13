@@ -14,8 +14,6 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markIfPrompt
 import leyline.game.mapping.StopTypeMapping
-import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -182,10 +180,6 @@ class MatchSession(
             val result = bb.phaseTransitionDiff(ctx.game, counter)
             sendBundle(result)
 
-            // Seed state snapshot for subsequent diff computation.
-            val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-            bb.cursor.lastSent = snap1
-
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()
         }
@@ -253,11 +247,6 @@ class MatchSession(
 
         log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
 
-        // Seed state snapshot for subsequent diff computation.
-        // The puzzle initial bundle already sent the Full GSM, so the cursor
-        // needs a matching snapshot for the first Diff to be correct.
-        val snap2 = SnapshotCapture.run(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-        bundleBuilder.cursor.lastSent = snap2
         return true
     }
 

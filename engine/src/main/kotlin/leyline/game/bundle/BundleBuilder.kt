@@ -25,13 +25,15 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
-import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.state.BridgeMutations
 import leyline.game.state.GameBridge
-import leyline.game.state.StaleInstanceIdTransitionException
+import leyline.game.state.PendingSubmittedTargets
+import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionTransition
+import leyline.game.state.StaleProjectionTransitionException
+import leyline.game.state.ViewerProjectionCursor
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -39,8 +41,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
 /**
  * Builds GRE message bundles for each flow milestone.
  *
- * Frame computation reads one snapshot, then ordering-sensitive bridge mutations and
- * the shared projection baseline commit through one seam. There is no Netty or mutable
+ * Frame computation reads one snapshot, then installs projection history and the
+ * shared viewer baseline through one seam. There is no Netty or mutable
  * handler state here. The shared [MessageCounter] advances atomically on each call.
  *
  * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
@@ -65,20 +67,11 @@ class BundleBuilder(
     private val bridge: GameBridge,
     private val matchId: String,
     val seatId: Int,
-    /**
-     * Cursor this builder updates after each bundle. Defaults to
-     * [GameBridge.bundleCursor] so the session builder and the
-     * [leyline.game.GamePlayback] builder share one baseline; tests can inject an
-     * isolated cursor if they don't want the bridge state affected.
-     */
-    val cursor: BundleCursor = bridge.bundleCursor,
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
-    private val stateProjectionEnvironment by lazy {
-        StateProjectionEnvironmentCapture.from(bridge)
-    }
+    private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
@@ -86,9 +79,67 @@ class BundleBuilder(
         val actionGameStateId: Int? = null,
     )
 
+    data class FullStateResult(
+        val snapshot: GsmSnapshot,
+        val gsm: GameStateMessage,
+        val actions: ActionsAvailableReq,
+        val actionOffers: List<ActionOffer>,
+    )
+
     private data class FrameInput(
         val state: StateFrameInput,
     )
+
+    fun fullState(
+        game: Game,
+        gameStateId: Int,
+    ): FullStateResult =
+        synchronized(bridge.projectionBuildLock) {
+            val prior = bridge.projectionStateSnapshot()
+            val (snapshot, frameState) =
+                bridge.editProjection(prior) {
+                    GsmSnapshot.capture(game, bridge, matchId, gameStateId)
+                }
+            val result =
+                StateMapper
+                    .buildFromSnapshot(
+                        snap = snapshot,
+                        gameStateId = gameStateId,
+                        matchId = matchId,
+                        bridge = bridge,
+                        environment = stateProjectionEnvironment,
+                        viewingSeatId = seatId,
+                        events = FrameEventLog.EMPTY,
+                        promptFacts = bridge.materializePromptProjectionFacts(),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, emptyList()),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge),
+                        projectionState = frameState.copy(revision = prior.revision),
+                    ).finalizeAnnotations()
+            val transition = checkNotNull(result.transition)
+            val tentative = transition.nextState.copy(revision = transition.expectedRevision)
+            val (actions, next) =
+                bridge.editProjection(tentative) {
+                    ActionMapper.buildProjectionFromSnapshot(seatId, snapshot, bridge)
+                }
+            val cursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
+            bridge.commitProjection(
+                transition.copy(
+                    nextState =
+                        next.copy(
+                            viewerCursors =
+                                next.viewerCursors +
+                                    (0 to cursor.copy(previousSnapshot = snapshot)),
+                        ),
+                ),
+            )
+            FullStateResult(
+                snapshot = snapshot,
+                gsm = GsmBuilder.embedActions(result.gsm, actions.actions, GsmFrame.from(snapshot), recipientSeatId = seatId),
+                actions = actions.actions,
+                actionOffers = actions.offers,
+            )
+        }
 
     private data class FrameDiff(
         val gameStateId: Int,
@@ -107,9 +158,13 @@ class BundleBuilder(
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
     ): FrameInput {
         val nextGs = counter.nextGsId()
-        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+        val priorProjection = bridge.projectionStateSnapshot()
+        val (snap, capturedProjection) =
+            bridge.editProjection(priorProjection) {
+                GsmSnapshot.capture(game, bridge, matchId, nextGs)
+            }
         val frameEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
-        val previousSnap = cursor.lastSent
+        val previousSnap = bridge.viewerProjectionCursor().previousSnapshot
         val events =
             FrameEventLog(
                 events = frameEvents.events + previousSnap?.let { SnapDeltaSynthesizer.synthesize(it, snap) }.orEmpty(),
@@ -132,13 +187,17 @@ class BundleBuilder(
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
+                projectionState = capturedProjection.copy(revision = priorProjection.revision),
             ),
         )
     }
 
-    private fun compileFrame(input: FrameInput): StateMapper.BuildResult =
+    private fun compileFrame(
+        input: FrameInput,
+        projectionState: ProjectionState = checkNotNull(input.state.projectionState),
+    ): StateMapper.BuildResult =
         StateMapper.buildDiff(
-            input = input.state,
+            input = input.state.copy(projectionState = projectionState),
             matchId = matchId,
             bridge = bridge,
             environment = stateProjectionEnvironment,
@@ -152,55 +211,68 @@ class BundleBuilder(
         includePendingPlayerSubmittedTargets: Boolean = false,
         annotationRiders: (GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo> = { _, _ -> emptyList() },
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
-    ): FrameDiff {
-        val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType)
-        val pendingSubmittedTargets =
-            if (includePendingPlayerSubmittedTargets) {
-                cursor.pendingPSuT()
-            } else {
-                null
-            }
-        return finalizeFrameInput(input, emptyList(), pendingSubmittedTargets, annotationRiders = annotationRiders)
-    }
-
-    private fun finalizeFrameInput(
-        input: FrameInput,
-        riders: List<AnnotationInfo>,
-        pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
-        annotationRiders: ((GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo>)? = null,
     ): FrameDiff =
-        synchronized(bridge.projectionLock) {
-            finalizeFrameInputLocked(input, riders, pendingSubmittedTargets, annotationRiders)
+        synchronized(bridge.projectionBuildLock) {
+            val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType)
+            val pendingSubmittedTargets =
+                if (includePendingPlayerSubmittedTargets) {
+                    bridge.viewerProjectionCursor().pendingSubmittedTargets
+                } else {
+                    null
+                }
+            finalizeFrameInputLocked(input, emptyList(), pendingSubmittedTargets, annotationRiders = annotationRiders)
         }
 
     private fun finalizeFrameInputLocked(
         input: FrameInput,
         riders: List<AnnotationInfo>,
-        pendingSubmittedTargets: BundleCursor.PSuTPending?,
+        pendingSubmittedTargets: PendingSubmittedTargets?,
         annotationRiders: ((GsmSnapshot, FrameIdResolver) -> List<AnnotationInfo>)?,
     ): FrameDiff {
         repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
             try {
                 val result =
-                    bridge.ids.withTentativeState {
-                        val draft = compileFrame(input)
-                        val attemptRiders =
-                            annotationRiders
-                                ?.invoke(
-                                    input.state.snapshot,
-                                    checkNotNull(draft.annotationFrameDraft).idResolver,
-                                )?.toMutableList()
-                                ?: riders.toMutableList()
-                        pendingSubmittedTargets?.let { pending ->
-                            attemptRiders +=
-                                AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
-                        }
-                        val finalized = finalizeStateFrame(draft, attemptRiders, pendingSubmittedTargets)
+                    run {
+                        val retryState =
+                            if (attempt == 0) {
+                                checkNotNull(input.state.projectionState)
+                            } else {
+                                rebaseFrameIdentityState(
+                                    bridge.projectionStateSnapshot(),
+                                    input.state.projectionState,
+                                )
+                            }
+                        val draft = compileFrame(input, retryState)
+                        val transition = checkNotNull(draft.transition)
+                        val tentative = transition.nextState.copy(revision = transition.expectedRevision)
+                        val (finalizedDraft, stagedProjection) =
+                            bridge.editProjection(tentative) {
+                                val attemptRiders =
+                                    annotationRiders
+                                        ?.invoke(
+                                            input.state.snapshot,
+                                            checkNotNull(draft.annotationFrameDraft).idResolver,
+                                        )?.toMutableList()
+                                        ?: riders.toMutableList()
+                                pendingSubmittedTargets?.let { pending ->
+                                    attemptRiders +=
+                                        AnnotationBuilder.playerSubmittedTargets(pending.spellInstanceId, pending.casterSeatId)
+                                }
+                                finalizeStateFrame(draft, attemptRiders, pendingSubmittedTargets)
+                            }
+                        val finalizedCounter = checkNotNull(finalizedDraft.transition).nextState.persistentAnnotations
+                        val finalized =
+                            finalizedDraft.copy(
+                                transition =
+                                    finalizedDraft.transition.copy(
+                                        nextState = stagedProjection.copy(persistentAnnotations = finalizedCounter),
+                                    ),
+                            )
                         bridge.diffListener?.invoke(
                             input.state,
                             finalized.gsm,
                         )
-                        commitProjection(finalized.projectionSnapshot, finalized.mutations, pendingSubmittedTargets)
+                        commitProjection(finalized.projectionSnapshot, checkNotNull(finalized.transition), pendingSubmittedTargets)
                         finalized
                     }
                 return FrameDiff(
@@ -210,7 +282,7 @@ class BundleBuilder(
                     input.state.events,
                     input.state.previousSnapshot,
                 )
-            } catch (stale: StaleInstanceIdTransitionException) {
+            } catch (stale: StaleProjectionTransitionException) {
                 if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
             }
         }
@@ -220,16 +292,14 @@ class BundleBuilder(
     internal fun finalizeStateFrame(
         draft: StateMapper.BuildResult,
         riders: List<AnnotationInfo>,
-        pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
+        pendingSubmittedTargets: PendingSubmittedTargets? = null,
     ): StateMapper.BuildResult {
-        if (pendingSubmittedTargets == null) return draft.finalizeAnnotations(riders)
-
-        return synchronized(cursor) {
-            check(cursor.pendingPSuT() == pendingSubmittedTargets) {
+        if (pendingSubmittedTargets != null) {
+            check(bridge.viewerProjectionCursor().pendingSubmittedTargets == pendingSubmittedTargets) {
                 "Pending PlayerSubmittedTargets changed during frame assembly"
             }
-            draft.finalizeAnnotations(riders)
         }
+        return draft.finalizeAnnotations(riders)
     }
 
     /**
@@ -246,20 +316,51 @@ class BundleBuilder(
      */
     private fun commitProjection(
         snap: GsmSnapshot,
-        mutations: BridgeMutations?,
-        pendingSubmittedTargets: BundleCursor.PSuTPending? = null,
+        transition: ProjectionTransition,
+        pendingSubmittedTargets: PendingSubmittedTargets? = null,
     ) {
-        synchronized(cursor) {
-            pendingSubmittedTargets?.let { pending ->
-                check(cursor.pendingPSuT() == pending) {
-                    "Pending PlayerSubmittedTargets changed before projection commit"
-                }
+        pendingSubmittedTargets?.let { pending ->
+            check(bridge.viewerProjectionCursor().pendingSubmittedTargets == pending) {
+                "Pending PlayerSubmittedTargets changed before projection commit"
             }
-            mutations?.let(bridge::applyMutations)
-            cursor.lastSent = snap
-            pendingSubmittedTargets?.let(cursor::consumePSuT)
+        }
+        val priorCursor = transition.nextState.viewerCursors[0] ?: ViewerProjectionCursor()
+        val nextCursor =
+            priorCursor.copy(
+                previousSnapshot = snap,
+                pendingSubmittedTargets =
+                    if (pendingSubmittedTargets != null) null else priorCursor.pendingSubmittedTargets,
+            )
+        bridge.commitProjection(
+            transition.copy(
+                nextState = transition.nextState.copy(viewerCursors = transition.nextState.viewerCursors + (0 to nextCursor)),
+            ),
+        )
+    }
+
+    fun invalidateProjectionBaseline() {
+        bridge.updateViewerProjectionCursor { it.copy(previousSnapshot = null) }
+    }
+
+    fun queuePendingSubmittedTargets(
+        spellInstanceId: InstanceId,
+        casterSeatId: SeatId,
+    ) {
+        bridge.updateViewerProjectionCursor {
+            it.copy(
+                pendingSubmittedTargets =
+                    PendingSubmittedTargets(
+                        spellInstanceId,
+                        casterSeatId,
+                        version = (it.pendingSubmittedTargets?.version ?: 0) + 1,
+                    ),
+            )
         }
     }
+
+    internal fun pendingSubmittedTargets(): PendingSubmittedTargets? = bridge.viewerProjectionCursor().pendingSubmittedTargets
+
+    internal fun previousProjectionSnapshot(): GsmSnapshot? = bridge.viewerProjectionCursor().previousSnapshot
 
     /**
      * Post-action state bundle:
@@ -435,8 +536,10 @@ class BundleBuilder(
     /** Build playable actions for a seat (with legality checks). */
     fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
         val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
-        val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        return ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates).actions
+        return projectAndCommit {
+            val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
+            ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates).actions
+        }
     }
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
@@ -465,7 +568,34 @@ class BundleBuilder(
     fun phaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
-    ): BundleResult {
+    ): BundleResult =
+        synchronized(bridge.projectionBuildLock) {
+            val prior = bridge.projectionStateSnapshot()
+            val (result, next) = bridge.editProjection(prior) { buildPhaseTransitionDiff(game, counter) }
+            val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
+            bridge.commitProjection(
+                ProjectionTransition(
+                    expectedRevision = prior.revision,
+                    nextState =
+                        next.copy(
+                            viewerCursors =
+                                next.viewerCursors +
+                                    (0 to priorCursor.copy(previousSnapshot = result.snapshot)),
+                        ),
+                ),
+            )
+            result.bundle
+        }
+
+    private data class PhaseTransitionResult(
+        val bundle: BundleResult,
+        val snapshot: GsmSnapshot,
+    )
+
+    private fun buildPhaseTransitionDiff(
+        game: Game,
+        counter: MessageCounter,
+    ): PhaseTransitionResult {
         val prevGs = counter.currentGsId()
         val nextGs = counter.nextGsId()
         val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
@@ -543,8 +673,10 @@ class BundleBuilder(
                 it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             }
 
-        commitProjection(snap, mutations = null)
-        return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), priorityProjection.offers, commitGs)
+        return PhaseTransitionResult(
+            BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), priorityProjection.offers, commitGs),
+            snap,
+        )
     }
 
     /** Embed stripped-down actions from ActionsAvailableReq into a GSM builder. */
@@ -652,54 +784,56 @@ class BundleBuilder(
         requestType: GREMessageType,
         buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
     ): BundleResult {
-        val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
-        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+        return projectAndCommit {
+            val nextGs = counter.nextGsId()
+            val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-        // Echo objects carry no combat state; selection lives in the re-prompt.
-        val objects = mutableListOf<GameObjectInfo>()
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (!card.isCreature) continue
-            val fid = ForgeCardId(card.id)
-            val iid = bridge.getOrAllocInstanceId(fid).value
-            if (iid !in includedInstanceIds) continue
-            val cardSnap = snap.objects[fid] ?: continue
+            // Echo objects carry no combat state; selection lives in the re-prompt.
+            val objects = mutableListOf<GameObjectInfo>()
+            for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+                if (!card.isCreature) continue
+                val fid = ForgeCardId(card.id)
+                val iid = bridge.getOrAllocInstanceId(fid).value
+                if (iid !in includedInstanceIds) continue
+                val cardSnap = snap.objects[fid] ?: continue
 
-            objects.add(
-                ObjectMapper.buildProvisionalCombatObject(
-                    cardSnap,
-                    iid,
-                    ZoneIds.BATTLEFIELD,
-                    ownerSeatId = seatId,
-                    cardProto = bridge.cardProto,
-                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
-                ),
-            )
-        }
-
-        // Cumulative turn-level actions (Cast, Play, ActivateMana, Activate).
-        // Client expects echo GSMs to include this running log.
-        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-
-        val gsmBuilder =
-            GameStateMessage
-                .newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(nextGs)
-                .addAllGameObjects(objects)
-                .setPrevGameStateId(nextGs - 1)
-                .setUpdate(GameStateUpdate.SendAndRecord)
-        embedActions(gsmBuilder, actions, seatId, pending = false)
-
-        val msg1 =
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gsmBuilder.build()
+                objects.add(
+                    ObjectMapper.buildProvisionalCombatObject(
+                        cardSnap,
+                        iid,
+                        ZoneIds.BATTLEFIELD,
+                        ownerSeatId = seatId,
+                        cardProto = bridge.cardProto,
+                        parentLinkage = snap.boundCards[fid]?.parentLinkage,
+                    ),
+                )
             }
 
-        val configureRequest = buildRequestConfig()
-        val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
+            // Cumulative turn-level actions (Cast, Play, ActivateMana, Activate).
+            // Client expects echo GSMs to include this running log.
+            val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-        return BundleResult(listOf(msg1, msg2))
+            val gsmBuilder =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(nextGs)
+                    .addAllGameObjects(objects)
+                    .setPrevGameStateId(nextGs - 1)
+                    .setUpdate(GameStateUpdate.SendAndRecord)
+            embedActions(gsmBuilder, actions, seatId, pending = false)
+
+            val msg1 =
+                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                    it.gameStateMessage = gsmBuilder.build()
+                }
+
+            val configureRequest = buildRequestConfig()
+            val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
+
+            BundleResult(listOf(msg1, msg2))
+        }
     }
 
     /**
@@ -740,6 +874,11 @@ class BundleBuilder(
                 game,
                 counter,
                 annotationRiders = { _, frameIds ->
+                    if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
+                        bridge.getOrAllocInstanceId(
+                            FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId),
+                        )
+                    }
                     prompt.request.sourceEntityId?.let { sourceEntityId ->
                         listOf(
                             AnnotationBuilder.playerSelectingTargets(
@@ -772,7 +911,15 @@ class BundleBuilder(
         route: SelectNPromptRoute,
         envelopeForReq: (SelectNReq) -> SelectNEnvelope,
     ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
+        val diff =
+            buildFrameDiff(
+                game,
+                counter,
+                annotationRiders = { _, _ ->
+                    reservePromptAbilityIdentity(prompt)
+                    emptyList()
+                },
+            ) { _, _ -> GameStateUpdate.Send }
         return selectNBundleFromDiff(diff, counter, envelopeForReq(buildSelectNReq(prompt, route)))
     }
 
@@ -810,6 +957,14 @@ class BundleBuilder(
             if (envelope.allowCancel != AllowCancel.None_a526) {
                 it.allowCancel = envelope.allowCancel
             }
+        }
+    }
+
+    private fun reservePromptAbilityIdentity(prompt: InteractivePromptBridge.PendingPrompt) {
+        if (prompt.request.isTriggeredAbility && prompt.request.forgeAbilityId != 0) {
+            bridge.getOrAllocInstanceId(
+                FrameIdResolver.triggerStackAbilityForgeId(prompt.request.forgeAbilityId),
+            )
         }
     }
 
@@ -853,10 +1008,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
-    ): FrameDiff =
-        synchronized(bridge.projectionLock) {
-            buildOrderFrameLocked(game, counter, prompt)
-        }
+    ): FrameDiff = synchronized(bridge.projectionBuildLock) { buildOrderFrameLocked(game, counter, prompt) }
 
     private fun buildOrderFrameLocked(
         game: Game,
@@ -867,38 +1019,69 @@ class BundleBuilder(
         val pendingMove = pendingOrderZoneMove(prompt)
         repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
             try {
-                return bridge.ids.withTentativeState {
-                    bridge.revealProxies.withTentativeState {
-                        val draft = compileFrame(input)
-                        val stagedMove = stagePendingOrderZoneMove(draft.gsm, input.state.snapshot, prompt, pendingMove)
-                        val stagedGsm = stagedMove?.gsm ?: draft.gsm
-                        val mutations =
-                            draft.mutations.copy(
-                                instanceIdTransition = bridge.ids.tentativeTransition(),
-                                revealTransition = bridge.revealProxies.tentativeTransition(),
-                                retiredIds = draft.mutations.retiredIds + (stagedMove?.retiredIds ?: emptyList()),
-                                zoneRecordings = draft.mutations.zoneRecordings + (stagedMove?.zoneRecordings ?: emptyList()),
+                return run {
+                    val retryState =
+                        if (attempt == 0) {
+                            checkNotNull(input.state.projectionState)
+                        } else {
+                            rebaseFrameIdentityState(
+                                bridge.projectionStateSnapshot(),
+                                input.state.projectionState,
                             )
-                        val finalized = finalizeStateFrame(draft.copy(gsm = stagedGsm, mutations = mutations), emptyList())
-                        bridge.diffListener?.invoke(
-                            input.state,
-                            finalized.gsm,
-                        )
-                        commitProjection(stagedMove?.snap ?: finalized.projectionSnapshot, finalized.mutations)
-                        pendingMove?.let {
-                            bridge.promptBridge(SeatId(seatId)).acknowledgePendingOrderZoneMove(it)
                         }
-                        FrameDiff(
-                            input.state.gameStateId,
-                            finalized.projectionSnapshot,
-                            finalized,
-                            input.state.events,
-                            input.state.previousSnapshot,
-                            stagedMove != null,
+                    val draft = compileFrame(input, retryState)
+                    val tentative =
+                        checkNotNull(draft.transition)
+                            .let { it.nextState.copy(revision = it.expectedRevision) }
+                    val (stagedMove, stagedProjection) =
+                        bridge.editProjection(tentative) {
+                            stagePendingOrderZoneMove(draft.gsm, input.state.snapshot, prompt, pendingMove)
+                        }
+                    val stagedGsm = stagedMove?.gsm ?: draft.gsm
+                    val stagedNext =
+                        stagedProjection.copy(
+                            limboInstanceIds =
+                                stagedProjection.limboInstanceIds + stagedMove?.retiredIds.orEmpty().map { it.value },
+                            protoZones =
+                                stagedProjection.protoZones +
+                                    stagedMove?.zoneRecordings.orEmpty().associate { (iid, zid) -> iid.value to zid },
                         )
-                    }
+                    val finalized =
+                        finalizeStateFrame(
+                            draft.copy(
+                                gsm = stagedGsm,
+                                transition = draft.transition.copy(nextState = stagedNext),
+                            ),
+                            emptyList(),
+                        )
+                    val transition = checkNotNull(finalized.transition)
+                    val acknowledged =
+                        if (pendingMove == null) {
+                            transition
+                        } else {
+                            transition.copy(
+                                acknowledgements =
+                                    transition.acknowledgements.copy(
+                                        pendingOrderMove =
+                                            leyline.game.state.PromptFactKey(pendingMove.seatId, pendingMove.version),
+                                    ),
+                            )
+                        }
+                    bridge.diffListener?.invoke(
+                        input.state,
+                        finalized.gsm,
+                    )
+                    commitProjection(stagedMove?.snap ?: finalized.projectionSnapshot, acknowledged)
+                    FrameDiff(
+                        input.state.gameStateId,
+                        finalized.projectionSnapshot,
+                        finalized,
+                        input.state.events,
+                        input.state.previousSnapshot,
+                        stagedMove != null,
+                    )
                 }
-            } catch (stale: StaleInstanceIdTransitionException) {
+            } catch (stale: StaleProjectionTransitionException) {
                 if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
             }
         }
@@ -956,7 +1139,7 @@ class BundleBuilder(
 
         val moved =
             move.forgeCardIds.map { fid ->
-                val realloc = bridge.ids.realloc(fid)
+                val realloc = bridge.reallocInstanceId(fid)
                 StagedMovedCard(fid, realloc.old, realloc.new)
             }
         val stagedSnap = stagedOrderSnapshot(snap, move, sourceZoneId, destZoneId)
@@ -998,7 +1181,6 @@ class BundleBuilder(
             combat = snap.combat,
             abilityWordEntries = snap.abilityWordEntries,
             pendingTriggers = snap.pendingTriggers,
-            persistentAnnotationState = snap.persistentAnnotationState,
             capturedAt = snap.capturedAt,
             dayTime = snap.dayTime,
             activePlayerSpellsCastThisTurn = snap.activePlayerSpellsCastThisTurn,
@@ -1440,6 +1622,18 @@ class BundleBuilder(
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
+    ): BundleResult =
+        projectAndCommit {
+            buildGameOverBundle(winningTeam, counter, reason, losingPlayerSeatId, lossReason)
+        }
+
+    @Suppress("LongMethod") // fixed three-message game-over protocol sequence
+    private fun buildGameOverBundle(
+        winningTeam: Int,
+        counter: MessageCounter,
+        reason: ResultReason,
+        losingPlayerSeatId: Int,
+        lossReason: AnnotationLossReason,
     ): BundleResult {
         val prevGsId = counter.currentGsId()
         val losingTeam = if (winningTeam == 1) 2 else 1
@@ -1713,22 +1907,53 @@ class BundleBuilder(
         candidateRefs: List<PromptCandidateRefDto>,
         context: GroupingContext,
         counter: MessageCounter,
-    ): BundleResult? {
-        val game = bridge.getGame() ?: return null
-        val resolved =
-            candidateRefs
-                .filter { it.isCard() }
-                .mapNotNull { ref ->
-                    val card = game.findById(ref.entityId)
-                    if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
+    ): BundleResult? =
+        projectAndCommitIfNotNull {
+            val game = bridge.getGame() ?: return@projectAndCommitIfNotNull null
+            val resolved =
+                candidateRefs
+                    .filter { it.isCard() }
+                    .mapNotNull { ref ->
+                        val card = game.findById(ref.entityId)
+                        if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
+                    }
+            if (resolved.isEmpty()) return@projectAndCommitIfNotNull null
+            val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
+            val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
+            if (topCardSnaps.size != resolved.size) return@projectAndCommitIfNotNull null
+            val cardInstanceIds = resolved.map { it.second }
+            val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
+            surveilScryBundle(topCardSnaps, cardInstanceIds, sourceId, context, counter)
+        }
+
+    private fun <T> projectAndCommit(block: () -> T): T =
+        synchronized(bridge.projectionBuildLock) {
+            val prior = bridge.projectionStateSnapshot()
+            val (result, next) = bridge.editProjection(prior) { block() }
+            bridge.commitProjection(ProjectionTransition(prior.revision, next))
+            result
+        }
+
+    private fun <T : Any> projectAndCommitIfNotNull(block: () -> T?): T? =
+        synchronized(bridge.projectionBuildLock) {
+            val prior = bridge.projectionStateSnapshot()
+            val (result, next) = bridge.editProjection(prior) { block() }
+            result?.also { bridge.commitProjection(ProjectionTransition(prior.revision, next)) }
+        }
+
+    private fun rebaseFrameIdentityState(
+        committed: ProjectionState,
+        frameState: ProjectionState,
+    ): ProjectionState {
+        val (_, rebased) =
+            bridge.editProjection(committed) { editor ->
+                for ((frameInstanceId, grpId) in frameState.tokenGrpIds) {
+                    val forgeCardId = frameState.identities.instanceIdToForgeId[InstanceId(frameInstanceId)] ?: continue
+                    val rebasedInstanceId = editor.identities.getOrAlloc(forgeCardId)
+                    editor.tokenGrpIds.putIfAbsent(rebasedInstanceId.value, grpId)
                 }
-        if (resolved.isEmpty()) return null
-        val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-        val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
-        if (topCardSnaps.size != resolved.size) return null
-        val cardInstanceIds = resolved.map { it.second }
-        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
-        return surveilScryBundle(topCardSnaps, cardInstanceIds, sourceId, context, counter)
+            }
+        return rebased.copy(revision = committed.revision)
     }
 
     /**

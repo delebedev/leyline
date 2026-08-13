@@ -459,9 +459,7 @@ class MatchConnection(
                 bridge,
                 dieRollWinner = bridge.dieRollWinner,
                 includeStartingPlayerPrompt = !isSpectatorMode(),
-                onInitialSnapshot = { snap ->
-                    if (isSpectatorMode()) bridge.bundleCursor.lastSent = snap
-                },
+                seedProjectionCursor = isSpectatorMode(),
             )
         s.counter.setMsgId(nextMsgId)
         s.counter.markGameStateGsId(gsId)

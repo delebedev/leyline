@@ -1,7 +1,5 @@
 package leyline.game.annotations
 
-import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.codes.CounterTypes
@@ -11,11 +9,13 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
+import leyline.game.state.ConvokePayment
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
+import leyline.game.state.TargetSpec
 
 /**
  * Bundle of the shared annotation-time resolvers used across the
@@ -59,7 +59,7 @@ class AnnotationContext(
             .mapNotNull { ev ->
                 val payments =
                     promptFacts.convokePayments
-                        .firstOrNull { it.seatId == ev.seatId && it.sourceForgeCardId == ev.cardId }
+                        .firstOrNull { it.key.seatId == ev.seatId && it.sourceForgeCardId == ev.cardId }
                         ?.payments
                         .orEmpty()
                 if (payments.isEmpty()) {
@@ -69,7 +69,7 @@ class AnnotationContext(
                 }
             }.toMap()
 
-    private fun PromptSideEffect.ConvokePayment.toConvokePaymentRecord(): TransferAnnotations.ConvokePaymentRecord =
+    private fun ConvokePayment.toConvokePaymentRecord(): TransferAnnotations.ConvokePaymentRecord =
         TransferAnnotations.ConvokePaymentRecord(
             paymentForgeCardId = paymentForgeCardId,
             color = color,
@@ -132,7 +132,7 @@ class AnnotationContext(
         return bound.snapshot.grpId
     }
 
-    fun targetSpecAbilityGrpId(spec: InteractivePromptBridge.PendingTarget): Int {
+    fun targetSpecAbilityGrpId(spec: TargetSpec): Int {
         if (spec.promptId == PromptIds.MUTATE_TARGET) return 0
         spec.abilityIdentity
             ?.abilityGrpId
@@ -148,7 +148,7 @@ class AnnotationContext(
     }
 
     /** Resolve the stack object for a completed non-spell target group. */
-    fun targetSpecStackAbilityIid(spec: InteractivePromptBridge.PendingTarget): InstanceId {
+    fun targetSpecStackAbilityIid(spec: TargetSpec): InstanceId {
         val sourceCardId = ForgeCardId(spec.spellForgeCardId)
         val abilityGrpId = targetSpecAbilityGrpId(spec)
         val stackEntries = snap.stack.entries.filter { !it.isSpell && it.forgeCardId == sourceCardId }

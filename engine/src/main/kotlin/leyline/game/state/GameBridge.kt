@@ -32,7 +32,6 @@ import leyline.bridge.types.Seating
 import leyline.config.MatchConfig
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
-import leyline.game.bundle.BundleCursor
 import leyline.game.bundle.MessageCounter
 import leyline.game.codes.CounterTypes
 import leyline.game.data.CardData
@@ -43,8 +42,8 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
 import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
@@ -66,13 +65,8 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * and blocks until the engine reaches mulligan. The client handler reads hands
  * and submits keep/mull decisions through this bridge.
  *
- * Internally composed of focused components:
- * - [InstanceIdRegistry] — Forge cardId ↔ client instanceId bimap
- * - [LimboTracker] — retired instanceId history
- * - [DiffSnapshotter] — zone tracking + diff-baseline/client-seen snapshots
- * - [ProjectionAnnotationJournal] — committed annotation correlation installed
- *   only with an accepted projection batch; prompt journals and live Forge
- *   reads remain separate.
+ * [ProjectionState] is the single committed authority for client-facing history.
+ * Prompt journals and live Forge reads remain shell-owned observations.
  *
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
  * The engine thread blocks at mulligan via [MulliganBridge]. Projection compile
@@ -101,8 +95,79 @@ class GameBridge(
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
-    /** Serializes projection compile-through-commit for bridge-owned lifecycle trackers. */
+    /** Immutable reference data shared by every projection path for this match. */
+    internal val stateProjectionEnvironment by lazy { StateProjectionEnvironmentCapture.from(this) }
+
+    /** Guards the committed projection value and compare-and-set installation. */
     internal val projectionLock = Any()
+
+    /** Preserves engine-cut order across every bundle builder sharing this match. */
+    internal val projectionBuildLock = Any()
+
+    private var projectionState = ProjectionState.initial()
+    private val activeProjectionEditor = ThreadLocal<ProjectionState.Editor?>()
+
+    internal fun projectionStateSnapshot(): ProjectionState = synchronized(projectionLock) { projectionState }
+
+    @VisibleForTesting
+    internal fun replaceProjectionStateForTest(state: ProjectionState) {
+        synchronized(projectionLock) { projectionState = state }
+    }
+
+    internal fun <T> editProjection(
+        prior: ProjectionState,
+        block: (ProjectionState.Editor) -> T,
+    ): Pair<T, ProjectionState> {
+        check(activeProjectionEditor.get() == null) { "Nested projection edits are not supported" }
+        val editor = prior.editor()
+        activeProjectionEditor.set(editor)
+        return try {
+            block(editor) to editor.freeze()
+        } finally {
+            activeProjectionEditor.remove()
+        }
+    }
+
+    internal fun installProjection(transition: ProjectionTransition): Boolean =
+        synchronized(projectionLock) {
+            if (projectionState.revision != transition.expectedRevision) return false
+            check(transition.nextState.revision == transition.expectedRevision + 1) {
+                "Projection transition revision must advance exactly once"
+            }
+            projectionState = transition.nextState
+            true
+        }
+
+    internal fun commitProjection(transition: ProjectionTransition) {
+        if (!installProjection(transition)) throw StaleProjectionTransitionException()
+        pendingEarthbendResolutions.removeAll {
+            it.version in transition.acknowledgements.consumedEarthbendResolutionVersions
+        }
+        consumePromptFacts(transition.acknowledgements.promptFacts)
+        transition.acknowledgements.pendingOrderMove?.let { key ->
+            promptBridge(key.seatId).acknowledgePendingOrderZoneMove(key.version)
+        }
+    }
+
+    private fun <T> updateProjection(block: (ProjectionState.Editor) -> T): T =
+        synchronized(projectionLock) {
+            val prior = projectionState
+            val editor = prior.editor()
+            val result = block(editor)
+            val next = editor.freeze()
+            if (next.copy(revision = prior.revision) != prior) {
+                projectionState = next
+            }
+            result
+        }
+
+    internal fun viewerProjectionCursor(): ViewerProjectionCursor = projectionStateSnapshot().viewerCursors[0] ?: ViewerProjectionCursor()
+
+    internal fun updateViewerProjectionCursor(block: (ViewerProjectionCursor) -> ViewerProjectionCursor) {
+        updateProjection { editor ->
+            editor.viewerCursors[0] = block(editor.viewerCursors[0] ?: ViewerProjectionCursor())
+        }
+    }
 
     private var game: Game? = null
 
@@ -113,7 +178,6 @@ class GameBridge(
     private var loopController: GameLoopController? = null
 
     /** Committed cross-frame annotation correlation. Projection writes only through a tentative planner. */
-    private var annotationJournal = ProjectionAnnotationJournal()
     private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
@@ -145,11 +209,12 @@ class GameBridge(
     fun consumeSelectedSpellGrpId(cardId: ForgeCardId): Int? = selectedSpellGrpIds.remove(cardId)
 
     /** Read-only committed correlation for event collection and snapshot capture. */
-    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? = annotationJournal.pendingSpellCasts.find(cardId, cardGrpId(cardId))
+    fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
+        projectionStateSnapshot().annotations.pendingSpellCasts.find(cardId, cardGrpId(cardId))
 
     /** Read-only committed correlation for event collection and snapshot capture. */
     fun pendingSpellResolution(cardId: ForgeCardId): GameEvent.SpellResolved? =
-        annotationJournal.pendingSpellResolutions.find(cardId, cardGrpId(cardId))
+        projectionStateSnapshot().annotations.pendingSpellResolutions.find(cardId, cardGrpId(cardId))
 
     internal fun cardGrpId(cardId: ForgeCardId): Int? = findCard(cardId)?.name?.let { cardRepository.findGrpIdByName(it) }
 
@@ -189,10 +254,10 @@ class GameBridge(
     fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = pendingTriggerCleanupGrpIds[triggerId]
 
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
-        annotationJournal.paradigmSourceStackIids[fid]
+        projectionStateSnapshot().annotations.paradigmSourceStackIids[fid]
             ?: findCard(fid)
                 ?.effectSource
-                ?.let { source -> annotationJournal.paradigmSourceStackIids[ForgeCardId(source.id)] }
+                ?.let { source -> projectionStateSnapshot().annotations.paradigmSourceStackIids[ForgeCardId(source.id)] }
 
     /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
     val prioritySignal = PrioritySignal()
@@ -226,7 +291,7 @@ class GameBridge(
             InteractivePromptBridge(timeoutMs = promptFailsafeMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
-                it.instanceIdReservoir = { ids.reserveNextInstanceId() }
+                it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
@@ -294,7 +359,7 @@ class GameBridge(
             InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
                 it.trackedZoneResolver = ::trackedZoneFor
-                it.instanceIdReservoir = { ids.reserveNextInstanceId() }
+                it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
                 it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
@@ -382,21 +447,6 @@ class GameBridge(
 
     // --- Composed components ---
 
-    /** Card ID mapping (Forge cardId ↔ client instanceId). */
-    val ids = InstanceIdRegistry()
-
-    /** Retired instanceId history (Limbo zone). */
-    val limbo = LimboTracker()
-
-    /** Zone tracking + diff baseline/client-seen state tracking. */
-    val diff = DiffSnapshotter()
-
-    /**
-     * Bundle-sequence cursor shared by every [leyline.game.bundle.BundleBuilder] bound to this
-     * bridge. See [BundleCursor] KDoc for lifecycle + invalidation semantics.
-     */
-    val bundleCursor: BundleCursor = BundleCursor()
-
     /**
      * Test-only observability hook — invoked per bundle after
      * [leyline.game.mapping.StateMapper.buildDiff] finalization and immediately
@@ -422,89 +472,91 @@ class GameBridge(
 
     /** Currently active RevealedCard proxy IDs, managed via [RevealProxyTracker].
      *  Written on engine thread (during buildFromSnapshot), read serially — not concurrent. */
-    val revealProxies: RevealProxyTracker = RevealProxyTracker()
+    internal fun activeRevealProxies(): RevealProxyTracker.Planner =
+        checkNotNull(activeProjectionEditor.get()) {
+            "Reveal state is only available while compiling a projection"
+        }.revealProxies
 
-    /** Actual hidden-zone identities whose reveal remains known to the opponent. */
-    val opponentKnowledge: OpponentKnowledgeTracker = OpponentKnowledgeTracker()
+    internal fun planOpponentKnowledge(
+        snap: leyline.game.snapshot.GsmSnapshot,
+        frameIds: leyline.game.mapping.FrameIdResolver,
+        events: List<GameEvent>,
+    ): List<InstanceId> {
+        val editor = checkNotNull(activeProjectionEditor.get())
+        val (knownIds, next) = OpponentKnowledgeTracker.plan(editor.opponentKnowledge, snap, frameIds, events)
+        editor.opponentKnowledge = next
+        return knownIds
+    }
 
-    /** Committed synthetic-effect projection state. Compiles receive a private planner. */
-    private var syntheticEffects = SyntheticEffectProjection.initial()
-    private var effectPlanner: SyntheticEffectProjection.Planner? = null
+    internal fun activeOpponentKnowledgeState(): OpponentKnowledgeTracker.State =
+        checkNotNull(activeProjectionEditor.get()).opponentKnowledge
+
+    internal fun activePersistentAnnotationState(): PersistentAnnotationState =
+        checkNotNull(activeProjectionEditor.get()).persistentAnnotations
+
+    internal fun activeHolderRecords(): Map<Int, HolderRecord> = checkNotNull(activeProjectionEditor.get()).delayedTriggerHolders
+
+    internal fun applyHolderBatch(batch: HolderBatch) {
+        val holders = checkNotNull(activeProjectionEditor.get()).delayedTriggerHolders
+        batch.removed.forEach(holders::remove)
+        batch.added.forEach { holders[it.iid] = it }
+    }
+
+    internal fun applyProjectionHistory(
+        retiredIds: Collection<InstanceId>,
+        zoneRecordings: Collection<Pair<InstanceId, Int>>,
+        persistentBatch: PersistentAnnotationStore.BatchResult,
+        nextTransientLinkedFaceFamilyIds: Set<InstanceId>,
+    ) {
+        val editor = checkNotNull(activeProjectionEditor.get())
+        retiredIds.forEach { editor.limboInstanceIds += it.value }
+        zoneRecordings.forEach { (iid, zid) -> editor.protoZones[iid.value] = zid }
+        editor.persistentAnnotations =
+            PersistentAnnotationState(
+                activeAnnotations = persistentBatch.allAnnotations.associateBy { it.id },
+                nextAnnotationId = editor.persistentAnnotations.nextAnnotationId,
+                nextPersistentId = persistentBatch.nextPersistentId,
+            )
+        editor.transientLinkedFaceFamilyIds = nextTransientLinkedFaceFamilyIds
+    }
 
     private val pendingEarthbendResolutions = mutableListOf<EffectProjectionFacts.PendingEarthbendResolution>()
     private var nextEarthbendResolutionVersion = 1L
 
-    internal fun <T> withTentativeEffectProjection(block: (SyntheticEffectProjection.Planner) -> T): T {
-        check(effectPlanner == null) { "Nested synthetic-effect projection is not supported" }
-        val planner = SyntheticEffectProjection.Planner(syntheticEffects)
-        effectPlanner = planner
-        return try {
-            block(planner)
-        } finally {
-            effectPlanner = null
-        }
-    }
-
-    internal fun tentativeEffectProjection(): SyntheticEffectProjection =
-        checkNotNull(effectPlanner) { "Synthetic-effect state is only available while compiling a projection" }.freeze()
-
     internal fun activeEffectPlanner(): SyntheticEffectProjection.Planner =
-        checkNotNull(effectPlanner) { "Synthetic-effect state is only available while compiling a projection" }
-
-    internal fun committedEffectProjection(): SyntheticEffectProjection = syntheticEffects
-
-    internal fun canCommitEffectProjection(expected: SyntheticEffectProjection): Boolean = syntheticEffects == expected
-
-    private fun commitEffectProjection(
-        expected: SyntheticEffectProjection,
-        next: SyntheticEffectProjection,
-    ) {
-        check(syntheticEffects == expected) { "Synthetic-effect transition is stale" }
-        syntheticEffects = next
-    }
-
-    private fun consumeEarthbendResolutions(resolutions: List<EffectProjectionFacts.PendingEarthbendResolution>) {
-        val consumedVersions = resolutions.mapTo(hashSetOf()) { it.version }
-        pendingEarthbendResolutions.removeAll { it.version in consumedVersions }
-    }
+        checkNotNull(activeProjectionEditor.get()) {
+            "Synthetic-effect state is only available while compiling a projection"
+        }.effects
 
     /** Cached token grpId per instanceId — stable across diff ticks. */
-    val tokenRegistry = TokenIdentityRegistry()
+    val tokenRegistry =
+        TokenIdentityRegistry(
+            read = { iid -> activeProjectionEditor.get()?.tokenGrpIds?.get(iid) ?: projectionStateSnapshot().tokenGrpIds[iid] },
+            write = { iid, grpId ->
+                val editor = activeProjectionEditor.get()
+                if (editor != null) {
+                    editor.tokenGrpIds.putIfAbsent(iid, grpId)
+                } else {
+                    updateProjection { it.tokenGrpIds.putIfAbsent(iid, grpId) }
+                }
+            },
+            remove = { iid ->
+                val editor = activeProjectionEditor.get()
+                if (editor != null) {
+                    editor.tokenGrpIds.remove(iid)
+                } else {
+                    updateProjection { it.tokenGrpIds.remove(iid) }
+                }
+            },
+            clearAll = {
+                activeProjectionEditor.get()?.tokenGrpIds?.clear()
+                    ?: updateProjection { it.tokenGrpIds.clear() }
+            },
+        )
 
-    /**
-     * Annotation ID sequences + persistent annotation lifecycle.
-     * See [PersistentAnnotationStore] class KDoc for the full lifecycle
-     * (create/carry-forward/replace/delete/drain) and ordering invariants.
-     */
-    val annotations = PersistentAnnotationStore()
+    fun activeDecayedCleanupSources(): Set<ForgeCardId> = projectionStateSnapshot().annotations.decayedCleanupSources
 
-    /**
-     * Cross-GSM lifecycle for transient `TriggerHolder` gameObjects (Mobilize
-     * EOT-sacrifice today; exile-and-return mechanics later). See
-     * [DelayedTriggerHolderTracker] for the diff-and-emit contract — the
-     * tracker is fed each GSM by [leyline.game.mapping.StateMapper] and
-     * drained for `diffDeletedInstanceIds` in the diff path.
-     */
-    val delayedTriggerHolders = DelayedTriggerHolderTracker()
-
-    private var transientLinkedFaceFamilyIds: Set<InstanceId> = emptySet()
-
-    fun pendingTransientLinkedFaceFamilyIds(): Set<InstanceId> = transientLinkedFaceFamilyIds
-
-    fun activeDecayedCleanupSources(): Set<ForgeCardId> = annotationJournal.decayedCleanupSources
-
-    internal fun annotationJournalSnapshot(): ProjectionAnnotationJournal = annotationJournal
-
-    internal fun <T> withTentativeAnnotationJournal(block: (ProjectionAnnotationJournal.Planner) -> T): T =
-        block(ProjectionAnnotationJournal.Planner(annotationJournal))
-
-    internal fun canCommitAnnotationJournal(transition: ProjectionAnnotationJournal.Transition): Boolean =
-        annotationJournal == transition.expected
-
-    private fun commitAnnotationJournal(transition: ProjectionAnnotationJournal.Transition) {
-        check(canCommitAnnotationJournal(transition)) { "Annotation journal transition is stale" }
-        annotationJournal = transition.next
-    }
+    internal fun annotationProjectionStateSnapshot(): AnnotationProjectionState = projectionStateSnapshot().annotations
 
     /** Records callback data; synthetic ids and lifecycle changes belong to projection compilation. */
     fun recordEarthbendResolution(
@@ -522,12 +574,6 @@ class GameBridge(
                 targetCardIds = targetCardIds.toList(),
             )
     }
-
-    fun earthbendProjectionFor(card: Card): EarthbendProjection? =
-        EarthbendTracker().also { it.load(syntheticEffects.earthbend) }.projectionFor(
-            ForgeCardId(card.id),
-            earthbendSignatureFor(card),
-        )
 
     data class LibraryArrangementResult(
         val seatId: SeatId,
@@ -557,9 +603,26 @@ class GameBridge(
     }
 
     /** Snapshot pending target specs from all seat prompt bridges without consuming them. */
-    fun snapshotPendingTargetSpecs(): List<PendingTargetSpecRecord> =
+    fun snapshotPendingTargetSpecs(): List<TargetSpecFact> =
         promptBridges.toSortedMap().flatMap { (seatId, prompt) ->
-            prompt.snapshotPendingTargetSpecEntries().map { PendingTargetSpecRecord(SeatId(seatId), it) }
+            prompt.snapshotPendingTargetSpecEntries().map { entry ->
+                TargetSpecFact(
+                    PromptFactKey(SeatId(seatId), entry.version),
+                    entry.spec.let { spec ->
+                        TargetSpec(
+                            spec.spellForgeCardId,
+                            spec.spellName,
+                            spec.index,
+                            spec.affectorInstanceIdAtRecord,
+                            spec.affectees.map { TargetAffectee(it.targetForgeCardId, it.targetSeatId, it.distribution) },
+                            spec.isStackAbility,
+                            spec.promptId,
+                            spec.abilityIdentity,
+                            spec.forgeAbilityId,
+                        )
+                    },
+                )
+            }
         }
 
     /** Materialize the prompt data projection needs for one immutable frame input. */
@@ -571,14 +634,38 @@ class GameBridge(
         for ((seatValue, prompt) in promptBridges.toSortedMap()) {
             val seatId = SeatId(seatValue)
             choiceResults +=
-                prompt.journal.snapshotChoiceResults().map { PromptProjectionFacts.ChoiceResultFact(seatId, it) }
+                prompt.journal.snapshotChoiceResults().map { entry ->
+                    PromptProjectionFacts.ChoiceResultFact(
+                        PromptFactKey(seatId, entry.version),
+                        entry.result.let {
+                            ChoiceResult(it.sourceForgeCardId, it.chooserSeatId, it.choiceValue, it.choiceDomain, it.sentiment)
+                        },
+                    )
+                }
             prompt.journal.activeRevealEntry()?.let { entry ->
-                reveals += PromptProjectionFacts.RevealFact(seatId, entry, prompt.getPendingPrompt() != null)
+                reveals +=
+                    PromptProjectionFacts.RevealFact(
+                        PromptFactKey(seatId, entry.version),
+                        RevealStarted(entry.reveal.allHandCardIds.toList(), entry.reveal.ownerSeatId),
+                        prompt.getPendingPrompt() != null,
+                    )
             }
             convokePayments +=
-                prompt.journal.activeConvokePaymentEntries().map { PromptProjectionFacts.ConvokePaymentsFact(seatId, it) }
+                prompt.journal.activeConvokePaymentEntries().map { entry ->
+                    PromptProjectionFacts.ConvokePaymentsFact(
+                        PromptFactKey(seatId, entry.version),
+                        entry.sourceForgeCardId,
+                        entry.payments.map {
+                            ConvokePayment(it.paymentForgeCardId, it.color, it.substitutionGrpId, it.paymentAbilityGrpId)
+                        },
+                    )
+                }
             prompt.journal.activeCollectEvidenceEntry()?.let { entry ->
-                collectEvidenceCosts += PromptProjectionFacts.CollectEvidenceFact(seatId, entry)
+                collectEvidenceCosts +=
+                    PromptProjectionFacts.CollectEvidenceFact(
+                        PromptFactKey(seatId, entry.version),
+                        CollectEvidenceCost(entry.context.sourceForgeCardId, entry.context.threshold),
+                    )
             }
         }
         return PromptProjectionFacts(
@@ -591,107 +678,145 @@ class GameBridge(
     }
 
     /** Consume only the observed pending target records represented in an applied frame. */
-    fun consumePendingTargetSpecs(specs: List<PendingTargetSpecRecord>) {
-        specs.groupBy({ it.seatId }, { it.entry }).forEach { (seatId, entries) ->
+    fun consumePendingTargetSpecs(keys: List<PromptFactKey>) {
+        keys.groupBy({ it.seatId }, { it.version }).forEach { (seatId, versions) ->
+            val entries = promptBridge(seatId).snapshotPendingTargetSpecEntries().filter { it.version in versions }
             promptBridge(seatId).consumePendingTargetSpecEntries(entries)
         }
     }
 
     private fun consumePromptFacts(consumption: PromptFactConsumption) {
-        consumption.choiceResults.groupBy { it.seatId }.forEach { (seatId, facts) ->
-            promptBridge(seatId).journal.consumeChoiceResults(facts.map { it.entry })
+        consumption.choiceResults.groupBy { it.seatId }.forEach { (seatId, keys) ->
+            val versions = keys.mapTo(hashSetOf()) { it.version }
+            promptBridge(seatId).journal.consumeChoiceResults(
+                promptBridge(seatId).journal.snapshotChoiceResults().filter { it.version in versions },
+            )
         }
-        consumption.staleReveals.forEach { fact -> promptBridge(fact.seatId).journal.clearActiveReveal(fact.entry) }
-        consumption.convokePayments.forEach { fact -> promptBridge(fact.seatId).journal.clearConvokePayments(fact.entry) }
-        consumption.collectEvidenceCosts.forEach { fact -> promptBridge(fact.seatId).journal.clearCollectEvidenceCost(fact.entry) }
+        consumption.staleReveals.forEach { key ->
+            promptBridge(key.seatId).journal.activeRevealEntry()?.takeIf { it.version == key.version }?.let {
+                promptBridge(key.seatId).journal.clearActiveReveal(it)
+            }
+        }
+        consumption.convokePayments.forEach { key ->
+            promptBridge(key.seatId).journal.activeConvokePaymentEntries().firstOrNull { it.version == key.version }?.let {
+                promptBridge(key.seatId).journal.clearConvokePayments(it)
+            }
+        }
+        consumption.collectEvidenceCosts.forEach { key ->
+            promptBridge(key.seatId).journal.activeCollectEvidenceEntry()?.takeIf { it.version == key.version }?.let {
+                promptBridge(key.seatId).journal.clearCollectEvidenceCost(it)
+            }
+        }
         consumePendingTargetSpecs(consumption.targetSpecs)
     }
 
-    override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
+    override fun nextAnnotationId(): Int =
+        editActiveOrCommitted { editor ->
+            val id = editor.persistentAnnotations.nextAnnotationId
+            editor.persistentAnnotations = editor.persistentAnnotations.copy(nextAnnotationId = id + 1)
+            id
+        }
 
-    override fun nextPersistentAnnotationId(): Int = annotations.nextPersistentAnnotationId()
+    override fun nextPersistentAnnotationId(): Int =
+        editActiveOrCommitted { editor ->
+            val id = editor.persistentAnnotations.nextPersistentId
+            editor.persistentAnnotations = editor.persistentAnnotations.copy(nextPersistentId = id + 1)
+            id
+        }
+
+    private fun addPersistentAnnotation(annotation: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo) {
+        editActiveOrCommitted { editor ->
+            editor.persistentAnnotations =
+                editor.persistentAnnotations.copy(
+                    activeAnnotations = editor.persistentAnnotations.activeAnnotations + (annotation.id to annotation),
+                )
+        }
+    }
+
+    private fun <T> editActiveOrCommitted(block: (ProjectionState.Editor) -> T): T =
+        activeProjectionEditor.get()?.let(block) ?: updateProjection(block)
 
     // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
 
-    override fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId = ids.getOrAlloc(forgeCardId)
+    override fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId {
+        activeProjectionEditor.get()?.let { return it.identities.getOrAlloc(forgeCardId) }
+        return synchronized(projectionLock) {
+            projectionState.identities.forgeIdToInstanceId[forgeCardId]
+                ?: run {
+                    val editor = projectionState.editor()
+                    val allocated = editor.identities.getOrAlloc(forgeCardId)
+                    projectionState = editor.freeze()
+                    allocated
+                }
+        }
+    }
 
-    fun peekInstanceId(forgeCardId: ForgeCardId): InstanceId? = ids.peek(forgeCardId)
+    fun reserveInstanceId(): InstanceId =
+        activeProjectionEditor.get()?.identities?.reserve()
+            ?: updateProjection { it.identities.reserve() }
 
-    override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
+    fun peekInstanceId(forgeCardId: ForgeCardId): InstanceId? =
+        activeProjectionEditor.get()?.identities?.peek(forgeCardId)
+            ?: synchronized(projectionLock) { projectionState.identities.forgeIdToInstanceId[forgeCardId] }
 
-    override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
+    override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation =
+        activeProjectionEditor.get()?.identities?.realloc(forgeCardId)
+            ?: updateProjection { it.identities.realloc(forgeCardId) }
+
+    override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? =
+        activeProjectionEditor.get()?.identities?.getForgeCardId(instanceId)
+            ?: synchronized(projectionLock) { projectionState.identities.instanceIdToForgeId[instanceId] }
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
-    fun getInstanceIdMap(): Map<InstanceId, ForgeCardId> = ids.snapshot()
+    fun getInstanceIdMap(): Map<InstanceId, ForgeCardId> =
+        synchronized(projectionLock) { projectionState.identities.instanceIdToForgeId.toMap() }
+
+    internal fun projectionIdentities(): InstanceIdRegistry.State =
+        activeProjectionEditor.get()?.identities?.freeze() ?: projectionStateSnapshot().identities
+
+    @VisibleForTesting
+    internal fun committedEffectProjection(): SyntheticEffectProjection = projectionStateSnapshot().effects
+
+    internal fun lookupRevealProxy(cardId: ForgeCardId): InstanceId? =
+        activeProjectionEditor.get()?.revealProxies?.lookup(cardId)
+            ?: projectionStateSnapshot().revealProxies.entries[cardId]
+
+    fun resetInstanceIds(): List<InstanceId> =
+        updateProjection { editor ->
+            val old =
+                editor.identities
+                    .freeze()
+                    .forgeIdToInstanceId.values
+                    .toList()
+            val nextId = editor.identities.freeze().nextInstanceId
+            editor.identities.replace(InstanceIdRegistry.initialState(nextId))
+            old
+        }
 
     /** Proto zone tracking — where the protocol last placed each instanceId. */
-    fun getProtoZones(): Map<Int, Int> = diff.allZones()
+    fun getProtoZones(): Map<Int, Int> = activeProjectionEditor.get()?.protoZones?.toMap() ?: projectionStateSnapshot().protoZones
 
     override fun retireToLimbo(instanceId: InstanceId) {
-        limbo.retire(instanceId.value)
+        activeProjectionEditor.get()?.limboInstanceIds?.add(instanceId.value)
+            ?: updateProjection { it.limboInstanceIds += instanceId.value }
         tokenRegistry.retire(instanceId.value)
     }
 
-    override fun getLimboInstanceIds(): List<InstanceId> = limbo.all().map { InstanceId(it) }
+    override fun getLimboInstanceIds(): List<InstanceId> =
+        (activeProjectionEditor.get()?.limboInstanceIds ?: projectionStateSnapshot().limboInstanceIds).map(::InstanceId)
 
     override fun recordZone(
         instanceId: InstanceId,
         zoneId: Int,
-    ): Int? = diff.recordZone(instanceId.value, zoneId)
-
-    override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
-
-    /**
-     * Apply ordering-sensitive mutations returned by [leyline.game.mapping.StateMapper.buildDiff].
-     * Projection callers provide one validated identity transition; the
-     * descriptive reallocations are not installed separately.
-     * Fixed order: identity, reveal, effects, opponent knowledge, and annotation
-     * journals validate before any family installs; then limbo retires → zone updates →
-     * persistent annotation batch → prompt facts → next annotation ID counter → delayed-trigger holders → linked-face family IDs.
-     *
-     * Called by [leyline.game.bundle.BundleBuilder] between diff compute and action build.
-     */
-    fun applyMutations(m: BridgeMutations) {
-        val nextAnnotationId =
-            checkNotNull(m.nextAnnotationId) {
-                "Cannot apply bridge mutations before annotation frame finalization"
-            }
-        check(canCommitEffectProjection(m.effectTransition.expected)) {
-            "Synthetic-effect transition is stale"
-        }
-        check(opponentKnowledge.canCommit(m.opponentKnowledgeTransition)) {
-            "Opponent-knowledge transition is stale"
-        }
-        if (!ids.canCommit(m.instanceIdTransition)) throw StaleInstanceIdTransitionException()
-        m.revealTransition?.let { transition ->
-            check(revealProxies.canCommit(transition)) { "Reveal identity transition is stale" }
-        }
-        check(canCommitAnnotationJournal(m.annotationJournalTransition)) {
-            "Annotation journal transition is stale"
-        }
-        check(ids.commit(m.instanceIdTransition)) {
-            throw StaleInstanceIdTransitionException()
-        }
-        val revealTransition = m.revealTransition
-        if (revealTransition != null) {
-            check(revealProxies.commit(revealTransition)) {
-                "Reveal identity transition is stale"
-            }
-        }
-        commitEffectProjection(m.effectTransition.expected, m.effectTransition.next)
-        check(opponentKnowledge.commit(m.opponentKnowledgeTransition)) {
-            "Opponent-knowledge transition is stale"
-        }
-        commitAnnotationJournal(m.annotationJournalTransition)
-        consumeEarthbendResolutions(m.consumedEarthbendResolutions)
-        for (id in m.retiredIds) retireToLimbo(id)
-        for ((iid, zid) in m.zoneRecordings) recordZone(iid, zid)
-        annotations.applyBatchResult(m.persistentBatch)
-        consumePromptFacts(m.promptFactConsumption)
-        annotations.setAnnotationId(nextAnnotationId)
-        delayedTriggerHolders.apply(m.holderBatch)
-        transientLinkedFaceFamilyIds = m.nextTransientLinkedFaceFamilyIds
+    ): Int? {
+        val editor = activeProjectionEditor.get()
+        if (editor != null) return editor.protoZones.put(instanceId.value, zoneId)
+        return updateProjection { it.protoZones.put(instanceId.value, zoneId) }
     }
+
+    override fun getPreviousZone(instanceId: InstanceId): Int? =
+        activeProjectionEditor.get()?.protoZones?.get(instanceId.value)
+            ?: projectionStateSnapshot().protoZones[instanceId.value]
 
     override fun closeFrame(): FrameEventLog = eventCollector?.closeFrame() ?: FrameEventLog.EMPTY
 
@@ -1425,23 +1550,18 @@ class GameBridge(
         shutdown()
 
         // Clear all mapping/tracking state from the previous game
-        val deletedIds = ids.resetAll().map { it.value }
-        limbo.clear()
-        diff.resetAll()
-        syntheticEffects = SyntheticEffectProjection.initial()
+        val deletedIds = resetInstanceIds().map { it.value }
         pendingEarthbendResolutions.clear()
         nextEarthbendResolutionVersion = 1L
-        annotations.resetAll()
-        delayedTriggerHolders.resetAll()
-        annotationJournal = ProjectionAnnotationJournal()
         abilityRegistries.clear()
         selectedModalAbilityGrpIds.clear()
         pendingTriggerAbilityGrpIds.clear()
         pendingTriggerCleanupGrpIds.clear()
         stackAbilityIdentitiesByRuntimeId.clear()
         tokenRegistry.clear()
-        revealProxies.clear()
-        opponentKnowledge.clear()
+        synchronized(projectionLock) {
+            projectionState = ProjectionState.initial(projectionState.identities.nextInstanceId)
+        }
 
         // Drain bridge state from previous game
         for (bridge in promptBridges.values) bridge.resetForPuzzle()
@@ -1564,13 +1684,13 @@ class GameBridge(
                             abilityRegistryFor(card, cardData)
                         }
                     }
-                    val iid = ids.getOrAlloc(ForgeCardId(card.id))
+                    val iid = getOrAllocInstanceId(ForgeCardId(card.id))
                     // Seed zone tracking so the FIRST diff after the puzzle
                     // GSM can detect zone changes against the puzzle's
                     // initial state (cycling discard, unearth return, …).
                     // Without this seed, ZoneTransferDetector reads
                     // previousZones[iid]==null and silently skips emission.
-                    diff.recordZone(iid.value, protocolZoneId)
+                    recordZone(iid, protocolZoneId)
                     registered++
                 }
             }
@@ -1596,8 +1716,8 @@ class GameBridge(
         }
 
     private fun trackedZoneFor(cardId: ForgeCardId): ZoneType? {
-        val instanceId = ids.peek(cardId) ?: return null
-        return when (diff.getPreviousZone(instanceId.value)) {
+        val instanceId = peekInstanceId(cardId) ?: return null
+        return when (getPreviousZone(instanceId)) {
             ZoneIds.BATTLEFIELD -> ZoneType.Battlefield
             ZoneIds.EXILE -> ZoneType.Exile
             ZoneIds.COMMAND -> ZoneType.Command
@@ -1617,15 +1737,15 @@ class GameBridge(
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val target = card.attachedTo ?: continue
-                val auraIid = ids.getOrAlloc(ForgeCardId(card.id))
-                val targetIid = ids.getOrAlloc(ForgeCardId(target.id))
+                val auraIid = getOrAllocInstanceId(ForgeCardId(card.id))
+                val targetIid = getOrAllocInstanceId(ForgeCardId(target.id))
                 val ann =
                     AnnotationBuilder
                         .attachment(auraIid, targetIid)
                         .toBuilder()
-                        .setId(annotations.nextPersistentAnnotationId())
+                        .setId(nextPersistentAnnotationId())
                         .build()
-                annotations.add(ann)
+                addPersistentAnnotation(ann)
                 log.debug(
                     "seedAttachment: {} (iid={}) → {} (iid={})",
                     card.name,
@@ -1651,16 +1771,16 @@ class GameBridge(
                 AnnotationBuilder
                     .playerCounter(SeatId(seatNum), CounterTypes.counterTypeId("POISON"), poisonCount)
                     .toBuilder()
-                    .setId(annotations.nextPersistentAnnotationId())
+                    .setId(nextPersistentAnnotationId())
                     .build()
-            annotations.add(ann)
+            addPersistentAnnotation(ann)
             log.debug("seedCounter: seat={} POISON = {}", seatNum, poisonCount)
         }
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val counters = card.counters
                 if (counters.isEmpty()) continue
-                val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
+                val instanceId = getOrAllocInstanceId(ForgeCardId(card.id))
                 for (entry in counters.entrySet()) {
                     val counterType = entry.element
                     val count = entry.count
@@ -1669,9 +1789,9 @@ class GameBridge(
                         AnnotationBuilder
                             .counter(instanceId, CounterTypes.counterTypeId(counterType.name), count)
                             .toBuilder()
-                            .setId(annotations.nextPersistentAnnotationId())
+                            .setId(nextPersistentAnnotationId())
                             .build()
-                    annotations.add(ann)
+                    addPersistentAnnotation(ann)
                     log.debug(
                         "seedCounter: {} (iid={}) {} = {}",
                         card.name,

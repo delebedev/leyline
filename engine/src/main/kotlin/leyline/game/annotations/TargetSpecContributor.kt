@@ -1,10 +1,10 @@
 package leyline.game.annotations
 
 import leyline.DevCheck
-import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.game.state.TargetSpec
 import leyline.game.state.TargetSpecKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
@@ -28,7 +28,7 @@ object TargetSpecContributor : AnnotationContributor {
     }
 
     private fun buildTargetSpec(
-        pending: List<InteractivePromptBridge.PendingTarget>,
+        pending: List<TargetSpec>,
         ctx: AnnotationContext,
     ): List<AnnotationInfo> {
         // Read target picks after Forge completes chooseTargetsFor.

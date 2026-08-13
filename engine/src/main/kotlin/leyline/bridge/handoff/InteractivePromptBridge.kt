@@ -82,12 +82,14 @@ class InteractivePromptBridge(
         val seatId: SeatId,
         val forgeCardIds: List<ForgeCardId>,
         val putOnTop: Boolean,
+        val version: Long = 0,
     )
 
     private val pendingOrderZoneMoves = ConcurrentLinkedQueue<PendingOrderZoneMove>()
+    private val nextPendingOrderZoneMoveVersion = AtomicLong()
 
     fun recordPendingOrderZoneMove(move: PendingOrderZoneMove) {
-        pendingOrderZoneMoves.add(move)
+        pendingOrderZoneMoves.add(move.copy(version = nextPendingOrderZoneMoveVersion.incrementAndGet()))
     }
 
     fun findPendingOrderZoneMove(
@@ -95,8 +97,8 @@ class InteractivePromptBridge(
         forgeCardIds: List<ForgeCardId>,
     ): PendingOrderZoneMove? = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds }
 
-    fun acknowledgePendingOrderZoneMove(move: PendingOrderZoneMove) {
-        pendingOrderZoneMoves.remove(move)
+    fun acknowledgePendingOrderZoneMove(version: Long) {
+        pendingOrderZoneMoves.removeIf { it.version == version }
     }
 
     // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
@@ -326,6 +328,7 @@ class InteractivePromptBridge(
         synchronized(_history) { _history.clear() }
         revealQueue.clear()
         pendingOrderZoneMoves.clear()
+        nextPendingOrderZoneMoveVersion.set(0)
         pendingTargetSpecs.clear()
         journal.resetForPuzzle()
         pending.set(null)

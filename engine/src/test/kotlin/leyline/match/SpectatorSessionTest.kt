@@ -116,7 +116,7 @@ class SpectatorSessionTest :
                 )
                 reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
 
-                b.bundleCursor.invalidate()
+                b.updateViewerProjectionCursor { it.copy(previousSnapshot = null) }
                 session.sendRealGameState(b, revealForSeat = null)
 
                 val gsm = sink.messages.first { it.hasGameStateMessage() }.gameStateMessage

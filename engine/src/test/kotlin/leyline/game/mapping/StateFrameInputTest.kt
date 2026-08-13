@@ -6,8 +6,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.handoff.PromptJournal
-import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -53,14 +51,14 @@ class StateFrameInputTest :
         }
 
         test("zero-Forge state-frame input replays prompt facts without consumption") {
-            val choice = PromptSideEffect.ChoiceResult(ForgeCardId(1), SeatId(1), choiceValue = 9)
+            val choice = leyline.game.state.ChoiceResult(ForgeCardId(1), SeatId(1), 9, null, 2)
             val facts =
                 PromptProjectionFacts(
                     choiceResults =
                         listOf(
                             PromptProjectionFacts.ChoiceResultFact(
-                                SeatId(1),
-                                PromptJournal.ChoiceResultEntry(version = 1, result = choice),
+                                leyline.game.state.PromptFactKey(SeatId(1), 1),
+                                choice,
                             ),
                         ),
                 )
@@ -77,6 +75,9 @@ class StateFrameInputTest :
                     effectFacts = EffectProjectionFacts(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
+                    projectionState =
+                        leyline.game.state.ProjectionState
+                            .initial(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
 
@@ -91,9 +92,9 @@ class StateFrameInputTest :
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
-                first.mutations.promptFactConsumption.choiceResults
-                    .map { it.result } shouldContainExactly listOf(choice)
-                second.mutations.promptFactConsumption shouldBe first.mutations.promptFactConsumption
+                first.output.promptFactConsumption.choiceResults shouldContainExactly
+                    listOf(leyline.game.state.PromptFactKey(SeatId(1), 1))
+                second.output.promptFactConsumption shouldBe first.output.promptFactConsumption
             }
         }
 
@@ -209,14 +210,17 @@ class StateFrameInputTest :
                     effectFacts = facts,
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
+                    projectionState =
+                        leyline.game.state.ProjectionState
+                            .initial(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedIdentityBefore = bridge.getInstanceIdMap()
             val committedEffectsBefore = bridge.committedEffectProjection()
             val first = StateMapper.buildDiff(input, "state-frame", bridge).finalizeAnnotations()
             val second = StateMapper.buildDiff(input, "state-frame", bridge).finalizeAnnotations()
-            val nextIdentity = first.mutations.instanceIdTransition.nextState
-            val nextEffects = first.mutations.effectTransition.next
+            val nextIdentity = checkNotNull(first.transition).nextState.identities
+            val nextEffects = checkNotNull(first.transition).nextState.effects
             val earthbend = nextEffects.earthbend.activeByTarget.getValue(cardId)
             val boost =
                 nextEffects.effects.activeEffects.values
@@ -227,10 +231,10 @@ class StateFrameInputTest :
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
-                first.mutations.effectTransition.next shouldBe second.mutations.effectTransition.next
+                first.transition.nextState.effects shouldBe second.transition?.nextState?.effects
                 bridge.getInstanceIdMap() shouldBe committedIdentityBefore
                 bridge.committedEffectProjection() shouldBe committedEffectsBefore
-                first.mutations.consumedEarthbendResolutions.map { it.version } shouldBe listOf(1)
+                first.output.consumedEarthbendResolutionVersions shouldBe setOf(1L)
                 first.gsm.annotationsList.map(AnnotationInfo::shape) shouldBe
                     expectedTransientShapes(targetIid, keywordAffectorIid, reconfigureIid, earthbendLayerIds)
                 first.gsm.persistentAnnotationsList.map(AnnotationInfo::shape) shouldBe
@@ -243,7 +247,7 @@ class StateFrameInputTest :
                         saddleMountIid = saddleMountIid,
                         saddleSourceIid = saddleSourceIid,
                     )
-                first.mutations.persistentBatch.deletedIds shouldBe listOf(3)
+                first.output.persistentBatch.deletedIds shouldBe listOf(3)
 
                 nextIdentity.forgeIdToInstanceId.entries.map { it.toPair() } shouldBe
                     listOf(
@@ -385,6 +389,9 @@ class StateFrameInputTest :
                                     token to MechanicSourceFacts.TokenCreator(tokenCreator, 71),
                                 ),
                         ),
+                    projectionState =
+                        leyline.game.state.ProjectionState
+                            .initial(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedIdentityBefore = bridge.getInstanceIdMap()
@@ -395,9 +402,20 @@ class StateFrameInputTest :
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe retry.gsm.toByteArray().toList()
-                first.mutations shouldBe retry.mutations
+                first.transition shouldBe retry.transition
                 first.gsm.annotationsList.map(AnnotationInfo::shape) shouldBe
                     expectedMechanicSourceTransientShapes()
+                first.output.persistentBatch.allAnnotations
+                    .map(AnnotationInfo::shape) shouldBe
+                    listOf(
+                        expectedAnnotation(
+                            1,
+                            103,
+                            AnnotationType.TriggeringObject,
+                            affectorId = 100,
+                            details = listOf("source_zone" to ZoneIds.P1_HAND),
+                        ),
+                    )
                 first.gsm.persistentAnnotationsList.map(AnnotationInfo::shape) shouldBe
                     listOf(
                         expectedAnnotation(
@@ -408,7 +426,10 @@ class StateFrameInputTest :
                             details = listOf("source_zone" to ZoneIds.P1_HAND),
                         ),
                     )
-                first.mutations.instanceIdTransition.nextState.forgeIdToInstanceId shouldBe
+                first.transition
+                    ?.nextState
+                    ?.identities
+                    ?.forgeIdToInstanceId shouldBe
                     linkedMapOf(
                         ForgeCardId(100041) to InstanceId(100),
                         ForgeCardId(100404) to InstanceId(101),
@@ -421,7 +442,10 @@ class StateFrameInputTest :
                         ForgeCardId(200403) to InstanceId(108),
                         ForgeCardId(100071) to InstanceId(109),
                     )
-                first.mutations.instanceIdTransition.nextState.nextInstanceId shouldBe 110
+                first.transition
+                    ?.nextState
+                    ?.identities
+                    ?.nextInstanceId shouldBe 110
                 bridge.getInstanceIdMap() shouldBe committedIdentityBefore
                 bridge.committedEffectProjection() shouldBe committedEffectsBefore
             }

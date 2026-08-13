@@ -264,7 +264,7 @@ class TargetingHandler(
         // PSuT from the wire while the engine still receives the response.
         if (pending.sourceEntityId != 0) {
             val spellIid = bridge.getOrAllocInstanceId(ForgeCardId(pending.sourceEntityId))
-            bundles.bundleBuilder.cursor.queuePSuT(spellIid, counters.seatId)
+            bundles.bundleBuilder.queuePendingSubmittedTargets(spellIid, counters.seatId)
         }
 
         sink.sendBundledGRE(
