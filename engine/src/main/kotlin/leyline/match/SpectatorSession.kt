@@ -55,6 +55,7 @@ class SpectatorSession(
 
     /** Drain AI playback batches to the observer. Returns true when anything was sent. */
     fun pumpOnce(): Boolean {
+        gameBridge.throwIfGameLoopFailed()
         var sent = false
         val playback = gameBridge.playbackFor(seatId)
         if (playback != null && playback.hasPendingMessages()) {

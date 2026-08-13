@@ -1,5 +1,8 @@
 package leyline.game
 
+import forge.game.card.CardView
+import forge.game.card.CounterType
+import forge.game.player.PlayerView
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -19,6 +22,8 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
+import forge.game.event.GameEventCardCounters as ForgeCardCounters
+import forge.game.event.GameEventPlayerPoisoned as ForgePlayerPoisoned
 
 class GamePlaybackTest :
     FunSpec({
@@ -53,6 +58,48 @@ class GamePlaybackTest :
             val field = GamePlayback::class.java.getDeclaredField("queue")
             field.isAccessible = true
             return field.get(playback) as ConcurrentLinkedQueue<List<GREToClientMessage>>
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        fun requestedCut(playback: GamePlayback): PlaybackCutRequest? {
+            val field = GamePlayback::class.java.getDeclaredField("requestedCut")
+            field.isAccessible = true
+            return field.get(playback) as? PlaybackCutRequest
+        }
+
+        test("ordinary callbacks aggregate first reason max delay and turn start without output") {
+            val playback = createMinimalPlayback()
+
+            playback.visit(ForgePlayerPoisoned(null as PlayerView?, null as PlayerView?, 0, 1))
+            playback.visit(ForgeCardCounters(null as CardView?, null as CounterType?, 0, 1))
+
+            assertSoftly {
+                requestedCut(playback) shouldBe
+                    PlaybackCutRequest(
+                        reason = PlaybackCutReason.PoisonChanged,
+                        delayMs = GamePlayback.COUNTER_DELAY,
+                        turnStarted = false,
+                    )
+                playback.hasPendingMessages() shouldBe false
+            }
+        }
+
+        test("request aggregation keeps chronology while folding values") {
+            PlaybackCutRequest(PlaybackCutReason.TurnBegan, 200, true)
+                .aggregate(PlaybackCutRequest(PlaybackCutReason.StackObjectCast, 400, false)) shouldBe
+                PlaybackCutRequest(PlaybackCutReason.TurnBegan, 400, true)
+        }
+
+        test("shell frame close subsumes the ordinary request without later output") {
+            val playback = createMinimalPlayback()
+
+            playback.visit(ForgePlayerPoisoned(null as PlayerView?, null as PlayerView?, 0, 1))
+            playback.onFrameCommitted()
+
+            assertSoftly {
+                requestedCut(playback) shouldBe null
+                playback.hasPendingMessages() shouldBe false
+            }
         }
 
         test("Playback queues messages and reports queue size") {
@@ -175,7 +222,7 @@ class GamePlaybackTest :
             events.shouldSplitCombatDamageWindow() shouldBe false
         }
 
-        test("noncombat damage waits for its resolution boundary") {
+        test("resolution completion is represented by one closed frame") {
             val damage =
                 GameEvent.DamageDealtToPlayer(
                     sourceCardId = ForgeCardId(10),
@@ -186,23 +233,19 @@ class GamePlaybackTest :
                 )
 
             val resolving = GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false)
-            assertSoftly {
-                FrameEventLog(listOf(damage)).shouldAwaitResolutionBoundary() shouldBe false
-                FrameEventLog(listOf(damage, resolving)).shouldAwaitResolutionBoundary() shouldBe true
-                FrameEventLog(
-                    events = listOf(damage, resolving),
-                    zoneMoves =
-                        listOf(
-                            ZoneMove(
-                                order = 1,
-                                cardId = ForgeCardId(10),
-                                from = Zone.Stack,
-                                to = Zone.Graveyard,
-                                cause = null,
-                            ),
+            FrameEventLog(
+                events = listOf(damage, resolving),
+                zoneMoves =
+                    listOf(
+                        ZoneMove(
+                            order = 1,
+                            cardId = ForgeCardId(10),
+                            from = Zone.Stack,
+                            to = Zone.Graveyard,
+                            cause = null,
                         ),
-                ).shouldAwaitResolutionBoundary() shouldBe false
-            }
+                    ),
+            ).zoneMoves.single().from shouldBe Zone.Stack
         }
 
         test("ambiguous mixed damage emits without waiting for an unrelated resolution") {
@@ -224,6 +267,6 @@ class GamePlaybackTest :
                     ),
                 )
 
-            FrameEventLog(events).shouldAwaitResolutionBoundary() shouldBe false
+            events.shouldSplitCombatDamageWindow() shouldBe false
         }
     })

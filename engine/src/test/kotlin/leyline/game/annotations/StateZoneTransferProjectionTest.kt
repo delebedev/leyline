@@ -21,6 +21,7 @@ import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
+import leyline.game.state.MechanicSourceFacts
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -216,6 +217,90 @@ class StateZoneTransferProjectionTest :
                 )
 
             result.stackAbilityAppearances.single().sourceCardInstanceId shouldBe 909
+        }
+
+        test("trigger appearance resolves event-only source through current frame identity") {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val sourceId = ForgeCardId(42)
+            val abilityForgeId = 77
+            val editor = bridge.projectionStateSnapshot().editor()
+            val sourceIid = editor.identities.getOrAlloc(sourceId).value
+            val abilityIid = editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(abilityForgeId)).value
+            val snapshot =
+                GsmSnapshot.forTest(
+                    objects = mapOf(sourceId to CardSnapshot(sourceId, "Source", 4242, SeatId(1), SeatId(1))),
+                )
+
+            val result =
+                ZoneTransferAdapter.detectZoneTransfers(
+                    gameObjects =
+                        listOf(
+                            stateZoneGameObject(abilityIid, 86, ZoneIds.STACK, 1, GameObjectType.Ability),
+                        ),
+                    zones = listOf(stateZone(ZoneIds.STACK, ZoneType.Stack, abilityIid), stateZone(ZoneIds.LIMBO, ZoneType.Limbo)),
+                    editor = editor,
+                    snapshot = snapshot,
+                    events =
+                        listOf(
+                            GameEvent.SpellCast(
+                                cardId = sourceId,
+                                seatId = SeatId(1),
+                                isAbility = true,
+                                isTrigger = true,
+                                abilityForgeId = abilityForgeId,
+                                abilityGrpId = 86,
+                                triggeringObjectCardId = sourceId,
+                            ),
+                        ),
+                    mechanicSourceFacts = MechanicSourceFacts(mapOf(sourceId to ZoneIds.STACK)),
+                )
+
+            assertSoftly {
+                result.stackAbilityAppearances.single().sourceCardInstanceId shouldBe sourceIid
+                result.stackAbilityAppearances.single().sourceZoneId shouldBe ZoneIds.STACK
+                result.stackAbilityAppearances.single().triggeringObjectInstanceId shouldBe sourceIid
+                result.stackAbilityAppearances.single().triggeringObjectZoneId shouldBe ZoneIds.STACK
+            }
+        }
+
+        test("missing source fact retains the prior nonbattlefield zone") {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val sourceId = ForgeCardId(42)
+            val abilityForgeId = 77
+            val editor = bridge.projectionStateSnapshot().editor()
+            val sourceIid = editor.identities.getOrAlloc(sourceId).value
+            editor.protoZones[sourceIid] = ZoneIds.P1_GRAVEYARD
+            val abilityIid = editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(abilityForgeId)).value
+            val snapshot =
+                GsmSnapshot.forTest(
+                    objects = mapOf(sourceId to CardSnapshot(sourceId, "Source", 4242, SeatId(1), SeatId(1))),
+                )
+
+            val result =
+                ZoneTransferAdapter.detectZoneTransfers(
+                    gameObjects = listOf(stateZoneGameObject(abilityIid, 86, ZoneIds.STACK, 1, GameObjectType.Ability)),
+                    zones = listOf(stateZone(ZoneIds.STACK, ZoneType.Stack, abilityIid), stateZone(ZoneIds.LIMBO, ZoneType.Limbo)),
+                    editor = editor,
+                    snapshot = snapshot,
+                    events =
+                        listOf(
+                            GameEvent.SpellCast(
+                                cardId = sourceId,
+                                seatId = SeatId(1),
+                                isAbility = true,
+                                isTrigger = true,
+                                abilityForgeId = abilityForgeId,
+                                abilityGrpId = 86,
+                                triggeringObjectCardId = sourceId,
+                            ),
+                        ),
+                    mechanicSourceFacts = MechanicSourceFacts(),
+                )
+
+            assertSoftly {
+                result.stackAbilityAppearances.single().sourceZoneId shouldBe ZoneIds.P1_GRAVEYARD
+                result.stackAbilityAppearances.single().triggeringObjectZoneId shouldBe ZoneIds.P1_GRAVEYARD
+            }
         }
 
         test("collapsed Paradigm lifecycle retains event-observed source when helper is absent from snapshot") {

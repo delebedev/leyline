@@ -201,6 +201,17 @@ diff baseline. A match-scoped shell lock
 preserves frame-cut order across builders while the transition install remains
 a revision-checked compare-and-set.
 
+Ordinary engine playback closes and materializes its frame only from Forge's
+main-loop completion hook. One frame represents one completed Forge step, not
+one event or chosen action; eligible events from the same step retain their
+intra-frame order and produce no intermediate bundle. `GamePlayback` retains an
+immutable `PendingCut` containing the exact compiler input, prior projection,
+viewer intent, and fixed
+logical ids. A stale install cannot be rebased without changing that exact cut,
+so it becomes terminal and retains the cut for diagnosis. Failure after journal
+close is likewise terminal. Combat checkpoints remain an
+explicit synchronous exception until their internal safe points are migrated.
+
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 
 **Counter sequencing.** The `MessageCounter` guarantees strictly increasing gsIds across the interleaved `GameStateMessage` stream and keeps msgIds on the same shared atomic path for local ordering and response bookkeeping. Thread-ownership rules live in [`bridge-threading.md`](bridge-threading.md#4-one-shared-counter-not-two).

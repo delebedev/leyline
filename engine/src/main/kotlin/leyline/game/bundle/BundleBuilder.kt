@@ -47,7 +47,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * Frame computation reads one snapshot, then installs projection history and the
  * shared viewer baseline through one seam. There is no Netty or mutable
- * handler state here. The shared [MessageCounter] advances atomically on each call.
+ * handler state here. State-only and ordinary-playback producers acquire
+ * [MessageCounter] before the match projection-build monitor because those paths
+ * can run concurrently; playback then acquires its queue monitor last.
  *
  * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
  *
@@ -93,6 +95,24 @@ class BundleBuilder(
     private data class FrameInput(
         val state: StateFrameInput,
         val priorProjection: ProjectionState,
+        val closesPlaybackFrame: Boolean = false,
+    )
+
+    /** Immutable ordinary-playback cut. Logical ids are reserved exactly once. */
+    internal data class PlaybackCut(
+        val state: StateFrameInput,
+        val priorProjection: ProjectionState,
+        val intent: ViewerProjectionIntent,
+        val actions: ActionsAvailableReq,
+        val contentMsgId: Int,
+        val coinFlipMsgIds: List<Int>,
+        val echoLink: MessageCounter.GameStateLink,
+        val echoMsgId: Int,
+    )
+
+    internal data class PreparedPlaybackCut(
+        val messages: List<GREToClientMessage>,
+        val transition: ProjectionTransition,
     )
 
     fun fullState(
@@ -203,6 +223,7 @@ class BundleBuilder(
                     persistentFeedFacts = persistentFeedFacts,
                 ),
             priorProjection = capturedProjection.copy(revision = priorProjection.revision),
+            closesPlaybackFrame = eventsOverride == null,
         )
     }
 
@@ -275,6 +296,9 @@ class BundleBuilder(
                             finalized.gsm,
                         )
                         bridge.commitProjection(finalized.transition)
+                        if (input.closesPlaybackFrame) {
+                            bridge.acknowledgePlaybackFrame(SeatId(seatId))
+                        }
                         finalized
                     }
                 return FrameDiff(
@@ -431,13 +455,8 @@ class BundleBuilder(
                     supplements = if (turnStarted) listOf(ProjectionSupplement.NewTurnStarted) else emptyList(),
                 ) { _, _ -> GameStateUpdate.SendHiFi }
             val nextGs = diff.gameStateId
-            // Build state first (triggers instanceId realloc), then actions with new IDs
             val gsBase = diff.result.gsm
-            // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
-            // Client expects human's potential actions embedded during AI turn.
             val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-
-            // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
             val gsBuilder = gsBase.toBuilder()
             for (action in actions.actionsList) {
                 gsBuilder.addActions(
@@ -448,15 +467,75 @@ class BundleBuilder(
                 )
             }
             val gs = gsBuilder.build()
-
             val content =
                 makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                     it.gameStateMessage = gs
                 }
             val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
-
             BundleResult(listOf(content) + coinFlipPromptMessages(diff.events.events, nextGs, counter) + listOf(echo))
         }
+
+    internal fun materializePlaybackCut(
+        game: Game,
+        counter: MessageCounter,
+        turnStarted: Boolean,
+        events: FrameEventLog,
+    ): PlaybackCut =
+        synchronized(counter) {
+            synchronized(bridge.projectionBuildLock) {
+                val input = frameInput(game, counter, null, events) { _, _ -> GameStateUpdate.SendHiFi }
+                val pending = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
+                val (actions, actionProjection) =
+                    bridge.editProjection(input.priorProjection) {
+                        ActionMapper.buildNaiveActions(seatId, bridge)
+                    }
+                val supplements =
+                    listOfNotNull(
+                        ProjectionSupplement.NewTurnStarted.takeIf { turnStarted },
+                        pending?.let {
+                            ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)
+                        },
+                    )
+                val contentMsgId = counter.nextMsgId()
+                val coinFlipMsgIds =
+                    input.state.events.events
+                        .filterIsInstance<GameEvent.CoinFlipped>()
+                        .map { counter.nextMsgId() }
+                val echoLink = counter.nextGameStateLink()
+                val echoMsgId = counter.nextMsgId()
+                PlaybackCut(
+                    state = input.state,
+                    priorProjection = actionProjection.copy(revision = input.priorProjection.revision),
+                    intent = ViewerProjectionIntent.of(supplements),
+                    actions = actions,
+                    contentMsgId = contentMsgId,
+                    coinFlipMsgIds = coinFlipMsgIds,
+                    echoLink = echoLink,
+                    echoMsgId = echoMsgId,
+                )
+            }
+        }
+
+    internal fun compilePlaybackCut(cut: PlaybackCut): PreparedPlaybackCut {
+        val result = compileFrame(FrameInput(cut.state, cut.priorProjection), intent = cut.intent)
+        bridge.diffListener?.invoke(cut.state, cut.priorProjection, cut.intent, result.gsm)
+        val gsmBuilder = result.gsm.toBuilder()
+        for (action in cut.actions.actionsList) {
+            gsmBuilder.addActions(
+                ActionInfo
+                    .newBuilder()
+                    .setSeatId(seatId)
+                    .setAction(ActionMapper.stripActionForGsm(action)),
+            )
+        }
+        val content =
+            makeGRE(GREMessageType.GameStateMessage_695e, cut.state.gameStateId, cut.contentMsgId) {
+                it.gameStateMessage = gsmBuilder.build()
+            }
+        val prompts = coinFlipPromptMessages(cut.state.events.events, cut.state.gameStateId, cut.coinFlipMsgIds)
+        val echo = buildEchoDiffGsm(cut.echoLink, cut.echoMsgId, GameStateUpdate.SendHiFi, cut.state.gameStateId)
+        return PreparedPlaybackCut(listOf(content) + prompts + echo, result.transition)
+    }
 
     /**
      * True when the only action available is Pass (no Cast, Play, Activate).
@@ -1540,10 +1619,16 @@ class BundleBuilder(
         counter: MessageCounter,
         updateType: GameStateUpdate = GameStateUpdate.Send,
         previousGsId: Int? = null,
+    ): GREToClientMessage = buildEchoDiffGsm(counter.nextGameStateLink(), counter.nextMsgId(), updateType, previousGsId)
+
+    private fun buildEchoDiffGsm(
+        link: MessageCounter.GameStateLink,
+        msgId: Int,
+        updateType: GameStateUpdate,
+        previousGsId: Int? = null,
     ): GREToClientMessage {
-        val link = counter.nextGameStateLink()
         val prev = previousGsId ?: link.prevGsId
-        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, msgId) {
             it.gameStateMessage =
                 GameStateMessage
                     .newBuilder()
@@ -1721,9 +1806,18 @@ class BundleBuilder(
         events: List<GameEvent>,
         gsId: Int,
         counter: MessageCounter,
+    ): List<GREToClientMessage> {
+        val coinEvents = events.filterIsInstance<GameEvent.CoinFlipped>()
+        return coinFlipPromptMessages(coinEvents, gsId, coinEvents.map { counter.nextMsgId() })
+    }
+
+    private fun coinFlipPromptMessages(
+        events: List<GameEvent>,
+        gsId: Int,
+        msgIds: List<Int>,
     ): List<GREToClientMessage> =
-        events.filterIsInstance<GameEvent.CoinFlipped>().map { event ->
-            makeGRE(GREMessageType.PromptReq, gsId, counter.nextMsgId()) {
+        events.filterIsInstance<GameEvent.CoinFlipped>().zip(msgIds).map { (event, msgId) ->
+            makeGRE(GREMessageType.PromptReq, gsId, msgId) {
                 it.setPrompt(
                     Prompt
                         .newBuilder()

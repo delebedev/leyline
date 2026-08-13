@@ -205,7 +205,7 @@ class LocalStackMicrostepTest :
             }
         }
 
-        test("counter add rides a visible frame separate from trigger resolution") {
+        test("counter add and trigger resolution share one finalized lifecycle frame") {
             startPuzzle(
                 """
                 ActivePlayer=Human
@@ -229,11 +229,19 @@ class LocalStackMicrostepTest :
                     .firstOrNull { AnnotationType.CounterAdded in it.annotationTypes() }
 
             counterGsm.shouldNotBeNull()
+            val annotationTypes = counterGsm.annotationsList.mapNotNull { it.typeList.firstOrNull() }
             assertSoftly {
-                counterGsm.annotationTypes() shouldContain AnnotationType.CounterAdded
-                counterGsm.annotationTypes() shouldNotContain AnnotationType.ResolutionStart
-                counterGsm.annotationTypes() shouldNotContain AnnotationType.ResolutionComplete
-                counterGsm.annotationTypes() shouldNotContain AnnotationType.AbilityInstanceDeleted
+                annotationTypes shouldContain AnnotationType.CounterAdded
+                annotationTypes shouldContain AnnotationType.ResolutionStart
+                annotationTypes shouldContain AnnotationType.ResolutionComplete
+                annotationTypes shouldContain AnnotationType.AbilityInstanceDeleted
+                annotationTypes.take(4) shouldBe
+                    listOf(
+                        AnnotationType.ResolutionStart,
+                        AnnotationType.ResolutionComplete,
+                        AnnotationType.AbilityInstanceDeleted,
+                        AnnotationType.CounterAdded,
+                    )
             }
         }
 

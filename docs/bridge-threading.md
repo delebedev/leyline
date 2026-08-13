@@ -51,6 +51,10 @@ license for new lock-free entry points.
 actions and prompts use atomic references; `PrioritySignal` is a semaphore. `GamePlayback.queue` is concurrent,
 but `queueLock` deliberately covers the whole close-events/build/advance-cursor/
 enqueue window and every drain. The queue type alone is not the transaction.
+Frame producers that need all three monitors use one order:
+`MessageCounter` → `projectionBuildLock` → `queueLock`. Drainers take only
+`queueLock`; event subscribers that request a future cut also take only
+`queueLock`.
 
 ```mermaid
 flowchart LR
@@ -123,10 +127,10 @@ acknowledgement from the sink.
 
 | Timeline | Location | Advances on | Purpose |
 |---|---|---|---|
-| Projection baseline | `ProjectionState.viewerCursors` | A `BundleBuilder` installs the completed transition before returning or enqueueing its messages | Input to the next `StateProjectionCompiler.compileOneViewer` call |
+| Projection baseline | `ProjectionState.viewerCursors` | A `BundleBuilder` installs the completed transition before returning its messages; ordinary playback enqueues under `queueLock` immediately before install | Input to the next `StateProjectionCompiler.compileOneViewer` call |
 | Sink handoff | Implicit in the sink | `sink.send(messages)` is invoked successfully | Server-side delivery attempt; this is not client acknowledgement |
 
-The current state-diff order is:
+The interactive state-diff order is:
 
 ```text
 snapshot Forge state and materialize typed viewer intent
@@ -137,25 +141,28 @@ snapshot Forge state and materialize typed viewer intent
        advance the viewer baseline
        acknowledge exact pending shell entries
   -> assemble path-specific messages
-  -> return or enqueue the batch
+  -> return the batch
   -> later call sink.send
 ```
 
 The transition already contains the resulting identity, zone, annotation, and
 cursor values; the shell does not replay per-family mutation batches. The
-interactive path binds offers and sends after `BundleBuilder` returns. The
-playback path performs build, projection commit, message assembly, and enqueue
-under `queueLock`; a session or spectator domain drains and sends later.
+interactive path binds offers and sends after `BundleBuilder` returns. Ordinary
+playback first retains an immutable `PendingCut` with its closed frame input,
+prior projection, viewer intent, action values, and logical ids. It compiles
+that exact cut, enqueues the fixed batch, and installs its transition under
+`queueLock`; a session or spectator domain cannot drain the batch until the
+install attempt completes. A stale install cannot succeed against the cut's
+exact prior revision and therefore becomes terminal without rebasing or
+recapturing.
 
-This is not an atomic projection-plus-delivery transaction. An exception after
-frame finalization but before projection commit advances neither projection
-history nor the cursor. Projection history and cursor advancement share one
-commit function, so later failures cannot split those two baselines. An
-exception during path-specific assembly or a sink failure can still leave the
-committed projection ahead of returned or delivered output. The current runtime
-has no rollback or retry-from-old-baseline contract; the target architecture's
-single runtime commit and immutable delivery batch are intended to close this
-remaining gap.
+Projection history and cursor advancement share one commit function. Ordinary
+playback assembly and enqueue failures therefore install nothing. A successful
+install followed by acknowledgement failure retains the already-enqueued output;
+the terminal state prevents replay. Stale, commit, and enqueue failures retain
+the exact cut or materialization diagnostic. Sink delivery remains outside that transaction: a
+later transport failure can still leave the committed projection ahead of
+delivered output.
 
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
@@ -222,26 +229,28 @@ Spell-time modals (kicker, spell modals where the card itself is already on the 
 
 ## 7. Engine-thread event subscribers
 
-`GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is synchronous on the engine thread: the `@Subscribe` method runs on `game-loop-<id>`, mid-way through whatever engine operation fired the event. Three rules follow.
+`GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is
+synchronous on the engine thread: the `@Subscribe` method runs mid-way through
+the operation that fired the event. Ordinary subscribers therefore request a
+cut only. `PhaseHandler` invokes the playback hook once after a successful
+`mainLoopStep` mutation burst, including normal early returns.
 
-**Only bounded internal coordination.** A subscriber may read engine state,
-increment `MessageCounter`, install a projection transition, and enqueue a batch.
-`GamePlayback` deliberately acquires `queueLock` around close-events, frame
-construction, cursor advance, and enqueue so a drain cannot observe half a
-transaction. A subscriber must not acquire `sessionLock`, perform I/O, or wait
-on an external resource. Keep `queueLock` hold time bounded and never create a
-reverse path where its drainer waits for the engine while holding the lock.
+**Ordinary subscribers journal intent only.** They must not close the event
+journal, inspect Forge for projection, allocate message or object ids, compile,
+install, enqueue, sleep, perform I/O, or wait on an external resource. The
+completion hook owns those operations under the frame-production lock order; its
+drainer never waits for the engine while holding `queueLock`.
 
-**Pausing the engine thread makes the current projection physically stable.**
-`GamePlayback` deliberately `Thread.sleep`s at key events to pace remote turns
-for the human viewer. Engine state cannot mutate concurrently while the
-subscriber runs, so the current synchronous projection can inspect it safely.
-The callback may still be inside a larger logical mutation burst. It is not a
-general worker/owner yield point: a future value boundary must journal facts in
-the subscriber and materialize them at an explicit safe point after the
-relevant operation completes.
+**The completion hook is the ordinary projection safe point.** It runs after the
+step's mutation burst and before Forge starts another step. It materializes the
+closed frame once, then pacing sleeps only after successful install and enqueue.
+The unit is one completed Forge step rather than one EventBus event or chosen
+action: eligible events within that step keep their causal order in one frame,
+with no intermediate bundle.
+Hook exceptions propagate through `GameLoopController`, which stops the loop,
+wakes bridge waiters, and exposes the terminal cause.
 
-**Combat declarations are materialized unconditionally.** Unlike other events,
+**Combat declarations remain named legacy checkpoints.** Unlike other events,
 which become playback frames only during remote turns,
 `GameEventAttackersDeclared` does so on both seats. The engine runs through the
 entire combat step in one burst—declare attackers, tap, blockers, damage, then

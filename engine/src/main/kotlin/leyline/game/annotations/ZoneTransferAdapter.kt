@@ -8,6 +8,7 @@ import leyline.game.event.ZoneMove
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.InstanceIdRegistry
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.ProjectionState
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
@@ -20,6 +21,7 @@ object ZoneTransferAdapter {
         editor: ProjectionState.Editor,
         snapshot: GsmSnapshot,
         events: List<GameEvent>,
+        mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
         zoneMoves: List<ZoneMove> = emptyList(),
     ): TransferResult {
         val annotationJournal = editor.annotations
@@ -81,6 +83,7 @@ object ZoneTransferAdapter {
                                 annotationJournal::paradigmSourceStackIidFor,
                             )
                         },
+                        sourceZoneLookup = mechanicSourceFacts::recordedSourceZone,
                         zoneMoves = zoneMoves,
                     ),
             )

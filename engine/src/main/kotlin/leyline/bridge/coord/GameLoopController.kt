@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Manages the dedicated game thread that runs the engine's game loop.
@@ -40,11 +41,18 @@ class GameLoopController(
     private var gameThread: Thread? = null
     private val running = AtomicBoolean(false)
     private val started = CountDownLatch(1)
+    private val terminalFailure = AtomicReference<Throwable?>(null)
 
     /**
      * True while the game thread is alive and the loop hasn't ended.
      */
     val isRunning: Boolean get() = running.get()
+
+    val failure: Throwable? get() = terminalFailure.get()
+
+    fun throwIfFailed() {
+        failure?.let { throw IllegalStateException("Game loop terminated", it) }
+    }
 
     /**
      * Start the full game via the engine's [forge.game.Match.startGame].
@@ -88,7 +96,11 @@ class GameLoopController(
                     log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
                 } catch (ex: Exception) {
                     if (running.get()) {
+                        terminalFailure.compareAndSet(null, ex)
                         log.error("Game loop crashed for game ${game.id}", ex)
+                        actionBridges.forEach { it.cancelPending() }
+                        promptBridges.forEach { it.cancelPending() }
+                        mulliganBridges.forEach { it.cancelPending() }
                     } else {
                         log.debug("Game loop interrupted during shutdown for game ${game.id}")
                     }
