@@ -19,9 +19,9 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
+import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.GameBridge
 import leyline.game.state.InstanceIdRegistry
-import leyline.game.state.ProjectionAnnotationJournal
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -96,7 +96,7 @@ class StateZoneTransferProjectionTest :
             val forestId = ForgeCardId(7)
             val spellIid = bridge.getOrAllocInstanceId(spellId).value
             val forestIid = bridge.getOrAllocInstanceId(forestId).value
-            bridge.diff.recordZone(spellIid, ZoneIds.P1_HAND)
+            bridge.recordZone(InstanceId(spellIid), ZoneIds.P1_HAND)
             val snapshot =
                 GsmSnapshot.forTest(
                     objects =
@@ -113,7 +113,7 @@ class StateZoneTransferProjectionTest :
                                 ),
                         ),
                 )
-            val journal = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal())
+            val journal = AnnotationProjectionState.Planner(AnnotationProjectionState())
 
             val result =
                 ZoneTransferAdapter.detectZoneTransfers(
@@ -180,7 +180,7 @@ class StateZoneTransferProjectionTest :
                             ),
                         ),
                 )
-            val journal = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal())
+            val journal = AnnotationProjectionState.Planner(AnnotationProjectionState())
             journal.recordParadigmSourceStackIid(effectSourceId, 909)
 
             val result =
@@ -225,7 +225,7 @@ class StateZoneTransferProjectionTest :
             val sourceId = ForgeCardId(9)
             val sourceStackIid = 909
             val abilityForgeId = 77
-            val journal = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal())
+            val journal = AnnotationProjectionState.Planner(AnnotationProjectionState())
             journal.recordParadigmSourceStackIid(sourceId, sourceStackIid)
             val events =
                 listOf(

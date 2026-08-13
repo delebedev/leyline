@@ -9,16 +9,13 @@ import leyline.bridge.types.InstanceId
  * value at each transfer site instead of three separate writes plus an
  * `if (origId != newId)` guard around each.
  *
- * Mutations are folded into [BridgeMutations] downstream of construction —
- * pure compute → data → caller-applied via [GameBridge.applyMutations].
- *
  *  - [realloc] — old → new instanceId. Both equal when the transfer keeps
  *    the same iid (Resolve, no-op handoff).
  *  - [limboRetirement] — old iid to retire to Limbo. Null when the handoff
  *    is a no-op (realloc.old == realloc.new); the caller then skips the
  *    retire / OIC / zone-patch steps.
  *  - [zoneAssignment] — (new iid, destination zone id) pair the caller
- *    folds into [BridgeMutations.zoneRecordings].
+ *    folds into the next [ProjectionState].
  *
  * Built via the [Companion] factories. Pure-pipeline callers use
  * [fromRealloc] with an `idAllocator` lambda; a direct-bridge entry point

@@ -177,8 +177,6 @@ data class CardSnapshot(
     val isMergedPermanent: Boolean = false,
     /** True when this merged component is currently the top component. */
     val isTopMergedComponent: Boolean = false,
-    /** Earthbend-granted haste/object-origin projection while this land is animated. */
-    val earthbend: EarthbendProjection? = null,
 )
 
 data class EarthbendProjection(

@@ -149,11 +149,13 @@ class RevealStateTest :
             assertSoftly {
                 unrelated.diffDeletedPersistentAnnotationIdsList shouldContain faceUpId
                 unrelated.diffDeletedPersistentAnnotationIdsList shouldNotContain knownId
-                board.bridge.annotations
-                    .snapshot()
+                board.bridge
+                    .projectionStateSnapshot()
+                    .persistentAnnotations.activeAnnotations
                     .containsKey(faceUpId) shouldBe false
-                board.bridge.annotations
-                    .snapshot()[knownId]
+                board.bridge
+                    .projectionStateSnapshot()
+                    .persistentAnnotations.activeAnnotations[knownId]
                     ?.typeList shouldBe
                     listOf(AnnotationType.InstanceRevealedToOpponent)
             }
@@ -220,8 +222,9 @@ class RevealStateTest :
                 shuffled.diffDeletedPersistentAnnotationIdsList shouldContain shuffledKnownId
                 shuffled.diffDeletedPersistentAnnotationIdsList shouldNotContain handKnownId
                 shuffled.persistentAnnotationOrNull(AnnotationType.InstanceRevealedToOpponent).shouldBeNull()
-                shuffledBoard.bridge.annotations
-                    .snapshot()
+                shuffledBoard.bridge
+                    .projectionStateSnapshot()
+                    .persistentAnnotations.activeAnnotations
                     .containsKey(handKnownId) shouldBe true
             }
         }

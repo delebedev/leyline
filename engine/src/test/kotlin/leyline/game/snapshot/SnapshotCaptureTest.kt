@@ -107,4 +107,31 @@ class SnapshotCaptureTest :
 
             snap.objects.getValue(ForgeCardId(paradigm.id)).hasParadigmKeyword shouldBe true
         }
+
+        test("discarded snapshot capture does not advance token or instance identity") {
+            lateinit var token: Card
+            val (bridge, game, _) =
+                startWithBoard { _, human, _ ->
+                    val creator = addCard("Forest", human, ZoneType.Battlefield)
+                    token = addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    token.setGamePieceType(GamePieceType.TOKEN)
+                    token.tokenSpawningAbility = creator.manaAbilities.single()
+                }
+            bridge.replaceProjectionStateForTest(bridge.projectionStateSnapshot().copy(tokenGrpIds = emptyMap()))
+            val before = bridge.projectionStateSnapshot()
+
+            val (_, tentative) =
+                bridge.editProjection(before) {
+                    SnapshotCapture.run(game, bridge, "test", 1)
+                }
+            val tokenIid =
+                tentative.identities.forgeIdToInstanceId
+                    .getValue(ForgeCardId(token.id))
+                    .value
+
+            assertSoftly {
+                tentative.tokenGrpIds.keys shouldBe setOf(tokenIid)
+                bridge.projectionStateSnapshot() shouldBe before
+            }
+        }
     })

@@ -22,7 +22,7 @@ object RevealStateContributor : AnnotationContributor {
         val faceUp = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
 
         reveals.forEach { (reveal, cardId) ->
-            val proxyId = ctx.bridge.revealProxies.lookup(cardId) ?: return@forEach
+            val proxyId = ctx.bridge.lookupRevealProxy(cardId) ?: return@forEach
             transient += AnnotationBuilder.revealedCardCreated(proxyId)
             val affectorId = revealAffector(reveal.sourceCardId, ctx) ?: return@forEach
             faceUp +=

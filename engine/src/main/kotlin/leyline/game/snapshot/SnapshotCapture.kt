@@ -55,12 +55,6 @@ object SnapshotCapture {
         val stack = captureStack(game, bridge)
         val abilityWordEntries = computeAbilityWordEntries(game, bridge)
         val pendingTriggers = PendingTriggerCapture.run(game, bridge)
-        val persistentAnnotationState =
-            PersistentAnnotationState(
-                activeAnnotations = bridge.annotations.snapshot(),
-                nextAnnotationId = bridge.annotations.currentAnnotationId(),
-                nextPersistentId = bridge.annotations.currentPersistentId(),
-            )
         // Day/Night state. `Game.getDayTime()` is null=neither, false=Day, true=Night.
         // APSC reads from `playerTurn` (turn-owner) since the spell-count tally is
         // owned by that player; priority can shift mid-turn but the tally doesn't.
@@ -76,7 +70,6 @@ object SnapshotCapture {
             stack = stack,
             abilityWordEntries = abilityWordEntries,
             pendingTriggers = pendingTriggers,
-            persistentAnnotationState = persistentAnnotationState,
             capturedAt =
                 CaptureMarker(
                     gsIdBeforeCapture = -1,
@@ -555,7 +548,6 @@ object SnapshotCapture {
             mergedComponentAbilityOriginalCardGrpIds = mergedState.componentAbilityOriginalCardGrpIds,
             isMergedPermanent = mergedState.isMergedPermanent,
             isTopMergedComponent = mergedState.isTopComponent,
-            earthbend = if (onBf) bridge.earthbendProjectionFor(card) else null,
         )
     }
 

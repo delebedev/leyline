@@ -509,7 +509,7 @@ class GameBridgeTest :
                     effectFacts = b.materializeEffectProjectionFacts(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
-            b.applyMutations(seedResult.finalizeAnnotations().mutations)
+            b.commitProjection(checkNotNull(seedResult.finalizeAnnotations().transition))
 
             // Play a land
             val player = b.getPlayer(SeatId(1))!!

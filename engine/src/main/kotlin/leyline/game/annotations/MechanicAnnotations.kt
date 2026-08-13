@@ -24,7 +24,7 @@ import kotlin.collections.iterator
  *    ControllerChangedEffect) in event order. Kept as a flat list because
  *    [leyline.game.state.CounterKind] rows and the cleanup-tracked rows must
  *    interleave through step 3a's id allocator in
- *    [leyline.game.state.PersistentAnnotationStore.Companion.computeBatch].
+ *    [leyline.game.state.PersistentAnnotationStore.computeBatch].
  *  - [perKindPersistent]: per-registry-kind full-replacement set, keyed on
  *    [PersistentAnnotationKind]. Producers populate one entry per kind they emit;
  *    `computeBatch` dispatches via [leyline.game.state.PersistentAnnotationKinds.upsertable].
@@ -38,12 +38,12 @@ data class MechanicAnnotationResult(
     val persistent: List<AnnotationInfo>,
     /** Per-registry-kind persistent annotations — full-replacement set this GSM, keyed
      *  by [PersistentAnnotationKind]. Consumed by
-     *  [leyline.game.state.PersistentAnnotationStore.Companion.computeBatch]. */
+     *  [leyline.game.state.PersistentAnnotationStore.computeBatch]. */
     val perKindPersistent: Map<PersistentAnnotationKind, List<AnnotationInfo>> = emptyMap(),
     /** Forge card IDs of auras/equipment that were detached this GSM. */
     val detachedForgeCardIds: List<ForgeCardId> = emptyList(),
     /** Forge card IDs of permanents that left the battlefield this GSM.
-     *  Used by [leyline.game.state.PersistentAnnotationStore.Companion.computeBatch] to clean up
+     *  Used by [leyline.game.state.PersistentAnnotationStore.computeBatch] to clean up
      *  [AnnotationType.DisplayCardUnderCard] persistent annotations. */
     val exileSourceLeftPlayForgeCardIds: List<ForgeCardId> = emptyList(),
     /** Controller-change effects created this GSM (for persistent tracking). */

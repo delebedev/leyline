@@ -31,8 +31,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  * - One-turn: minimal baseline — single play/cast/end-of-turn cycle.
  * - Three-turn: multi-turn invariants — cross-turn annotation lifecycle,
  *   cleanup transitions, monotonic counters across bundle boundaries.
- * - Defer-invariant regression: guards the bridge.ids realloc-commit contract
- *   (compute-pure, apply-via-applyMutations).
+ * - Defer-invariant regression: guards the atomic projection-transition contract.
  *
  * Any drift = impurity surfaced. Passing = pure-output semantics verified for
  * this feature surface (zone transfers, phase changes, combat, persistent
@@ -93,6 +92,7 @@ class PureDiffReplayTest :
 
                 val replayBytes =
                     liveRun.map { step ->
+                        replayBridge.replaceProjectionStateForTest(step.input.projectionState)
                         val updateType = step.diff.update
                         val replayResult =
                             StateMapper
@@ -101,7 +101,7 @@ class PureDiffReplayTest :
                                     matchId = Board.TEST_MATCH_ID,
                                     bridge = replayBridge,
                                 ).finalizeAnnotations(step.riders())
-                        replayBridge.applyMutations(replayResult.mutations)
+                        replayBridge.commitProjection(checkNotNull(replayResult.transition))
                         replayResult.gsm.toByteArray().toList()
                     }
                 val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
@@ -133,6 +133,7 @@ class PureDiffReplayTest :
 
                 val replayBytes =
                     liveRun.map { step ->
+                        replayBridge.replaceProjectionStateForTest(step.input.projectionState)
                         val updateType = step.diff.update
                         val replayResult =
                             StateMapper
@@ -141,7 +142,7 @@ class PureDiffReplayTest :
                                     matchId = Board.TEST_MATCH_ID,
                                     bridge = replayBridge,
                                 ).finalizeAnnotations(step.riders())
-                        replayBridge.applyMutations(replayResult.mutations)
+                        replayBridge.commitProjection(checkNotNull(replayResult.transition))
                         replayResult.gsm.toByteArray().toList()
                     }
                 val liveBytes = liveRun.map { it.diff.toByteArray().toList() }
@@ -150,9 +151,9 @@ class PureDiffReplayTest :
         }
 
         // Regression guard: buildDiff MUST NOT commit id-realloc map writes during
-        // compute. ZoneTransferDetector uses a local overlay; applyMutations is the
-        // only place the forward/reverse maps advance.
-        test("buildDiff defers bridge.ids realloc commits to applyMutations") {
+        // compute. ZoneTransferDetector uses a local overlay; transition install is
+        // the only place the forward/reverse maps advance.
+        test("buildDiff defers bridge.ids realloc commits until transition install") {
             withBase {
                 val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val observed = mutableListOf<BundleStep>()
@@ -173,30 +174,31 @@ class PureDiffReplayTest :
                 // commit), then the NEW id post-apply.
                 var exercisedRealloc = false
                 for (step in observed) {
+                    replayBridge.replaceProjectionStateForTest(step.input.projectionState)
                     val draft =
                         StateMapper.buildDiff(
                             input = step.input.copy(updateType = step.diff.update),
                             matchId = Board.TEST_MATCH_ID,
                             bridge = replayBridge,
                         )
-                    draft.mutations.nextAnnotationId shouldBe null
+                    checkNotNull(draft.annotationFrameDraft)
                     draft.gsm.annotationsList.all { it.id == 0 } shouldBe true
                     val result = draft.finalizeAnnotations(step.riders())
-                    val nonTrivial = result.mutations.idReallocations.filter { it.old != it.new }
+                    val nonTrivial = result.output.idReallocations.filter { it.old != it.new }
                     for (r in nonTrivial) {
                         val fid =
                             replayBridge.getForgeCardId(r.old)
                                 ?: error("reverse lookup for realloc.old=${r.old} returned null; bridge state corrupt")
                         // Pre-apply: compute must NOT have moved the forward map.
-                        replayBridge.ids.peek(fid) shouldBe r.old
+                        replayBridge.peekInstanceId(fid) shouldBe r.old
                     }
-                    replayBridge.applyMutations(result.mutations)
+                    replayBridge.commitProjection(checkNotNull(result.transition))
                     for (r in nonTrivial) {
                         val fid =
                             replayBridge.getForgeCardId(r.new)
                                 ?: error("reverse lookup for realloc.new=${r.new} returned null after apply")
                         // Post-apply: the map now reflects the new id.
-                        replayBridge.ids.peek(fid) shouldBe r.new
+                        replayBridge.peekInstanceId(fid) shouldBe r.new
                     }
                     if (nonTrivial.isNotEmpty()) exercisedRealloc = true
                 }
@@ -208,8 +210,8 @@ class PureDiffReplayTest :
             withBase {
                 val (replayBridge, game, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val snap = GsmSnapshot.capture(game, replayBridge, Board.TEST_MATCH_ID, 1)
-                val before = replayBridge.ids.committedState()
-                val journalBefore = replayBridge.annotationJournalSnapshot()
+                val before = replayBridge.projectionStateSnapshot()
+                val journalBefore = replayBridge.annotationProjectionStateSnapshot()
 
                 fun compile() =
                     StateMapper
@@ -227,16 +229,15 @@ class PureDiffReplayTest :
                         ).finalizeAnnotations()
 
                 val first = compile()
-                val afterFirst = replayBridge.ids.committedState()
-                val journalAfterFirst = replayBridge.annotationJournalSnapshot()
+                val afterFirst = replayBridge.projectionStateSnapshot()
+                val journalAfterFirst = replayBridge.annotationProjectionStateSnapshot()
                 val second = compile()
-                val afterSecond = replayBridge.ids.committedState()
-                val journalAfterSecond = replayBridge.annotationJournalSnapshot()
+                val afterSecond = replayBridge.projectionStateSnapshot()
+                val journalAfterSecond = replayBridge.annotationProjectionStateSnapshot()
 
                 assertSoftly {
                     first.gsm.toByteArray().toList() shouldBe second.gsm.toByteArray().toList()
-                    first.mutations.instanceIdTransition.nextState shouldBe second.mutations.instanceIdTransition.nextState
-                    first.mutations.annotationJournalTransition.next shouldBe second.mutations.annotationJournalTransition.next
+                    first.transition?.nextState shouldBe second.transition?.nextState
                     afterFirst shouldBe before
                     afterSecond shouldBe before
                     journalAfterFirst shouldBe journalBefore
@@ -245,7 +246,7 @@ class PureDiffReplayTest :
             }
         }
 
-        test("buildDiff defers delayed-trigger holder removals to applyMutations") {
+        test("buildDiff defers delayed-trigger holder removals until transition install") {
             withBase {
                 val (liveBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val observed = mutableListOf<BundleStep>()
@@ -263,24 +264,30 @@ class PureDiffReplayTest :
                 bridge = null
                 val (replayBridge, _, _) = startGameAtMain1(seed = SCENARIO_SEED)
                 val holder = HolderRecord(iid = 777, ownerSeat = 1, objectSourceGrpId = 188698, parentIid = 100, cleanupGrpId = 189931)
-                replayBridge.delayedTriggerHolders.apply(HolderBatch(added = listOf(holder), removed = emptyList()))
-                val activeBefore = replayBridge.delayedTriggerHolders.activeIids()
+                replayBridge.replaceProjectionStateForTest(
+                    replayBridge.projectionStateSnapshot().copy(delayedTriggerHolders = mapOf(holder.iid to holder)),
+                )
+                val activeBefore = replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys
                 val step = observed.first()
                 val replayResult =
                     StateMapper
                         .buildDiff(
-                            input = step.input.copy(updateType = step.diff.update),
+                            input =
+                                step.input.copy(
+                                    updateType = step.diff.update,
+                                    projectionState = replayBridge.projectionStateSnapshot(),
+                                ),
                             matchId = Board.TEST_MATCH_ID,
                             bridge = replayBridge,
                         ).finalizeAnnotations(step.riders())
 
                 assertSoftly("holder deletion is compute-time only until mutations apply") {
-                    replayBridge.delayedTriggerHolders.activeIids() shouldBe activeBefore
-                    replayResult.mutations.holderBatch.removed shouldBe listOf(777)
+                    replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys shouldBe activeBefore
+                    replayResult.output.holderBatch.removed shouldBe listOf(777)
                     (777 in replayResult.gsm.diffDeletedInstanceIdsList) shouldBe true
                 }
-                replayBridge.applyMutations(replayResult.mutations)
-                replayBridge.delayedTriggerHolders.activeIids() shouldBe emptySet()
+                replayBridge.commitProjection(checkNotNull(replayResult.transition))
+                replayBridge.projectionStateSnapshot().delayedTriggerHolders.keys shouldBe emptySet()
             }
         }
     }) {

@@ -79,8 +79,9 @@ class ReconfigureLifecycleTest :
             val allActivePersistent =
                 harness
                     .bridge
-                    .annotations
-                    .snapshot()
+                    .projectionStateSnapshot()
+                    .persistentAnnotations
+                    .activeAnnotations
                     .values
 
             assertSoftly {

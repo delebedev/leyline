@@ -328,7 +328,6 @@ class StateMapperShapeTest :
                     combat = base.combat,
                     abilityWordEntries = base.abilityWordEntries,
                     pendingTriggers = base.pendingTriggers,
-                    persistentAnnotationState = base.persistentAnnotationState,
                     capturedAt = base.capturedAt,
                     dayTime = base.dayTime,
                     activePlayerSpellsCastThisTurn = base.activePlayerSpellsCastThisTurn,

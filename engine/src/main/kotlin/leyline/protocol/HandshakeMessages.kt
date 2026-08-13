@@ -9,9 +9,10 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateMapper
-import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionTransition
+import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -19,6 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * mulliganReq, settingsResp. Distinct from [StateMapper]
  * which handles in-game state diffs.
  */
+@Suppress("LargeClass") // one pre-game handshake sequence and its protocol helpers
 object HandshakeMessages {
     fun puzzleActionsReq(
         msgId: Int,
@@ -170,7 +172,7 @@ object HandshakeMessages {
         bridge: GameBridge,
         dieRollWinner: Int = 2,
         includeStartingPlayerPrompt: Boolean = true,
-        onInitialSnapshot: ((GsmSnapshot) -> Unit)? = null,
+        seedProjectionCursor: Boolean = false,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
@@ -191,18 +193,27 @@ object HandshakeMessages {
         // Full initial GameState
         val shouldSendStartingPlayerPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
         val pendingCount = if (shouldSendStartingPlayerPrompt) 1 else 0 // ChooseStartingPlayerReq follows
-        val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
-        onInitialSnapshot?.invoke(initSnap)
-        val gsm =
-            GsmBuilder.buildInitialGameState(
-                matchId,
-                gameStateId,
-                bridge,
-                initSnap,
-                pendingCount,
-                seatId.value,
-                includeStartingPlayerDecision = includeStartingPlayerPrompt,
-            )
+        val priorProjection = bridge.projectionStateSnapshot()
+        val (snapshotAndGsm, nextProjection) =
+            bridge.editProjection(priorProjection) { editor ->
+                val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
+                val gsm =
+                    GsmBuilder.buildInitialGameState(
+                        matchId,
+                        gameStateId,
+                        bridge,
+                        initSnap,
+                        pendingCount,
+                        seatId.value,
+                        includeStartingPlayerDecision = includeStartingPlayerPrompt,
+                    )
+                if (seedProjectionCursor) {
+                    editor.viewerCursors[0] = ViewerProjectionCursor(previousSnapshot = initSnap)
+                }
+                initSnap to gsm
+            }
+        val (_, gsm) = snapshotAndGsm
+        bridge.commitProjection(ProjectionTransition(priorProjection.revision, nextProjection))
         messages.add(
             GREToClientMessage
                 .newBuilder()
@@ -246,8 +257,11 @@ object HandshakeMessages {
         seatId: SeatId,
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): Pair<MatchServiceToClientMessage, Int> {
-        val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
+        val gsm =
+            projectAndCommit(bridge) {
+                val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
+            }
         val gre =
             GREToClientMessage
                 .newBuilder()
@@ -267,13 +281,15 @@ object HandshakeMessages {
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
-        val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
         val gsm =
-            GsmBuilder
-                .buildDealHand(bridge, gameStateId, 2, deal2Snap)
-                .toBuilder()
-                .setPendingMessageCount(1)
-                .build()
+            projectAndCommit(bridge) {
+                val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                GsmBuilder
+                    .buildDealHand(bridge, gameStateId, 2, deal2Snap)
+                    .toBuilder()
+                    .setPendingMessageCount(1)
+                    .build()
+            }
         val greGsm =
             GREToClientMessage
                 .newBuilder()
@@ -300,21 +316,23 @@ object HandshakeMessages {
         var msgId = msgIdStart
 
         // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
-        val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
         val gsm =
-            GameStateMessage
-                .newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(gameStateId)
-                .addPlayers(
-                    PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
-                ).setTurnInfo(
-                    TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
-                ).setPendingMessageCount(2)
-                .setPrevGameStateId(gameStateId - 1)
-                .addAllTimers(PlayerMapper.buildTimers())
-                .setUpdate(GameStateUpdate.SendAndRecord)
-                .build()
+            projectAndCommit(bridge) {
+                val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(gameStateId)
+                    .addPlayers(
+                        PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
+                    ).setTurnInfo(
+                        TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
+                    ).setPendingMessageCount(2)
+                    .setPrevGameStateId(gameStateId - 1)
+                    .addAllTimers(PlayerMapper.buildTimers())
+                    .setUpdate(GameStateUpdate.SendAndRecord)
+                    .build()
+            }
         val greGsm =
             GREToClientMessage
                 .newBuilder()
@@ -376,31 +394,35 @@ object HandshakeMessages {
         var msgId = msgIdStart
 
         // 1) Thin GSM Diff: player with mulliganCount + hand actions
-        val game = bridge.getGame()!!
-        val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "", 0)
-        val actions = ActionMapper.buildFromSnapshot(seatId.value, mulliganRespSnap, bridge)
         val gsm =
-            GameStateMessage
-                .newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(gameStateId)
-                .addPlayers(
-                    PlayerMapper
-                        .buildFromSnapshot(mulliganRespSnap, 1)
-                        .toBuilder()
-                        .setMulliganCount(mulliganCount)
-                        .build(),
-                ).setPendingMessageCount(2)
-                .setPrevGameStateId(gameStateId - 1)
-                .setUpdate(GameStateUpdate.SendAndRecord)
-        for (action in actions.actionsList) {
-            gsm.addActions(
-                ActionInfo
+            projectAndCommit(bridge) {
+                val game = bridge.getGame()!!
+                val mulliganRespSnap = GsmSnapshot.capture(game, bridge, "", 0)
+                val actions = ActionMapper.buildFromSnapshot(seatId.value, mulliganRespSnap, bridge)
+                GameStateMessage
                     .newBuilder()
-                    .setSeatId(seatId.value)
-                    .setAction(ActionMapper.stripActionForGsm(action)),
-            )
-        }
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(gameStateId)
+                    .addPlayers(
+                        PlayerMapper
+                            .buildFromSnapshot(mulliganRespSnap, 1)
+                            .toBuilder()
+                            .setMulliganCount(mulliganCount)
+                            .build(),
+                    ).setPendingMessageCount(2)
+                    .setPrevGameStateId(gameStateId - 1)
+                    .setUpdate(GameStateUpdate.SendAndRecord)
+                    .also { builder ->
+                        for (action in actions.actionsList) {
+                            builder.addActions(
+                                ActionInfo
+                                    .newBuilder()
+                                    .setSeatId(seatId.value)
+                                    .setAction(ActionMapper.stripActionForGsm(action)),
+                            )
+                        }
+                    }.build()
+            }
         val greGsm =
             GREToClientMessage
                 .newBuilder()
@@ -468,7 +490,11 @@ object HandshakeMessages {
         }
 
         // Full GSM built from live game state (stage=Play, cards in zones)
-        val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
+        val priorProjection = bridge.projectionStateSnapshot()
+        val (snap, capturedProjection) =
+            bridge.editProjection(priorProjection) {
+                GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
+            }
         val events = bridge.closeBundleFrame(seatId.value)
         val fullResult =
             StateMapper
@@ -477,16 +503,32 @@ object HandshakeMessages {
                     gameStateId = gameStateId,
                     matchId = matchId,
                     bridge = bridge,
-                    environment = StateProjectionEnvironmentCapture.from(bridge),
+                    environment = bridge.stateProjectionEnvironment,
                     viewingSeatId = seatId.value,
                     events = events,
                     promptFacts = bridge.materializePromptProjectionFacts(),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
                     mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
                     abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
+                    projectionState = capturedProjection.copy(revision = priorProjection.revision),
                 ).finalizeAnnotations()
-        bridge.applyMutations(fullResult.mutations)
-        val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
+        val transition = checkNotNull(fullResult.transition)
+        val tentative = transition.nextState.copy(revision = transition.expectedRevision)
+        val (actions, nextProjection) =
+            bridge.editProjection(tentative) {
+                ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
+            }
+        val priorCursor = nextProjection.viewerCursors[0] ?: ViewerProjectionCursor()
+        bridge.commitProjection(
+            transition.copy(
+                nextState =
+                    nextProjection.copy(
+                        viewerCursors =
+                            nextProjection.viewerCursors +
+                                (0 to priorCursor.copy(previousSnapshot = snap)),
+                    ),
+            ),
+        )
         val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)
 
         messages.add(
@@ -525,6 +567,16 @@ object HandshakeMessages {
     }
 
     // --- private helpers ---
+
+    private fun <T> projectAndCommit(
+        bridge: GameBridge,
+        block: () -> T,
+    ): T {
+        val prior = bridge.projectionStateSnapshot()
+        val (result, next) = bridge.editProjection(prior) { block() }
+        bridge.commitProjection(ProjectionTransition(prior.revision, next))
+        return result
+    }
 
     /** DieRollResults — [winner] seat rolls higher, random d20 values.
      *  Uses [forge.util.MyRandom] so a seeded game produces deterministic rolls. */

@@ -42,13 +42,13 @@ one logical writer.
 **Known exceptions to the critical section.** The mulligan flow
 (`MatchConnection` dispatching `MulliganHandler`) drives the engine on the
 transport thread without entering `sessionLock`, relying on pre-game phase
-exclusivity. The debug server's puzzle hot-swap writes `BundleCursor.lastSent`
-from its own executor outside the lock. Both are debt for the serial-owner
-migration, not license for new lock-free entry points.
+exclusivity. Puzzle replacement installs a fresh `ProjectionState` from its own
+executor outside the lock. Both are debt for the serial-owner migration, not
+license for new lock-free entry points.
 
 **Shared projection and handoff state.** `MessageCounter` uses atomics;
-`BundleCursor.lastSent` is volatile; pending actions and prompts use atomic
-references; `PrioritySignal` is a semaphore. `GamePlayback.queue` is concurrent,
+`ProjectionState` installs through a revision-checked transition; pending
+actions and prompts use atomic references; `PrioritySignal` is a semaphore. `GamePlayback.queue` is concurrent,
 but `queueLock` deliberately covers the whole close-events/build/advance-cursor/
 enqueue window and every drain. The queue type alone is not the transaction.
 
@@ -117,13 +117,13 @@ The signal means "a pending item was posted." It does not mean "the engine has f
 
 ## 3. Projection baseline vs sink handoff
 
-Two independent timelines exist. The field name `BundleCursor.lastSent` is
-historical; the value is the latest projection baseline committed during bundle
-construction, not an acknowledgement from the sink.
+Two independent timelines exist. The viewer cursor in `ProjectionState` is the
+latest projection baseline committed during bundle construction, not an
+acknowledgement from the sink.
 
 | Timeline | Location | Advances on | Purpose |
 |---|---|---|---|
-| Projection baseline | `BundleCursor.lastSent: GsmSnapshot?` on `GameBridge.bundleCursor` | A `BundleBuilder` assigns the completed snapshot before returning or enqueueing its messages | Input to the next `StateMapper.buildDiff` call |
+| Projection baseline | `ProjectionState.viewerCursors` | A `BundleBuilder` installs the completed transition before returning or enqueueing its messages | Input to the next `StateMapper.buildDiff` call |
 | Sink handoff | Implicit in the sink | `sink.send(messages)` is invoked successfully | Server-side delivery attempt; this is not client acknowledgement |
 
 The current state-diff order is:
@@ -133,23 +133,23 @@ snapshot Forge state
   -> compute and finalize the frame
   -> invoke the pre-commit diff observer
   -> commit projection:
-       apply BridgeMutations
-       advance BundleCursor.lastSent
-       consume pending frame state
+       install complete ProjectionState
+       advance the viewer baseline
+       acknowledge exact pending shell entries
   -> assemble path-specific messages
   -> return or enqueue the batch
   -> later call sink.send
 ```
 
-`BridgeMutations` commits in a fixed order—ID reallocations, limbo retirements,
-zone bookkeeping, persistent-annotation batch, then `nextAnnotationId`. The
+The transition already contains the resulting identity, zone, annotation, and
+cursor values; the shell does not replay per-family mutation batches. The
 interactive path binds offers and sends after `BundleBuilder` returns. The
 playback path performs build, projection commit, message assembly, and enqueue
 under `queueLock`; a session or spectator domain drains and sends later.
 
 This is not an atomic projection-plus-delivery transaction. An exception after
-frame finalization but before projection commit advances neither bridge
-mutations nor the cursor. Mutation application and cursor advancement share one
+frame finalization but before projection commit advances neither projection
+history nor the cursor. Projection history and cursor advancement share one
 commit function, so later failures cannot split those two baselines. An
 exception during path-specific assembly or a sink failure can still leave the
 committed projection ahead of returned or delivered output. The current runtime
@@ -161,9 +161,9 @@ remaining gap.
 decision depends on whether delivery occurred, track delivery explicitly.
 
 **R2. One cursor per bridge, shared across builders.** `MatchSession` and
-`GamePlayback` each construct a `BundleBuilder`, but both receive
-`bridge.bundleCursor`. Separate cursors would produce diffs against different
-histories. `BundleCursor.lastSent` is volatile for publication, while
+`GamePlayback` each construct a `BundleBuilder`, but both use the viewer cursor
+inside the bridge's `ProjectionState`. Separate cursors would produce diffs against different
+histories. Transition installation publishes the viewer cursor, while
 `sessionLock`, `queueLock`, priority waits, and queue ordering provide the
 larger sequencing contract.
 
@@ -197,7 +197,7 @@ The wait guarantees three things hold when it returns:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. `MessageCounter` has advanced past its pre-wait watermark.
-3. `BundleCursor.lastSent` has settled: any engine-thread bundle from the preceding action has already advanced the cursor.
+3. The projection baseline has settled: any engine-thread bundle from the preceding action has already advanced the viewer cursor.
 
 A send that skips `awaitPriority` is a send built from a half-mutated engine state. The resulting GSM diff will be inconsistent with what the client should observe.
 
@@ -212,11 +212,11 @@ CharmEffect.makeChoices(ability)        ← blocks in chooseModeForAbility
 game.getStack().addAndUnfreeze(ability) ← runs only after mode choice returns
 ```
 
-When `PlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then write `cursor.lastSent` to the synthesized snapshot so the next diff sees the ability as already-sent. The cursor advance is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
+When `PlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then install the synthesized snapshot as the viewer baseline so the next diff sees the ability as already-sent. The cursor advance is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
 
 Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthesis; `sourceCardInstanceId` is null on that path.
 
-**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then advance `cursor.lastSent` to the synthesized snapshot — is the template to copy.
+**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then advance the viewer baseline in the same transition — is the template to copy.
 
 ---
 
@@ -225,7 +225,7 @@ Spell-time modals (kicker, spell modals where the card itself is already on the 
 `GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is synchronous on the engine thread: the `@Subscribe` method runs on `game-loop-<id>`, mid-way through whatever engine operation fired the event. Three rules follow.
 
 **Only bounded internal coordination.** A subscriber may read engine state,
-increment `MessageCounter`, advance `BundleCursor.lastSent`, and enqueue a batch.
+increment `MessageCounter`, install a projection transition, and enqueue a batch.
 `GamePlayback` deliberately acquires `queueLock` around close-events, frame
 construction, cursor advance, and enqueue so a drain cannot observe half a
 transaction. A subscriber must not acquire `sessionLock`, perform I/O, or wait

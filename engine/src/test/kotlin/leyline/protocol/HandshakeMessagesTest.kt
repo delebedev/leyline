@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
@@ -88,8 +89,6 @@ class HandshakeMessagesTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 1L)
-            var initialSnapshotSeen = false
-
             val bundle =
                 HandshakeMessages.initialBundle(
                     seatId = SeatId(2),
@@ -99,7 +98,7 @@ class HandshakeMessagesTest :
                     deckMessage = DeckMessage.getDefaultInstance(),
                     bridge = b,
                     includeStartingPlayerPrompt = false,
-                    onInitialSnapshot = { initialSnapshotSeen = true },
+                    seedProjectionCursor = true,
                 )
 
             val messages = bundle.first.greToClientEvent.greToClientMessagesList
@@ -110,7 +109,7 @@ class HandshakeMessagesTest :
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage
                     .pendingMessageCount shouldBe 0
-                initialSnapshotSeen shouldBe true
+                b.projectionStateSnapshot().viewerCursors[0]?.previousSnapshot shouldNotBe null
             }
         }
 

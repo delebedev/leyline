@@ -118,8 +118,8 @@ data class TransferResult(
     /** Triggered abilities that left the stack (resolved/fizzled). */
     val stackAbilityDisappearances: List<StackAbilityDisappearance> = emptyList(),
     /**
-     * Planned id reallocations for zone-transferred cards. Committed by
-     * [leyline.game.state.GameBridge.applyMutations] after [leyline.game.mapping.StateMapper.buildDiff] returns.
+     * Planned id reallocations for zone-transferred cards. The enclosing
+     * projection transition commits them after mapping succeeds.
      * Empty when no zone transfers occurred.
      */
     val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),

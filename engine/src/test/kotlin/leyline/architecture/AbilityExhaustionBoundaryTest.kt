@@ -135,13 +135,11 @@ class AbilityExhaustionBoundaryTest :
 
             callers shouldBe
                 listOf(
-                    "app/leyline/debug/DebugServer.kt",
                     "engine/leyline/game/bundle/BundleBuilder.kt",
                     "engine/leyline/protocol/HandshakeMessages.kt",
                 )
             rawStateMapperCallers shouldBe
                 listOf(
-                    "app/leyline/debug/DebugServer.kt",
                     "engine/leyline/game/bundle/BundleBuilder.kt",
                     "engine/leyline/protocol/HandshakeMessages.kt",
                 )

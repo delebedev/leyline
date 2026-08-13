@@ -15,10 +15,10 @@ data class AbilityWireIdentity(
  * Cross-frame annotation correlation owned by projection commits.
  *
  * The planner is private to one frame compile. Readers outside compilation use
- * the committed value; only an accepted [Transition] installs a replacement.
+ * the committed value; only the enclosing projection transition installs a replacement.
  * Prompt journals and live Forge reads remain outside this boundary.
  */
-data class ProjectionAnnotationJournal(
+data class AnnotationProjectionState(
     val abilityLineage: AbilityLineageRegistry = AbilityLineageRegistry(),
     val pendingSpellCasts: PendingSpellEventRegistry<GameEvent.SpellCast> = PendingSpellEventRegistry(),
     val pendingSpellResolutions: PendingSpellEventRegistry<GameEvent.SpellResolved> = PendingSpellEventRegistry(),
@@ -26,15 +26,9 @@ data class ProjectionAnnotationJournal(
     val decayedCleanupSources: Set<ForgeCardId> = emptySet(),
     val activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
 ) {
-    data class Transition(
-        val expected: ProjectionAnnotationJournal,
-        val next: ProjectionAnnotationJournal,
-    )
-
     class Planner(
-        initial: ProjectionAnnotationJournal,
+        initial: AnnotationProjectionState,
     ) {
-        private val expected = initial
         private var abilityLineage = initial.abilityLineage
         private var pendingSpellCasts = initial.pendingSpellCasts
         private var pendingSpellResolutions = initial.pendingSpellResolutions
@@ -118,18 +112,14 @@ data class ProjectionAnnotationJournal(
             activeStealForgeCardIds = next.toSet()
         }
 
-        fun transition(): Transition =
-            Transition(
-                expected = expected,
-                next =
-                    ProjectionAnnotationJournal(
-                        abilityLineage = abilityLineage,
-                        pendingSpellCasts = pendingSpellCasts,
-                        pendingSpellResolutions = pendingSpellResolutions,
-                        paradigmSourceStackIids = paradigmSourceStackIids.toMap(),
-                        decayedCleanupSources = decayedCleanupSources.toSet(),
-                        activeStealForgeCardIds = activeStealForgeCardIds,
-                    ),
+        fun freeze(): AnnotationProjectionState =
+            AnnotationProjectionState(
+                abilityLineage = abilityLineage,
+                pendingSpellCasts = pendingSpellCasts,
+                pendingSpellResolutions = pendingSpellResolutions,
+                paradigmSourceStackIids = paradigmSourceStackIids.toMap(),
+                decayedCleanupSources = decayedCleanupSources.toSet(),
+                activeStealForgeCardIds = activeStealForgeCardIds,
             )
     }
 }

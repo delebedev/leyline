@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -210,7 +211,10 @@ class RevealTest :
             board.snapshotDiff {
                 activateReveal(board.bridge, cardIds, ownerSeat = SeatId(2))
             }
-            board.bridge.revealProxies.isEmpty shouldBe false
+            board.bridge
+                .projectionStateSnapshot()
+                .revealProxies.entries.values
+                .shouldNotBeEmpty()
 
             // Second build: no prompt pending → stale guard clears activeReveal + proxies
             board.snapshotDiff {}
@@ -220,7 +224,10 @@ class RevealTest :
                 .journal
                 .activeReveal()
                 .shouldBeNull()
-            board.bridge.revealProxies.isEmpty shouldBe true
+            board.bridge
+                .projectionStateSnapshot()
+                .revealProxies.entries.values
+                .shouldBeEmpty()
         }
 
         test("clearing activeReveal triggers proxy cleanup in next GSM") {
@@ -233,14 +240,20 @@ class RevealTest :
             board.snapshotDiff {
                 activateReveal(board.bridge, cardIds, ownerSeat = SeatId(2))
             }
-            board.bridge.revealProxies.isEmpty shouldBe false
+            board.bridge
+                .projectionStateSnapshot()
+                .revealProxies.entries.values
+                .shouldNotBeEmpty()
 
             // Clear reveal (simulates choice completion)
             TargetingCoordinator.endReveal(board.bridge.promptBridge(SeatId(1)))
 
             val gsm = board.snapshotDiff {}
 
-            board.bridge.revealProxies.isEmpty shouldBe true
+            board.bridge
+                .projectionStateSnapshot()
+                .revealProxies.entries.values
+                .shouldBeEmpty()
             gsm.revealedCardProxies().shouldBeEmpty()
         }
 

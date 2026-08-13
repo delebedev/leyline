@@ -8,15 +8,9 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.domain.json.productionJson
-import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.GsmBuilder
-import leyline.game.bundle.GsmFrame
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateMapper
-import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
@@ -321,23 +315,7 @@ class DebugServer(
         val gsId = counter.nextGsId()
         val msgId = counter.nextMsgId()
 
-        val snap = SnapshotCapture.run(game, bridge, session.matchId, gsId)
-        val fullGsm =
-            StateMapper
-                .buildFromSnapshot(
-                    snap,
-                    gsId,
-                    session.matchId,
-                    bridge,
-                    updateType = GameStateUpdate.SendAndRecord,
-                    viewingSeatId = session.seatId.value,
-                    effectFacts = bridge.materializeEffectProjectionFacts(),
-                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
-                ).gsm
-
-        val actions = ActionMapper.buildFromSnapshot(session.seatId.value, snap, bridge)
-        val fullGsmWithActions =
-            GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = session.seatId.value)
+        val full = BundleBuilder(bridge, session.matchId, session.seatId.value).fullState(game, gsId)
 
         val greGsm =
             GREToClientMessage
@@ -346,7 +324,7 @@ class DebugServer(
                 .setMsgId(msgId)
                 .setGameStateId(gsId)
                 .addSystemSeatIds(session.seatId.value)
-                .setGameStateMessage(fullGsmWithActions)
+                .setGameStateMessage(full.gsm)
                 .build()
 
         val greActions =
@@ -356,14 +334,12 @@ class DebugServer(
                 .setMsgId(counter.nextMsgId())
                 .setGameStateId(gsId)
                 .addSystemSeatIds(session.seatId.value)
-                .setActionsAvailableReq(actions)
+                .setActionsAvailableReq(full.actions)
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.bundleCursor.lastSent = snap
-
-        val info = "Pushed full state gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+        val info = "Pushed full state gsId=$gsId objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
         log.info(info)
         respond(ex, 200, "text/plain", info)
     }
@@ -458,30 +434,17 @@ class DebugServer(
         val msgId = counter.nextMsgId()
 
         val game = bridge.getGame()!!
-        val snap = SnapshotCapture.run(game, bridge, newSession.matchId, gsId)
-        val fullGsm =
-            StateMapper
-                .buildFromSnapshot(
-                    snap,
-                    gsId,
-                    newSession.matchId,
-                    bridge,
-                    updateType = GameStateUpdate.SendAndRecord,
-                    viewingSeatId = newSession.seatId.value,
-                    effectFacts = bridge.materializeEffectProjectionFacts(),
-                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
-                ).gsm
-
-        val projection = ActionMapper.buildProjectionFromSnapshot(newSession.seatId.value, snap, bridge)
-        val actions = projection.actions
-        val fullGsmWithActions =
-            GsmBuilder.embedActions(fullGsm, actions, GsmFrame.from(snap), recipientSeatId = newSession.seatId.value)
+        val full = BundleBuilder(bridge, newSession.matchId, newSession.seatId.value).fullState(game, gsId)
+        val actions = full.actions
 
         val gsmWithDeletes =
             if (deletedIds.isNotEmpty()) {
-                fullGsmWithActions.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
+                full.gsm
+                    .toBuilder()
+                    .addAllDiffDeletedInstanceIds(deletedIds)
+                    .build()
             } else {
-                fullGsmWithActions
+                full.gsm
             }
 
         val greGsm =
@@ -505,12 +468,11 @@ class DebugServer(
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
 
-        check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
+        check(actionBridge.bindActionCatalog(pending.actionId, gsId, full.actionOffers)) {
             "Puzzle hot-swap could not bind priority actions"
         }
 
         newSession.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.bundleCursor.lastSent = snap
         val advanced = BundleBuilder.shouldAutoPass(actions)
         if (advanced) {
             newSession.triggerAutoPass()
@@ -519,12 +481,12 @@ class DebugServer(
 
         return if (fileParam != null) {
             "Puzzle '$fileParam' set + injected gsId=$gsId " +
-                "objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}$advancedSuffix"
+                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
                     .also { log.info(it) }
         } else {
             val meta = PuzzleSource.parseMetadata(body)
             "Injected puzzle '${meta.name}' gsId=$gsId " +
-                "objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}$advancedSuffix"
+                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
                     .also { log.info(it) }
         }
     }

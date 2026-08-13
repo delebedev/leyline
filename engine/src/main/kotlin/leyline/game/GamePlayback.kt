@@ -32,10 +32,8 @@ import leyline.game.event.GameEvent as LeylineGameEvent
  * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`
  * on the same atomic — no seeding or syncing needed.
  *
- * Shares [leyline.game.bundle.BundleCursor] with the session-layer `BundleBuilder` via
- * [leyline.game.state.GameBridge.bundleCursor]: the two builders must agree on the diff baseline
- * or `buildDiff` produces a Full when the client expects a Diff. See
- * [leyline.game.bundle.BundleCursor] KDoc for the sharing invariant.
+ * Shares [leyline.game.state.ProjectionState] with the session-layer
+ * `BundleBuilder`, including one common diff baseline.
  *
  * The [MatchHandler][leyline.match.MatchHandler] drains the queue
  * via [drainQueue] and sends messages to the TCP socket.

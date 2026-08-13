@@ -5,7 +5,6 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
 import leyline.game.mapping.ZoneMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -427,7 +426,7 @@ object GsmBuilder {
             ZoneMapper.addSharedZoneCardsFromSnapshot(
                 snap = snap,
                 arenaZoneId = ZoneIds.COMMAND,
-                environment = StateProjectionEnvironmentCapture.from(bridge),
+                environment = bridge.stateProjectionEnvironment,
                 instanceIdLookup = bridge::getOrAllocInstanceId,
                 zones = zones,
                 gameObjects = gameObjects,

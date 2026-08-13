@@ -5,6 +5,8 @@ import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.game.bundle.AbilityExhaustionFactsCapture
+import leyline.game.bundle.MechanicSourceFactsCapture
+import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -65,7 +67,11 @@ class SpectatorSimClientDriver(
 
             val game = checkNotNull(bridge.getGame()) { "AI-vs-AI game missing after start" }
             val gsId = session.counter.nextGsId()
-            val snap = GsmSnapshot.capture(game, bridge, matchId, gsId)
+            val priorProjection = bridge.projectionStateSnapshot()
+            val (snap, capturedProjection) =
+                bridge.editProjection(priorProjection) {
+                    GsmSnapshot.capture(game, bridge, matchId, gsId)
+                }
             val full =
                 StateMapper
                     .buildFromSnapshot(
@@ -74,11 +80,24 @@ class SpectatorSimClientDriver(
                         matchId,
                         bridge,
                         viewingSeatId = 1,
+                        events = FrameEventLog.EMPTY,
                         effectFacts = bridge.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, emptyList()),
                         abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
+                        projectionState = capturedProjection.copy(revision = priorProjection.revision),
                     ).finalizeAnnotations()
-            bridge.applyMutations(full.mutations)
-            bridge.bundleCursor.lastSent = snap
+            val transition = checkNotNull(full.transition)
+            val cursor = transition.nextState.viewerCursors[0] ?: leyline.game.state.ViewerProjectionCursor()
+            bridge.commitProjection(
+                transition.copy(
+                    nextState =
+                        transition.nextState.copy(
+                            viewerCursors =
+                                transition.nextState.viewerCursors +
+                                    (0 to cursor.copy(previousSnapshot = snap)),
+                        ),
+                ),
+            )
             val initial = greMessage(session.counter.nextMsgId(), full.gsm)
             log.writeBundle(listOf(initial))
             totalMessages++

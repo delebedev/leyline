@@ -5,6 +5,7 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectTracker
 import leyline.game.state.GameBridge
@@ -234,6 +235,7 @@ object ZoneMapper {
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
+        earthbendProjection: (ForgeCardId) -> EarthbendProjection? = { null },
     ) {
         val projected =
             StateZoneProjection.projectSharedZone(
@@ -242,6 +244,7 @@ object ZoneMapper {
                 environment = environment,
                 instanceIdLookup = instanceIdLookup,
                 keywordSnapshot = keywordSnapshot,
+                earthbendProjection = earthbendProjection,
             ) ?: return
         zones.removeIf { it.zoneId == arenaZoneId }
         zones += projected.zone

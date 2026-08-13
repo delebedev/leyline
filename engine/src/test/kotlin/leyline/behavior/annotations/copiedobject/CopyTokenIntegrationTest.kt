@@ -184,7 +184,7 @@ class CopyTokenIntegrationTest :
                     effectFacts = harness.bridge.materializeEffectProjectionFacts(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
-            harness.bridge.applyMutations(baselineResult.finalizeAnnotations().mutations)
+            harness.bridge.commitProjection(checkNotNull(baselineResult.finalizeAnnotations().transition))
 
             // Trigger a state change (pass priority) so a diff is generated
             passPriority()

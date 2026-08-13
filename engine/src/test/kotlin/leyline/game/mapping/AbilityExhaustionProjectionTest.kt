@@ -12,7 +12,6 @@ import leyline.game.codes.DetailKeys
 import leyline.game.event.FrameEventLog
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.snapshot.PersistentAnnotationState
 import leyline.game.snapshot.ZoneSnapshot
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.EffectProjectionFacts
@@ -50,7 +49,7 @@ class AbilityExhaustionProjectionTest :
 
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe retry.gsm.toByteArray().toList()
-                first.mutations shouldBe retry.mutations
+                first.transition shouldBe retry.transition
                 firstRows.map { it.affectedIdsList.single() } shouldContainExactly listOf(100, 101)
                 firstRows.map { it.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) } shouldContainExactly listOf(7001, 7002)
                 firstRows.map { it.detailInt(DetailKeys.USES_REMAINING) } shouldContainExactly listOf(0, 2)
@@ -59,13 +58,13 @@ class AbilityExhaustionProjectionTest :
                 bridge.cachedAbilityRegistryCardIds() shouldBe cacheBefore
             }
 
-            bridge.applyMutations(first.mutations)
-            val stableState = bridge.persistentState()
-            val changedSnapshot = exhaustionSnapshot(firstCardId, secondCardId, 2, stableState)
+            bridge.commitProjection(checkNotNull(first.transition))
+            val changedSnapshot = exhaustionSnapshot(firstCardId, secondCardId, 2)
             val changedInput =
                 exhaustionFrame(
                     snapshot = changedSnapshot,
                     previous = first.projectionSnapshot,
+                    projectionState = checkNotNull(first.transition).nextState,
                     facts =
                         AbilityExhaustionFacts(
                             listOf(AbilityExhaustionFacts.Row(firstCardId, 7001, usesRemaining = 1, uniqueAbilityId = 50)),
@@ -85,12 +84,17 @@ class AbilityExhaustionProjectionTest :
                 bridge.cachedAbilityRegistryCardIds() shouldBe cacheBefore
             }
 
-            bridge.applyMutations(changed.mutations)
-            val deletionSnapshot = exhaustionSnapshot(firstCardId, secondCardId, 3, bridge.persistentState())
+            bridge.commitProjection(checkNotNull(changed.transition))
+            val deletionSnapshot = exhaustionSnapshot(firstCardId, secondCardId, 3)
             val deletion =
                 StateMapper
                     .buildDiff(
-                        exhaustionFrame(deletionSnapshot, changed.projectionSnapshot, AbilityExhaustionFacts()),
+                        exhaustionFrame(
+                            deletionSnapshot,
+                            changed.projectionSnapshot,
+                            AbilityExhaustionFacts(),
+                            checkNotNull(changed.transition).nextState,
+                        ),
                         "ability-exhaustion",
                         bridge,
                     ).finalizeAnnotations()
@@ -107,7 +111,6 @@ private fun exhaustionSnapshot(
     firstCardId: ForgeCardId,
     secondCardId: ForgeCardId,
     gameStateId: Int,
-    persistentState: PersistentAnnotationState = PersistentAnnotationState.INITIAL,
 ): GsmSnapshot {
     val cards =
         linkedMapOf(
@@ -129,7 +132,6 @@ private fun exhaustionSnapshot(
                         contents = cards.keys.toList(),
                     ),
             ),
-        persistentAnnotationState = persistentState,
     )
 }
 
@@ -152,6 +154,9 @@ private fun exhaustionFrame(
     snapshot: GsmSnapshot,
     previous: GsmSnapshot?,
     facts: AbilityExhaustionFacts,
+    projectionState: leyline.game.state.ProjectionState =
+        leyline.game.state.ProjectionState
+            .initial(),
 ): StateFrameInput =
     StateFrameInput(
         gameStateId = snapshot.gameStateId,
@@ -165,11 +170,5 @@ private fun exhaustionFrame(
         effectFacts = EffectProjectionFacts(),
         mechanicSourceFacts = MechanicSourceFacts(),
         abilityExhaustionFacts = facts,
-    )
-
-private fun GameBridge.persistentState(): PersistentAnnotationState =
-    PersistentAnnotationState(
-        activeAnnotations = annotations.snapshot(),
-        nextAnnotationId = annotations.currentAnnotationId(),
-        nextPersistentId = annotations.currentPersistentId(),
+        projectionState = projectionState,
     )

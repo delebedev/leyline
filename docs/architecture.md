@@ -147,7 +147,7 @@ sequenceDiagram
 
 Engine state becomes wire state through a two-stage pipeline in `engine.game`.
 
-**Stage 1 — capture.** `GsmSnapshot.capture(game, bridge, …)` reads `forge-game` state into an immutable value: seats, zones, objects, phase, stack, persistent annotation baseline. The only place `forge.game.Game` is read directly (alongside `BundleBuilder`'s capture call).
+**Stage 1 — snapshot.** `GsmSnapshot` materialization reads `forge-game` state into an immutable value: seats, zones, objects, phase, and stack. Projection-owned identity observations remain tentative until the surrounding transition installs.
 
 **Stage 2 — map.** `StateMapper` takes the snapshot plus a caller-owned event list and returns a pure `BuildResult`:
 
@@ -163,13 +163,18 @@ GsmSnapshot + prev: GsmSnapshot? + events: List<GameEvent>
   →
   BuildResult
     ├── gsm:       GameStateMessage    (the proto to send)
-    ├── hasCastSpell: Boolean          (QueuedGSM-split hint)
-    └── mutations: BridgeMutations     (ordering-sensitive writes, deferred)
+    ├── output: ProjectionOutput       (assembly metadata)
+    └── transition: ProjectionTransition (complete next projection state)
 ```
 
-**Purity of the compute phase.** `buildDiff` does not commit `BridgeMutations` — id reallocations, limbo retires, zone recordings, the persistent-annotation batch, and the `nextAnnotationId` counter all travel back as data. The caller applies them via `bridge.applyMutations(result.mutations)` between compute and send, in a fixed order. This split is the acceptance forcing function for `PureDiffReplayTest`: replay a captured `(snap, events, diff)` sequence on a fresh bridge and assert byte-equal Diff GSMs.
+**Purity of the compute phase.** `buildDiff` edits a private projection editor and returns the complete next `ProjectionState` in one transition. A discarded or stale attempt installs nothing. `PureDiffReplayTest` supplies the same immutable frame input and prior projection state to assert equal messages and equal next state.
 
-Residuals — a small, enumerated set of bridge reads/writes (card-DB lookups, layered-effect tracker, prompt journal, crew state, steal lifecycle, reveal proxies, the monotonic id counter itself) stay in-stage. The class KDoc on `StateMapper` carries the current list; `PureDiffReplayTest` is the contract, the enumeration is the catalog.
+Residual shell dependencies are read-only card metadata and a bounded set of
+annotation/mechanic reference queries not yet present in the frame input.
+Projection history—including identities, effect lifecycle, prompt facts,
+reveal proxies, and annotation correlation—lives in `ProjectionState` or the
+typed frame facts. `StateMapper` documents representative residual reads;
+`PureDiffReplayTest` is the executable determinism contract.
 
 **BundleBuilder.bundle** assembles outbound messages:
 
@@ -177,11 +182,11 @@ Residuals — a small, enumerated set of bridge reads/writes (card-DB lookups, l
   per-seat visibility filter · full vs. diff selection · frame finalization · projection commit · path-specific assembly
 ```
 
-After compute, `BundleBuilder` finalizes the frame and commits `BridgeMutations`
-with `cursor.lastSent = snap` at one projection seam. Diff paths then assemble
-actions or requests against the committed instance-id mapping and emit the GRE
-bundle. The cursor (`BundleCursor`) is the snap-vs-snap diff baseline for the
-next bundle.
+After compute, `BundleBuilder` finalizes the frame and installs one
+`ProjectionTransition`. Its next state includes identity history, annotation
+history, and the viewer's snap-vs-snap diff baseline. A match-scoped shell lock
+preserves frame-cut order across builders while the transition install remains
+a revision-checked compare-and-set.
 
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 
