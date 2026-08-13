@@ -1,5 +1,10 @@
 package leyline.architecture
 
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage
+import com.tngtech.archunit.core.importer.ClassFileImporter
+import com.tngtech.archunit.core.importer.ImportOption
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.core.spec.style.FunSpec
 import leyline.UnitTag
 import java.nio.file.Files
@@ -8,6 +13,29 @@ import java.nio.file.Path
 class EffectProjectionBoundaryTest :
     FunSpec({
         tags(UnitTag)
+
+        val cwd = Path.of("").toAbsolutePath()
+        val buildDir =
+            sequenceOf(
+                cwd.resolve("build/classes"),
+                cwd.resolve("engine/build/classes"),
+            ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
+        val classes =
+            ClassFileImporter()
+                .withImportOption(ImportOption.DoNotIncludeTests())
+                .importPaths(
+                    buildDir.resolve("kotlin/main"),
+                    buildDir.resolve("java/main"),
+                )
+        val scopedComputeClasses =
+            "(" +
+                listOf(
+                    "leyline.game.state.EffectProjectionFacts",
+                    "leyline.game.state.EarthbendTracker",
+                    "leyline.game.annotations.VehicleAttachContributor",
+                    "leyline.game.annotations.EarthbendEmitter",
+                ).joinToString("|") { Regex.escape(it) } +
+                ")(\\$.*)?"
 
         test("synthetic-effect projection reads facts instead of scoped Forge APIs") {
             val sourceRoot =
@@ -41,19 +69,34 @@ class EffectProjectionBoundaryTest :
             }
         }
 
-        test("effect projection facts contain no Forge model or bridge types") {
-            val sourceRoot =
-                sequenceOf(
-                    Path.of("src/main/kotlin"),
-                    Path.of("engine/src/main/kotlin"),
-                ).first { it.resolve("leyline").toFile().isDirectory }
-            val source = Files.readString(sourceRoot.resolve("leyline/game/state/EffectProjectionFacts.kt"))
-            val forbidden =
-                Regex(
-                    "\\b(Card|Player|Game|SpellAbility|GameBridge|Callback|Allocator|Mutable(Collection|List|Map|Set))\\b|forge\\.game",
-                )
-            check(!forbidden.containsMatchIn(source)) {
-                "EffectProjectionFacts must remain a value-only boundary"
-            }
+        test("scoped effect compute depends on values instead of Forge or GameBridge") {
+            noClasses()
+                .that()
+                .haveNameMatching(scopedComputeClasses)
+                .should()
+                .dependOnClassesThat()
+                .resideInAPackage("forge..")
+                .because("scoped effect compute consumes materialized value facts")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching(scopedComputeClasses)
+                .should()
+                .dependOnClassesThat()
+                .haveNameMatching("leyline\\.game\\.state\\.GameBridge(\\$.*)?")
+                .because("GameBridge remains in the shell that materializes effect facts")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching(scopedComputeClasses)
+                .should()
+                .dependOnClassesThat(
+                    resideInAPackage("leyline.bridge..").and(
+                        resideOutsideOfPackage("leyline.bridge.types.."),
+                    ),
+                ).because("only value identifiers may cross from the bridge package")
+                .check(classes)
         }
     })
