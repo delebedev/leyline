@@ -23,6 +23,7 @@ import leyline.game.state.GameBridge
 import leyline.game.state.InstanceRevealedToOpponentKind
 import leyline.game.state.ManaCreatureDesignationKind
 import leyline.game.state.ManaDetailsKind
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.ModifiedTypeForCrewKind
 import leyline.game.state.MutateLayeredEffectKind
 import leyline.game.state.PendingTargetSpecRecord
@@ -121,6 +122,7 @@ object AnnotationPipeline {
         annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
         snap: GsmSnapshot? = null,
         frameIds: FrameIdResolver? = null,
+        mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
     ): AnnotationPipelineResult {
         val combatTransferredIds =
             transferResult.transfers
@@ -158,6 +160,7 @@ object AnnotationPipeline {
                 frameIds = resolver,
                 annotationJournal = annotationJournal,
                 paradigmSourceStackIidLookup = paradigmSourceStackIidLookup,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
@@ -179,6 +182,7 @@ object AnnotationPipeline {
         paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, _ ->
             annotationJournal.paradigmSourceStackIidFor(forgeCardId)
         },
+        mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
@@ -248,7 +252,7 @@ object AnnotationPipeline {
         val abilityLineage = annotationJournal
         val eventAbilityGrpIdsByIid =
             if (bridge != null && snap != null && frameIds != null) {
-                val ctx = AnnotationContext(bridge, snap, frameIds, events)
+                val ctx = AnnotationContext(bridge, snap, frameIds, events, mechanicSourceFacts = mechanicSourceFacts)
                 events
                     .filterIsInstance<GameEvent.SpellCast>()
                     .associate { cast ->
@@ -308,7 +312,14 @@ object AnnotationPipeline {
         var damageResidualLifeAnnotations = emptyList<AnnotationInfo>()
         var resolutionOwnedDamageInserted = false
         if (bridge != null && snap != null) {
-            val ctx = AnnotationContext(bridge, snap, frameIds ?: FrameIdResolver(bridge), events)
+            val ctx =
+                AnnotationContext(
+                    bridge,
+                    snap,
+                    frameIds ?: FrameIdResolver(bridge),
+                    events,
+                    mechanicSourceFacts = mechanicSourceFacts,
+                )
             emitTriggerLifecycleAnnotations(
                 ctx = ctx,
                 snapshotSourceIids = snapshotSourceIids,
@@ -551,10 +562,10 @@ object AnnotationPipeline {
                 if (isParadigmTrigger) {
                     ZoneIds.STACK
                 } else {
-                    cast.activationZoneId.takeIf { it != 0 } ?: ctx.currentSourceZoneId(cast.cardId)
+                    MechanicSourceProjection.sourceZoneId(cast, ctx.mechanicSourceFacts)
                 }
             val triggeringObjectZone =
-                cast.triggeringObjectCardId?.let(ctx::currentSourceZoneId) ?: sourceZone
+                MechanicSourceProjection.triggeringObjectZoneId(cast, sourceZone, ctx.mechanicSourceFacts)
 
             if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
             annotationJournal.recordAbility(
@@ -593,7 +604,7 @@ object AnnotationPipeline {
             val sourceCardIid = frameIds.cardIid(cast.cardId).value
             val abilityIid = ctx.stackAbilityIid(cast.abilityForgeId, cast.cardId)
             val sourceZone =
-                if (cast.activationZoneId != 0) cast.activationZoneId else ctx.currentSourceZoneId(cast.cardId)
+                MechanicSourceProjection.sourceZoneId(cast, ctx.mechanicSourceFacts)
 
             if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
             annotationJournal.recordAbility(
@@ -697,19 +708,6 @@ object AnnotationPipeline {
             castStackIidsByCard[ev.cardId]
         }
 
-    private fun tokenAffectorFromTokenState(
-        ctx: AnnotationContext,
-        ev: GameEvent.TokenCreated,
-    ): InstanceId? =
-        ctx.bridge.findCard(ev.cardId)?.tokenSpawningAbility?.let { ability ->
-            val host = ability.hostCard ?: return@let null
-            if (ability.isAbility && ability.id != 0) {
-                InstanceId(ctx.stackAbilityIid(ability.id, ForgeCardId(host.id)))
-            } else {
-                null
-            }
-        }
-
     /** Stages 4-5: mechanic + effect annotations and persistent computation. */
     @Suppress("LongParameterList", "LongMethod")
     internal fun computeRemainingAnnotations(
@@ -768,17 +766,7 @@ object AnnotationPipeline {
                 idResolver = { fid -> frameIds.cardIid(fid) },
                 effectIdAllocator = { leyline.bridge.types.EffectId(ctx.effects.effects.nextEffectId()) },
                 activeStealForgeCardIds = annotationJournal.activeStealForgeCardIds(),
-                manaAbilityGrpIdResolver = { fid ->
-                    val card = bridge.getGame()?.let { leyline.bridge.findCard(it, fid) }
-                    val grpId =
-                        if (card != null) {
-                            leyline.game.data.BasicLandAbilities
-                                .byForgeSubtypeNames(card.type.subtypes) ?: 0
-                        } else {
-                            0
-                        }
-                    leyline.bridge.types.GrpId(grpId)
-                },
+                manaAbilityGrpIdResolver = { fid -> MechanicSourceProjection.manaAbilityGrpId(snap, fid) },
                 counterAffectorResolver = { eventIndex, ev -> ctx.counterAffectorFor(eventIndex, ev) },
                 playerCounterAffectorResolver = { eventIndex, ev -> ctx.playerCounterAffectorFor(eventIndex, ev) },
                 tokenAffectorResolver = { ev ->
@@ -789,7 +777,8 @@ object AnnotationPipeline {
                             InstanceId(ctx.stackAbilityIid(abilityForgeId, sourceCardId))
                         },
                         cardIid = { sourceCardId -> frameIds.cardIid(sourceCardId) },
-                    ) ?: tokenAffectorFromTokenState(ctx, ev)
+                        facts = ctx.mechanicSourceFacts,
+                    )
                 },
                 stackInstanceResolver = { ev -> stackInstanceForEvent(ctx, castStackIidsByCard, ev) },
                 castSpellTransferCardIds = castSpellTransferCardIds,
@@ -954,12 +943,13 @@ object AnnotationPipeline {
         resolvingStackIidsByCard: Map<ForgeCardId, InstanceId>,
         stackAbilityIid: (Int, ForgeCardId) -> InstanceId,
         cardIid: (ForgeCardId) -> InstanceId,
-    ): InstanceId? {
-        val sourceCardId = event.sourceCardId ?: return null
-        return if (event.sourceAbilityForgeId != 0) {
-            stackAbilityIid(event.sourceAbilityForgeId, sourceCardId)
-        } else {
-            resolvingStackIidsByCard[sourceCardId] ?: cardIid(sourceCardId)
-        }
-    }
+        facts: MechanicSourceFacts = MechanicSourceFacts(),
+    ): InstanceId? =
+        MechanicSourceProjection.tokenCreatedAffectorId(
+            event,
+            facts,
+            resolvingStackIidsByCard,
+            stackAbilityIid,
+            cardIid,
+        )
 }

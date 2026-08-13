@@ -117,6 +117,7 @@ class BundleBuilder(
             )
         bridge.invalidateAbilityRegistries(events.events)
         val effectFacts = bridge.materializeEffectProjectionFacts()
+        val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events)
         return FrameInput(
             StateFrameInput(
                 gameStateId = nextGs,
@@ -128,6 +129,7 @@ class BundleBuilder(
                 viewingSeatId = seatId,
                 revealForSeat = revealForSeat,
                 effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
             ),
         )
     }
@@ -193,10 +195,7 @@ class BundleBuilder(
                         }
                         val finalized = finalizeStateFrame(draft, attemptRiders, pendingSubmittedTargets)
                         bridge.diffListener?.invoke(
-                            input.state.previousSnapshot,
-                            input.state.snapshot,
-                            input.state.events,
-                            input.state.gameStateId,
+                            input.state,
                             finalized.gsm,
                         )
                         commitProjection(finalized.projectionSnapshot, finalized.mutations, pendingSubmittedTargets)
@@ -880,10 +879,7 @@ class BundleBuilder(
                             )
                         val finalized = finalizeStateFrame(draft.copy(gsm = stagedGsm, mutations = mutations), emptyList())
                         bridge.diffListener?.invoke(
-                            input.state.previousSnapshot,
-                            input.state.snapshot,
-                            input.state.events,
-                            input.state.gameStateId,
+                            input.state,
                             finalized.gsm,
                         )
                         commitProjection(stagedMove?.snap ?: finalized.projectionSnapshot, finalized.mutations)

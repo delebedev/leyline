@@ -20,6 +20,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
+import leyline.game.state.MechanicSourceFacts
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
@@ -350,6 +351,7 @@ class StateMapperShapeTest :
                         bridge = b,
                         viewingSeatId = 1,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFacts(),
                     ).gsm
 
             assertSoftly {

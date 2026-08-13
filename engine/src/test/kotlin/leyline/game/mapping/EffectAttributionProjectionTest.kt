@@ -16,6 +16,7 @@ import leyline.game.snapshot.PersistentAnnotationState
 import leyline.game.snapshot.ZoneSnapshot
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PromptProjectionFacts
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -221,6 +222,7 @@ private fun frameInput(
         viewingSeatId = 1,
         revealForSeat = null,
         effectFacts = facts,
+        mechanicSourceFacts = MechanicSourceFacts(),
     )
 
 private data class EffectAnnotationShape(

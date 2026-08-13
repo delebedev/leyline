@@ -9,23 +9,22 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Bundle of the shared annotation-time resolvers used across the
  * [AnnotationPipeline] spine and (after the port slice) the contributors.
  *
- * Holds the four pieces of state every resolver needs — the live [bridge], the
- * frame [snap], the frame-scoped [frameIds], and this frame's [events] — so
- * call sites read `ctx.counterAffectorFor(...)` instead of threading six args.
- * [transferResult] is optional frame context for contributors that need this
- * frame's pre-reallocation identities or zone transfers.
+ * Holds the bridge, immutable frame snapshot, scoped identities, ordered
+ * events, and cut-specific fact values used by annotation resolvers. Call sites
+ * can read `ctx.counterAffectorFor(...)` without threading the full projection
+ * input. [transferResult] is optional frame context for contributors that need
+ * this frame's pre-reallocation identities or zone transfers.
  *
  * The frame-pure helpers ([stackAbilityIid], [keywordCounterResolutionForEvent])
  * are also exposed on the companion for callers that hold only a
@@ -39,6 +38,7 @@ class AnnotationContext(
     val events: List<GameEvent>,
     val promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
     val effectFacts: EffectProjectionFacts = EffectProjectionFacts(),
+    val mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
     val opponentKnowledge: List<InstanceId> = emptyList(),
     val transferResult: TransferResult? = null,
 ) {
@@ -118,38 +118,11 @@ class AnnotationContext(
         return null
     }
 
-    /** Best-effort owner seat lookup for an event-derived source card. */
-    fun ownerSeatOf(card: forge.game.card.Card): Int {
-        val owner = card.owner ?: return 1
-        return bridge.seatOf(owner)?.value ?: 1
-    }
-
     /** Instance-scoped surrogate iid for a stack-resident trigger / activated ability. */
     fun stackAbilityIid(
         forgeAbilityId: Int,
         sourceForgeId: ForgeCardId,
     ): Int = stackAbilityIid(forgeAbilityId, sourceForgeId, frameIds)
-
-    /** Best-effort source-zone lookup for an event-derived trigger. Falls back
-     *  to Battlefield (28) — the dominant case for combat / state-change triggers.
-     *  ZoneType has many rarely-used values (Sideboard, Ante, Subgame…) that
-     *  don't host triggering objects we'd surface to the wire; mapping each
-     *  is noise. The else-branch keeps the fallback explicit. */
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
-    fun currentSourceZoneId(cardId: ForgeCardId): Int {
-        val card = bridge.findCard(cardId) ?: return ZoneIds.BATTLEFIELD
-        val ownerSeat = ownerSeatOf(card)
-        return when (card.zone?.zoneType) {
-            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
-            ForgeZoneType.Stack -> ZoneIds.STACK
-            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeat)
-            ForgeZoneType.Exile -> ZoneIds.EXILE
-            ForgeZoneType.Hand -> ZoneIds.handOf(ownerSeat)
-            ForgeZoneType.Library -> ZoneIds.libraryOf(ownerSeat)
-            ForgeZoneType.Command -> ZoneIds.COMMAND
-            else -> ZoneIds.BATTLEFIELD
-        }
-    }
 
     /** Source-card fallback for synthetic events without resolved ability identity. */
     fun abilityGrpIdForSource(cardId: ForgeCardId): Int {

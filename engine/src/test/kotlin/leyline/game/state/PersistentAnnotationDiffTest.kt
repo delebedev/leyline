@@ -33,7 +33,7 @@ class PersistentAnnotationDiffTest :
         test("persistent annotation IDs appear on exactly one Diff GSM in a scripted scenario") {
             val (bridge, _, _) = startGameAtMain1(seed = 42L)
             val diffs = mutableListOf<GameStateMessage>()
-            bridge.diffListener = { _, _, _, _, diff -> diffs.add(diff) }
+            bridge.diffListener = { _, diff -> diffs.add(diff) }
 
             // Scenario: play a land (creates EZTT + ColorProduction persistent
             // annotations), then pass through the full turn so we accumulate

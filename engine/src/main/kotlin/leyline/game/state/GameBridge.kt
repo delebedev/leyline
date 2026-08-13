@@ -400,17 +400,15 @@ class GameBridge(
     /**
      * Test-only observability hook — invoked per bundle after
      * [leyline.game.mapping.StateMapper.buildDiff] finalization and immediately
-     * before projection commit. Receives (prev, cur, events, gameStateId, diff gsm).
-     * Currently used by [leyline.game.PureDiffReplayTest] to observe tuples for replay.
+     * before projection commit. Receives the exact immutable frame input and
+     * finalized diff GSM. Currently used by [leyline.game.PureDiffReplayTest]
+     * to observe values for replay.
      */
     @VisibleForTesting
     @Volatile
     var diffListener: (
         (
-            prev: GsmSnapshot?,
-            cur: GsmSnapshot,
-            events: FrameEventLog,
-            gameStateId: Int,
+            input: leyline.game.mapping.StateFrameInput,
             diff: GameStateMessage,
         ) -> Unit
     )? = null

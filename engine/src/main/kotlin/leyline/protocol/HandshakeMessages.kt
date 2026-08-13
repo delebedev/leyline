@@ -3,6 +3,7 @@ package leyline.protocol
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
+import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
@@ -467,6 +468,7 @@ object HandshakeMessages {
 
         // Full GSM built from live game state (stage=Play, cards in zones)
         val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
+        val events = bridge.closeBundleFrame(seatId.value)
         val fullResult =
             StateMapper
                 .buildFromSnapshot(
@@ -476,9 +478,10 @@ object HandshakeMessages {
                     bridge = bridge,
                     environment = StateProjectionEnvironmentCapture.from(bridge),
                     viewingSeatId = seatId.value,
-                    events = bridge.closeBundleFrame(seatId.value),
+                    events = events,
                     promptFacts = bridge.materializePromptProjectionFacts(),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
+                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)

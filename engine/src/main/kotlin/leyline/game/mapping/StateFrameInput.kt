@@ -3,14 +3,16 @@ package leyline.game.mapping
 import leyline.game.event.FrameEventLog
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectProjectionFacts
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PromptProjectionFacts
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
  * Immutable, cut-scoped input for state projection.
  *
- * The shell captures snapshot and prompt facts once, normalizes ordered events,
- * then reuses this value for every retry of the same projection attempt.
+ * The shell captures the snapshot and cut-specific facts once, normalizes
+ * ordered events, then reuses this value for every retry of the same projection
+ * attempt.
  */
 data class StateFrameInput(
     val gameStateId: Int,
@@ -23,4 +25,6 @@ data class StateFrameInput(
     val revealForSeat: Int?,
     /** One immutable synthetic-effect observation for this frame cut. */
     val effectFacts: EffectProjectionFacts,
+    /** Event-relevant source attribution observed at this frame cut. */
+    val mechanicSourceFacts: MechanicSourceFacts,
 )

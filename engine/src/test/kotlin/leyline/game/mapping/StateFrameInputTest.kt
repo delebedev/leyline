@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -12,12 +13,14 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.event.FrameEventLog
+import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.ZoneSnapshot
 import leyline.game.state.EarthbendTracker
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PromptProjectionFacts
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -30,6 +33,23 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 class StateFrameInputTest :
     FunSpec({
         tags(UnitTag)
+
+        test("raw projection rejects event-bearing input without mechanic source facts") {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val failure =
+                shouldThrow<IllegalArgumentException> {
+                    StateMapper.buildFromSnapshot(
+                        snap = GsmSnapshot.forTest(matchId = "state-frame"),
+                        gameStateId = 1,
+                        matchId = "state-frame",
+                        bridge = bridge,
+                        events = FrameEventLog(listOf(GameEvent.TokenCreated(ForgeCardId(1), SeatId(1)))),
+                        effectFacts = EffectProjectionFacts(),
+                    )
+                }
+
+            failure.message shouldBe "Event-bearing projection requires explicit MechanicSourceFacts"
+        }
 
         test("zero-Forge state-frame input replays prompt facts without consumption") {
             val choice = PromptSideEffect.ChoiceResult(ForgeCardId(1), SeatId(1), choiceValue = 9)
@@ -54,6 +74,7 @@ class StateFrameInputTest :
                     viewingSeatId = 1,
                     revealForSeat = null,
                     effectFacts = EffectProjectionFacts(),
+                    mechanicSourceFacts = MechanicSourceFacts(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
 
@@ -184,6 +205,7 @@ class StateFrameInputTest :
                     viewingSeatId = 1,
                     revealForSeat = null,
                     effectFacts = facts,
+                    mechanicSourceFacts = MechanicSourceFacts(),
                 )
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val committedIdentityBefore = bridge.getInstanceIdMap()
@@ -278,6 +300,126 @@ class StateFrameInputTest :
             assertSoftly {
                 facts.crewStates.single().crewSourceForgeCardIds shouldBe listOf(ForgeCardId(202))
                 facts.pendingEarthbendResolutions.single().targetCardIds shouldBe listOf(ForgeCardId(301))
+            }
+        }
+
+        test("zero-Forge mechanic source input retries exact lifecycle mana and token projection") {
+            val triggerSource = ForgeCardId(401)
+            val triggeringObject = ForgeCardId(402)
+            val forest = ForgeCardId(403)
+            val spell = ForgeCardId(404)
+            val token = ForgeCardId(405)
+            val tokenCreator = ForgeCardId(406)
+            val cards =
+                linkedMapOf(
+                    triggerSource to CardSnapshot(triggerSource, "Trigger Source", 4010, SeatId(1), SeatId(1)),
+                    triggeringObject to CardSnapshot(triggeringObject, "Triggering Object", 4020, SeatId(1), SeatId(1)),
+                    forest to
+                        CardSnapshot(
+                            forest,
+                            "Forest",
+                            4030,
+                            SeatId(1),
+                            SeatId(1),
+                            basicLandManaAbilityGrpId = 1005,
+                            isLand = true,
+                            isOnBattlefield = true,
+                        ),
+                    spell to CardSnapshot(spell, "Spell", 4040, SeatId(1), SeatId(1)),
+                    token to CardSnapshot(token, "Token", 4050, SeatId(1), SeatId(1), isToken = true, isOnBattlefield = true),
+                    tokenCreator to CardSnapshot(tokenCreator, "Creator", 4060, SeatId(1), SeatId(1), isOnBattlefield = true),
+                )
+            val snapshot = GsmSnapshot.forTest(gameStateId = 17, objects = cards)
+            val events =
+                FrameEventLog(
+                    listOf(
+                        GameEvent.SpellCast(
+                            cardId = triggerSource,
+                            seatId = SeatId(1),
+                            isAbility = true,
+                            isTrigger = true,
+                            abilityForgeId = 41,
+                            abilityGrpId = 771,
+                            triggeringObjectCardId = triggeringObject,
+                        ),
+                        GameEvent.SpellResolved(
+                            cardId = triggerSource,
+                            hasFizzled = false,
+                            isTrigger = true,
+                            abilityForgeId = 41,
+                            abilityGrpId = 771,
+                        ),
+                        GameEvent.SpellCast(
+                            cardId = spell,
+                            seatId = SeatId(1),
+                            spellGrpId = 4040,
+                            manaPayments = listOf(GameEvent.ManaPayment(forest, color = 5)),
+                        ),
+                        GameEvent.TokenCreated(token, SeatId(1)),
+                    ),
+                )
+            val input =
+                StateFrameInput(
+                    gameStateId = 17,
+                    snapshot = snapshot,
+                    previousSnapshot = snapshot,
+                    events = events,
+                    promptFacts = PromptProjectionFacts(),
+                    updateType = GameStateUpdate.SendAndRecord,
+                    viewingSeatId = 1,
+                    revealForSeat = null,
+                    effectFacts = EffectProjectionFacts(),
+                    mechanicSourceFacts =
+                        MechanicSourceFacts(
+                            sourceZoneByForgeCardId =
+                                mapOf(
+                                    triggerSource to ZoneIds.P1_GRAVEYARD,
+                                    triggeringObject to ZoneIds.P1_HAND,
+                                ),
+                            tokenCreatorByTokenForgeCardId =
+                                mapOf(
+                                    token to MechanicSourceFacts.TokenCreator(tokenCreator, 71),
+                                ),
+                        ),
+                )
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+            val committedIdentityBefore = bridge.getInstanceIdMap()
+            val committedEffectsBefore = bridge.committedEffectProjection()
+
+            val first = StateMapper.buildDiff(input, "mechanic-source", bridge).finalizeAnnotations()
+            val retry = StateMapper.buildDiff(input, "mechanic-source", bridge).finalizeAnnotations()
+
+            assertSoftly {
+                first.gsm.toByteArray().toList() shouldBe retry.gsm.toByteArray().toList()
+                first.mutations shouldBe retry.mutations
+                first.gsm.annotationsList.map(AnnotationInfo::shape) shouldBe
+                    expectedMechanicSourceTransientShapes()
+                first.gsm.persistentAnnotationsList.map(AnnotationInfo::shape) shouldBe
+                    listOf(
+                        expectedAnnotation(
+                            1,
+                            103,
+                            AnnotationType.TriggeringObject,
+                            affectorId = 100,
+                            details = listOf("source_zone" to ZoneIds.P1_HAND),
+                        ),
+                    )
+                first.mutations.instanceIdTransition.nextState.forgeIdToInstanceId shouldBe
+                    linkedMapOf(
+                        ForgeCardId(100041) to InstanceId(100),
+                        ForgeCardId(100404) to InstanceId(101),
+                        triggerSource to InstanceId(102),
+                        triggeringObject to InstanceId(103),
+                        forest to InstanceId(104),
+                        spell to InstanceId(105),
+                        token to InstanceId(106),
+                        tokenCreator to InstanceId(107),
+                        ForgeCardId(200403) to InstanceId(108),
+                        ForgeCardId(100071) to InstanceId(109),
+                    )
+                first.mutations.instanceIdTransition.nextState.nextInstanceId shouldBe 110
+                bridge.getInstanceIdMap() shouldBe committedIdentityBefore
+                bridge.committedEffectProjection() shouldBe committedEffectsBefore
             }
         }
     })
@@ -489,4 +631,55 @@ private fun expectedPersistentShapes(
             affectorId = targetIid,
             details = listOf("DesignationType" to 23, "ControllerId" to 1),
         ),
+    )
+
+private fun expectedMechanicSourceTransientShapes(): List<AnnotationShape> =
+    listOf(
+        expectedAnnotation(
+            50,
+            100,
+            AnnotationType.AbilityInstanceCreated,
+            affectorId = 102,
+            details = listOf("source_zone" to ZoneIds.P1_GRAVEYARD),
+        ),
+        expectedAnnotation(51, 100, AnnotationType.ResolutionStart, affectorId = 100, details = listOf("grpid" to 771)),
+        expectedAnnotation(52, 100, AnnotationType.ResolutionComplete, affectorId = 100, details = listOf("grpid" to 771)),
+        expectedAnnotation(53, 100, AnnotationType.AbilityInstanceDeleted, affectorId = 102),
+        expectedAnnotation(54, 106, AnnotationType.TokenCreated, affectorId = 109),
+        expectedAnnotation(
+            55,
+            108,
+            AnnotationType.AbilityInstanceCreated,
+            affectorId = 104,
+            details = listOf("source_zone" to ZoneIds.BATTLEFIELD),
+        ),
+        expectedAnnotation(56, 104, AnnotationType.TappedUntappedPermanent, affectorId = 108, details = listOf("tapped" to 1)),
+        expectedAnnotation(
+            57,
+            108,
+            AnnotationType.UserActionTaken,
+            affectorId = 1,
+            details = listOf("actionType" to 4, "abilityGrpId" to 1005),
+        ),
+        expectedAnnotation(
+            58,
+            105,
+            AnnotationType.ManaPaid,
+            affectorId = 104,
+            details = listOf("id" to 3, "color" to 5),
+        ),
+        expectedAnnotation(59, 108, AnnotationType.AbilityInstanceDeleted, affectorId = 104),
+        expectedAnnotation(
+            60,
+            105,
+            AnnotationType.UserActionTaken,
+            affectorId = 1,
+            details = listOf("actionType" to 1, "abilityGrpId" to 0),
+        ),
+        expectedAnnotation(61, 7002, AnnotationType.LayeredEffectCreated),
+        expectedAnnotation(62, 7003, AnnotationType.LayeredEffectCreated),
+        expectedAnnotation(63, 7004, AnnotationType.LayeredEffectCreated),
+        expectedAnnotation(64, 7002, AnnotationType.LayeredEffectDestroyed),
+        expectedAnnotation(65, 7003, AnnotationType.LayeredEffectDestroyed),
+        expectedAnnotation(66, 7004, AnnotationType.LayeredEffectDestroyed),
     )
