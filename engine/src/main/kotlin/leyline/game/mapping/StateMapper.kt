@@ -18,6 +18,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.BridgeMutations
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.EarthbendTracker
@@ -61,8 +62,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * batch and delayed-trigger holder lifecycle) flow through the returned
  * mutations. The finalizer supplies `nextAnnotationId` before application.
  *
- * [StateFrameInput] carries snapshot, event, [PromptProjectionFacts], and
- * [EffectProjectionFacts] plus [MechanicSourceFacts] values for scoped
+ * [StateFrameInput] carries snapshot, event, [PromptProjectionFacts],
+ * [EffectProjectionFacts], [MechanicSourceFacts], and [AbilityExhaustionFacts] values for scoped
  * projection inputs. [buildDiff]
  * also accepts [GameBridge], so this is not a complete pure-function boundary.
  *
@@ -88,8 +89,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * match-scoped [StateProjectionEnvironment]. Stable card-proto data and match
  * configuration are frozen by the shell before projection. Retained shell
  * reads outside that layer include limbo and reveal-state tracking.
- * - [AnnotationPipeline] reaches `bridge.abilityRegistryFor`, whose lookup may
- *   populate the retained lazy mutable ability-registry cache.
  *
  * Explicit retained-state reads:
  * - `bridge.opponentKnowledge`, `delayedTriggerHolders`, and
@@ -203,6 +202,7 @@ object StateMapper {
         events: FrameEventLog = FrameEventLog.EMPTY,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
+        abilityExhaustionFacts: AbilityExhaustionFacts,
     ): BuildResult =
         buildFromSnapshot(
             snap = snap,
@@ -219,6 +219,7 @@ object StateMapper {
             promptFacts = promptFacts,
             effectFacts = effectFacts,
             mechanicSourceFacts = emptyMechanicSourceFactsFor(events),
+            abilityExhaustionFacts = abilityExhaustionFacts,
         )
 
     @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
@@ -244,6 +245,7 @@ object StateMapper {
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
+        abilityExhaustionFacts: AbilityExhaustionFacts,
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildFromSnapshotInternal(
@@ -261,6 +263,7 @@ object StateMapper {
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
                 annotationJournal = journal,
             )
         }
@@ -281,6 +284,7 @@ object StateMapper {
         promptFacts: PromptProjectionFacts,
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
+        abilityExhaustionFacts: AbilityExhaustionFacts,
         annotationJournal: ProjectionAnnotationJournal.Planner,
     ): BuildResult {
         val effectPlanner = bridge.activeEffectPlanner()
@@ -503,6 +507,7 @@ object StateMapper {
                 opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
             )
         val convokePaymentsBySource = convokeCtx.activeConvokePaymentsBySource()
         val convokePlan = ConvokeContributor.plan(convokeCtx)
@@ -620,6 +625,7 @@ object StateMapper {
                 opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
             )
         val remaining =
             AnnotationPipeline.computeRemainingAnnotations(
@@ -850,6 +856,7 @@ object StateMapper {
                 promptFacts = input.promptFacts,
                 effectFacts = input.effectFacts,
                 mechanicSourceFacts = input.mechanicSourceFacts,
+                abilityExhaustionFacts = input.abilityExhaustionFacts,
                 gameStateId = input.gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -877,6 +884,7 @@ object StateMapper {
         revealForSeat: Int? = null,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
+        abilityExhaustionFacts: AbilityExhaustionFacts,
     ): BuildResult =
         buildDiff(
             prev = prev,
@@ -893,6 +901,7 @@ object StateMapper {
             promptFacts = promptFacts,
             effectFacts = effectFacts,
             mechanicSourceFacts = emptyMechanicSourceFactsFor(events),
+            abilityExhaustionFacts = abilityExhaustionFacts,
         )
 
     @Suppress("LongParameterList")
@@ -911,6 +920,7 @@ object StateMapper {
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
+        abilityExhaustionFacts: AbilityExhaustionFacts,
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildDiffInternal(
@@ -920,6 +930,7 @@ object StateMapper {
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -947,6 +958,7 @@ object StateMapper {
         promptFacts: PromptProjectionFacts,
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
+        abilityExhaustionFacts: AbilityExhaustionFacts,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -975,6 +987,7 @@ object StateMapper {
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
             )
         }
 
@@ -1003,6 +1016,7 @@ object StateMapper {
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
             )
         }
 
@@ -1021,6 +1035,7 @@ object StateMapper {
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
             )
         val current = fullResult.gsm
         val projectedCur = fullResult.projectionSnapshot
@@ -1495,7 +1510,14 @@ object StateMapper {
         frameIds: FrameIdResolver,
         annotationJournal: ProjectionAnnotationJournal.Planner,
     ): Set<ForgeCardId> {
-        val ctx = AnnotationContext(bridge = bridge, snap = snap, frameIds = frameIds, events = events)
+        val ctx =
+            AnnotationContext(
+                bridge = bridge,
+                snap = snap,
+                frameIds = frameIds,
+                events = events,
+                abilityExhaustionFacts = AbilityExhaustionFacts(),
+            )
         val visibleThisGsm = annotationJournal.activeDecayedCleanupSources().toMutableSet()
         val addedThisGsm = linkedSetOf<ForgeCardId>()
         for (ev in events) {

@@ -69,6 +69,7 @@ class LibrarySearchConformanceTest :
                         viewingSeatId = 1,
                         revealForSeat = 1,
                         effectFacts = bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             // Find library objects (seat 1 library = zone 32)
@@ -156,6 +157,7 @@ class LibrarySearchConformanceTest :
                         viewingSeatId = 1,
                         revealForSeat = 1,
                         effectFacts = bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }

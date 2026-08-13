@@ -49,6 +49,7 @@ class RevealStateContributorTest :
                     bridge = bridge,
                     snap = GsmSnapshot.forTest(),
                     frameIds = FrameIdResolver(bridge),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     events =
                         listOf(
                             GameEvent.CardsRevealed(

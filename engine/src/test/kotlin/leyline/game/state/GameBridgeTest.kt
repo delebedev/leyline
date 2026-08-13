@@ -449,6 +449,7 @@ class GameBridgeTest :
                         b,
                         actions = actions,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gs.actionsCount shouldBeGreaterThan 0
@@ -506,6 +507,7 @@ class GameBridgeTest :
                     "test-match",
                     b,
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             b.applyMutations(seedResult.finalizeAnnotations().mutations)
 
@@ -530,6 +532,7 @@ class GameBridgeTest :
                         "test-match",
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val zoneTransfers =
                 gs.annotationsList.filter {
@@ -591,6 +594,7 @@ class GameBridgeTest :
                         "test-match",
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gs.type shouldBe Messages.GameStateType.Full
             gs.zonesCount shouldBeGreaterThan 0
@@ -635,6 +639,7 @@ class GameBridgeTest :
                         "test-match",
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             assertSoftly {

@@ -4,6 +4,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -74,6 +75,7 @@ class SpectatorSimClientDriver(
                         bridge,
                         viewingSeatId = 1,
                         effectFacts = bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
                     ).finalizeAnnotations()
             bridge.applyMutations(full.mutations)
             bridge.bundleCursor.lastSent = snap

@@ -41,6 +41,7 @@ class OmenCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val companion = gsm.gameObjectsList.single { it.type == GameObjectType.Omen_a4aa }
             val hand = gsm.zonesList.single { it.zoneId == ZoneIds.P1_HAND }
@@ -80,6 +81,7 @@ class OmenCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             assertSoftly {
@@ -102,6 +104,7 @@ class OmenCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count {
@@ -123,6 +126,7 @@ class OmenCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count { it.type == GameObjectType.Omen_a4aa } shouldBe 0
@@ -192,6 +196,7 @@ class OmenCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             assertSoftly {

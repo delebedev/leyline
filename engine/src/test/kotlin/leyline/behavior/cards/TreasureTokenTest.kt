@@ -117,6 +117,7 @@ class TreasureTokenTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gsm.shouldNotBeNull()
             val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }

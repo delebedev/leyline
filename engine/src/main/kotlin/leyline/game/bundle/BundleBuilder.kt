@@ -118,6 +118,7 @@ class BundleBuilder(
         bridge.invalidateAbilityRegistries(events.events)
         val effectFacts = bridge.materializeEffectProjectionFacts()
         val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events)
+        val abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge)
         return FrameInput(
             StateFrameInput(
                 gameStateId = nextGs,
@@ -130,6 +131,7 @@ class BundleBuilder(
                 revealForSeat = revealForSeat,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
+                abilityExhaustionFacts = abilityExhaustionFacts,
             ),
         )
     }

@@ -25,7 +25,7 @@ import java.nio.file.Path
  * Two invariants:
  * - StateMapper constructs no annotations. Per-mechanic emitters live behind the
  *   [AnnotationPipeline.contributors] registry (or, for the effect-diff-coupled
- *   earthbend layers, as a documented spine emitter in `AnnotationEmitters.kt`).
+ *   earthbend layers, as a documented spine emitter in `EarthbendEmitter.kt`).
  *   A new emitter bolted onto StateMapper would pull in [AnnotationBuilder] and
  *   trip the rule.
  * - StateMapper declares annotation ordering through contributor rank, never

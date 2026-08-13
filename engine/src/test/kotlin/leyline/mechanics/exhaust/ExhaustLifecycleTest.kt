@@ -6,6 +6,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
@@ -89,15 +90,17 @@ class ExhaustLifecycleTest :
             val lootIid = human.battlefield.iid("Loot, the Pathfinder")
             val loot = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Loot, the Pathfinder" }
             loot.addAbilityActivated(loot.manaAbilities.first { it.isExhaust })
+            val snapshot = GsmSnapshot.capture(game(), harness.bridge, "exhaust-mana-regression", 0)
 
             val abilityExhausted =
                 StateMapper
                     .buildFromSnapshot(
-                        GsmSnapshot.capture(game(), harness.bridge, "exhaust-mana-regression", 0),
+                        snapshot,
                         1,
                         "test",
                         harness.bridge,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, harness.bridge),
                     ).gsm
                     .persistentAnnotationsList
                     .last {

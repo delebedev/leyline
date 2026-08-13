@@ -95,6 +95,7 @@ class TokenDiffStabilityTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val clueObj =
                 gsm.gameObjectsList
@@ -124,6 +125,7 @@ class TokenDiffStabilityTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
@@ -146,6 +148,7 @@ class TokenDiffStabilityTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             // If Clue appears in diff, fields must be intact (not stripped)

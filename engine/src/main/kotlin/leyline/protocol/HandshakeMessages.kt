@@ -1,6 +1,7 @@
 package leyline.protocol
 
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
 import leyline.game.bundle.MechanicSourceFactsCapture
@@ -482,6 +483,7 @@ object HandshakeMessages {
                     promptFacts = bridge.materializePromptProjectionFacts(),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
                     mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         val actions = ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)

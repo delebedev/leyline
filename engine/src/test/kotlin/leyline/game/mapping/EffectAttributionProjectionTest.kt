@@ -222,6 +222,7 @@ private fun frameInput(
         viewingSeatId = 1,
         revealForSeat = null,
         effectFacts = facts,
+        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
         mechanicSourceFacts = MechanicSourceFacts(),
     )
 

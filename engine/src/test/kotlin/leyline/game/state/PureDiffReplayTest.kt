@@ -223,6 +223,7 @@ class PureDiffReplayTest :
                             updateType = GameStateUpdate.SendAndRecord,
                             viewingSeatId = SEAT_ID,
                             effectFacts = replayBridge.materializeEffectProjectionFacts(),
+                            abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                         ).finalizeAnnotations()
 
                 val first = compile()

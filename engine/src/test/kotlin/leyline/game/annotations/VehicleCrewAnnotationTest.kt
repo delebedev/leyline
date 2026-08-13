@@ -47,6 +47,7 @@ class VehicleCrewAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val vehicleObj =
@@ -73,6 +74,7 @@ class VehicleCrewAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val artifactObj =
@@ -99,6 +101,7 @@ class VehicleCrewAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val creatureObj =
@@ -190,6 +193,7 @@ class VehicleCrewAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val crewedAnn =
@@ -219,6 +223,7 @@ class VehicleCrewAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             val typeAnn =
@@ -245,6 +250,7 @@ class VehicleCrewAnnotationTest :
                         Board.TEST_MATCH_ID,
                         b,
                         effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gs.persistentAnnotationsList.none { ann ->
@@ -273,6 +279,7 @@ class VehicleCrewAnnotationTest :
                     Board.TEST_MATCH_ID,
                     b,
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.ModifiedType in ann.typeList
@@ -297,6 +304,7 @@ class VehicleCrewAnnotationTest :
                     Board.TEST_MATCH_ID,
                     b,
                     effectFacts = b.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.ModifiedType in ann.typeList

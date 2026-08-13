@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import leyline.game.event.FrameEventLog
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PromptProjectionFacts
@@ -27,4 +28,6 @@ data class StateFrameInput(
     val effectFacts: EffectProjectionFacts,
     /** Event-relevant source attribution observed at this frame cut. */
     val mechanicSourceFacts: MechanicSourceFacts,
+    /** Final ordered display rows for exhausted abilities at this frame cut. */
+    val abilityExhaustionFacts: AbilityExhaustionFacts,
 )

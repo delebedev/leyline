@@ -41,6 +41,7 @@ class AdventureCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val companion = gsm.gameObjectsList.single { it.type == GameObjectType.Adventure_a4aa }
             val hand = gsm.zonesList.single { it.zoneId == ZoneIds.P1_HAND }
@@ -73,6 +74,7 @@ class AdventureCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count { it.type == GameObjectType.Adventure_a4aa } shouldBe 0
@@ -92,6 +94,7 @@ class AdventureCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             gsm.gameObjectsList.count { it.type == GameObjectType.Adventure_a4aa } shouldBe 0
@@ -191,6 +194,7 @@ class AdventureCompanionTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             assertSoftly {

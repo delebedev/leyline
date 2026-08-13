@@ -10,6 +10,7 @@ import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.MechanicSourceFacts
@@ -39,6 +40,7 @@ class AnnotationContext(
     val promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
     val effectFacts: EffectProjectionFacts = EffectProjectionFacts(),
     val mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
+    val abilityExhaustionFacts: AbilityExhaustionFacts,
     val opponentKnowledge: List<InstanceId> = emptyList(),
     val transferResult: TransferResult? = null,
 ) {

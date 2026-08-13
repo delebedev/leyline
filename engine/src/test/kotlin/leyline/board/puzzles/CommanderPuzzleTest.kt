@@ -41,6 +41,7 @@ class CommanderPuzzleTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             assertSoftly {
@@ -85,6 +86,7 @@ class CommanderPuzzleTest :
                         board.bridge,
                         viewingSeatId = 1,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val commandZone = gsm.zonesList.first { it.zoneId == ZoneIds.COMMAND }
             val commanderDesignations =

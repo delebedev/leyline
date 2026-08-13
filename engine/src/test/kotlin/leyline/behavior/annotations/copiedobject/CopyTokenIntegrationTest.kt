@@ -123,6 +123,7 @@ class CopyTokenIntegrationTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val copyObj =
                 gsm.gameObjectsList
@@ -154,6 +155,7 @@ class CopyTokenIntegrationTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
 
@@ -180,6 +182,7 @@ class CopyTokenIntegrationTest :
                     harness.bridge,
                     viewingSeatId = 1,
                     effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )
             harness.bridge.applyMutations(baselineResult.finalizeAnnotations().mutations)
 
@@ -199,6 +202,7 @@ class CopyTokenIntegrationTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
             // If the copy token appears in the diff, its fields must be intact
@@ -238,6 +242,7 @@ class CopyTokenIntegrationTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val tempPerm =
                 gsm.persistentAnnotationsList
@@ -325,6 +330,7 @@ class CopyTokenIntegrationTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val copyObj =
                 gsm.gameObjectsList
@@ -361,6 +367,7 @@ class CopyTokenIntegrationTest :
                         harness.bridge,
                         viewingSeatId = 1,
                         effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val tempPerm =
                 gsm.persistentAnnotationsList
