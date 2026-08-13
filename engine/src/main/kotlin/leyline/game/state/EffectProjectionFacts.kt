@@ -9,6 +9,8 @@ import kotlin.ConsistentCopyVisibility
  * The shell owns materialization. Projection receives only stable Forge ids,
  * values, and pre-resolved static metadata; instance/effect ids remain
  * tentative projection state so their allocation order stays unchanged.
+ * Attribution is observed on every cut, then retained from lifecycle creation
+ * by [EffectTracker] until that fingerprint is destroyed.
  */
 @ConsistentCopyVisibility
 data class EffectProjectionFacts private constructor(
@@ -49,6 +51,7 @@ data class EffectProjectionFacts private constructor(
         val staticId: Long,
         val power: Int,
         val toughness: Int,
+        val sourceAbilityGrpId: Int? = null,
     )
 
     data class KeywordEntry(
@@ -56,6 +59,7 @@ data class EffectProjectionFacts private constructor(
         val timestamp: Long,
         val staticId: Long,
         val keyword: String,
+        val affectorForgeCardId: ForgeCardId? = null,
     )
 
     @ConsistentCopyVisibility

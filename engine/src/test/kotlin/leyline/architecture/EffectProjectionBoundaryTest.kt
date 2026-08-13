@@ -31,6 +31,8 @@ class EffectProjectionBoundaryTest :
             "(" +
                 listOf(
                     "leyline.game.state.EffectProjectionFacts",
+                    "leyline.game.state.EffectTracker",
+                    "leyline.game.annotations.MechanicAnnotations",
                     "leyline.game.state.EarthbendTracker",
                     "leyline.game.annotations.VehicleAttachContributor",
                     "leyline.game.annotations.EarthbendEmitter",
@@ -98,5 +100,47 @@ class EffectProjectionBoundaryTest :
                     ),
                 ).because("only value identifiers may cross from the bridge package")
                 .check(classes)
+        }
+
+        test("effect attribution adapters do not reopen live state") {
+            val sourceRoot =
+                sequenceOf(
+                    Path.of("src/main/kotlin"),
+                    Path.of("engine/src/main/kotlin"),
+                ).first { it.resolve("leyline").toFile().isDirectory }
+            val stateMapper = Files.readString(sourceRoot.resolve("leyline/game/mapping/StateMapper.kt"))
+            val effectAdapters =
+                stateMapper.substring(
+                    stateMapper.indexOf("    private fun boostEntries("),
+                    stateMapper.indexOf("    private fun stackTransferDeletedIds("),
+                )
+            val annotationPipeline = Files.readString(sourceRoot.resolve("leyline/game/annotations/AnnotationPipeline.kt"))
+            val effectReduction =
+                annotationPipeline.substring(
+                    annotationPipeline.indexOf("        val keywordAffectorFallbackForgeCardId ="),
+                    annotationPipeline.indexOf("        annotations.addAll(effectTransient)") +
+                        "        annotations.addAll(effectTransient)".length,
+                )
+            val forbiddenLiveApis =
+                listOf(
+                    "SourceAbilityResolverFactory",
+                    "sourceAbilityResolver",
+                    "keywordAffectorResolver",
+                    "getGame(",
+                    "findCard(",
+                    "abilityRegistryFor(",
+                    "staticAbilities",
+                    "getZone(",
+                )
+
+            check(forbiddenLiveApis.none(effectAdapters::contains)) {
+                "StateMapper effect adapters reopen live projection state"
+            }
+            check(forbiddenLiveApis.none(effectReduction::contains)) {
+                "AnnotationPipeline effect reduction reopens live projection state"
+            }
+            check(!Files.exists(sourceRoot.resolve("leyline/game/mapping/SourceAbilityResolverFactory.kt"))) {
+                "live source-ability resolver factory must stay deleted"
+            }
         }
     })

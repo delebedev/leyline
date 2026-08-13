@@ -726,6 +726,7 @@ object StateMapper {
                         staticId = entry.staticId,
                         power = entry.power,
                         toughness = entry.toughness,
+                        sourceAbilityGrpId = entry.sourceAbilityGrpId,
                     ),
                 )
         }
@@ -758,6 +759,7 @@ object StateMapper {
                         timestamp = entry.timestamp,
                         staticId = entry.staticId,
                         keyword = entry.keyword,
+                        affectorForgeCardId = entry.affectorForgeCardId,
                     ),
                 )
         }

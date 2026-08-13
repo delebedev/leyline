@@ -6,8 +6,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.bridge.types.GrpId
-import leyline.bridge.types.InstanceId
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.state.EffectTracker
 import leyline.testkit.detailInt
@@ -15,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
  * Effect-stage annotation pipeline tests — effectAnnotations, boost tracking,
- * LayeredEffect creation/destruction, and sourceAbilityGrpId resolution.
+ * LayeredEffect creation/destruction, and source-ability attribution emission.
  */
 class EffectAnnotationPipelineTest :
     FunSpec({
@@ -129,7 +127,7 @@ class EffectAnnotationPipelineTest :
             }
         }
 
-        test("effectAnnotations resolves sourceAbilityGrpId via staticId") {
+        test("effectAnnotations emits tracked source ability attribution") {
             val staticId = 42L
             val created =
                 listOf(
@@ -138,22 +136,19 @@ class EffectAnnotationPipelineTest :
                         fingerprint = EffectTracker.EffectFingerprint(100, 1L, staticId),
                         powerDelta = 1,
                         toughnessDelta = 1,
+                        sourceAbilityGrpId = 99999,
                     ),
                 )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
-            val resolver: (InstanceId, Long) -> GrpId? = { _, sid ->
-                if (sid == staticId) GrpId(99999) else null
-            }
-
-            val (_, persistent) = MechanicAnnotations.effectAnnotations(diff, resolver)
+            val (_, persistent) = MechanicAnnotations.effectAnnotations(diff)
 
             persistent.size shouldBe 1
             val sourceDetail = persistent[0].detailsList.first { it.key == "sourceAbilityGRPID" }
             sourceDetail.getValueInt32(0) shouldBe 99999
         }
 
-        test("effectAnnotations omits sourceAbilityGrpId when resolver returns null") {
+        test("effectAnnotations omits source ability attribution when absent") {
             val created =
                 listOf(
                     EffectTracker.TrackedEffect(
@@ -165,12 +160,7 @@ class EffectAnnotationPipelineTest :
                 )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
-            // Resolver returns null for staticId=0 (SpellAbility effects)
-            val resolver: (InstanceId, Long) -> GrpId? = { _, sid ->
-                if (sid == 0L) null else GrpId(99999)
-            }
-
-            val (_, persistent) = MechanicAnnotations.effectAnnotations(diff, resolver)
+            val (_, persistent) = MechanicAnnotations.effectAnnotations(diff)
 
             persistent.size shouldBe 1
             persistent[0].detailsList.none { it.key == "sourceAbilityGRPID" } shouldBe true
