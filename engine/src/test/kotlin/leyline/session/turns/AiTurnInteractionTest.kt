@@ -9,10 +9,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.session.combat.COMBAT_DECK
 import leyline.testkit.AI_FIRST_SEED
 import leyline.testkit.ScriptedAction
@@ -283,7 +281,7 @@ class AiTurnInteractionTest :
                 ScriptedAction.PassPriority,
             )
 
-        test("AI land play — dedicated gsId + annotations + precedes CastSpell, CastSpell clean") {
+        test("AI land play precedes CastSpell in one completed-step frame") {
             startGame(seed = 42L, deckList = COMBAT_DECK, validating = true)
             installScriptedAi(scriptedLandThenGoblin)
             passUntilTurn(3)
@@ -314,16 +312,22 @@ class AiTurnInteractionTest :
                 }
 
             // --- CastSpell diff facets ---
-            val castSpellHasPlayLandAnn =
-                castSpellGsm.annotationsList.any { ann ->
-                    AnnotationType.ZoneTransfer_af5a in ann.typeList &&
-                        ann.detail("category")?.getValueString(0) == "PlayLand"
+            val transferCategories =
+                playLandGsm.annotationsList
+                    .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
+                    .mapNotNull { it.detail("category")?.valueStringList?.firstOrNull() }
+            val combinedFrames =
+                gsMessages.count { message ->
+                    message.gameStateMessage.annotationsList.any { ann ->
+                        AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                            ann.detail("category")?.valueStringList?.firstOrNull() in setOf("PlayLand", "CastSpell")
+                    }
                 }
 
             assertSoftly {
-                // PlayLand has own gsId, precedes CastSpell
-                playLandGsm.gameStateId shouldNotBe castSpellGsm.gameStateId
-                playLandGsm.gameStateId shouldBeLessThan castSpellGsm.gameStateId
+                playLandGsm.gameStateId shouldBe castSpellGsm.gameStateId
+                combinedFrames shouldBe 1
+                transferCategories.indexOf("PlayLand") shouldBeLessThan transferCategories.indexOf("CastSpell")
 
                 // PlayLand annotation triple
                 annTypes shouldContain AnnotationType.ObjectIdChanged
@@ -331,12 +335,9 @@ class AiTurnInteractionTest :
                 annTypes shouldContain AnnotationType.UserActionTaken
                 userAction.detailInt("actionType") shouldBe 3
 
-                // PlayLand diff contains land on battlefield, no creature on stack
+                // The completed-step cut includes both final objects.
                 landObj.shouldNotBeNull()
-                creatureOnStack.shouldBeNull()
-
-                // CastSpell diff stays clean — no PlayLand annotation bleed
-                castSpellHasPlayLandAnn.shouldBe(false)
+                creatureOnStack.shouldNotBeNull()
             }
         }
 

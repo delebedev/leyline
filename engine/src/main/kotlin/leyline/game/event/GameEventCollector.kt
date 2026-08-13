@@ -72,11 +72,12 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  *
  * ## Threading
  *
- * Events fire synchronously on the engine thread. The projection shell calls
- * [closeFrame] on that same thread before GSM build.
- * The `@Volatile` reference swap is sufficient: the engine thread's `add`
- * happens-before the swap; the new frame starts empty; the returned list is
- * never mutated past the swap.
+ * Events fire synchronously on the engine thread. Ordinary playback closes at
+ * the engine's step-completion safe point. A shell path may close while the
+ * engine is blocked at a controller handoff; it must never race an active
+ * mutation burst. The `@Volatile` reference swap publishes the replacement
+ * frame across those domains, and the returned list is never mutated past the
+ * swap.
  *
  * **Adding new mechanics:** When upstream Forge events lack the granularity we need
  * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
@@ -89,9 +90,12 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
 
 /** Immutable per-frame snapshot of game events in firing order. */
 class FrameEventLog(
-    val events: List<GameEvent>,
-    val zoneMoves: List<ZoneMove> = emptyList(),
+    events: List<GameEvent>,
+    zoneMoves: List<ZoneMove> = emptyList(),
 ) {
+    val events: List<GameEvent> = java.util.Collections.unmodifiableList(events.toList())
+    val zoneMoves: List<ZoneMove> = java.util.Collections.unmodifiableList(zoneMoves.toList())
+
     companion object {
         val EMPTY = FrameEventLog(emptyList())
     }
@@ -326,7 +330,7 @@ class GameEventCollector(
                 abilityGrpId == KeywordAbilityIds.ENLIST ->
                     pendingEnlistedIidsByAttacker.remove(ForgeCardId(card.id))
                         ?: triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
-                else -> triggeringObjectCardId?.let { bridge.getOrAllocInstanceId(it) }
+                else -> null
             }
         if (abilityGrpId == KeywordAbilityIds.ENLIST && triggeringObjectCardId != null) {
             pendingEnlistAffectors[triggeringObjectCardId] = ForgeCardId(card.id)

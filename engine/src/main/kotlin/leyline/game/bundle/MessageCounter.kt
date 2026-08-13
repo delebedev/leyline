@@ -8,7 +8,11 @@ import java.util.concurrent.atomic.AtomicInteger
  * One instance is created at session setup and passed to both [MatchSession]
  * and [leyline.game.state.GameBridge] at construction time. The session thread (Netty I/O) and
  * the engine thread (game daemon) both call [nextMsgId]/[nextGsId] on the
- * same atomics — monotonically increasing, no duplicates, no runtime sync.
+ * same atomics — monotonically increasing, no duplicates. Individual allocations
+ * need no monitor. Concurrent ordinary-playback and state-only frame producers
+ * additionally synchronize on this object so a complete batch reserves contiguous ids;
+ * their shared order is this monitor, then the projection-build monitor, then the
+ * playback queue monitor.
  *
  * The client requires gsIds to increase monotonically across the interleaved
  * message stream. A single shared counter is the correct coordination

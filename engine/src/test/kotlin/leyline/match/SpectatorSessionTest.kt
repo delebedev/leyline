@@ -2,6 +2,7 @@ package leyline.match
 
 import forge.game.GameStage
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -92,6 +93,50 @@ class SpectatorSessionTest :
                 sink.messages.size shouldBe 2
             } finally {
                 releaseHook.countDown()
+                session.close()
+            }
+        }
+
+        test("pumpOnce surfaces a main-loop completion failure") {
+            val reachedStart = CountDownLatch(1)
+            val releaseStart = CountDownLatch(1)
+            val reachedCompletion = CountDownLatch(1)
+            val failure = IllegalStateException("completion failed")
+            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            bridge = b
+            b.startAiVsAi(
+                seed = 42,
+                startGameHook =
+                    Runnable {
+                        reachedStart.countDown()
+                        releaseStart.await(5, TimeUnit.SECONDS)
+                    },
+            )
+            reachedStart.await(5, TimeUnit.SECONDS).shouldBeTrue()
+            b.getGame()!!.phaseHandler.setMainLoopStepCompletionHook {
+                reachedCompletion.countDown()
+                throw failure
+            }
+            val session = SpectatorSession(SeatId(1), "test-match", ListMessageSink(), b)
+
+            try {
+                releaseStart.countDown()
+                reachedCompletion.await(5, TimeUnit.SECONDS).shouldBeTrue()
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                var observed: Throwable? = null
+                while (observed == null && System.nanoTime() < deadline) {
+                    try {
+                        b.throwIfGameLoopFailed()
+                    } catch (ex: IllegalStateException) {
+                        observed = ex
+                    }
+                    if (observed == null) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+                }
+
+                val thrown = shouldThrow<IllegalStateException> { session.pumpOnce() }
+                thrown.cause shouldBe checkNotNull(observed).cause
+            } finally {
+                releaseStart.countDown()
                 session.close()
             }
         }

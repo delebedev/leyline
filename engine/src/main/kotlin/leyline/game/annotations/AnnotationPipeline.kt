@@ -250,11 +250,8 @@ object AnnotationPipeline {
                 emptyMap()
             }
         for (a in transferResult.stackAbilityAppearances) {
-            // Snapshot-derived sourceZoneId reads `previousZones[sourceCardIid]`
-            // which is 0 when the source card wasn't tracked through the diff
-            // (puzzle-injected starting state). For activated abilities the
-            // SpellCast event carries an explicit activationZoneId — prefer it
-            // when non-zero so cycling=Hand and unearth=Graveyard both land.
+            // Source-zone resolution prefers an explicit activation zone, then
+            // the closed-frame mechanic fact, then the prior projection zone.
             val sourceZone = if (a.activationZoneId != 0) a.activationZoneId else a.sourceZoneId
             val abilityGrpId = eventAbilityGrpIdsByIid[a.abilityInstanceId] ?: a.grpId
             abilityLineage.recordAbility(

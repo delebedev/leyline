@@ -101,7 +101,10 @@ class GameBridge(
     /** Guards the committed projection value and compare-and-set installation. */
     internal val projectionLock = Any()
 
-    /** Preserves engine-cut order across every bundle builder sharing this match. */
+    /**
+     * Preserves engine-cut order across every bundle builder sharing this match.
+     * Frame producers acquire the shared MessageCounter first and playback queue lock last.
+     */
     internal val projectionBuildLock = Any()
 
     private var projectionState = ProjectionState.initial()
@@ -138,8 +141,12 @@ class GameBridge(
             true
         }
 
-    internal fun commitProjection(transition: ProjectionTransition) {
+    internal fun commitProjection(
+        transition: ProjectionTransition,
+        afterInstall: () -> Unit = {},
+    ) {
         if (!installProjection(transition)) throw StaleProjectionTransitionException()
+        afterInstall()
         pendingEarthbendResolutions.removeAll {
             it.version in transition.acknowledgements.consumedEarthbendResolutionVersions
         }
@@ -396,11 +403,28 @@ class GameBridge(
 
     override fun playbackFor(seatId: SeatId): GamePlayback? = playbackRegistry.get(seatId)
 
+    fun throwIfGameLoopFailed() {
+        loopController?.throwIfFailed()
+        playbackRegistry.values().firstNotNullOfOrNull(GamePlayback::failure)?.let { throw it }
+    }
+
+    internal fun acknowledgePlaybackFrame(seatId: SeatId) {
+        playbackFor(seatId)?.onFrameCommitted()
+    }
+
+    @VisibleForTesting
+    internal fun registerPlaybackForTest(
+        seatId: SeatId,
+        playback: GamePlayback,
+    ) {
+        playbackRegistry.register(seatId, playback)
+    }
+
     private fun registerPlayback(
         game: Game,
         seatId: SeatId,
         captureLocalActions: Boolean,
-    ) {
+    ): GamePlayback {
         val playback =
             GamePlayback(
                 bridge = this,
@@ -412,6 +436,21 @@ class GameBridge(
             )
         playbackRegistry.register(seatId, playback)
         game.subscribeToEvents(playback)
+        return playback
+    }
+
+    /** Registers journal collection and playback hooks before the engine thread starts. */
+    private fun registerPlaybackPipeline(
+        game: Game,
+        seatId: SeatId,
+        captureLocalActions: Boolean,
+    ) {
+        val collector = GameEventCollector(this)
+        eventCollector = collector
+        game.subscribeToEvents(collector)
+        val playback = registerPlayback(game, seatId, captureLocalActions)
+        game.phaseHandler.setMainGameLoopStartedHook(playback::onMainGameLoopStarted)
+        game.phaseHandler.setMainLoopStepCompletionHook(playback::onMainLoopStepCompleted)
     }
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
@@ -941,6 +980,9 @@ class GameBridge(
         // Wire the interactive seat and retain native AI decisions with reveal observation.
         registerHumanController(g)
 
+        registerPlaybackPipeline(g, SeatId(1), captureLocalActions = false)
+        log.info("GameBridge: registered playback pipeline for seat 1")
+
         val loop =
             GameLoopController(
                 g,
@@ -952,17 +994,6 @@ class GameBridge(
         loopController = loop
         loop.start()
         loop.awaitStarted()
-
-        // Register event collector FIRST — must fire before playback so closeFrame()
-        // includes the current event when playback's captureAndPause runs.
-        val collector = GameEventCollector(this)
-        eventCollector = collector
-        g.subscribeToEvents(collector)
-        log.info("GameBridge: registered GameEventCollector for event-driven annotations")
-
-        // Register action playback subscriber (after collector)
-        registerPlayback(g, SeatId(1), captureLocalActions = false)
-        log.info("GameBridge: registered GamePlayback for seat 1")
 
         if (matchConfig.game.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
@@ -1022,17 +1053,12 @@ class GameBridge(
             )
         }
 
-        val collector = GameEventCollector(this)
-        eventCollector = collector
-        g.subscribeToEvents(collector)
-        log.info("GameBridge: registered GameEventCollector for AI-vs-AI spectator game")
+        registerPlaybackPipeline(g, SeatId(1), captureLocalActions = true)
+        log.info("GameBridge: registered spectator playback pipeline")
 
         val loop = GameLoopController(g, prioritySignal = prioritySignal)
         loopController = loop
         loop.start(startGameHook)
-
-        registerPlayback(g, SeatId(1), captureLocalActions = true)
-        log.info("GameBridge: registered spectator GamePlayback")
 
         loop.awaitStarted()
     }
@@ -1186,6 +1212,7 @@ class GameBridge(
         val deadline = System.currentTimeMillis() + priorityWaitMs
         val actionBridge = seat(seatId).action
         while (true) {
+            loopController?.throwIfFailed()
             if (actionBridge.getPending() != null) return true
             val g = game
             if (g == null || g.isGameOver) return false
@@ -1219,6 +1246,7 @@ class GameBridge(
         val deadline = System.currentTimeMillis() + timeoutMs
         val entryGsId = messageCounter.currentGsId()
         while (true) {
+            loopController?.throwIfFailed()
             // Check conditions first (handles already-pending case)
             val g = game
             if (g != null && g.isGameOver) {
@@ -1444,6 +1472,8 @@ class GameBridge(
             human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
         }
 
+        registerPlaybackPipeline(g, SeatId(1), captureLocalActions = false)
+
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =
             GameLoopController(
@@ -1456,13 +1486,6 @@ class GameBridge(
         loopController = loop
         loop.startFromCurrentState()
         loop.awaitStarted()
-
-        // Register event collector and playback (same as constructed)
-        val collector = GameEventCollector(this)
-        eventCollector = collector
-        g.subscribeToEvents(collector)
-
-        registerPlayback(g, SeatId(1), captureLocalActions = false)
 
         if (aiControllerFactory == null) {
             log.info("GameBridge: puzzle loop started, waiting for priority")
@@ -1515,6 +1538,8 @@ class GameBridge(
     fun teardownResources() {
         val g = game
         if (g != null) {
+            g.phaseHandler.setMainGameLoopStartedHook(null)
+            g.phaseHandler.setMainLoopStepCompletionHook(null)
             eventCollector?.let { g.unsubscribeFromEvents(it) }
             for (pb in playbackRegistry.values()) {
                 g.unsubscribeFromEvents(pb)

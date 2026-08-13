@@ -299,6 +299,7 @@ object StateMapper {
                 editor,
                 snap,
                 eventsMutable,
+                mechanicSourceFacts,
                 zoneMoves = events.zoneMoves,
             )
         recordParadigmSourceStackIids(transferResult, snap, annotationJournal)

@@ -9,6 +9,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -23,7 +24,9 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.game.GamePlayback
 import leyline.game.InMemoryCardRepository
+import leyline.game.PlaybackTerminalFailure
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
@@ -61,6 +64,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import java.util.EnumSet
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
@@ -749,6 +753,263 @@ class BundleBuilderTest :
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
                 b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
             }
+        }
+
+        test("playback cut is exact across retry and discard") {
+            val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
+            val prior = b.projectionStateSnapshot()
+            val events =
+                FrameEventLog(
+                    listOf(
+                        GameEvent.CoinFlipped(1.sid, ForgeCardId(100), 200, 19490, 1),
+                        GameEvent.CoinFlipped(1.sid, ForgeCardId(100), 200, 19490, 0),
+                    ),
+                )
+            val cut = builder.materializePlaybackCut(game, counter, turnStarted = true, events)
+            val afterMaterialize = b.projectionStateSnapshot()
+            val counterAfterMaterialize = counter.snapshot()
+
+            val first = builder.compilePlaybackCut(cut)
+            val retry = builder.compilePlaybackCut(cut)
+
+            assertSoftly {
+                retry.messages.map { it.toByteArray().toList() } shouldBe first.messages.map { it.toByteArray().toList() }
+                retry.transition shouldBe first.transition
+                first.messages.map { it.type } shouldBe
+                    listOf(
+                        GREMessageType.GameStateMessage_695e,
+                        GREMessageType.PromptReq,
+                        GREMessageType.PromptReq,
+                        GREMessageType.GameStateMessage_695e,
+                    )
+                first.messages.map { it.msgId } shouldBe first.messages.map { it.msgId }.sorted()
+                first.messages
+                    .map { it.msgId }
+                    .toSet()
+                    .size shouldBe first.messages.size
+                cut.priorProjection.revision shouldBe prior.revision
+                b.projectionStateSnapshot() shouldBe afterMaterialize
+                counter.snapshot() shouldBe counterAfterMaterialize
+            }
+        }
+
+        test("shell frame and safe point share one lock order and one journal owner") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val builder = bundleBuilder(b)
+            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            b.registerPlaybackForTest(SeatId(1), playback)
+            game.subscribeToEvents(playback)
+            val shellEnteredCompiler = CountDownLatch(1)
+            val releaseShell = CountDownLatch(1)
+            val shellResult = AtomicReference<BundleBuilder.BundleResult?>()
+            val shellFailure = AtomicReference<Throwable?>()
+            val safePointFailure = AtomicReference<Throwable?>()
+
+            game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
+            playback.visit(
+                forge.game.event.GameEventPlayerPoisoned(
+                    null as forge.game.player.PlayerView?,
+                    null as forge.game.player.PlayerView?,
+                    0,
+                    1,
+                ),
+            )
+            b.diffListener = { _, _, _, _ ->
+                shellEnteredCompiler.countDown()
+                releaseShell.await(5, TimeUnit.SECONDS).shouldBeTrue()
+            }
+
+            val shell =
+                thread(start = true, name = "shell-frame-owner") {
+                    try {
+                        shellResult.set(builder.stateOnlyDiff(game, counter))
+                    } catch (ex: Throwable) {
+                        shellFailure.set(ex)
+                    }
+                }
+            shellEnteredCompiler.await(5, TimeUnit.SECONDS).shouldBeTrue()
+            val safePoint =
+                thread(start = true, name = "safe-point-owner") {
+                    try {
+                        playback.onMainLoopStepCompleted()
+                    } catch (ex: Throwable) {
+                        safePointFailure.set(ex)
+                    }
+                }
+            val blockedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (safePoint.state != Thread.State.BLOCKED && System.nanoTime() < blockedDeadline) {
+                Thread.yield()
+            }
+            safePoint.state shouldBe Thread.State.BLOCKED
+
+            releaseShell.countDown()
+            shell.join(5_000)
+            safePoint.join(5_000)
+            b.diffListener = null
+
+            val tappedAnnotations =
+                checkNotNull(shellResult.get())
+                    .messages
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .filter { AnnotationType.TappedUntappedPermanent in it.typeList }
+            assertSoftly {
+                shell.isAlive.shouldBeFalse()
+                safePoint.isAlive.shouldBeFalse()
+                shellFailure.get() shouldBe null
+                safePointFailure.get() shouldBe null
+                tappedAnnotations shouldHaveSize 1
+                playback.drainQueue() shouldBe emptyList()
+            }
+            playback.onMainLoopStepCompleted()
+            playback.drainQueue() shouldBe emptyList()
+        }
+
+        test("stale exact playback cut becomes terminal and emits nothing") {
+            val (b, _, counter) = startWithBoard { _, _, _ -> }
+            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            var writerRan = false
+            b.diffListener = { _, _, _, _ ->
+                if (!writerRan) {
+                    writerRan = true
+                    b.getOrAllocInstanceId(ForgeCardId(9_999_999))
+                }
+            }
+            playback.visit(
+                forge.game.event.GameEventPlayerPoisoned(
+                    null as forge.game.player.PlayerView?,
+                    null as forge.game.player.PlayerView?,
+                    0,
+                    1,
+                ),
+            )
+
+            val thrown = shouldThrow<PlaybackTerminalFailure> { playback.onMainLoopStepCompleted() }
+
+            assertSoftly {
+                writerRan shouldBe true
+                thrown.pendingCut shouldBe playback.failure()?.pendingCut
+                b.projectionStateSnapshot().revision shouldBeGreaterThan
+                    checkNotNull(thrown.pendingCut).projection.priorProjection.revision
+                playback.drainQueue() shouldBe emptyList()
+                shouldThrow<PlaybackTerminalFailure> {
+                    playback.onMainLoopStepCompleted()
+                } shouldBe thrown
+            }
+            b.diffListener = null
+        }
+
+        test("post-install playback failure retains the queued cut across a later writer") {
+            val (b, _, counter) = startWithBoard { _, _, _ -> }
+            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val timeoutField = GameBridge::class.java.getDeclaredField("promptTimeoutNeedsAutoAdvance")
+            timeoutField.isAccessible = true
+            (timeoutField.get(b) as AtomicBoolean).set(true)
+            b.autoAdvanceRequester = {
+                b.getOrAllocInstanceId(ForgeCardId(9_999_998))
+                error("post-install acknowledgement failed")
+            }
+            playback.visit(
+                forge.game.event.GameEventPlayerPoisoned(
+                    null as forge.game.player.PlayerView?,
+                    null as forge.game.player.PlayerView?,
+                    0,
+                    1,
+                ),
+            )
+
+            val thrown = shouldThrow<PlaybackTerminalFailure> { playback.onMainLoopStepCompleted() }
+            val queued = playback.drainQueue()
+
+            assertSoftly {
+                thrown.cause?.message shouldBe "post-install acknowledgement failed"
+                queued shouldHaveSize 1
+                b.projectionStateSnapshot().revision shouldBeGreaterThan checkNotNull(thrown.pendingCut).projection.priorProjection.revision
+                b.peekInstanceId(ForgeCardId(9_999_998)) shouldBe b.getOrAllocInstanceId(ForgeCardId(9_999_998))
+            }
+            b.autoAdvanceRequester = null
+        }
+
+        test("combat checkpoint subsumes ordinary request and closes its facts once") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            playback.visit(
+                forge.game.event.GameEventPlayerPoisoned(
+                    null as forge.game.player.PlayerView?,
+                    null as forge.game.player.PlayerView?,
+                    0,
+                    1,
+                ),
+            )
+            game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
+
+            playback.visit(forge.game.event.GameEventCombatEnded(emptyList(), emptyList()))
+            val first = playback.drainQueue()
+            playback.onMainLoopStepCompleted()
+
+            assertSoftly {
+                first.size shouldBe 1
+                first
+                    .flatten()
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .count { AnnotationType.TappedUntappedPermanent in it.typeList } shouldBe 1
+                playback.drainQueue() shouldBe emptyList()
+            }
+        }
+
+        test("startup boundary discards setup facts and retains first gameplay facts") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
+
+            playback.onMainGameLoopStarted()
+            game.fireEvent(forge.game.event.GameEventCardTapped(card, false))
+            playback.visit(
+                forge.game.event.GameEventPlayerPoisoned(
+                    null as forge.game.player.PlayerView?,
+                    null as forge.game.player.PlayerView?,
+                    0,
+                    1,
+                ),
+            )
+            playback.onMainLoopStepCompleted()
+
+            val tapAnnotations =
+                playback
+                    .drainQueue()
+                    .flatten()
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .filter { AnnotationType.TappedUntappedPermanent in it.typeList }
+            tapAnnotations.size shouldBe 1
+            tapAnnotations
+                .single()
+                .detailsList
+                .single { it.key == "tapped" }
+                .valueInt32List shouldBe listOf(0)
         }
 
         test("failure during finalization leaves cursor and bridge state unchanged") {

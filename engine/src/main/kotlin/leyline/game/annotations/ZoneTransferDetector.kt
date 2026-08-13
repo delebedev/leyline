@@ -144,6 +144,8 @@ internal data class ZoneTransferContext(
     /** True when a Forge card with this id exists. */
     val forgeCardKnown: (ForgeCardId) -> Boolean = { true },
     val paradigmSourceIidLookup: (ForgeCardId) -> Int? = { null },
+    /** Cut-scoped source zone for stack lifecycle events. */
+    val sourceZoneLookup: (ForgeCardId) -> Int? = { null },
     val zoneMoves: List<ZoneMove> = emptyList(),
 )
 
@@ -523,6 +525,7 @@ object ZoneTransferDetector {
                 events,
                 forgeCardKnown,
                 paradigmSourceIidLookup,
+                context.sourceZoneLookup,
             )
         val (disappearances, disappearedRetiredIds) =
             detectStackAbilityDisappearances(
@@ -1232,6 +1235,7 @@ object ZoneTransferDetector {
         events: List<GameEvent>,
         forgeCardKnown: (ForgeCardId) -> Boolean,
         paradigmSourceIidLookup: (ForgeCardId) -> Int?,
+        sourceZoneLookup: (ForgeCardId) -> Int?,
     ): List<StackAbilityAppearance> {
         val appearances = mutableListOf<StackAbilityAppearance>()
         for (obj in patchedObjects) {
@@ -1271,12 +1275,16 @@ object ZoneTransferDetector {
                 matchingCast
                     ?.activationZoneId
                     ?.takeIf { it != 0 }
+                    ?: matchingCast?.let { sourceZoneLookup(it.cardId) }
                     ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
                 if (isActivated) matchingCast.activationZoneId else 0
-            val triggeringObjectIid = matchingCast?.triggeringObjectInstanceId?.value
+            val triggeringObjectIid =
+                matchingCast?.triggeringObjectInstanceId?.value
+                    ?: matchingCast?.triggeringObjectCardId?.let { idLookup(it).value }
             val triggeringObjectZone =
-                triggeringObjectZoneId(triggeringObjectIid, patchedObjects, previousZones)
+                matchingCast?.triggeringObjectCardId?.let(sourceZoneLookup)
+                    ?: triggeringObjectZoneId(triggeringObjectIid, patchedObjects, previousZones)
 
             appearances.add(
                 StackAbilityAppearance(

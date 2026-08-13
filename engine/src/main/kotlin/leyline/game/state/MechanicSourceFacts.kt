@@ -32,6 +32,9 @@ data class MechanicSourceFacts private constructor(
     /** Source zone at the frame cut, with the established battlefield default. */
     fun sourceZone(forgeCardId: ForgeCardId): Int = sourceZoneByForgeCardId[forgeCardId] ?: ZoneIds.BATTLEFIELD
 
+    /** Source zone when this exact card was observed for the closed frame. */
+    fun recordedSourceZone(forgeCardId: ForgeCardId): Int? = sourceZoneByForgeCardId[forgeCardId]
+
     /** Fallback creator of a token whose event omitted source identity. */
     data class TokenCreator(
         val sourceForgeCardId: ForgeCardId,
