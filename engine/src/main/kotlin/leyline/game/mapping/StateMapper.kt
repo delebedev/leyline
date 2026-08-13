@@ -42,14 +42,14 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromSnapshot]: Full [GameStateMessage] from a captured [leyline.game.snapshot.GsmSnapshot].
  * - [buildDiff]: Diff GSM by snap-vs-snap field comparison; returns [leyline.game.state.BridgeMutations]
- *   for the caller to apply via [leyline.game.state.GameBridge.applyMutations]. Pure on
- *   ordering-sensitive outputs.
+ *   for the caller to apply via [leyline.game.state.GameBridge.applyMutations]. Compute is
+ *   tentative and write-isolated, but still reads explicitly retained [GameBridge] state.
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [leyline.game.bundle.GsmBuilder].
  * Interactive request builders (targeting, combat) live in [leyline.game.bundle.RequestBuilder].
  * Pure Forge→proto projection lives in the `mapper/` subpackage.
  *
- * ## Purity boundary
+ * ## Tentative compute boundary
  *
  * Single contract: both [buildFromSnapshot] and [buildDiff] return an annotation
  * frame draft plus [leyline.game.state.BridgeMutations]. Callers finalize the
@@ -59,31 +59,41 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * batch and delayed-trigger holder lifecycle) flow through the returned
  * mutations. The finalizer supplies `nextAnnotationId` before application.
  *
- * Inputs to [buildDiff] are pure values: `prev: GsmSnapshot?`, `cur: GsmSnapshot`,
- * `events: FrameEventLog`. Outputs are pure: `GameStateMessage` + [leyline.game.state.BridgeMutations].
+ * [StateFrameInput] carries snapshot, event, [PromptProjectionFacts], and
+ * [EffectProjectionFacts] values for scoped projection inputs. [buildDiff]
+ * also accepts [GameBridge], so this is not a complete pure-function boundary.
  *
  * The acceptance forcing function for this boundary is [PureDiffReplayTest],
  * which replays recorded `(snap, events, diff)` tuples through [buildDiff] on
  * a fresh bridge and asserts byte-equal Diff GSMs across scenarios. A
  * regression there signals newly-introduced impurity.
  *
- * ## Residual in-stage bridge reads/writes (accepted, by design)
+ * ## Retained bridge dependencies
  *
- * These remain inside the pipeline for bounded reasons — not ordering-sensitive
- * for the replayed scenarios, or part of a deliberate boundary. This list is
- * a working catalog, not a completeness claim: the replay test is the real
- * contract, not the enumeration. Extend the test scenarios (targeted spells,
- * vehicles, reveals, steals) to grow the coverage before relying on the list.
+ * These remain inside the pipeline for bounded reasons. This catalog names the
+ * live, reference, and retained-state reads still present in the current cut;
+ * the replay test proves only its covered scenarios.
  *
  * Reads of effectively-immutable / card-DB state:
  * - [leyline.game.state.GameBridge.getOrAllocInstanceId] resolves through the
  *   private [leyline.game.state.InstanceIdRegistry] planner during this scope.
  * - `bridge.cardRepository.findGrpIdByName` / `findByGrpId`. Read-only card DB.
+ * - `bridge.ids`, `getForgeCardId`, and [FrameIdResolver] retain identity and
+ *   reverse-reference reads; allocations remain tentative.
+ *
+ * Explicit live engine/config reads:
+ * - `bridge.getPlayer`, `isBrawlOrCommander`, and `getLimboInstanceIds`.
+ * - `bridge.findCard` for Paradigm and exhausted-ability state, plus
+ *   `bridge.cardProto` and the read-only `bridge.cardRepository`.
+ *
+ * Explicit retained-state reads:
+ * - `bridge.opponentKnowledge`, `delayedTriggerHolders`, and
+ *   `pendingTransientLinkedFaceFamilyIds`.
  *
  * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Other live
  * Forge/card/reference data remains bridge-attached in this slice.
  *
- * Reads-then-writes on bridge-attached tracker state (not yet lifted onto snap):
+ * Tentative planners over bridge-backed state (not yet lifted onto frame values):
  * - `bridge.revealProxies` — RevealedCard proxy tracker, tied to transactional
  *   reveal-choose effects that span bundles.
  * - prompt-derived projection data arrives in [PromptProjectionFacts].
@@ -91,8 +101,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *   [SyntheticEffectProjection.Planner] and returns through [BridgeMutations].
  *
  * Identity and synthetic-effect allocations are tentative and returned in
- *   [BridgeMutations]; committed state remains unchanged until the shell
- *   validates and installs the complete plan.
+ * [BridgeMutations]; committed state remains unchanged until the shell
+ * validates and installs the complete plan.
  *
  * Any NEW in-stage bridge touch should be justified in PR review — either
  * it joins the catalog with a scope rationale, the replay test is extended
