@@ -747,7 +747,7 @@ class BundleBuilderTest :
                     .cards
                     .single()
             moveToBattlefield(card, game)
-            b.diffListener = { _, _, _, _, _ -> error("induced finalization failure") }
+            b.diffListener = { _, _ -> error("induced finalization failure") }
             val events =
                 FrameEventLog(
                     listOf(
@@ -800,7 +800,7 @@ class BundleBuilderTest :
                 val interleavedForgeId = ForgeCardId(1_000_000)
                 var writerRan = false
                 if (interleaveWriter) {
-                    b.diffListener = { _, _, _, _, _ ->
+                    b.diffListener = { _, _ ->
                         if (!writerRan) {
                             writerRan = true
                             val writer = thread(start = true) { b.ids.getOrAlloc(interleavedForgeId) }
@@ -927,7 +927,7 @@ class BundleBuilderTest :
             b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
             val builder = bundleBuilder(b)
             var writerRan = false
-            b.diffListener = { _, _, _, _, _ ->
+            b.diffListener = { _, _ ->
                 if (!writerRan) {
                     writerRan = true
                     b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
@@ -1228,7 +1228,7 @@ class BundleBuilderTest :
                     future = java.util.concurrent.CompletableFuture(),
                 )
             val builder = bundleBuilder(b)
-            b.diffListener = { _, _, _, _, _ -> error("induced order finalization failure") }
+            b.diffListener = { _, _ -> error("induced order finalization failure") }
 
             try {
                 shouldThrow<IllegalStateException> {

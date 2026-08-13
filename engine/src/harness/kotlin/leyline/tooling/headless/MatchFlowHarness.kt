@@ -14,6 +14,7 @@ import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.game.bundle.InvariantSelection
+import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
@@ -256,6 +257,7 @@ class MatchFlowHarness(
     private fun seedInitialFull() {
         val game = bridge.getGame() ?: return
         val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
+        val events = bridge.closeBundleFrame(seatId.value)
         val fullResult =
             StateMapper
                 .buildFromSnapshot(
@@ -265,9 +267,10 @@ class MatchFlowHarness(
                     bridge,
                     StateProjectionEnvironmentCapture.from(bridge),
                     viewingSeatId = seatId.value,
-                    events = bridge.closeBundleFrame(seatId.value),
+                    events = events,
                     promptFacts = bridge.materializePromptProjectionFacts(),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
+                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
                 ).finalizeAnnotations()
         bridge.applyMutations(fullResult.mutations)
         accumulator.seedFull(fullResult.gsm)

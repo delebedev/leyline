@@ -27,6 +27,7 @@ import leyline.game.state.FrameContext
 import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
 import leyline.game.state.HolderRecord
+import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.ProjectionAnnotationJournal
 import leyline.game.state.PromptFactConsumption
 import leyline.game.state.PromptProjectionFacts
@@ -61,7 +62,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * mutations. The finalizer supplies `nextAnnotationId` before application.
  *
  * [StateFrameInput] carries snapshot, event, [PromptProjectionFacts], and
- * [EffectProjectionFacts] values for scoped projection inputs. [buildDiff]
+ * [EffectProjectionFacts] plus [MechanicSourceFacts] values for scoped
+ * projection inputs. [buildDiff]
  * also accepts [GameBridge], so this is not a complete pure-function boundary.
  *
  * The acceptance forcing function for this boundary is [PureDiffReplayTest],
@@ -93,7 +95,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * - `bridge.opponentKnowledge`, `delayedTriggerHolders`, and
  *   `pendingTransientLinkedFaceFamilyIds`.
  *
- * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Other
+ * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Mechanic
+ * source zones, token-creator fallback, and basic-land mana identity arrive in
+ * [MechanicSourceFacts] and [leyline.game.snapshot.CardSnapshot]. Other
  * annotation/mechanic reference data remains bridge-attached in this slice.
  *
  * Tentative planners over bridge-backed state (not yet lifted onto frame values):
@@ -196,6 +200,39 @@ object StateMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         prev: GsmSnapshot? = null,
+        events: FrameEventLog = FrameEventLog.EMPTY,
+        promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+        effectFacts: EffectProjectionFacts,
+    ): BuildResult =
+        buildFromSnapshot(
+            snap = snap,
+            gameStateId = gameStateId,
+            matchId = matchId,
+            bridge = bridge,
+            environment = environment,
+            actions = actions,
+            updateType = updateType,
+            viewingSeatId = viewingSeatId,
+            revealForSeat = revealForSeat,
+            prev = prev,
+            events = events,
+            promptFacts = promptFacts,
+            effectFacts = effectFacts,
+            mechanicSourceFacts = emptyMechanicSourceFactsFor(events),
+        )
+
+    @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
+    fun buildFromSnapshot(
+        snap: GsmSnapshot,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        environment: StateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge),
+        actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
+        prev: GsmSnapshot? = null,
         /**
          * Bundle events consumed by the annotation pipeline. Defaults to closing
          * the bridge frame via [GameBridge.closeBundleFrame] — previously this was
@@ -206,6 +243,7 @@ object StateMapper {
         events: FrameEventLog = FrameEventLog.EMPTY,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
+        mechanicSourceFacts: MechanicSourceFacts,
     ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildFromSnapshotInternal(
@@ -222,6 +260,7 @@ object StateMapper {
                 events = events,
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
                 annotationJournal = journal,
             )
         }
@@ -241,6 +280,7 @@ object StateMapper {
         events: FrameEventLog,
         promptFacts: PromptProjectionFacts,
         effectFacts: EffectProjectionFacts,
+        mechanicSourceFacts: MechanicSourceFacts,
         annotationJournal: ProjectionAnnotationJournal.Planner,
     ): BuildResult {
         val effectPlanner = bridge.activeEffectPlanner()
@@ -449,6 +489,7 @@ object StateMapper {
                 snap = snap,
                 frameIds = frameIds,
                 annotationJournal = annotationJournal,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
 
         val convokeCtx =
@@ -461,6 +502,7 @@ object StateMapper {
                 effectFacts = effectFacts,
                 opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
         val convokePaymentsBySource = convokeCtx.activeConvokePaymentsBySource()
         val convokePlan = ConvokeContributor.plan(convokeCtx)
@@ -577,6 +619,7 @@ object StateMapper {
                 effectFacts = effectFacts,
                 opponentKnowledge = opponentKnowledge,
                 transferResult = transferResult,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
         val remaining =
             AnnotationPipeline.computeRemainingAnnotations(
@@ -806,6 +849,7 @@ object StateMapper {
                 events = input.events,
                 promptFacts = input.promptFacts,
                 effectFacts = input.effectFacts,
+                mechanicSourceFacts = input.mechanicSourceFacts,
                 gameStateId = input.gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -834,6 +878,40 @@ object StateMapper {
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
     ): BuildResult =
+        buildDiff(
+            prev = prev,
+            cur = cur,
+            events = events,
+            gameStateId = gameStateId,
+            matchId = matchId,
+            bridge = bridge,
+            environment = environment,
+            actions = actions,
+            updateType = updateType,
+            viewingSeatId = viewingSeatId,
+            revealForSeat = revealForSeat,
+            promptFacts = promptFacts,
+            effectFacts = effectFacts,
+            mechanicSourceFacts = emptyMechanicSourceFactsFor(events),
+        )
+
+    @Suppress("LongParameterList")
+    fun buildDiff(
+        prev: GsmSnapshot?,
+        cur: GsmSnapshot,
+        events: FrameEventLog,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        environment: StateProjectionEnvironment = StateProjectionEnvironmentCapture.from(bridge),
+        actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
+        promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+        effectFacts: EffectProjectionFacts,
+        mechanicSourceFacts: MechanicSourceFacts,
+    ): BuildResult =
         withTentativeProjectionState(bridge) { journal ->
             buildDiffInternal(
                 prev = prev,
@@ -841,6 +919,7 @@ object StateMapper {
                 events = events,
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
                 gameStateId = gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -853,6 +932,13 @@ object StateMapper {
             )
         }
 
+    private fun emptyMechanicSourceFactsFor(events: FrameEventLog): MechanicSourceFacts {
+        require(events.events.isEmpty()) {
+            "Event-bearing projection requires explicit MechanicSourceFacts"
+        }
+        return MechanicSourceFacts()
+    }
+
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     private fun buildDiffInternal(
         prev: GsmSnapshot?,
@@ -860,6 +946,7 @@ object StateMapper {
         events: FrameEventLog,
         promptFacts: PromptProjectionFacts,
         effectFacts: EffectProjectionFacts,
+        mechanicSourceFacts: MechanicSourceFacts,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -887,6 +974,7 @@ object StateMapper {
                 events = events,
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
         }
 
@@ -914,6 +1002,7 @@ object StateMapper {
                 events = events,
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
         }
 
@@ -931,6 +1020,7 @@ object StateMapper {
                 events = events,
                 promptFacts = promptFacts,
                 effectFacts = effectFacts,
+                mechanicSourceFacts = mechanicSourceFacts,
             )
         val current = fullResult.gsm
         val projectedCur = fullResult.projectionSnapshot
