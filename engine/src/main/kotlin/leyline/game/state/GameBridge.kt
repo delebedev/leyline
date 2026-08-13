@@ -496,6 +496,10 @@ class GameBridge(
 
     internal fun activeHolderRecords(): Map<Int, HolderRecord> = checkNotNull(activeProjectionEditor.get()).delayedTriggerHolders
 
+    /** Explicit projection identity operation for frame-local resolvers. */
+    internal fun projectionIdentityWorkspace(): ProjectionIdentityWorkspace =
+        activeProjectionEditor.get()?.identities ?: ProjectionIdentityWorkspace(::getOrAllocInstanceId)
+
     internal fun applyHolderBatch(batch: HolderBatch) {
         val holders = checkNotNull(activeProjectionEditor.get()).delayedTriggerHolders
         batch.removed.forEach(holders::remove)
@@ -858,14 +862,6 @@ class GameBridge(
 
         /** Prompt-like waits keep a fail-safe even when human action windows wait indefinitely. */
         const val DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS = 45_000L
-
-        /** Forge-id offset for synthetic delayed-trigger holder objects. The
-         *  holder's forge id is `<source card forge id> + offset`, which gets
-         *  fed through [getOrAllocInstanceId] to yield a stable instance id that
-         *  both `DelayedTriggerAffectees.affectorId` and the per-token
-         *  `TemporaryPermanent.affectorId` reference. Picked above any plausible
-         *  real or stack-ability forge id range so it doesn't collide. */
-        const val DELAYED_TRIGGER_HOLDER_FORGE_OFFSET = 90_000_000
 
         /** Synthetic identity range for engine-level pending trigger records. */
         const val PENDING_TRIGGER_HOLDER_FORGE_OFFSET = 91_000_000

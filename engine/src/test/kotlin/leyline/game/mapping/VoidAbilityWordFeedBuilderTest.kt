@@ -14,7 +14,7 @@ class VoidAbilityWordFeedBuilderTest :
         test("collapsed Void trigger retains the player to ability marker") {
             val board = startWithBoard { _, human, _ -> addCard("Insatiable Skittermaw", human) }
             val event = voidEvent(active = true)
-            val frameIds = FrameIdResolver(board.bridge)
+            val frameIds = FrameIdResolver(board.bridge.projectionIdentityWorkspace())
             val expectedAbilityIid = frameIds.triggerStackAbilityIid(event.abilityForgeId).value
 
             val marker = VoidAbilityWordFeedBuilder.build(listOf(event), frameIds).single()
@@ -31,7 +31,7 @@ class VoidAbilityWordFeedBuilderTest :
             val board = startWithBoard { _, human, _ -> addCard("Insatiable Skittermaw", human) }
 
             VoidAbilityWordFeedBuilder
-                .build(listOf(voidEvent(active = false)), FrameIdResolver(board.bridge))
+                .build(listOf(voidEvent(active = false)), FrameIdResolver(board.bridge.projectionIdentityWorkspace()))
                 .shouldBeEmpty()
         }
     })

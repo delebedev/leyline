@@ -334,7 +334,7 @@ class StateMapperShapeTest :
                 )
             val previous = snapshot(1)
             val current = snapshot(2)
-            val abilityIid = FrameIdResolver(b).triggerStackAbilityIid(777).value
+            val abilityIid = FrameIdResolver(b.projectionIdentityWorkspace()).triggerStackAbilityIid(777).value
 
             val gsm =
                 StateMapper

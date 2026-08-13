@@ -31,7 +31,11 @@ class StateZoneProjectionTest :
 
         fun environment(isBrawl: Boolean = false): StateProjectionEnvironment {
             val cards = InMemoryCardRepository()
-            return StateProjectionEnvironment(CardProtoBuilder(cards), MatchProjectionConfig(isBrawl))
+            return StateProjectionEnvironment(
+                CardProtoBuilder(cards),
+                MatchProjectionConfig(isBrawl),
+                PersistentFeedReferences(cards),
+            )
         }
 
         test("shared-zone projection filters unprojectable and missing card values") {

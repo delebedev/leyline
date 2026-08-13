@@ -7,6 +7,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
+import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -33,6 +34,7 @@ fun GameBridge.seedDiffBaseline(
             GsmSnapshot.capture(game, this, "", gameStateId)
         }
     val events = closeBundleFrame()
+    val promptFacts = materializePromptProjectionFacts()
     val result =
         StateMapper
             .buildFromSnapshot(
@@ -42,7 +44,9 @@ fun GameBridge.seedDiffBaseline(
                 this,
                 stateProjectionEnvironment,
                 events = events,
-                promptFacts = materializePromptProjectionFacts(),
+                promptFacts = promptFacts,
+                persistentFeedFacts =
+                    PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
                 effectFacts = materializeEffectProjectionFacts(),
                 mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
                 abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),

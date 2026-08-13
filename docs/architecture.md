@@ -149,11 +149,14 @@ Engine state becomes wire state through a two-stage pipeline in `engine.game`.
 
 **Stage 1 — snapshot.** `GsmSnapshot` materialization reads `forge-game` state into an immutable value: seats, zones, objects, phase, and stack. Projection-owned identity observations remain tentative until the surrounding transition installs.
 
-**Stage 2 — map.** `StateMapper` takes the snapshot plus a caller-owned event list and returns a pure `BuildResult`:
+**Stage 2 — map.** `StateMapper` takes the snapshot, cut-scoped typed facts,
+stable reference data, and prior projection state, then returns a tentative
+`BuildResult`:
 
 ```
-GsmSnapshot + prev: GsmSnapshot? + events: List<GameEvent>
-  └── StateMapper.buildDiff / buildFromSnapshot
+StateFrameInput(snapshot, prev, events, typed facts, prior ProjectionState)
+  + StateProjectionEnvironment
+    └── StateMapper.buildDiff / buildFromSnapshot
         ├── ObjectMapper         → GameObjectInfo[]  (cards, permanents, abilities)
         ├── ZoneMapper           → ZoneInfo[]        (hand, library, battlefield, stack, …)
         ├── PlayerMapper         → PlayerInfo[]      (life, mana pool, counters)
@@ -167,9 +170,15 @@ GsmSnapshot + prev: GsmSnapshot? + events: List<GameEvent>
     └── transition: ProjectionTransition (complete next projection state)
 ```
 
-**Purity of the compute phase.** `buildDiff` edits a private projection editor and returns the complete next `ProjectionState` in one transition. A discarded or stale attempt installs nothing. `PureDiffReplayTest` supplies the same immutable frame input and prior projection state to assert equal messages and equal next state.
+**Transactional isolation of the compute phase.** `buildDiff` edits a private
+projection editor and returns the complete next `ProjectionState` in one
+transition. A discarded or stale attempt installs nothing. `PureDiffReplayTest`
+supplies the same immutable frame input and prior projection state to assert
+equal messages and equal next state. The outer mapper still carries explicit
+read-only bridge dependencies, so this boundary is tentative and deterministic,
+not yet the final pure projection core.
 
-Residual shell dependencies are read-only card metadata and a bounded set of
+Residual mapper dependencies are read-only card metadata and a bounded set of
 annotation/mechanic reference queries not yet present in the frame input.
 Projection history—including identities, effect lifecycle, prompt facts,
 reveal proxies, and annotation correlation—lives in `ProjectionState` or the

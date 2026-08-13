@@ -8,7 +8,6 @@ import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
-import leyline.game.mapping.PersistentFeedBuilder
 import leyline.game.mapping.PersistentFeedSet
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.mapping.ZoneIds
@@ -140,7 +139,7 @@ object AnnotationPipeline {
         // Tests can drive computeAnnotations without a resolver; in that case
         // build a no-realloc instance from the bridge alone — `cardIid` falls
         // through to bridge.getOrAllocInstanceId, matching prior behaviour.
-        val resolver = frameIds ?: FrameIdResolver(bridge)
+        val resolver = frameIds ?: FrameIdResolver(bridge.projectionIdentityWorkspace())
         val stateZoneFacts = snap?.let(StateZoneProjection::zoneTransferFacts)
         val paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, eventSourceCardId ->
             StateZoneProjection.paradigmSourceStackIid(
@@ -325,7 +324,7 @@ object AnnotationPipeline {
                 AnnotationContext(
                     bridge,
                     snap,
-                    frameIds ?: FrameIdResolver(bridge),
+                    frameIds ?: FrameIdResolver(bridge.projectionIdentityWorkspace()),
                     events,
                     mechanicSourceFacts = mechanicSourceFacts,
                     abilityExhaustionFacts = AbilityExhaustionFacts(),
@@ -796,7 +795,7 @@ object AnnotationPipeline {
                 delayedTriggerHolderResolver = { affected ->
                     snap.pendingTriggers
                         .firstOrNull { it.displaysAffectedCards && affected in it.affectedCardIds }
-                        ?.let { pending -> PersistentFeedBuilder.pendingTriggerHolderInstanceId(pending.holderForgeId, bridge) }
+                        ?.let { pending -> frameIds.cardIid(pending.holderForgeId) }
                 },
             )
         val earthbend = EarthbendEmitter.emit(ctx.effects.earthbend, ctx.effectFacts, snap)

@@ -66,7 +66,7 @@ class TargetSpecAnnotationTest :
                 AnnotationContext(
                     b,
                     snap,
-                    FrameIdResolver(b),
+                    FrameIdResolver(b.projectionIdentityWorkspace()),
                     emptyList(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                 )

@@ -170,5 +170,6 @@ private fun exhaustionFrame(
         effectFacts = EffectProjectionFacts(),
         mechanicSourceFacts = MechanicSourceFacts(),
         abilityExhaustionFacts = facts,
+        persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
         projectionState = projectionState,
     )

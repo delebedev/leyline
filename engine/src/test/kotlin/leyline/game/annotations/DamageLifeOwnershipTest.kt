@@ -40,7 +40,7 @@ class DamageLifeOwnershipTest :
                     actingSeat = 1,
                     bridge = bridge,
                     snap = GsmSnapshot.forTest(),
-                    frameIds = FrameIdResolver(bridge),
+                    frameIds = FrameIdResolver(bridge.projectionIdentityWorkspace()),
                 )
             pipeline.annotations
         }

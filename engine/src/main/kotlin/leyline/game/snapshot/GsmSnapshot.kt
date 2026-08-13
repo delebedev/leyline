@@ -14,9 +14,10 @@ import org.jetbrains.annotations.VisibleForTesting
  *
  * Per-card state lives on [boundCards] as [BoundCard] — pairs the live
  * [CardSnapshot] with static [leyline.game.data.CardData], pre-resolved
- * alt-cost bindings, designations, and parent linkage. The [objects] map is
- * a derived view exposing each [BoundCard]'s underlying [CardSnapshot] by
- * ForgeCardId.
+ * alt-cost bindings, designations, and parent linkage. Downstream reducers
+ * consume this stable cut; the outer mapper still owns explicit shell reads.
+ * The [objects] map is a derived view exposing each [BoundCard]'s underlying
+ * [CardSnapshot] by ForgeCardId.
  */
 @Suppress("LongParameterList")
 class GsmSnapshot internal constructor(

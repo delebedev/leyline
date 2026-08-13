@@ -7,6 +7,7 @@ import leyline.game.state.GameBridge
 data class StateProjectionEnvironment(
     val cardProto: CardProtoBuilder,
     val matchConfig: MatchProjectionConfig,
+    val persistentFeedReferences: PersistentFeedReferences,
 )
 
 /** Match-scoped protocol configuration frozen before state projection begins. */
@@ -20,5 +21,6 @@ object StateProjectionEnvironmentCapture {
         StateProjectionEnvironment(
             cardProto = bridge.cardProto,
             matchConfig = MatchProjectionConfig(bridge.isBrawlOrCommander),
+            persistentFeedReferences = PersistentFeedReferences(bridge.cardRepository),
         )
 }

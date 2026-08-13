@@ -90,8 +90,8 @@ class AbilityExhaustionFactsTest :
             }
 
             val cacheAfterCapture = bridge.cachedAbilityRegistryCardIds()
-            val firstProjection = buildAbilityExhaustedAnnotations(frozen, FrameIdResolver(bridge))
-            val retryProjection = buildAbilityExhaustedAnnotations(frozen, FrameIdResolver(bridge))
+            val firstProjection = buildAbilityExhaustedAnnotations(frozen, FrameIdResolver(bridge.projectionIdentityWorkspace()))
+            val retryProjection = buildAbilityExhaustedAnnotations(frozen, FrameIdResolver(bridge.projectionIdentityWorkspace()))
             jeong.addAbilityActivated(exhaust)
             val advanced = AbilityExhaustionFactsCapture.capture(snapshot, bridge)
 
