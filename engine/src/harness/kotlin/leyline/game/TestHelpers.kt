@@ -6,6 +6,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.StateMapper
+import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 
@@ -35,6 +36,7 @@ fun GameBridge.seedDiffBaseline(
                 gameStateId,
                 "",
                 this,
+                StateProjectionEnvironmentCapture.from(this),
                 events = closeBundleFrame(),
                 promptFacts = materializePromptProjectionFacts(),
                 effectFacts = materializeEffectProjectionFacts(),

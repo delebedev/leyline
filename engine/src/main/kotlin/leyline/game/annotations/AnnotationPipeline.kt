@@ -11,6 +11,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PersistentFeedBuilder
 import leyline.game.mapping.PersistentFeedSet
 import leyline.game.mapping.SourceAbilityResolverFactory
+import leyline.game.mapping.StateZoneProjection
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustedKind
@@ -130,14 +131,26 @@ object AnnotationPipeline {
         val combatResult =
             CombatAnnotations.combatAnnotations(
                 events = events,
-                bridge = bridge,
-                prev = prev,
-                transferredIds = combatTransferredIds,
+                idResolver = { fid ->
+                    val transferred = combatTransferredIds[fid]
+                    if (transferred != null) InstanceId(transferred) else bridge.getOrAllocInstanceId(fid)
+                },
+                previousLifeTotals = prev?.let(StateZoneProjection::currentLifeTotals) ?: emptyMap(),
+                currentLifeTotals = snap?.let(StateZoneProjection::currentLifeTotals) ?: emptyMap(),
             )
         // Tests can drive computeAnnotations without a resolver; in that case
         // build a no-realloc instance from the bridge alone — `cardIid` falls
         // through to bridge.getOrAllocInstanceId, matching prior behaviour.
         val resolver = frameIds ?: FrameIdResolver(bridge)
+        val stateZoneFacts = snap?.let(StateZoneProjection::zoneTransferFacts)
+        val paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, eventSourceCardId ->
+            StateZoneProjection.paradigmSourceStackIid(
+                facts = stateZoneFacts,
+                forgeCardId = forgeCardId,
+                eventSourceForgeCardId = eventSourceCardId,
+                stackIidLookup = annotationJournal::paradigmSourceStackIidFor,
+            )
+        }
         val (annotations, transferPersistent) =
             assembleTransferAndCombatAnnotations(
                 events = events,
@@ -148,6 +161,7 @@ object AnnotationPipeline {
                 snap = snap,
                 frameIds = resolver,
                 annotationJournal = annotationJournal,
+                paradigmSourceStackIidLookup = paradigmSourceStackIidLookup,
             )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
@@ -166,6 +180,9 @@ object AnnotationPipeline {
         snap: GsmSnapshot? = null,
         frameIds: FrameIdResolver? = null,
         annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
+        paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, _ ->
+            annotationJournal.paradigmSourceStackIidFor(forgeCardId)
+        },
     ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
@@ -304,6 +321,7 @@ object AnnotationPipeline {
                 annotations = annotations,
                 transferPersistent = transferPersistent,
                 annotationJournal = annotationJournal,
+                paradigmSourceStackIidLookup = paradigmSourceStackIidLookup,
             )
             damageResidualLifeAnnotations = insertResolutionEventAnnotations(ctx, annotations)
             resolutionOwnedDamageInserted =
@@ -502,9 +520,11 @@ object AnnotationPipeline {
         annotations: MutableList<AnnotationInfo>,
         transferPersistent: MutableList<AnnotationInfo>,
         annotationJournal: ProjectionAnnotationJournal.Planner = ProjectionAnnotationJournal.Planner(ProjectionAnnotationJournal()),
+        paradigmSourceStackIidLookup: (ForgeCardId, ForgeCardId?) -> Int? = { forgeCardId, _ ->
+            annotationJournal.paradigmSourceStackIidFor(forgeCardId)
+        },
     ) {
         val events = ctx.events
-        val bridge = ctx.bridge
         val snap = ctx.snap
         val frameIds = ctx.frameIds
         val enlistedIidsByAttacker =
@@ -518,8 +538,7 @@ object AnnotationPipeline {
             val isParadigmTrigger = cast.isParadigmDelayedTrigger()
             val sourceCardIid =
                 if (isParadigmTrigger) {
-                    annotationJournal.paradigmSourceStackIidFor(cast.cardId)
-                        ?: bridge.paradigmSourceStackIidFor(cast.cardId)
+                    paradigmSourceStackIidLookup(cast.cardId, cast.paradigmSourceCardId)
                         ?: frameIds.cardIid(cast.cardId).value
                 } else {
                     frameIds.cardIid(cast.cardId).value
@@ -606,8 +625,7 @@ object AnnotationPipeline {
         for (resolved in events.filterIsInstance<GameEvent.SpellResolved>().filter { it.isTrigger || it.isAbility }) {
             val sourceCardIid =
                 if (resolved.isParadigmDelayedTrigger()) {
-                    annotationJournal.paradigmSourceStackIidFor(resolved.cardId)
-                        ?: bridge.paradigmSourceStackIidFor(resolved.cardId)
+                    paradigmSourceStackIidLookup(resolved.cardId, resolved.paradigmSourceCardId)
                         ?: frameIds.cardIid(resolved.cardId).value
                 } else {
                     frameIds.cardIid(resolved.cardId).value

@@ -1,6 +1,5 @@
 package leyline.game.mapping
 
-import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
@@ -11,7 +10,6 @@ import leyline.game.state.EffectTracker
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Builds [ZoneInfo] protobuf messages and populates zone card lists.
@@ -28,10 +26,9 @@ object ZoneMapper {
     /**
      * Add hand, library, and optionally graveyard/sideboard zones for a player from snapshot.
      *
-     * Reads card lists from [snap]'s zones map (keyed by arena zone ID) and looks up
-     * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
+     * Reads card lists and bound card values from [snap]. Missing bound cards are skipped.
      * When [gyZoneId] is null (e.g. deal-hand diff at mulligan time) no graveyard zone
-     * is emitted. ObjectMapper still takes a live [Card]; per-card state migration is Task 6.
+     * is emitted. The bridge supplies only stable card-proto data and instance identity.
      */
     @Suppress("detekt:LongParameterList")
     internal fun addPlayerZonesFromSnapshot(
@@ -228,55 +225,27 @@ object ZoneMapper {
 
     // --- Snapshot-based shared zones ---
 
-    /**
-     * Add cards in a shared zone (Battlefield, Stack, Exile) from snapshot.
-     *
-     * Reads the card list from [snap]'s zones map for [arenaZoneId] and looks up
-     * each Forge [Card] via [bridge.findCard]. Cards not resolved (null) are skipped.
-     * [bridge] resolves live card ownership to protocol seats.
-     */
-    // forgeZone: documents which Forge zone maps to arenaZoneId; unused — snapshot reads by arenaZoneId
-    @Suppress("detekt:LongParameterList", "detekt:UnusedParameter")
+    /** Project one shared zone from immutable card values and stable reference data. */
     internal fun addSharedZoneCardsFromSnapshot(
         snap: GsmSnapshot,
-        forgeZone: ForgeZoneType,
         arenaZoneId: Int,
-        bridge: GameBridge,
+        environment: StateProjectionEnvironment,
+        instanceIdLookup: (ForgeCardId) -> leyline.bridge.types.InstanceId,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
-        human: Player?,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ) {
-        val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
+        val projected =
+            StateZoneProjection.projectSharedZone(
+                snap = snap,
+                arenaZoneId = arenaZoneId,
+                environment = environment,
+                instanceIdLookup = instanceIdLookup,
+                keywordSnapshot = keywordSnapshot,
+            ) ?: return
         zones.removeIf { it.zoneId == arenaZoneId }
-
-        for (fid in snap.zones[arenaZoneId]?.contents ?: emptyList()) {
-            val cardSnap =
-                snap.objects[fid] ?: run {
-                    log.warn("no snapshot for shared card {} in zone {} — skipping game object", fid, arenaZoneId)
-                    continue
-                }
-            val liveCard = bridge.findCard(fid)
-            if (liveCard == null && arenaZoneId != ZoneIds.SUPPRESSED) continue
-            // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards.
-            if (liveCard != null && liveCard.gamePieceType != forge.card.GamePieceType.CARD && !liveCard.isToken) continue
-            val ownerSeatId = liveCard?.let { bridge.seatOf(it.owner)?.value } ?: cardSnap.owner.value
-            val instanceId = bridge.getOrAllocInstanceId(fid).value
-            zoneBuilder.addObjectInstanceIds(instanceId)
-            gameObjects.add(
-                ObjectMapper.buildFromSnapshot(
-                    cardSnap,
-                    instanceId,
-                    arenaZoneId,
-                    ownerSeatId,
-                    bridge.cardProto,
-                    Visibility.Public,
-                    keywordSnapshot,
-                    parentLinkage = snap.boundCards[fid]?.parentLinkage,
-                ),
-            )
-        }
-        zones.add(zoneBuilder.build())
+        zones += projected.zone
+        gameObjects += projected.gameObjects
     }
 
     /**
@@ -291,6 +260,7 @@ object ZoneMapper {
     internal fun addStackAbilitiesFromSnapshot(
         snap: GsmSnapshot,
         bridge: GameBridge,
+        paradigmSourceStackIidLookup: (ForgeCardId) -> Int?,
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
     ) {
@@ -336,7 +306,7 @@ object ZoneMapper {
                 }
             val parentInstanceId =
                 if (grpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER) {
-                    bridge.paradigmSourceStackIidFor(entry.forgeCardId) ?: 0
+                    paradigmSourceStackIidLookup(entry.forgeCardId) ?: 0
                 } else {
                     bridge.getOrAllocInstanceId(entry.forgeCardId).value
                 }

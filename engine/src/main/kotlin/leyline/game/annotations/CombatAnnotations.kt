@@ -6,8 +6,6 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.toWireId
 import leyline.game.event.GameEvent
 import leyline.game.event.combatDamageFact
-import leyline.game.snapshot.GsmSnapshot
-import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import kotlin.collections.iterator
@@ -53,33 +51,7 @@ object CombatAnnotations {
      * Annotation ordering matches expected protocol shape: PhaseOrStepModified → DamageDealt(s)
      * → SyntheticEvent → ModifiedLife → (ObjectIdChanged/ZoneTransfer handled by Stage 1).
      *
-     * Delegates to the pure overload, adapting [GameBridge] calls to function parameters.
-     */
-    internal fun combatAnnotations(
-        events: List<GameEvent>,
-        bridge: GameBridge,
-        prev: GsmSnapshot?,
-        transferredIds: Map<ForgeCardId, Int> = emptyMap(),
-    ): CombatAnnotationResult {
-        val previousLifeTotals = prev?.seats?.associate { it.seatId.value to it.life } ?: emptyMap()
-        val currentLifeTotals =
-            previousLifeTotals.keys.associateWith { seat ->
-                bridge.getPlayer(SeatId(seat))?.life ?: 0
-            }
-        return combatAnnotations(
-            events = events,
-            idResolver = { fid ->
-                val transferred = transferredIds[fid]
-                if (transferred != null) InstanceId(transferred) else bridge.getOrAllocInstanceId(fid)
-            },
-            previousLifeTotals = previousLifeTotals,
-            currentLifeTotals = currentLifeTotals,
-        )
-    }
-
-    /**
-     * Generate combat damage annotations — pure overload.
-     * Takes function parameters instead of [GameBridge] for independent testability.
+     * Takes frame values and an identity resolver for independent testability.
      *
      * [idResolver] maps forgeCardId → instanceId.
      * [previousLifeTotals] is seatId → life total from previous GSM baseline.

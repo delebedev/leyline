@@ -15,6 +15,14 @@ data class CardSnapshot(
     val grpId: Int,
     val owner: SeatId,
     val controller: SeatId,
+    /** True when this engine object is a client-visible card or token. */
+    val isProjectable: Boolean = true,
+    /** Implicit client mana-ability grpId for a basic land; 0 otherwise. */
+    val basicLandManaAbilityGrpId: Int = 0,
+    /** Forge identity of the effect source observed at snapshot capture. */
+    val effectSourceForgeCardId: ForgeCardId? = null,
+    /** Exact live Paradigm keyword membership observed at snapshot capture. */
+    val hasParadigmKeyword: Boolean = false,
     // --- ActionMapper shape flags ---
     /** True when Forge considers this card a land (type.isLand). */
     val isLand: Boolean = false,

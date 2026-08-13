@@ -141,6 +141,8 @@ sealed interface GameEvent {
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
+        /** Original Paradigm spell behind a delayed-trigger helper, observed when the trigger fires. */
+        val paradigmSourceCardId: ForgeCardId? = null,
         /**
          * Exact object that caused the trigger. Spell-cast and zone-change triggers
          * point at that card's frame-local iid; Enlist points at the creature tapped
@@ -201,6 +203,8 @@ sealed interface GameEvent {
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
+        /** Original Paradigm spell behind a delayed-trigger helper, retained from its cast event. */
+        val paradigmSourceCardId: ForgeCardId? = null,
         /** True when the resolved spell is a Paradigm copy cast from exile. */
         val isParadigmCopy: Boolean = false,
         /** Stack iid allocated when the Paradigm copy was cast. */

@@ -13,6 +13,7 @@ internal data class PendingStackAbilityContext(
     val kind: PendingStackAbilityKind,
     val sourceCardId: ForgeCardId,
     val identity: ResolvedAbilityIdentity?,
+    val paradigmSourceCardId: ForgeCardId? = null,
 ) {
     val abilityGrpId: Int get() = identity?.abilityGrpId ?: 0
 }
@@ -24,7 +25,8 @@ internal class PendingStackAbilityRegistry {
         forgeAbilityId: Int,
         sourceCardId: ForgeCardId,
         identity: ResolvedAbilityIdentity?,
-    ) = record(forgeAbilityId, sourceCardId, identity, PendingStackAbilityKind.Trigger)
+        paradigmSourceCardId: ForgeCardId? = null,
+    ) = record(forgeAbilityId, sourceCardId, identity, PendingStackAbilityKind.Trigger, paradigmSourceCardId)
 
     fun recordActivation(
         forgeAbilityId: Int,
@@ -55,6 +57,7 @@ internal class PendingStackAbilityRegistry {
         sourceCardId: ForgeCardId,
         identity: ResolvedAbilityIdentity?,
         kind: PendingStackAbilityKind,
+        paradigmSourceCardId: ForgeCardId? = null,
     ) {
         if (forgeAbilityId == 0) return
         pending[forgeAbilityId] =
@@ -62,6 +65,7 @@ internal class PendingStackAbilityRegistry {
                 kind = kind,
                 sourceCardId = sourceCardId,
                 identity = identity,
+                paradigmSourceCardId = paradigmSourceCardId,
             )
     }
 }
