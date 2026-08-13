@@ -14,7 +14,7 @@ class OpusAbilityWordFeedBuilderTest :
         test("collapsed five-plus Opus trigger retains the player to ability marker") {
             val board = startWithBoard { _, human, _ -> addCard("Tackle Artist", human) }
             val event = opusEvent(active = true)
-            val frameIds = FrameIdResolver(board.bridge)
+            val frameIds = FrameIdResolver(board.bridge.projectionIdentityWorkspace())
             val expectedAbilityIid = frameIds.triggerStackAbilityIid(event.abilityForgeId).value
 
             val marker = OpusAbilityWordFeedBuilder.build(listOf(event), frameIds).single()
@@ -31,7 +31,7 @@ class OpusAbilityWordFeedBuilderTest :
             val board = startWithBoard { _, human, _ -> addCard("Tackle Artist", human) }
 
             OpusAbilityWordFeedBuilder
-                .build(listOf(opusEvent(active = false)), FrameIdResolver(board.bridge))
+                .build(listOf(opusEvent(active = false)), FrameIdResolver(board.bridge.projectionIdentityWorkspace()))
                 .shouldBeEmpty()
         }
     })

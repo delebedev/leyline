@@ -17,6 +17,7 @@ import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.InvariantSelection
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
@@ -262,6 +263,7 @@ class MatchFlowHarness(
                 GsmSnapshot.capture(game, bridge, matchId, 0)
             }
         val events = bridge.closeBundleFrame(seatId.value)
+        val promptFacts = bridge.materializePromptProjectionFacts()
         val fullResult =
             StateMapper
                 .buildFromSnapshot(
@@ -272,7 +274,14 @@ class MatchFlowHarness(
                     bridge.stateProjectionEnvironment,
                     viewingSeatId = seatId.value,
                     events = events,
-                    promptFacts = bridge.materializePromptProjectionFacts(),
+                    promptFacts = promptFacts,
+                    persistentFeedFacts =
+                        PersistentFeedFactsCapture.capture(
+                            snap,
+                            promptFacts,
+                            bridge,
+                            bridge.stateProjectionEnvironment,
+                        ),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
                     mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
                     abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),

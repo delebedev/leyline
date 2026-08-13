@@ -29,6 +29,7 @@ import leyline.game.state.GameBridge
 import leyline.game.state.HolderBatch
 import leyline.game.state.HolderRecord
 import leyline.game.state.MechanicSourceFacts
+import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionOutput
 import leyline.game.state.ProjectionState
@@ -61,8 +62,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * that same value. The finalizer supplies `nextAnnotationId` before install.
  *
  * [StateFrameInput] carries snapshot, event, [PromptProjectionFacts],
- * [EffectProjectionFacts], [MechanicSourceFacts], and [AbilityExhaustionFacts] values for scoped
- * projection inputs. [buildDiff]
+ * [EffectProjectionFacts], [MechanicSourceFacts], [AbilityExhaustionFacts], and
+ * [PersistentFeedFacts] values for scoped projection inputs. [buildDiff]
  * also accepts [GameBridge], so this is not a complete pure-function boundary.
  *
  * The acceptance forcing function for this boundary is [PureDiffReplayTest],
@@ -84,14 +85,16 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *   reverse-reference reads; allocations remain tentative.
  *
  * Ordinary state and shared-zone semantics read only [GsmSnapshot] plus the
- * match-scoped [StateProjectionEnvironment]. Stable card-proto data and match
- * configuration are frozen by the shell before projection. Retained shell
- * reads outside that layer include limbo and reveal-state tracking.
+ * match-scoped [StateProjectionEnvironment]. Stable card metadata access and
+ * match configuration are installed once by the shell. Retained shell reads
+ * outside that layer include limbo and reveal-state tracking.
  *
  * Scoped synthetic-effect reads arrive in [EffectProjectionFacts]. Mechanic
  * source zones, token-creator fallback, and basic-land mana identity arrive in
  * [MechanicSourceFacts] and [leyline.game.snapshot.CardSnapshot]. Other
- * annotation/mechanic reference data remains bridge-attached in this slice.
+ * combat qualification, collect-evidence display, and end-step token-source
+ * observations arrive in [PersistentFeedFacts]. Other annotation/mechanic
+ * reference data remains bridge-attached in this slice.
  *
  * Tentative planners over [ProjectionState]:
  * - reveal identities for reveal-choose effects spanning bundles.
@@ -209,6 +212,7 @@ object StateMapper {
         prev: GsmSnapshot? = null,
         events: FrameEventLog = FrameEventLog.EMPTY,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+        persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
         effectFacts: EffectProjectionFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
         projectionState: ProjectionState = bridge.projectionStateSnapshot(),
@@ -226,6 +230,7 @@ object StateMapper {
             prev = prev,
             events = events,
             promptFacts = promptFacts,
+            persistentFeedFacts = persistentFeedFacts,
             effectFacts = effectFacts,
             mechanicSourceFacts = emptyMechanicSourceFactsFor(events),
             abilityExhaustionFacts = abilityExhaustionFacts,
@@ -253,6 +258,7 @@ object StateMapper {
          */
         events: FrameEventLog = FrameEventLog.EMPTY,
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+        persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
@@ -272,6 +278,7 @@ object StateMapper {
                 prev = prev,
                 events = events,
                 promptFacts = promptFacts,
+                persistentFeedFacts = persistentFeedFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
@@ -293,6 +300,7 @@ object StateMapper {
         prev: GsmSnapshot? = null,
         events: FrameEventLog,
         promptFacts: PromptProjectionFacts,
+        persistentFeedFacts: PersistentFeedFacts,
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
@@ -337,9 +345,8 @@ object StateMapper {
         val effectDiff = effectPlanner.effects.diffBoosts(boostSnapshot)
         val keywordSnapshot = keywordEntries(effectFacts, effectPlanner.earthbend, bridge)
         val keywordDiff = effectPlanner.effects.diffKeywords(keywordSnapshot)
-        // Persistent annotation baseline is carried on the snapshot (captured
-        // at snap time in SnapshotCapture). computeBatch is pure over this value.
-        // See PersistentAnnotationStore class KDoc for lifecycle and ordering invariants.
+        // Persistent annotation history comes from the tentative projection editor.
+        // computeBatch is pure over this value and the current feed set.
         val persistentState = bridge.activePersistentAnnotationState()
         val persistSnapshot = persistentState.activeAnnotations
         val startPersistentId = persistentState.nextPersistentId
@@ -493,7 +500,11 @@ object StateMapper {
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the
         // post-realloc answer before the transition installs.
-        val frameIds = FrameIdResolver(bridge, FrameIdResolver.postReallocIids(transferResult))
+        val frameIds =
+            FrameIdResolver(
+                bridge.projectionIdentityWorkspace(),
+                FrameIdResolver.postReallocIids(transferResult),
+            )
         val opponentKnowledge = bridge.planOpponentKnowledge(snap, frameIds, eventsMutable)
         val resolvedStackAbilityIids =
             eventsMutable
@@ -501,7 +512,13 @@ object StateMapper {
                 .filter { it.isTrigger || it.isAbility }
                 .mapTo(linkedSetOf()) { AnnotationContext.stackAbilityIid(it.abilityForgeId, it.cardId, frameIds) }
         transferResult = transferResult.withoutStackAbilities(resolvedStackAbilityIids)
-        transferResult = transferResult.withDecayedCleanupAffectors(eventsMutable, snap, bridge, frameIds)
+        transferResult =
+            transferResult.withDecayedCleanupAffectors(
+                eventsMutable,
+                snap,
+                environment.persistentFeedReferences,
+                frameIds,
+            )
         val actingSeat = snap.phase.priorityPlayer?.value ?: 2
         val (annotations, transferPersistent, combatResult) =
             AnnotationPipeline.computeAnnotations(
@@ -533,18 +550,27 @@ object StateMapper {
         annotations.addAll(convokePlan.transient)
 
         val decayedCleanupSourcesThisGsm =
-            updateDecayedCleanupSources(eventsMutable, snap, bridge, transferResult, frameIds, annotationJournal)
+            updateDecayedCleanupSources(
+                eventsMutable,
+                snap,
+                bridge,
+                environment.persistentFeedReferences,
+                transferResult,
+                frameIds,
+                annotationJournal,
+            )
 
         val persistentFeedResult =
             PersistentFeedBuilder.build(
                 events = eventsMutable,
                 snap = snap,
                 prev = prev,
-                bridge = bridge,
                 frameIds = frameIds,
                 decayedCleanupSourcesThisGsm = decayedCleanupSourcesThisGsm,
                 transferResult = transferResult,
                 promptFacts = promptFacts,
+                persistentFeedFacts = persistentFeedFacts,
+                references = environment.persistentFeedReferences,
             )
         val activeHolderRecords = bridge.activeHolderRecords()
         val carriedHolders =
@@ -881,6 +907,7 @@ object StateMapper {
                 effectFacts = input.effectFacts,
                 mechanicSourceFacts = input.mechanicSourceFacts,
                 abilityExhaustionFacts = input.abilityExhaustionFacts,
+                persistentFeedFacts = input.persistentFeedFacts,
                 gameStateId = input.gameStateId,
                 matchId = matchId,
                 bridge = bridge,
@@ -911,6 +938,7 @@ object StateMapper {
         promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
         effectFacts: EffectProjectionFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
+        persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
     ): BuildResult =
         buildDiff(
             prev = prev,
@@ -928,6 +956,7 @@ object StateMapper {
             effectFacts = effectFacts,
             mechanicSourceFacts = emptyMechanicSourceFactsFor(events),
             abilityExhaustionFacts = abilityExhaustionFacts,
+            persistentFeedFacts = persistentFeedFacts,
         )
 
     @Suppress("LongParameterList")
@@ -947,6 +976,7 @@ object StateMapper {
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
+        persistentFeedFacts: PersistentFeedFacts = PersistentFeedFacts(),
         projectionState: ProjectionState = bridge.projectionStateSnapshot(),
     ): BuildResult {
         val priorProjection = projectionState
@@ -956,6 +986,7 @@ object StateMapper {
                 cur = cur,
                 events = events,
                 promptFacts = promptFacts,
+                persistentFeedFacts = persistentFeedFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
@@ -989,6 +1020,7 @@ object StateMapper {
         effectFacts: EffectProjectionFacts,
         mechanicSourceFacts: MechanicSourceFacts,
         abilityExhaustionFacts: AbilityExhaustionFacts,
+        persistentFeedFacts: PersistentFeedFacts,
         gameStateId: Int,
         matchId: String,
         bridge: GameBridge,
@@ -1016,6 +1048,7 @@ object StateMapper {
                 prev = null,
                 events = events,
                 promptFacts = promptFacts,
+                persistentFeedFacts = persistentFeedFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
@@ -1045,6 +1078,7 @@ object StateMapper {
                 prev = prev,
                 events = events,
                 promptFacts = promptFacts,
+                persistentFeedFacts = persistentFeedFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
@@ -1064,6 +1098,7 @@ object StateMapper {
                 prev = prev,
                 events = events,
                 promptFacts = promptFacts,
+                persistentFeedFacts = persistentFeedFacts,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
@@ -1430,7 +1465,7 @@ object StateMapper {
     private fun TransferResult.withDecayedCleanupAffectors(
         events: List<GameEvent>,
         snap: GsmSnapshot,
-        bridge: GameBridge,
+        references: PersistentFeedReferences,
         frameIds: FrameIdResolver,
     ): TransferResult {
         val cleanupAbilityIids =
@@ -1439,7 +1474,8 @@ object StateMapper {
                 .filter { it.isTrigger && it.abilityGrpId != 0 }
                 .mapNotNull { ev ->
                     val cleanupGrpId =
-                        PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, this) ?: return@mapNotNull null
+                        PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, references, this)
+                            ?: return@mapNotNull null
                     if (ev.abilityGrpId != cleanupGrpId) return@mapNotNull null
                     ev.cardId to AnnotationContext.stackAbilityIid(ev.abilityForgeId, ev.cardId, frameIds)
                 }.toMap()
@@ -1526,6 +1562,7 @@ object StateMapper {
         events: List<GameEvent>,
         snap: GsmSnapshot,
         bridge: GameBridge,
+        references: PersistentFeedReferences,
         transferResult: TransferResult,
         frameIds: FrameIdResolver,
         annotationJournal: AnnotationProjectionState.Planner,
@@ -1542,7 +1579,8 @@ object StateMapper {
         val addedThisGsm = linkedSetOf<ForgeCardId>()
         for (ev in events) {
             if (ev is GameEvent.SpellResolved) {
-                val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
+                val cleanupGrpId =
+                    PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, references, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
                         ?: ctx.abilityGrpIdForSource(ev.cardId)
@@ -1552,7 +1590,8 @@ object StateMapper {
                     addedThisGsm.add(ev.cardId)
                 }
             } else if (ev is GameEvent.SpellCast) {
-                val cleanupGrpId = PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, bridge, transferResult)
+                val cleanupGrpId =
+                    PersistentFeedBuilder.decayedCleanupGrpIdForSource(ev.cardId, snap, references, transferResult)
                 val abilityGrpId =
                     ev.abilityGrpId.takeIf { it != 0 }
                         ?: ctx.abilityGrpIdForSource(ev.cardId)

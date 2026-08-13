@@ -264,7 +264,7 @@ class StateZoneTransferProjectionTest :
                     bridge = bridge,
                     annotationJournal = journal,
                     snap = GsmSnapshot.forTest(),
-                    frameIds = FrameIdResolver(bridge),
+                    frameIds = FrameIdResolver(bridge.projectionIdentityWorkspace()),
                 )
 
             val created = result.annotations.single { AnnotationType.AbilityInstanceCreated in it.typeList }

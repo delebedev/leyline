@@ -22,7 +22,7 @@ object CastAbilityWordScanner {
         game: Game,
         bridge: GameBridge,
     ): List<AbilityWordScanner.AbilityWordEntry> {
-        val frameIds = FrameIdResolver(bridge)
+        val frameIds = FrameIdResolver(bridge.projectionIdentityWorkspace())
         return game.stack.mapNotNull { entry ->
             val ability = entry.spellAbility ?: return@mapNotNull null
             val source = entry.sourceCard ?: return@mapNotNull null

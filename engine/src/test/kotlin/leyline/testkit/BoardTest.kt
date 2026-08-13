@@ -15,6 +15,7 @@ import leyline.game.awaitFreshPending
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.mapping.StateMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
@@ -193,6 +194,7 @@ abstract class BoardTest(
         gsId: Int,
     ): GameStateMessage {
         val snap = GsmSnapshot.capture(game, b, Board.TEST_MATCH_ID, gsId)
+        val promptFacts = b.materializePromptProjectionFacts()
         return StateMapper
             .buildFromSnapshot(
                 snap,
@@ -200,6 +202,9 @@ abstract class BoardTest(
                 Board.TEST_MATCH_ID,
                 b,
                 viewingSeatId = Board.SEAT_ID,
+                promptFacts = promptFacts,
+                persistentFeedFacts =
+                    PersistentFeedFactsCapture.capture(snap, promptFacts, b, b.stateProjectionEnvironment),
                 effectFacts = b.materializeEffectProjectionFacts(),
                 abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, b),
             ).gsm

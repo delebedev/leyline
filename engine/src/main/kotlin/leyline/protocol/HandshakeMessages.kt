@@ -5,6 +5,7 @@ import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
 import leyline.game.bundle.MechanicSourceFactsCapture
+import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
@@ -496,6 +497,7 @@ object HandshakeMessages {
                 GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
             }
         val events = bridge.closeBundleFrame(seatId.value)
+        val promptFacts = bridge.materializePromptProjectionFacts()
         val fullResult =
             StateMapper
                 .buildFromSnapshot(
@@ -506,7 +508,14 @@ object HandshakeMessages {
                     environment = bridge.stateProjectionEnvironment,
                     viewingSeatId = seatId.value,
                     events = events,
-                    promptFacts = bridge.materializePromptProjectionFacts(),
+                    promptFacts = promptFacts,
+                    persistentFeedFacts =
+                        PersistentFeedFactsCapture.capture(
+                            snap,
+                            promptFacts,
+                            bridge,
+                            bridge.stateProjectionEnvironment,
+                        ),
                     effectFacts = bridge.materializeEffectProjectionFacts(),
                     mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
                     abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),

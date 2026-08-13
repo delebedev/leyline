@@ -18,14 +18,14 @@ object InstanceIdRegistry {
 
     class Planner internal constructor(
         initial: State,
-    ) {
+    ) : ProjectionIdentityWorkspace {
         private var nextInstanceId = initial.nextInstanceId
         private val forward = initial.forgeIdToInstanceId.toMutableMap()
         private val reverse = initial.instanceIdToForgeId.toMutableMap()
 
         fun peek(forgeCardId: ForgeCardId): InstanceId? = forward[forgeCardId]
 
-        fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId =
+        override fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId =
             forward[forgeCardId] ?: InstanceId(nextInstanceId++).also { id ->
                 forward[forgeCardId] = id
                 reverse[id] = forgeCardId
@@ -56,4 +56,9 @@ object InstanceIdRegistry {
     }
 
     fun initialState(startId: Int = 100): State = State(startId, emptyMap(), emptyMap())
+}
+
+/** Private mutable identity operation owned by one tentative projection edit. */
+fun interface ProjectionIdentityWorkspace {
+    fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId
 }

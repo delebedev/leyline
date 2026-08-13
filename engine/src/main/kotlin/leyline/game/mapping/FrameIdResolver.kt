@@ -5,7 +5,7 @@ import leyline.bridge.types.InstanceId
 import leyline.game.annotations.TransferResult
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.LinkedFaceRole
-import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionIdentityWorkspace
 
 /**
  * Frame-local instance-id resolver.
@@ -13,7 +13,7 @@ import leyline.game.state.GameBridge
  * Inside a single [StateMapper.buildDiff] call there are three different ways
  * to answer "what's the instance id of X right now?":
  *
- * - `bridge.getOrAllocInstanceId(forgeId)` — the active projection planner
+ * - [ProjectionIdentityWorkspace.getOrAlloc] — the active projection planner
  *   holds the tentative iid for any allocation until the shell commit.
  * - `transfer.newId` from the active [TransferResult] — the post-realloc iid;
  *   only annotation builders that already loop over `transferResult.transfers`
@@ -36,7 +36,7 @@ import leyline.game.state.GameBridge
  * Forge callback.
  */
 class FrameIdResolver(
-    private val bridge: GameBridge,
+    private val identities: ProjectionIdentityWorkspace,
     private val postReallocIids: Map<ForgeCardId, InstanceId> = emptyMap(),
 ) {
     /**
@@ -44,10 +44,10 @@ class FrameIdResolver(
      *
      * For zone-transferred cards in this frame, returns the post-realloc iid
      * planned by `ZoneTransferDetector` (committed with the frame transition).
-     * For everything else, falls back to the bridge's
-     * current iid (which is the post-realloc iid for un-transferred cards).
+     * For everything else, falls back to the projection workspace's current
+     * iid (the post-realloc iid for un-transferred cards).
      */
-    fun cardIid(forgeId: ForgeCardId): InstanceId = postReallocIids[forgeId] ?: bridge.getOrAllocInstanceId(forgeId)
+    fun cardIid(forgeId: ForgeCardId): InstanceId = postReallocIids[forgeId] ?: identities.getOrAlloc(forgeId)
 
     /**
      * Iid for the synthesised stack-resident Ability gameObject keyed by
@@ -64,7 +64,7 @@ class FrameIdResolver(
      * Synthesised forge IDs are never realloc-targets, so this lookup
      * doesn't consult [postReallocIids].
      */
-    fun triggerStackAbilityIid(forgeAbilityId: Int): InstanceId = bridge.getOrAllocInstanceId(triggerStackAbilityForgeId(forgeAbilityId))
+    fun triggerStackAbilityIid(forgeAbilityId: Int): InstanceId = identities.getOrAlloc(triggerStackAbilityForgeId(forgeAbilityId))
 
     /**
      * Iid for the synthesised stack-resident Ability gameObject sourced from
@@ -78,14 +78,13 @@ class FrameIdResolver(
      * Synthesised forge IDs are never realloc-targets, so this lookup
      * doesn't consult [postReallocIids].
      */
-    fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(stackAbilityForgeId(sourceForgeId))
+    fun stackAbilityIid(sourceForgeId: ForgeCardId): InstanceId = identities.getOrAlloc(stackAbilityForgeId(sourceForgeId))
 
     /** Iid for a per-payment mana Ability gameObject — see [stackAbilityIid] for the surrogate-vs-realloc note. */
-    fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId = bridge.getOrAllocInstanceId(manaAbilityForgeId(sourceForgeId))
+    fun manaAbilityIid(sourceForgeId: ForgeCardId): InstanceId = identities.getOrAlloc(manaAbilityForgeId(sourceForgeId))
 
     /** Iid for a non-mana cost-payment Ability gameObject, such as a Convoke reducer click. */
-    fun costPaymentAbilityIid(sourceForgeId: ForgeCardId): InstanceId =
-        bridge.getOrAllocInstanceId(costPaymentAbilityForgeId(sourceForgeId))
+    fun costPaymentAbilityIid(sourceForgeId: ForgeCardId): InstanceId = identities.getOrAlloc(costPaymentAbilityForgeId(sourceForgeId))
 
     /**
      * Every iid alive on the stack at the end of this frame — both card spells
@@ -136,9 +135,12 @@ class FrameIdResolver(
         /** Offset added to source card forge IDs for non-mana payment Ability gameObjects. */
         private const val COST_PAYMENT_ABILITY_ID_OFFSET = 400_000
 
+        /** Offset added to a delayed-trigger source for its client-side holder object. */
+        private const val DELAYED_TRIGGER_HOLDER_ID_OFFSET = 90_000_000
+
         /**
          * Surrogate forge ID for a stack-resident Ability gameObject — used as
-         * the key into [GameBridge.getOrAllocInstanceId] so the Ability's iid
+         * the key into [ProjectionIdentityWorkspace.getOrAlloc] so the Ability's iid
          * doesn't collide with the source card's.
          */
         fun stackAbilityForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + STACK_ABILITY_ID_OFFSET)
@@ -161,6 +163,10 @@ class FrameIdResolver(
 
         /** Surrogate forge ID for a DisturbBack face object. */
         fun disturbBackForgeId(sourceForgeId: ForgeCardId): ForgeCardId = ForgeCardId(sourceForgeId.value + DISTURB_BACK_ID_OFFSET)
+
+        /** Surrogate forge ID for the delayed-trigger holder owned by [sourceForgeId]. */
+        fun delayedTriggerHolderForgeId(sourceForgeId: ForgeCardId): ForgeCardId =
+            ForgeCardId(sourceForgeId.value + DELAYED_TRIGGER_HOLDER_ID_OFFSET)
 
         /** Surrogate keyed by one parent object lifetime and linked-face role. */
         fun linkedFaceCompanionForgeId(

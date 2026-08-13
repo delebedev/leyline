@@ -220,6 +220,7 @@ private fun frameInput(
         revealForSeat = null,
         effectFacts = facts,
         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+        persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
         mechanicSourceFacts = MechanicSourceFacts(),
         projectionState = projectionState,
     )

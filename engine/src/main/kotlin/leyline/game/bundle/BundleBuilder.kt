@@ -101,21 +101,30 @@ class BundleBuilder(
                     GsmSnapshot.capture(game, bridge, matchId, gameStateId)
                 }
             val result =
-                StateMapper
-                    .buildFromSnapshot(
-                        snap = snapshot,
-                        gameStateId = gameStateId,
-                        matchId = matchId,
-                        bridge = bridge,
-                        environment = stateProjectionEnvironment,
-                        viewingSeatId = seatId,
-                        events = FrameEventLog.EMPTY,
-                        promptFacts = bridge.materializePromptProjectionFacts(),
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, emptyList()),
-                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge),
-                        projectionState = frameState.copy(revision = prior.revision),
-                    ).finalizeAnnotations()
+                bridge.materializePromptProjectionFacts().let { promptFacts ->
+                    StateMapper
+                        .buildFromSnapshot(
+                            snap = snapshot,
+                            gameStateId = gameStateId,
+                            matchId = matchId,
+                            bridge = bridge,
+                            environment = stateProjectionEnvironment,
+                            viewingSeatId = seatId,
+                            events = FrameEventLog.EMPTY,
+                            promptFacts = promptFacts,
+                            persistentFeedFacts =
+                                PersistentFeedFactsCapture.capture(
+                                    snapshot,
+                                    promptFacts,
+                                    bridge,
+                                    stateProjectionEnvironment,
+                                ),
+                            effectFacts = bridge.materializeEffectProjectionFacts(),
+                            mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, emptyList()),
+                            abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge),
+                            projectionState = frameState.copy(revision = prior.revision),
+                        ).finalizeAnnotations()
+                }
             val transition = checkNotNull(result.transition)
             val tentative = transition.nextState.copy(revision = transition.expectedRevision)
             val (actions, next) =
@@ -174,19 +183,23 @@ class BundleBuilder(
         val effectFacts = bridge.materializeEffectProjectionFacts()
         val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events)
         val abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge)
+        val promptFacts = bridge.materializePromptProjectionFacts()
+        val persistentFeedFacts =
+            PersistentFeedFactsCapture.capture(snap, promptFacts, bridge, stateProjectionEnvironment)
         return FrameInput(
             StateFrameInput(
                 gameStateId = nextGs,
                 snapshot = snap,
                 previousSnapshot = previousSnap,
                 events = events,
-                promptFacts = bridge.materializePromptProjectionFacts(),
+                promptFacts = promptFacts,
                 updateType = updateType(snap, events),
                 viewingSeatId = seatId,
                 revealForSeat = revealForSeat,
                 effectFacts = effectFacts,
                 mechanicSourceFacts = mechanicSourceFacts,
                 abilityExhaustionFacts = abilityExhaustionFacts,
+                persistentFeedFacts = persistentFeedFacts,
                 projectionState = capturedProjection.copy(revision = priorProjection.revision),
             ),
         )

@@ -13,6 +13,7 @@ import leyline.UnitTag
 import leyline.game.data.CardProtoBuilder
 import leyline.game.event.GameEvent
 import leyline.game.mapping.MatchProjectionConfig
+import leyline.game.mapping.PersistentFeedReferences
 import leyline.game.mapping.StateProjectionEnvironment
 import java.nio.file.Path
 
@@ -82,6 +83,7 @@ class StateZoneProjectionBoundaryTest :
                 mapOf(
                     "cardProto" to CardProtoBuilder::class.java,
                     "matchConfig" to MatchProjectionConfig::class.java,
+                    "persistentFeedReferences" to PersistentFeedReferences::class.java,
                 )
         }
 

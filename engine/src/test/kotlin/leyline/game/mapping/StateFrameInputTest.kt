@@ -74,6 +74,7 @@ class StateFrameInputTest :
                     revealForSeat = null,
                     effectFacts = EffectProjectionFacts(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                    persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
                     projectionState =
                         leyline.game.state.ProjectionState
@@ -209,6 +210,7 @@ class StateFrameInputTest :
                     revealForSeat = null,
                     effectFacts = facts,
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                    persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
                     mechanicSourceFacts = MechanicSourceFacts(),
                     projectionState =
                         leyline.game.state.ProjectionState
@@ -377,6 +379,7 @@ class StateFrameInputTest :
                     revealForSeat = null,
                     effectFacts = EffectProjectionFacts(),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                    persistentFeedFacts = leyline.game.state.PersistentFeedFacts(),
                     mechanicSourceFacts =
                         MechanicSourceFacts(
                             sourceZoneByForgeCardId =

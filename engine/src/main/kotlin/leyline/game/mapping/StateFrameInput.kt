@@ -5,6 +5,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.MechanicSourceFacts
+import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionState
 import leyline.game.state.PromptProjectionFacts
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
@@ -31,6 +32,8 @@ data class StateFrameInput(
     val mechanicSourceFacts: MechanicSourceFacts,
     /** Final ordered display rows for exhausted abilities at this frame cut. */
     val abilityExhaustionFacts: AbilityExhaustionFacts,
+    /** Time-sensitive observations used only by persistent-feed projection. */
+    val persistentFeedFacts: PersistentFeedFacts,
     /** Projection history materialized with this exact engine cut. */
     val projectionState: ProjectionState,
 )

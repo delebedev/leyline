@@ -53,7 +53,7 @@ class RevealStateContributorTest :
                 AnnotationContext(
                     bridge = bridge,
                     snap = GsmSnapshot.forTest(),
-                    frameIds = FrameIdResolver(bridge),
+                    frameIds = FrameIdResolver(bridge.projectionIdentityWorkspace()),
                     abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     events =
                         listOf(
