@@ -48,6 +48,7 @@ class CopilotAutopush(
                     val actionBridge = gameBridge.seat(seatId).action
                     val pendingAction = actionBridge.getPending()
                     if (pendingAction != null && actionBridge.submitAction(pendingAction.actionId, PlayerAction.PassPriority)) {
+                        gameBridge.messageCounter.markPromptHandled(prompt.msgId)
                         gameBridge.autoAdvanceRequester?.invoke("autopush server-side pass")
                         log.info("autopush: {} -> pass applied server-side (no client round-trip)", prompt.type)
                         return@submit

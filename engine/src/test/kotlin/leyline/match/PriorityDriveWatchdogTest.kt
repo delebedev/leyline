@@ -48,6 +48,15 @@ class PriorityDriveWatchdogTest :
             redrives[0] shouldBe 0
         }
 
+        test("never re-drives while a specialized prompt is outstanding") {
+            val redrives = intArrayOf(0)
+            val p = PriorityDriveWatchdog.Probe("a", prompted = false, outstandingPrompt = true)
+            val wd = PriorityDriveWatchdog(probe = { p }, redrive = { redrives[0]++ }, staleChecks = 2)
+
+            repeat(10) { wd.tick() shouldBe false }
+            redrives[0] shouldBe 0
+        }
+
         test("never re-drives when there is no pending action") {
             val redrives = intArrayOf(0)
             val wd = PriorityDriveWatchdog(probe = { null }, redrive = { redrives[0]++ }, staleChecks = 2)

@@ -19,10 +19,10 @@ import org.slf4j.LoggerFactory
  *
  * A pending action carries [leyline.bridge.handoff.GameActionBridge.PendingAction.actionCatalog],
  * which is null until the drive prompts it. So an orphan is exactly: a pending
- * action that stays *un-prompted* (catalog null) across several checks. This
- * watchdog re-drives only that state, so it can never double-prompt a healthy,
- * already-prompted window (catalog non-null → skipped) nor interfere with the
- * normal per-response drive.
+ * action that stays *un-prompted* (catalog null) across several checks while no
+ * response-bearing prompt is outstanding. Specialized combat and selection
+ * prompts do not bind an action catalog, so their prompt horizon is the second
+ * half of the orphan predicate.
  *
  * [tick] holds all the decision logic and is pure/deterministic for testing; the
  * thread wrapper just calls it on an interval.
@@ -37,6 +37,7 @@ class PriorityDriveWatchdog(
     data class Probe(
         val actionId: String,
         val prompted: Boolean,
+        val outstandingPrompt: Boolean = false,
     )
 
     private var lastUnpromptedId: String? = null
@@ -50,7 +51,7 @@ class PriorityDriveWatchdog(
      */
     fun tick(): Boolean {
         val p = probe()
-        if (p == null || p.prompted) {
+        if (p == null || p.prompted || p.outstandingPrompt) {
             lastUnpromptedId = null
             staleCount = 0
             return false
