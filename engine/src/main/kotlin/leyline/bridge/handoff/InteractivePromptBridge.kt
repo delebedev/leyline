@@ -88,7 +88,7 @@ class InteractivePromptBridge(
     @Volatile
     var groupingRuntime: GroupingInteractionRuntime? = null
 
-    /** Match-scoped owner for the four card-backed SelectN semantics. */
+    /** Match-scoped owner for card-backed SelectN semantics. */
     @Volatile
     var cardSelectRuntime: CardSelectInteractionRuntime? = null
 

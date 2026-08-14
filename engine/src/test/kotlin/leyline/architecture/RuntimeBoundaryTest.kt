@@ -266,6 +266,7 @@ class RuntimeBoundaryTest :
                 "SelectNSacrificeEffect",
                 "SuspectChoice",
                 "MutateTopBottom",
+                "SelectNLibraryPutback",
             ).forEach { semantic ->
                 check(
                     "PromptSemantic.$semantic -> cardSelect" in route ||

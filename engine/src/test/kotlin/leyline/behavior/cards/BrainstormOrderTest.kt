@@ -3,10 +3,18 @@ package leyline.behavior.cards
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.coord.GameLoopPoller
+import leyline.bridge.types.SeatId
+import leyline.config.AiConfig
+import leyline.config.MatchConfig
+import leyline.config.ServerConfig
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -29,6 +37,13 @@ class BrainstormOrderTest :
                 selectReq.idsList
                     .map { iid -> cardByIid(iid)?.zone?.zoneType }
                     .toSet() shouldBe setOf(ZoneType.Hand)
+                harness.bridge.cutCoordinator.cardSelect
+                    .current()
+                    .shouldNotBeNull()
+                harness.bridge
+                    .promptBridge(SeatId(1))
+                    .getPendingPrompt()
+                    .shouldBeNull()
             }
 
             respondToSelectN(selectedIids)
@@ -40,6 +55,13 @@ class BrainstormOrderTest :
             val orderGsm = allMessages.last { it.hasGameStateMessage() && it.gameStateId == orderMsg.gameStateId }.gameStateMessage
 
             assertSoftly {
+                harness.bridge.cutCoordinator.cardSelect
+                    .current()
+                    .shouldBeNull()
+                harness.bridge.cutCoordinator.order
+                    .current()
+                    .shouldNotBeNull()
+                orderMsg.gameStateId shouldBeGreaterThan selectMsg.gameStateId
                 orderMsg.type shouldBe GREMessageType.OrderReq_695e
                 orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
                 cardByIid(
@@ -48,7 +70,7 @@ class BrainstormOrderTest :
                         .numberValue,
                 )?.name shouldBe "Brainstorm"
                 orderReq.orderingContext shouldBe OrderingContext.None_a89f
-                orderNames shouldContainExactlyInAnyOrder selectedNames
+                orderNames shouldBe selectedNames
                 orderReq.idsList.forEach { iid ->
                     val obj = orderGsm.gameObjectsList.first { it.instanceId == iid }
                     obj.zoneId shouldBe ZoneIds.P1_LIBRARY
@@ -63,10 +85,73 @@ class BrainstormOrderTest :
             respondToOrder(orderedIids)
             passUntilResolved()
 
-            human
-                .getZone(ZoneType.Library)
-                .cards
-                .take(orderedNames.size)
-                .map { it.name } shouldBe orderedNames
+            assertSoftly {
+                harness.bridge.cutCoordinator.order
+                    .current()
+                    .shouldBeNull()
+                human
+                    .getZone(ZoneType.Library)
+                    .cards
+                    .take(orderedNames.size)
+                    .map { it.name } shouldBe orderedNames
+            }
+        }
+
+        test("Brainstorm timeout advances its default card through the one-card order path") {
+            val h =
+                MatchFlowHarness(
+                    matchConfig =
+                        MatchConfig(
+                            ai = AiConfig(speed = 0.0),
+                            server =
+                                ServerConfig(
+                                    bridgeTimeoutMs = 5_000L,
+                                    promptFailsafeMs = 100L,
+                                    aiTurnWaitMs = 500L,
+                                    mulliganWaitMs = 500L,
+                                ),
+                        ),
+                )
+            try {
+                h.connectAndKeepPuzzle("puzzles/brainstorm-order.pzl")
+                val selectReq = h.castSpellUntilSelectNReq("Brainstorm")
+                val selectMsg = h.allMessages.last { it.hasSelectNReq() }
+                val defaultName =
+                    h.bridge
+                        .getForgeCardId(leyline.bridge.types.InstanceId(selectReq.idsList.first()))
+                        ?.let { h.game().findById(it.value) }
+                        ?.name ?: error("Default LibraryPutback card did not resolve")
+
+                GameLoopPoller.awaitCondition(timeoutMs = 20_000L) {
+                    h.drainSink()
+                    h.bridge.cutCoordinator.cardSelect
+                        .current() == null &&
+                        checkNotNull(h.bridge.getPlayer(SeatId(1)))
+                            .getZone(ZoneType.Library)
+                            .cards
+                            .firstOrNull()
+                            ?.name == defaultName
+                }
+
+                assertSoftly {
+                    h.bridge.cutCoordinator.cardSelect
+                        .current()
+                        .shouldBeNull()
+                    h.bridge.cutCoordinator.order
+                        .current()
+                        .shouldBeNull()
+                    h.allMessages.none { it.gameStateId > selectMsg.gameStateId && it.hasOrderReq() } shouldBe true
+                    h.bridge.cutCoordinator
+                        .failure()
+                        .shouldBeNull()
+                    checkNotNull(h.bridge.getPlayer(SeatId(1)))
+                        .getZone(ZoneType.Library)
+                        .cards
+                        .first()
+                        .name shouldBe defaultName
+                }
+            } finally {
+                h.shutdown()
+            }
         }
     })

@@ -106,6 +106,40 @@ class TargetingCoordinatorTest :
                 bridge.history.single().result shouldBe listOf(0)
             }
         }
+
+        test("library putback returns the exact selected handles in client order") {
+            val cards =
+                CardCollection(
+                    listOf(
+                        Card(20, null).also { it.name = "First" },
+                        Card(21, null).also { it.name = "Second" },
+                        Card(22, null).also { it.name = "Third" },
+                    ),
+                )
+            val bridge = testPromptBridge(cardSelectRuntime = selectingCards(2, 0))
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            val selected =
+                coordinator.chooseEntities(
+                    cards,
+                    2,
+                    2,
+                    "Choose two cards to put back",
+                    abilitySub(
+                        ApiType.ChangeZone,
+                        mapOf("Origin" to "Hand", "Destination" to "Library", "Reorder" to "True"),
+                    ),
+                )
+
+            assertSoftly {
+                selected shouldHaveSize 2
+                selected[0] shouldBeSameInstanceAs cards[2]
+                selected[1] shouldBeSameInstanceAs cards[0]
+                (bridge.history.single().route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe
+                    CardSelectKind.LibraryPutback
+                bridge.history.single().result shouldBe listOf(2, 0)
+            }
+        }
     })
 
 private fun promptSemantic(sa: SpellAbility): PromptSemantic {
@@ -162,6 +196,15 @@ private fun selectingCard(index: Int): CardSelectInteractionRuntime =
             candidateHandles: List<Card>,
             timeoutMs: Long?,
         ): CardSelectInteractionResult = CardSelectInteractionResult(listOf(index), listOf(candidateHandles[index]))
+    }
+
+private fun selectingCards(vararg indices: Int): CardSelectInteractionRuntime =
+    object : CardSelectInteractionRuntime {
+        override fun awaitSelection(
+            request: PromptRequest,
+            candidateHandles: List<Card>,
+            timeoutMs: Long?,
+        ): CardSelectInteractionResult = CardSelectInteractionResult(indices.toList(), indices.map(candidateHandles::get))
     }
 
 private fun timingOutCardSelect(): CardSelectInteractionRuntime =

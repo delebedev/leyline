@@ -77,6 +77,7 @@ internal class CardSelectWindowMaterializer(
                         prompt = Prompt.getDefaultInstance()
                         sourceId = PromptIds.SELECT_N_LEGEND_RULE_SOURCE
                     }
+                    CardSelectKind.LibraryPutback -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     CardSelectKind.Discard -> prompt = Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST).build()
                     CardSelectKind.Suspect -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     CardSelectKind.SacrificeEffect,
@@ -92,6 +93,7 @@ internal class CardSelectWindowMaterializer(
     ): SelectNEnvelope =
         when (kind) {
             CardSelectKind.LegendRule -> SelectNEnvelope.legendRule(request)
+            CardSelectKind.LibraryPutback -> SelectNEnvelope.libraryPutback(request)
             CardSelectKind.Discard,
             CardSelectKind.SacrificeEffect,
             -> SelectNEnvelope.default(request)

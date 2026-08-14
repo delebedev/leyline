@@ -64,11 +64,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.SuspectChoice to
                         cardSelect(PromptSemantic.SuspectChoice, CardSelectKind.Suspect, sentiment = 2),
                     PromptSemantic.SelectNLibraryPutback to
-                        selectN(
-                            PromptSemantic.SelectNLibraryPutback,
-                            SelectNInnerPrompt.SelectNInnerParameter,
-                            SelectNEnvelopeKind.LibraryPutback,
-                        ),
+                        cardSelect(PromptSemantic.SelectNLibraryPutback, CardSelectKind.LibraryPutback),
                     PromptSemantic.SelectNSacrificeEffect to
                         cardSelect(PromptSemantic.SelectNSacrificeEffect, CardSelectKind.SacrificeEffect, sentiment = 1),
                     PromptSemantic.SelectNCostSacrifice to
