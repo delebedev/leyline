@@ -4,14 +4,15 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
-import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
 import leyline.game.PendingInteractionCut
+import leyline.game.PendingSearchCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.SearchMaterializationDiagnostic
 import leyline.game.bundle.BlockingInteractionMaterializer
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -24,11 +25,8 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * Match-scoped imperative owner of projection cuts and committed outbound batches.
- *
- * The coordinator owns the journal close, exact cut, projection install, committed
- * viewer feed, and terminal state. Focused action and blocking runtimes are private
- * mechanisms beneath this one ownership boundary.
+ * Owns journal close, exact cuts, projection install, committed viewer feeds,
+ * terminal state, and the focused interaction runtimes beneath that boundary.
  */
 internal class MatchCutCoordinator(
     internal val bridge: GameBridge,
@@ -51,6 +49,7 @@ internal class MatchCutCoordinator(
     private val actions = MatchActionWindowRuntime(this)
     private val interactions = MatchBlockingInteractionRuntime(this)
     internal val targeting = MatchTargetingInteractionRuntime(this)
+    internal val search = MatchSearchInteractionRuntime(this)
 
     @Volatile
     private var terminalFailure: PlaybackTerminalFailure? = null
@@ -123,11 +122,6 @@ internal class MatchCutCoordinator(
         }
 
     fun actionWindowRuntime(seatId: SeatId): GameActionBridge.ActionWindowRuntime = actions.bridge(seatId)
-
-    fun targetingRuntime(seatId: SeatId): TargetingInteractionRuntime {
-        check(seatId == humanSeat) { "Targeting interaction runtime is only registered for the human seat" }
-        return targeting
-    }
 
     fun legalAttackerIds(actionId: String): List<Int> = actions.legalAttackerIds(actionId)
 
@@ -249,6 +243,7 @@ internal class MatchCutCoordinator(
         interactions.terminate(failure)
         actions.terminate()
         targeting.terminate(failure)
+        search.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
         bridge.prioritySignal.signal()
     }
@@ -259,6 +254,7 @@ internal class MatchCutCoordinator(
             terminalFailure = null
             actions.reset()
             targeting.reset()
+            search.reset()
         }
     }
 
@@ -452,29 +448,40 @@ internal class MatchCutCoordinator(
         pendingInteraction: PendingInteractionCut? = null,
     ): Nothing = fail(null, null, cause, pendingInteraction)
 
-    internal fun failDelivery(cause: Throwable): Nothing = fail(cause)
+    internal fun failSearch(
+        cause: Throwable,
+        pendingSearch: PendingSearchCut? = null,
+        diagnostic: SearchMaterializationDiagnostic? = null,
+    ): Nothing = fail(null, null, cause, pendingSearchCut = pendingSearch, searchDiagnostic = diagnostic)
+
+    internal fun failDelivery(cause: Throwable): Nothing = search.failDelivery(cause)
 
     private fun fail(
         pending: PendingCut?,
         diagnostic: MaterializationDiagnostic?,
         cause: Throwable,
         pendingInteraction: PendingInteractionCut? = null,
-    ): Nothing = throw terminate(pending, diagnostic, cause, pendingInteraction)
+        pendingSearchCut: PendingSearchCut? = null,
+        searchDiagnostic: SearchMaterializationDiagnostic? = null,
+    ): Nothing = throw terminate(pending, diagnostic, cause, pendingInteraction, pendingSearchCut, searchDiagnostic)
 
     private fun terminate(
         pending: PendingCut?,
         diagnostic: MaterializationDiagnostic?,
         cause: Throwable,
         pendingInteraction: PendingInteractionCut? = null,
+        pendingSearchCut: PendingSearchCut? = null,
+        searchDiagnostic: SearchMaterializationDiagnostic? = null,
     ): PlaybackTerminalFailure =
         synchronized(feedLock) {
             terminalFailure?.let { return@synchronized it }
-            PlaybackTerminalFailure(pending, diagnostic, pendingInteraction, cause).also { failure ->
+            PlaybackTerminalFailure(pending, diagnostic, pendingInteraction, pendingSearchCut, searchDiagnostic, cause).also { failure ->
                 pending?.let { retained -> feeds.values.firstOrNull { it.pendingCut === retained }?.pendingCut = retained }
                 terminalFailure = failure
                 interactions.terminate(failure)
                 actions.terminate()
                 targeting.terminate(failure)
+                search.terminate(failure)
                 bridge.failActionWindows(failure)
                 bridge.prioritySignal.signal()
             }

@@ -74,15 +74,6 @@ class TargetingHandler(
             getPendingInteraction = { pendingInteraction },
             setPendingInteraction = { pendingInteraction = it },
         )
-    private val searchPromptInteractionHandler =
-        SearchPromptInteractionHandler(
-            sink = sink,
-            counters = counters,
-            bundles = bundles,
-            ctx = ctx,
-            getPendingInteraction = { pendingInteraction },
-            setPendingInteraction = { pendingInteraction = it },
-        )
 
     @Volatile
     private var pendingInteraction: PendingClientInteraction? = null
@@ -286,6 +277,7 @@ class TargetingHandler(
     fun checkPendingPrompt(): PromptResult {
         val bridge = ctx.bridge
         if (bridge.cutCoordinator.targeting.current() != null) return PromptResult.SENT_TO_CLIENT
+        if (bridge.cutCoordinator.search.current() != null) return PromptResult.SENT_TO_CLIENT
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         return if (sendPrompt(pendingPrompt, PromptDispatchContext.PENDING_CHECK)) {
@@ -379,8 +371,7 @@ class TargetingHandler(
             }
 
             is ResolvedPromptRoute.Search -> {
-                sendSearchReq(pendingPrompt)
-                true
+                error("Search prompts must be published by MatchSearchInteractionRuntime")
             }
 
             is ResolvedPromptRoute.Order -> {
@@ -479,7 +470,6 @@ class TargetingHandler(
                 return cancelDeferredCast(interaction.actionClaim, autoPass)
             }
             is PendingClientInteraction.ModalChoice,
-            is PendingClientInteraction.Search,
             is PendingClientInteraction.UnclassifiedCandidateSelection,
             null,
             -> Unit
@@ -584,9 +574,30 @@ class TargetingHandler(
      *        Empty = player declined ("fail to find").
      */
     fun onSearchResp(
-        itemsFound: List<Int>,
+        greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-    ) = searchPromptInteractionHandler.onSearchResp(itemsFound, autoPass)
+    ) {
+        val bridge = ctx.bridge
+        val pending = bridge.cutCoordinator.search.current()
+        if (pending == null) {
+            log.warn("SearchResp but no coordinator-owned search window")
+            DevCheck.failOnAutoPass { "SearchResp but no search window" }
+            return
+        }
+        val accepted =
+            bridge.cutCoordinator.search.submit(
+                pending.interactionId,
+                greMsg.gameStateId,
+                greMsg.searchResp?.itemsFoundList.orEmpty(),
+            )
+        if (!accepted) {
+            log.warn("SearchResp did not match the current search window")
+            DevCheck.failOnAutoPass { "SearchResp did not match the current search window" }
+            return
+        }
+        bridge.awaitPriority()
+        autoPass()
+    }
 
     // --- Helpers ---
 
@@ -807,10 +818,6 @@ class TargetingHandler(
 
     internal fun checkAlternateAdditionalCostChoice(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =
         deferredCastCostInteractionHandler.checkAlternateAdditionalCostChoice(actionClaim)
-
-    private fun sendSearchReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        searchPromptInteractionHandler.sendSearchReq(pendingPrompt)
-    }
 
     private fun sendSelectNReq(
         pendingPrompt: InteractivePromptBridge.PendingPrompt,

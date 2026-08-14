@@ -78,8 +78,17 @@ class PlaybackSafePointBoundaryTest :
             spectator shouldNotContain "closeBundleFrame("
 
             val session = sourceRoot.resolve("leyline/match/MatchSession.kt").toFile().readText()
-            val legacySearch = session.substringAfter("override fun sendLegacyPromptState(").substringBefore("override fun sendBundle(")
-            legacySearch shouldContain "bundleBuilder.stateOnlyDiff("
+            session shouldNotContain "sendLegacyPromptState("
+
+            val targetingHandler = sourceRoot.resolve("leyline/match/TargetingHandler.kt").toFile().readText()
+            val searchResponse = targetingHandler.substringAfter("fun onSearchResp(").substringBefore("// --- Helpers ---")
+            assertSoftly {
+                searchResponse shouldContain "cutCoordinator.search.submit("
+                searchResponse shouldNotContain "ctx.game"
+                searchResponse shouldNotContain "findById("
+                searchResponse shouldNotContain "getZone("
+                targetingHandler shouldNotContain "SearchPromptInteractionHandler"
+            }
         }
 
         test("every game-loop launch uses the pre-start playback pipeline") {
@@ -92,8 +101,11 @@ class PlaybackSafePointBoundaryTest :
                     source.indexOf("loop.start(startGameHook)"),
                     source.indexOf("loop.startFromCurrentState()"),
                 )
-            registrations.size shouldBe 3
-            registrations.zip(launches).all { (registration, launch) -> registration in 0 until launch } shouldBe true
+            assertSoftly {
+                registrations.size shouldBe 3
+                registrations.zip(launches).all { (registration, launch) -> registration in 0 until launch } shouldBe true
+                source shouldContain "it.searchRuntime = null"
+            }
         }
     })
 

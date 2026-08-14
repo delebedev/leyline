@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.mapping.PromptIds
-import leyline.match.PendingClientInteraction
 import wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
@@ -93,10 +92,5 @@ class SearchReqTest :
                 sr.itemsToSearchList.size shouldBe 20
                 sr.allowFailToFind shouldBe AllowFailToFind.Any
             }
-        }
-
-        test("PendingClientInteraction.Search stores promptId") {
-            val pending = PendingClientInteraction.Search("prompt-123")
-            pending.promptId shouldBe "prompt-123"
         }
     })

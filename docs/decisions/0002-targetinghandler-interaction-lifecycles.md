@@ -26,7 +26,7 @@ Current responsibilities include:
 
 - Target selection: `SelectTargetsResp`, `SubmitTargetsReq`, and echo re-prompts.
 - Select-N, order, effect-cost, and group response mapping.
-- Search prompt emission and `SearchResp` handling.
+- Correlated `SearchResp` value submission to the match coordinator.
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
 - Native `PayCostsReq` interaction loops for mana-source payment choices such as Convoke and Waterbend.
@@ -53,8 +53,9 @@ PromptRequest / client response
 -> prompt/action response submission and GRE follow-up
 ```
 
-Therefore these extracted classes belong under `leyline.match`, not
-`leyline.bridge.interaction`. They are handlers, not planners.
+Residual response-lifecycle handlers belong under `leyline.match`, not
+`leyline.bridge.interaction`. Coordinator-backed blocking lifecycles may instead
+move to the imperative shell defined by ADR 0015; Search is one such lifecycle.
 
 ## Problem Statement
 
@@ -70,15 +71,16 @@ The target boundary is:
 
 - `TargetingHandler` dispatches pending prompts from their bound route.
 - `RequestBuilder` and `BundleBuilder` continue to own GRE request and bundle construction.
-- `TargetingHandler` remains the session-facing coordinator and public entry point used by `MatchSession` / action performers.
-- Extracted handlers own only coherent response lifecycles and their lifecycle-local state.
+- `TargetingHandler` remains the session-facing entry point used by `MatchSession` / action performers.
+- Residual extracted handlers own only coherent response lifecycles and their lifecycle-local state.
+- Coordinator-backed routes retain only value-response dispatch in the session layer.
 
 ## Decision
 
 Split `TargetingHandler` by stable client interaction lifecycle, not by prompt
 route or protocol message type. `TargetingHandler` remains the session-facing
-coordinator and public entry point; extracted handlers own lifecycle-local
-state and response sequencing.
+entry point; residual extracted handlers own lifecycle-local state and response
+sequencing, while ADR 0015 coordinator migrations reduce it to value dispatch.
 
 ### Response Submission
 
@@ -100,20 +102,16 @@ It does not own:
 
 ### Search Interaction Lifecycle
 
-`SearchPromptInteractionHandler` owns search-specific send/response handling:
+Bound Search routes are coordinator-owned. The engine thread freezes the library,
+valid options, source identity, and picker shape. `MatchSearchInteractionRuntime`
+materializes and commits the state reveal and `SearchReq` as one cut before signalling.
+The session submits only correlated instance IDs; the runtime maps them to the exact
+options, resets the reveal baseline, and then releases the engine wait. Timeout
+retires the exact window and returns the configured fallback, while publication
+and delivery failures use the match terminal path.
 
-- `sendSearchReq`.
-- `onSearchResp`.
-- Search source/host instance id resolution.
-- Search prompt id selection.
-- Search pending-state creation and consumption.
-- The post-search sequence: submit response, await priority, drain pending playback, invalidate the bundle cursor, send game state, then `autoPass`.
-
-It does not own:
-
-- Bound-route search detection.
-- Generic library visibility policy outside the SearchReq lifecycle.
-- Non-search pending interactions.
+`TargetingHandler` retains only thin `SearchResp` dispatch. It does not read the
+library, stack, spell ability, or instance-id registry for this lifecycle.
 
 ### Cost Interaction Lifecycles
 
@@ -160,14 +158,11 @@ Those branches must stay explicit at the coordinator boundary.
 Convoke payment state is distributed across in-memory selection maps and the
 prompt journal. The PayCosts extraction must move those pieces together.
 
-Search ordering is fragile. The post-response order must remain:
-
-1. Submit response to the prompt bridge.
-2. Await priority.
-3. Drain pending playback messages.
-4. Invalidate the bundle cursor.
-5. Send real game state.
-6. Call `autoPass`.
+Search ordering is fragile. Initial publication commits the reveal state and
+`SearchReq` before signalling. A correlated response resets the reveal baseline
+inside the coordinator transaction before completing the engine future. The
+session then awaits the resulting priority horizon and calls `autoPass`; it does
+not build or send an intermediate state frame.
 
 Target selection echo behavior is intentionally left in place. It has a two-step
 client protocol and should not be mixed into the generic response helper.

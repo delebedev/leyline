@@ -19,6 +19,8 @@ import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
+import leyline.bridge.coord.searchRuntime
+import leyline.bridge.coord.targetingRuntime
 import leyline.bridge.forge.RevealTrackingAiController
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
@@ -504,6 +506,7 @@ class GameBridge(
         captureLocalActions: Boolean,
     ) {
         promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
+        promptBridge(seatId).searchRuntime = cutCoordinator.searchRuntime(seatId)
         val collector = GameEventCollector(this)
         eventCollector = collector
         game.subscribeToEvents(collector)
@@ -1329,7 +1332,8 @@ class GameBridge(
     fun hasPendingNonActionInteraction(): Boolean =
         promptBridges.values.any { it.getPendingPrompt() != null } ||
             cutCoordinator.currentBlockingInteraction() != null ||
-            cutCoordinator.targeting.current() != null
+            cutCoordinator.targeting.current() != null ||
+            cutCoordinator.search.current() != null
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1575,7 +1579,10 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
-        promptBridges.values.forEach { it.targetingRuntime = null }
+        promptBridges.values.forEach {
+            it.targetingRuntime = null
+            it.searchRuntime = null
+        }
         cutCoordinator.shutdown()
         val g = game
         if (g != null) {
