@@ -18,25 +18,11 @@ internal sealed interface PendingClientInteraction {
         val sourceForgeCardId: ForgeCardId? = null,
     ) : PendingClientInteraction
 
-    data class TargetSelection(
+    /** Transitional response state for candidate-backed Generic prompts. */
+    data class UnclassifiedCandidateSelection(
         val promptId: String,
         val selectedIndices: List<Int>,
-        /**
-         * Accumulated client-facing instanceIds for the current targeting round.
-         * Each SelectTargetsResp is a single tap (Select or Unselect); the session
-         * accumulates here across taps until SubmitTargetsReq. Feeds the echo-back
-         * re-prompt so the client sees both already-picked and still-legal candidates.
-         */
-        val selectedInstanceIds: List<Int> = emptyList(),
-        /**
-         * Forge entity id of the spell on the stack — read from
-         * `prompt.request.sourceEntityId` at SelectTargetsResp time so PSuT
-         * emission at SubmitTargetsReq time can resolve the same iid PST used,
-         * even if the bridge prompt has cleared (timeout / shutdown race).
-         * Zero when the prompt did not carry a source (defensive — should not
-         * happen for a real targeting prompt).
-         */
-        val sourceEntityId: Int = 0,
+        val selectedInstanceIds: List<Int>,
     ) : PendingClientInteraction
 
     data class OptionalCost(

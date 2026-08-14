@@ -116,6 +116,75 @@ class RuntimeBoundaryTest :
                 .check(classes)
         }
 
+        test("targeting interaction materialization and handoff values stay value-only") {
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.TargetingWindowMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.TargetingWindowMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .haveNameMatching("leyline\\.game\\.state\\.GameBridge(\\$.*)?")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.bridge\\.handoff\\.Targeting(WindowValue|CandidateValue|CommandReceipt)(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+        }
+
+        test("targeting projection is owned by the match runtime") {
+            val handler = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
+            listOf(
+                "PendingClientInteraction.TargetSelection",
+                "SpellAbility",
+                ".canTarget(",
+                "prepareTargetingWindow",
+                "buildSelectTargets",
+                "queuePendingSubmittedTargets",
+            ).forEach { forbidden -> check(forbidden !in handler) }
+
+            val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))
+            check("buildSelectTargets" !in requestBuilder)
+
+            val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
+            check("request.route is ResolvedPromptRoute.Targeting" in bridge)
+            check("targetingSa != null" !in bridge)
+
+            val producer = Files.readString(sourceRoot.resolve("leyline/bridge/coord/TargetingCoordinator.kt"))
+            check("PromptRouteResolver.resolve(PromptSemantic.TargetSelection)" in producer)
+
+            val owners = mutableSetOf<String>()
+            val stream = Files.walk(sourceRoot.resolve("leyline"))
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        if ("prepareTargetingWindow(" in Files.readString(file)) {
+                            owners += sourceRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+            check(
+                owners ==
+                    setOf(
+                        "leyline/bridge/coord/MatchTargetingInteractionRuntime.kt",
+                        "leyline/game/bundle/BundleBuilder.kt",
+                    ),
+            ) { "Unexpected targeting-window preparers: ${owners.sorted()}" }
+        }
+
         test("deferred cast cost handoff is value-only and session code does not rediscover abilities") {
             noClasses()
                 .that()

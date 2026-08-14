@@ -130,9 +130,13 @@ at entry, awaits once, and publishes the resulting horizon without releasing
 it. Auto-pass may invoke the operation again explicitly; action handlers stop
 at the single semantic horizon. A safe direct Skip allocates and publishes
 nothing.
-Optional, Numeric, and Damage prompts carry typed value inputs. The coordinator
-commits the complete batch before signalling and resolves retained live handles
-only on the Forge thread.
+Optional, Numeric, Damage, and explicitly bound Targeting prompts carry typed value inputs. The
+coordinator commits the complete batch before signalling and resolves retained
+live handles only on the Forge thread. Targeting taps use a correlated mailbox;
+the engine recomputes legality and commits each replacement request before its
+delivery acknowledgement releases the mailbox. Candidate-backed Generic
+prompts remain a named residual route rather than acquiring Targeting ownership
+from live-handle presence.
 Timeout and disconnect handling use the same two mechanisms; they do not run
 session logic concurrently.
 
@@ -159,7 +163,7 @@ are:
 - SyncOnly state cut with no action catalog or client timer and an exact
   engine-derived continuation policy (manual flow requires the next Visible
   stop; explicit auto-resolve may allow a subsequent SyncOnly stop);
-- typed prompt plus immutable display and validation facts;
+- typed prompt or Targeting window plus immutable display and validation facts;
 - synthetic pre-mutation intent needed by the client UI;
 - mulligan, reset, game-over, or intermission transition.
 

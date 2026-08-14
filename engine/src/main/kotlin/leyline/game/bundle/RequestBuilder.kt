@@ -2,11 +2,9 @@ package leyline.game.bundle
 
 import forge.card.mana.ManaCostShard
 import forge.game.Game
-import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
-import forge.game.spellability.SpellAbility
 import leyline.bridge.coord.ConvokeShardAssigner
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
@@ -14,16 +12,12 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.StaticChoiceKind
-import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -51,143 +45,6 @@ object RequestBuilder {
         Convoke(KeywordAbilityIds.CONVOKE, KeywordAbilityIds.CONVOKE_PAYMENT, false),
         Improvise(KeywordAbilityIds.IMPROVISE, KeywordAbilityIds.IMPROVISE, false),
         Waterbend(KeywordAbilityIds.WATERBEND, WATERBEND_PAYMENT_ABILITY_GRP_ID, true),
-    }
-
-    /**
-     * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
-     *
-     * Maps prompt candidate refs to client instanceIds:
-     * - `kind="card"` → normal card instanceId via [GameBridge.getOrAllocInstanceId]
-     * - `kind="player"` → seatId (1 or 2) as instanceId (Arena convention:
-     *   players use their seatId as instanceId in target selection)
-     *
-     * [chooserSeatId] is the seat choosing targets — used for highlights:
-     * opponent = Hot (suggested), everything else = Cold.
-     *
-     */
-    fun buildSelectTargetsReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-        chooserSeatId: Int = 1,
-    ): SelectTargetsReq {
-        val opponentSeatId = if (chooserSeatId == 1) 2 else 1
-        val builder = SelectTargetsReq.newBuilder()
-        val selBuilder = TargetSelection.newBuilder()
-        selBuilder.setTargetIdx(prompt.request.targetIndex)
-        selBuilder.setTargetingPlayer(chooserSeatId)
-
-        // sourceId: map the spell's entity ID to its client instanceId
-        val source = targetSource(prompt, bridge)
-        if (source.instanceId != 0) builder.setSourceId(source.instanceId)
-        if (source.grpId != 0) builder.setAbilityGrpId(source.grpId)
-        applyTargetSelectionMetadata(selBuilder, prompt, bridge, source, chooserSeatId)
-        applyTargetPromptShape(prompt, bridge, builder, selBuilder, source.instanceId)
-
-        for (ref in prompt.request.candidateRefs) {
-            val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
-            selBuilder.addTargets(
-                wotc.mtgo.gre.external.messaging.Messages.Target
-                    .newBuilder()
-                    .setTargetInstanceId(instanceId)
-                    .setLegalAction(SelectAction.Select_a1ad)
-                    .setHighlight(highlight),
-            )
-        }
-        selBuilder.setMinTargets(prompt.request.min)
-        selBuilder.setMaxTargets(prompt.request.max)
-        builder.addTargets(selBuilder)
-        return builder.build()
-    }
-
-    /**
-     * Build a re-prompt [SelectTargetsReq] reflecting the current selection.
-     *
-     * Shape:
-     * - Already-selected targets: `legalAction=Unselect`, no highlight.
-     * - Remaining legal candidates: `legalAction=Select_a1ad`, `highlight=Tepid`
-     *   (Hot for opponent player targets, Cold for own-player).
-     * - Illegal-after-selection candidates omitted entirely. Legality uses
-     *   Forge's [SpellAbility.canTarget] with hypothetical selections applied
-     *   via clone-and-swap on `sa.targets` (safe because the engine thread is
-     *   blocked inside `requestChoice` between phase-1 and phase-2).
-     * - `selectedTargets` set to selection count; minTargets/maxTargets preserved.
-     *
-     * When [InteractivePromptBridge.PendingPrompt.targetingSa] is null, falls back
-     * to emitting all non-selected candidates as Select — unblocks the client
-     * without a legality filter.
-     */
-    @Suppress("CyclomaticComplexMethod")
-    fun buildSelectTargetsRePrompt(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-        selectedInstanceIds: List<Int>,
-        chooserSeatId: Int = 1,
-    ): SelectTargetsReq {
-        val builder = SelectTargetsReq.newBuilder()
-        val selBuilder = TargetSelection.newBuilder()
-        selBuilder.setTargetIdx(prompt.request.targetIndex)
-        selBuilder.setTargetingPlayer(chooserSeatId)
-        selBuilder.setMinTargets(prompt.request.min)
-        selBuilder.setMaxTargets(prompt.request.max)
-        selBuilder.setSelectedTargets(selectedInstanceIds.size)
-
-        val source = targetSource(prompt, bridge)
-        if (source.instanceId != 0) builder.setSourceId(source.instanceId)
-        if (source.grpId != 0) builder.setAbilityGrpId(source.grpId)
-        applyTargetSelectionMetadata(selBuilder, prompt, bridge, source, chooserSeatId)
-        applyTargetPromptShape(prompt, bridge, builder, selBuilder, source.instanceId)
-
-        val selectedSet = selectedInstanceIds.toSet()
-        val opponentSeatId = if (chooserSeatId == 1) 2 else 1
-        val sa = prompt.targetingSa
-        val game = bridge.getGame()
-        val hypotheticalSelections: List<GameEntity> =
-            if (sa != null && game != null) {
-                selectedInstanceIds.mapNotNull { resolveEntityByInstanceId(it, bridge, game) }
-            } else {
-                emptyList()
-            }
-
-        // When all target slots are filled (e.g. min=max=1 after one pick), the
-        // re-prompt omits Select entries — only the Unselect echo remains.
-        val slotsRemaining = selectedInstanceIds.size < prompt.request.max
-
-        for (ref in prompt.request.candidateRefs) {
-            val (instanceId, highlight) = resolveRefToIidAndHighlight(ref, bridge, opponentSeatId) ?: continue
-            if (instanceId == 0) continue
-
-            if (instanceId in selectedSet) {
-                selBuilder.addTargets(
-                    wotc.mtgo.gre.external.messaging.Messages.Target
-                        .newBuilder()
-                        .setTargetInstanceId(instanceId)
-                        .setLegalAction(SelectAction.Unselect),
-                )
-                continue
-            }
-
-            // Remaining candidate — only emit if more slots are open and still legal.
-            if (!slotsRemaining) continue
-            val stillLegal =
-                if (sa != null && game != null) {
-                    val candidate = resolveEntityByRef(ref, bridge, game)
-                    candidate == null || canTargetWithHypothetical(sa, candidate, hypotheticalSelections)
-                } else {
-                    true
-                }
-            if (!stillLegal) continue
-
-            selBuilder.addTargets(
-                wotc.mtgo.gre.external.messaging.Messages.Target
-                    .newBuilder()
-                    .setTargetInstanceId(instanceId)
-                    .setLegalAction(SelectAction.Select_a1ad)
-                    .setHighlight(highlight),
-            )
-        }
-
-        builder.addTargets(selBuilder)
-        return builder.build()
     }
 
     /** Build an [OrderReq] plus its outer prompt envelope. */
@@ -295,199 +152,6 @@ object RequestBuilder {
                         ?.firstOrNull()
                         ?.id,
             ).sourceCardInstanceId
-
-    private fun applyTargetPromptShape(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-        builder: SelectTargetsReq.Builder,
-        selection: TargetSelection.Builder,
-        sourceInstanceId: Int,
-    ) {
-        val shape = targetPromptShape(prompt, bridge) ?: return
-        if (shape.outerAbilityGrpId != 0) builder.setAbilityGrpId(shape.outerAbilityGrpId)
-        if (shape.targetingAbilityGrpId != 0) selection.setTargetingAbilityGrpId(shape.targetingAbilityGrpId)
-        if (shape.targetSourceZoneId != 0) selection.setTargetSourceZoneId(shape.targetSourceZoneId)
-        if (shape.promptId != null && sourceInstanceId != 0) {
-            selection.setPrompt(promptWithCardId(shape.promptId, sourceInstanceId))
-        }
-    }
-
-    private data class TargetSource(
-        val instanceId: Int,
-        val grpId: Int,
-    )
-
-    private fun targetSource(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ): TargetSource {
-        val instanceId = sourceInstanceId(prompt, bridge)
-        val sourceCard = prompt.request.sourceEntityId?.let { bridge.findCard(ForgeCardId(it)) }
-        val grpId = sourceCard?.let { bridge.resolveGrpId(it, instanceId) } ?: 0
-        return TargetSource(instanceId, grpId)
-    }
-
-    private data class TargetPromptShape(
-        val outerAbilityGrpId: Int,
-        val targetingAbilityGrpId: Int,
-        val promptId: Int? = null,
-        val targetSourceZoneId: Int = 0,
-    )
-
-    private fun targetPromptShape(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ): TargetPromptShape? {
-        val identity = prompt.abilityIdentity
-        when (identity?.keywordFamily) {
-            AbilityKeywordFamily.Mentor ->
-                return TargetPromptShape(
-                    outerAbilityGrpId = identity.abilityGrpId,
-                    targetingAbilityGrpId = KeywordAbilityIds.MENTOR,
-                    promptId = PromptIds.MENTOR_TARGET,
-                )
-            AbilityKeywordFamily.Backup ->
-                return TargetPromptShape(
-                    outerAbilityGrpId = identity.abilityGrpId,
-                    targetingAbilityGrpId = KeywordAbilityIds.BACKUP,
-                )
-            null -> Unit
-        }
-        val sa = prompt.targetingSa ?: return null
-        val cardName = sa.hostCard?.name ?: return null
-        val grpId = bridge.cardRepository.findGrpIdByName(cardName) ?: return null
-        return when {
-            sa.isMutate ->
-                TargetPromptShape(
-                    outerAbilityGrpId = KeywordAbilityIds.MUTATE,
-                    targetingAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MUTATE) ?: 0,
-                    promptId = PromptIds.MUTATE_TARGET,
-                    targetSourceZoneId = ZoneIds.BATTLEFIELD,
-                )
-            else -> null
-        }
-    }
-
-    /**
-     * Check whether [candidate] is still a legal target for [sa] given that
-     * [hypothetical] are already selected. Applied via clone-and-swap on
-     * `sa.targets` — never mutates the caller-visible TargetChoices.
-     */
-    private fun canTargetWithHypothetical(
-        sa: SpellAbility,
-        candidate: GameEntity,
-        hypothetical: List<GameEntity>,
-    ): Boolean {
-        val original = sa.targets
-        val clone = original.clone()
-        for (e in hypothetical) clone.add(e)
-        return try {
-            sa.setTargets(clone)
-            sa.canTarget(candidate)
-        } finally {
-            sa.setTargets(original)
-        }
-    }
-
-    /** Map a client instanceId (seatId for player targets, card iid otherwise) back to a Forge [GameEntity]. */
-    private fun resolveEntityByInstanceId(
-        instanceId: Int,
-        bridge: GameBridge,
-        game: Game,
-    ): GameEntity? {
-        bridge.getPlayer(SeatId(instanceId))?.let { return it }
-        val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return null
-        return game.findById(cardId.value)
-    }
-
-    /** Resolve a [candidateRef] (player- or card-kind) to a Forge [GameEntity]. */
-    private fun resolveEntityByRef(
-        ref: PromptCandidateRefDto,
-        bridge: GameBridge,
-        game: Game,
-    ): GameEntity? {
-        if (ref.isPlayer()) {
-            val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
-            return bridge.getPlayer(SeatId(seatId))
-        }
-        return game.findById(ref.entityId)
-    }
-
-    /**
-     * Resolve a prompt [candidateRef] to its client-facing `(instanceId, highlight)` tuple.
-     * Players map to seatId with Hot/Cold highlight by friend/foe; cards map to their allocated
-     * instanceId with Tepid. Returns null when the entityId doesn't resolve.
-     */
-    private fun resolveRefToIidAndHighlight(
-        ref: PromptCandidateRefDto,
-        bridge: GameBridge,
-        opponentSeatId: Int,
-    ): Pair<Int, HighlightType>? {
-        if (ref.isPlayer()) {
-            val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: return null
-            val hl = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
-            return seatId to hl
-        }
-        val iid = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
-        return iid to HighlightType.Tepid
-    }
-
-    private fun applyTargetSelectionMetadata(
-        selBuilder: TargetSelection.Builder,
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-        source: TargetSource,
-        chooserSeatId: Int,
-    ) {
-        if (source.instanceId != 0) {
-            selBuilder.prompt = promptWithCardId(prompt.request.targetPromptId ?: PromptIds.SELECT_TARGETS, source.instanceId)
-        }
-        val targetingAbilityGrpId = resolveTargetingAbilityGrpId(prompt, source.grpId, bridge)
-        if (targetingAbilityGrpId != 0) selBuilder.targetingAbilityGrpId = targetingAbilityGrpId
-        val sourceZoneId = targetSourceZoneId(prompt.request.candidateRefs, bridge, chooserSeatId)
-        if (sourceZoneId != 0) selBuilder.targetSourceZoneId = sourceZoneId
-    }
-
-    private fun resolveTargetingAbilityGrpId(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        sourceGrpId: Int,
-        bridge: GameBridge,
-    ): Int {
-        prompt.abilityIdentity
-            ?.abilityGrpId
-            ?.takeIf { it != 0 }
-            ?.let { return it }
-        val data = sourceGrpId.takeIf { it != 0 }?.let { bridge.cardRepository.findByGrpId(it) }
-        return data
-            ?.abilityIds
-            ?.firstOrNull { (abilityGrpId, _) ->
-                bridge.cardRepository.findAbilityInfo(abilityGrpId)?.category == 4
-            }?.first
-            ?: data
-                ?.abilityIds
-                ?.firstOrNull()
-                ?.first
-            ?: 0
-    }
-
-    private fun targetSourceZoneId(
-        refs: List<PromptCandidateRefDto>,
-        bridge: GameBridge,
-        chooserSeatId: Int,
-    ): Int {
-        val ref = refs.firstOrNull { it.isCard() && it.zone != null } ?: return 0
-        val card = bridge.findCard(ForgeCardId(ref.entityId))
-        val ownerSeat = card?.owner?.let { owner -> if (owner == bridge.getPlayer(SeatId(1))) 1 else 2 } ?: chooserSeatId
-        return when (ref.zone) {
-            "Battlefield" -> ZoneIds.BATTLEFIELD
-            "Exile" -> ZoneIds.EXILE
-            "Stack" -> ZoneIds.STACK
-            "Graveyard" -> ZoneIds.graveyardOf(SeatId(ownerSeat))
-            "Hand" -> ZoneIds.handOf(SeatId(ownerSeat))
-            "Library" -> ZoneIds.libraryOf(SeatId(ownerSeat))
-            else -> 0
-        }
-    }
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
@@ -1042,22 +706,5 @@ object RequestBuilder {
 
         log.info("buildDeclareBlockersReq: seat={} blockers={} assigned={}", seatId, builder.blockersCount, blockerAssignments.size)
         return builder.build()
-    }
-
-    /**
-     * Map a Forge [forge.game.player.Player.id] to the Arena seatId (1=human, 2=AI).
-     * Returns null if the entityId doesn't match either player.
-     */
-    private fun playerEntityIdToSeatId(
-        entityId: Int,
-        bridge: GameBridge,
-    ): Int? {
-        val p1 = bridge.getPlayer(SeatId(1))
-        val p2 = bridge.getPlayer(SeatId(2))
-        return when (entityId) {
-            p1?.id -> 1
-            p2?.id -> 2
-            else -> null
-        }
     }
 }

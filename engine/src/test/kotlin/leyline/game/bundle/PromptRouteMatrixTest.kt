@@ -31,6 +31,7 @@ class PromptRouteMatrixTest :
             val expected =
                 mapOf(
                     PromptSemantic.Generic to ResolvedPromptRoute.AutoResolve(PromptSemantic.Generic),
+                    PromptSemantic.TargetSelection to ResolvedPromptRoute.Targeting(PromptSemantic.TargetSelection),
                     PromptSemantic.GroupingSurveil to
                         ResolvedPromptRoute.Grouping(PromptSemantic.GroupingSurveil, GroupingContext.Surveil),
                     PromptSemantic.GroupingScry to
@@ -157,7 +158,7 @@ class PromptRouteMatrixTest :
                 PromptRouteResolver.resolve(PromptSemantic.Generic, hasCandidateRefs = false)::class,
             ) shouldBe
                 listOf(
-                    ResolvedPromptRoute.Targeting::class,
+                    ResolvedPromptRoute.UnclassifiedCandidate::class,
                     ResolvedPromptRoute.AutoResolve::class,
                 )
         }

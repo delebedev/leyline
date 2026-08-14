@@ -9,6 +9,7 @@ import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.SelectNPromptRoute
+import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PromptCandidateRefDto
@@ -82,6 +83,7 @@ class BundleBuilder(
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
+    private val targetingWindows = TargetingWindowMaterializer(seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -363,22 +365,6 @@ class BundleBuilder(
     /** Invalidates the viewer's snap-vs-snap baseline without changing other projection history. */
     fun invalidateProjectionBaseline() {
         bridge.updateViewerProjectionCursor { it.copy(previousSnapshot = null) }
-    }
-
-    fun queuePendingSubmittedTargets(
-        spellInstanceId: InstanceId,
-        casterSeatId: SeatId,
-    ) {
-        bridge.updateViewerProjectionCursor {
-            it.copy(
-                pendingSubmittedTargets =
-                    PendingSubmittedTargets(
-                        spellInstanceId,
-                        casterSeatId,
-                        version = (it.pendingSubmittedTargets?.version ?: 0) + 1,
-                    ),
-            )
-        }
     }
 
     internal fun pendingSubmittedTargets(): PendingSubmittedTargets? = bridge.viewerProjectionCursor().pendingSubmittedTargets
@@ -1301,19 +1287,49 @@ class BundleBuilder(
         )
     }
 
-    /**
-     * Select-targets bundle: GameState + SelectTargetsReq.
-     *
-     * Builds the diff **first** (which triggers instanceId reallocs for zone
-     * transfers like Hand→Stack), then builds the SelectTargetsReq so that
-     * `sourceId` and target instanceIds reflect the post-realloc state.
-     * Without this ordering, `sourceId` would reference a retired instanceId
-     * and the client wouldn't draw the targeting arrow.
-     *
-     * Sets `allowCancel=Abort` and `allowUndo=true` on the GRE wrapper
-     * (client shows Cancel button and allows undo during targeting).
-     */
-    fun selectTargetsBundle(
+    /** Prepare, but do not install, one coordinator-owned targeting window. */
+    internal fun prepareTargetingWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: TargetingWindowValue,
+    ): TargetingWindowMaterializer.Prepared {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { _, _ -> GameStateUpdate.Send }
+        val intent = ViewerProjectionIntent.of(targetingSupplements(window))
+        val diff = prepareFrameInputLocked(input, intent)
+        return targetingWindows.initial(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
+    internal fun prepareTargetingRePrompt(
+        counter: MessageCounter,
+        projection: ProjectionState,
+        window: TargetingWindowValue,
+        selectedOptionIndices: Set<Int>,
+        legalOptionIndices: Set<Int>,
+    ): TargetingWindowMaterializer.Prepared =
+        targetingWindows.rePrompt(counter, projection, window, selectedOptionIndices, legalOptionIndices)
+
+    internal fun prepareTargetingSubmit(
+        counter: MessageCounter,
+        prior: ProjectionState,
+        sourceInstanceId: InstanceId?,
+        casterSeatId: SeatId,
+    ): TargetingWindowMaterializer.Prepared = targetingWindows.submit(counter, prior, sourceInstanceId, casterSeatId)
+
+    /** Legacy SelectTargets presentation for candidate-backed Generic prompts. */
+    fun unclassifiedCandidateBundle(
         game: Game,
         counter: MessageCounter,
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -1322,14 +1338,12 @@ class BundleBuilder(
             buildFrameDiff(
                 game,
                 counter,
-                supplements = targetingSupplements(prompt),
+                supplements = unclassifiedCandidateSupplements(prompt),
             ) { _, _ -> GameStateUpdate.Send }
-        val gs = diff.result.gsm
-        // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
-        val req = RequestBuilder.buildSelectTargetsReq(prompt, bridge, seatId)
-        return promptRequestBundle(diff, counter, gs, GREMessageType.SelectTargetsReq_695e) {
-            it.selectTargetsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+        val request = UnclassifiedCandidateRequestBuilder.initial(prompt, bridge, seatId)
+        return promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.SelectTargetsReq_695e) {
+            it.selectTargetsReq = request
+            it.prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build()
             it.allowCancel = AllowCancel.Abort
             it.allowUndo = true
         }
@@ -1355,18 +1369,29 @@ class BundleBuilder(
         return selectNBundleFromDiff(diff, counter, envelopeForReq(buildSelectNReq(prompt, route)))
     }
 
-    private fun targetingSupplements(prompt: InteractivePromptBridge.PendingPrompt): List<ProjectionSupplement> {
-        val abilityId = prompt.request.forgeAbilityId.takeIf { prompt.request.isTriggeredAbility && it != 0 }
-        val sourceId = prompt.request.sourceEntityId
+    private fun targetingSupplements(window: TargetingWindowValue): List<ProjectionSupplement> {
+        val abilityId = window.forgeAbilityId.takeIf { window.isTriggeredAbility && it != 0 }
+        val sourceId = window.sourceForgeCardId
         return when {
             sourceId != null ->
                 listOf(
                     ProjectionSupplement.PlayerSelectingTargets(
-                        ForgeCardId(sourceId),
+                        sourceId,
                         SeatId(seatId),
                         abilityId,
                     ),
                 )
+            abilityId != null -> listOf(ProjectionSupplement.ReserveTriggeredAbility(abilityId))
+            else -> emptyList()
+        }
+    }
+
+    private fun unclassifiedCandidateSupplements(prompt: InteractivePromptBridge.PendingPrompt): List<ProjectionSupplement> {
+        val abilityId = prompt.request.forgeAbilityId.takeIf { prompt.request.isTriggeredAbility && it != 0 }
+        val sourceId = prompt.request.sourceEntityId
+        return when {
+            sourceId != null ->
+                listOf(ProjectionSupplement.PlayerSelectingTargets(ForgeCardId(sourceId), SeatId(seatId), abilityId))
             abilityId != null -> listOf(ProjectionSupplement.ReserveTriggeredAbility(abilityId))
             else -> emptyList()
         }
@@ -2031,11 +2056,11 @@ class BundleBuilder(
      * pattern is "one empty echo per content GSM, same updateType."
      *
      * **Where echoes do not fire.** Human-priority [postAction] bundles and
-     * prompt-bearing bundles — [selectTargetsBundle], [selectNBundle],
+     * prompt-bearing bundles — coordinator-owned targeting, [selectNBundle],
      * [castingTimeOptionsBundle], [payCostsBundle], [declareAttackersBundle],
      * [declareBlockersBundle] — ship `[GSM, Request]` without a trailing echo.
-     * Prompt re-entry frames carry their echo through `TargetingHandler`
-     * instead of as a tag-along on the request bundle.
+     * Targeting re-entry frames carry their echo through [TargetingWindowMaterializer]
+     * instead of as a tag-along on the initial request bundle.
      */
     fun buildEchoDiffGsm(
         counter: MessageCounter,

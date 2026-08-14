@@ -4,6 +4,7 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
@@ -49,6 +50,7 @@ internal class MatchCutCoordinator(
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     private val actions = MatchActionWindowRuntime(this)
     private val interactions = MatchBlockingInteractionRuntime(this)
+    internal val targeting = MatchTargetingInteractionRuntime(this)
 
     @Volatile
     private var terminalFailure: PlaybackTerminalFailure? = null
@@ -121,6 +123,11 @@ internal class MatchCutCoordinator(
         }
 
     fun actionWindowRuntime(seatId: SeatId): GameActionBridge.ActionWindowRuntime = actions.bridge(seatId)
+
+    fun targetingRuntime(seatId: SeatId): TargetingInteractionRuntime {
+        check(seatId == humanSeat) { "Targeting interaction runtime is only registered for the human seat" }
+        return targeting
+    }
 
     fun legalAttackerIds(actionId: String): List<Int> = actions.legalAttackerIds(actionId)
 
@@ -241,6 +248,7 @@ internal class MatchCutCoordinator(
         val failure = synchronized(feedLock) { terminalFailure ?: terminate(null, null, cause) }
         interactions.terminate(failure)
         actions.terminate()
+        targeting.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
         bridge.prioritySignal.signal()
     }
@@ -250,6 +258,7 @@ internal class MatchCutCoordinator(
             check(feeds.isEmpty()) { "Cannot reset coordinator with registered viewers" }
             terminalFailure = null
             actions.reset()
+            targeting.reset()
         }
     }
 
@@ -465,6 +474,7 @@ internal class MatchCutCoordinator(
                 terminalFailure = failure
                 interactions.terminate(failure)
                 actions.terminate()
+                targeting.terminate(failure)
                 bridge.failActionWindows(failure)
                 bridge.prioritySignal.signal()
             }

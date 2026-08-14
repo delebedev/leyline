@@ -503,6 +503,7 @@ class GameBridge(
         seatId: SeatId,
         captureLocalActions: Boolean,
     ) {
+        promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
         val collector = GameEventCollector(this)
         eventCollector = collector
         game.subscribeToEvents(collector)
@@ -1327,7 +1328,8 @@ class GameBridge(
 
     fun hasPendingNonActionInteraction(): Boolean =
         promptBridges.values.any { it.getPendingPrompt() != null } ||
-            cutCoordinator.currentBlockingInteraction() != null
+            cutCoordinator.currentBlockingInteraction() != null ||
+            cutCoordinator.targeting.current() != null
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1573,6 +1575,7 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
+        promptBridges.values.forEach { it.targetingRuntime = null }
         cutCoordinator.shutdown()
         val g = game
         if (g != null) {

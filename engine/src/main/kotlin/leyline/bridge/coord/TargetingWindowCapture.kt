@@ -1,0 +1,190 @@
+package leyline.bridge.coord
+
+import forge.game.GameEntity
+import forge.game.spellability.SpellAbility
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.TargetingCandidateValue
+import leyline.bridge.handoff.TargetingWindowValue
+import leyline.bridge.types.AbilityKeywordFamily
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PromptCandidateKind
+import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.bridge.types.SeatId
+import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
+import leyline.game.state.ProjectionState
+
+/** Engine-thread capture and legality for one immutable targeting window. */
+internal class TargetingWindowCapture(
+    private val owner: MatchCutCoordinator,
+) {
+    fun capture(
+        request: PromptRequest,
+        targetingAbility: SpellAbility?,
+        abilityIdentity: ResolvedAbilityIdentity?,
+    ): TargetingWindowValue {
+        val sourceId = request.sourceEntityId?.let(::ForgeCardId)
+        val sourceCard = sourceId?.let(owner.bridge::findCard)
+        val sourceGrpId = sourceCard?.let(owner.bridge::resolveGrpId) ?: 0
+        val defaultTargetingGrpId =
+            abilityIdentity?.abilityGrpId?.takeIf { it != 0 }
+                ?: owner.bridge.cardRepository
+                    .findByGrpId(sourceGrpId)
+                    ?.abilityIds
+                    ?.firstOrNull { (grpId, _) ->
+                        owner.bridge.cardRepository
+                            .findAbilityInfo(grpId)
+                            ?.category == 4
+                    }?.first
+                ?: owner.bridge.cardRepository
+                    .findByGrpId(sourceGrpId)
+                    ?.abilityIds
+                    ?.firstOrNull()
+                    ?.first
+                ?: 0
+        val shape = targetShape(targetingAbility, abilityIdentity, sourceGrpId, defaultTargetingGrpId)
+        return TargetingWindowValue(
+            sourceForgeCardId = sourceId,
+            sourceGrpId = sourceGrpId,
+            outerAbilityGrpId = shape.outerAbilityGrpId,
+            targetingAbilityGrpId = shape.targetingAbilityGrpId,
+            targetSourceZoneId = shape.targetSourceZoneId.takeIf { it != 0 } ?: candidateSourceZoneId(request),
+            targetPromptId = shape.promptId ?: request.targetPromptId,
+            targetIndex = request.targetIndex,
+            minTargets = request.min,
+            maxTargets = request.max,
+            chooserSeatId = owner.humanSeat,
+            candidates =
+                request.candidateRefs.mapNotNull { ref ->
+                    when (ref.kind) {
+                        PromptCandidateKind.Card ->
+                            TargetingCandidateValue.Card(
+                                ref.index,
+                                ForgeCardId(ref.entityId),
+                                zoneId(ref.zone, cardOwnerSeat(ForgeCardId(ref.entityId))),
+                            )
+                        PromptCandidateKind.Player ->
+                            playerSeat(ref.entityId)?.let { TargetingCandidateValue.Player(ref.index, it) }
+                    }
+                },
+            isTriggeredAbility = request.isTriggeredAbility,
+            forgeAbilityId = request.forgeAbilityId,
+        )
+    }
+
+    fun resolveEntities(value: TargetingWindowValue): Map<Int, GameEntity> =
+        value.candidates
+            .mapNotNull { candidate ->
+                val entity =
+                    when (candidate) {
+                        is TargetingCandidateValue.Card -> owner.bridge.findCard(candidate.forgeCardId)
+                        is TargetingCandidateValue.Player -> owner.bridge.getPlayer(candidate.seatId)
+                    }
+                entity?.let { candidate.optionIndex to it }
+            }.toMap()
+
+    fun resolveInstanceIds(
+        value: TargetingWindowValue,
+        projection: ProjectionState,
+    ): Map<Int, Int> =
+        value.candidates
+            .mapNotNull { candidate ->
+                val instanceId =
+                    when (candidate) {
+                        is TargetingCandidateValue.Card -> projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
+                        is TargetingCandidateValue.Player -> candidate.seatId.value
+                    }
+                instanceId?.let { candidate.optionIndex to it }
+            }.toMap()
+
+    fun legalOptions(
+        value: TargetingWindowValue,
+        ability: SpellAbility?,
+        entitiesByOptionIndex: Map<Int, GameEntity>,
+        selected: Set<Int>,
+    ): Set<Int> {
+        if (selected.size >= value.maxTargets) return emptySet()
+        if (ability == null) return value.candidates.mapTo(linkedSetOf()) { it.optionIndex } - selected
+        val hypothetical = selected.mapNotNull(entitiesByOptionIndex::get)
+        return value.candidates.mapNotNullTo(linkedSetOf()) { candidate ->
+            if (candidate.optionIndex in selected) return@mapNotNullTo null
+            val entity = entitiesByOptionIndex[candidate.optionIndex] ?: return@mapNotNullTo candidate.optionIndex
+            if (canTargetWithHypothetical(ability, entity, hypothetical)) candidate.optionIndex else null
+        }
+    }
+
+    private data class TargetShape(
+        val outerAbilityGrpId: Int,
+        val targetingAbilityGrpId: Int,
+        val promptId: Int? = null,
+        val targetSourceZoneId: Int = 0,
+    )
+
+    private fun targetShape(
+        ability: SpellAbility?,
+        identity: ResolvedAbilityIdentity?,
+        sourceGrpId: Int,
+        defaultTargetingGrpId: Int,
+    ): TargetShape =
+        when (identity?.keywordFamily) {
+            AbilityKeywordFamily.Mentor ->
+                TargetShape(identity.abilityGrpId, KeywordAbilityIds.MENTOR, PromptIds.MENTOR_TARGET)
+            AbilityKeywordFamily.Backup ->
+                TargetShape(identity.abilityGrpId, KeywordAbilityIds.BACKUP)
+            null ->
+                if (ability?.isMutate == true) {
+                    TargetShape(
+                        KeywordAbilityIds.MUTATE,
+                        owner.bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.MUTATE) ?: 0,
+                        PromptIds.MUTATE_TARGET,
+                        ZoneIds.BATTLEFIELD,
+                    )
+                } else {
+                    TargetShape(sourceGrpId, defaultTargetingGrpId)
+                }
+        }
+
+    private fun canTargetWithHypothetical(
+        ability: SpellAbility,
+        candidate: GameEntity,
+        hypothetical: List<GameEntity>,
+    ): Boolean {
+        val original = ability.targets
+        val clone = original.clone()
+        hypothetical.forEach(clone::add)
+        return try {
+            ability.setTargets(clone)
+            ability.canTarget(candidate)
+        } finally {
+            ability.setTargets(original)
+        }
+    }
+
+    private fun candidateSourceZoneId(request: PromptRequest): Int =
+        request.candidateRefs
+            .firstOrNull { it.kind == PromptCandidateKind.Card && it.zone != null }
+            ?.let { zoneId(it.zone, cardOwnerSeat(ForgeCardId(it.entityId))) }
+            ?: 0
+
+    private fun cardOwnerSeat(cardId: ForgeCardId): SeatId =
+        owner.bridge.findCard(cardId)?.owner?.let { cardOwner ->
+            if (cardOwner == owner.bridge.getPlayer(SeatId(1))) SeatId(1) else SeatId(2)
+        } ?: owner.humanSeat
+
+    private fun playerSeat(entityId: Int): SeatId? = listOf(SeatId(1), SeatId(2)).firstOrNull { owner.bridge.getPlayer(it)?.id == entityId }
+
+    private fun zoneId(
+        zone: String?,
+        ownerSeat: SeatId,
+    ): Int =
+        when (zone) {
+            "Battlefield" -> ZoneIds.BATTLEFIELD
+            "Exile" -> ZoneIds.EXILE
+            "Stack" -> ZoneIds.STACK
+            "Graveyard" -> ZoneIds.graveyardOf(ownerSeat)
+            "Hand" -> ZoneIds.handOf(ownerSeat)
+            "Library" -> ZoneIds.libraryOf(ownerSeat)
+            else -> 0
+        }
+}
