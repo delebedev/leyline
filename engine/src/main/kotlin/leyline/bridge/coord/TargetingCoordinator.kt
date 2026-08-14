@@ -284,6 +284,12 @@ class TargetingCoordinator(
             val selected = bridge.requestOneShotPayCosts(request, candidateCards)
             return selected.handles.map { handle -> optionList.first { it === handle } }
         }
+        if (request.route is ResolvedPromptRoute.CardSelect) {
+            val candidateCards = optionList.filterIsInstance<Card>()
+            check(candidateCards.size == optionList.size) { "CardSelect options must be cards" }
+            val selected = bridge.requestCardSelect(request, candidateCards)
+            return selected.handles.map { handle -> optionList.first { it === handle } }
+        }
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }

@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.game.card.Card
+import forge.game.zone.ZoneType
 import leyline.bridge.handoff.CardSelectCandidateValue
 import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectWindowValue
@@ -39,6 +40,10 @@ internal object CardSelectWindowCapture {
             check(request.min == 1 && request.max == 1) { "Legend Rule requires exactly one selection" }
             check(request.defaultIndex == 0) { "Legend Rule default must keep the first candidate" }
             check(request.sourceEntityId == null) { "Legend Rule has no card source" }
+        }
+        if (route.descriptor.kind == CardSelectKind.LibraryPutback) {
+            check(request.sourceEntityId != null) { "Library putback requires a card source" }
+            check(candidateHandles.all { it.isInZone(ZoneType.Hand) }) { "Library putback candidates must be in hand" }
         }
         return Initial(
             value =

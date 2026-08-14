@@ -121,63 +121,65 @@ class CardSelectInteractionHandlerTest :
             }
         }
 
-        test("Legend Rule rejects EffectCostResp and accepts only SelectNResp") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val handles = options(board)
-            val result = AtomicReference<CardSelectInteractionResult>()
-            val finished = CountDownLatch(1)
-            Thread {
-                result.set(
-                    coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
-                        request(board, PromptSemantic.SelectNLegendRule),
-                        handles,
-                        3_000,
-                    ),
-                )
-                finished.countDown()
-            }.start()
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
-            var published = coordinator.cardSelect.current()
-            while (published == null && System.nanoTime() < deadline) {
-                Thread.onSpinWait()
-                published = coordinator.cardSelect.current()
-            }
-            val exact = checkNotNull(published)
-            val selectedId =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasSelectNReq() }
-                    .selectNReq.idsList[1]
-            var autoPassed = false
-            val handler = CardSelectInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
+        listOf(PromptSemantic.SelectNLegendRule, PromptSemantic.SelectNLibraryPutback).forEach { semantic ->
+            test("$semantic rejects EffectCostResp and accepts only SelectNResp") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val handles = options(board)
+                val result = AtomicReference<CardSelectInteractionResult>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    result.set(
+                        coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
+                            request(board, semantic),
+                            handles,
+                            3_000,
+                        ),
+                    )
+                    finished.countDown()
+                }.start()
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+                var published = coordinator.cardSelect.current()
+                while (published == null && System.nanoTime() < deadline) {
+                    Thread.onSpinWait()
+                    published = coordinator.cardSelect.current()
+                }
+                val exact = checkNotNull(published)
+                val selectedId =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasSelectNReq() }
+                        .selectNReq.idsList[1]
+                var autoPassed = false
+                val handler = CardSelectInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
 
-            val effectHandled =
-                handler.tryHandleEffectCost(
-                    effectCostResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                ) { autoPassed = true }
+                val effectHandled =
+                    handler.tryHandleEffectCost(
+                        effectCostResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
+                    ) { autoPassed = true }
 
-            assertSoftly {
-                effectHandled shouldBe true
-                finished.count shouldBe 1L
-                autoPassed shouldBe false
-                coordinator.cardSelect.current() shouldBe exact
-            }
+                assertSoftly {
+                    effectHandled shouldBe true
+                    finished.count shouldBe 1L
+                    autoPassed shouldBe false
+                    coordinator.cardSelect.current() shouldBe exact
+                }
 
-            val selectNHandled =
-                handler.tryHandleSelectN(
-                    selectNResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                ) { autoPassed = true }
+                val selectNHandled =
+                    handler.tryHandleSelectN(
+                        selectNResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
+                    ) { autoPassed = true }
 
-            assertSoftly {
-                selectNHandled shouldBe true
-                finished.await(3, TimeUnit.SECONDS) shouldBe true
-                result.get().optionIndices shouldBe listOf(1)
-                (result.get().handles.single() === handles[1]) shouldBe true
-                autoPassed shouldBe true
-                coordinator.cardSelect.current().shouldBeNull()
+                assertSoftly {
+                    selectNHandled shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get().optionIndices shouldBe listOf(1)
+                    (result.get().handles.single() === handles[1]) shouldBe true
+                    autoPassed shouldBe true
+                    coordinator.cardSelect.current().shouldBeNull()
+                }
             }
         }
     })

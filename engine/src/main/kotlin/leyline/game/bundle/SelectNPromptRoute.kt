@@ -18,7 +18,6 @@ internal fun SelectNPromptRoute.envelope(
         SelectNEnvelopeKind.RevealChoose -> SelectNEnvelope.revealChoose(req)
         SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
         SelectNEnvelopeKind.ManifestDread -> SelectNEnvelope.manifestDread(req)
-        SelectNEnvelopeKind.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
         SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
     }
 

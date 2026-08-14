@@ -162,6 +162,17 @@ class MatchCardSelectInteractionRuntimeTest :
                     outerPromptId = PromptIds.SELECT_N,
                     allowCancel = AllowCancel.No_a526,
                 ),
+                Case(
+                    PromptSemantic.SelectNLibraryPutback,
+                    CardSelectKind.LibraryPutback,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.SELECT_N_INNER_PARAMETER,
+                    outerPromptId = PromptIds.SELECT_N_LIBRARY_PUTBACK,
+                    allowCancel = AllowCancel.No_a526,
+                ),
             )
 
         cases.forEach { case ->
@@ -219,10 +230,15 @@ class MatchCardSelectInteractionRuntimeTest :
                             CardSelectKind.SacrificeEffect,
                             CardSelectKind.Suspect,
                             CardSelectKind.MutateTopBottom,
+                            CardSelectKind.LibraryPutback,
                             -> board.bridge.getOrAllocInstanceId(ForgeCardId(source(board).id)).value
                         }
                     if (case.kind == CardSelectKind.LegendRule) {
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly listOf(0)
+                    }
+                    if (case.kind == CardSelectKind.LibraryPutback) {
+                        message.prompt.parametersList.map { it.numberValue } shouldContainExactly
+                            listOf(req.sourceId, req.maxSel)
                     }
                     coordinator.cardSelect.submitSelectN(
                         published.interactionId,
@@ -306,6 +322,44 @@ class MatchCardSelectInteractionRuntimeTest :
                 timedOut shouldBe true
                 coordinator.cardSelect.current().shouldBeNull()
                 requestMessage.selectNReq.idsCount shouldBe 2
+                coordinator.cardSelect.submitSelectN(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(requestMessage.selectNReq.idsList[1]),
+                ) shouldBe false
+            }
+        }
+
+        test("Library putback timeout returns its exact default hand card and rejects a late response") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val handles = options(board)
+            var timedOut = false
+            val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
+            coordinator.cardSelect.beforeTimeoutClaim = {
+                publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
+            }
+            val prompt =
+                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                    it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
+                    it.timeoutListener = { timedOut = true }
+                }
+            val result =
+                prompt.requestCardSelect(
+                    request(board, PromptSemantic.SelectNLibraryPutback, min = 2, max = 2),
+                    handles,
+                )
+            val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
+            val published = checkNotNull(publishedAtTimeout.get())
+
+            assertSoftly {
+                result.optionIndices shouldContainExactly listOf(0)
+                (result.handles.single() === handles[0]) shouldBe true
+                timedOut shouldBe true
+                coordinator.cardSelect.current().shouldBeNull()
+                requestMessage.selectNReq.minSel shouldBe 2
+                requestMessage.selectNReq.maxSel shouldBe 2
                 coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
