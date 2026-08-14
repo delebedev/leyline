@@ -90,13 +90,12 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for residual legend, reveal, resolution, and Learn prompts.
+     * Used for residual reveal, resolution, and Learn prompts.
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
      *
      * Context/listType vary by prompt type:
-     * - `legend_rule`: context=Resolution, listType=Dynamic
      * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
     fun buildSelectNReq(

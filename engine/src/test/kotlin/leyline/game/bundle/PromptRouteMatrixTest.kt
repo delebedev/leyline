@@ -39,7 +39,7 @@ class PromptRouteMatrixTest :
                         ResolvedPromptRoute.Grouping(PromptSemantic.GroupingScry, GroupingContext.Scry_a0f6),
                     PromptSemantic.ModalChoice to ResolvedPromptRoute.ModalChoice(PromptSemantic.ModalChoice),
                     PromptSemantic.SelectNLegendRule to
-                        selectN(PromptSemantic.SelectNLegendRule, SelectNInnerPrompt.LegendRule, SelectNEnvelopeKind.LegendRule),
+                        cardSelect(PromptSemantic.SelectNLegendRule, CardSelectKind.LegendRule),
                     PromptSemantic.SelectNDiscard to
                         cardSelect(PromptSemantic.SelectNDiscard, CardSelectKind.Discard, sentiment = 1),
                     PromptSemantic.Search to ResolvedPromptRoute.Search(PromptSemantic.Search),

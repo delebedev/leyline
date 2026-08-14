@@ -107,25 +107,25 @@ class MatchCardSelectInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId + 1,
                     listOf(ids[0]),
                 ) shouldBe
                     false
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     emptyList(),
                 ) shouldBe
                     false
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     listOf(ids[0], ids[0]),
                 ) shouldBe
                     false
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     listOf(Int.MAX_VALUE),
@@ -135,14 +135,14 @@ class MatchCardSelectInteractionFailureTest :
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     listOf(ids[1]),
                 ) shouldBe
                     true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     listOf(ids[1]),
@@ -260,7 +260,7 @@ class MatchCardSelectInteractionFailureTest :
                     .single { it.hasSelectNReq() }
                     .selectNReq.idsList[1]
             timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
-            coordinator.cardSelect.submit(
+            coordinator.cardSelect.submitSelectN(
                 published.interactionId,
                 published.gameStateId,
                 listOf(id),
@@ -298,7 +298,7 @@ class MatchCardSelectInteractionFailureTest :
 
             assertSoftly {
                 failure.get().shouldBeInstanceOf<CardSelectInteractionTimeoutException>()
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     listOf(id),
@@ -361,7 +361,7 @@ class MatchCardSelectInteractionFailureTest :
                 engineFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
                 coordinator.cardSelect.current().shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelect.submit(
+                    coordinator.cardSelect.submitSelectN(
                         published.interactionId,
                         published.gameStateId,
                         listOf(id),

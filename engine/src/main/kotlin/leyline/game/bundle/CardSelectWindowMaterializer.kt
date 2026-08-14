@@ -73,6 +73,10 @@ internal class CardSelectWindowMaterializer(
             .apply {
                 window.sourceForgeCardId?.let { sourceId = projection.requireInstanceId(it) }
                 when (window.kind) {
+                    CardSelectKind.LegendRule -> {
+                        prompt = Prompt.getDefaultInstance()
+                        sourceId = PromptIds.SELECT_N_LEGEND_RULE_SOURCE
+                    }
                     CardSelectKind.Discard -> prompt = Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST).build()
                     CardSelectKind.Suspect -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     CardSelectKind.SacrificeEffect,
@@ -87,6 +91,7 @@ internal class CardSelectWindowMaterializer(
         request: SelectNReq,
     ): SelectNEnvelope =
         when (kind) {
+            CardSelectKind.LegendRule -> SelectNEnvelope.legendRule(request)
             CardSelectKind.Discard,
             CardSelectKind.SacrificeEffect,
             -> SelectNEnvelope.default(request)

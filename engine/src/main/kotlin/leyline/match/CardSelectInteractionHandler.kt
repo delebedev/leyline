@@ -13,21 +13,28 @@ internal class CardSelectInteractionHandler(
     fun tryHandleSelectN(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-    ): Boolean = submit(greMsg, greMsg.selectNResp.idsList, autoPass)
+    ): Boolean = submit(greMsg, greMsg.selectNResp.idsList, autoPass, ctx.bridge.cutCoordinator.cardSelect::submitSelectN)
 
     fun tryHandleEffectCost(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-    ): Boolean = submit(greMsg, greMsg.effectCostResp.costSelection.idsList, autoPass)
+    ): Boolean =
+        submit(
+            greMsg,
+            greMsg.effectCostResp.costSelection.idsList,
+            autoPass,
+            ctx.bridge.cutCoordinator.cardSelect::submitEffectCost,
+        )
 
     private fun submit(
         greMsg: ClientToGREMessage,
         selectedInstanceIds: List<Int>,
         autoPass: () -> Unit,
+        submitSelection: (String, Int, List<Int>) -> Boolean,
     ): Boolean {
         val runtime = ctx.bridge.cutCoordinator.cardSelect
         val pending = runtime.current() ?: return false
-        if (!runtime.submit(pending.interactionId, greMsg.gameStateId, selectedInstanceIds)) {
+        if (!submitSelection(pending.interactionId, greMsg.gameStateId, selectedInstanceIds)) {
             log.warn("CardSelect response did not match the current interaction")
             DevCheck.failOnAutoPass { "CardSelect response did not match the current interaction" }
             return true
