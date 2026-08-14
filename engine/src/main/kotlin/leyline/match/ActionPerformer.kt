@@ -158,7 +158,17 @@ class ActionPerformer(
 
             // Wait for engine to reach next priority stop
             bridge.awaitPriority()
-            autoPassEngine.drainPlayback()
+            val drainOutcome = autoPassEngine.drainPlayback()
+            if (drainOutcome.synchronization == SynchronizationDrain.Completed) {
+                // A routed prompt may have become the resulting horizon while
+                // Forge resolved the synchronized stack item. Surface it before
+                // returning; do not advance a second synchronization stop here.
+                val promptResult = targetingHandler.checkPendingPrompt()
+                if (shouldDelegateSynchronization(promptResult, autoPassState.shouldAutoPass())) {
+                    autoPassEngine.autoPassAndAdvance()
+                }
+                return
+            }
 
             if (action.actionType == ActionType.ActivateMana) {
                 sink.sendRealGameState(bridge)
@@ -229,5 +239,14 @@ class ActionPerformer(
         }
         check(ctx.bridge.cutCoordinator.completeActionClaim(actionClaim)) { "Deferred action claim did not complete" }
         return true
+    }
+
+    companion object {
+        internal fun shouldDelegateSynchronization(
+            promptResult: TargetingHandler.PromptResult,
+            autoResolveEnabled: Boolean,
+        ): Boolean =
+            promptResult == TargetingHandler.PromptResult.AUTO_RESOLVED ||
+                (promptResult == TargetingHandler.PromptResult.NONE && autoResolveEnabled)
     }
 }

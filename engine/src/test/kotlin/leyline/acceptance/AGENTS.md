@@ -17,7 +17,10 @@ Puzzle-backed scripted acceptance tests for MatchDoor.
 - Keep prompt responses separate from the initiating action. `cast` does not implicitly target; `choose` does not implicitly resolve.
 - Use `expect: annotation_seen` for transient effects that should not require lasting board state, such as token creation or counter placement during resolution.
 - Use `pass_until` only when engine progression is required. Use `expect` for zero-advance checks.
-- `resolve_stack` must always pass at least once; checking `stack empty` before the first pass is too weak for activated abilities.
+- `resolve_stack` must pass at least once when an empty stack has no published
+  post-action horizon; activated abilities can land after the initial zone read.
+  An exact pending Visible priority window is the evidence that the prior action
+  already completed its synchronization horizon, so an empty stack may stop there.
 
 ## Scale cautions
 

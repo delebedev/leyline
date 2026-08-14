@@ -60,7 +60,7 @@ class AutoPassEngine(
             // Drain playback before terminal checks. Playback diffs are already
             // allocated on the shared counter; game-over frames must chain after
             // the client-visible queue, not skip over it.
-            if (drainPlayback()) return@repeat
+            if (drainPlayback().progressed) return@repeat
 
             if (game.isGameOver) {
                 sink.sendGameOver()
@@ -107,7 +107,7 @@ class AutoPassEngine(
                         // Still emit a state-only diff when actions are pass-only so
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
-                        if (drainPlayback()) return@repeat
+                        if (drainPlayback().progressed) return@repeat
                         if (bridge.seat(counters.seatId).action.getPending() == null) {
                             log.debug("SEND_STATE: no pending priority window at {}", phase)
                             return
@@ -153,7 +153,7 @@ class AutoPassEngine(
                         bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId),
                     )
                 if (decision is PriorityDecision.Grant) {
-                    if (drainPlayback()) return@repeat
+                    if (drainPlayback().progressed) return@repeat
                     sink.sendPriorityState(bridge)
                     return
                 }
@@ -195,17 +195,23 @@ class AutoPassEngine(
      * With the shared [MessageCounter], no counter syncing is needed — messages
      * produced by [GamePlayback] already have correct sequence numbers.
      */
-    fun drainPlayback(): Boolean {
-        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return false
-        if (!playback.hasPendingMessages()) return false
-        val sent = drainCoordinatorBarrier(sink, ctx.bridge, counters.seatId) { pacing.paceDelay(1) }
+    internal fun drainPlayback(): DrainOutcome {
+        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return DrainOutcome(sent = false)
+        val retainedSynchronization =
+            ctx.bridge
+                .actionBridge(counters.seatId)
+                .getPending()
+                ?.state
+                ?.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY
+        if (!playback.hasPendingMessages() && !retainedSynchronization) return DrainOutcome(sent = false)
+        val outcome = drainCoordinatorBarrier(sink, ctx.bridge, counters.seatId) { pacing.paceDelay(1) }
         log.debug("drainPlayback: drained committed coordinator feed")
         // Do NOT snapshot current engine state here — the playback diffs represent
         // an earlier point in time. Snapshotting now would advance the diff baseline
         // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
         // causing subsequent diffs to omit new objects (drawn cards) that the client
         // hasn't received yet. The next buildDiff() call will advance the cursor correctly.
-        return sent
+        return outcome
     }
 
     /**
@@ -302,7 +308,7 @@ class AutoPassEngine(
             val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
             if (!reachedPriority) {
                 if (game.isGameOver) {
-                    if (drainPlayback()) return LoopSignal.CONTINUE
+                    if (drainPlayback().progressed) return LoopSignal.CONTINUE
                     sink.sendGameOver()
                     return LoopSignal.EXIT
                 }

@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.handoff.SynchronizationContinuation
 
 class PriorityLoopCoordinatorPolicyTest :
     FunSpec({
@@ -34,6 +35,19 @@ class PriorityLoopCoordinatorPolicyTest :
                 ) shouldBe PriorityWindowMode.SyncOnly
             }
         }
+
+        test("synchronization continuation is frozen from engine policy") {
+            assertSoftly {
+                continuation(PriorityWindowMode.Visible, stackEmpty = false, autoResolve = false) shouldBe
+                    SynchronizationContinuation.Reevaluate
+                continuation(PriorityWindowMode.SyncOnly, stackEmpty = true, autoResolve = false) shouldBe
+                    SynchronizationContinuation.Reevaluate
+                continuation(PriorityWindowMode.SyncOnly, stackEmpty = false, autoResolve = false) shouldBe
+                    SynchronizationContinuation.RequireVisible
+                continuation(PriorityWindowMode.SyncOnly, stackEmpty = false, autoResolve = true) shouldBe
+                    SynchronizationContinuation.AllowSyncOnly
+            }
+        }
     }) {
     companion object {
         private fun mode(
@@ -51,5 +65,11 @@ class PriorityLoopCoordinatorPolicyTest :
                 opponentStop = opponentStop,
                 hasMeaningfulAction = meaningful,
             )
+
+        private fun continuation(
+            mode: PriorityWindowMode,
+            stackEmpty: Boolean,
+            autoResolve: Boolean,
+        ): SynchronizationContinuation = PriorityLoopCoordinator.synchronizationContinuation(mode, stackEmpty, autoResolve)
     }
 }

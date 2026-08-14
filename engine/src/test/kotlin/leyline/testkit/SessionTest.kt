@@ -226,7 +226,13 @@ abstract class SessionTest(
         repeat(maxPasses) {
             if (harness.isGameOver()) return
             passPriority()
-            if (game().stackZone.size() == 0) return
+            val retainedSynchronization =
+                harness.bridge
+                    .actionBridge(leyline.bridge.types.SeatId(1))
+                    .getPending()
+                    ?.state
+                    ?.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY
+            if (game().stackZone.size() == 0 && !retainedSynchronization) return
         }
     }
 

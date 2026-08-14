@@ -17,6 +17,7 @@ import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.bridge.resolveAttackDefender
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ForgeCardId
@@ -90,11 +91,17 @@ class PriorityLoopCoordinator(
         while (true) {
             val priorityCandidates = PriorityActionCandidates.query(game, player)
             val forceVisible = actionBridge.consumeForceNextWindowVisible()
+            val continuation = actionBridge.consumeSynchronizationContinuation()
+            val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
             val mode =
                 priorityWindowMode(
-                    fullControl = owner.autoPassState?.isFullControl == true || forceVisible || forceVisibleAfterMana,
+                    fullControl =
+                        owner.autoPassState?.isFullControl == true ||
+                            forceVisible ||
+                            forceVisibleAfterMana ||
+                            continuation == SynchronizationContinuation.RequireVisible,
                     smartPhaseSkip = smartPhaseSkip,
-                    promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true,
+                    promptJustResolved = promptJustResolved || continuation == SynchronizationContinuation.AllowSyncOnly,
                     stackEmpty = game.stack.isEmpty,
                     opponentStop =
                         !isOwnTurn &&
@@ -115,8 +122,16 @@ class PriorityLoopCoordinator(
                     activePlayerId = handler.playerTurn?.id ?: -1,
                     priorityPlayerId = player.id,
                     kind = if (mode == PriorityWindowMode.SyncOnly) PendingActionKind.SYNC_ONLY else PendingActionKind.PRIORITY,
+                    synchronizationContinuation =
+                        synchronizationContinuation(
+                            mode = mode,
+                            stackEmpty = game.stack.isEmpty,
+                            autoResolve = owner.autoPassState?.shouldAutoPass() == true,
+                        ),
                 )
-            when (val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })) {
+            val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })
+            actionBridge.armSynchronizationContinuation(state.synchronizationContinuation)
+            when (action) {
                 is PlayerAction.PassPriority -> return null
                 is PlayerAction.EndTurn -> {
                     actionBridge.setAutoPassUntilEndOfTurn(true)
@@ -137,7 +152,9 @@ class PriorityLoopCoordinator(
                     continue
                 }
                 is PlayerAction.PlayLand -> return spellExecutor.playLand(action.cardId)
-                else -> return null
+                is PlayerAction.DeclareAttackers,
+                is PlayerAction.DeclareBlockers,
+                -> return null
             }
         }
     }
@@ -155,6 +172,17 @@ class PriorityLoopCoordinator(
                 fullControl || opponentStop || hasMeaningfulAction -> PriorityWindowMode.Visible
                 promptJustResolved || !stackEmpty || !smartPhaseSkip -> PriorityWindowMode.SyncOnly
                 else -> PriorityWindowMode.Skip
+            }
+
+        internal fun synchronizationContinuation(
+            mode: PriorityWindowMode,
+            stackEmpty: Boolean,
+            autoResolve: Boolean,
+        ): SynchronizationContinuation =
+            when {
+                mode != PriorityWindowMode.SyncOnly || stackEmpty -> SynchronizationContinuation.Reevaluate
+                autoResolve -> SynchronizationContinuation.AllowSyncOnly
+                else -> SynchronizationContinuation.RequireVisible
             }
     }
 

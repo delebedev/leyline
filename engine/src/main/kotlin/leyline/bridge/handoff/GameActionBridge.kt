@@ -5,12 +5,9 @@ import forge.game.spellability.SpellAbility
 import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
 import leyline.bridge.PriorityActionCandidates
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.PrioritySignal
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -174,6 +171,7 @@ class GameActionBridge(
      */
     private val _autoPassUntilEndOfTurn = AtomicBoolean(false)
     private val forceNextVisible = AtomicBoolean(false)
+    private val synchronizationContinuation = AtomicReference(SynchronizationContinuation.Reevaluate)
 
     val autoPassUntilEndOfTurn: Boolean get() = _autoPassUntilEndOfTurn.get()
 
@@ -186,6 +184,20 @@ class GameActionBridge(
     }
 
     internal fun consumeForceNextWindowVisible(): Boolean = forceNextVisible.compareAndSet(true, false)
+
+    /** Arm the next engine priority decision after a synchronization wait returned successfully. */
+    internal fun armSynchronizationContinuation(continuation: SynchronizationContinuation) {
+        if (continuation == SynchronizationContinuation.Reevaluate) return
+        check(
+            synchronizationContinuation.compareAndSet(
+                SynchronizationContinuation.Reevaluate,
+                continuation,
+            ),
+        ) { "Synchronization continuation already armed" }
+    }
+
+    internal fun consumeSynchronizationContinuation(): SynchronizationContinuation =
+        synchronizationContinuation.getAndSet(SynchronizationContinuation.Reevaluate)
 
     /**
      * Called from the engine thread (BLOCKS until client responds or timeout).
@@ -339,8 +351,10 @@ class GameActionBridge(
     internal fun completeSyncPass(actionId: String): Boolean {
         val current = pending.get() ?: return false
         if (current.actionId != actionId || current.state.kind != PendingActionKind.SYNC_ONLY) return false
-        return windowRuntime?.completeSynchronization(current)
-            ?: current.future.complete(ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+        return (
+            windowRuntime?.completeSynchronization(current)
+                ?: current.future.complete(ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+        )
     }
 
     @org.jetbrains.annotations.VisibleForTesting
@@ -375,114 +389,14 @@ class GameActionBridge(
      * Cancel any pending action (e.g. on disconnect / game reset).
      */
     fun cancelPending() {
+        synchronizationContinuation.set(SynchronizationContinuation.Reevaluate)
         val current = pending.getAndSet(null)
         current?.future?.cancel(true)
     }
 
     /** Wake an engine thread waiting in this bridge with the coordinator's terminal cause. */
     fun failPending(cause: Throwable) {
+        synchronizationContinuation.set(SynchronizationContinuation.Reevaluate)
         pending.getAndSet(null)?.future?.completeExceptionally(cause)
     }
-}
-
-/** Stable protocol selectors; excludes client-populated payment and auto-tap detail. */
-data class ActionResponseKey(
-    val type: ActionType,
-    val instanceId: Int,
-    val grpId: Int,
-    val abilityGrpId: Int,
-    val alternativeGrpId: Int,
-) {
-    companion object {
-        @Suppress("ElseCaseInsteadOfExhaustiveWhen")
-        fun from(action: Action) =
-            when (action.actionType) {
-                ActionType.Pass, ActionType.FloatMana -> ActionResponseKey(ActionType.Pass, 0, 0, 0, 0)
-                ActionType.Play_add3, ActionType.PlayMdfc, ActionType.SpecialTurnFaceUp_add3 ->
-                    ActionResponseKey(action.actionType, action.instanceId, 0, 0, 0)
-                else ->
-                    ActionResponseKey(
-                        action.actionType,
-                        action.instanceId,
-                        action.grpId,
-                        action.abilityGrpId,
-                        action.alternativeGrpId,
-                    )
-            }
-    }
-}
-
-/**
- * Describes the game context when the engine is waiting for a player action.
- */
-data class PendingActionState(
-    val phase: String,
-    val turn: Int,
-    val activePlayerId: Int,
-    val priorityPlayerId: Int,
-    val kind: PendingActionKind = PendingActionKind.PRIORITY,
-)
-
-enum class PendingActionKind {
-    PRIORITY,
-    SYNC_ONLY,
-    DECLARE_ATTACKERS,
-    DECLARE_BLOCKERS,
-}
-
-/** A game entity that can be targeted: card or player. */
-sealed class Target {
-    data class Card(
-        val cardId: ForgeCardId,
-    ) : Target()
-
-    data class Player(
-        val playerId: ForgePlayerId,
-    ) : Target()
-}
-
-/**
- * Actions a player can take when they have priority.
- */
-sealed class PlayerAction {
-    data object PassPriority : PlayerAction()
-
-    data class CastSpell(
-        val cardId: ForgeCardId,
-        val abilityId: Int? = null,
-        val targets: List<Target> = emptyList(),
-        val ability: SpellAbility? = null,
-    ) : PlayerAction()
-
-    data class ActivateAbility(
-        val cardId: ForgeCardId,
-        val abilityId: Int,
-        val targets: List<Target> = emptyList(),
-        val ability: SpellAbility? = null,
-    ) : PlayerAction()
-
-    data class ActivateMana(
-        val cardId: ForgeCardId,
-        val abilityId: Int? = null,
-        val selectedColor: Byte? = null,
-        val ability: SpellAbility? = null,
-    ) : PlayerAction()
-
-    data class PlayLand(
-        val cardId: ForgeCardId,
-    ) : PlayerAction()
-
-    data class DeclareAttackers(
-        val attackerIds: List<ForgeCardId>,
-        val attackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap(),
-        val defender: Target? = null,
-        val defenderByAttacker: Map<ForgeCardId, Target> = emptyMap(),
-    ) : PlayerAction()
-
-    data class DeclareBlockers(
-        val blockAssignments: Map<ForgeCardId, ForgeCardId>,
-    ) : PlayerAction()
-
-    /** Auto-pass all remaining priority in this turn (matches desktop "End Turn" button). */
-    data object EndTurn : PlayerAction()
 }

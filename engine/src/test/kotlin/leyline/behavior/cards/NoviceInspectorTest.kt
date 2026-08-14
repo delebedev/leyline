@@ -2,11 +2,14 @@ package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 
@@ -81,9 +84,26 @@ class NoviceInspectorTest :
                     .cards
                     .toList()
                     .size
+            val beforeActivation = harness.messageSnapshot()
             assertSoftly {
                 activateAbility(clueCard.name).shouldBeTrue()
             }
+
+            // The generic confirmation is auto-resolved. Its resulting engine
+            // horizon must be delivered and re-evaluated instead of leaving a
+            // hidden synchronization stop behind.
+            assertSoftly {
+                harness.messagesSince(beforeActivation).any { it.hasGameStateMessage() }.shouldBeTrue()
+                harness.bridge.cutCoordinator
+                    .hasCommittedBatches(SeatId(1))
+                    .shouldBeFalse()
+                harness.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    ?.state
+                    ?.kind shouldNotBe PendingActionKind.SYNC_ONLY
+            }
+            harness.bridge.throwIfGameLoopFailed()
 
             assertSoftly {
                 passUntil(maxPasses = 15) {

@@ -4,6 +4,7 @@ import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.coord.GameLoopPoller
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -56,6 +57,19 @@ private fun readPuzzleText(puzzle: String): String {
 
 private val OUR_SEAT = SeatId(1)
 private val OPPONENT_SEAT = SeatId(2)
+
+internal fun stackResolutionNeedsAdvance(
+    passCount: Int,
+    stackEmpty: Boolean,
+    pendingKind: PendingActionKind?,
+): Boolean =
+    when {
+        !stackEmpty -> true
+        pendingKind == PendingActionKind.PRIORITY -> false
+        passCount == 0 -> true
+        pendingKind == PendingActionKind.SYNC_ONLY -> true
+        else -> false
+    }
 
 private fun seat(side: AcceptanceSide): SeatId =
     when (side) {
@@ -307,7 +321,7 @@ private class ScenarioRun(
 
     private fun target(target: AcceptanceTargetSpec) {
         require(latestPromptMatches("SelectTargetsReq")) {
-            "$context expected latest prompt SelectTargetsReq"
+            "$context expected latest prompt SelectTargetsReq; actual=${latestPromptNameWithId() ?: "none"}"
         }
         harness.selectTargets(listOf(resolveTargetInstanceId(target)))
     }
@@ -388,9 +402,16 @@ private class ScenarioRun(
 
     private fun resolveStack() {
         repeat(12) { index ->
-            if (index > 0 && harness.game().stack.isEmpty) return
+            val pendingKind =
+                harness.bridge
+                    .actionBridge(OUR_SEAT)
+                    .getPending()
+                    ?.state
+                    ?.kind
+            if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pendingKind)) return
             if (harness.isGameOver()) return
             harness.passPriority()
+            if (harness.isGameOver()) return
             if (harness.bridge.cutCoordinator
                     .currentBlockingInteraction()
                     ?.interaction is
@@ -398,7 +419,13 @@ private class ScenarioRun(
             ) {
                 return
             }
-            if (harness.game().stack.isEmpty) return
+            val nextSynchronization =
+                harness.bridge
+                    .actionBridge(OUR_SEAT)
+                    .getPending()
+                    ?.state
+                    ?.kind == PendingActionKind.SYNC_ONLY
+            if (harness.game().stack.isEmpty && !nextSynchronization) return
         }
         error(
             "$context did not resolve stack; stack size=${harness.game().stack.size()}",

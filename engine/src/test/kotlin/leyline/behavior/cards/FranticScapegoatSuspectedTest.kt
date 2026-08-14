@@ -50,9 +50,7 @@ class FranticScapegoatSuspectedTest :
             startPuzzleRaw(PUZZLE, validating = true)
 
             castSpellByName("Frantic Scapegoat").shouldBeTrue()
-            if (game().stackZone.size() > 0) {
-                passUntilResolved(maxPasses = 8)
-            }
+            passUntilResolved(maxPasses = 8)
 
             val scapegoat = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Frantic Scapegoat" }
             val scapegoatIid = human.battlefield.iid(scapegoat)
@@ -87,9 +85,7 @@ class FranticScapegoatSuspectedTest :
             }
 
             respondToSelectN(listOf(bearIid))
-            if (game().stackZone.size() > 0) {
-                passUntilResolved(maxPasses = 8)
-            }
+            passUntilResolved(maxPasses = 8)
 
             val bear = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
             human.battlefield.iid(bear) shouldBe bearIid
