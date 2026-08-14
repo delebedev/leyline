@@ -84,6 +84,10 @@ class InteractivePromptBridge(
     @Volatile
     var orderRuntime: OrderInteractionRuntime? = null
 
+    /** Match-scoped owner for Scry and Surveil grouping windows. */
+    @Volatile
+    var groupingRuntime: GroupingInteractionRuntime? = null
+
     /** Match-scoped owner for the four card-backed SelectN semantics. */
     @Volatile
     var cardSelectRuntime: CardSelectInteractionRuntime? = null
@@ -467,6 +471,7 @@ class InteractivePromptBridge(
     private fun requireLegacyRoute(route: ResolvedPromptRoute) {
         check(route !is ResolvedPromptRoute.PayCosts) { "PayCosts routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.Order) { "Order routes require their match-scoped runtime" }
+        check(route !is ResolvedPromptRoute.Grouping) { "Grouping routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.CardSelect) { "CardSelect routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.StaticChoice) { "StaticChoice routes require their match-scoped runtime" }
     }
@@ -561,6 +566,49 @@ class InteractivePromptBridge(
         }
     }
 
+    /** Route one Scry or Surveil grouping request with its exact Forge card handles. */
+    fun requestGrouping(
+        request: PromptRequest,
+        candidateHandles: List<Card>,
+    ): GroupingInteractionResult {
+        check(request.route is ResolvedPromptRoute.Grouping) { "Grouping route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return fallbackGrouping(request, requestChoice(request), candidateHandles)
+        }
+        val runtime = checkNotNull(groupingRuntime) { "Grouping runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitGrouping(request, candidateHandles, timeoutMs)
+            val selected =
+                if (candidateHandles.size == 1 && request.options.size == 2) {
+                    listOf(if (result.awayHandles.isEmpty()) 0 else 1)
+                } else {
+                    result.awayHandles.map(candidateHandles::indexOf)
+                }
+            record(
+                request,
+                if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
+                selected,
+                System.currentTimeMillis() - startMs,
+            )
+            if (result.timedOut) timeoutListener?.invoke() else prioritySignal?.markPromptResolved()
+            result
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    fun finalizeGroupingArrangement(
+        result: GroupingInteractionResult,
+        finalTopHandles: List<Card>,
+        awayHandles: List<Card>,
+    ) {
+        if (result.interactionId.isEmpty()) return
+        checkNotNull(result.finalizer) { "Grouping result has no exact finalization owner" }
+            .finalizeArrangement(result, finalTopHandles, awayHandles)
+    }
+
     /** Route one card-backed SelectN request with its exact Forge option handles. */
     fun requestCardSelect(
         request: PromptRequest,
@@ -618,6 +666,26 @@ class InteractivePromptBridge(
     ): OrderInteractionResult {
         val ordered = (indices.filter(candidateHandles.indices::contains) + candidateHandles.indices).distinct()
         return OrderInteractionResult(ordered, ordered.map(candidateHandles::get))
+    }
+
+    private fun fallbackGrouping(
+        request: PromptRequest,
+        selectedIndices: List<Int>,
+        candidateHandles: List<Card>,
+    ): GroupingInteractionResult {
+        val awayIndices =
+            if (candidateHandles.size == 1 && request.options.size == 2) {
+                if (selectedIndices.firstOrNull() == 1) listOf(0) else emptyList()
+            } else {
+                selectedIndices.filter(candidateHandles.indices::contains).distinct()
+            }
+        return GroupingInteractionResult(
+            interactionId = "",
+            context = (request.route as ResolvedPromptRoute.Grouping).context,
+            topHandles = candidateHandles.filterIndexed { index, _ -> index !in awayIndices },
+            awayHandles = candidateHandles.filterIndexed { index, _ -> index in awayIndices },
+            timedOut = false,
+        )
     }
 
     private fun fallbackCardSelect(
@@ -961,6 +1029,8 @@ data class PromptRequest(
     val waterbendCostString: String? = null,
     /** Frozen source/shape facts for the migrated library-search route. */
     val searchSource: SearchSourceValue? = null,
+    /** Frozen source identity for coordinator-owned Scry and Surveil grouping. */
+    val groupingSource: GroupingSourceValue? = null,
 ) {
     /** Diagnostic identity derived from the immutable route. */
     val semantic: PromptSemantic get() = route.semantic

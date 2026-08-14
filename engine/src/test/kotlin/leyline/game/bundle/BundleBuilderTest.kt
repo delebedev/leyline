@@ -123,16 +123,6 @@ class BundleBuilderTest :
             }
         }
 
-        test("unavailable surveil bundle leaves projection state unchanged") {
-            val b = GameBridge(cardRepository = InMemoryCardRepository())
-            val builder = BundleBuilder(b, "test-match", 1)
-            val before = b.projectionStateSnapshot()
-
-            builder.resolveSurveilScryBundle(emptyList(), Messages.GroupingContext.Surveil, MessageCounter()) shouldBe null
-
-            b.projectionStateSnapshot() shouldBe before
-        }
-
         test("coinFlipPromptMessages emits promptId 46 notification") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
             val messages =

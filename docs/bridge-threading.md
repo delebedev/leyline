@@ -125,6 +125,8 @@ An explicitly bound Search callback freezes library, candidate, source, and pick
 
 Top- and bottom-library ordering callbacks freeze the route, source, candidates, exact card handles, and any pending hand-to-library move on the engine thread. The coordinator compiles the move state and `OrderReq` in one cut, commits it before signalling, and resolves a correlated full instance-id permutation through the retained option table. Timeout retires the window and returns the original default-first order; late, duplicate, incomplete, and stale responses cannot mutate it.
 
+Scry and Surveil callbacks freeze their route, source, private candidates, and exact card handles on the engine thread. The coordinator compiles the private reveal state and `GroupReq` in one cut, commits it before signalling, and resolves a correlated complete partition through the retained option table. If kept cards require ordering, the Grouping result remains awaiting finalization until the ordered-card window returns; only then does the runtime stage the arrangement fact with the final top order. Timeout retires the window and returns the existing default partition; late or invalid responses cannot mutate it.
+
 Discard, resolution sacrifice, Suspect, and Mutate top/bottom callbacks freeze their route kind, source, cardinality, default, candidates, and exact card handles on the engine thread. The coordinator commits one state-and-`SelectNReq` cut before signalling. Correlated `SelectNResp` and compatible `EffectCostResp` values resolve through the retained instance-id table; choice-result facts are staged before the exact engine wait is released. Timeout retires the window and returns the configured default handle, while stale or invalid responses have no side effects.
 
 Color, subtype, and parity callbacks freeze their route kind, source, cardinality, default, and exact protocol enum values on the engine thread. The coordinator commits one state-and-static-`SelectNReq` cut before signalling. A correlated `SelectNResp` maps through the frozen value table to the original option index; its ChoiceResult fact is staged before the exact engine wait is released. Timeout retires the window and returns the configured default index, while stale or invalid responses have no side effects.
@@ -133,7 +135,7 @@ Convoke, Improvise, and Waterbend callbacks freeze their candidate, shard, sourc
 
 Sacrifice, exile-from-grave, return-unblocked-attacker, Collect Evidence, Station, Enlist, and Teamwork callbacks freeze source, cardinality, weight, and exact option handles on the engine thread. The coordinator commits one state-and-`PayCostsReq` batch before signalling. A correlated immutable instance-id response resolves through the retained option table and returns the exact original handles. Timeout retires the window and returns the configured default; materialization, install, delivery, and teardown failures are terminal.
 
-Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the residual bridge/session path. Grouping, modal, dynamic residual SelectN, automatic routes, and mulligan retain their named handoff contracts until they migrate.
+Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the residual bridge/session path. Modal, dynamic residual SelectN, automatic routes, and mulligan retain their named handoff contracts until they migrate.
 
 ---
 
@@ -217,13 +219,13 @@ frame—when phase transitions fire.
 message in response to a phase, it must call `bridge.awaitPriority()` (or
 `awaitPriorityWithTimeout` with a tighter budget).
 
-For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, card-backed SelectN, static-enum SelectN, PayCosts, and blocking interactions, the wait guarantees:
+For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, Scry/Surveil Grouping, card-backed SelectN, static-enum SelectN, PayCosts, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
 3. The projection baseline for that batch has settled.
 
-Grouping, modal, dynamic residual SelectN, generic ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
+Modal, dynamic residual SelectN, generic ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
 
 Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
 

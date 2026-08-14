@@ -118,6 +118,7 @@ class MatchSession(
             ctx = ctx,
         )
     private val orderInteractionHandler = OrderInteractionHandler(ctx)
+    private val groupingInteractionHandler = GroupingInteractionHandler(ctx)
     val autoPassEngine =
         AutoPassEngine(
             sink = this,
@@ -304,10 +305,9 @@ class MatchSession(
             targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
-    /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
     override fun onGroupResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            groupingInteractionHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */

@@ -20,6 +20,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
 import leyline.bridge.coord.cardSelectRuntime
+import leyline.bridge.coord.groupingRuntime
 import leyline.bridge.coord.manaSourcePaymentRuntime
 import leyline.bridge.coord.oneShotPayCostsRuntime
 import leyline.bridge.coord.orderRuntime
@@ -62,11 +63,9 @@ import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
-import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
@@ -510,6 +509,7 @@ class GameBridge(
         promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
         promptBridge(seatId).searchRuntime = cutCoordinator.searchRuntime(seatId)
         promptBridge(seatId).orderRuntime = cutCoordinator.orderRuntime(seatId)
+        promptBridge(seatId).groupingRuntime = cutCoordinator.groupingRuntime(seatId)
         promptBridge(seatId).cardSelectRuntime = cutCoordinator.cardSelectRuntime(seatId)
         promptBridge(seatId).staticChoiceRuntime = cutCoordinator.staticChoiceRuntime(seatId)
         promptBridge(seatId).manaSourcePaymentRuntime = cutCoordinator.manaSourcePaymentRuntime(seatId)
@@ -633,33 +633,6 @@ class GameBridge(
                 abilityForgeId = abilityForgeId,
                 targetCardIds = targetCardIds.toList(),
             )
-    }
-
-    data class LibraryArrangementResult(
-        val seatId: SeatId,
-        val context: GroupingContext,
-        val topIds: List<Int>,
-        val awayIds: List<Int>,
-    )
-
-    private val pendingLibraryArrangements = ConcurrentLinkedQueue<LibraryArrangementResult>()
-
-    fun recordLibraryArrangement(
-        seatId: SeatId,
-        context: GroupingContext,
-        topIds: List<Int>,
-        awayIds: List<Int>,
-    ) {
-        pendingLibraryArrangements.add(LibraryArrangementResult(seatId, context, topIds, awayIds))
-    }
-
-    fun pollLibraryArrangement(
-        seatId: SeatId,
-        context: GroupingContext,
-    ): LibraryArrangementResult? {
-        val match = pendingLibraryArrangements.firstOrNull { it.seatId == seatId && it.context == context } ?: return null
-        pendingLibraryArrangements.remove(match)
-        return match
     }
 
     /** Snapshot pending target specs from all seat prompt bridges without consuming them. */
@@ -1342,6 +1315,7 @@ class GameBridge(
             cutCoordinator.targeting.current() != null ||
             cutCoordinator.search.current() != null ||
             cutCoordinator.order.current() != null ||
+            cutCoordinator.grouping.current() != null ||
             cutCoordinator.cardSelect.current() != null ||
             cutCoordinator.staticChoices.current() != null ||
             cutCoordinator.manaSourcePayments.current() != null ||
@@ -1591,16 +1565,17 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
+        cutCoordinator.shutdown()
         promptBridges.values.forEach {
             it.targetingRuntime = null
             it.searchRuntime = null
             it.orderRuntime = null
+            it.groupingRuntime = null
             it.cardSelectRuntime = null
             it.staticChoiceRuntime = null
             it.manaSourcePaymentRuntime = null
             it.oneShotPayCostsRuntime = null
         }
-        cutCoordinator.shutdown()
         val g = game
         if (g != null) {
             g.phaseHandler.setMainGameLoopStartedHook(null)

@@ -1,12 +1,14 @@
 package leyline.bridge.coord
 
 import leyline.game.CardSelectMaterializationDiagnostic
+import leyline.game.GroupingMaterializationDiagnostic
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
 import leyline.game.OneShotPayCostsMaterializationDiagnostic
 import leyline.game.OrderMaterializationDiagnostic
 import leyline.game.PendingCardSelectCut
 import leyline.game.PendingCut
+import leyline.game.PendingGroupingCut
 import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
 import leyline.game.PendingOneShotPayCostsCut
@@ -30,6 +32,8 @@ internal class MatchCutTerminalRuntime(
         val searchDiagnostic: SearchMaterializationDiagnostic? = null,
         val pendingOrder: PendingOrderCut? = null,
         val orderDiagnostic: OrderMaterializationDiagnostic? = null,
+        val pendingGrouping: PendingGroupingCut? = null,
+        val groupingDiagnostic: GroupingMaterializationDiagnostic? = null,
         val pendingCardSelect: PendingCardSelectCut? = null,
         val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
         val pendingStaticChoice: PendingStaticChoiceCut? = null,
@@ -69,6 +73,8 @@ internal class MatchCutTerminalRuntime(
                         searchDiagnostic = context.searchDiagnostic,
                         pendingOrderCut = context.pendingOrder,
                         orderDiagnostic = context.orderDiagnostic,
+                        pendingGroupingCut = context.pendingGrouping,
+                        groupingDiagnostic = context.groupingDiagnostic,
                         pendingCardSelectCut = context.pendingCardSelect,
                         cardSelectDiagnostic = context.cardSelectDiagnostic,
                         pendingStaticChoiceCut = context.pendingStaticChoice,
@@ -87,6 +93,7 @@ internal class MatchCutTerminalRuntime(
                 owner.targeting.terminate(terminal)
                 owner.search.terminate(terminal)
                 owner.order.terminate(terminal)
+                owner.grouping.terminate(terminal)
                 owner.cardSelect.terminate(terminal)
                 owner.staticChoices.terminate(terminal)
                 owner.manaSourcePayments.terminate(terminal)
