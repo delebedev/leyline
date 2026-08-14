@@ -79,6 +79,7 @@ class CardSelectInteractionHandlerTest :
                                         candidateKinds = setOf(PromptCandidateKind.Card),
                                         candidateZones = it.mapTo(linkedSetOf()) { card -> card.zone.zoneType.name },
                                         abilityShape = ResolutionAbilityShape.Dig,
+                                        allCandidatesProjectable = false,
                                     )
                                 },
                     ),

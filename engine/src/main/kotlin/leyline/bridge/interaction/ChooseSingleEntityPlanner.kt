@@ -22,6 +22,7 @@ data class ChooseSingleEntityContext(
     val optionCount: Int,
     val candidateRefs: List<PromptCandidateRefDto>,
     val activeReveal: Boolean,
+    val allCandidatesProjectable: Boolean,
 )
 
 data class ChooseSingleEntityPlan(
@@ -49,6 +50,7 @@ object ChooseSingleEntityPlanner {
                 context.candidateRefs,
                 context.optionCount,
                 if (context.sa?.api == ApiType.Dig) ResolutionAbilityShape.Dig else ResolutionAbilityShape.Other,
+                context.allCandidatesProjectable,
             )
         val isSearch =
             (context.sa?.api == ApiType.ChangeZone && resolutionInput.isCompleteLibraryCardChoice) ||
@@ -76,7 +78,11 @@ object ChooseSingleEntityPlanner {
             max = 1,
             candidateRefsPolicy =
                 if (route == ChooseSingleEntityRoutePolicy.Prompt) {
-                    CandidateRefsPolicy.Selectable
+                    if (semantic == PromptSemantic.SelectNResolution && !resolutionInput.isHiddenLibraryCardChoice) {
+                        CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                    } else {
+                        CandidateRefsPolicy.Selectable
+                    }
                 } else {
                     CandidateRefsPolicy.None
                 },

@@ -76,6 +76,7 @@ internal class MatchCardSelectInteractionRuntime(
                 CardSelectKind.LibraryPutback,
                 CardSelectKind.ManifestDread,
                 CardSelectKind.Resolution,
+                CardSelectKind.ResolutionMapped,
                 CardSelectKind.Learn,
                 -> return false
                 CardSelectKind.Discard,

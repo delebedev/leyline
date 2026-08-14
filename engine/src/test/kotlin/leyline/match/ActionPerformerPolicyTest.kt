@@ -14,8 +14,6 @@ class ActionPerformerPolicyTest :
                 ActionPerformer.shouldDelegateSynchronization(TargetingHandler.PromptResult.NONE, true) shouldBe true
                 ActionPerformer.shouldDelegateSynchronization(TargetingHandler.PromptResult.NONE, false) shouldBe false
                 ActionPerformer.shouldDelegateSynchronization(TargetingHandler.PromptResult.SENT_TO_CLIENT, true) shouldBe false
-                ActionPerformer.shouldDelegateSynchronization(TargetingHandler.PromptResult.AUTO_RESOLVED, true) shouldBe true
-                ActionPerformer.shouldDelegateSynchronization(TargetingHandler.PromptResult.AUTO_RESOLVED, false) shouldBe true
             }
         }
     })

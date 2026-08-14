@@ -15,9 +15,10 @@ internal enum class PromptResponseKind {
 internal fun ResolvedPromptRoute.accepts(response: PromptResponseKind): Boolean =
     when (response) {
         PromptResponseKind.ModalChoice -> this is ResolvedPromptRoute.ModalChoice
-        PromptResponseKind.SelectN -> this is ResolvedPromptRoute.ResolutionResidual || this is ResolvedPromptRoute.RevealChoice
+        PromptResponseKind.SelectN ->
+            this is ResolvedPromptRoute.UnclassifiedEntityChoice || this is ResolvedPromptRoute.RevealChoice
         PromptResponseKind.EffectCost ->
-            this is ResolvedPromptRoute.ResolutionResidual ||
+            this is ResolvedPromptRoute.UnclassifiedEntityChoice ||
                 this is ResolvedPromptRoute.UnclassifiedCandidate
         PromptResponseKind.Search -> this is ResolvedPromptRoute.Search
         PromptResponseKind.Targeting ->

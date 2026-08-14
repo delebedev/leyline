@@ -3,7 +3,6 @@ package leyline.match
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptResponseMapper
-import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SelectNPromptRoute
@@ -230,12 +229,7 @@ class TargetingHandler(
         val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
             if (sendPrompt(pendingPrompt)) return true
-            when (checkPendingPrompt()) {
-                PromptResult.SENT_TO_CLIENT -> return true
-                PromptResult.AUTO_RESOLVED,
-                PromptResult.NONE,
-                -> Unit
-            }
+            if (checkPendingPrompt() == PromptResult.SENT_TO_CLIENT) return true
         }
         if (!game.stack.isEmpty) {
             // When auto-resolve is active and the player has no meaningful responses
@@ -261,16 +255,13 @@ class TargetingHandler(
 
         /** Targeting prompt sent to client — caller should exit loop and wait. */
         SENT_TO_CLIENT,
-
-        /** Non-targeting prompt auto-resolved — caller should re-evaluate (loop continues). */
-        AUTO_RESOLVED,
     }
 
     /**
      * Check for a residual pending interactive prompt.
      * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
-     * - Other non-targeting prompts (confirm, choose_cards, order) → auto-resolve with
-     *   defaultIndex. Coordinator-owned prompts never enter this fallback.
+     * - Modal and unclassified entity choices retain their legacy request path.
+     * Coordinator-owned prompts and synchronous default policies never enter this fallback.
      */
     fun checkPendingPrompt(): PromptResult {
         val bridge = ctx.bridge
@@ -281,38 +272,8 @@ class TargetingHandler(
             PromptResult.SENT_TO_CLIENT
         } else {
             when (pendingPrompt.request.route) {
-                is ResolvedPromptRoute.AutoResolve -> {
-                    val req = pendingPrompt.request
-                    // Multi-option generic prompts are real gameplay choices (for
-                    // example, odd/even effects) unless a narrower semantic has
-                    // resolved them. Keep known safe defaults quiet, but make this
-                    // path visible so simclient runs do not silently swallow decisions.
-                    if (req.semantic == PromptSemantic.Generic && req.options.size > 1) {
-                        log.warn(
-                            "TargetingHandler: auto-resolving ambiguous non-targeting prompt [{}] " +
-                                "semantic={} message=\"{}\" opts={} labels={} default={} sourceEntityId={} modalSource={}",
-                            req.promptType,
-                            req.semantic,
-                            req.message,
-                            req.options.size,
-                            req.options,
-                            req.defaultIndex,
-                            req.sourceEntityId,
-                            req.modalSourceCardName,
-                        )
-                    } else {
-                        log.info(
-                            "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
-                            req.promptType,
-                            req.message,
-                            req.options.size,
-                            req.defaultIndex,
-                        )
-                    }
-                    seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-                    bridge.awaitPriority()
-                    PromptResult.AUTO_RESOLVED
-                }
+                is ResolvedPromptRoute.AutoResolve ->
+                    error("AutoResolve policy must complete before publishing a pending prompt")
 
                 is ResolvedPromptRoute.Order ->
                     error("Order prompts must be published by MatchOrderInteractionRuntime")
@@ -330,7 +291,7 @@ class TargetingHandler(
                 is ResolvedPromptRoute.ModalChoice,
                 is ResolvedPromptRoute.PayCosts,
                 is ResolvedPromptRoute.Search,
-                is ResolvedPromptRoute.ResolutionResidual,
+                is ResolvedPromptRoute.UnclassifiedEntityChoice,
                 is ResolvedPromptRoute.Targeting,
                 is ResolvedPromptRoute.UnclassifiedCandidate,
                 -> PromptResult.NONE
@@ -360,7 +321,7 @@ class TargetingHandler(
                 true
             }
 
-            is ResolvedPromptRoute.ResolutionResidual -> {
+            is ResolvedPromptRoute.UnclassifiedEntityChoice -> {
                 sendSelectNReq(pendingPrompt, route.descriptor)
                 true
             }

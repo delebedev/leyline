@@ -153,6 +153,7 @@ private fun context(
         optionCount = optionCount,
         candidateRefs = candidateRefs,
         activeReveal = activeReveal,
+        allCandidatesProjectable = candidateRefs.all { it.zone != "Library" },
     )
 
 private val handRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, 10, "Hand"))

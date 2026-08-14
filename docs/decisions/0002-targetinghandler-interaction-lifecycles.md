@@ -28,7 +28,7 @@ Current residual responsibilities include:
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
 
-Target selection, Search, Top/Bottom Order, card-backed SelectN (including hidden-library Dig resolution and Learn), static-enum SelectN, reveal-backed SelectN, and all PayCosts payments are match-coordinator-owned lifecycles with value-only session adapters. Visible or mixed dynamic resolution choices remain on the residual SelectN path.
+Target selection, Search, Top/Bottom Order, card-backed SelectN (including hidden-library Dig resolution, complete chooser-visible card resolution, and Learn), static-enum SelectN, reveal-backed SelectN, and all PayCosts payments are match-coordinator-owned lifecycles with value-only session adapters. Incomplete, mixed, or chooser-hidden dynamic resolution choices remain the named `UnclassifiedEntityChoice` residual. Candidate-free Generic choices default synchronously before any session pending state exists.
 
 This produces a large, high-churn file whose name no longer describes most of
 its contents. The pressure is not only file length: unrelated mechanics often

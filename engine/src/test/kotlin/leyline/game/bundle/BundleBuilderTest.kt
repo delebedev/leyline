@@ -1581,7 +1581,10 @@ class BundleBuilderTest :
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val abilityId = 424_242
             val route =
-                (PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) as ResolvedPromptRoute.ResolutionResidual).descriptor
+                (
+                    PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) as
+                        ResolvedPromptRoute.UnclassifiedEntityChoice
+                ).descriptor
             val prompt =
                 InteractivePromptBridge.PendingPrompt(
                     promptId = "triggered-select-n",
@@ -1592,7 +1595,7 @@ class BundleBuilderTest :
                             options = emptyList(),
                             min = 0,
                             max = 0,
-                            route = ResolvedPromptRoute.ResolutionResidual(route),
+                            route = ResolvedPromptRoute.UnclassifiedEntityChoice(route),
                             isTriggeredAbility = true,
                             forgeAbilityId = abilityId,
                         ),

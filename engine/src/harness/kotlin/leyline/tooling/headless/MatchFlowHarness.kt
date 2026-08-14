@@ -1081,12 +1081,13 @@ class MatchFlowHarness(
     fun latestPromptMsgId(): Int = messageLog.latestPromptMsgId()
 
     fun hasPendingSelectNPrompt(): Boolean =
-        bridge
-            .seat(seatId)
-            .prompt
-            .getPendingPrompt()
-            ?.request
-            ?.route is ResolvedPromptRoute.ResolutionResidual
+        bridge.cutCoordinator.cardSelect.current() != null ||
+            bridge
+                .seat(seatId)
+                .prompt
+                .getPendingPrompt()
+                ?.request
+                ?.route is ResolvedPromptRoute.UnclassifiedEntityChoice
 
     /**
      * Reflect the latest prompt ids onto a client response before it enters

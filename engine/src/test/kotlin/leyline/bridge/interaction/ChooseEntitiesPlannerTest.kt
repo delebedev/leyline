@@ -100,6 +100,7 @@ class ChooseEntitiesPlannerTest :
                         max = 4,
                         optionCount = 2,
                         candidateRefs = refs.take(2),
+                        allCandidatesProjectable = true,
                     ),
                 )
 
@@ -132,6 +133,7 @@ private fun planFor(
             max = 2,
             optionCount = optionCount,
             candidateRefs = candidateRefs,
+            allCandidatesProjectable = candidateRefs.all { it.zone != "Library" },
         ),
     )
 

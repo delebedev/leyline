@@ -58,6 +58,14 @@ internal object CardSelectWindowCapture {
                 "Resolution card choice candidates must be in library"
             }
         }
+        if (route.descriptor.kind == CardSelectKind.ResolutionMapped) {
+            check(candidateHandles.none { it.isInZone(ZoneType.Library) }) {
+                "Mapped resolution candidates must already be visible outside the library"
+            }
+            check(request.unfilteredRefs == request.candidateRefs) {
+                "Mapped resolution selectable and unfiltered candidates must match"
+            }
+        }
         if (route.descriptor.kind == CardSelectKind.Learn) {
             check(request.sourceEntityId != null) { "Learn requires a card source" }
             check(request.min == 0 && request.max == 1) { "Learn requires an optional single selection" }

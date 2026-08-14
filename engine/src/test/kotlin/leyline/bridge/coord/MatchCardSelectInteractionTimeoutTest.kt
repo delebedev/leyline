@@ -11,6 +11,8 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedCardSelectInteraction
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -44,6 +46,7 @@ class MatchCardSelectInteractionTimeoutTest :
             val max: Int,
             val libraryCandidates: Boolean = false,
             val sourceRequired: Boolean = true,
+            val mappedResolution: Boolean = false,
         )
 
         val cases =
@@ -51,6 +54,13 @@ class MatchCardSelectInteractionTimeoutTest :
                 Case(PromptSemantic.SelectNLegendRule, min = 1, max = 1, sourceRequired = false),
                 Case(PromptSemantic.SelectNLibraryPutback, min = 2, max = 2),
                 Case(PromptSemantic.ManifestDread, min = 1, max = 1, libraryCandidates = true),
+                Case(
+                    PromptSemantic.SelectNResolution,
+                    min = 1,
+                    max = 1,
+                    sourceRequired = false,
+                    mappedResolution = true,
+                ),
             )
 
         fun source(board: Board): Card =
@@ -82,7 +92,27 @@ class MatchCardSelectInteractionTimeoutTest :
                             handles.mapIndexed { index, card ->
                                 PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, zone.name)
                             },
-                        route = PromptRouteResolver.resolve(case.semantic),
+                        unfilteredRefs =
+                            if (case.mappedResolution) {
+                                handles.mapIndexed { index, card ->
+                                    PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, zone.name)
+                                }
+                            } else {
+                                emptyList()
+                            },
+                        route =
+                            PromptRouteResolver.resolve(
+                                case.semantic,
+                                resolutionInput =
+                                    ResolutionRouteInput(
+                                        optionCount = handles.size,
+                                        candidateCount = handles.size,
+                                        candidateKinds = setOf(PromptCandidateKind.Card),
+                                        candidateZones = setOf(zone.name),
+                                        abilityShape = ResolutionAbilityShape.Other,
+                                        allCandidatesProjectable = true,
+                                    ).takeIf { case.mappedResolution },
+                            ),
                         sourceEntityId = source(board).id.takeIf { case.sourceRequired },
                     )
                 var timedOut = false

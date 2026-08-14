@@ -264,6 +264,7 @@ class CardSelectWindowCaptureTest :
                                             candidateKinds = setOf(PromptCandidateKind.Card),
                                             candidateZones = setOf(ZoneType.Library.name),
                                             abilityShape = ResolutionAbilityShape.Dig,
+                                            allCandidatesProjectable = false,
                                         )
                                     },
                         ),

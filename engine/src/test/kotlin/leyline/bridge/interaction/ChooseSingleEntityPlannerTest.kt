@@ -102,8 +102,9 @@ class ChooseSingleEntityPlannerTest :
 
             assertSoftly(plan) {
                 routePolicy shouldBe ChooseSingleEntityRoutePolicy.Prompt
-                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
                 candidateRefsPolicy.candidateRefs(refs) shouldBe refs
+                candidateRefsPolicy.unfilteredRefs(refs, semantic) shouldBe refs
             }
         }
     })
@@ -131,6 +132,7 @@ private fun planFor(
             optionCount = optionCount,
             candidateRefs = candidateRefs.take(optionCount),
             activeReveal = activeReveal,
+            allCandidatesProjectable = candidateRefs.take(optionCount).all { it.zone != "Library" },
         ),
     )
 

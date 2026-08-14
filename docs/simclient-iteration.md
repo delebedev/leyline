@@ -331,7 +331,7 @@ Fix:
 Verification:
 
 - `just simclient-puzzle extinction-event-choice.pzl 1` completes.
-- Stats show `warnsByLogger.leyline.match.TargetingHandler = 1`.
+- Stats show `warnsByLogger.leyline.bridge.handoff.InteractivePromptBridge = 1`.
 - The prompt sample remains visible in `promptRequestSamplesByKind`.
 
 ## Fix Criteria

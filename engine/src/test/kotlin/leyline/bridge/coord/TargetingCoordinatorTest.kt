@@ -21,6 +21,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderInteractionResult
 import leyline.bridge.handoff.OrderInteractionRuntime
 import leyline.bridge.handoff.OrderMoveIntent
+import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -55,6 +56,123 @@ class TargetingCoordinatorTest :
                 promptSemantic(abilitySub(ApiType.Dig, mapOf("LibraryPosition2" to "0"))) shouldBe
                     PromptSemantic.OrderForTop
             }
+        }
+
+        test("non-library order returns the original handles without allocating a prompt") {
+            val cards = orderCards()
+            val bridge = testPromptBridge()
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            val ordered = coordinator.orderMoveToZoneList(cards, ZoneType.Exile, null)
+
+            ordered.toList() shouldContainExactly cards.toList()
+            bridge.history.shouldBeEmpty()
+        }
+
+        test("complete chooser-visible card Resolution binds ResolutionMapped with exact values") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val cards = CardCollection(board.human.getZone(ZoneType.Hand).cards)
+            var observedRequest: PromptRequest? = null
+            val runtime =
+                object : CardSelectInteractionRuntime {
+                    override fun awaitSelection(
+                        request: PromptRequest,
+                        candidateHandles: List<Card>,
+                        timeoutMs: Long?,
+                    ): CardSelectInteractionResult {
+                        observedRequest = request
+                        return CardSelectInteractionResult(listOf(1), listOf(candidateHandles[1]))
+                    }
+                }
+            val bridge = testPromptBridge(cardSelectRuntime = runtime)
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            val chosen =
+                coordinator.chooseSingleEntity(
+                    cards,
+                    abilitySub(ApiType.ChooseCard),
+                    "Choose a card",
+                    isOptional = true,
+                    hasDelayedReveal = false,
+                )
+            val request = checkNotNull(observedRequest)
+
+            assertSoftly {
+                chosen shouldBeSameInstanceAs cards[1]
+                (request.route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe
+                    CardSelectKind.ResolutionMapped
+                request.sourceEntityId shouldBe null
+                request.candidateRefs shouldContainExactly request.unfilteredRefs
+            }
+        }
+
+        test("multi-card effect Resolution preserves the complete mapped candidate domain") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val cards = CardCollection(board.human.getZone(ZoneType.Hand).cards)
+            var observedRequest: PromptRequest? = null
+            val bridge =
+                testPromptBridge(
+                    cardSelectRuntime =
+                        object : CardSelectInteractionRuntime {
+                            override fun awaitSelection(
+                                request: PromptRequest,
+                                candidateHandles: List<Card>,
+                                timeoutMs: Long?,
+                            ): CardSelectInteractionResult {
+                                observedRequest = request
+                                return CardSelectInteractionResult(listOf(1), listOf(candidateHandles[1]))
+                            }
+                        },
+                )
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            val chosen =
+                coordinator.chooseCardsForEffect(
+                    cards,
+                    abilitySub(ApiType.ChangeZone),
+                    "Choose a card",
+                    min = 1,
+                    max = 1,
+                    isOptional = false,
+                )
+            val request = checkNotNull(observedRequest)
+
+            assertSoftly {
+                chosen.single() shouldBeSameInstanceAs cards[1]
+                (request.route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe
+                    CardSelectKind.ResolutionMapped
+                request.candidateRefs shouldContainExactly request.unfilteredRefs
+                request.candidateRefs shouldHaveSize cards.size
+            }
+        }
+
+        test("opponent-private card Resolution remains an audited entity residual") {
+            val board =
+                startWithBoard { _, _, ai ->
+                    addCard("Mountain", ai, ZoneType.Hand)
+                    addCard("Forest", ai, ZoneType.Hand)
+                }
+            val cards = CardCollection(board.ai.getZone(ZoneType.Hand).cards)
+            val bridge = testPromptBridge()
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            coordinator.chooseSingleEntity(
+                cards,
+                abilitySub(ApiType.ChooseCard),
+                "Choose a card",
+                isOptional = true,
+                hasDelayedReveal = false,
+            )
+
+            (bridge.history.single().route is ResolvedPromptRoute.UnclassifiedEntityChoice) shouldBe true
         }
 
         test("legend rule returns the exact selected handle and records every unchosen victim") {
@@ -101,7 +219,7 @@ class TargetingCoordinatorTest :
                 timedOut shouldBe true
                 bridge.journal.consumeLegendVictim(ForgeCardId(cards[0].id)) shouldBe false
                 bridge.journal.consumeLegendVictim(ForgeCardId(cards[1].id)) shouldBe true
-                bridge.history.single().outcome shouldBe InteractivePromptBridge.PromptCallStatus.TIMEOUT
+                bridge.history.single().outcome shouldBe PromptCallStatus.TIMEOUT
                 bridge.history.single().result shouldBe listOf(0)
             }
         }
@@ -173,7 +291,7 @@ class TargetingCoordinatorTest :
             assertSoftly {
                 chosen shouldBeSameInstanceAs sideboard
                 (bridge.history.single().route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe CardSelectKind.Learn
-                bridge.history.single().outcome shouldBe InteractivePromptBridge.PromptCallStatus.TIMEOUT
+                bridge.history.single().outcome shouldBe PromptCallStatus.TIMEOUT
                 reveal.forgeCardIds shouldContainExactly listOf(ForgeCardId(sideboard.id))
                 reveal.ownerSeatId shouldBe SeatId(1)
             }

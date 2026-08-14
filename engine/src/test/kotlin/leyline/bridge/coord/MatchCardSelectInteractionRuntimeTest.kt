@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -98,6 +99,14 @@ class MatchCardSelectInteractionRuntimeTest :
                     candidates.mapIndexed { index, card ->
                         PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
                     },
+                unfilteredRefs =
+                    if (semantic == PromptSemantic.SelectNResolution && candidates.none { it.isInZone(ZoneType.Library) }) {
+                        candidates.mapIndexed { index, card ->
+                            PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
+                        }
+                    } else {
+                        emptyList()
+                    },
                 route =
                     PromptRouteResolver.resolve(
                         semantic,
@@ -111,6 +120,7 @@ class MatchCardSelectInteractionRuntimeTest :
                                         candidateKinds = setOf(PromptCandidateKind.Card),
                                         candidateZones = it.mapTo(linkedSetOf()) { card -> card.zone.zoneType.name },
                                         abilityShape = ResolutionAbilityShape.Dig,
+                                        allCandidatesProjectable = it.none { card -> card.isInZone(ZoneType.Library) },
                                     )
                                 },
                     ),
@@ -229,6 +239,18 @@ class MatchCardSelectInteractionRuntimeTest :
                     allowCancel = AllowCancel.No_a526,
                 ),
                 Case(
+                    PromptSemantic.SelectNResolution,
+                    CardSelectKind.ResolutionMapped,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.SELECT_N_INNER_PARAMETER,
+                    outerPromptId = PromptIds.SELECT_N_STOCK_UP,
+                    allowCancel = AllowCancel.No_a526,
+                    includeRequestSource = false,
+                ),
+                Case(
                     PromptSemantic.LearnLesson,
                     CardSelectKind.Learn,
                     SelectionContext.Resolution_a163,
@@ -244,7 +266,7 @@ class MatchCardSelectInteractionRuntimeTest :
             )
 
         cases.forEach { case ->
-            test("${case.semantic} preserves its exact SelectN envelope and handle") {
+            test("${case.semantic}/${case.kind} preserves its exact SelectN envelope and handle") {
                 val board = startPuzzleAtMain1(puzzle)
                 val coordinator = board.bridge.cutCoordinator
                 coordinator.drain(SeatId(1))
@@ -306,13 +328,16 @@ class MatchCardSelectInteractionRuntimeTest :
                     req.sourceId shouldBe
                         when (case.kind) {
                             CardSelectKind.LegendRule -> PromptIds.SELECT_N_LEGEND_RULE_SOURCE
-                            CardSelectKind.Discard -> 0
+                            CardSelectKind.Discard,
+                            CardSelectKind.ResolutionMapped,
+                            -> 0
                             CardSelectKind.SacrificeEffect,
                             CardSelectKind.Suspect,
                             CardSelectKind.MutateTopBottom,
                             CardSelectKind.LibraryPutback,
                             CardSelectKind.ManifestDread,
                             CardSelectKind.Resolution,
+                            CardSelectKind.ResolutionMapped,
                             CardSelectKind.Learn,
                             -> board.bridge.getOrAllocInstanceId(ForgeCardId(source(board).id)).value
                         }
@@ -328,7 +353,7 @@ class MatchCardSelectInteractionRuntimeTest :
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
                     }
-                    if (case.kind == CardSelectKind.Resolution) {
+                    if (case.kind == CardSelectKind.Resolution || case.kind == CardSelectKind.ResolutionMapped) {
                         req.unfilteredIdsList shouldContainExactly req.idsList
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
@@ -346,6 +371,18 @@ class MatchCardSelectInteractionRuntimeTest :
                         exposed.map { it.instanceId } shouldContainExactly req.idsList
                         exposed.map { it.zoneId } shouldContainExactly handles.map(::projectedZoneId)
                         exposed.all { it.visibility == Visibility.Private && it.viewersList == listOf(1) } shouldBe true
+                    }
+                    if (case.kind == CardSelectKind.ResolutionMapped) {
+                        batch
+                            .first()
+                            .gameStateMessage.gameObjectsList
+                            .filter { it.instanceId in req.idsList }
+                            .shouldBeEmpty()
+                        coordinator.cardSelect.submitEffectCost(
+                            published.interactionId,
+                            published.gameStateId,
+                            listOf(req.idsList[1]),
+                        ) shouldBe false
                     }
                     coordinator.cardSelect.submitSelectN(
                         published.interactionId,

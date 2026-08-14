@@ -213,7 +213,7 @@ class SimClientDriver(
         )
     }
 
-    private fun promptHistory(): List<leyline.bridge.handoff.InteractivePromptBridge.PromptRecord> =
+    private fun promptHistory(): List<leyline.bridge.handoff.PromptRecord> =
         runCatching { harness.bridge.promptBridge(SeatId(1)).history }.getOrDefault(emptyList())
 
     private data class FinalOutcome(
