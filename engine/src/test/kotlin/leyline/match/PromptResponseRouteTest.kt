@@ -27,14 +27,10 @@ class PromptResponseRouteTest :
                 PromptResponseKind.Group to setOf(representativeRoutes.getValue(PromptSemantic.GroupingSurveil)),
                 PromptResponseKind.ModalChoice to setOf(representativeRoutes.getValue(PromptSemantic.ModalChoice)),
                 PromptResponseKind.SelectN to
-                    setOf(
-                        representativeRoutes.getValue(PromptSemantic.SelectNResolution),
-                        representativeRoutes.getValue(PromptSemantic.SelectNDiscard),
-                    ),
+                    setOf(representativeRoutes.getValue(PromptSemantic.SelectNResolution)),
                 PromptResponseKind.EffectCost to
                     setOf(
                         representativeRoutes.getValue(PromptSemantic.SelectNResolution),
-                        representativeRoutes.getValue(PromptSemantic.SelectNDiscard),
                         representativeRoutes.getValue(PromptSemantic.Generic),
                     ),
                 PromptResponseKind.Search to setOf(representativeRoutes.getValue(PromptSemantic.Search)),

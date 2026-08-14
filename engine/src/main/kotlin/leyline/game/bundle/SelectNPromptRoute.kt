@@ -21,8 +21,6 @@ internal fun SelectNPromptRoute.envelope(
         SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
         SelectNEnvelopeKind.ManifestDread -> SelectNEnvelope.manifestDread(req)
         SelectNEnvelopeKind.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
-        SelectNEnvelopeKind.SuspectChoice -> SelectNEnvelope.suspectChoice(req)
-        SelectNEnvelopeKind.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(req)
         SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
         SelectNEnvelopeKind.StaticChoice -> SelectNEnvelope.staticChoice(req, staticChoiceOuterPromptId())
     }
@@ -49,7 +47,6 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
             builder.setPrompt(Prompt.newBuilder())
             builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
         }
-        SelectNInnerPrompt.DiscardCost -> builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
         SelectNInnerPrompt.GenericSelectN -> {
             builder.setSourceIdIfPresent(prompt, bridge)
             builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))

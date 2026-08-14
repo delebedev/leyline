@@ -90,6 +90,21 @@ internal data class OrderMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.OrderWindowValue,
 )
 
+/** Exact card-backed SelectN cut retained on terminal failure. */
+internal data class PendingCardSelectCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.CardSelectWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen card-backed SelectN input retained when materialization itself fails. */
+internal data class CardSelectMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.CardSelectWindowValue,
+)
+
 /** Exact iterative mana-source payment cut retained on terminal failure. */
 internal data class PendingManaSourcePaymentCut(
     val interactionId: String,
@@ -120,17 +135,34 @@ internal data class OneShotPayCostsMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.OneShotPayCostsWindowValue,
 )
 
-internal class PlaybackTerminalFailure(
-    val pendingCut: PendingCut?,
-    val diagnostic: MaterializationDiagnostic?,
-    val pendingInteractionCut: PendingInteractionCut? = null,
+internal data class PromptTerminalFailureContext(
     val pendingSearchCut: PendingSearchCut? = null,
     val searchDiagnostic: SearchMaterializationDiagnostic? = null,
     val pendingOrderCut: PendingOrderCut? = null,
     val orderDiagnostic: OrderMaterializationDiagnostic? = null,
+    val pendingCardSelectCut: PendingCardSelectCut? = null,
+    val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
     val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
     val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     val pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
     val oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
+)
+
+internal class PlaybackTerminalFailure(
+    val pendingCut: PendingCut?,
+    val diagnostic: MaterializationDiagnostic?,
+    val pendingInteractionCut: PendingInteractionCut? = null,
+    private val prompt: PromptTerminalFailureContext = PromptTerminalFailureContext(),
     cause: Throwable,
-) : IllegalStateException("Playback projection terminated", cause)
+) : IllegalStateException("Playback projection terminated", cause) {
+    val pendingSearchCut get() = prompt.pendingSearchCut
+    val searchDiagnostic get() = prompt.searchDiagnostic
+    val pendingOrderCut get() = prompt.pendingOrderCut
+    val orderDiagnostic get() = prompt.orderDiagnostic
+    val pendingCardSelectCut get() = prompt.pendingCardSelectCut
+    val cardSelectDiagnostic get() = prompt.cardSelectDiagnostic
+    val pendingManaSourcePaymentCut get() = prompt.pendingManaSourcePaymentCut
+    val manaSourcePaymentDiagnostic get() = prompt.manaSourcePaymentDiagnostic
+    val pendingOneShotPayCostsCut get() = prompt.pendingOneShotPayCostsCut
+    val oneShotPayCostsDiagnostic get() = prompt.oneShotPayCostsDiagnostic
+}

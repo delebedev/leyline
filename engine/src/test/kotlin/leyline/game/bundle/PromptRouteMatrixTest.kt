@@ -4,6 +4,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.handoff.CardSelectKind
+import leyline.bridge.handoff.CardSelectPromptRoute
 import leyline.bridge.handoff.ManaSourcePaymentKind
 import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PayCostsPromptRoute
@@ -40,13 +42,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.SelectNLegendRule to
                         selectN(PromptSemantic.SelectNLegendRule, SelectNInnerPrompt.LegendRule, SelectNEnvelopeKind.LegendRule),
                     PromptSemantic.SelectNDiscard to
-                        selectN(
-                            PromptSemantic.SelectNDiscard,
-                            SelectNInnerPrompt.DiscardCost,
-                            SelectNEnvelopeKind.Default,
-                            shape = discardShape,
-                            sentiment = 1,
-                        ),
+                        cardSelect(PromptSemantic.SelectNDiscard, CardSelectKind.Discard, sentiment = 1),
                     PromptSemantic.Search to ResolvedPromptRoute.Search(PromptSemantic.Search),
                     PromptSemantic.OrderForBottom to
                         ResolvedPromptRoute.Order(PromptSemantic.OrderForBottom, OrderRouteKind.Bottom),
@@ -67,12 +63,7 @@ class PromptRouteMatrixTest :
                             SelectNEnvelopeKind.ManifestDread,
                         ),
                     PromptSemantic.SuspectChoice to
-                        selectN(
-                            PromptSemantic.SuspectChoice,
-                            SelectNInnerPrompt.SelectNInnerParameter,
-                            SelectNEnvelopeKind.SuspectChoice,
-                            sentiment = 2,
-                        ),
+                        cardSelect(PromptSemantic.SuspectChoice, CardSelectKind.Suspect, sentiment = 2),
                     PromptSemantic.SelectNLibraryPutback to
                         selectN(
                             PromptSemantic.SelectNLibraryPutback,
@@ -80,12 +71,7 @@ class PromptRouteMatrixTest :
                             SelectNEnvelopeKind.LibraryPutback,
                         ),
                     PromptSemantic.SelectNSacrificeEffect to
-                        selectN(
-                            PromptSemantic.SelectNSacrificeEffect,
-                            SelectNInnerPrompt.GenericSelectN,
-                            SelectNEnvelopeKind.Default,
-                            sentiment = 1,
-                        ),
+                        cardSelect(PromptSemantic.SelectNSacrificeEffect, CardSelectKind.SacrificeEffect, sentiment = 1),
                     PromptSemantic.SelectNCostSacrifice to
                         payCosts(PromptSemantic.SelectNCostSacrifice, PayCostsRouteKind.Sacrifice, "sacrifice"),
                     PromptSemantic.SelectNCostExileFromGrave to
@@ -127,11 +113,7 @@ class PromptRouteMatrixTest :
                             ManaSourcePaymentKind.Waterbend,
                         ),
                     PromptSemantic.MutateTopBottom to
-                        selectN(
-                            PromptSemantic.MutateTopBottom,
-                            SelectNInnerPrompt.GenericSelectN,
-                            SelectNEnvelopeKind.MutateTopBottom,
-                        ),
+                        cardSelect(PromptSemantic.MutateTopBottom, CardSelectKind.MutateTopBottom),
                     PromptSemantic.LearnLesson to
                         selectN(PromptSemantic.LearnLesson, SelectNInnerPrompt.LearnInnerParameter, SelectNEnvelopeKind.LearnLesson),
                     PromptSemantic.StaticColorChoice to
@@ -168,7 +150,6 @@ private val dynamicShape =
     SelectNShape(SelectionContext.Resolution_a163, SelectionListType.Dynamic, OptionContext.Resolution_a9d7)
 private val staticShape = dynamicShape.copy(listType = SelectionListType.Static)
 private val staticSubsetShape = dynamicShape.copy(listType = SelectionListType.StaticSubset)
-private val discardShape = SelectNShape(SelectionContext.Discard_a163, SelectionListType.Static, OptionContext.Payment)
 
 private fun selectN(
     semantic: PromptSemantic,
@@ -178,6 +159,12 @@ private fun selectN(
     sentiment: Int? = null,
 ): ResolvedPromptRoute.SelectN =
     ResolvedPromptRoute.SelectN(SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind, choiceResultSentiment = sentiment))
+
+private fun cardSelect(
+    semantic: PromptSemantic,
+    kind: CardSelectKind,
+    sentiment: Int? = null,
+): ResolvedPromptRoute.CardSelect = ResolvedPromptRoute.CardSelect(CardSelectPromptRoute(semantic, kind, choiceResultSentiment = sentiment))
 
 private fun staticChoice(
     semantic: PromptSemantic,

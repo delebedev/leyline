@@ -7,7 +7,6 @@ import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
@@ -99,17 +98,15 @@ class DiscardInteractionTest :
 
             castSpellByName("Mardu Outrider") shouldBe true
             val pending =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
+                harness.bridge.cutCoordinator.cardSelect
+                    .current()
                     .shouldNotBeNull()
-            pending.request.semantic shouldBe PromptSemantic.SelectNDiscard
-
-            harness.bridge
-                .seat(SeatId(1))
-                .prompt
-                .submitResponse(pending.promptId, emptyList())
+            pending.kind shouldBe leyline.bridge.handoff.CardSelectKind.Discard
+            harness.bridge.cutCoordinator.cardSelect.submit(
+                pending.interactionId,
+                pending.gameStateId,
+                emptyList(),
+            ) shouldBe true
             harness.bridge.awaitPriority()
 
             assertSoftly {

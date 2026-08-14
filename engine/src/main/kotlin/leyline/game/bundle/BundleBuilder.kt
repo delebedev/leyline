@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.BlockingInteraction
+import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
@@ -84,6 +85,7 @@ class BundleBuilder(
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
+    private val cardSelectWindows = CardSelectWindowMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val orderWindows = OrderWindowMaterializer(seatId)
@@ -1401,6 +1403,24 @@ class BundleBuilder(
         )
     }
 
+    /** Prepare, but do not install, one coordinator-owned card-backed SelectN window. */
+    internal fun prepareCardSelectWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: CardSelectWindowValue,
+    ): CardSelectWindowMaterializer.Prepared {
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return cardSelectWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Prepare, but do not install, one coordinator-owned mana-source payment presentation. */
     internal fun prepareManaSourcePayment(
         game: Game,
@@ -1471,8 +1491,8 @@ class BundleBuilder(
     }
 
     /**
-     * SelectN bundle: GameState + SelectNReq.
-     * Used for "choose N cards" prompts (discard, sacrifice, etc.).
+     * Residual SelectN bundle: GameState + SelectNReq.
+     * Used for reveal, resolution, legend, Learn, and static-choice prompts.
      */
     fun selectNBundle(
         game: Game,

@@ -206,7 +206,7 @@ class RuntimeBoundaryTest :
                 check(forbidden !in sessionHandler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("request.route !is ResolvedPromptRoute.Order" in bridge)
+            check("route !is ResolvedPromptRoute.Order" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             listOf("sendOrderReq", "orderBundle", "fun onOrderResp").forEach { removed -> check(removed !in targeting) }
             val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))
@@ -232,6 +232,60 @@ class RuntimeBoundaryTest :
                         "leyline/game/bundle/BundleBuilder.kt",
                     ),
             ) { "Unexpected Order-window preparers: ${owners.sorted()}" }
+        }
+
+        test("card-backed SelectN windows are coordinator-owned and session responses stay value-only") {
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.CardSelectWindowMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.bridge\\.handoff\\.CardSelect.*Value(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            val sessionHandler = Files.readString(sourceRoot.resolve("leyline/match/CardSelectInteractionHandler.kt"))
+            listOf("import forge.", "findCard(", "getZone(", "getForgeCardId(").forEach { forbidden ->
+                check(forbidden !in sessionHandler)
+            }
+            val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
+            check("route !is ResolvedPromptRoute.CardSelect" in bridge)
+            val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
+            check("CardSelect prompts must be published by MatchCardSelectInteractionRuntime" in targeting)
+            val route = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptRoute.kt"))
+            listOf("SelectNDiscard", "SelectNSacrificeEffect", "SuspectChoice", "MutateTopBottom").forEach { semantic ->
+                check(
+                    "PromptSemantic.$semantic -> cardSelect" in route || "PromptSemantic.$semantic ->\n                cardSelect" in route,
+                )
+            }
+
+            val owners = mutableSetOf<String>()
+            val stream = Files.walk(sourceRoot.resolve("leyline"))
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        if ("prepareCardSelectWindow(" in Files.readString(file)) {
+                            owners += sourceRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+            check(
+                owners ==
+                    setOf(
+                        "leyline/bridge/coord/MatchCardSelectInteractionRuntime.kt",
+                        "leyline/game/bundle/BundleBuilder.kt",
+                    ),
+            ) { "Unexpected CardSelect-window preparers: ${owners.sorted()}" }
         }
 
         test("iterative mana-source payments are coordinator-owned and session values stay frozen") {
@@ -317,7 +371,7 @@ class RuntimeBoundaryTest :
                 check(forbidden !in handler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("request.route !is ResolvedPromptRoute.PayCosts" in bridge)
+            check("route !is ResolvedPromptRoute.PayCosts" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             check("PayCostsInteractionHandler" !in targeting)
             val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))

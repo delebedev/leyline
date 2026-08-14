@@ -10,15 +10,11 @@ import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.game.InMemoryCardRepository
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
-import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
-import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -146,57 +142,6 @@ class RequestBuilderStaticChoiceTest :
                 req.idsList shouldBe emptyList()
                 req.sourceId shouldBe sourceIid
                 req.prompt.parametersList shouldBe emptyList()
-            }
-        }
-
-        test("suspect choices use the Scapegoat prompt route") {
-            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(100)).value
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(200)).value
-            val req =
-                RequestBuilder.buildSelectNReq(
-                    pending(
-                        PromptRequest(
-                            promptType = "choose_cards",
-                            message = "Choose a creature",
-                            options = listOf("Target Creature"),
-                            min = 1,
-                            max = 1,
-                            route = PromptRouteResolver.resolve(PromptSemantic.SuspectChoice),
-                            candidateRefs =
-                                listOf(
-                                    PromptCandidateRefDto(
-                                        index = 0,
-                                        kind = PromptCandidateKind.Card,
-                                        entityId = 200,
-                                        zone = "Battlefield",
-                                    ),
-                                ),
-                            sourceEntityId = 100,
-                        ),
-                    ),
-                    bridge,
-                )
-            val envelope = selectNRoute(PromptSemantic.SuspectChoice).envelope(req) { error("unused") }
-
-            assertSoftly {
-                req.context shouldBe SelectionContext.Resolution_a163
-                req.optionContext shouldBe OptionContext.Resolution_a9d7
-                req.listType shouldBe SelectionListType.Dynamic
-                req.idType shouldBe IdType.InstanceId_ab2c
-                req.idsList shouldBe listOf(targetIid)
-                req.sourceId shouldBe sourceIid
-                req.prompt.parametersList
-                    .single()
-                    .type shouldBe ParameterType.PromptId
-                req.prompt.parametersList
-                    .single()
-                    .promptId shouldBe PromptIds.SELECT_N_INNER_PARAMETER
-                envelope.prompt.promptId shouldBe PromptIds.SUSPECT_ONE_OF_THOSE_CREATURES
-                envelope.prompt.parametersList[0].numberValue shouldBe sourceIid
-                envelope.prompt.parametersList[1].numberValue shouldBe 1
-                envelope.allowCancel shouldBe AllowCancel.Continue
-                envelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.None
             }
         }
     })
