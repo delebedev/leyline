@@ -17,6 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /** Value-only GRE preparation for coordinator-owned card-backed SelectN windows. */
 internal class CardSelectWindowMaterializer(
@@ -37,6 +38,7 @@ internal class CardSelectWindowMaterializer(
         window: CardSelectWindowValue,
     ): Prepared {
         val request = buildRequest(window, projection)
+        if (window.kind == CardSelectKind.ManifestDread) requirePrivateCandidates(gameState, request.idsList)
         val envelope = envelope(window.kind, request)
         val state = gameState.toBuilder().setPendingMessageCount(1).build()
         val messages =
@@ -78,6 +80,10 @@ internal class CardSelectWindowMaterializer(
                         sourceId = PromptIds.SELECT_N_LEGEND_RULE_SOURCE
                     }
                     CardSelectKind.LibraryPutback -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
+                    CardSelectKind.ManifestDread -> {
+                        addAllUnfilteredIds(idsList)
+                        setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
+                    }
                     CardSelectKind.Discard -> prompt = Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST).build()
                     CardSelectKind.Suspect -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     CardSelectKind.SacrificeEffect,
@@ -94,6 +100,7 @@ internal class CardSelectWindowMaterializer(
         when (kind) {
             CardSelectKind.LegendRule -> SelectNEnvelope.legendRule(request)
             CardSelectKind.LibraryPutback -> SelectNEnvelope.libraryPutback(request)
+            CardSelectKind.ManifestDread -> SelectNEnvelope.manifestDread(request)
             CardSelectKind.Discard,
             CardSelectKind.SacrificeEffect,
             -> SelectNEnvelope.default(request)
@@ -103,6 +110,19 @@ internal class CardSelectWindowMaterializer(
 
     private fun ProjectionState.requireInstanceId(cardId: ForgeCardId): Int =
         identities.forgeIdToInstanceId[cardId]?.value ?: error("CardSelect card ${cardId.value} has no projected instance id")
+
+    private fun requirePrivateCandidates(
+        gameState: GameStateMessage,
+        candidateIds: List<Int>,
+    ) {
+        val objectsById = gameState.gameObjectsList.associateBy { it.instanceId }
+        candidateIds.forEach { candidateId ->
+            val candidate = checkNotNull(objectsById[candidateId]) { "Manifest Dread candidate $candidateId was not projected" }
+            check(candidate.visibility == Visibility.Private && candidate.viewersList == listOf(seatId)) {
+                "Manifest Dread candidate $candidateId must be private to its chooser"
+            }
+        }
+    }
 
     private fun makeGRE(
         type: GREMessageType,

@@ -24,7 +24,7 @@ fun CandidateRefsPolicy.unfilteredRefs(
 ): List<PromptCandidateRefDto> =
     when {
         this == CandidateRefsPolicy.SelectableAndUnfilteredForResolution &&
-            semantic in setOf(PromptSemantic.SelectNResolution, PromptSemantic.ManifestDread) -> refs
+            semantic == PromptSemantic.SelectNResolution -> refs
         else -> emptyList()
     }
 

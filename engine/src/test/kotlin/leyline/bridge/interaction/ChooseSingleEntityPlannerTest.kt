@@ -73,13 +73,13 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
-        test("Manifest Dread includes selectable and unfiltered candidates") {
+        test("Manifest Dread leaves private candidate projection to its bound route") {
             val plan = planFor(manifestDreadSa())
 
             assertSoftly(plan) {
-                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                 candidateRefsPolicy.candidateRefs(refs) shouldBe refs
-                candidateRefsPolicy.unfilteredRefs(refs, semantic) shouldBe refs
+                candidateRefsPolicy.unfilteredRefs(refs, semantic).shouldBeEmpty()
             }
         }
 

@@ -17,7 +17,6 @@ internal fun SelectNPromptRoute.envelope(
         SelectNEnvelopeKind.Default -> SelectNEnvelope.default(req)
         SelectNEnvelopeKind.RevealChoose -> SelectNEnvelope.revealChoose(req)
         SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
-        SelectNEnvelopeKind.ManifestDread -> SelectNEnvelope.manifestDread(req)
         SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
     }
 
@@ -34,10 +33,6 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
         SelectNInnerPrompt.SelectNInnerParameter -> {
             builder.setSourceIdIfPresent(prompt, bridge)
             builder.setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
-        }
-        SelectNInnerPrompt.ManifestDreadInnerParameter -> {
-            builder.setSourceIdIfPresent(prompt, bridge)
-            builder.setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
         }
         SelectNInnerPrompt.LearnInnerParameter -> {
             builder.setSourceIdIfPresent(prompt, bridge)

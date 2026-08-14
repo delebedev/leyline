@@ -45,6 +45,12 @@ internal object CardSelectWindowCapture {
             check(request.sourceEntityId != null) { "Library putback requires a card source" }
             check(candidateHandles.all { it.isInZone(ZoneType.Hand) }) { "Library putback candidates must be in hand" }
         }
+        if (route.descriptor.kind == CardSelectKind.ManifestDread) {
+            check(request.sourceEntityId != null) { "Manifest Dread requires a card source" }
+            check(request.min == 1 && request.max == 1) { "Manifest Dread requires exactly one selection" }
+            check(request.defaultIndex == 0) { "Manifest Dread default must select the first candidate" }
+            check(candidateHandles.all { it.isInZone(ZoneType.Library) }) { "Manifest Dread candidates must be in library" }
+        }
         return Initial(
             value =
                 CardSelectWindowValue(
