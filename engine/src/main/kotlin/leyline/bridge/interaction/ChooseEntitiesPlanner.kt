@@ -4,13 +4,16 @@ import forge.game.ability.ApiType
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
+import leyline.bridge.types.PromptCandidateRefDto
 
 data class ChooseEntitiesContext(
     val sa: SpellAbility?,
     val min: Int,
     val max: Int,
     val optionCount: Int,
-    val hiddenLibrarySelection: Boolean,
+    val candidateRefs: List<PromptCandidateRefDto>,
 )
 
 data class ChooseEntitiesPlan(
@@ -20,13 +23,20 @@ data class ChooseEntitiesPlan(
     val semantic: PromptSemantic,
     val candidateRefsPolicy: CandidateRefsPolicy,
     val sourceIdPolicy: SourceIdPolicy,
+    val resolutionRouteInput: ResolutionRouteInput?,
 )
 
 object ChooseEntitiesPlanner {
     fun plan(context: ChooseEntitiesContext): ChooseEntitiesPlan {
         val effectiveMax = context.max.coerceAtMost(context.optionCount)
         val effectiveMin = context.min.coerceAtLeast(0).coerceAtMost(effectiveMax)
-        val semantic = semanticFor(context.sa, context.hiddenLibrarySelection)
+        val resolutionInput =
+            resolutionRouteInput(
+                context.candidateRefs,
+                context.optionCount,
+                if (context.sa?.api == ApiType.Dig) ResolutionAbilityShape.Dig else ResolutionAbilityShape.Other,
+            )
+        val semantic = semanticFor(context.sa, resolutionInput)
         val prompted = context.optionCount > effectiveMin
         return ChooseEntitiesPlan(
             effectiveMin = effectiveMin,
@@ -37,20 +47,23 @@ object ChooseEntitiesPlanner {
                 when {
                     !prompted -> CandidateRefsPolicy.None
                     semantic == PromptSemantic.Search -> CandidateRefsPolicy.Selectable
+                    semantic == PromptSemantic.SelectNResolution && resolutionInput.isHiddenLibraryCardChoice ->
+                        CandidateRefsPolicy.Selectable
                     else -> CandidateRefsPolicy.SelectableAndUnfilteredForResolution
                 },
             sourceIdPolicy = SourceIdPolicy.HostCard,
+            resolutionRouteInput = resolutionInput.takeIf { semantic == PromptSemantic.SelectNResolution },
         )
     }
 
     private fun semanticFor(
         sa: SpellAbility?,
-        hiddenLibrarySelection: Boolean,
+        resolutionInput: ResolutionRouteInput,
     ): PromptSemantic =
         when {
             sa?.alternativeCost == AlternativeCost.Escape -> PromptSemantic.SelectNCostExileFromGrave
             SpellAbilityShapes.isHandToLibraryReorder(sa) -> PromptSemantic.SelectNLibraryPutback
-            sa?.api == ApiType.ChangeZone && hiddenLibrarySelection -> PromptSemantic.Search
+            sa?.api == ApiType.ChangeZone && resolutionInput.isCompleteLibraryCardChoice -> PromptSemantic.Search
             else -> PromptSemantic.SelectNResolution
         }
 }

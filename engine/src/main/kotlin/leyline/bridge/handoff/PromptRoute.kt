@@ -1,5 +1,6 @@
 package leyline.bridge.handoff
 
+import leyline.bridge.types.PromptCandidateKind
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
@@ -24,7 +25,8 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
-    data class SelectN(
+    /** Dynamic resolution choice outside the characterized hidden-library card shape. */
+    data class ResolutionResidual(
         val descriptor: SelectNPromptRoute,
     ) : ResolvedPromptRoute {
         override val semantic: PromptSemantic = descriptor.semantic
@@ -94,6 +96,31 @@ enum class CardSelectKind {
     SacrificeEffect,
     Suspect,
     MutateTopBottom,
+    Resolution,
+    Learn,
+}
+
+enum class ResolutionAbilityShape {
+    Dig,
+    Other,
+}
+
+/** Candidate-domain facts fixed by the engine callback before route binding. */
+data class ResolutionRouteInput(
+    val optionCount: Int,
+    val candidateCount: Int,
+    val candidateKinds: Set<PromptCandidateKind>,
+    val candidateZones: Set<String?>,
+    val abilityShape: ResolutionAbilityShape,
+) {
+    val isCompleteLibraryCardChoice: Boolean
+        get() =
+            candidateCount == optionCount &&
+                candidateKinds == setOf(PromptCandidateKind.Card) &&
+                candidateZones == setOf("Library")
+
+    val isHiddenLibraryCardChoice: Boolean
+        get() = isCompleteLibraryCardChoice && abilityShape == ResolutionAbilityShape.Dig
 }
 
 data class CardSelectPromptRoute(
@@ -107,18 +134,6 @@ data class SelectNShape(
     val listType: SelectionListType,
     val optionContext: OptionContext,
 )
-
-enum class SelectNInnerPrompt {
-    GenericSelectN,
-    SelectNInnerParameter,
-    LearnInnerParameter,
-}
-
-enum class SelectNEnvelopeKind {
-    Default,
-    Resolution,
-    LearnLesson,
-}
 
 enum class StaticChoiceKind {
     Color,
@@ -134,8 +149,6 @@ data class StaticChoicePromptRoute(
 data class SelectNPromptRoute(
     val semantic: PromptSemantic,
     val shape: SelectNShape,
-    val innerPrompt: SelectNInnerPrompt,
-    val envelopeKind: SelectNEnvelopeKind,
 )
 
 enum class PayCostsRouteKind {
@@ -176,6 +189,7 @@ object PromptRouteResolver {
     fun resolve(
         semantic: PromptSemantic,
         hasCandidateRefs: Boolean = false,
+        resolutionInput: ResolutionRouteInput? = null,
     ): ResolvedPromptRoute =
         when (semantic) {
             PromptSemantic.Generic ->
@@ -196,15 +210,18 @@ object PromptRouteResolver {
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
             PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)
             PromptSemantic.SelectNResolution ->
-                selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.SelectNInnerParameter, SelectNEnvelopeKind.Resolution)
+                if (resolutionInput?.isHiddenLibraryCardChoice == true) {
+                    cardSelect(semantic, CardSelectKind.Resolution)
+                } else {
+                    resolutionResidual(semantic, dynamicResolutionShape)
+                }
             PromptSemantic.ManifestDread -> cardSelect(semantic, CardSelectKind.ManifestDread)
             PromptSemantic.SuspectChoice -> cardSelect(semantic, CardSelectKind.Suspect, choiceResultSentiment = 2)
             PromptSemantic.SelectNLibraryPutback -> cardSelect(semantic, CardSelectKind.LibraryPutback)
             PromptSemantic.SelectNSacrificeEffect ->
                 cardSelect(semantic, CardSelectKind.SacrificeEffect, choiceResultSentiment = 1)
             PromptSemantic.MutateTopBottom -> cardSelect(semantic, CardSelectKind.MutateTopBottom)
-            PromptSemantic.LearnLesson ->
-                selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.LearnInnerParameter, SelectNEnvelopeKind.LearnLesson)
+            PromptSemantic.LearnLesson -> cardSelect(semantic, CardSelectKind.Learn)
             PromptSemantic.StaticColorChoice ->
                 staticChoice(semantic, StaticChoiceKind.Color)
             PromptSemantic.StaticSubtypeChoice ->
@@ -229,14 +246,12 @@ object PromptRouteResolver {
                 payCosts(semantic, PayCostsRouteKind.WaterbendCost, "waterbend", ManaSourcePaymentKind.Waterbend)
         }
 
-    private fun selectN(
+    private fun resolutionResidual(
         semantic: PromptSemantic,
         shape: SelectNShape,
-        innerPrompt: SelectNInnerPrompt,
-        envelopeKind: SelectNEnvelopeKind,
-    ): ResolvedPromptRoute.SelectN =
-        ResolvedPromptRoute.SelectN(
-            SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind),
+    ): ResolvedPromptRoute.ResolutionResidual =
+        ResolvedPromptRoute.ResolutionResidual(
+            SelectNPromptRoute(semantic, shape),
         )
 
     private fun cardSelect(

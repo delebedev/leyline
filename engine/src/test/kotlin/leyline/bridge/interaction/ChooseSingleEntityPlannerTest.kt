@@ -27,7 +27,7 @@ class ChooseSingleEntityPlannerTest :
         }
 
         test("active reveal over card options uses special route") {
-            val plan = planFor(genericSa(), activeReveal = true, allOptionsAreCards = true)
+            val plan = planFor(genericSa(), activeReveal = true)
 
             plan.routePolicy shouldBe ChooseSingleEntityRoutePolicy.ActiveReveal
         }
@@ -54,8 +54,10 @@ class ChooseSingleEntityPlannerTest :
         test("regular prompted semantics follow spell ability shape") {
             assertSoftly {
                 planFor(legendRuleSa()).semantic shouldBe PromptSemantic.SelectNLegendRule
-                planFor(changeZoneSa(), hiddenLibrarySelection = true).semantic shouldBe PromptSemantic.Search
-                planFor(changeZoneSa(), hiddenLibrarySelection = false).semantic shouldBe PromptSemantic.SelectNResolution
+                planFor(changeZoneSa(), candidateRefs = libraryRefs).semantic shouldBe PromptSemantic.Search
+                planFor(changeZoneSa(), optionCount = libraryRefs.size + 1, candidateRefs = libraryRefs).semantic shouldBe
+                    PromptSemantic.SelectNResolution
+                planFor(changeZoneSa()).semantic shouldBe PromptSemantic.SelectNResolution
                 planFor(genericSa(), hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
                 planFor(learnSa()).semantic shouldBe PromptSemantic.LearnLesson
                 planFor(manifestDreadSa()).semantic shouldBe PromptSemantic.ManifestDread
@@ -63,10 +65,22 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
+        test("only Dig over exact library Card candidates selects projected Resolution") {
+            assertSoftly {
+                planFor(digSa(), candidateRefs = libraryRefs).resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe true
+                planFor(digSa(), optionCount = libraryRefs.size + 1, candidateRefs = libraryRefs)
+                    .resolutionRouteInput
+                    ?.isHiddenLibraryCardChoice shouldBe false
+                planFor(digSa()).resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe false
+                planFor(genericSa(), candidateRefs = libraryRefs).resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe false
+            }
+        }
+
         test("source-aware paths include the host card id") {
             assertSoftly {
                 planFor(learnSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
                 planFor(manifestDreadSa()).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                planFor(digSa(), candidateRefs = libraryRefs).sourceIdPolicy shouldBe SourceIdPolicy.HostCard
                 planFor(legendRuleSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
                 planFor(changeZoneSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
                 planFor(genericSa()).sourceIdPolicy shouldBe SourceIdPolicy.None
@@ -99,14 +113,14 @@ private val refs =
         PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Card, entityId = 10, zone = "Hand"),
         PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 11, zone = "Hand"),
     )
+private val libraryRefs = refs.map { it.copy(zone = "Library") }
 
 private fun planFor(
     sa: SpellAbility,
     isOptional: Boolean = false,
     hasDelayedReveal: Boolean = false,
     optionCount: Int = refs.size,
-    allOptionsAreCards: Boolean = true,
-    hiddenLibrarySelection: Boolean = false,
+    candidateRefs: List<PromptCandidateRefDto> = refs,
     activeReveal: Boolean = false,
 ): ChooseSingleEntityPlan =
     ChooseSingleEntityPlanner.plan(
@@ -115,8 +129,7 @@ private fun planFor(
             isOptional = isOptional,
             hasDelayedReveal = hasDelayedReveal,
             optionCount = optionCount,
-            allOptionsAreCards = allOptionsAreCards,
-            hiddenLibrarySelection = hiddenLibrarySelection,
+            candidateRefs = candidateRefs.take(optionCount),
             activeReveal = activeReveal,
         ),
     )
@@ -132,5 +145,7 @@ private fun learnSa(): SpellAbility = abilitySub(ApiType.Learn)
 private fun manifestDreadSa(): SpellAbility = abilitySub(ApiType.ManifestDread)
 
 private fun genericSa(): SpellAbility = abilitySub(ApiType.ChooseCard)
+
+private fun digSa(): SpellAbility = abilitySub(ApiType.Dig)
 
 private fun abilitySub(api: ApiType): AbilitySub = AbilitySub(api, Card(7, null).also { it.name = "Host" }, null, emptyMap())

@@ -53,6 +53,7 @@ class LearnLessonTest :
                 req.idsList shouldContain lessonId
                 req.idsList shouldContain handDiscardId
                 req.sourceId shouldBeGreaterThan 0
+                cardByIid(req.sourceId)?.name shouldBe "Cram Session"
                 req.prompt.parametersList
                     .single()
                     .parameterName shouldBe "Parameter"
@@ -86,6 +87,39 @@ class LearnLessonTest :
                 lessonObj.visibility shouldBe Visibility.Private
                 lessonObj.viewersList shouldContain SeatId(1).value
                 lessonObj.grpId shouldBe 76393
+            }
+        }
+
+        test("Learn with no discard candidate emits the lesson-only envelope") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Cram Session
+                humanbattlefield=Swamp;Swamp
+                humanlibrary=Swamp;Swamp;Swamp
+                humansideboard=Environmental Sciences
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Learn lesson only",
+                validating = true,
+            )
+
+            val req = castSpellUntilSelectNReq("Cram Session")
+            val message = allMessages.last { it.hasSelectNReq() }
+            val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
+
+            assertSoftly {
+                req.idsList shouldBe listOf(lessonId)
+                req.minSel shouldBe 1
+                req.maxSel shouldBe 1
+                cardByIid(req.sourceId)?.name shouldBe "Cram Session"
+                message.prompt.promptId shouldBe PromptIds.LEARN_LESSON_ONLY
+                message.allowCancel shouldBe AllowCancel.Continue
+                allMessages.any { it.hasSelectTargetsReq() }.shouldBeFalse()
             }
         }
 

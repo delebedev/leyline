@@ -12,6 +12,8 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PromptCandidateKind
+import leyline.bridge.types.PromptCandidateRefDto
 
 class ChooseCardsForEffectPlannerTest :
     FunSpec({
@@ -123,12 +125,15 @@ class ChooseCardsForEffectPlannerTest :
 
         test("ChangeZone cards-for-effect uses Search only for hidden library selections") {
             assertSoftly {
-                ChooseCardsForEffectPlanner.plan(context(changeZoneSa(), hiddenLibrarySelection = true)).let { plan ->
+                ChooseCardsForEffectPlanner.plan(context(changeZoneSa(), candidateRefs = libraryRefs)).let { plan ->
                     plan.semantic shouldBe PromptSemantic.Search
                     plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                     plan.sourceIdPolicy shouldBe SourceIdPolicy.HostCard
                 }
-                ChooseCardsForEffectPlanner.plan(context(changeZoneSa(), hiddenLibrarySelection = false)).let { plan ->
+                ChooseCardsForEffectPlanner
+                    .plan(context(changeZoneSa(), optionCount = libraryRefs.size + 1, candidateRefs = libraryRefs))
+                    .semantic shouldBe PromptSemantic.SelectNResolution
+                ChooseCardsForEffectPlanner.plan(context(changeZoneSa())).let { plan ->
                     plan.semantic shouldBe PromptSemantic.SelectNResolution
                     plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
                     plan.sourceIdPolicy shouldBe SourceIdPolicy.HostCard
@@ -139,9 +144,19 @@ class ChooseCardsForEffectPlannerTest :
 
 private fun context(
     sa: SpellAbility?,
-    hiddenLibrarySelection: Boolean = false,
+    optionCount: Int = handRefs.size,
+    candidateRefs: List<PromptCandidateRefDto> = handRefs,
     activeReveal: Boolean = false,
-): ChooseCardsForEffectContext = ChooseCardsForEffectContext(sa, hiddenLibrarySelection, activeReveal)
+): ChooseCardsForEffectContext =
+    ChooseCardsForEffectContext(
+        sa = sa,
+        optionCount = optionCount,
+        candidateRefs = candidateRefs,
+        activeReveal = activeReveal,
+    )
+
+private val handRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, 10, "Hand"))
+private val libraryRefs = handRefs.map { it.copy(zone = "Library") }
 
 private fun suspectChoiceSa(
     hostName: String = "Host",

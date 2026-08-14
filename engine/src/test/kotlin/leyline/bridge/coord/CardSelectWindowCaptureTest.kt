@@ -5,9 +5,13 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContainExactly
+import leyline.bridge.handoff.CardSelectOriginZone
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.testkit.BoardTest
@@ -184,6 +188,128 @@ class CardSelectWindowCaptureTest :
                                 ),
                         ),
                         listOf(source),
+                    )
+                }
+            }
+        }
+
+        test("projected card choices freeze only their exact source zones and cardinalities") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:projected card choice capture
+                    Goal:Win
+                    Turns:1
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Mountain
+                    humanlibrary=Forest;Grizzly Bears
+                    humansideboard=Environmental Sciences
+                    humanbattlefield=Island
+                    ailibrary=Forest
+                    """.trimIndent(),
+                )
+            val source =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val library =
+                board.human
+                    .getZone(ZoneType.Library)
+                    .cards
+                    .toList()
+            val hand =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val sideboard =
+                board.human
+                    .getZone(ZoneType.Sideboard)
+                    .cards
+                    .single()
+
+            fun request(
+                semantic: PromptSemantic,
+                candidates: List<Card>,
+                min: Int,
+            ): PromptRequest =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Choose a card",
+                    options = candidates.map { it.name },
+                    min = min,
+                    max = 1,
+                    defaultIndex = 0,
+                    candidateRefs =
+                        candidates.mapIndexed { index, card ->
+                            PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
+                        },
+                    route =
+                        PromptRouteResolver.resolve(
+                            semantic,
+                            resolutionInput =
+                                candidates
+                                    .takeIf { semantic == PromptSemantic.SelectNResolution }
+                                    ?.let {
+                                        ResolutionRouteInput(
+                                            optionCount = it.size,
+                                            candidateCount = it.size,
+                                            candidateKinds = setOf(PromptCandidateKind.Card),
+                                            candidateZones = setOf(ZoneType.Library.name),
+                                            abilityShape = ResolutionAbilityShape.Dig,
+                                        )
+                                    },
+                        ),
+                    sourceEntityId = source.id,
+                )
+
+            val resolution = request(PromptSemantic.SelectNResolution, library, min = 1)
+            val learnHandles = listOf(sideboard, hand)
+            val learn = request(PromptSemantic.LearnLesson, learnHandles, min = 0)
+
+            assertSoftly {
+                CardSelectWindowCapture
+                    .initial(resolution, library)
+                    .value.candidates
+                    .map { it.originZone } shouldContainExactly
+                    listOf(CardSelectOriginZone.Library, CardSelectOriginZone.Library)
+                shouldNotThrowAny { CardSelectWindowCapture.initial(resolution.copy(min = 0), library) }
+                CardSelectWindowCapture
+                    .initial(learn, learnHandles)
+                    .value.candidates
+                    .map { it.originZone } shouldContainExactly
+                    listOf(CardSelectOriginZone.Sideboard, CardSelectOriginZone.Hand)
+                shouldThrow<IllegalStateException> {
+                    CardSelectWindowCapture.initial(resolution.copy(sourceEntityId = null), library)
+                }
+                shouldThrow<IllegalStateException> {
+                    CardSelectWindowCapture.initial(
+                        resolution.copy(
+                            options = listOf(hand.name),
+                            candidateRefs =
+                                listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, hand.id, ZoneType.Hand.name)),
+                        ),
+                        listOf(hand),
+                    )
+                }
+                shouldThrow<IllegalStateException> {
+                    CardSelectWindowCapture.initial(learn.copy(sourceEntityId = null), learnHandles)
+                }
+                shouldThrow<IllegalStateException> { CardSelectWindowCapture.initial(learn.copy(min = 1), learnHandles) }
+                shouldThrow<IllegalStateException> {
+                    CardSelectWindowCapture.initial(
+                        learn.copy(
+                            options = library.map { it.name },
+                            candidateRefs = resolution.candidateRefs,
+                        ),
+                        library,
                     )
                 }
             }

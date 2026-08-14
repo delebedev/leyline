@@ -21,6 +21,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.interaction.ChooseCardsForEffectContext
@@ -90,6 +91,7 @@ class TargetingCoordinator(
         if (optionList.isEmpty()) return null
         val reveal = bridge.journal.activeRevealEntry()
         val revealedCards = optionList.filterIsInstance<Card>()
+        val candidateRefs = buildCandidateRefs(optionList)
         val plan =
             ChooseSingleEntityPlanner.plan(
                 ChooseSingleEntityContext(
@@ -97,8 +99,7 @@ class TargetingCoordinator(
                     isOptional = isOptional,
                     hasDelayedReveal = hasDelayedReveal,
                     optionCount = optionList.size,
-                    allOptionsAreCards = revealedCards.size == optionList.size,
-                    hiddenLibrarySelection = isHiddenLibrarySelection(revealedCards, optionList.size),
+                    candidateRefs = candidateRefs,
                     activeReveal = reveal != null,
                 ),
             )
@@ -116,7 +117,6 @@ class TargetingCoordinator(
         }
 
         val labels = optionList.map { it.entityLabel() }
-        val candidateRefs = buildCandidateRefs(optionList)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -127,7 +127,12 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
-                route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
+                route =
+                    PromptRouteResolver.resolve(
+                        plan.semantic,
+                        hasCandidateRefs = true,
+                        resolutionInput = plan.resolutionRouteInput,
+                    ),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
@@ -147,7 +152,7 @@ class TargetingCoordinator(
                 }
             }
 
-        recordLearnRevealIfNeeded(plan.isLearn, chosen)
+        recordLearnRevealIfNeeded(plan.isLearn, chosen, request.sourceEntityId?.let(::ForgeCardId))
 
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
         if (plan.isLegendRule && chosen != null) {
@@ -196,6 +201,7 @@ class TargetingCoordinator(
     private fun recordLearnRevealIfNeeded(
         isLearn: Boolean,
         chosen: GameEntity?,
+        sourceId: ForgeCardId?,
     ) {
         if (!isLearn || chosen !is Card || !chosen.isInZone(ZoneType.Sideboard)) return
 
@@ -205,7 +211,7 @@ class TargetingCoordinator(
             ownerSeat,
             opposingSeat(ownerSeat),
             RevealZone.SIDEBOARD,
-            currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+            sourceId,
         )
     }
 
@@ -259,7 +265,7 @@ class TargetingCoordinator(
                     min = min,
                     max = max,
                     optionCount = optionList.size,
-                    hiddenLibrarySelection = isHiddenLibrarySelection(optionList.filterIsInstance<Card>(), optionList.size),
+                    candidateRefs = candidateRefs,
                 ),
             )
         if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
@@ -272,7 +278,12 @@ class TargetingCoordinator(
                 max = plan.effectiveMax,
                 defaultIndex = 0,
                 candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
-                route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
+                route =
+                    PromptRouteResolver.resolve(
+                        plan.semantic,
+                        hasCandidateRefs = true,
+                        resolutionInput = plan.resolutionRouteInput,
+                    ),
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
@@ -298,11 +309,6 @@ class TargetingCoordinator(
         value: String,
     ): Boolean = hasParam(name) && getParam(name).equals(value, ignoreCase = true)
 
-    private fun isHiddenLibrarySelection(
-        cards: List<Card>,
-        optionCount: Int,
-    ): Boolean = cards.size == optionCount && cards.isNotEmpty() && cards.all { it.zone?.zoneType == ZoneType.Library }
-
     private fun searchSource(
         semantic: PromptSemantic,
         ability: SpellAbility?,
@@ -326,11 +332,13 @@ class TargetingCoordinator(
         isOptional: Boolean,
     ): CardCollectionView {
         val reveal = bridge.journal.activeRevealEntry()
+        val candidateRefs = buildCandidateRefs(sourceList)
         val plan =
             ChooseCardsForEffectPlanner.plan(
                 ChooseCardsForEffectContext(
                     sa = sa,
-                    hiddenLibrarySelection = isHiddenLibrarySelection(sourceList.filterIsInstance<Card>(), sourceList.size),
+                    optionCount = sourceList.size,
+                    candidateRefs = candidateRefs,
                     activeReveal = reveal != null,
                 ),
             )
@@ -347,10 +355,11 @@ class TargetingCoordinator(
             max,
             title ?: "Choose cards",
             semantic = plan.semantic,
-            candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(sourceList)),
+            candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
             sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             forcePrompt = plan.forcePrompt,
             searchSource = searchSource(plan.semantic, sa),
+            resolutionRouteInput = plan.resolutionRouteInput,
         )
     }
 
@@ -1005,6 +1014,7 @@ class TargetingCoordinator(
         costSelectionWeights: List<Int> = emptyList(),
         minSelectionWeight: Int? = null,
         searchSource: SearchSourceValue? = null,
+        resolutionRouteInput: ResolutionRouteInput? = null,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
@@ -1020,7 +1030,7 @@ class TargetingCoordinator(
                 max = effectiveMax,
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
-                route = PromptRouteResolver.resolve(semantic, candidateRefs.isNotEmpty()),
+                route = PromptRouteResolver.resolve(semantic, candidateRefs.isNotEmpty(), resolutionRouteInput),
                 sourceEntityId = sourceEntityId,
                 costSelectionWeights = costSelectionWeights,
                 minSelectionWeight = minSelectionWeight,

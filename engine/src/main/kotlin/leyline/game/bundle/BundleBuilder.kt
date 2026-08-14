@@ -1457,8 +1457,11 @@ class BundleBuilder(
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
         val privatePrompt =
             window
-                .takeIf { it.kind == CardSelectKind.ManifestDread }
-                ?.let {
+                .takeIf {
+                    it.kind == CardSelectKind.ManifestDread ||
+                        it.kind == CardSelectKind.Resolution ||
+                        it.kind == CardSelectKind.Learn
+                }?.let {
                     PrivateCardPromptProjection.of(
                         candidateForgeIds = it.candidates.map { candidate -> candidate.forgeCardId },
                         sourceForgeId = it.sourceForgeCardId,
@@ -1593,7 +1596,7 @@ class BundleBuilder(
 
     /**
      * Residual SelectN bundle: GameState + SelectNReq.
-     * Used for resolution, Learn, and other dynamic residual SelectN prompts.
+     * Used for residual dynamic resolution SelectN prompts.
      */
     fun selectNBundle(
         game: Game,
@@ -1664,8 +1667,6 @@ class BundleBuilder(
             when (envelope.gameStateAugmentation) {
                 SelectNEnvelope.GameStateAugmentation.LookAndPick ->
                     attachLookAndPickGameObjects(diff.result.gsm, envelope.req, snap)
-                SelectNEnvelope.GameStateAugmentation.LearnLesson ->
-                    attachLearnLessonGameObjects(diff.result.gsm, envelope.req, snap)
                 SelectNEnvelope.GameStateAugmentation.None -> diff.result.gsm
             }
         val gs =
@@ -1747,57 +1748,6 @@ class BundleBuilder(
                         instanceId = iid,
                         zoneId = libraryZoneId,
                         ownerSeatId = seatId,
-                        cardProto = bridge.cardProto,
-                        visibility = Visibility.Private,
-                    ).toBuilder()
-                    .addViewers(seatId)
-                    .build()
-            val existingIdx = existingByIid[iid]
-            if (existingIdx != null) {
-                gsBuilder.setGameObjects(existingIdx, obj)
-            } else {
-                gsBuilder.addGameObjects(obj)
-            }
-        }
-        return gsBuilder.build()
-    }
-
-    /**
-     * Learn choices can include sideboard Lessons whose object data was not part
-     * of the latest diff. Attach the selectable cards in their current zones so
-     * the SelectN panel has renderable card objects.
-     */
-    private fun attachLearnLessonGameObjects(
-        gsm: GameStateMessage,
-        req: SelectNReq,
-        snap: GsmSnapshot,
-    ): GameStateMessage {
-        if (req.idsList.isEmpty()) return gsm
-        val gsBuilder = gsm.toBuilder()
-        val existingByIid = gsBuilder.gameObjectsList.withIndex().associate { (idx, obj) -> obj.instanceId to idx }
-        for (iid in req.idsList) {
-            val forgeCardId =
-                bridge.getForgeCardId(InstanceId(iid)) ?: run {
-                    log.warn("attachLearnLessonGameObjects: no ForgeCardId for iid={}", iid)
-                    continue
-                }
-            val cardSnap =
-                snap.objects[forgeCardId] ?: run {
-                    log.warn(
-                        "attachLearnLessonGameObjects: no CardSnapshot for forgeCardId={} iid={}",
-                        forgeCardId.value,
-                        iid,
-                    )
-                    continue
-                }
-            val zone = snap.zones.values.firstOrNull { forgeCardId in it.contents }
-            val obj =
-                ObjectMapper
-                    .buildFromSnapshot(
-                        cardSnap = cardSnap,
-                        instanceId = iid,
-                        zoneId = zone?.id ?: ZoneIds.sideboardOf(seatId),
-                        ownerSeatId = zone?.owner?.value ?: seatId,
                         cardProto = bridge.cardProto,
                         visibility = Visibility.Private,
                     ).toBuilder()

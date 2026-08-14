@@ -75,6 +75,8 @@ internal class MatchCardSelectInteractionRuntime(
                 CardSelectKind.LegendRule,
                 CardSelectKind.LibraryPutback,
                 CardSelectKind.ManifestDread,
+                CardSelectKind.Resolution,
+                CardSelectKind.Learn,
                 -> return false
                 CardSelectKind.Discard,
                 CardSelectKind.SacrificeEffect,

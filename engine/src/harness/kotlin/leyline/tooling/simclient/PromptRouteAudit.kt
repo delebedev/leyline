@@ -84,7 +84,7 @@ object PromptRouteAuditor {
         when (this) {
             is ResolvedPromptRoute.Grouping -> "GroupReq"
             is ResolvedPromptRoute.ModalChoice -> "CastingTimeOptionsReq"
-            is ResolvedPromptRoute.SelectN -> "SelectNReq"
+            is ResolvedPromptRoute.ResolutionResidual -> "SelectNReq"
             is ResolvedPromptRoute.CardSelect -> "SelectNReq"
             is ResolvedPromptRoute.StaticChoice -> "SelectNReq"
             is ResolvedPromptRoute.RevealChoice -> "SelectNReq"

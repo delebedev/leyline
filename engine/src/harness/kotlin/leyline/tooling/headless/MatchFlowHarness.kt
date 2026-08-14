@@ -1086,7 +1086,7 @@ class MatchFlowHarness(
             .prompt
             .getPendingPrompt()
             ?.request
-            ?.route is ResolvedPromptRoute.SelectN
+            ?.route is ResolvedPromptRoute.ResolutionResidual
 
     /**
      * Reflect the latest prompt ids onto a client response before it enters

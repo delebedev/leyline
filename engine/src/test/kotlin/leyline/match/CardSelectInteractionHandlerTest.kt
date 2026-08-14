@@ -11,6 +11,8 @@ import leyline.bridge.handoff.CardSelectInteractionResult
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -38,6 +40,7 @@ class CardSelectInteractionHandlerTest :
             AILife=20
             humanhand=Mountain;Forest
             humanlibrary=Grizzly Bears;Centaur Courser
+            humansideboard=Environmental Sciences
             humanbattlefield=Island
             ailibrary=Forest
             """.trimIndent()
@@ -57,13 +60,28 @@ class CardSelectInteractionHandlerTest :
                 promptType = "choose_cards",
                 message = "Choose a permanent",
                 options = candidates.map { it.name },
-                min = 1,
+                min = if (semantic == PromptSemantic.LearnLesson) 0 else 1,
                 max = 1,
                 candidateRefs =
                     candidates.mapIndexed { index, card ->
                         PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
                     },
-                route = PromptRouteResolver.resolve(semantic),
+                route =
+                    PromptRouteResolver.resolve(
+                        semantic,
+                        resolutionInput =
+                            candidates
+                                .takeIf { semantic == PromptSemantic.SelectNResolution }
+                                ?.let {
+                                    ResolutionRouteInput(
+                                        optionCount = candidates.size,
+                                        candidateCount = it.size,
+                                        candidateKinds = setOf(PromptCandidateKind.Card),
+                                        candidateZones = it.mapTo(linkedSetOf()) { card -> card.zone.zoneType.name },
+                                        abilityShape = ResolutionAbilityShape.Dig,
+                                    )
+                                },
+                    ),
                 sourceEntityId =
                     if (semantic == PromptSemantic.SelectNLegendRule) {
                         null
@@ -125,17 +143,24 @@ class CardSelectInteractionHandlerTest :
             PromptSemantic.SelectNLegendRule,
             PromptSemantic.SelectNLibraryPutback,
             PromptSemantic.ManifestDread,
+            PromptSemantic.SelectNResolution,
+            PromptSemantic.LearnLesson,
         ).forEach { semantic ->
             test("$semantic rejects EffectCostResp and accepts only SelectNResp") {
                 val board = startPuzzleAtMain1(puzzle)
                 val coordinator = board.bridge.cutCoordinator
                 coordinator.drain(SeatId(1))
                 val handles =
-                    if (semantic == PromptSemantic.ManifestDread) {
+                    if (semantic == PromptSemantic.ManifestDread || semantic == PromptSemantic.SelectNResolution) {
                         board.human
                             .getZone(ZoneType.Library)
                             .cards
                             .toList()
+                    } else if (semantic == PromptSemantic.LearnLesson) {
+                        board.human
+                            .getZone(ZoneType.Sideboard)
+                            .cards
+                            .toList() + options(board)
                     } else {
                         options(board)
                     }

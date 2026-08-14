@@ -74,7 +74,7 @@ class PromptRouteAuditTest :
         }
 
         test("accepts routed SelectN semantics when SelectNReq is emitted") {
-            (PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) is ResolvedPromptRoute.SelectN) shouldBe true
+            (PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) is ResolvedPromptRoute.ResolutionResidual) shouldBe true
 
             val audit =
                 PromptRouteAuditor.audit(

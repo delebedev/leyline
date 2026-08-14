@@ -23,24 +23,10 @@ import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
- * Regression for fix/stock-up-selectn (bd leyline-7ev).
- *
- * Stock Up is `SP$ Dig | DigNum$ 5 | ChangeNum$ 2` — look at the top 5 cards,
- * put 2 into your hand. Pre-fix `TargetingCoordinator.chooseEntities` left
- * `PromptSemantic` unset, so route resolution fell back to `Targeting` and
- * engine emitted `SelectTargetsReq` instead of `SelectNReq`. The cast
- * looped 10 SelectTargetsReq with no GS updates between them, leaving the
- * game stuck.
- *
- * Post-fix: `chooseEntities` tags `SelectNResolution`, route resolution selects
- * `SelectN(Reason.Resolution)`, the full look-and-pick wire shape emits with
- * the five candidate iids materialized as private-but-viewer gameObjects in
- * the pre-prompt GSM. Player picks 2; resolution moves them to hand.
- *
- * Asserts each protocol-level field the fix introduced plus the end-to-end
- * resolution. Wire-shape test runs under [ValidatingMessageSink] so an iid
- * appearing in `selectNReq.ids` without a matching `gameObjectInfo` would
- * fail the invariant check before any soft assertion fires.
+ * Stock Up's hidden-library Dig choice binds CardSelect, publishes its five
+ * chooser-private candidates with the SelectN request, then enters a separate
+ * Order horizon for the unchosen tail. [ValidatingMessageSink] enforces that
+ * every request ID names an object in the same committed projection.
  */
 class StockUpTest :
     SessionTest({

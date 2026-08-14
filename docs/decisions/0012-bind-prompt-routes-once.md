@@ -164,7 +164,7 @@ explicit planner routes without changing this ADR.
    matrix with table-driven tests before deleting either table.
 3. Attach the resolved route to the pending prompt handoff. Keep any temporary
    `semantic` field derived from the route, never independently writable.
-4. Dispatch directly from distinct `ResolvedPromptRoute.SelectN` and
+4. Dispatch directly from distinct `ResolvedPromptRoute.ResolutionResidual` and
    `ResolvedPromptRoute.PayCosts` variants carrying their concrete descriptors.
 5. Pass the bound route into `RequestBuilder` and Pay-Costs builders; remove
    route lookups from request construction and re-prompt paths.
@@ -250,7 +250,7 @@ package. `PromptRequest` stores the resolved route and derives `semantic` from
 it for diagnostics. The resolver is exhaustive over `PromptSemantic`; Generic
 resolves once from candidate presence.
 
-`ResolvedPromptRoute.SelectN` carries `SelectNPromptRoute`, while
+`ResolvedPromptRoute.ResolutionResidual` carries `SelectNPromptRoute`, while
 `ResolvedPromptRoute.PayCosts` carries `PayCostsPromptRoute`. The descriptors
 contain immutable request-shape and response-policy data. Match lifecycle
 handlers and request builders consume those descriptors; builder behavior

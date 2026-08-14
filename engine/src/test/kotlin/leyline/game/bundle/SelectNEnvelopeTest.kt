@@ -71,7 +71,7 @@ class SelectNEnvelopeTest :
                 envelope.prompt.getParameters(0).numberValue shouldBe 101
                 envelope.prompt.getParameters(1).numberValue shouldBe 2
                 envelope.allowCancel shouldBe AllowCancel.Continue
-                envelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.LearnLesson
+                envelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.None
             }
         }
     })
