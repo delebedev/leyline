@@ -27,9 +27,8 @@ Current residual responsibilities include:
 - Select-N, order, effect-cost, and group response mapping.
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
-- One-shot `PayCostsReq` routes and their prompt-journal side effects.
 
-Target selection, Search, and iterative Convoke, Improvise, and Waterbend
+Target selection, Search, and all PayCosts
 payments are match-coordinator-owned lifecycles with value-only session adapters.
 
 This produces a large, high-churn file whose name no longer describes most of
@@ -133,9 +132,11 @@ Waterbend `PayCostsReq` loops:
 - Pass and Cancel resolve original prompt indices; timeout returns the configured default.
 - Convoke and Improvise payment facts are staged by the replacement cut, corrected before engine progression, and retained until stack-exit consumption.
 
-`PayCostsInteractionHandler` retains only the seven one-shot PayCosts routes.
-The thin mana-source session adapter submits correlated immutable values and
-does not retain live cards or mutable payment maps.
+`MatchOneShotPayCostsRuntime` owns Sacrifice, exile-from-grave, return-unblocked-attacker,
+Collect Evidence, Station, Enlist, and Teamwork. It freezes exact option handles and
+weights on the engine thread, commits one state-and-request cut before signalling,
+and accepts only correlated immutable instance-id selections. The thin PayCosts
+session adapter does not retain live cards or mutable payment maps.
 
 ## Non-Goals
 

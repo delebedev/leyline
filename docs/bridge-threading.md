@@ -125,7 +125,9 @@ An explicitly bound Search callback freezes library, candidate, source, and pick
 
 Convoke, Improvise, and Waterbend callbacks freeze their candidate, shard, source, and mana-cost values on the engine thread. The coordinator commits the initial state and `PayCostsReq` before signalling. Each correlated MakePayment command updates the immutable selection plan and commits its replacement request before delivery acknowledgement releases the engine mailbox. Pass and Cancel return exact original option indices; timeout atomically retires the window and returns the configured default. Convoke and Improvise payment facts are staged by the replacement cut, corrected to the final engine payment before progression, and retained until stack-exit consumption.
 
-Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the legacy bridge/session path. Grouping, modal, select-N, one-shot payment, ordering, automatic routes, and mulligan retain their named handoff contracts until they migrate.
+Sacrifice, exile-from-grave, return-unblocked-attacker, Collect Evidence, Station, Enlist, and Teamwork callbacks freeze source, cardinality, weight, and exact option handles on the engine thread. The coordinator commits one state-and-`PayCostsReq` batch before signalling. A correlated immutable instance-id response resolves through the retained option table and returns the exact original handles. Timeout retires the window and returns the configured default; materialization, install, delivery, and teardown failures are terminal.
+
+Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the legacy bridge/session path. Grouping, modal, select-N, ordering, automatic routes, and mulligan retain their named handoff contracts until they migrate.
 
 ---
 
@@ -209,13 +211,13 @@ frame—when phase transitions fire.
 message in response to a phase, it must call `bridge.awaitPriority()` (or
 `awaitPriorityWithTimeout` with a tighter budget).
 
-For coordinator-backed Visible priority, SyncOnly, Targeting, Search, iterative mana-source payment, and blocking interactions, the wait guarantees:
+For coordinator-backed Visible priority, SyncOnly, Targeting, Search, PayCosts, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
 3. The projection baseline for that batch has settled.
 
-Grouping, modal, select-N, one-shot payment, ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
+Grouping, modal, select-N, ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
 
 Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
 

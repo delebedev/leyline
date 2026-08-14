@@ -7,9 +7,11 @@ import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.SeatId
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
+import leyline.game.OneShotPayCostsMaterializationDiagnostic
 import leyline.game.PendingCut
 import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
+import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingSearchCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
@@ -53,6 +55,7 @@ internal class MatchCutCoordinator(
     internal val targeting = MatchTargetingInteractionRuntime(this)
     internal val search = MatchSearchInteractionRuntime(this)
     internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
+    internal val oneShotPayCosts = MatchOneShotPayCostsRuntime(this)
 
     @Volatile
     private var terminalFailure: PlaybackTerminalFailure? = null
@@ -188,6 +191,7 @@ internal class MatchCutCoordinator(
         targeting.terminate(failure)
         search.terminate(failure)
         manaSourcePayments.terminate(failure)
+        oneShotPayCosts.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
         bridge.prioritySignal.signal()
     }
@@ -200,6 +204,7 @@ internal class MatchCutCoordinator(
             targeting.reset()
             search.reset()
             manaSourcePayments.reset()
+            oneShotPayCosts.reset()
         }
     }
 
@@ -405,8 +410,15 @@ internal class MatchCutCoordinator(
         diagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     ): Nothing = fail(null, null, cause, pendingManaSourcePaymentCut = pending, manaSourcePaymentDiagnostic = diagnostic)
 
+    internal fun failOneShotPayCosts(
+        cause: Throwable,
+        pending: PendingOneShotPayCostsCut? = null,
+        diagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
+    ): Nothing = fail(null, null, cause, pendingOneShotPayCostsCut = pending, oneShotPayCostsDiagnostic = diagnostic)
+
     internal fun failDelivery(cause: Throwable): Nothing =
         synchronized(feedLock) {
+            oneShotPayCosts.pendingCutLocked()?.let { failOneShotPayCosts(cause, it) }
             manaSourcePayments.pendingCutLocked()?.let { failManaSourcePayment(cause, it) }
             search.pendingCutLocked()?.let { failSearch(cause, it) }
             fail(cause)
@@ -421,6 +433,8 @@ internal class MatchCutCoordinator(
         searchDiagnostic: SearchMaterializationDiagnostic? = null,
         pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
         manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
+        pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
+        oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
     ): Nothing =
         throw terminate(
             pending,
@@ -431,6 +445,8 @@ internal class MatchCutCoordinator(
             searchDiagnostic,
             pendingManaSourcePaymentCut,
             manaSourcePaymentDiagnostic,
+            pendingOneShotPayCostsCut,
+            oneShotPayCostsDiagnostic,
         )
 
     private fun terminate(
@@ -442,6 +458,8 @@ internal class MatchCutCoordinator(
         searchDiagnostic: SearchMaterializationDiagnostic? = null,
         pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
         manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
+        pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
+        oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
     ): PlaybackTerminalFailure =
         synchronized(feedLock) {
             terminalFailure?.let { return@synchronized it }
@@ -453,6 +471,8 @@ internal class MatchCutCoordinator(
                 searchDiagnostic = searchDiagnostic,
                 pendingManaSourcePaymentCut = pendingManaSourcePaymentCut,
                 manaSourcePaymentDiagnostic = manaSourcePaymentDiagnostic,
+                pendingOneShotPayCostsCut = pendingOneShotPayCostsCut,
+                oneShotPayCostsDiagnostic = oneShotPayCostsDiagnostic,
                 cause = cause,
             ).also { failure ->
                 pending?.let { retained -> feeds.values.firstOrNull { it.pendingCut === retained }?.pendingCut = retained }
@@ -462,6 +482,7 @@ internal class MatchCutCoordinator(
                 targeting.terminate(failure)
                 search.terminate(failure)
                 manaSourcePayments.terminate(failure)
+                oneShotPayCosts.terminate(failure)
                 bridge.failActionWindows(failure)
                 bridge.prioritySignal.signal()
             }

@@ -90,6 +90,21 @@ internal data class ManaSourcePaymentMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.ManaSourcePaymentWindowValue,
 )
 
+/** Exact one-shot PayCosts cut retained on terminal failure. */
+internal data class PendingOneShotPayCostsCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.OneShotPayCostsWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen one-shot PayCosts input retained when materialization itself fails. */
+internal data class OneShotPayCostsMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.OneShotPayCostsWindowValue,
+)
+
 internal class PlaybackTerminalFailure(
     val pendingCut: PendingCut?,
     val diagnostic: MaterializationDiagnostic?,
@@ -98,5 +113,7 @@ internal class PlaybackTerminalFailure(
     val searchDiagnostic: SearchMaterializationDiagnostic? = null,
     val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
     val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
+    val pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
+    val oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
     cause: Throwable,
 ) : IllegalStateException("Playback projection terminated", cause)

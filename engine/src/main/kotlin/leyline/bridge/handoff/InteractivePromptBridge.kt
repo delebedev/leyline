@@ -84,6 +84,10 @@ class InteractivePromptBridge(
     @Volatile
     var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
 
+    /** Match-scoped owner for the seven non-iterative PayCosts routes. */
+    @Volatile
+    var oneShotPayCostsRuntime: OneShotPayCostsRuntime? = null
+
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; shell-owned consumers
@@ -414,6 +418,10 @@ class InteractivePromptBridge(
             return listOf(request.defaultIndex)
         }
 
+        check(request.route !is ResolvedPromptRoute.PayCosts) {
+            "PayCosts routes require their match-scoped runtime"
+        }
+
         requestMigratedChoice(request, targetingSa, configuredTimeoutMs)?.let { return it }
 
         val promptId = UUID.randomUUID().toString()
@@ -501,6 +509,46 @@ class InteractivePromptBridge(
             throw ex
         }
     }
+
+    /** Route one non-iterative PayCosts request with its exact Forge option handles. */
+    fun requestOneShotPayCosts(
+        request: PromptRequest,
+        candidateHandles: List<Card>,
+    ): OneShotPayCostsResult {
+        val route = request.route as? ResolvedPromptRoute.PayCosts
+        val runtime = oneShotPayCostsRuntime
+        if (route?.descriptor?.manaSourcePayment != null || runtime == null) {
+            return fallbackOneShot(requestChoice(request), candidateHandles)
+        }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return fallbackOneShot(requestChoice(request), candidateHandles)
+        }
+
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitPayment(request, candidateHandles, timeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: OneShotPayCostsTimeoutException) {
+            val fallback = fallbackOneShot(listOf(request.defaultIndex), candidateHandles)
+            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    private fun fallbackOneShot(
+        indices: List<Int>,
+        candidateHandles: List<Card>,
+    ): OneShotPayCostsResult =
+        OneShotPayCostsResult(
+            indices,
+            indices.mapNotNull(candidateHandles::getOrNull),
+        )
 
     /** Replace provisional payment facts with the exact map returned to Forge. */
     fun recordFinalManaSourcePayment(value: FinalManaSourcePaymentValue) {

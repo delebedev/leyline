@@ -87,6 +87,7 @@ class BundleBuilder(
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
+    private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -1398,6 +1399,30 @@ class BundleBuilder(
         )
     }
 
+    /** Prepare, but do not install, one coordinator-owned one-shot PayCosts window. */
+    internal fun prepareOneShotPayCosts(
+        game: Game,
+        counter: MessageCounter,
+        window: leyline.bridge.handoff.OneShotPayCostsWindowValue,
+    ): OneShotPayCostsMaterializer.Prepared {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return oneShotPayCosts.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Legacy SelectTargets presentation for candidate-backed Generic prompts. */
     fun unclassifiedCandidateBundle(
         game: Game,
@@ -1804,52 +1829,6 @@ class BundleBuilder(
     }
 
     /**
-     * PayCosts bundle: GameState + PayCostsReq.
-     * Tells the client to show its native cost-selection UI (mana source
-     * payment, sacrifice, exile-from-graveyard additional costs, convoke).
-     *
-     * Merges any [promptPersistentAnnotations] not already present in the
-     * frame diff's GSM, so the prompt carries pAnns the client needs to
-     * render the candidates (e.g. convoke tap counts) even when the diff
-     * itself wouldn't have emitted them this tick.
-     *
-     * The client responds with PerformActionResp (already handled).
-     */
-    fun payCostsBundle(
-        game: Game,
-        counter: MessageCounter,
-        req: PayCostsReq,
-        prompt: Prompt? = null,
-        promptPersistentAnnotations: List<AnnotationInfo> = emptyList(),
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        val promptOnlyPersistentAnnotations =
-            promptPersistentAnnotations.filterNot { extra ->
-                diff.result.gsm.persistentAnnotationsList
-                    .any { it == extra }
-            }
-        val gs =
-            if (promptOnlyPersistentAnnotations.isEmpty()) {
-                diff.result.gsm
-            } else {
-                diff.result.gsm
-                    .toBuilder()
-                    .addAllPersistentAnnotations(promptOnlyPersistentAnnotations)
-                    .build()
-            }
-        return promptRequestBundle(diff, counter, gs, GREMessageType.PayCostsReq_695e) {
-            it.payCostsReq = req
-            it.setPrompt(prompt ?: Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
-            // Without these two flags the client renders the cost-selection
-            // picker but treats every card as non-clickable (greyed out).
-            // Matches the canonical envelope for non-mana-payment costs
-            // (sacrifice, exile-from-grave additional cost).
-            it.allowCancel = AllowCancel.Abort
-            it.allowUndo = true
-        }
-    }
-
-    /**
      * Wrap a GameStateMessage as QueuedGameStateMessage (type 51) for opponent during prompts.
      */
     fun queuedGameState(
@@ -2127,7 +2106,7 @@ class BundleBuilder(
      *
      * **Where echoes do not fire.** Human-priority [postAction] bundles and
      * prompt-bearing bundles — coordinator-owned targeting, [selectNBundle],
-     * [castingTimeOptionsBundle], [payCostsBundle], [declareAttackersBundle],
+     * [castingTimeOptionsBundle], coordinator-owned payment cuts, [declareAttackersBundle],
      * [declareBlockersBundle] — ship `[GSM, Request]` without a trailing echo.
      * Targeting re-entry frames carry their echo through [TargetingWindowMaterializer]
      * instead of as a tag-along on the initial request bundle.

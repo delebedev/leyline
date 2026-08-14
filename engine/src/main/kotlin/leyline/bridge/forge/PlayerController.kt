@@ -1045,7 +1045,6 @@ class PlayerController(
         total: Int,
         prompt: String,
     ): CardCollectionView {
-        bridge.journal.record(PromptSideEffect.CollectEvidenceCost(ForgeCardId(sa.hostCard.id), total))
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -1060,11 +1059,7 @@ class PlayerController(
                 minSelectionWeight = total,
                 sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
             )
-        val indices = bridge.requestChoice(request, targetingSa = sa)
-        val selected = CardCollection()
-        for (index in indices) {
-            if (index in 0 until optionList.size) selected.add(optionList[index])
-        }
+        val selected = CardCollection(bridge.requestOneShotPayCosts(request, optionList.toList()).handles)
         if (CardLists.getTotalCMC(selected) < total) {
             bridge.journal.clearCollectEvidenceCost()
         }

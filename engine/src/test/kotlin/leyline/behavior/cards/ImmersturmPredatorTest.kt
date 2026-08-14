@@ -7,7 +7,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
+import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
 
@@ -58,26 +58,21 @@ class ImmersturmPredatorTest :
             activateAbility("Immersturm Predator").shouldBeTrue()
 
             // Sacrifice cost prompt should appear — verify structural properties
-            val sacPrompt =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
+            val sacWindow =
+                harness.bridge.cutCoordinator.oneShotPayCosts
+                    .current()
                     .shouldNotBeNull()
+            val sacPrompt = harness.allMessages.last { it.hasPayCostsReq() }.payCostsReq
+            val selection = sacPrompt.effectCostReq.costSelection
             assertSoftly {
-                sacPrompt.request.candidateRefs.size shouldBeGreaterThan 0
-                sacPrompt.request.semantic shouldBe leyline.bridge.handoff.PromptSemantic.SelectNCostSacrifice
-                sacPrompt.request.min shouldBe 0
-                sacPrompt.request.max shouldBe 1
+                selection.idsCount shouldBeGreaterThan 0
+                selection.minSel shouldBe 1
+                selection.maxSel shouldBe 1
+                sacWindow.kind shouldBe PayCostsRouteKind.Sacrifice
             }
 
-            // --- Step 2: Respond to sacrifice cost by submitting directly to prompt bridge ---
-            // The prompt has candidateRefs with forge card IDs. Index 0 = Grizzly Bears.
-            harness.bridge
-                .seat(SeatId(1))
-                .prompt
-                .submitResponse(sacPrompt.promptId, listOf(0))
-            harness.bridge.awaitPriority()
+            // --- Step 2: Respond to sacrifice cost through the session wire adapter ---
+            respondToEffectCost(listOf(selection.idsList.first()))
 
             // Drain messages produced by the sacrifice
             harness.session.triggerAutoPass()

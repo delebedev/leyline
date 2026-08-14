@@ -1,15 +1,12 @@
 package leyline.game.bundle
 
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PayCostsPromptRoute
-import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNInnerPrompt
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
-import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
@@ -36,26 +33,6 @@ internal fun SelectNPromptRoute.staticChoiceOuterPromptId(): Int =
         StaticChoiceKind.Subtype,
         StaticChoiceKind.Parity,
         -> PromptIds.CHOOSE_TYPE
-    }
-
-internal fun PayCostsPromptRoute.buildOneShot(
-    prompt: InteractivePromptBridge.PendingPrompt,
-    bridge: GameBridge,
-): Pair<PayCostsReq, Prompt> =
-    when (kind) {
-        PayCostsRouteKind.Sacrifice -> RequestBuilder.buildSacrificePayCostsReq(prompt, bridge)
-        PayCostsRouteKind.SelectCostExileFromGrave ->
-            RequestBuilder.buildSelectCostPayCostsReq(prompt, bridge, PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE)
-        PayCostsRouteKind.SelectCostReturnAttacker ->
-            RequestBuilder.buildSelectCostPayCostsReq(prompt, bridge, PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST)
-        PayCostsRouteKind.CollectEvidence -> CollectEvidencePayCostsBuilder.build(prompt, bridge)
-        PayCostsRouteKind.StationTapCost -> RequestBuilder.buildStationTapCostPayCostsReq(prompt, bridge)
-        PayCostsRouteKind.EnlistCost -> RequestBuilder.buildEnlistCostPayCostsReq(prompt, bridge)
-        PayCostsRouteKind.TeamworkCost -> RequestBuilder.buildTeamworkCostPayCostsReq(prompt, bridge)
-        PayCostsRouteKind.ConvokeCost,
-        PayCostsRouteKind.ImproviseCost,
-        PayCostsRouteKind.WaterbendCost,
-        -> error("Iterative mana-source payments are coordinator-owned")
     }
 
 internal fun SelectNPromptRoute.configureInnerPrompt(
