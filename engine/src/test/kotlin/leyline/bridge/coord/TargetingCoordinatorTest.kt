@@ -7,12 +7,12 @@ import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.core.spec.style.FunSpec
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
-import leyline.UnitTag
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.CardSelectInteractionResult
 import leyline.bridge.handoff.CardSelectInteractionRuntime
 import leyline.bridge.handoff.CardSelectInteractionTimeoutException
@@ -27,11 +27,10 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.testkit.BoardTest
 
 class TargetingCoordinatorTest :
-    FunSpec({
-        tags(UnitTag)
-        beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
+    BoardTest({
 
         test("library order uses revealed library position when present") {
             val bridge = testPromptBridge()
@@ -140,6 +139,78 @@ class TargetingCoordinatorTest :
                 bridge.history.single().result shouldBe listOf(2, 0)
             }
         }
+
+        test("Learn timeout returns the exact sideboard default and records its reveal before returning") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Environmental Sciences", human, ZoneType.Sideboard)
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val sideboard =
+                board.human
+                    .getZone(ZoneType.Sideboard)
+                    .cards
+                    .single()
+            val hand =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val cards = CardCollection(listOf(sideboard, hand))
+            val bridge = testPromptBridge(cardSelectRuntime = timingOutCardSelect())
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            val chosen =
+                coordinator.chooseSingleEntity(
+                    cards,
+                    abilitySub(ApiType.Learn),
+                    "Learn a Lesson or discard a card",
+                    isOptional = true,
+                    hasDelayedReveal = false,
+                )
+
+            val reveal = bridge.drainReveals().single()
+            assertSoftly {
+                chosen shouldBeSameInstanceAs sideboard
+                (bridge.history.single().route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe CardSelectKind.Learn
+                bridge.history.single().outcome shouldBe InteractivePromptBridge.PromptCallStatus.TIMEOUT
+                reveal.forgeCardIds shouldContainExactly listOf(ForgeCardId(sideboard.id))
+                reveal.ownerSeatId shouldBe SeatId(1)
+            }
+        }
+
+        test("Learn failure records no sideboard reveal") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Environmental Sciences", human, ZoneType.Sideboard)
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val cards =
+                CardCollection(
+                    board.human
+                        .getZone(ZoneType.Sideboard)
+                        .cards
+                        .toList() +
+                        board.human
+                            .getZone(ZoneType.Hand)
+                            .cards
+                            .toList(),
+                )
+            val bridge = testPromptBridge(cardSelectRuntime = failingCardSelect())
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            shouldThrow<IllegalStateException> {
+                coordinator.chooseSingleEntity(
+                    cards,
+                    abilitySub(ApiType.Learn),
+                    "Learn a Lesson or discard a card",
+                    isOptional = true,
+                    hasDelayedReveal = false,
+                )
+            }
+
+            bridge.drainReveals().shouldBeEmpty()
+        }
     })
 
 private fun promptSemantic(sa: SpellAbility): PromptSemantic {
@@ -214,4 +285,13 @@ private fun timingOutCardSelect(): CardSelectInteractionRuntime =
             candidateHandles: List<Card>,
             timeoutMs: Long?,
         ): CardSelectInteractionResult = throw CardSelectInteractionTimeoutException()
+    }
+
+private fun failingCardSelect(): CardSelectInteractionRuntime =
+    object : CardSelectInteractionRuntime {
+        override fun awaitSelection(
+            request: PromptRequest,
+            candidateHandles: List<Card>,
+            timeoutMs: Long?,
+        ): CardSelectInteractionResult = error("card selection failed")
     }

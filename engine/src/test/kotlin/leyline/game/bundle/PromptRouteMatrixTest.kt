@@ -12,13 +12,14 @@ import leyline.bridge.handoff.PayCostsPromptRoute
 import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.handoff.ResolvedPromptRoute
-import leyline.bridge.handoff.SelectNEnvelopeKind
-import leyline.bridge.handoff.SelectNInnerPrompt
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.SelectNShape
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoicePromptRoute
+import leyline.bridge.types.PromptCandidateKind
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
@@ -49,12 +50,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.OrderGeneric to ResolvedPromptRoute.AutoResolve(PromptSemantic.OrderGeneric),
                     PromptSemantic.RevealChoose to
                         ResolvedPromptRoute.RevealChoice(PromptSemantic.RevealChoose),
-                    PromptSemantic.SelectNResolution to
-                        selectN(
-                            PromptSemantic.SelectNResolution,
-                            SelectNInnerPrompt.SelectNInnerParameter,
-                            SelectNEnvelopeKind.Resolution,
-                        ),
+                    PromptSemantic.SelectNResolution to selectN(PromptSemantic.SelectNResolution),
                     PromptSemantic.ManifestDread to
                         cardSelect(PromptSemantic.ManifestDread, CardSelectKind.ManifestDread),
                     PromptSemantic.SuspectChoice to
@@ -106,7 +102,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.MutateTopBottom to
                         cardSelect(PromptSemantic.MutateTopBottom, CardSelectKind.MutateTopBottom),
                     PromptSemantic.LearnLesson to
-                        selectN(PromptSemantic.LearnLesson, SelectNInnerPrompt.LearnInnerParameter, SelectNEnvelopeKind.LearnLesson),
+                        cardSelect(PromptSemantic.LearnLesson, CardSelectKind.Learn),
                     PromptSemantic.StaticColorChoice to staticChoice(PromptSemantic.StaticColorChoice, StaticChoiceKind.Color),
                     PromptSemantic.StaticSubtypeChoice to staticChoice(PromptSemantic.StaticSubtypeChoice, StaticChoiceKind.Subtype),
                     PromptSemantic.StaticParityChoice to
@@ -128,6 +124,36 @@ class PromptRouteMatrixTest :
                     ResolvedPromptRoute.AutoResolve::class,
                 )
         }
+
+        test("Resolution route uses candidate kind, zone, and ability shape") {
+            val projected =
+                ResolutionRouteInput(
+                    optionCount = 2,
+                    candidateCount = 2,
+                    candidateKinds = setOf(PromptCandidateKind.Card),
+                    candidateZones = setOf("Library"),
+                    abilityShape = ResolutionAbilityShape.Dig,
+                )
+            val visibleCards = projected.copy(candidateZones = setOf("Battlefield"))
+            val mixed = projected.copy(candidateKinds = setOf(PromptCandidateKind.Card, PromptCandidateKind.Player))
+            val incomplete = projected.copy(candidateCount = 1)
+            val otherAbility = projected.copy(abilityShape = ResolutionAbilityShape.Other)
+
+            listOf(
+                PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = projected)::class,
+                PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = visibleCards)::class,
+                PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = mixed)::class,
+                PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = incomplete)::class,
+                PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = otherAbility)::class,
+            ) shouldBe
+                listOf(
+                    ResolvedPromptRoute.CardSelect::class,
+                    ResolvedPromptRoute.ResolutionResidual::class,
+                    ResolvedPromptRoute.ResolutionResidual::class,
+                    ResolvedPromptRoute.ResolutionResidual::class,
+                    ResolvedPromptRoute.ResolutionResidual::class,
+                )
+        }
     })
 
 private val dynamicShape =
@@ -135,10 +161,8 @@ private val dynamicShape =
 
 private fun selectN(
     semantic: PromptSemantic,
-    innerPrompt: SelectNInnerPrompt,
-    envelopeKind: SelectNEnvelopeKind,
     shape: SelectNShape = dynamicShape,
-): ResolvedPromptRoute.SelectN = ResolvedPromptRoute.SelectN(SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind))
+): ResolvedPromptRoute.ResolutionResidual = ResolvedPromptRoute.ResolutionResidual(SelectNPromptRoute(semantic, shape))
 
 private fun cardSelect(
     semantic: PromptSemantic,

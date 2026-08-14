@@ -1,6 +1,7 @@
 package leyline.game.bundle
 
 import leyline.bridge.handoff.CardSelectKind
+import leyline.bridge.handoff.CardSelectOriginZone
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
@@ -38,8 +39,8 @@ internal class CardSelectWindowMaterializer(
         window: CardSelectWindowValue,
     ): Prepared {
         val request = buildRequest(window, projection)
-        if (window.kind == CardSelectKind.ManifestDread) requirePrivateCandidates(gameState, request.idsList)
-        val envelope = envelope(window.kind, request)
+        if (window.kind in privateCandidateKinds) requirePrivateCandidates(gameState, request.idsList)
+        val envelope = envelope(window, request)
         val state = gameState.toBuilder().setPendingMessageCount(1).build()
         val messages =
             listOf(
@@ -69,7 +70,7 @@ internal class CardSelectWindowMaterializer(
             .setMinWeight(Int.MIN_VALUE)
             .setMaxWeight(Int.MAX_VALUE)
             .setIdType(IdType.InstanceId_ab2c)
-            .setMinSel(window.min)
+            .setMinSel(if (window.kind == CardSelectKind.Learn && window.candidates.isNotEmpty()) 1 else window.min)
             .setMaxSel(window.max)
             .addAllIds(window.candidates.map { projection.requireInstanceId(it.forgeCardId) })
             .apply {
@@ -84,6 +85,11 @@ internal class CardSelectWindowMaterializer(
                         addAllUnfilteredIds(idsList)
                         setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
                     }
+                    CardSelectKind.Resolution -> {
+                        addAllUnfilteredIds(idsList)
+                        setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
+                    }
+                    CardSelectKind.Learn -> setSelectNInnerPrompt(PromptIds.SELECT_N_LEARN_INNER_PARAMETER)
                     CardSelectKind.Discard -> prompt = Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST).build()
                     CardSelectKind.Suspect -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     CardSelectKind.SacrificeEffect,
@@ -94,13 +100,23 @@ internal class CardSelectWindowMaterializer(
     }
 
     private fun envelope(
-        kind: CardSelectKind,
+        window: CardSelectWindowValue,
         request: SelectNReq,
     ): SelectNEnvelope =
-        when (kind) {
+        when (window.kind) {
             CardSelectKind.LegendRule -> SelectNEnvelope.legendRule(request)
             CardSelectKind.LibraryPutback -> SelectNEnvelope.libraryPutback(request)
             CardSelectKind.ManifestDread -> SelectNEnvelope.manifestDread(request)
+            CardSelectKind.Resolution -> SelectNEnvelope.resolution(request)
+            CardSelectKind.Learn ->
+                SelectNEnvelope.learnLesson(
+                    request,
+                    if (window.candidates.any { it.originZone == CardSelectOriginZone.Hand }) {
+                        PromptIds.LEARN_LESSON_OR_DISCARD
+                    } else {
+                        PromptIds.LEARN_LESSON_ONLY
+                    },
+                )
             CardSelectKind.Discard,
             CardSelectKind.SacrificeEffect,
             -> SelectNEnvelope.default(request)
@@ -117,9 +133,9 @@ internal class CardSelectWindowMaterializer(
     ) {
         val objectsById = gameState.gameObjectsList.associateBy { it.instanceId }
         candidateIds.forEach { candidateId ->
-            val candidate = checkNotNull(objectsById[candidateId]) { "Manifest Dread candidate $candidateId was not projected" }
+            val candidate = checkNotNull(objectsById[candidateId]) { "Private CardSelect candidate $candidateId was not projected" }
             check(candidate.visibility == Visibility.Private && candidate.viewersList == listOf(seatId)) {
-                "Manifest Dread candidate $candidateId must be private to its chooser"
+                "Private CardSelect candidate $candidateId must be private to its chooser"
             }
         }
     }
@@ -138,4 +154,8 @@ internal class CardSelectWindowMaterializer(
             .addSystemSeatIds(seatId)
             .also(configure)
             .build()
+
+    private companion object {
+        val privateCandidateKinds = setOf(CardSelectKind.ManifestDread, CardSelectKind.Resolution, CardSelectKind.Learn)
+    }
 }

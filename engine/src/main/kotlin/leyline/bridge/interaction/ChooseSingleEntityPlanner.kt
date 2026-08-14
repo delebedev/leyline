@@ -3,6 +3,10 @@ package leyline.bridge.interaction
 import forge.game.ability.ApiType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
+import leyline.bridge.types.PromptCandidateKind
+import leyline.bridge.types.PromptCandidateRefDto
 
 enum class ChooseSingleEntityRoutePolicy {
     MutateTopCard,
@@ -16,8 +20,7 @@ data class ChooseSingleEntityContext(
     val isOptional: Boolean,
     val hasDelayedReveal: Boolean,
     val optionCount: Int,
-    val allOptionsAreCards: Boolean,
-    val hiddenLibrarySelection: Boolean,
+    val candidateRefs: List<PromptCandidateRefDto>,
     val activeReveal: Boolean,
 )
 
@@ -31,13 +34,25 @@ data class ChooseSingleEntityPlan(
     val isSearch: Boolean,
     val isLearn: Boolean,
     val isLegendRule: Boolean,
+    val resolutionRouteInput: ResolutionRouteInput?,
 )
 
 object ChooseSingleEntityPlanner {
     fun plan(context: ChooseSingleEntityContext): ChooseSingleEntityPlan {
         val isLegendRule = context.sa?.api == ApiType.InternalLegendaryRule
         val isLearn = context.sa?.api == ApiType.Learn
-        val isSearch = context.sa?.api == ApiType.ChangeZone && context.hiddenLibrarySelection || context.hasDelayedReveal
+        val allOptionsAreCards =
+            context.candidateRefs.size == context.optionCount &&
+                context.candidateRefs.all { it.kind == PromptCandidateKind.Card }
+        val resolutionInput =
+            resolutionRouteInput(
+                context.candidateRefs,
+                context.optionCount,
+                if (context.sa?.api == ApiType.Dig) ResolutionAbilityShape.Dig else ResolutionAbilityShape.Other,
+            )
+        val isSearch =
+            (context.sa?.api == ApiType.ChangeZone && resolutionInput.isCompleteLibraryCardChoice) ||
+                context.hasDelayedReveal
         val semantic =
             when {
                 isLegendRule -> PromptSemantic.SelectNLegendRule
@@ -49,7 +64,7 @@ object ChooseSingleEntityPlanner {
         val route =
             when {
                 context.sa?.isMutate == true -> ChooseSingleEntityRoutePolicy.MutateTopCard
-                context.activeReveal && context.allOptionsAreCards -> ChooseSingleEntityRoutePolicy.ActiveReveal
+                context.activeReveal && allOptionsAreCards -> ChooseSingleEntityRoutePolicy.ActiveReveal
                 context.optionCount == 1 && !context.isOptional -> ChooseSingleEntityRoutePolicy.AutoReturnFirst
                 else -> ChooseSingleEntityRoutePolicy.Prompt
             }
@@ -66,7 +81,7 @@ object ChooseSingleEntityPlanner {
                     CandidateRefsPolicy.None
                 },
             sourceIdPolicy =
-                if (isLearn || semantic == PromptSemantic.ManifestDread) {
+                if (isLearn || semantic == PromptSemantic.ManifestDread || resolutionInput.isHiddenLibraryCardChoice) {
                     SourceIdPolicy.HostCard
                 } else {
                     SourceIdPolicy.None
@@ -74,6 +89,7 @@ object ChooseSingleEntityPlanner {
             isSearch = isSearch,
             isLearn = isLearn,
             isLegendRule = isLegendRule,
+            resolutionRouteInput = resolutionInput.takeIf { semantic == PromptSemantic.SelectNResolution },
         )
     }
 }

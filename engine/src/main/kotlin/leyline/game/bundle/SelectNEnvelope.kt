@@ -15,8 +15,6 @@ data class SelectNEnvelope(
         data object None : GameStateAugmentation
 
         data object LookAndPick : GameStateAugmentation
-
-        data object LearnLesson : GameStateAugmentation
     }
 
     companion object {
@@ -82,7 +80,6 @@ data class SelectNEnvelope(
                 req = req,
                 prompt = promptWithSourceAndCount(promptId, req),
                 allowCancel = AllowCancel.Continue,
-                gameStateAugmentation = GameStateAugmentation.LearnLesson,
             )
 
         private fun stockUpPrompt(req: SelectNReq): Prompt = promptWithSourceAndCount(PromptIds.SELECT_N_STOCK_UP, req)

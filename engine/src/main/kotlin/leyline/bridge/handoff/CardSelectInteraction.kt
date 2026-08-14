@@ -5,7 +5,15 @@ import leyline.bridge.types.ForgeCardId
 data class CardSelectCandidateValue(
     val originalOptionIndex: Int,
     val forgeCardId: ForgeCardId,
+    val originZone: CardSelectOriginZone,
 )
+
+enum class CardSelectOriginZone {
+    Hand,
+    Library,
+    Sideboard,
+    Other,
+}
 
 /** Immutable materialization input for one card-backed SelectN window. */
 data class CardSelectWindowValue(

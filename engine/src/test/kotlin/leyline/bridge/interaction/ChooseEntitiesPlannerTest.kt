@@ -57,16 +57,29 @@ class ChooseEntitiesPlannerTest :
 
         test("ChangeZone uses Search only for hidden library selections") {
             assertSoftly {
-                planFor(changeZoneSa(), hiddenLibrarySelection = true).let { plan ->
+                planFor(changeZoneSa(), candidateRefs = libraryRefs).let { plan ->
                     plan.semantic shouldBe PromptSemantic.Search
                     plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                     plan.candidateRefsPolicy.unfilteredRefs(refs, plan.semantic).shouldBeEmpty()
                 }
-                planFor(changeZoneSa(), hiddenLibrarySelection = false).let { plan ->
+                planFor(changeZoneSa(), optionCount = libraryRefs.size + 1, candidateRefs = libraryRefs).semantic shouldBe
+                    PromptSemantic.SelectNResolution
+                planFor(changeZoneSa()).let { plan ->
                     plan.semantic shouldBe PromptSemantic.SelectNResolution
                     plan.candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
                     plan.candidateRefsPolicy.unfilteredRefs(refs, plan.semantic) shouldBe refs
                 }
+            }
+        }
+
+        test("only Dig over exact library Card candidates selects projected Resolution") {
+            assertSoftly {
+                planFor(digSa(), candidateRefs = libraryRefs).resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe true
+                planFor(digSa(), optionCount = libraryRefs.size + 1, candidateRefs = libraryRefs)
+                    .resolutionRouteInput
+                    ?.isHiddenLibraryCardChoice shouldBe false
+                planFor(digSa()).resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe false
+                planFor(genericSa(), candidateRefs = libraryRefs).resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe false
             }
         }
 
@@ -86,7 +99,7 @@ class ChooseEntitiesPlannerTest :
                         min = 2,
                         max = 4,
                         optionCount = 2,
-                        hiddenLibrarySelection = false,
+                        candidateRefs = refs.take(2),
                     ),
                 )
 
@@ -105,18 +118,20 @@ private val refs =
         PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 11, zone = "Hand"),
         PromptCandidateRefDto(index = 2, kind = PromptCandidateKind.Card, entityId = 12, zone = "Hand"),
     )
+private val libraryRefs = refs.map { it.copy(zone = "Library") }
 
 private fun planFor(
     sa: SpellAbility,
-    hiddenLibrarySelection: Boolean = false,
+    optionCount: Int = refs.size,
+    candidateRefs: List<PromptCandidateRefDto> = refs,
 ): ChooseEntitiesPlan =
     ChooseEntitiesPlanner.plan(
         ChooseEntitiesContext(
             sa = sa,
             min = 1,
             max = 2,
-            optionCount = refs.size,
-            hiddenLibrarySelection = hiddenLibrarySelection,
+            optionCount = optionCount,
+            candidateRefs = candidateRefs,
         ),
     )
 
@@ -136,6 +151,8 @@ private fun handToLibraryReorderSa(): SpellAbility =
 private fun genericSa(): SpellAbility = abilitySub(api = ApiType.ChooseCard)
 
 private fun changeZoneSa(): SpellAbility = abilitySub(api = ApiType.ChangeZone)
+
+private fun digSa(): SpellAbility = abilitySub(api = ApiType.Dig)
 
 private fun abilitySub(
     api: ApiType,

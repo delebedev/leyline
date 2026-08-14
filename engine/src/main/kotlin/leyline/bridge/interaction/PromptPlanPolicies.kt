@@ -2,6 +2,8 @@ package leyline.bridge.interaction
 
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.types.PromptCandidateRefDto
 
 enum class CandidateRefsPolicy {
@@ -54,6 +56,19 @@ enum class AutoReturnPolicy {
     ReturnAllWhenSelectionSatisfied,
     Prompt,
 }
+
+fun resolutionRouteInput(
+    refs: List<PromptCandidateRefDto>,
+    optionCount: Int,
+    abilityShape: ResolutionAbilityShape,
+): ResolutionRouteInput =
+    ResolutionRouteInput(
+        optionCount = optionCount,
+        candidateCount = refs.size,
+        candidateKinds = refs.mapTo(linkedSetOf()) { it.kind },
+        candidateZones = refs.mapTo(linkedSetOf()) { it.zone },
+        abilityShape = abilityShape,
+    )
 
 val AutoReturnPolicy.shouldReturnAll: Boolean
     get() = this == AutoReturnPolicy.ReturnAllWhenSelectionSatisfied

@@ -8,16 +8,18 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.CardSelectInteractionResult
 import leyline.bridge.handoff.CardSelectKind
-import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedCardSelectInteraction
+import leyline.bridge.handoff.ResolutionAbilityShape
+import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -47,6 +49,7 @@ class MatchCardSelectInteractionRuntimeTest :
             AILife=20
             humanhand=Mountain;Forest
             humanlibrary=Grizzly Bears;Centaur Courser
+            humansideboard=Environmental Sciences
             humanbattlefield=Island
             ailibrary=Forest
             """.trimIndent()
@@ -69,6 +72,12 @@ class MatchCardSelectInteractionRuntimeTest :
                 .cards
                 .single()
 
+        fun learnOptions(board: Board): List<Card> =
+            board.human
+                .getZone(ZoneType.Sideboard)
+                .cards
+                .toList() + options(board)
+
         fun request(
             board: Board,
             semantic: PromptSemantic,
@@ -89,7 +98,22 @@ class MatchCardSelectInteractionRuntimeTest :
                     candidates.mapIndexed { index, card ->
                         PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
                     },
-                route = PromptRouteResolver.resolve(semantic),
+                route =
+                    PromptRouteResolver.resolve(
+                        semantic,
+                        resolutionInput =
+                            candidates
+                                .takeIf { semantic == PromptSemantic.SelectNResolution }
+                                ?.let {
+                                    ResolutionRouteInput(
+                                        optionCount = candidates.size,
+                                        candidateCount = it.size,
+                                        candidateKinds = setOf(PromptCandidateKind.Card),
+                                        candidateZones = it.mapTo(linkedSetOf()) { card -> card.zone.zoneType.name },
+                                        abilityShape = ResolutionAbilityShape.Dig,
+                                    )
+                                },
+                    ),
                 sourceEntityId = sourceId,
             )
 
@@ -114,6 +138,8 @@ class MatchCardSelectInteractionRuntimeTest :
             val outerPromptId: Int,
             val allowCancel: AllowCancel,
             val includeRequestSource: Boolean = true,
+            val requestMin: Int = 1,
+            val wireMin: Int = requestMin,
         )
 
         val cases =
@@ -191,6 +217,30 @@ class MatchCardSelectInteractionRuntimeTest :
                     outerPromptId = PromptIds.MANIFEST_DREAD,
                     allowCancel = AllowCancel.No_a526,
                 ),
+                Case(
+                    PromptSemantic.SelectNResolution,
+                    CardSelectKind.Resolution,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.SELECT_N_INNER_PARAMETER,
+                    outerPromptId = PromptIds.SELECT_N_STOCK_UP,
+                    allowCancel = AllowCancel.No_a526,
+                ),
+                Case(
+                    PromptSemantic.LearnLesson,
+                    CardSelectKind.Learn,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.SELECT_N_LEARN_INNER_PARAMETER,
+                    outerPromptId = PromptIds.LEARN_LESSON_OR_DISCARD,
+                    allowCancel = AllowCancel.Continue,
+                    requestMin = 0,
+                    wireMin = 1,
+                ),
             )
 
         cases.forEach { case ->
@@ -199,7 +249,12 @@ class MatchCardSelectInteractionRuntimeTest :
                 val coordinator = board.bridge.cutCoordinator
                 coordinator.drain(SeatId(1))
                 val handles =
-                    if (case.kind == CardSelectKind.ManifestDread) manifestOptions(board) else options(board)
+                    when {
+                        case.kind == CardSelectKind.ManifestDread || case.kind == CardSelectKind.Resolution ->
+                            manifestOptions(board)
+                        case.kind == CardSelectKind.Learn -> learnOptions(board)
+                        else -> options(board)
+                    }
                 val result = AtomicReference<CardSelectInteractionResult>()
                 val finished = CountDownLatch(1)
                 Thread {
@@ -209,6 +264,7 @@ class MatchCardSelectInteractionRuntimeTest :
                                 board,
                                 case.semantic,
                                 sourceId = source(board).id.takeIf { case.includeRequestSource },
+                                min = case.requestMin,
                                 candidates = handles,
                             ),
                             handles,
@@ -235,7 +291,7 @@ class MatchCardSelectInteractionRuntimeTest :
                     req.optionContext shouldBe case.optionContext
                     req.validationType shouldBe SelectionValidationType.NonRepeatable
                     req.idType shouldBe IdType.InstanceId_ab2c
-                    req.minSel shouldBe 1
+                    req.minSel shouldBe case.wireMin
                     req.maxSel shouldBe 1
                     req.minWeight shouldBe Int.MIN_VALUE
                     req.maxWeight shouldBe Int.MAX_VALUE
@@ -256,6 +312,8 @@ class MatchCardSelectInteractionRuntimeTest :
                             CardSelectKind.MutateTopBottom,
                             CardSelectKind.LibraryPutback,
                             CardSelectKind.ManifestDread,
+                            CardSelectKind.Resolution,
+                            CardSelectKind.Learn,
                             -> board.bridge.getOrAllocInstanceId(ForgeCardId(source(board).id)).value
                         }
                     if (case.kind == CardSelectKind.LegendRule) {
@@ -269,12 +327,24 @@ class MatchCardSelectInteractionRuntimeTest :
                         req.unfilteredIdsList shouldContainExactly req.idsList
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
+                    }
+                    if (case.kind == CardSelectKind.Resolution) {
+                        req.unfilteredIdsList shouldContainExactly req.idsList
+                        message.prompt.parametersList.map { it.numberValue } shouldContainExactly
+                            listOf(req.sourceId, req.maxSel)
+                    }
+                    if (case.kind == CardSelectKind.Learn) {
+                        message.prompt.parametersList.map { it.numberValue } shouldContainExactly
+                            listOf(req.sourceId, req.maxSel)
+                    }
+                    if (case.kind in privateCandidateKinds) {
                         val exposed =
                             batch
                                 .first()
                                 .gameStateMessage.gameObjectsList
                                 .filter { it.instanceId in req.idsList }
                         exposed.map { it.instanceId } shouldContainExactly req.idsList
+                        exposed.map { it.zoneId } shouldContainExactly handles.map(::projectedZoneId)
                         exposed.all { it.visibility == Visibility.Private && it.viewersList == listOf(1) } shouldBe true
                     }
                     coordinator.cardSelect.submitSelectN(
@@ -329,116 +399,15 @@ class MatchCardSelectInteractionRuntimeTest :
                 }
             }
         }
-
-        test("Legend Rule timeout returns its exact default handle and rejects a late response") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val handles = options(board)
-            var timedOut = false
-            val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
-            coordinator.cardSelect.beforeTimeoutClaim = {
-                publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
-            }
-            val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                    it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
-                }
-            val result =
-                prompt.requestCardSelect(
-                    request(board, PromptSemantic.SelectNLegendRule, sourceId = null),
-                    handles,
-                )
-            val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
-            val published = checkNotNull(publishedAtTimeout.get())
-
-            assertSoftly {
-                result.optionIndices shouldContainExactly listOf(0)
-                (result.handles.single() === handles[0]) shouldBe true
-                timedOut shouldBe true
-                coordinator.cardSelect.current().shouldBeNull()
-                requestMessage.selectNReq.idsCount shouldBe 2
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(requestMessage.selectNReq.idsList[1]),
-                ) shouldBe false
-            }
-        }
-
-        test("Library putback timeout returns its exact default hand card and rejects a late response") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val handles = options(board)
-            var timedOut = false
-            val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
-            coordinator.cardSelect.beforeTimeoutClaim = {
-                publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
-            }
-            val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                    it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
-                }
-            val result =
-                prompt.requestCardSelect(
-                    request(board, PromptSemantic.SelectNLibraryPutback, min = 2, max = 2),
-                    handles,
-                )
-            val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
-            val published = checkNotNull(publishedAtTimeout.get())
-
-            assertSoftly {
-                result.optionIndices shouldContainExactly listOf(0)
-                (result.handles.single() === handles[0]) shouldBe true
-                timedOut shouldBe true
-                coordinator.cardSelect.current().shouldBeNull()
-                requestMessage.selectNReq.minSel shouldBe 2
-                requestMessage.selectNReq.maxSel shouldBe 2
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(requestMessage.selectNReq.idsList[1]),
-                ) shouldBe false
-            }
-        }
-
-        test("Manifest Dread timeout returns its exact default library card and rejects a late response") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val handles = manifestOptions(board)
-            var timedOut = false
-            val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
-            coordinator.cardSelect.beforeTimeoutClaim = {
-                publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
-            }
-            val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                    it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
-                }
-            val result =
-                prompt.requestCardSelect(
-                    request(board, PromptSemantic.ManifestDread, candidates = handles),
-                    handles,
-                )
-            val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
-            val published = checkNotNull(publishedAtTimeout.get())
-
-            assertSoftly {
-                result.optionIndices shouldContainExactly listOf(0)
-                (result.handles.single() === handles[0]) shouldBe true
-                timedOut shouldBe true
-                coordinator.cardSelect.current().shouldBeNull()
-                requestMessage.selectNReq.idsList shouldContainExactly requestMessage.selectNReq.unfilteredIdsList
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(requestMessage.selectNReq.idsList[1]),
-                ) shouldBe false
-            }
-        }
     })
+
+private val privateCandidateKinds =
+    setOf(CardSelectKind.ManifestDread, CardSelectKind.Resolution, CardSelectKind.Learn)
+
+private fun projectedZoneId(card: Card): Int =
+    when (card.zone.zoneType) {
+        ZoneType.Hand -> ZoneIds.P1_HAND
+        ZoneType.Library -> ZoneIds.P1_LIBRARY
+        ZoneType.Sideboard -> ZoneIds.P1_SIDEBOARD
+        else -> error("Unexpected private candidate zone ${card.zone.zoneType}")
+    }

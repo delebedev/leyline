@@ -330,7 +330,7 @@ class TargetingHandler(
                 is ResolvedPromptRoute.ModalChoice,
                 is ResolvedPromptRoute.PayCosts,
                 is ResolvedPromptRoute.Search,
-                is ResolvedPromptRoute.SelectN,
+                is ResolvedPromptRoute.ResolutionResidual,
                 is ResolvedPromptRoute.Targeting,
                 is ResolvedPromptRoute.UnclassifiedCandidate,
                 -> PromptResult.NONE
@@ -360,7 +360,7 @@ class TargetingHandler(
                 true
             }
 
-            is ResolvedPromptRoute.SelectN -> {
+            is ResolvedPromptRoute.ResolutionResidual -> {
                 sendSelectNReq(pendingPrompt, route.descriptor)
                 true
             }
@@ -786,14 +786,9 @@ class TargetingHandler(
                 counters.counter,
                 pendingPrompt,
                 route,
-            ) { req -> route.envelope(req) { learnPromptId(pendingPrompt) } }
+            ) { req -> route.envelope(req) }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
-    }
-
-    private fun learnPromptId(pendingPrompt: InteractivePromptBridge.PendingPrompt): Int {
-        val hasHandChoice = pendingPrompt.request.candidateRefs.any { it.zone == "Hand" }
-        return if (hasHandChoice) PromptIds.LEARN_LESSON_OR_DISCARD else PromptIds.LEARN_LESSON_ONLY
     }
 
     /** Submit default response and wait — used when modal lookup fails. */

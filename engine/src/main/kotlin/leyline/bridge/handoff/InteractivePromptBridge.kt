@@ -862,10 +862,8 @@ enum class PromptSemantic {
     RevealChoose,
 
     /**
-     * "Pick K from a known visible list at resolution time" — Stock Up / Dig
-     * effects, post-target resolution picks. Routes to `SelectNReq`
-     * (Resolution context, Dynamic list) instead of falling through to
-     * `SelectTargetsReq`.
+     * Resolution-time choice. Dig-shaped all-Card Library candidates bind the
+     * projected CardSelect owner; other candidate domains remain residual.
      */
     SelectNResolution,
 
@@ -936,7 +934,7 @@ enum class PromptSemantic {
     /** Mutate's resolution-time choice for which component is on top. */
     MutateTopBottom,
 
-    /** Learn's Lesson/discard card picker. Routes to a Learn-specific `SelectNReq`. */
+    /** Learn's exact Lesson/discard card picker. */
     LearnLesson,
 
     /** Static enum choice: choose one or more colors via `StaticList_Colors`. */

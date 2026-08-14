@@ -6,7 +6,6 @@ import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ResolvedPromptRoute
-import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -90,7 +89,7 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for residual resolution and Learn prompts.
+     * Used for residual dynamic resolution prompts.
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
@@ -118,7 +117,7 @@ object RequestBuilder {
                 .setMaxWeight(Int.MAX_VALUE)
                 .setIdType(IdType.InstanceId_ab2c)
 
-        builder.setMinSel(selectNMinSel(prompt, route))
+        builder.setMinSel(prompt.request.min)
         builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
 
         builder.addSelectNIds(prompt, bridge)
@@ -131,20 +130,10 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val route =
-            (prompt.request.route as? ResolvedPromptRoute.SelectN)?.descriptor
+            (prompt.request.route as? ResolvedPromptRoute.ResolutionResidual)?.descriptor
                 ?: error("SelectN builder requires a bound SelectN route")
         return buildSelectNReq(prompt, bridge, route)
     }
-
-    private fun selectNMinSel(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        route: SelectNPromptRoute,
-    ): Int =
-        if (route.envelopeKind == SelectNEnvelopeKind.LearnLesson && prompt.request.candidateRefs.isNotEmpty()) {
-            1
-        } else {
-            prompt.request.min
-        }
 
     private fun SelectNReq.Builder.addSelectNIds(
         prompt: InteractivePromptBridge.PendingPrompt,
