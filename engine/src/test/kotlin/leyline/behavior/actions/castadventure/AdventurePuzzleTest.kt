@@ -6,12 +6,14 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
@@ -93,13 +95,51 @@ class AdventurePuzzleTest :
                     instanceId = adventureAction.instanceId
                     grpId = adventureAction.grpId
                 }
+            val beforeCast = messageSnapshot()
             harness.session.onPerformAction(harness.submitWithGsId(castMsg))
             harness.drainSink()
-            val adventureStackCompanion = adventureCompanionIn(ZoneIds.STACK)
-            adventureStackCompanion.instanceId shouldNotBe handCompanion.instanceId
-            harness.accumulator.zones
-                .getValue(ZoneIds.STACK)
-                .objectInstanceIdsList shouldNotContain adventureStackCompanion.instanceId
+            val castFlow = messagesSince(beforeCast)
+            val stackMessageIndex =
+                castFlow.indexOfFirst { message ->
+                    message.hasGameStateMessage() &&
+                        message.gameStateMessage.gameObjectsList.any { obj ->
+                            obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == ZoneIds.STACK
+                        }
+                }
+            check(stackMessageIndex >= 0) { "No state-only Adventure stack frame found" }
+            val stackGsm = castFlow[stackMessageIndex].gameStateMessage
+            val adventureStackCompanion =
+                stackGsm.gameObjectsList.single { obj ->
+                    obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == ZoneIds.STACK
+                }
+
+            val exileMessageIndex =
+                castFlow.indexOfFirst { message ->
+                    message.hasGameStateMessage() &&
+                        message.gameStateMessage.gameObjectsList.any { obj ->
+                            obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == ZoneIds.EXILE
+                        }
+                }
+            check(exileMessageIndex > stackMessageIndex) { "Adventure exile frame did not follow its stack frame" }
+            val exileGsm = castFlow[exileMessageIndex].gameStateMessage
+            val visibleActionIndex =
+                castFlow.indexOfFirst { message ->
+                    message.hasActionsAvailableReq() && message.gameStateId > exileGsm.gameStateId
+                }
+            check(visibleActionIndex > exileMessageIndex) { "Visible priority window did not follow Adventure resolution" }
+
+            assertSoftly {
+                castFlow
+                    .subList(stackMessageIndex, exileMessageIndex)
+                    .count { it.hasActionsAvailableReq() } shouldBe 0
+                exileGsm.annotationsList.count { AnnotationType.TokenCreated in it.typeList } shouldBe 2
+                stackGsm.gameStateId shouldBeLessThan exileGsm.gameStateId
+                exileGsm.gameStateId shouldBeLessThan castFlow[visibleActionIndex].gameStateId
+                adventureStackCompanion.instanceId shouldNotBe handCompanion.instanceId
+                harness.accumulator.zones
+                    .getValue(ZoneIds.STACK)
+                    .objectInstanceIdsList shouldNotContain adventureStackCompanion.instanceId
+            }
 
             // --- Step 3: Pass priority until adventure resolves (tokens appear) ---
             // Forge token name is "Rat Token" (from b_1_1_rat_noblock.txt)
@@ -133,14 +173,18 @@ class AdventurePuzzleTest :
             }
 
             // --- Step 5: Cast creature from exile ---
+            val beforeCreatureCast = messageSnapshot()
             val castCreature = harness.castFromExile("Ratcatcher Trainee")
-            val creatureStackCompanion = adventureCompanionIn(ZoneIds.STACK)
+            val creatureCastMessages = messagesSince(beforeCreatureCast)
+            val creatureStackCompanion =
+                creatureCastMessages
+                    .asSequence()
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList.asSequence() }
+                    .first { obj -> obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == ZoneIds.STACK }
             assertSoftly {
                 castCreature.shouldBeTrue()
                 creatureStackCompanion.instanceId shouldNotBe exileCompanion.instanceId
-                harness.accumulator.zones
-                    .getValue(ZoneIds.STACK)
-                    .objectInstanceIdsList shouldNotContain creatureStackCompanion.instanceId
             }
 
             // --- Step 6: Pass until creature resolves to battlefield ---

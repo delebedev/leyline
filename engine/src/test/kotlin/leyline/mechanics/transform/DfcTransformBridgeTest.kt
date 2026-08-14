@@ -36,7 +36,7 @@ class DfcTransformBridgeTest :
             pending.shouldNotBeNull()
 
             val submitted =
-                b.actionBridge(SeatId(1)).submitAction(
+                b.actionBridge(SeatId(1)).submitTestRuntimeAction(
                     pending.actionId,
                     PlayerAction.ActivateAbility(ForgeCardId(curtains.id), 0),
                 )
@@ -44,7 +44,7 @@ class DfcTransformBridgeTest :
 
             val pending2 = awaitFreshPending(b, pending.actionId)
             pending2.shouldNotBeNull()
-            b.actionBridge(SeatId(1)).submitAction(
+            b.actionBridge(SeatId(1)).submitTestRuntimeAction(
                 pending2.actionId,
                 PlayerAction.PassPriority,
             )

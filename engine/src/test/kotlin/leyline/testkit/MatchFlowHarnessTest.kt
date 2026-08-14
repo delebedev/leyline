@@ -10,7 +10,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -278,7 +277,7 @@ class MatchFlowHarnessTest :
             advanced.shouldBeTrue()
         }
 
-        test("late PerformActionResp cannot satisfy a newer unprompted pending action") {
+        test("late PerformActionResp cannot satisfy a newer visible action window") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
             h.connectAndKeep()
@@ -288,9 +287,10 @@ class MatchFlowHarnessTest :
             val oldPending = actionBridge.getPending().shouldNotBeNull()
             oldPending.promptGameStateId shouldBe oldPromptGsId
 
-            actionBridge.submitAction(oldPending.actionId, PlayerAction.PassPriority)
+            actionBridge.submitTestRuntimeAction(oldPending.actionId, PlayerAction.PassPriority)
             val nextPending = awaitFreshPending(h.bridge, oldPending.actionId, timeoutMs = 5_000).shouldNotBeNull()
-            nextPending.promptGameStateId.shouldBeNull()
+            val nextPromptGsId = nextPending.promptGameStateId.shouldNotBeNull()
+            nextPromptGsId shouldBeGreaterThan oldPromptGsId
 
             val latePass =
                 performAction { actionType = ActionType.Pass }
@@ -303,7 +303,7 @@ class MatchFlowHarnessTest :
 
             val stillPending = actionBridge.getPending().shouldNotBeNull()
             stillPending.actionId shouldBe nextPending.actionId
-            stillPending.promptGameStateId.shouldBeNull()
+            stillPending.promptGameStateId shouldBe nextPromptGsId
         }
 
         test("AI turn produces Diff messages") {

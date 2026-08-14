@@ -1,7 +1,6 @@
 package leyline.game.snapshot
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
@@ -10,6 +9,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
  * End-to-end coverage for the trigger-ability projection on the Stack zone.
@@ -41,30 +41,40 @@ class CascadeDiscoverProjectionTest :
         test("Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently") {
             startPuzzleFile("puzzles/cascade-bloodbraid.pzl")
 
+            val before = messageSnapshot()
             val cast = harness.castSpellByName("Bloodbraid Elf")
             cast shouldBe true
 
-            val snap = SnapshotCapture.run(harness.game(), harness.bridge, "test", 0)
-            val triggerEntries = snap.stack.entries.filter { !it.isSpell }
-            triggerEntries shouldHaveSize 1
-            val cascadeEntry = triggerEntries.single()
-
             val bbeGrpId = harness.bridge.cardRepository.findGrpIdByName("Bloodbraid Elf")!!
-            val sourceStackIid = harness.bridge.getOrAllocInstanceId(cascadeEntry.forgeCardId).value
+            val projectedStates = messagesSince(before).gameStateMessages()
+            val cascadeEntry =
+                projectedStates
+                    .flatMap { it.gameObjectsList }
+                    .filter {
+                        it.type == GameObjectType.Ability &&
+                            it.grpId == KeywordAbilityIds.CASCADE &&
+                            it.objectSourceGrpId == bbeGrpId
+                    }.distinctBy { it.instanceId }
+                    .single()
             val triggeringObject =
-                harness
-                    .allMessages
-                    .gameStateMessages()
+                projectedStates
                     .flatMap { it.persistentAnnotationsList }
-                    .single { AnnotationType.TriggeringObject in it.typeList }
+                    .filter { AnnotationType.TriggeringObject in it.typeList }
+                    .distinctBy { it.id }
+                    .single()
+            val triggeringSource =
+                projectedStates
+                    .flatMap { it.gameObjectsList }
+                    .first { it.instanceId == triggeringObject.affectedIdsList.single() }
 
             assertSoftly {
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
                 cascadeEntry.grpId shouldBe 86
-                cascadeEntry.sourceCardGrpId shouldBe bbeGrpId
-                triggeringObject.affectedIdsList shouldBe listOf(sourceStackIid)
+                cascadeEntry.objectSourceGrpId shouldBe bbeGrpId
+                triggeringSource.grpId shouldBe bbeGrpId
+                triggeringSource.zoneId shouldBe ZoneIds.STACK
                 triggeringObject.detailInt("source_zone") shouldBe ZoneIds.STACK
-                require(cascadeEntry.grpId != cascadeEntry.sourceCardGrpId) {
+                require(cascadeEntry.grpId != cascadeEntry.objectSourceGrpId) {
                     "ability grpId and sourceCardGrpId collapsed back to the same value"
                 }
             }

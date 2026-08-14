@@ -31,6 +31,15 @@ class SearchPromptSessionTest :
                 allMessages.lastOrNull { it.hasSearchReq() }?.searchReq
                     ?: error("Expected SearchReq after resolving Sylvan Ranger")
             searchReq.itemsSoughtList.shouldNotBeEmpty()
+            val requestIndex = allMessages.indexOfLast { it.hasSearchReq() }
+            val libraryIids = searchReq.itemsSoughtList.toSet()
+            check(
+                allMessages
+                    .take(requestIndex)
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .any { it.instanceId in libraryIids },
+            ) { "Library objects must be published before SearchReq" }
 
             after {
                 harness.respondToSearch(listOf(searchReq.itemsSoughtList.first()))

@@ -1,6 +1,5 @@
 package leyline.match
 
-import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -21,10 +20,13 @@ interface GreMessageSink {
         revealForSeat: Int? = null,
     )
 
-    fun sendPriorityState(
+    fun sendPriorityState(bridge: GameBridge) = sendRealGameState(bridge)
+
+    /** Explicit residual publication for routed prompts that need fresh hidden-zone objects. */
+    fun sendLegacyPromptState(
         bridge: GameBridge,
-        candidates: PriorityActionCandidates,
-    ) = sendRealGameState(bridge)
+        revealForSeat: Int,
+    ) = sendRealGameState(bridge, revealForSeat)
 
     fun sendBundle(result: BundleBuilder.BundleResult)
 
@@ -37,6 +39,32 @@ interface GreMessageSink {
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage
+}
+
+/** Deliver committed batches, then release any state-only synchronization stop. */
+internal fun drainCoordinatorBarrier(
+    sink: GreMessageSink,
+    bridge: GameBridge,
+    seatId: SeatId,
+    betweenBatches: () -> Unit = {},
+): Boolean {
+    var sent = false
+    while (true) {
+        val batches = bridge.cutCoordinator.drain(seatId)
+        try {
+            batches.forEach { batch ->
+                if (sent) betweenBatches()
+                sink.sendBundledGRE(batch)
+                sent = true
+            }
+        } catch (ex: Exception) {
+            bridge.cutCoordinator.failDelivery(ex)
+        }
+        val pending = bridge.actionBridge(seatId).getPending()
+        if (pending?.state?.kind != leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) return sent
+        if (!bridge.actionBridge(seatId).completeSyncPass(pending.actionId)) continue
+        bridge.awaitPriority()
+    }
 }
 
 /**

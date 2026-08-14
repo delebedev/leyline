@@ -11,6 +11,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.coord.CombatPlaybackFramePlanner
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.MessageCounter
@@ -35,7 +36,7 @@ class GamePlaybackTest :
 
         fun createMinimalPlayback(counter: MessageCounter = MessageCounter()): GamePlayback {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository(), messageCounter = counter)
-            return GamePlayback(bridge, "test", 1, counter)
+            return GamePlayback(bridge, 1)
         }
 
         fun gameStateMessage(
@@ -56,19 +57,14 @@ class GamePlaybackTest :
                         .setPrevGameStateId((gsId - 1).coerceAtLeast(0)),
                 ).build()
 
-        @Suppress("UNCHECKED_CAST")
-        fun playbackQueue(playback: GamePlayback): ConcurrentLinkedQueue<List<GREToClientMessage>> {
-            val field = GamePlayback::class.java.getDeclaredField("queue")
-            field.isAccessible = true
-            return field.get(playback) as ConcurrentLinkedQueue<List<GREToClientMessage>>
+        fun playbackBridge(playback: GamePlayback): GameBridge {
+            val bridgeField = GamePlayback::class.java.getDeclaredField("bridge")
+            bridgeField.isAccessible = true
+            return bridgeField.get(playback) as GameBridge
         }
 
-        @Suppress("UNCHECKED_CAST")
-        fun requestedCut(playback: GamePlayback): PlaybackCutRequest? {
-            val field = GamePlayback::class.java.getDeclaredField("requestedCut")
-            field.isAccessible = true
-            return field.get(playback) as? PlaybackCutRequest
-        }
+        fun requestedCut(playback: GamePlayback): PlaybackCutRequest? =
+            playbackBridge(playback).cutCoordinator.requestedPlaybackCut(SeatId(1))
 
         test("ordinary callbacks aggregate first reason max delay and turn start without output") {
             val playback = createMinimalPlayback()
@@ -172,8 +168,8 @@ class GamePlaybackTest :
             val playback = createMinimalPlayback()
             val olderGsLaterMsg = listOf(gameStateMessage(msgId = 757, gsId = 576))
             val newerGsLaterMsg = listOf(gameStateMessage(msgId = 760, gsId = 579))
-            playbackQueue(playback).add(olderGsLaterMsg)
-            playbackQueue(playback).add(newerGsLaterMsg)
+            playbackBridge(playback).cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), olderGsLaterMsg)
+            playbackBridge(playback).cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), newerGsLaterMsg)
 
             playback.drainQueueBeforeMsgId(msgId = 755, maxGsId = 578) shouldBe listOf(olderGsLaterMsg)
             playback.drainQueue() shouldBe listOf(newerGsLaterMsg)
@@ -182,7 +178,7 @@ class GamePlaybackTest :
         test("drain before outbound leaves future gameStateId queued") {
             val playback = createMinimalPlayback()
             val futureGsEarlierMsg = listOf(gameStateMessage(msgId = 747, gsId = 569))
-            playbackQueue(playback).add(futureGsEarlierMsg)
+            playbackBridge(playback).cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), futureGsEarlierMsg)
 
             playback.drainQueueBeforeMsgId(msgId = 749, maxGsId = 568).shouldBeEmpty()
             playback.drainQueue() shouldBe listOf(futureGsEarlierMsg)
@@ -251,7 +247,23 @@ class GamePlaybackTest :
                     ),
                 )
 
-            events.shouldSplitCombatDamageWindow() shouldBe false
+            val frame = FrameEventLog(events)
+            val plan =
+                CombatPlaybackFramePlanner.plan(
+                    PlaybackCutRequest(PlaybackCutReason.CombatEnded, 0, turnStarted = true),
+                    frame,
+                    SeatId(1),
+                    currentTurnSeat = 1,
+                    matchSeats = setOf(1, 2),
+                    sourceControllerSeats = mapOf(ForgeCardId(10) to 1, ForgeCardId(30) to 1),
+                )
+
+            assertSoftly {
+                events.shouldSplitCombatDamageWindow() shouldBe false
+                plan.size shouldBe 1
+                plan.single().events shouldBe frame
+                plan.single().turnStarted shouldBe true
+            }
         }
 
         test("resolution completion is represented by one closed frame") {

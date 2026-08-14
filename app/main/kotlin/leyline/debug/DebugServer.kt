@@ -435,7 +435,7 @@ class DebugServer(
 
         val game = bridge.getGame()!!
         val full = BundleBuilder(bridge, newSession.matchId, newSession.seatId.value).fullState(game, gsId)
-        val actions = full.actions
+        val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
 
         val gsmWithDeletes =
             if (deletedIds.isNotEmpty()) {
@@ -467,10 +467,6 @@ class DebugServer(
                 .setActionsAvailableReq(actions)
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
-
-        check(actionBridge.bindActionCatalog(pending.actionId, gsId, full.actionOffers)) {
-            "Puzzle hot-swap could not bind priority actions"
-        }
 
         newSession.sendBundledGRE(listOf(greGsm, greActions))
         val advanced = BundleBuilder.shouldAutoPass(actions)

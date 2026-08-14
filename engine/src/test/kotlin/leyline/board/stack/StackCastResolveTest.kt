@@ -48,6 +48,7 @@ class StackCastResolveTest :
             counter: MessageCounter,
         ): Pair<forge.game.card.Card, Int> {
             playLand(b) ?: error("playLand failed")
+            b.playback?.drainQueue()
             b.seedDiffBaseline(game)
 
             val castAction = castCreature(b) ?: error("castCreature failed")
@@ -95,6 +96,7 @@ class StackCastResolveTest :
         test("CastSpell: OIC before ZT, Limbo contains old instanceId") {
             val board = startGameAtMain1()
             playLand(board.bridge)
+            board.bridge.playback?.drainQueue()
             board.bridge.seedDiffBaseline(board.game)
 
             val castAction = castCreature(board.bridge) ?: error("castCreature failed")
@@ -250,6 +252,7 @@ class StackCastResolveTest :
         test("Resolve: keeps same instanceId across Stack→Battlefield") {
             val board = startGameAtMain1()
             playLand(board.bridge) ?: error("playLand failed")
+            board.bridge.playback?.drainQueue()
             board.bridge.seedDiffBaseline(board.game)
 
             val castAction = castCreature(board.bridge) ?: error("castCreature failed")

@@ -41,6 +41,9 @@ class ClientAccumulator {
     fun process(gre: GREToClientMessage) {
         messageCount++
 
+        if (gre.hasPrompt()) {
+            actions = null
+        }
         when {
             gre.hasGameStateMessage() -> processGameState(gre.gameStateMessage)
             gre.hasActionsAvailableReq() -> actions = gre.actionsAvailableReq

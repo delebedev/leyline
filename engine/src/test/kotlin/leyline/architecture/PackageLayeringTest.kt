@@ -1,5 +1,7 @@
 package leyline.architecture
 
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
@@ -20,8 +22,11 @@ import java.nio.file.Path
  *
  * ```
  * Tier 0 — foundation (leaves, import nothing from engine):
- *   bridge         Forge adapter (forge/, handoff/, coord/, bootstrap/, types/)
+ *   bridge         Forge adapter (forge/, handoff/, bootstrap/, types/)
  *   config         MatchConfig TOML data class
+ *
+ * Imperative shell:
+ *   bridge/coord   match runtime orchestration; may depend on game + config
  *
  * Tier 1 — game engine (imports Tier 0):
  *   game           Snapshot → proto (snapshot/, state/, event/, mapper/,
@@ -36,7 +41,7 @@ import java.nio.file.Path
  * ```
  *
  * Key invariants:
- * - bridge is a leaf: the Forge adapter layer has no upward deps
+ * - bridge adapters are leaves; bridge/coord is the explicit imperative shell
  * - game doesn't know about match sessions or wire protocol
  * - match is the top: nothing else imports it
  */
@@ -69,11 +74,13 @@ class PackageLayeringTest :
 
         // ── Tier 0: bridge is a pure leaf ───────────────────────────
 
-        test("bridge does not depend on game, match, or protocol") {
+        test("bridge adapters do not depend on game, match, or protocol") {
             noClasses()
-                .that()
-                .resideInAPackage("leyline.bridge..")
-                .should()
+                .that(
+                    resideInAPackage("leyline.bridge..").and(
+                        resideOutsideOfPackage("leyline.bridge.coord.."),
+                    ),
+                ).should()
                 .dependOnClassesThat()
                 .resideInAnyPackage(
                     "leyline.game..",
@@ -81,6 +88,19 @@ class PackageLayeringTest :
                     "leyline.protocol..",
                     "leyline.infra..",
                     "leyline.config..",
+                ).check(classes)
+        }
+
+        test("bridge coordinator shell does not depend on sessions or wire delivery") {
+            noClasses()
+                .that()
+                .resideInAPackage("leyline.bridge.coord..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.match..",
+                    "leyline.protocol..",
+                    "leyline.infra..",
                 ).check(classes)
         }
 
@@ -199,19 +219,23 @@ class PackageLayeringTest :
                 ).check(classes)
         }
 
-        test("bridge source imports from game stay explicitly allowlisted") {
+        test("bridge adapter imports from game stay explicitly allowlisted") {
             val allowed =
                 setOf(
                     "import leyline.game.data.KeywordAbilityIds",
                     "import leyline.game.mapping.PromptIds",
                 )
             val bridgeRoot = sourceRoot.resolve("leyline/bridge")
+            val coordinatorShellRoot = bridgeRoot.resolve("coord")
             val violations = mutableListOf<String>()
             val stream = Files.walk(bridgeRoot)
             try {
                 stream
-                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
-                    .forEach { file ->
+                    .filter {
+                        Files.isRegularFile(it) &&
+                            it.toString().endsWith(".kt") &&
+                            !it.startsWith(coordinatorShellRoot)
+                    }.forEach { file ->
                         Files.readAllLines(file).forEachIndexed { index, line ->
                             val trimmed = line.trim()
                             if (trimmed.startsWith("import leyline.game.") && trimmed !in allowed) {

@@ -9,6 +9,8 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
@@ -102,7 +104,13 @@ class BoastLifecycleTest :
             passUntilTurn(3, maxPasses = 80)
             val nextTurnAttackStart = messageSnapshot()
             passUntil(maxPasses = 30) {
-                turn() >= 3 && messagesSince(nextTurnAttackStart).any { it.hasDeclareAttackersReq() }
+                turn() >= 3 &&
+                    messagesSince(nextTurnAttackStart).any { it.hasDeclareAttackersReq() } &&
+                    harness.bridge
+                        .actionBridge(SeatId(1))
+                        .getPending()
+                        ?.state
+                        ?.kind == PendingActionKind.DECLARE_ATTACKERS
             }.shouldBeTrue()
             declareAttackers(listOf(usherIid))
             passUntil(maxPasses = 8) { latestBoastOffer(usherIid) }

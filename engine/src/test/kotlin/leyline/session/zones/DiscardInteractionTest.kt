@@ -183,8 +183,8 @@ class DiscardInteractionTest :
                 turns = 10,
             )
 
-            castSpellByName("Deep-Cavern Bat") shouldBe true
             val promptStart = messageSnapshot()
+            castSpellByName("Deep-Cavern Bat") shouldBe true
             passUntil(maxPasses = 10) { messagesSince(promptStart).any { it.hasSelectNReq() } } shouldBe true
 
             val req = messagesSince(promptStart).last { it.hasSelectNReq() }.selectNReq

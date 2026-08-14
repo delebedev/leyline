@@ -14,6 +14,8 @@ import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
@@ -191,8 +193,16 @@ class CombatInteractionTest :
         test("human declares single attacker") {
             val attackerIid = setupSingleAttacker()
 
-            // Pass from Main1 to advance to combat — auto-pass should emit DeclareAttackersReq
-            val req = after { passPriority() }.expectOneDeclareAttackersReq()
+            // Pass-only phase stops are skipped before the declaration window.
+            val pending =
+                harness.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    .shouldNotBeNull()
+            pending.state.kind shouldBe PendingActionKind.DECLARE_ATTACKERS
+            val requestMessage = allMessages.last { it.hasDeclareAttackersReq() }
+            requestMessage.gameStateId shouldBe pending.promptGameStateId
+            val req = requestMessage.declareAttackersReq
             req.attackersCount shouldBeGreaterThan 0
 
             // The Raging Goblin (haste) should be among eligible attackers
@@ -212,8 +222,15 @@ class CombatInteractionTest :
         test("human declares multiple attackers") {
             val attackerIids = setupMultipleAttackers()
 
-            // Advance to combat
-            val req = after { passPriority() }.expectOneDeclareAttackersReq()
+            val pending =
+                harness.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    .shouldNotBeNull()
+            pending.state.kind shouldBe PendingActionKind.DECLARE_ATTACKERS
+            val requestMessage = allMessages.last { it.hasDeclareAttackersReq() }
+            requestMessage.gameStateId shouldBe pending.promptGameStateId
+            val req = requestMessage.declareAttackersReq
             val eligibleIds = req.attackersList.map { it.attackerInstanceId }.toSet()
 
             // Both Raging Goblins (haste) should be eligible

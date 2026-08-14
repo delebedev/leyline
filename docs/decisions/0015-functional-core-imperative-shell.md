@@ -121,12 +121,16 @@ The first implementation work is already visible in current types:
 - `PureDiffReplayTest` starts seeded Forge bridges and excludes tracker families
   that remain live. The target forcing function constructs `ProjectionState`
   and `FrameInput` directly with no Forge or `GameBridge`.
-- `GamePlayback` currently closes facts, compiles, commits the cursor, and
-  enqueues output inside synchronous subscribers. This is safe only under the
-  current same-thread and `queueLock` contract; it is not a value boundary.
-- `PhaseHandler.mainLoopStep` provides one broad completion seam. Narrow
-  UI-neutral Forge hooks are still required for client-visible intermediate
-  operations and pre-block prompts.
+- `MatchCutCoordinator` now owns journal close, immutable cut materialization,
+  compilation, projection commit, and viewer feed publication for migrated
+  playback, Visible priority/action windows, SyncOnly state cuts, and Optional,
+  Numeric, and Damage blocking interactions. Safe direct priority skips close no
+  journal and allocate no protocol state. Event subscribers only aggregate cut
+  requests; session handlers drain committed batches and submit correlated values
+  or opaque action tokens.
+- `PhaseHandler` provides broad step completion plus narrow UI-neutral combat
+  hooks. Routed prompts, mulligan, lifecycle output, and multi-view compilation
+  remain outside the coordinator boundary.
 
 ## Decision
 

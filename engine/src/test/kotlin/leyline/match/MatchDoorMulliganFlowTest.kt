@@ -213,7 +213,11 @@ class MatchDoorMulliganFlowTest :
                         6,
                     ),
                 )
-                val postKeep = greOutbound(local).map { it.type }
+                val postKeepGre = greOutbound(local)
+                val postKeep = postKeepGre.map { it.type }
+                val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+                val pending = checkNotNull(session.gameBridge.actionBridge(leyline.bridge.types.SeatId(1)).getPending())
+                val actionPrompt = postKeepGre.single { it.hasActionsAvailableReq() }
 
                 assertSoftly {
                     mulliganPrompt shouldContain GREMessageType.GameStateMessage_695e
@@ -221,8 +225,8 @@ class MatchDoorMulliganFlowTest :
                     mulliganPrompt shouldContain GREMessageType.MulliganReq_aa0d
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
-                    (registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession)
-                        .gameBridge
+                    pending.promptGameStateId shouldBe actionPrompt.gameStateId
+                    session.gameBridge
                         .getGame()
                         ?.isGameOver shouldBe false
                 }

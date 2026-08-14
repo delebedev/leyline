@@ -37,11 +37,10 @@ class FlashbackLifecycleTest :
             startPuzzleRaw(PUZZLE, validating = true)
 
             val handBefore = human.getZone(ZoneType.Hand).size()
+            val handCastStart = messageSnapshot()
             castSpellByName("Think Twice").shouldBeTrue()
-            val handResolveMessages =
-                after {
-                    passPriority()
-                }.messages
+            passPriority()
+            val handResolveMessages = messagesSince(handCastStart)
             val handResolveFrame =
                 handResolveMessages
                     .gameStateMessages()
@@ -82,7 +81,6 @@ class FlashbackLifecycleTest :
 
             val handBeforeFlashback = human.getZone(ZoneType.Hand).size()
             castFromGraveyard("Think Twice").shouldBeTrue()
-            passPriority()
 
             assertSoftly {
                 human.getZone(ZoneType.Hand).size() shouldBe handBeforeFlashback + 1

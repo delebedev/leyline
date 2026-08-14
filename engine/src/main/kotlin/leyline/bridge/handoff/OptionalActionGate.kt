@@ -4,7 +4,6 @@ import forge.game.card.Card
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
-import org.slf4j.LoggerFactory
 
 /**
  * Narrow access surface exposed by [PlayerController] to coordinators and helpers.
@@ -23,18 +22,6 @@ import org.slf4j.LoggerFactory
  * decide what belongs here vs. on the class vs. on [InteractivePromptBridge].
  */
 interface OwnerContext {
-    /** Pending optional-action prompt (set by [OptionalActionGate], read by session handlers). */
-    var pendingOptionalAction: OptionalActionPrompt?
-
-    /** Pending numeric-input prompt (set by [NumericInputGate], read by `NumericInputHandler`). */
-    var pendingNumericInput: NumericInputPrompt?
-
-    /** Pending manual combat-damage assignment (set by [leyline.bridge.coord.PriorityLoopCoordinator], read by `CombatHandler`). */
-    var pendingDamageAssignment: DamageAssignmentPrompt?
-
-    /** Batched damage assignments cached by `CombatHandler.onAssignDamage` for subsequent attackers. */
-    val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>>
-
     /** Client auto-pass state (full-control flag, phase stops). */
     val autoPassState: ClientAutoPassState?
 
@@ -46,38 +33,32 @@ interface OwnerContext {
 }
 
 /**
- * Owns the [PlayerController.pendingOptionalAction] future lifecycle for the
- * override sites that share it (`confirmAction`, `confirmTrigger`,
+ * Publishes coordinator-owned optional interaction values for the override
+ * sites that share it (`confirmAction`, `confirmTrigger`,
  * `confirmReplacementEffect`, `playSaFromPlayEffect`, `payCostToPreventEffect`).
- *
- * Each site used to assemble the future, assign the pending field, signal the
- * priority bridge, `get()` the future with a timeout, and clear the field in a
- * `finally` — identical protocol, three copies. Consolidating it here removes
- * duplication and turns the field-clear invariant into a single point of audit.
  *
  * Threading: [await] runs on the Forge engine thread. It blocks that thread
  * until the Netty session thread completes the future via
  * [leyline.match.OptionalActionHandler.onOptionalActionResp].
  */
 class OptionalActionGate(
-    private val owner: OwnerContext,
     private val actionBridge: GameActionBridge?,
+    private val interactionRuntime: BlockingInteractionRuntime,
 ) {
-    private val log = LoggerFactory.getLogger(OptionalActionGate::class.java)
-
     /**
      * Post a pending optional-action prompt, block the engine thread until the
      * client responds or the action timeout elapses, and return the accept/decline
-     * decision. On timeout, returns [defaultOnTimeout] and logs a warning.
+     * decision.
      *
      * @param hostCard the card the prompt is about (null when unknown)
-     * @param forceSnapshotBeforePrompt when true, the session layer emits a full
+     * @param forceSnapshotBeforePrompt when true, the coordinator emits a full
      *   GSM before the prompt — needed for mid-resolution prompts where the
      *   client has not yet seen the pre-prompt state transition
      * @param defaultOnTimeout the value to return if the future times out (true for
      *   sites where auto-accepting is the safe fallback, false where auto-declining is)
      * @param logContext human-readable tag for timeout log lines (e.g. the override name)
      */
+    @Suppress("UnusedParameter")
     fun await(
         hostCard: Card?,
         forceSnapshotBeforePrompt: Boolean = false,
@@ -86,25 +67,16 @@ class OptionalActionGate(
         customPromptId: Int? = null,
         commanderReturn: CommanderReturnPromptContext? = null,
     ): Boolean {
-        val action = if (defaultOnTimeout) "auto-accepting" else "declining"
-        return PendingGate.await(
-            publish = { owner.pendingOptionalAction = it },
-            prompt = { future ->
-                OptionalActionPrompt(
-                    hostCard = hostCard,
-                    future = future,
-                    forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
-                    customPromptId = customPromptId,
-                    commanderReturn = commanderReturn,
-                )
-            },
-            signal = { actionBridge?.prioritySignal?.signal() },
-            timeoutMs = { actionBridge?.getTimeoutMs() },
-            defaultOnTimeout = { defaultOnTimeout },
-            log = log,
-            logContext = logContext,
-            subject = hostCard?.name,
-            timeoutDetail = action,
+        if (hostCard == null) return true
+        return interactionRuntime.awaitOptional(
+            BlockingInteraction.Optional(
+                sourceId = ForgeCardId(hostCard.id),
+                forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
+                customPromptId = customPromptId,
+                commanderReturn = commanderReturn,
+            ),
+            timeoutMs = actionBridge?.getTimeoutMs(),
+            defaultOnTimeout = defaultOnTimeout,
         )
     }
 }

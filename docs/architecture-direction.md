@@ -119,7 +119,13 @@ head or scheduler submits immutable signal / completes pending answer
 
 A lifecycle signal that arrives while Forge is running waits in a bounded
 mailbox until the runtime reaches a safe point. An answer for a blocked
-controller callback completes that interaction's reply primitive directly.
+controller callback is correlated against a coordinator-owned window. Visible
+priority offers carry immutable action views and opaque runtime tokens. A
+SyncOnly priority stop commits a state-only cut before signalling and resumes
+only after delivery; a safe direct Skip allocates and publishes nothing.
+Optional, Numeric, and Damage prompts carry typed value inputs. The coordinator
+commits the complete batch before signalling and resolves retained live handles
+only on the Forge thread.
 Timeout and disconnect handling use the same two mechanisms; they do not run
 session logic concurrently.
 
@@ -142,7 +148,8 @@ The runtime materializes cut-specific projection inputs. Illustrative families
 are:
 
 - resulting state plus ordered facts;
-- priority window plus immutable action views and opaque action tokens;
+- Visible priority window plus immutable action views and opaque action tokens;
+- SyncOnly state cut with no action catalog or client timer;
 - typed prompt plus immutable display and validation facts;
 - synthetic pre-mutation intent needed by the client UI;
 - mulligan, reset, game-over, or intermission transition.

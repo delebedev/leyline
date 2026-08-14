@@ -26,9 +26,9 @@ two-thread model.
 
 | Execution domain | Runs | Coordination |
 |---|---|---|
-| **Engine** — `game-loop-<gameId>` | Forge's `mainGameLoop`, trigger resolution, EventBus dispatch, `GamePlayback` frame construction | Owns the live Forge graph; blocks in controller futures |
+| **Engine** — `game-loop-<gameId>` | Forge's `mainGameLoop`, trigger resolution, EventBus dispatch, coordinator cut commits | Owns the live Forge graph; blocks in controller futures |
 | **Interactive session entrants** — Netty I/O, web relay dispatcher, test caller, `match-autoadvance-*` executor, debug-server pool | `MatchSession`, handlers, `AutoPassEngine`, ordinary sends | `MatchSession` game-logic entry points enter `ConnectionState.sessionLock`; may wait on `PrioritySignal` |
-| **Spectator pump** — `spectator-pump-*` executor | Drains spectator playback every 50 ms and sends terminal output | Separate non-interactive mode; coordinates with engine playback through `queueLock` |
+| **Spectator pump** — `spectator-pump-*` executor | Drains its committed coordinator feed every 50 ms and sends terminal output | Separate non-interactive mode; coordinates with engine publication through `feedLock` |
 | **Sink caller** | Marks outbound IDs and invokes `MessageSink.send` | Runs on whichever session or pump domain initiated delivery |
 
 **Engine-owned.** The `Game` object graph—zones, stack, life totals, counters,
@@ -48,13 +48,14 @@ license for new lock-free entry points.
 
 **Shared projection and handoff state.** `MessageCounter` uses atomics;
 `ProjectionState` installs through a revision-checked transition; pending
-actions and prompts use atomic references; `PrioritySignal` is a semaphore. `GamePlayback.queue` is concurrent,
-but `queueLock` deliberately covers the whole close-events/build/advance-cursor/
-enqueue window and every drain. The queue type alone is not the transaction.
+actions and prompts use atomic references; `PrioritySignal` is a semaphore. The
+match-scoped `MatchCutCoordinator` owns viewer-keyed committed feeds, and
+`feedLock` covers the whole close-events/build/advance-cursor/enqueue window and
+every drain. The queue type alone is not the transaction.
 Frame producers that need all three monitors use one order:
-`MessageCounter` → `projectionBuildLock` → `queueLock`. Drainers take only
-`queueLock`; event subscribers that request a future cut also take only
-`queueLock`.
+`MessageCounter` → `projectionBuildLock` → `feedLock`. Drainers take only
+`feedLock`; event subscribers that request a future cut also take only
+`feedLock`.
 
 ```mermaid
 flowchart LR
@@ -63,20 +64,19 @@ flowchart LR
     SL --> MS[MatchSession and handlers]
     MS --> WAIT[PrioritySignal wait]
 
-    E[Forge engine thread] --> EVT[EventBus and GamePlayback]
-    EVT --> QL[queueLock: build and enqueue]
+    E[Forge engine thread] --> EVT[EventBus and completion hooks]
+    EVT --> QL[MatchCutCoordinator feedLock]
     MS --> QL
     SP[Spectator pump] --> QL
-    QL --> Q[Playback queue]
+    QL --> Q[Viewer committed feed]
     Q --> SEND[MessageSink.send]
 ```
 
 `sessionLock` can disappear only when Netty input, auto-advance, timeouts, and
 other entrants merely submit immutable signals or complete a pending reply;
-the Forge runtime thread must be the only logical match owner. `queueLock` and
-the playback queue can disappear only when engine callbacks stop building
-protocol frames and every producer commits through that runtime thread's one
-ordered output path.
+the Forge runtime thread must be the only logical match owner. The shared feed
+lock can disappear only after all residual producers commit through that
+runtime thread's one ordered output path.
 
 A read of shared state on one execution domain is a snapshot of a moving
 system. Decisions whose correctness depends on a value remaining stable must
@@ -97,6 +97,7 @@ Semaphore over other primitives because permits accumulate: a signal that arrive
 sequenceDiagram
     participant ENG as Engine thread
     participant AB as GameActionBridge
+    participant CUT as MatchCutCoordinator
     participant SIG as PrioritySignal
     participant GB as GameBridge.awaitPriorityWithTimeout
     participant SESS as Session critical section
@@ -104,18 +105,19 @@ sequenceDiagram
     SESS->>GB: awaitPriorityWithTimeout(timeout)
     GB->>SIG: tryAcquire(timeout)
     Note over GB: parks
-    ENG->>AB: awaitAction(state)
+    ENG->>AB: awaitAction(state, frozen candidates)
     AB->>AB: pending.set(PendingAction)
-    AB->>SIG: signal()
+    AB->>CUT: publish Visible window or SyncOnly state cut
+    CUT->>CUT: compile, commit, enqueue complete batch
+    CUT->>SIG: signal()
     Note over AB: future.get() blocks engine
     SIG-->>GB: permit
     GB->>GB: drainPermits
-    GB->>GB: awaitProgress(entryGsId)
     GB-->>SESS: true
-    SESS->>SESS: build and send bundle
+    SESS->>CUT: drain committed batch
 ```
 
-The signal means "a pending item was posted." It does not mean "the engine has finished writing to shared state." `awaitPriorityWithTimeout` therefore records `MessageCounter.currentGsId()` on entry and, after the wake, waits for the counter to advance past that watermark before returning. Without this second wait, a caller can drain an empty sink.
+For migrated interactions the signal means that the coordinator has committed and enqueued the complete batch while holding its feed lock. Releasing that lock makes the batch drainable; the subsequent signal wakes the session. A Visible priority window includes the immutable action catalog. A SyncOnly stop includes a state-only cut with no action request or client timer; the session drains that cut before completing the internal pass. Delivery failure or timeout is terminal and cannot resume Forge past an undelivered barrier. A safe priority Skip emits no signal because it closes no journal, allocates no IDs, and blocks on no future. A session submits immutable answers and never infers readiness from a guessed game-state id or settle delay. Routed prompt and mulligan paths retain their named handoff contracts until they migrate.
 
 ---
 
@@ -127,7 +129,7 @@ acknowledgement from the sink.
 
 | Timeline | Location | Advances on | Purpose |
 |---|---|---|---|
-| Projection baseline | `ProjectionState.viewerCursors` | A `BundleBuilder` installs the completed transition before returning its messages; ordinary playback enqueues under `queueLock` immediately before install | Input to the next `StateProjectionCompiler.compileOneViewer` call |
+| Projection baseline | `ProjectionState.viewerCursors` | The coordinator installs the completed transition while publishing a migrated batch under `feedLock`; residual shell paths install before returning messages | Input to the next `StateProjectionCompiler.compileOneViewer` call |
 | Sink handoff | Implicit in the sink | `sink.send(messages)` is invoked successfully | Server-side delivery attempt; this is not client acknowledgement |
 
 The interactive state-diff order is:
@@ -151,7 +153,7 @@ interactive path binds offers and sends after `BundleBuilder` returns. Ordinary
 playback first retains an immutable `PendingCut` with its closed frame input,
 prior projection, viewer intent, action values, and logical ids. It compiles
 that exact cut, enqueues the fixed batch, and installs its transition under
-`queueLock`; a session or spectator domain cannot drain the batch until the
+`feedLock`; a session or spectator domain cannot drain the batch until the
 install attempt completes. A stale install cannot succeed against the cut's
 exact prior revision and therefore becomes terminal without rebasing or
 recapturing.
@@ -167,12 +169,11 @@ delivered output.
 **R1. Never use the projection baseline as client-awareness state.** If a
 decision depends on whether delivery occurred, track delivery explicitly.
 
-**R2. One cursor per bridge, shared across builders.** `MatchSession` and
-`GamePlayback` each construct a `BundleBuilder`, but both use the viewer cursor
-inside the bridge's `ProjectionState`. Separate cursors would produce diffs against different
-histories. Transition installation publishes the viewer cursor, while
-`sessionLock`, `queueLock`, priority waits, and queue ordering provide the
-larger sequencing contract.
+**R2. One cursor per bridge, shared across builders.** Per-viewer builders use
+the viewer cursor inside the bridge's `ProjectionState`. Separate cursors would
+produce diffs against different histories. Transition installation publishes
+the viewer cursor, while `sessionLock`, `feedLock`, priority waits, and feed
+ordering provide the larger sequencing contract.
 
 **R3. Preserve playback-before-session delivery.** `sendBundledGRE` drains
 queued playback batches with lower message or game-state IDs before sending the
@@ -183,7 +184,7 @@ construct and enqueue frames.
 
 ## 4. One shared counter, not two
 
-`gsId` is protocol-critical: the client-visible `GameStateMessage` stream must use monotonically increasing, unique IDs with no self-referential predecessor. `msgId` is still allocated from the same counter object for local ordering and response bookkeeping, but validator hard failures are intentionally limited to the stable gsId facts plus AIC/AID affector consistency. Both IDs live on a single `MessageCounter` instance — shared by `MatchSession`, `GameBridge`, `GamePlayback`, and `BundleBuilder` at construction time. Interactive-session entrants, the spectator pump, and the engine thread call `nextGsId()` / `nextMsgId()` on the same atomic-backed counter.
+`gsId` is protocol-critical: the client-visible `GameStateMessage` stream must use monotonically increasing, unique IDs with no self-referential predecessor. `msgId` is still allocated from the same counter object for local ordering and response bookkeeping, but validator hard failures are intentionally limited to the stable gsId facts plus AIC/AID affector consistency. Both IDs live on one `MessageCounter` owned by `GameBridge`. The match coordinator and its `BundleBuilder`s allocate migrated batches from it; named lifecycle, routed-prompt, and spectator builders share the same atomic-backed counter until those residual paths migrate. Failed publication may leave gaps, but no producer rewinds the global sequence.
 
 A partitioned design (a range of IDs per thread) cannot guarantee client-visible ordering without coordination on every send, which is the problem the shared atomic already solves. A predecessor design with two counters and a `max()`-merge at every bridge callback existed; the current shape removes the problem rather than patching it.
 
@@ -193,18 +194,22 @@ A partitioned design (a range of IDs per thread) cannot guarantee client-visible
 
 Detecting a phase from an interactive-session entrant means the engine *entered*
 the phase, not that it is *blocked and waiting*. Engine state can still be
-mid-mutation—triggers firing, SBAs resolving, or `GamePlayback` materializing a
+mid-mutation—triggers firing, SBAs resolving, or the match coordinator materializing a
 frame—when phase transitions fire.
 
 **Invariant.** Before an interactive-session handler builds an outbound GRE
 message in response to a phase, it must call `bridge.awaitPriority()` (or
 `awaitPriorityWithTimeout` with a tighter budget).
 
-The wait guarantees three things hold when it returns:
+For coordinator-backed Visible priority, SyncOnly, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
-2. `MessageCounter` has advanced past its pre-wait watermark.
-3. The projection baseline has settled: any engine-thread bundle from the preceding action has already advanced the viewer cursor.
+2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only and must be delivered before their internal pass completes.
+3. The projection baseline for that batch has settled.
+
+Legacy routed prompts and mulligan retain their named handoff contracts until they migrate.
+
+Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
 
 A send that skips `awaitPriority` is a send built from a half-mutated engine state. The resulting GSM diff will be inconsistent with what the client should observe.
 
@@ -238,8 +243,8 @@ cut only. `PhaseHandler` invokes the playback hook once after a successful
 **Playback subscribers journal intent only.** They must not close the event
 journal, inspect Forge for projection, allocate message or object ids, compile,
 install, enqueue, sleep, perform I/O, or wait on an external resource. The
-completion hook owns those operations under the frame-production lock order; its
-drainer never waits for the engine while holding `queueLock`.
+coordinator owns those operations under the frame-production lock order; its
+drainer never waits for the engine while holding `feedLock`.
 
 **The completion hook is the ordinary projection safe point.** It runs after the
 step's mutation burst and before Forge starts another step. It materializes the

@@ -3,6 +3,8 @@ package leyline.game.bundle
 import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.bridge.PriorityActionCandidates
+import leyline.bridge.handoff.BlockingInteraction
+import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
@@ -79,6 +81,7 @@ class BundleBuilder(
     val seatId: Int,
 ) {
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
+    private val blockingInteractions = BlockingInteractionMaterializer(seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -87,6 +90,13 @@ class BundleBuilder(
         val messages: List<GREToClientMessage>,
         val actionOffers: List<ActionOffer> = emptyList(),
         val actionGameStateId: Int? = null,
+    )
+
+    internal data class ActionWindowPrepared(
+        val bundle: BundleResult,
+        val transition: ProjectionTransition? = null,
+        val closesPlaybackFrame: Boolean = false,
+        val presentationActions: ActionsAvailableReq = ActionsAvailableReq.getDefaultInstance(),
     )
 
     data class FullStateResult(
@@ -335,6 +345,21 @@ class BundleBuilder(
         error("unreachable")
     }
 
+    private fun prepareFrameInputLocked(
+        input: FrameInput,
+        intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
+    ): FrameDiff {
+        val result = compileFrame(input, intent = intent)
+        bridge.diffListener?.invoke(input.state, input.priorProjection, intent, result.gsm)
+        return FrameDiff(
+            input.state.gameStateId,
+            result.projectionSnapshot,
+            result,
+            input.state.events,
+            input.state.previousSnapshot,
+        )
+    }
+
     /** Invalidates the viewer's snap-vs-snap baseline without changing other projection history. */
     fun invalidateProjectionBaseline() {
         bridge.updateViewerProjectionCursor { it.copy(previousSnapshot = null) }
@@ -370,13 +395,25 @@ class BundleBuilder(
         counter: MessageCounter,
         revealForSeat: Int? = null,
         priorityCandidates: PriorityActionCandidates? = null,
-    ): BundleResult {
-        val diff =
-            buildFrameDiff(
+    ): BundleResult =
+        synchronized(counter) {
+            synchronized(bridge.projectionBuildLock) {
+                commitActionWindow(preparePostAction(game, counter, revealForSeat, priorityCandidates))
+            }
+        }
+
+    internal fun preparePostAction(
+        game: Game,
+        counter: MessageCounter,
+        revealForSeat: Int? = null,
+        priorityCandidates: PriorityActionCandidates? = null,
+    ): ActionWindowPrepared {
+        val input =
+            frameInput(
                 game,
                 counter,
                 revealForSeat = revealForSeat,
-                includePendingPlayerSubmittedTargets = true,
+                eventsOverride = null,
             ) { snap, events ->
                 if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
                     GameStateUpdate.SendHiFi
@@ -384,13 +421,41 @@ class BundleBuilder(
                     StateMapper.resolveUpdateType(snap, seatId)
                 }
             }
+        val pendingSubmittedTargets = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
+        val intent =
+            ViewerProjectionIntent.of(
+                pendingSubmittedTargets
+                    ?.let { pending ->
+                        listOf(
+                            ProjectionSupplement.SubmitPendingTargets(
+                                pending.spellInstanceId,
+                                pending.casterSeatId,
+                                pending.version,
+                            ),
+                        )
+                    }.orEmpty(),
+            )
+        val compiled = compileFrame(input, intent = intent)
+        bridge.diffListener?.invoke(input.state, input.priorProjection, intent, compiled.gsm)
+        val tentative = compiled.transition.nextState.copy(revision = compiled.transition.expectedRevision)
+        val (projection, next) =
+            bridge.editProjection(tentative) {
+                ActionMapper.buildProjectionFromSnapshot(seatId, compiled.projectionSnapshot, bridge, priorityCandidates)
+            }
+        val diff =
+            FrameDiff(
+                input.state.gameStateId,
+                compiled.projectionSnapshot,
+                compiled,
+                input.state.events,
+                input.state.previousSnapshot,
+            )
         val nextGs = diff.gameStateId
         val snap = diff.snap
         val frame = GsmFrame.from(snap)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val result = diff.result
-        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates)
         val actions = projection.actions
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
@@ -414,7 +479,17 @@ class BundleBuilder(
                     },
                 )
 
-        return BundleResult(messages, projection.offers, nextGs)
+        return ActionWindowPrepared(
+            BundleResult(messages, projection.offers, nextGs),
+            compiled.transition.copy(nextState = next),
+            closesPlaybackFrame = true,
+        )
+    }
+
+    private fun commitActionWindow(prepared: ActionWindowPrepared): BundleResult {
+        prepared.transition?.let(bridge::commitProjection)
+        if (prepared.closesPlaybackFrame) bridge.acknowledgePlaybackFrame(SeatId(seatId))
+        return prepared.bundle
     }
 
     /**
@@ -425,10 +500,11 @@ class BundleBuilder(
     fun stateOnlyDiff(
         game: Game,
         counter: MessageCounter,
+        revealForSeat: Int? = null,
     ): BundleResult =
         synchronized(counter) {
             val diff =
-                buildFrameDiff(game, counter, includePendingPlayerSubmittedTargets = true) { snap, _ ->
+                buildFrameDiff(game, counter, revealForSeat, includePendingPlayerSubmittedTargets = true) { snap, _ ->
                     StateMapper.resolveUpdateType(snap, seatId)
                 }
             val nextGs = diff.gameStateId
@@ -449,6 +525,45 @@ class BundleBuilder(
 
             BundleResult(messages)
         }
+
+    /** Prepare one state-only cut for a pre-block synchronization window. */
+    internal fun prepareStateOnlyDiff(
+        game: Game,
+        counter: MessageCounter,
+    ): ActionWindowPrepared {
+        val input =
+            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, _ ->
+                StateMapper.resolveUpdateType(snap, seatId)
+            }
+        val pendingSubmittedTargets = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
+        val intent =
+            ViewerProjectionIntent.of(
+                pendingSubmittedTargets
+                    ?.let { pending ->
+                        listOf(
+                            ProjectionSupplement.SubmitPendingTargets(
+                                pending.spellInstanceId,
+                                pending.casterSeatId,
+                                pending.version,
+                            ),
+                        )
+                    }.orEmpty(),
+            )
+        val diff = prepareFrameInputLocked(input, intent)
+        val gs = diff.result.gsm
+        val messages =
+            listOf(
+                makeGRE(GREMessageType.GameStateMessage_695e, diff.gameStateId, counter.nextMsgId()) {
+                    it.gameStateMessage = gs
+                },
+            ) + coinFlipPromptMessages(diff.events.events, diff.gameStateId, counter) +
+                listOf(buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId))
+        return ActionWindowPrepared(
+            bundle = BundleResult(messages),
+            transition = diff.result.transition,
+            closesPlaybackFrame = true,
+        )
+    }
 
     /**
      * Remote action diff: content GS Diff with SendHiFi, then a bare SendHiFi echo.
@@ -685,7 +800,8 @@ class BundleBuilder(
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
+    @org.jetbrains.annotations.VisibleForTesting
+    internal fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
         val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
         return projectAndCommit {
             val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
@@ -708,6 +824,115 @@ class BundleBuilder(
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
 
+    internal fun optionalInteractionBundle(
+        game: Game,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Optional,
+    ): BlockingInteractionMaterializer.Prepared =
+        interaction.commanderReturn?.let { commanderOptionalInteractionBundle(game, counter, interaction, it) }
+            ?: if (interaction.forceSnapshotBeforePrompt) {
+                snapshotOptionalInteractionBundle(game, counter, interaction)
+            } else {
+                blockingInteractions.generalOptional(bridge.projectionStateSnapshot(), counter, interaction)
+            }
+
+    private fun commanderOptionalInteractionBundle(
+        game: Game,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Optional,
+        context: CommanderReturnPromptContext,
+    ): BlockingInteractionMaterializer.Prepared {
+        val input =
+            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, _ ->
+                StateMapper.resolveUpdateType(snap, seatId)
+            }
+        val compiled = compileFrame(input)
+        val stateMessages = stateOnlyMessages(compiled.gsm, input.state.events.events, counter)
+        val tentative = compiled.transition.nextState.copy(revision = compiled.transition.expectedRevision)
+        val link = counter.nextGameStateLink()
+        val (bundle, next) =
+            bridge.editProjection(tentative) { editor ->
+                val snap = GsmSnapshot.capture(game, bridge, matchId, link.gsId)
+                val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+                blockingInteractions.commanderOptional(
+                    stateMessages,
+                    snap,
+                    actions,
+                    link,
+                    counter,
+                    interaction,
+                    context,
+                    editor,
+                    bridge.cardProto,
+                )
+            }
+        return BlockingInteractionMaterializer.Prepared(
+            bundle = bundle,
+            transition = compiled.transition.copy(nextState = next),
+            closesPlaybackFrame = true,
+        )
+    }
+
+    private fun snapshotOptionalInteractionBundle(
+        game: Game,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Optional,
+    ): BlockingInteractionMaterializer.Prepared {
+        val input =
+            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, _ ->
+                StateMapper.resolveUpdateType(snap, seatId)
+            }
+        val compiled = compileFrame(input)
+        val stateMessages = stateOnlyMessages(compiled.gsm, input.state.events.events, counter)
+        return blockingInteractions.snapshotOptional(compiled, stateMessages, counter, interaction)
+    }
+
+    private fun stateOnlyMessages(
+        gsm: GameStateMessage,
+        events: List<GameEvent>,
+        counter: MessageCounter,
+    ): List<GREToClientMessage> =
+        listOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, gsm.gameStateId, counter.nextMsgId()) {
+                it.gameStateMessage = gsm
+            },
+        ) + coinFlipPromptMessages(events, gsm.gameStateId, counter) +
+            listOf(buildEchoDiffGsm(counter, gsm.update, previousGsId = gsm.gameStateId))
+
+    internal fun commanderPromptCleanup(
+        game: Game,
+        counter: MessageCounter,
+        context: CommanderReturnPromptContext,
+        beforeMaterialization: (() -> Unit)? = null,
+    ): BlockingInteractionMaterializer.Prepared {
+        val prior = bridge.projectionStateSnapshot()
+        val link = counter.nextGameStateLink()
+        beforeMaterialization?.invoke()
+        val (snap, frameProjection) =
+            bridge.editProjection(prior) { GsmSnapshot.capture(game, bridge, matchId, link.gsId) }
+        return blockingInteractions.commanderCleanup(
+            frameProjection.copy(revision = prior.revision),
+            snap,
+            link,
+            counter,
+            context,
+        )
+    }
+
+    internal fun numericInteractionBundle(
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Numeric,
+    ): BlockingInteractionMaterializer.Prepared = blockingInteractions.numeric(bridge.projectionStateSnapshot(), counter, interaction)
+
+    internal fun damageInteractionBundle(
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Damage,
+        blockerToughness: Map<ForgeCardId, Int>,
+    ): BlockingInteractionMaterializer.Prepared =
+        blockingInteractions.damage(bridge.projectionStateSnapshot(), counter, interaction, blockerToughness)
+
+    internal fun damageAssignmentConfirmation(counter: MessageCounter): BundleResult = blockingInteractions.damageConfirmation(counter)
+
     /**
      * Phase transition bundle matching expected client-facing message pattern (5 messages):
      *   1. GS Diff SendHiFi (2x PhaseOrStepModified, gameInfo, players, actions)
@@ -719,24 +944,33 @@ class BundleBuilder(
     fun phaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
+        priorityActions: ActionsAvailableReq? = null,
     ): BundleResult =
         synchronized(bridge.projectionBuildLock) {
-            val prior = bridge.projectionStateSnapshot()
-            val (result, next) = bridge.editProjection(prior) { buildPhaseTransitionDiff(game, counter) }
-            val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
-            bridge.commitProjection(
-                ProjectionTransition(
-                    expectedRevision = prior.revision,
-                    nextState =
-                        next.copy(
-                            viewerCursors =
-                                next.viewerCursors +
-                                    (0 to priorCursor.copy(previousSnapshot = result.snapshot)),
-                        ),
-                ),
-            )
-            result.bundle
+            commitActionWindow(preparePhaseTransitionDiff(game, counter, priorityActions))
         }
+
+    internal fun preparePhaseTransitionDiff(
+        game: Game,
+        counter: MessageCounter,
+        priorityActions: ActionsAvailableReq? = null,
+    ): ActionWindowPrepared {
+        val prior = bridge.projectionStateSnapshot()
+        val (result, next) = bridge.editProjection(prior) { buildPhaseTransitionDiff(game, counter, priorityActions) }
+        val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
+        return ActionWindowPrepared(
+            result.bundle,
+            ProjectionTransition(
+                expectedRevision = prior.revision,
+                nextState =
+                    next.copy(
+                        viewerCursors =
+                            next.viewerCursors +
+                                (0 to priorCursor.copy(previousSnapshot = result.snapshot)),
+                    ),
+            ),
+        )
+    }
 
     private data class PhaseTransitionResult(
         val bundle: BundleResult,
@@ -746,6 +980,7 @@ class BundleBuilder(
     private fun buildPhaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
+        priorityActions: ActionsAvailableReq?,
     ): PhaseTransitionResult {
         val prevGs = counter.currentGsId()
         val nextGs = counter.nextGsId()
@@ -755,8 +990,15 @@ class BundleBuilder(
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Client expects Cast/Play actions embedded regardless of current phase (cosmetic only;
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
-        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-        val priorityProjection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
+        val priorityProjection =
+            if (priorityActions == null) {
+                ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
+            } else {
+                null
+            }
+        val projectedPriority = priorityActions ?: checkNotNull(priorityProjection).actions
+        val actions = priorityActions ?: ActionMapper.buildNaiveActions(seatId, bridge)
+        val actionOffers = priorityProjection?.offers ?: emptyList()
 
         // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
         val gs1 =
@@ -820,12 +1062,16 @@ class BundleBuilder(
         // Message 5: ActionsAvailableReq (promptId=2)
         val msg5 =
             makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
-                it.actionsAvailableReq = priorityProjection.actions
+                it.actionsAvailableReq = projectedPriority
                 it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             }
 
         return PhaseTransitionResult(
-            BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), priorityProjection.offers, commitGs),
+            BundleResult(
+                listOf(msg1, msg2, msg3, msg4, msg5),
+                actionOffers = actionOffers,
+                actionGameStateId = commitGs,
+            ),
             snap,
         )
     }
@@ -858,16 +1104,16 @@ class BundleBuilder(
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
      */
-    @Suppress("UnusedParameter")
-    fun echoAttackersBundle(
+    internal fun prepareEchoAttackers(
         game: Game,
         counter: MessageCounter,
         selectedAttackerIds: List<Int>,
         allLegalAttackerIds: List<Int>,
         selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
         selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
-    ): BundleResult =
-        combatEchoBundle(game, counter, allLegalAttackerIds, GREMessageType.DeclareAttackersReq_695e) {
+        presentationActions: ActionsAvailableReq,
+    ): ActionWindowPrepared =
+        prepareCombatEcho(game, counter, allLegalAttackerIds, GREMessageType.DeclareAttackersReq_695e, presentationActions) {
             val req =
                 RequestBuilder.buildDeclareAttackersReq(
                     SeatId(seatId),
@@ -890,14 +1136,38 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         prebuiltReq: DeclareAttackersReq? = null,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val gs = diff.result.gsm
-        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
-        return promptRequestBundle(diff, counter, gs, GREMessageType.DeclareAttackersReq_695e) {
-            it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-        }
+    ): BundleResult = commitActionWindow(prepareDeclareAttackers(game, counter, prebuiltReq))
+
+    internal fun prepareDeclareAttackers(
+        game: Game,
+        counter: MessageCounter,
+        prebuiltReq: DeclareAttackersReq? = null,
+    ): ActionWindowPrepared {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+        val diff = prepareFrameInputLocked(input)
+        val tentative =
+            diff.result.transition.nextState
+                .copy(revision = diff.result.transition.expectedRevision)
+        val (projected, next) =
+            bridge.editProjection(tentative) {
+                val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
+                promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.DeclareAttackersReq_695e) {
+                    it.declareAttackersReq = req
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+                }.copy(actionGameStateId = diff.gameStateId) to ActionMapper.buildNaiveActions(seatId, bridge)
+            }
+        return ActionWindowPrepared(
+            projected.first,
+            diff.result.transition.copy(nextState = next),
+            closesPlaybackFrame = true,
+            presentationActions = projected.second,
+        )
     }
 
     /**
@@ -907,12 +1177,13 @@ class BundleBuilder(
      * Same pattern as [echoAttackersBundle] — engine's combat object doesn't
      * track provisional blocker selections during iterative declaration.
      */
-    fun echoBlockersBundle(
+    internal fun prepareEchoBlockers(
         game: Game,
         counter: MessageCounter,
-        blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
-    ): BundleResult =
-        combatEchoBundle(game, counter, blockAssignments.keys, GREMessageType.DeclareBlockersReq_695e) {
+        blockAssignments: Map<Int, Int>,
+        presentationActions: ActionsAvailableReq,
+    ): ActionWindowPrepared =
+        prepareCombatEcho(game, counter, blockAssignments.keys, GREMessageType.DeclareBlockersReq_695e, presentationActions) {
             // Re-prompt with assigned blockers' attackerInstanceIds cleared
             val req =
                 RequestBuilder.buildDeclareBlockersReq(
@@ -928,63 +1199,67 @@ class BundleBuilder(
             configureRequest
         }
 
-    private fun combatEchoBundle(
+    private fun prepareCombatEcho(
         game: Game,
         counter: MessageCounter,
         includedInstanceIds: Collection<Int>,
         requestType: GREMessageType,
+        presentationActions: ActionsAvailableReq,
         buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
-    ): BundleResult {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
-        return projectAndCommit {
-            val nextGs = counter.nextGsId()
-            val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+    ): ActionWindowPrepared {
+        val player =
+            bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
+                .let(::ActionWindowPrepared)
+        val prior = bridge.projectionStateSnapshot()
+        val (bundle, next) =
+            bridge.editProjection(prior) {
+                val nextGs = counter.nextGsId()
+                val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-            // Echo objects carry no combat state; selection lives in the re-prompt.
-            val objects = mutableListOf<GameObjectInfo>()
-            for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-                if (!card.isCreature) continue
-                val fid = ForgeCardId(card.id)
-                val iid = bridge.getOrAllocInstanceId(fid).value
-                if (iid !in includedInstanceIds) continue
-                val cardSnap = snap.objects[fid] ?: continue
+                // Echo objects carry no combat state; selection lives in the re-prompt.
+                val objects = mutableListOf<GameObjectInfo>()
+                for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+                    if (!card.isCreature) continue
+                    val fid = ForgeCardId(card.id)
+                    val iid = bridge.getOrAllocInstanceId(fid).value
+                    if (iid !in includedInstanceIds) continue
+                    val cardSnap = snap.objects[fid] ?: continue
 
-                objects.add(
-                    ObjectMapper.buildProvisionalCombatObject(
-                        cardSnap,
-                        iid,
-                        ZoneIds.BATTLEFIELD,
-                        ownerSeatId = seatId,
-                        cardProto = bridge.cardProto,
-                        parentLinkage = snap.boundCards[fid]?.parentLinkage,
-                    ),
-                )
-            }
-
-            // Cumulative turn-level actions (Cast, Play, ActivateMana, Activate).
-            // Client expects echo GSMs to include this running log.
-            val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-
-            val gsmBuilder =
-                GameStateMessage
-                    .newBuilder()
-                    .setType(GameStateType.Diff)
-                    .setGameStateId(nextGs)
-                    .addAllGameObjects(objects)
-                    .setPrevGameStateId(nextGs - 1)
-                    .setUpdate(GameStateUpdate.SendAndRecord)
-            embedActions(gsmBuilder, actions, seatId, pending = false)
-
-            val msg1 =
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                    it.gameStateMessage = gsmBuilder.build()
+                    objects.add(
+                        ObjectMapper.buildProvisionalCombatObject(
+                            cardSnap,
+                            iid,
+                            ZoneIds.BATTLEFIELD,
+                            ownerSeatId = seatId,
+                            cardProto = bridge.cardProto,
+                            parentLinkage = snap.boundCards[fid]?.parentLinkage,
+                        ),
+                    )
                 }
 
-            val configureRequest = buildRequestConfig()
-            val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
+                // Cumulative turn-level actions (Cast, Play, ActivateMana, Activate).
+                // Client expects echo GSMs to include this running log.
+                val gsmBuilder =
+                    GameStateMessage
+                        .newBuilder()
+                        .setType(GameStateType.Diff)
+                        .setGameStateId(nextGs)
+                        .addAllGameObjects(objects)
+                        .setPrevGameStateId(nextGs - 1)
+                        .setUpdate(GameStateUpdate.SendAndRecord)
+                embedActions(gsmBuilder, presentationActions, seatId, pending = false)
 
-            BundleResult(listOf(msg1, msg2))
-        }
+                val msg1 =
+                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+                        it.gameStateMessage = gsmBuilder.build()
+                    }
+
+                val configureRequest = buildRequestConfig()
+                val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
+
+                BundleResult(listOf(msg1, msg2), actionGameStateId = nextGs)
+            }
+        return ActionWindowPrepared(bundle, ProjectionTransition(prior.revision, next))
     }
 
     /**
@@ -993,14 +1268,37 @@ class BundleBuilder(
     fun declareBlockersBundle(
         game: Game,
         counter: MessageCounter,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val gs = diff.result.gsm
-        val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(seatId), bridge)
-        return promptRequestBundle(diff, counter, gs, GREMessageType.DeclareBlockersReq_695e) {
-            it.declareBlockersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
-        }
+    ): BundleResult = commitActionWindow(prepareDeclareBlockers(game, counter))
+
+    internal fun prepareDeclareBlockers(
+        game: Game,
+        counter: MessageCounter,
+    ): ActionWindowPrepared {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+        val diff = prepareFrameInputLocked(input)
+        val tentative =
+            diff.result.transition.nextState
+                .copy(revision = diff.result.transition.expectedRevision)
+        val (projected, next) =
+            bridge.editProjection(tentative) {
+                val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(seatId), bridge)
+                promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.DeclareBlockersReq_695e) {
+                    it.declareBlockersReq = req
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+                }.copy(actionGameStateId = diff.gameStateId) to ActionMapper.buildNaiveActions(seatId, bridge)
+            }
+        return ActionWindowPrepared(
+            projected.first,
+            diff.result.transition.copy(nextState = next),
+            closesPlaybackFrame = true,
+            presentationActions = projected.second,
+        )
     }
 
     /**

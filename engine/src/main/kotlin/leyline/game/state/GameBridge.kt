@@ -2,9 +2,11 @@ package leyline.game.state
 
 import forge.ai.LobbyPlayerAi
 import forge.game.Game
+import forge.game.GameEntity
 import forge.game.GameType
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardCollectionView
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -16,7 +18,10 @@ import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
+import leyline.bridge.coord.MatchCutCoordinator
 import leyline.bridge.forge.RevealTrackingAiController
+import leyline.bridge.handoff.BlockingInteraction
+import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
@@ -48,6 +53,7 @@ import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.lang.reflect.InvocationTargetException
@@ -74,6 +80,8 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * not overlap that boundary.
  */
 class GameBridge(
+    /** Stable match identifier for cut compilation and outbound envelopes. */
+    private val matchId: String = "forge-match-1",
     /** Timeout for player priority/action windows. Null waits indefinitely. */
     private val bridgeTimeoutMs: Long? = null,
     /** Timeout for client-visible prompts. Null waits indefinitely. */
@@ -94,6 +102,50 @@ class GameBridge(
     AnnotationIds,
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
+
+    /** One imperative-shell owner for projection cuts and committed playback feeds. */
+    internal val cutCoordinator =
+        MatchCutCoordinator(
+            bridge = this,
+            matchId = matchId,
+            counter = messageCounter,
+            delayMultiplier = matchConfig.aiDelayMultiplier,
+        )
+
+    /** Puzzle application uses inert choices before journal/feed ownership starts. */
+    private val setupBlockingInteractionRuntime =
+        object : BlockingInteractionRuntime {
+            override fun awaitOptional(
+                interaction: BlockingInteraction.Optional,
+                timeoutMs: Long?,
+                defaultOnTimeout: Boolean,
+            ): Boolean = defaultOnTimeout
+
+            override fun awaitNumeric(
+                interaction: BlockingInteraction.Numeric,
+                timeoutMs: Long?,
+            ): Int = interaction.defaultValue
+
+            override fun awaitDamage(
+                interaction: BlockingInteraction.Damage,
+                attacker: Card,
+                blockers: CardCollectionView,
+                defender: GameEntity?,
+                timeoutMs: Long?,
+                fallback: () -> MutableMap<Card?, Int>?,
+            ): MutableMap<Card?, Int>? = fallback()
+
+            override fun takeCachedDamage(
+                attacker: Card,
+                blockers: CardCollectionView,
+            ): MutableMap<Card?, Int>? = null
+        }
+
+    /** Rebind an unpublished puzzle priority window to its initial wire state. */
+    fun bindInitialActionWindow(
+        actionId: String,
+        gameStateId: Int,
+    ): ActionsAvailableReq = cutCoordinator.bindInitialActionWindow(actionId, gameStateId)
 
     /** Immutable reference data shared by every projection path for this match. */
     internal val stateProjectionEnvironment by lazy { StateProjectionEnvironmentCapture.from(this) }
@@ -293,7 +345,12 @@ class GameBridge(
 
     init {
         // Seed seat-1 bridges (human seat) — matches previous singleton behaviour.
-        actionBridges[1] = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
+        actionBridges[1] =
+            GameActionBridge(
+                timeoutMs = bridgeTimeoutMs,
+                prioritySignal = prioritySignal,
+                windowRuntime = cutCoordinator.actionWindowRuntime(SeatId(1)),
+            )
         promptBridges[1] =
             InteractivePromptBridge(timeoutMs = promptFailsafeMs, prioritySignal = prioritySignal).also {
                 it.forgeIidResolver = ::getOrAllocInstanceId
@@ -320,6 +377,10 @@ class GameBridge(
 
     /** Parameterized accessor — throws if seat not populated. */
     fun actionBridge(seatId: SeatId): GameActionBridge = actionBridges[seatId.value] ?: error("No action bridge for seat ${seatId.value}")
+
+    internal fun failActionWindows(cause: Throwable) {
+        actionBridges.values.forEach { it.failPending(cause) }
+    }
 
     /** Parameterized accessor — throws if seat not populated. */
     fun promptBridge(seatId: SeatId): InteractivePromptBridge =
@@ -428,10 +489,7 @@ class GameBridge(
         val playback =
             GamePlayback(
                 bridge = this,
-                matchId = "forge-match-1",
                 seatId = seatId.value,
-                counter = messageCounter,
-                delayMultiplier = matchConfig.aiDelayMultiplier,
                 captureLocalActions = captureLocalActions,
             )
         playbackRegistry.register(seatId, playback)
@@ -861,14 +919,6 @@ class GameBridge(
 
         private const val DEFAULT_PRIORITY_WAIT_MS = 15_000L
 
-        /** Short settle delay after detecting pending state — lets engine thread finish
-         *  in-flight zone moves before we snapshot. */
-        private const val SETTLE_MS = 1L
-
-        /** Max time to wait for gsId to advance after detecting a pending interaction.
-         *  Capped to avoid stalling on prompts that fire before any GSM is sent. */
-        private const val PROGRESS_WAIT_MS = 50L
-
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 5L
     }
@@ -922,6 +972,7 @@ class GameBridge(
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
                 phaseStopProfile = phaseStopProfile,
+                interactionRuntime = cutCoordinator,
             )
         humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
@@ -1238,16 +1289,15 @@ class GameBridge(
      * the next action-bridge priority stop is reached. Without this, casting a
      * targeted spell would appear to time out.
      *
-     * After detecting a pending interaction, waits for [messageCounter] to
-     * advance (proving engine output) before returning. This prevents the
-     * caller from draining the sink before the engine has written messages.
+     * Migrated action and blocking-interaction signals are emitted only after
+     * their coordinator-owned output is committed. Routed prompt bridges keep
+     * their own publication contract.
      *
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */
     override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
-        val entryGsId = messageCounter.currentGsId()
         while (true) {
             loopController?.throwIfFailed()
             // Check conditions first (handles already-pending case)
@@ -1257,9 +1307,6 @@ class GameBridge(
                 return false
             }
             if (hasPendingInteraction()) {
-                // Wait for engine to produce output (gsId advances), then settle
-                awaitProgress(entryGsId, deadline)
-                Thread.sleep(SETTLE_MS)
                 return true
             }
 
@@ -1280,25 +1327,7 @@ class GameBridge(
 
     fun hasPendingNonActionInteraction(): Boolean =
         promptBridges.values.any { it.getPendingPrompt() != null } ||
-            humanController?.pendingDamageAssignment != null ||
-            humanController?.pendingOptionalAction != null ||
-            humanController?.pendingNumericInput != null
-
-    /**
-     * Spin until the message counter advances past [entryGsId], proving engine output.
-     * Capped at [PROGRESS_WAIT_MS] to avoid stalling on prompts that fire before any GSM.
-     */
-    private fun awaitProgress(
-        entryGsId: Int,
-        deadline: Long,
-    ) {
-        if (entryGsId == 0) return
-        val progressDeadline = minOf(deadline, System.currentTimeMillis() + PROGRESS_WAIT_MS)
-        while (messageCounter.currentGsId() <= entryGsId) {
-            if (System.currentTimeMillis() >= progressDeadline) return
-            Thread.sleep(1)
-        }
-    }
+            cutCoordinator.currentBlockingInteraction() != null
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1411,6 +1440,7 @@ class GameBridge(
     fun startPuzzle(
         puzzle: Puzzle,
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
+        beforeRuntimeStart: ((Game) -> Unit)? = null,
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
@@ -1436,6 +1466,8 @@ class GameBridge(
         // Finalize: set age=Play, position at MAIN1 turn 1
         GameBootstrap.finalizeForPuzzle(g)
         log.info("GameBridge: puzzle applied, game at {} turn {}", g.phaseHandler.phase, g.phaseHandler.turn)
+
+        beforeRuntimeStart?.invoke(g)
 
         // Register all puzzle cards in CardRepository and InstanceIdRegistry.
         // Puzzle.applyGameOnThread creates cards via Card.fromPaperCard — they
@@ -1468,6 +1500,7 @@ class GameBridge(
                     actionBridge = actionBridge(SeatId(1)),
                     mulliganBridge = mulliganBridge(SeatId(1)),
                     phaseStopProfile = phaseStopProfile,
+                    interactionRuntime = cutCoordinator,
                 )
             humanController = controller
             human.addController(Long.MAX_VALUE - 1, human, controller, false)
@@ -1528,6 +1561,7 @@ class GameBridge(
         // Drain bridge state from previous game
         for (bridge in promptBridges.values) bridge.resetForPuzzle()
 
+        cutCoordinator.resetForNewGame()
         startPuzzle(puzzle)
         log.info("GameBridge: puzzle hot-swap complete, deleted {} old instanceIds", deletedIds.size)
         return deletedIds
@@ -1539,6 +1573,7 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
+        cutCoordinator.shutdown()
         val g = game
         if (g != null) {
             g.phaseHandler.setMainGameLoopStartedHook(null)
@@ -1554,6 +1589,7 @@ class GameBridge(
         loopController?.shutdown()
         loopController = null
         playbackRegistry.clear()
+        cutCoordinator.unregisterViewers()
         eventCollector = null
     }
 
@@ -1614,6 +1650,7 @@ class GameBridge(
                 seating = seating,
                 actionBridge = tempAction,
                 mulliganBridge = tempMulligan,
+                interactionRuntime = setupBlockingInteractionRuntime,
             )
         player.runWithController(
             { runWithTempControllers(players.drop(1), block) },

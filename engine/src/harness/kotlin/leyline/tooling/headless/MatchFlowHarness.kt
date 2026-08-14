@@ -188,13 +188,10 @@ class MatchFlowHarness(
         val repo = cardRepositoryForPuzzle()
 
         bridge = newBridge(repo)
-        bridge.startPuzzle(puzzle)
-        // Fixture path: hydrate per-card YAML identity into the in-memory repo.
-        // SQLite-override path: card identity comes from the supplied repository;
-        // Forge's lazy script loader already pulled in every card the puzzle
-        // parser referenced.
-        if (cardRepositoryOverride == null) {
-            TestCardRegistry.registerPuzzleCards(bridge.getGame() ?: error("Puzzle game was not initialised"))
+        bridge.startPuzzle(puzzle) { game ->
+            // Fixture identity must exist before the first engine-owned action
+            // window freezes its catalog and deferred-cost plan.
+            if (cardRepositoryOverride == null) TestCardRegistry.registerPuzzleCards(game)
         }
 
         // Install scripted AI BEFORE onPuzzleStart — auto-pass will advance
@@ -836,10 +833,16 @@ class MatchFlowHarness(
     fun castSpellUntilSelectNReq(
         cardName: String,
         advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
-    ): SelectNReq =
-        castSpellUntil(cardName, promptName = "SelectNReq", advanceAfterCast = advanceAfterCast) { msg ->
-            if (msg.hasSelectNReq()) msg.selectNReq else null
+    ): SelectNReq {
+        val before = messageSnapshot()
+        check(castSpellByName(cardName)) { "Could not cast $cardName" }
+        if (messagesSince(before).none { it.hasSelectNReq() }) {
+            advanceAfterCast()
         }
+        return messagesSince(before).asReversed().firstNotNullOfOrNull { msg ->
+            if (msg.hasSelectNReq()) msg.selectNReq else null
+        } ?: error("Expected SelectNReq after casting $cardName")
+    }
 
     fun castSpellUntilOrderReq(
         cardName: String,
@@ -1179,8 +1182,10 @@ class MatchFlowHarness(
     }
 
     private fun autoRespondToOptionalAction(): Boolean {
-        val wpc = bridge.humanController ?: return false
-        wpc.pendingOptionalAction ?: return false
+        bridge.cutCoordinator
+            .currentBlockingInteraction()
+            ?.takeIf { it.interaction is leyline.bridge.handoff.BlockingInteraction.Optional }
+            ?: return false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return false
         if (holdNextOptionalResponse) {
             return false
@@ -1225,8 +1230,10 @@ class MatchFlowHarness(
     }
 
     private fun autoRespondToNumericInput(): Boolean {
-        val wpc = bridge.humanController ?: return false
-        wpc.pendingNumericInput ?: return false
+        bridge.cutCoordinator
+            .currentBlockingInteraction()
+            ?.takeIf { it.interaction is leyline.bridge.handoff.BlockingInteraction.Numeric }
+            ?: return false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e } ?: return false
 
         val value = nextNumericInputValue ?: 0

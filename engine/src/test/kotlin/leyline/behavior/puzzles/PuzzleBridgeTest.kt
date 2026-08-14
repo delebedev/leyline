@@ -201,7 +201,7 @@ class PuzzleBridgeTest :
                 pending.state.phase shouldBe "MAIN1"
                 pending.state.turn shouldBe 1
             }
-            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
+            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
             b.awaitPriority()
             b.getGame().shouldNotBeNull()
         }

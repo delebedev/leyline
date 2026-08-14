@@ -97,4 +97,88 @@ class RuntimeBoundaryTest :
                     "ADR 0014 keeps transport channels in protocol heads outside the match runtime",
                 ).check(classes)
         }
+
+        test("blocking interaction materialization is value-only") {
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.BlockingInteractionMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.BlockingInteractionMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .haveNameMatching("leyline\\.game\\.state\\.GameBridge(\\$.*)?")
+                .check(classes)
+        }
+
+        test("deferred cast cost handoff is value-only and session code does not rediscover abilities") {
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.bridge\\.handoff\\.DeferredCastCostPlan(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.bridge\\.handoff\\.DeferredCastCostPlan(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .haveNameMatching("leyline\\.game\\.state\\.GameBridge(\\$.*)?")
+                .check(classes)
+
+            val handler = Files.readString(sourceRoot.resolve("leyline/match/DeferredCastCostInteractionHandler.kt"))
+            listOf(
+                "import forge.",
+                "getAllCastableAbilities",
+                "findById",
+                "setActivatingPlayer",
+                "PlayerAction.CastSpell",
+            ).forEach { forbidden -> check(forbidden !in handler) }
+            check("deferredCostPlan" in handler)
+            check("completeActionClaim" in handler)
+        }
+
+        test("puzzle setup stays inert until match publication ownership is registered") {
+            val source = Files.readString(sourceRoot.resolve("leyline/game/state/GameBridge.kt"))
+            val puzzleStart = source.substringAfter("fun startPuzzle(").substringBefore("fun resetForPuzzle(")
+
+            check(puzzleStart.indexOf("applyPuzzleSafely(puzzle, g)") < puzzleStart.indexOf("registerPlaybackPipeline(g"))
+            check(
+                source
+                    .substringAfter("private fun runWithTempControllers(")
+                    .substringBefore("private fun registerPuzzleCards(")
+                    .contains("interactionRuntime = setupBlockingInteractionRuntime"),
+            )
+            check(
+                source
+                    .substringAfter("private val setupBlockingInteractionRuntime")
+                    .substringBefore("/** Rebind an unpublished puzzle")
+                    .let { setup ->
+                        "cutCoordinator" !in setup && "publish" !in setup && "commitProjection" !in setup
+                    },
+            )
+        }
+
+        test("coordinator refresh uses frozen action values and combat echo has no live action query") {
+            val bundle = Files.readString(sourceRoot.resolve("leyline/game/bundle/BundleBuilder.kt"))
+            val phase = bundle.substringAfter("private fun buildPhaseTransitionDiff(").substringBefore("/** Embed stripped-down actions")
+            val echo = bundle.substringAfter("private fun prepareCombatEcho(").substringBefore("/**\n     * Declare-blockers bundle")
+
+            check("if (priorityActions == null)" in phase)
+            check("priorityActions ?:" in phase)
+            check("ActionMapper.buildNaiveActions" !in echo)
+            check("ActionMapper.buildProjectionFromSnapshot" !in echo)
+            check("presentationActions" in echo)
+
+            val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
+            check("buildActions(" !in targeting)
+            check("hasMeaningfulPriorityAction(actionWindow.actionId)" in targeting)
+        }
     })

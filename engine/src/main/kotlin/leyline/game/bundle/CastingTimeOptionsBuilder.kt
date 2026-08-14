@@ -1,5 +1,6 @@
 package leyline.game.bundle
 
+import leyline.bridge.handoff.ManaRequirementSpec
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -9,11 +10,6 @@ object CastingTimeOptionsBuilder {
     data class ModalOptionSpec(
         val grpId: Int,
         val cost: List<Pair<ManaColor, Int>> = emptyList(),
-    )
-
-    data class ManaRequirementSpec(
-        val colors: List<ManaColor>,
-        val count: Int = 1,
     )
 
     /**

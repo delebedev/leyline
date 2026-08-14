@@ -166,6 +166,28 @@ class ClientAccumulatorTest :
             storedActions.actionsCount shouldBe 1
         }
 
+        test("interactive prompt retires the previous action window") {
+            val acc = ClientAccumulator()
+            acc.process(
+                actionsMessage(msgId = 1, gsId = 1) {
+                    addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(100))
+                },
+            )
+
+            acc.process(
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(2)
+                    .setGameStateId(2)
+                    .setType(GREMessageType.GroupReq_695e)
+                    .setPrompt(Prompt.newBuilder().setPromptId(17))
+                    .setGroupReq(GroupReq.newBuilder().setContext(GroupingContext.Surveil))
+                    .build(),
+            )
+
+            acc.actions shouldBe null
+        }
+
         test("actionInstanceIdsMissingFromObjectsDetectsMissing") {
             val acc = ClientAccumulator()
 

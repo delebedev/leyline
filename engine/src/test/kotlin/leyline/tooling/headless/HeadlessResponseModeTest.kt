@@ -65,8 +65,8 @@ class HeadlessResponseModeTest :
             h.castCourserAndResolve()
 
             withClue("harness auto-accepts, so the offer is consumed and the chained numeric prompt fires") {
-                h.bridge.humanController
-                    ?.pendingOptionalAction
+                h.bridge.cutCoordinator
+                    .currentBlockingInteraction()
                     .shouldBeNull()
                 h.countOf(GREMessageType.NumericInputReq_695e) shouldBe 1
             }
@@ -79,8 +79,8 @@ class HeadlessResponseModeTest :
 
             withClue("prompt must survive drainSink so policy owns the response") {
                 h.countOf(GREMessageType.OptionalActionMessage_695e) shouldBe 1
-                h.bridge.humanController
-                    ?.pendingOptionalAction
+                h.bridge.cutCoordinator
+                    .currentBlockingInteraction()
                     .shouldNotBeNull()
             }
 

@@ -12,15 +12,16 @@ import leyline.testkit.performAction
 
 /**
  * Regression: stale duplicate PerformActionResp packets can arrive after the
- * original action already consumed the pending bridge action. Recovery must
- * resync the client with a single state-only bundle, not expose unbound actions or re-enter the
+ * original action already consumed the pending bridge action. Recovery drains
+ * the coordinator's committed state-only bundle, without exposing unbound actions or re-entering the
  * auto-pass loop (which would spin through phases and emit many messages).
  */
 class PerformActionRecoveryTest :
     BoardTest({
 
-        test("missing pending action emits exactly one state-only resync bundle") {
-            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+        test("missing pending action drains exactly one committed state-only resync bundle") {
+            val board = startWithBoard { _, _, _ -> }
+            val bridge = board.bridge
 
             val sink = ListMessageSink()
             val session =
@@ -35,6 +36,12 @@ class PerformActionRecoveryTest :
                     gameBridge = bridge,
                     paceDelayMs = 0,
                 )
+
+            bridge.cutCoordinator.registerViewer(SeatId(1))
+            val committed = board.bundleBuilder().stateOnlyDiff(board.game, board.counter).messages
+            bridge.cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), committed)
+            val committedRevision = bridge.projectionStateSnapshot().revision
+            val nextGameStateId = board.counter.currentGsId()
 
             session.counter.markPromptMsgId(7)
             session.onPerformAction(
@@ -53,6 +60,9 @@ class PerformActionRecoveryTest :
                 gsms.size shouldBe 2
                 aarCount shouldBe 0
                 content.pendingMessageCount shouldBe 0
+                bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe false
+                bridge.projectionStateSnapshot().revision shouldBe committedRevision
+                board.counter.currentGsId() shouldBe nextGameStateId
             }
         }
     })

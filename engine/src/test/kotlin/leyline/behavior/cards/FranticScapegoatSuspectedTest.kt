@@ -35,7 +35,7 @@ private val PUZZLE =
     AILife=20
 
     humanhand=Frantic Scapegoat;Grizzly Bears
-    humanbattlefield=Mountain;Forest;Forest
+    humanbattlefield=Mountain;Forest;Forest;Forest;Forest
     humanlibrary=Mountain;Mountain;Mountain;Mountain
     ailibrary=Island;Island;Island;Island
     """.trimIndent()
@@ -50,7 +50,9 @@ class FranticScapegoatSuspectedTest :
             startPuzzleRaw(PUZZLE, validating = true)
 
             castSpellByName("Frantic Scapegoat").shouldBeTrue()
-            passUntilResolved(maxPasses = 8)
+            if (game().stackZone.size() > 0) {
+                passUntilResolved(maxPasses = 8)
+            }
 
             val scapegoat = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Frantic Scapegoat" }
             val scapegoatIid = human.battlefield.iid(scapegoat)
@@ -73,7 +75,7 @@ class FranticScapegoatSuspectedTest :
 
             val promptMsg = messagesSince(beforeBearCast).last { it.hasSelectNReq() }
             val selectN = promptMsg.selectNReq
-            val bearIid = human.battlefield.iid("Grizzly Bears")
+            val bearIid = selectN.idsList.single()
 
             assertSoftly {
                 promptMsg.prompt.promptId shouldBe PromptIds.SUSPECT_ONE_OF_THOSE_CREATURES
@@ -85,9 +87,12 @@ class FranticScapegoatSuspectedTest :
             }
 
             respondToSelectN(listOf(bearIid))
-            passUntilResolved(maxPasses = 8)
+            if (game().stackZone.size() > 0) {
+                passUntilResolved(maxPasses = 8)
+            }
 
             val bear = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            human.battlefield.iid(bear) shouldBe bearIid
             val gainBear =
                 allMessages
                     .annotationsOfType(AnnotationType.GainDesignation)

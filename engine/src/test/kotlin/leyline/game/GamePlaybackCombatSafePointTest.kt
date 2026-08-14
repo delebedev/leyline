@@ -26,12 +26,14 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.EnumSet
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 class GamePlaybackCombatSafePointTest :
     BoardTest({
-        fun setup(): CombatPlaybackFixture {
+        fun setup(
+            captureLocalActions: Boolean = false,
+            events: FrameEventLog? = null,
+        ): CombatPlaybackFixture {
             val (bridge, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
@@ -62,8 +64,8 @@ class GamePlaybackCombatSafePointTest :
                 ),
             )
             bridge.recordEarthbendResolution(sourceId, 42, 0, listOf(sourceId))
-            setOpenFrame(bridge, combatDamageFrame(sourceId))
-            val playback = GamePlayback(bridge, "test", 1, counter, delayMultiplier = 0.0)
+            setOpenFrame(bridge, events ?: combatDamageFrame(sourceId))
+            val playback = GamePlayback(bridge, 1, captureLocalActions)
             playback.visit(forge.game.event.GameEventCombatEnded(emptyList(), emptyList()))
             return CombatPlaybackFixture(
                 bridge = bridge,
@@ -140,6 +142,22 @@ class GamePlaybackCombatSafePointTest :
             }
         }
 
+        test("remote combat end preserves regular damage split") {
+            val fixture = setup(captureLocalActions = true, events = regularCombatDamageFrame())
+
+            fixture.playback.onCombatEndedCompleted()
+
+            fixture.playback.drainQueue() shouldHaveSize 2
+        }
+
+        test("remote combat end preserves first-strike and regular damage split") {
+            val fixture = setup(captureLocalActions = true)
+
+            fixture.playback.onCombatEndedCompleted()
+
+            fixture.playback.drainQueue() shouldHaveSize 3
+        }
+
         test("frame-two compile failure publishes nothing and retains the exact cut and facts") {
             val fixture = setup()
             val before = fixture.bridge.projectionStateSnapshot()
@@ -163,10 +181,10 @@ class GamePlaybackCombatSafePointTest :
             val fixture = setup()
             val before = fixture.bridge.projectionStateSnapshot()
             var preexisting: List<GREToClientMessage>? = null
-            fixture.playback.beforeBatchEnqueue = { index, batch ->
+            fixture.bridge.cutCoordinator.setBeforeBatchEnqueue(SeatId(1)) { index, batch ->
                 if (index == 0) {
                     preexisting = batch.toList()
-                    playbackQueue(fixture.playback).add(checkNotNull(preexisting))
+                    fixture.bridge.cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), checkNotNull(preexisting))
                 } else if (index == 1) {
                     error("second batch failed")
                 }
@@ -261,6 +279,17 @@ private fun combatDamageFrame(sourceId: ForgeCardId): FrameEventLog =
         ),
     )
 
+private fun regularCombatDamageFrame(): FrameEventLog =
+    FrameEventLog(
+        listOf(
+            GameEvent.PhaseChanged(SeatId(1), Phase.Combat_a549.number, Step.CombatDamage_a2cb.number),
+            GameEvent.DamageDealtToPlayer(ForgeCardId(9_999_991), SeatId(2), 1, leyline.game.event.DamageSourceKind.Combat, true),
+            GameEvent.LifeChanged(SeatId(2), 20, 19),
+            GameEvent.PhaseChanged(SeatId(1), Phase.Combat_a549.number, Step.EndCombat_a2cb.number),
+            GameEvent.CombatEnded,
+        ),
+    )
+
 private fun setOpenFrame(
     bridge: GameBridge,
     events: FrameEventLog,
@@ -304,11 +333,4 @@ private fun assertPreInstallFailure(
         shouldThrow<PlaybackTerminalFailure> { fixture.playback.onCombatEndedCompleted() } shouldBe thrown
         fixture.playback.drainQueue().shouldBeEmpty()
     }
-}
-
-@Suppress("UNCHECKED_CAST")
-private fun playbackQueue(playback: GamePlayback): ConcurrentLinkedQueue<List<GREToClientMessage>> {
-    val field = GamePlayback::class.java.getDeclaredField("queue")
-    field.isAccessible = true
-    return field.get(playback) as ConcurrentLinkedQueue<List<GREToClientMessage>>
 }

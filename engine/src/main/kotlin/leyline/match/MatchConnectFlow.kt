@@ -71,6 +71,7 @@ internal class MatchConnectFlow(
             registry.getOrCreateMatch(attempt.matchId) {
                 val bridge =
                     GameBridge(
+                        matchId = attempt.matchId,
                         bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
                         promptFailsafeMs = matchConfig.server.promptFailsafeMs,
                         matchConfig = matchConfig,

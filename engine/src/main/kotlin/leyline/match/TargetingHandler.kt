@@ -11,7 +11,6 @@ import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.RequestBuilder
@@ -323,14 +322,24 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val game = ctx.game
         val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        if (pendingPrompt != null && sendPrompt(pendingPrompt, PromptDispatchContext.POST_CAST)) {
-            return true
+        if (pendingPrompt != null) {
+            if (sendPrompt(pendingPrompt, PromptDispatchContext.POST_CAST)) return true
+            when (checkPendingPrompt()) {
+                PromptResult.SENT_TO_CLIENT -> return true
+                PromptResult.AUTO_RESOLVED,
+                PromptResult.NONE,
+                -> Unit
+            }
         }
         if (!game.stack.isEmpty) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching client behavior (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(bundles.bundleBuilder.buildActions())) {
+            val actionWindow = bridge.seat(counters.seatId).action.getPending()
+            if (clientAutoResolve &&
+                actionWindow != null &&
+                !bridge.cutCoordinator.hasMeaningfulPriorityAction(actionWindow.actionId)
+            ) {
                 return false
             }
             sink.sendRealGameState(bridge)
@@ -536,13 +545,13 @@ class TargetingHandler(
         val bridge = ctx.bridge
         when (val interaction = pendingInteraction) {
             is PendingClientInteraction.OptionalCost -> {
-                return cancelDeferredCast(interaction.action.cardId, autoPass)
+                return cancelDeferredCast(interaction.actionClaim, autoPass)
             }
             is PendingClientInteraction.AlternateCostChoice -> {
-                return cancelDeferredCast(interaction.cardId, autoPass)
+                return cancelDeferredCast(interaction.actionClaim, autoPass)
             }
             is PendingClientInteraction.HybridManaType -> {
-                return cancelDeferredCast(interaction.action.cardId, autoPass)
+                return cancelDeferredCast(interaction.actionClaim, autoPass)
             }
             is PendingClientInteraction.ModalChoice,
             is PendingClientInteraction.Search,
@@ -572,15 +581,16 @@ class TargetingHandler(
     }
 
     private fun cancelDeferredCast(
-        cardId: ForgeCardId,
+        actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim,
         autoPass: () -> Unit,
     ) {
         pendingInteraction = null
-        ctx.bridge.setSelectedSpellGrpId(cardId, null)
+        actionClaim.deferredCostPlan?.sourceCardId?.let { ctx.bridge.setSelectedSpellGrpId(it, null) }
         ctx.bridge
             .seat(counters.seatId)
             .prompt.journal
             .clearHybridManaStash()
+        check(ctx.bridge.cutCoordinator.reopenActionClaim(actionClaim)) { "Deferred action claim did not reopen" }
         log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
         autoPass()
     }
@@ -796,34 +806,25 @@ class TargetingHandler(
         }
     }
 
-    fun checkHybridManaTypeOptions(
-        action: Action,
-        pendingActionId: String,
-        castAbilityIndex: Int?,
-    ): Boolean = deferredCastCostInteractionHandler.checkHybridManaTypeOptions(action, pendingActionId, castAbilityIndex)
+    internal fun checkHybridManaTypeOptions(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =
+        deferredCastCostInteractionHandler.checkHybridManaTypeOptions(actionClaim)
 
     /**
      * Check if a Cast action targets a card with optional costs (kicker, buyback, etc.).
      * If yes, sends CastingTimeOptionsReq to client and returns true (caller should NOT submit to engine).
      * If no, returns false (caller should proceed normally).
      */
-    fun checkOptionalCosts(
-        action: Action,
-        pendingActionId: String,
-        castAbilityIndex: Int?,
+    internal fun checkOptionalCosts(
+        actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim,
         preserveHybridStash: Boolean = false,
     ): Boolean =
         deferredCastCostInteractionHandler.checkOptionalCosts(
-            action = action,
-            pendingActionId = pendingActionId,
-            castAbilityIndex = castAbilityIndex,
+            actionClaim = actionClaim,
             preserveHybridStash = preserveHybridStash,
         )
 
-    fun checkAlternateAdditionalCostChoice(
-        action: Action,
-        pendingActionId: String,
-    ): Boolean = deferredCastCostInteractionHandler.checkAlternateAdditionalCostChoice(action, pendingActionId)
+    internal fun checkAlternateAdditionalCostChoice(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =
+        deferredCastCostInteractionHandler.checkAlternateAdditionalCostChoice(actionClaim)
 
     private fun sendSearchReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         searchPromptInteractionHandler.sendSearchReq(pendingPrompt)

@@ -13,9 +13,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
- * Wire conformance: AI turn produces per-action GRE diffs.
+ * Wire conformance: AI turn produces mutation-complete GRE diffs.
  *
- * Verifies that during an AI turn, the GamePlayback captures
+ * Verifies that during an AI turn, the coordinator publishes
  * individual state diffs with:
  *   - SendHiFi updateType (transient updates, not save points)
  *   - No ActionsAvailableReq messages
@@ -24,28 +24,32 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class AiTurnConformanceTest :
     BoardTest({
 
-        test("AI turn produces per-action diffs via EventBus playback") {
+        test("AI turn produces mutation-complete diffs") {
             val (b, game, _) = startGameAtMain1()
 
             val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
             // Play a land to have mana, then snapshot
             playLand(b) ?: error("playLand failed at seed 42")
+            playback.drainQueue()
             b.seedDiffBaseline(game)
 
             // Pass through the rest of the human's turn until AI gets priority
             val maxPasses = 30
-            @Suppress("UnusedPrivateProperty")
+
+            val allBatches = mutableListOf<List<GREToClientMessage>>()
             for (i in 0 until maxPasses) {
                 passPriority(b)
-                if (playback.hasPendingMessages()) break
+                val drained = playback.drainQueue()
+                allBatches += drained
+                if (drained.any { batch -> batch.isNotEmpty() && batch.all { it.hasGameStateMessage() } }) break
             }
 
-            val batches = playback.drainQueue()
-            batches.shouldNotBeEmpty()
+            val mutationBatches = allBatches.filter { batch -> batch.isNotEmpty() && batch.all { it.hasGameStateMessage() } }
+            mutationBatches.shouldNotBeEmpty()
 
-            // All messages should be GameStateMessage (no ActionsAvailableReq)
-            val allMessages = batches.flatten()
+            // Action-window presentations use separate batches; mutation batches remain state-only.
+            val allMessages = mutationBatches.flatten()
             for (msg in allMessages) {
                 msg.type shouldBe GREMessageType.GameStateMessage_695e
             }
@@ -55,6 +59,7 @@ class AiTurnConformanceTest :
                 allMessages.filter {
                     it.hasGameStateMessage() && it.gameStateMessage.annotationsCount > 0
                 }
+            diffs.shouldNotBeEmpty()
             for (diff in diffs) {
                 diff.gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
             }
@@ -66,6 +71,7 @@ class AiTurnConformanceTest :
             val playback = checkNotNull(b.playback) { "GamePlayback should be registered" }
 
             playLand(b) ?: error("playLand failed at seed 42")
+            playback.drainQueue()
             b.seedDiffBaseline(game)
 
             val allBatches = mutableListOf<List<GREToClientMessage>>()

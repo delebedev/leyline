@@ -7,6 +7,8 @@ import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
+import leyline.testkit.detailString
+import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -41,20 +43,38 @@ class SpectacleLifecycleTest :
 
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
-            passUntilResolved()
+            if (game().stackZone.size() > 0) {
+                passUntilResolved()
+            }
+            ai.life shouldBe 18
 
             val snap = messageSnapshot()
             castSpellByName("Spawn of Mayhem", alternativeGrpId = spectacleAbilityGrpId).shouldBeTrue()
-            passUntilResolved()
+            if (game().stackZone.size() > 0) {
+                passUntilResolved()
+            }
 
             val cto =
                 messagesSince(snap)
                     .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
                     .first { it.detailInt("alternateCostGrpId") == spectacleAbilityGrpId }
+            val projectedStates = messagesSince(snap).gameStateMessages()
+            val resolution =
+                projectedStates
+                    .first { gsm ->
+                        gsm.annotationsList.any { annotation ->
+                            AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                                annotation.detailString("category") == "Resolve" &&
+                                cto.affectorId in annotation.affectedIdsList
+                        }
+                    }
+            val resolutionPrefix = projectedStates.takeWhile { it.gameStateId <= resolution.gameStateId }
 
             assertSoftly {
                 cto.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
-                ai.life shouldBe 18
+                resolutionPrefix
+                    .flatMap { it.annotationsList }
+                    .count { AnnotationType.ModifiedLife in it.typeList } shouldBe 0
                 human
                     .getZone(ZoneType.Battlefield)
                     .cards

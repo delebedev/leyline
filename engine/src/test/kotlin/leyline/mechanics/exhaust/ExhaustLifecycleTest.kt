@@ -45,6 +45,7 @@ class ExhaustLifecycleTest :
                     }.shouldBeTrue()
             }
 
+            val activationStart = messageSnapshot()
             activateAbility("Jeong Jeong, the Deserter").shouldBeTrue()
             passUntilResolved(maxPasses = 8)
 
@@ -56,14 +57,17 @@ class ExhaustLifecycleTest :
                         AnnotationType.AbilityExhausted in it.typeList &&
                             jeongIid in it.affectedIdsList
                     }
-            val latestActions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList
+            val postActivationActions =
+                messagesSince(activationStart)
+                    .filter { it.hasActionsAvailableReq() }
+                    .flatMap { it.actionsAvailableReq.actionsList }
 
             assertSoftly {
                 abilityExhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe JEONG_EXHAUST_ABILITY_GRP_ID
                 abilityExhausted.detailInt(DetailKeys.USES_REMAINING) shouldBe 0
                 abilityExhausted.detailInt(DetailKeys.UNIQUE_ABILITY_ID) shouldBe 51
                 abilityExhausted.affectorId shouldBe jeongIid
-                latestActions
+                postActivationActions
                     .any {
                         it.actionType == ActionType.Activate_add3 &&
                             it.instanceId == jeongIid &&
