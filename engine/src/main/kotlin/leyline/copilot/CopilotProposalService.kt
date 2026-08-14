@@ -176,6 +176,9 @@ class CopilotProposalService(
         prompt: GREToClientMessage,
     ): CopilotProposal =
         ProposalTranslator.translate(decision, prompt.type, seatId.value, resolver).copy(
+            promptKey = "${prompt.gameStateId}:${prompt.msgId}",
+            gameStateId = prompt.gameStateId,
+            respId = prompt.msgId,
             responses =
                 ResponseBuilder
                     .build(decision, prompt.gameStateId, seatId.value, respId = prompt.msgId)

@@ -41,6 +41,9 @@ class CopilotProposalServiceTest :
             card.name shouldBe "Forest"
             proposal.responseIds shouldContain card.instanceId
             proposal.responses.size shouldBe 1
+            proposal.promptKey shouldBe "${landAar.gameStateId}:${landAar.msgId}"
+            proposal.gameStateId shouldBe landAar.gameStateId
+            proposal.respId shouldBe landAar.msgId
         }
 
         test("null pending prompt yields an unrealizable proposal, never an error") {

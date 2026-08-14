@@ -80,6 +80,7 @@ class AiTurnInteractionTest :
 
                 ptStart shouldBeGreaterThanOrEqual 0
                 gsms.size shouldBeGreaterThanOrEqual (ptStart + 3)
+                aiTurnActionsAvailableReqs(allMessages).shouldBeEmpty()
             }
 
             // GSM N+0: SendHiFi with 2+ PhaseOrStepModified + gameInfo
