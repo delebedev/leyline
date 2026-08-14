@@ -18,12 +18,11 @@ import leyline.bridge.handoff.SelectNInnerPrompt
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.SelectNShape
 import leyline.bridge.handoff.StaticChoiceKind
-import leyline.bridge.handoff.StaticChoicePolicy
+import leyline.bridge.handoff.StaticChoicePromptRoute
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
-import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 class PromptRouteMatrixTest :
     FunSpec({
@@ -116,17 +115,10 @@ class PromptRouteMatrixTest :
                         cardSelect(PromptSemantic.MutateTopBottom, CardSelectKind.MutateTopBottom),
                     PromptSemantic.LearnLesson to
                         selectN(PromptSemantic.LearnLesson, SelectNInnerPrompt.LearnInnerParameter, SelectNEnvelopeKind.LearnLesson),
-                    PromptSemantic.StaticColorChoice to
-                        staticChoice(PromptSemantic.StaticColorChoice, StaticChoiceKind.Color, 6, staticShape),
-                    PromptSemantic.StaticSubtypeChoice to
-                        staticChoice(PromptSemantic.StaticSubtypeChoice, StaticChoiceKind.Subtype, 5, staticSubsetShape),
+                    PromptSemantic.StaticColorChoice to staticChoice(PromptSemantic.StaticColorChoice, StaticChoiceKind.Color),
+                    PromptSemantic.StaticSubtypeChoice to staticChoice(PromptSemantic.StaticSubtypeChoice, StaticChoiceKind.Subtype),
                     PromptSemantic.StaticParityChoice to
-                        staticChoice(
-                            PromptSemantic.StaticParityChoice,
-                            StaticChoiceKind.Parity,
-                            StaticList.Parities.number,
-                            staticShape,
-                        ),
+                        staticChoice(PromptSemantic.StaticParityChoice, StaticChoiceKind.Parity),
                 )
 
             PromptSemantic.entries
@@ -148,17 +140,13 @@ class PromptRouteMatrixTest :
 
 private val dynamicShape =
     SelectNShape(SelectionContext.Resolution_a163, SelectionListType.Dynamic, OptionContext.Resolution_a9d7)
-private val staticShape = dynamicShape.copy(listType = SelectionListType.Static)
-private val staticSubsetShape = dynamicShape.copy(listType = SelectionListType.StaticSubset)
 
 private fun selectN(
     semantic: PromptSemantic,
     innerPrompt: SelectNInnerPrompt,
     envelopeKind: SelectNEnvelopeKind,
     shape: SelectNShape = dynamicShape,
-    sentiment: Int? = null,
-): ResolvedPromptRoute.SelectN =
-    ResolvedPromptRoute.SelectN(SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind, choiceResultSentiment = sentiment))
+): ResolvedPromptRoute.SelectN = ResolvedPromptRoute.SelectN(SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind))
 
 private fun cardSelect(
     semantic: PromptSemantic,
@@ -169,19 +157,7 @@ private fun cardSelect(
 private fun staticChoice(
     semantic: PromptSemantic,
     kind: StaticChoiceKind,
-    choiceDomain: Int,
-    shape: SelectNShape,
-): ResolvedPromptRoute.SelectN =
-    ResolvedPromptRoute.SelectN(
-        SelectNPromptRoute(
-            semantic,
-            shape,
-            SelectNInnerPrompt.StaticChoice,
-            SelectNEnvelopeKind.StaticChoice,
-            StaticChoicePolicy(kind, choiceDomain),
-            choiceResultSentiment = 2,
-        ),
-    )
+): ResolvedPromptRoute.StaticChoice = ResolvedPromptRoute.StaticChoice(StaticChoicePromptRoute(semantic, kind))
 
 private fun payCosts(
     semantic: PromptSemantic,

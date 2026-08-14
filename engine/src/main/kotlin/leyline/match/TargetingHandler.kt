@@ -49,12 +49,6 @@ class TargetingHandler(
             resolveForgeCardId: (Int) -> ForgeCardId?,
         ): List<Int> = PromptResponseSubmitter.mapSelectNIdsToPromptIndices(selectedIds, pendingPrompt, resolveForgeCardId)
 
-        internal fun choiceResultSideEffects(
-            pendingPrompt: InteractivePromptBridge.PendingPrompt,
-            selectedIds: List<Int>,
-            chooserSeatId: SeatId,
-        ): List<PromptSideEffect.ChoiceResult> = PromptResponseSubmitter.choiceResultSideEffects(pendingPrompt, selectedIds, chooserSeatId)
-
         internal fun mapModalGrpIdsToPromptIndices(
             selectedGrpIds: List<Int>,
             childGrpIds: List<Int>,
@@ -64,6 +58,7 @@ class TargetingHandler(
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
     private val promptResponseSubmitter = PromptResponseSubmitter(counters, ctx)
     private val cardSelectInteractionHandler = CardSelectInteractionHandler(ctx)
+    private val staticChoiceInteractionHandler = StaticChoiceInteractionHandler(ctx)
     private val manaSourcePaymentHandler = ManaSourcePaymentHandler(sink, counters, ctx)
     private val deferredCastCostInteractionHandler =
         DeferredCastCostInteractionHandler(
@@ -194,6 +189,7 @@ class TargetingHandler(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ) {
+        if (staticChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         if (cardSelectInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         promptResponseSubmitter.onSelectN(greMsg, autoPass)
     }
@@ -279,6 +275,7 @@ class TargetingHandler(
         val bridge = ctx.bridge
         if (bridge.cutCoordinator.targeting.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.search.current() != null) return PromptResult.SENT_TO_CLIENT
+        if (bridge.cutCoordinator.staticChoices.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.manaSourcePayments.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.oneShotPayCosts.current() != null) return PromptResult.SENT_TO_CLIENT
         val seatBridge = bridge.seat(counters.seatId)
@@ -326,6 +323,9 @@ class TargetingHandler(
                 is ResolvedPromptRoute.CardSelect ->
                     error("CardSelect prompts must be published by MatchCardSelectInteractionRuntime")
 
+                is ResolvedPromptRoute.StaticChoice ->
+                    error("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime")
+
                 is ResolvedPromptRoute.Grouping,
                 is ResolvedPromptRoute.ModalChoice,
                 is ResolvedPromptRoute.PayCosts,
@@ -370,6 +370,10 @@ class TargetingHandler(
 
             is ResolvedPromptRoute.CardSelect -> {
                 error("CardSelect prompts must be published by MatchCardSelectInteractionRuntime")
+            }
+
+            is ResolvedPromptRoute.StaticChoice -> {
+                error("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime")
             }
 
             is ResolvedPromptRoute.Targeting -> {

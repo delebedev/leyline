@@ -12,9 +12,11 @@ import leyline.game.PendingManaSourcePaymentCut
 import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingOrderCut
 import leyline.game.PendingSearchCut
+import leyline.game.PendingStaticChoiceCut
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.PromptTerminalFailureContext
 import leyline.game.SearchMaterializationDiagnostic
+import leyline.game.StaticChoiceMaterializationDiagnostic
 
 /** Write-once terminal state and waiter teardown for one match cut coordinator. */
 internal class MatchCutTerminalRuntime(
@@ -30,6 +32,8 @@ internal class MatchCutTerminalRuntime(
         val orderDiagnostic: OrderMaterializationDiagnostic? = null,
         val pendingCardSelect: PendingCardSelectCut? = null,
         val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
+        val pendingStaticChoice: PendingStaticChoiceCut? = null,
+        val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
         val pendingManaSourcePayment: PendingManaSourcePaymentCut? = null,
         val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
         val pendingOneShotPayCosts: PendingOneShotPayCostsCut? = null,
@@ -67,6 +71,8 @@ internal class MatchCutTerminalRuntime(
                         orderDiagnostic = context.orderDiagnostic,
                         pendingCardSelectCut = context.pendingCardSelect,
                         cardSelectDiagnostic = context.cardSelectDiagnostic,
+                        pendingStaticChoiceCut = context.pendingStaticChoice,
+                        staticChoiceDiagnostic = context.staticChoiceDiagnostic,
                         pendingManaSourcePaymentCut = context.pendingManaSourcePayment,
                         manaSourcePaymentDiagnostic = context.manaSourcePaymentDiagnostic,
                         pendingOneShotPayCostsCut = context.pendingOneShotPayCosts,
@@ -82,6 +88,7 @@ internal class MatchCutTerminalRuntime(
                 owner.search.terminate(terminal)
                 owner.order.terminate(terminal)
                 owner.cardSelect.terminate(terminal)
+                owner.staticChoices.terminate(terminal)
                 owner.manaSourcePayments.terminate(terminal)
                 owner.oneShotPayCosts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)

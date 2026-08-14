@@ -127,11 +127,13 @@ Top- and bottom-library ordering callbacks freeze the route, source, candidates,
 
 Discard, resolution sacrifice, Suspect, and Mutate top/bottom callbacks freeze their route kind, source, cardinality, default, candidates, and exact card handles on the engine thread. The coordinator commits one state-and-`SelectNReq` cut before signalling. Correlated `SelectNResp` and compatible `EffectCostResp` values resolve through the retained instance-id table; choice-result facts are staged before the exact engine wait is released. Timeout retires the window and returns the configured default handle, while stale or invalid responses have no side effects.
 
+Color, subtype, and parity callbacks freeze their route kind, source, cardinality, default, and exact protocol enum values on the engine thread. The coordinator commits one state-and-static-`SelectNReq` cut before signalling. A correlated `SelectNResp` maps through the frozen value table to the original option index; its ChoiceResult fact is staged before the exact engine wait is released. Timeout retires the window and returns the configured default index, while stale or invalid responses have no side effects.
+
 Convoke, Improvise, and Waterbend callbacks freeze their candidate, shard, source, and mana-cost values on the engine thread. The coordinator commits the initial state and `PayCostsReq` before signalling. Each correlated MakePayment command updates the immutable selection plan and commits its replacement request before delivery acknowledgement releases the engine mailbox. Pass and Cancel return exact original option indices; timeout atomically retires the window and returns the configured default. Convoke and Improvise payment facts are staged by the replacement cut, corrected to the final engine payment before progression, and retained until stack-exit consumption.
 
 Sacrifice, exile-from-grave, return-unblocked-attacker, Collect Evidence, Station, Enlist, and Teamwork callbacks freeze source, cardinality, weight, and exact option handles on the engine thread. The coordinator commits one state-and-`PayCostsReq` batch before signalling. A correlated immutable instance-id response resolves through the retained option table and returns the exact original handles. Timeout retires the window and returns the configured default; materialization, install, delivery, and teardown failures are terminal.
 
-Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the legacy bridge/session path. Grouping, modal, residual SelectN, automatic routes, and mulligan retain their named handoff contracts until they migrate.
+Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the residual bridge/session path. Grouping, modal, dynamic residual SelectN, automatic routes, and mulligan retain their named handoff contracts until they migrate.
 
 ---
 
@@ -215,13 +217,13 @@ frame—when phase transitions fire.
 message in response to a phase, it must call `bridge.awaitPriority()` (or
 `awaitPriorityWithTimeout` with a tighter budget).
 
-For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, card-backed SelectN, PayCosts, and blocking interactions, the wait guarantees:
+For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, card-backed SelectN, static-enum SelectN, PayCosts, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
 3. The projection baseline for that batch has settled.
 
-Grouping, modal, residual SelectN, generic ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
+Grouping, modal, dynamic residual SelectN, generic ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
 
 Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
 

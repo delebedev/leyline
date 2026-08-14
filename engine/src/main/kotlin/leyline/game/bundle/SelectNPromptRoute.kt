@@ -4,7 +4,6 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNInnerPrompt
 import leyline.bridge.handoff.SelectNPromptRoute
-import leyline.bridge.handoff.StaticChoiceKind
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
@@ -22,15 +21,6 @@ internal fun SelectNPromptRoute.envelope(
         SelectNEnvelopeKind.ManifestDread -> SelectNEnvelope.manifestDread(req)
         SelectNEnvelopeKind.LibraryPutback -> SelectNEnvelope.libraryPutback(req)
         SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
-        SelectNEnvelopeKind.StaticChoice -> SelectNEnvelope.staticChoice(req, staticChoiceOuterPromptId())
-    }
-
-internal fun SelectNPromptRoute.staticChoiceOuterPromptId(): Int =
-    when (checkNotNull(staticChoice) { "StaticChoice route requires static-choice policy" }.kind) {
-        StaticChoiceKind.Color -> PromptIds.CHOOSE_COLOR
-        StaticChoiceKind.Subtype,
-        StaticChoiceKind.Parity,
-        -> PromptIds.CHOOSE_TYPE
     }
 
 internal fun SelectNPromptRoute.configureInnerPrompt(
@@ -39,10 +29,6 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
     bridge: GameBridge,
 ) {
     when (innerPrompt) {
-        SelectNInnerPrompt.StaticChoice -> {
-            builder.setSourceIdIfPresent(prompt, bridge)
-            builder.setPrompt(Prompt.newBuilder())
-        }
         SelectNInnerPrompt.LegendRule -> {
             builder.setPrompt(Prompt.newBuilder())
             builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)

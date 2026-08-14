@@ -88,6 +88,10 @@ class InteractivePromptBridge(
     @Volatile
     var cardSelectRuntime: CardSelectInteractionRuntime? = null
 
+    /** Match-scoped owner for color, subtype, and parity SelectN semantics. */
+    @Volatile
+    var staticChoiceRuntime: StaticChoiceInteractionRuntime? = null
+
     /** Match-scoped owner for iterative Convoke, Improvise, and Waterbend payments. */
     @Volatile
     var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
@@ -464,6 +468,7 @@ class InteractivePromptBridge(
         check(route !is ResolvedPromptRoute.PayCosts) { "PayCosts routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.Order) { "Order routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.CardSelect) { "CardSelect routes require their match-scoped runtime" }
+        check(route !is ResolvedPromptRoute.StaticChoice) { "StaticChoice routes require their match-scoped runtime" }
     }
 
     /** Route one iterative mana-source payment with its exact Forge option handles. */
@@ -575,6 +580,30 @@ class InteractivePromptBridge(
         } catch (_: CardSelectInteractionTimeoutException) {
             val fallback = fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
             record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    /** Route one static enum SelectN request through its frozen protocol values. */
+    fun requestStaticChoice(request: PromptRequest): List<Int> {
+        check(request.route is ResolvedPromptRoute.StaticChoice) { "StaticChoice route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return requestChoice(request)
+        }
+        val runtime = checkNotNull(staticChoiceRuntime) { "StaticChoice runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitSelection(request, timeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: StaticChoiceInteractionTimeoutException) {
+            val fallback = listOf(request.defaultIndex)
+            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
             timeoutListener?.invoke()
             fallback
         } catch (ex: Exception) {
@@ -922,7 +951,7 @@ data class PromptRequest(
     val unfilteredRefs: List<PromptCandidateRefDto> = emptyList(),
     /** Static enum domain for SelectN prompts whose ids are not game object instanceIds. */
     val staticList: StaticList? = null,
-    /** Per-option static enum ids. Used to map SelectNResp.ids back to option indices. */
+    /** Per-option static enum values frozen into coordinator-owned StaticChoice windows. */
     val staticOptionIds: List<Int> = emptyList(),
     /** Modal index/cost metadata; null preserves the unfiltered, all-free fallback. */
     val modalChoice: ModalChoicePayload? = null,
