@@ -244,7 +244,8 @@ class MatchSession(
             // now past whatever the engine allocated. gsIds are higher than AI diffs
             // but the prevGsId chain is valid (references last AI diff's gsId).
             val bb = bundleBuilder
-            val result = bb.phaseTransitionDiff(ctx.game, counter)
+            val humanTurn = ctx.game.phaseHandler.playerTurn == bridge.getPlayer(seatId)
+            val result = bb.phaseTransitionDiff(ctx.game, counter, includePriorityPrompt = humanTurn)
             sendBundle(result)
 
             // Seed state snapshot for subsequent diff computation.

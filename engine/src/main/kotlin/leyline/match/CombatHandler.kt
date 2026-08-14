@@ -442,10 +442,16 @@ open class CombatHandler(
                     }
                     val legalAttackers = ctx.bridge.cutCoordinator.legalAttackerIds(pending.actionId)
                     if (legalAttackers.isNotEmpty()) {
-                        pendingLegalAttackers = legalAttackers
-                        lastDeclaredAttackerIds = emptyList()
-                        lastDeclaredAttackAlternatives = emptyMap()
-                        lastDeclaredDamageRecipients = emptyMap()
+                        if (pendingLegalAttackers.isEmpty()) {
+                            pendingLegalAttackers = legalAttackers
+                            lastDeclaredAttackerIds = emptyList()
+                            lastDeclaredAttackAlternatives = emptyMap()
+                            lastDeclaredDamageRecipients = emptyMap()
+                        } else {
+                            // A recovery drive may revisit the same declaration after
+                            // client toggles. Preserve the coordinator-owned selection.
+                            sendAttackerEchoBack()
+                        }
                         return Signal.STOP
                     }
                     ctx.bridge.cutCoordinator.submitDeclaredAction(

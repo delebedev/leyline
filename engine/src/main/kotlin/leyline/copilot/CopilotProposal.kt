@@ -23,6 +23,10 @@ data class CopilotProposal(
     val intent: String,
     val promptType: String,
     val seat: Int,
+    /** Stable identity of the prompt this proposal answers. */
+    val promptKey: String? = null,
+    val gameStateId: Int? = null,
+    val respId: Int? = null,
     /** Primary card the decision centres on (play_land / cast / activate). */
     val card: EntityRef? = null,
     /** Activated-ability grpId for `activate`. */

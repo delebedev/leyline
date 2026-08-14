@@ -16,6 +16,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
+import leyline.copilot.CopilotProposalService
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
@@ -711,6 +712,21 @@ class CombatInteractionTest :
 
             // Conformance: manaCost present (empty entry)
             echoReq.declareAttackersReq.manaCostCount shouldBeGreaterThan 0
+        }
+
+        test("re-drive preserves iterative attacker selection") {
+            val attackerIid = setupSingleAttacker()
+            passPriority()
+            toggleAttackers(listOf(attackerIid))
+
+            triggerAutoPass()
+
+            val prompt = allMessages.last { it.hasDeclareAttackersReq() }
+            prompt.declareAttackersReq.attackersList
+                .single { it.attackerInstanceId == attackerIid }
+                .hasSelectedDamageRecipient()
+                .shouldBeTrue()
+            CopilotProposalService(harness.bridge, SeatId(1)).propose(prompt).intent shouldBe "submit_attackers"
         }
 
         test("unselected attacker without a damage recipient is rejected") {
