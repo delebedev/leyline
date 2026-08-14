@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.BlockingInteraction
+import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
@@ -1451,7 +1452,16 @@ class BundleBuilder(
         window: CardSelectWindowValue,
     ): CardSelectWindowMaterializer.Prepared {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
+        val privatePrompt =
+            window
+                .takeIf { it.kind == CardSelectKind.ManifestDread }
+                ?.let {
+                    PrivateCardPromptProjection.of(
+                        candidateForgeIds = it.candidates.map { candidate -> candidate.forgeCardId },
+                        sourceForgeId = it.sourceForgeCardId,
+                    )
+                }
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(privateCardPrompt = privatePrompt))
         return cardSelectWindows.prepare(
             gameState = diff.result.gsm,
             gameStateId = diff.gameStateId,

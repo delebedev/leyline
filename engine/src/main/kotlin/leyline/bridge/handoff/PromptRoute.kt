@@ -84,6 +84,7 @@ enum class OrderRouteKind {
 enum class CardSelectKind {
     LegendRule,
     LibraryPutback,
+    ManifestDread,
     Discard,
     SacrificeEffect,
     Suspect,
@@ -105,7 +106,6 @@ data class SelectNShape(
 enum class SelectNInnerPrompt {
     GenericSelectN,
     SelectNInnerParameter,
-    ManifestDreadInnerParameter,
     LearnInnerParameter,
 }
 
@@ -113,7 +113,6 @@ enum class SelectNEnvelopeKind {
     Default,
     RevealChoose,
     Resolution,
-    ManifestDread,
     LearnLesson,
 }
 
@@ -195,13 +194,7 @@ object PromptRouteResolver {
                 selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.GenericSelectN, SelectNEnvelopeKind.RevealChoose)
             PromptSemantic.SelectNResolution ->
                 selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.SelectNInnerParameter, SelectNEnvelopeKind.Resolution)
-            PromptSemantic.ManifestDread ->
-                selectN(
-                    semantic,
-                    dynamicResolutionShape,
-                    SelectNInnerPrompt.ManifestDreadInnerParameter,
-                    SelectNEnvelopeKind.ManifestDread,
-                )
+            PromptSemantic.ManifestDread -> cardSelect(semantic, CardSelectKind.ManifestDread)
             PromptSemantic.SuspectChoice -> cardSelect(semantic, CardSelectKind.Suspect, choiceResultSentiment = 2)
             PromptSemantic.SelectNLibraryPutback -> cardSelect(semantic, CardSelectKind.LibraryPutback)
             PromptSemantic.SelectNSacrificeEffect ->

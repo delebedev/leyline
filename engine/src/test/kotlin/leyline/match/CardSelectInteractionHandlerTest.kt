@@ -37,6 +37,7 @@ class CardSelectInteractionHandlerTest :
             HumanLife=20
             AILife=20
             humanhand=Mountain;Forest
+            humanlibrary=Grizzly Bears;Centaur Courser
             humanbattlefield=Island
             ailibrary=Forest
             """.trimIndent()
@@ -50,17 +51,17 @@ class CardSelectInteractionHandlerTest :
         fun request(
             board: Board,
             semantic: PromptSemantic = PromptSemantic.SelectNSacrificeEffect,
-        ): PromptRequest {
-            val cards = options(board)
-            return PromptRequest(
+            candidates: List<Card> = options(board),
+        ): PromptRequest =
+            PromptRequest(
                 promptType = "choose_cards",
                 message = "Choose a permanent",
-                options = cards.map { it.name },
+                options = candidates.map { it.name },
                 min = 1,
                 max = 1,
                 candidateRefs =
-                    cards.mapIndexed { index, card ->
-                        PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Hand.name)
+                    candidates.mapIndexed { index, card ->
+                        PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
                     },
                 route = PromptRouteResolver.resolve(semantic),
                 sourceEntityId =
@@ -74,7 +75,6 @@ class CardSelectInteractionHandlerTest :
                             .id
                     },
             )
-        }
 
         test("EffectCostResp completes the exact coordinator window without a legacy pending prompt") {
             val board = startPuzzleAtMain1(puzzle)
@@ -121,18 +121,30 @@ class CardSelectInteractionHandlerTest :
             }
         }
 
-        listOf(PromptSemantic.SelectNLegendRule, PromptSemantic.SelectNLibraryPutback).forEach { semantic ->
+        listOf(
+            PromptSemantic.SelectNLegendRule,
+            PromptSemantic.SelectNLibraryPutback,
+            PromptSemantic.ManifestDread,
+        ).forEach { semantic ->
             test("$semantic rejects EffectCostResp and accepts only SelectNResp") {
                 val board = startPuzzleAtMain1(puzzle)
                 val coordinator = board.bridge.cutCoordinator
                 coordinator.drain(SeatId(1))
-                val handles = options(board)
+                val handles =
+                    if (semantic == PromptSemantic.ManifestDread) {
+                        board.human
+                            .getZone(ZoneType.Library)
+                            .cards
+                            .toList()
+                    } else {
+                        options(board)
+                    }
                 val result = AtomicReference<CardSelectInteractionResult>()
                 val finished = CountDownLatch(1)
                 Thread {
                     result.set(
                         coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
-                            request(board, semantic),
+                            request(board, semantic, handles),
                             handles,
                             3_000,
                         ),

@@ -117,4 +117,75 @@ class CardSelectWindowCaptureTest :
                 }
             }
         }
+
+        test("Manifest Dread requires exact library cards, source, cardinality, and default") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:manifest dread capture
+                    Goal:Win
+                    Turns:1
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanlibrary=Mountain;Forest
+                    humanbattlefield=Island
+                    ailibrary=Forest
+                    """.trimIndent(),
+                )
+            val library =
+                board.human
+                    .getZone(ZoneType.Library)
+                    .cards
+                    .toList()
+            val source =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val manifest =
+                PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Choose a card to manifest",
+                    options = library.map { it.name },
+                    min = 1,
+                    max = 1,
+                    defaultIndex = 0,
+                    candidateRefs =
+                        library.mapIndexed { index, card ->
+                            PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Library.name)
+                        },
+                    route = PromptRouteResolver.resolve(PromptSemantic.ManifestDread),
+                    sourceEntityId = source.id,
+                )
+
+            assertSoftly {
+                shouldNotThrowAny { CardSelectWindowCapture.initial(manifest, library) }
+                shouldThrow<IllegalStateException> { CardSelectWindowCapture.initial(manifest.copy(sourceEntityId = null), library) }
+                shouldThrow<IllegalStateException> { CardSelectWindowCapture.initial(manifest.copy(min = 0), library) }
+                shouldThrow<IllegalStateException> { CardSelectWindowCapture.initial(manifest.copy(max = 2), library) }
+                shouldThrow<IllegalStateException> { CardSelectWindowCapture.initial(manifest.copy(defaultIndex = 1), library) }
+                shouldThrow<IllegalStateException> {
+                    CardSelectWindowCapture.initial(
+                        manifest.copy(
+                            options = listOf(source.name),
+                            candidateRefs =
+                                listOf(
+                                    PromptCandidateRefDto(
+                                        0,
+                                        PromptCandidateKind.Card,
+                                        source.id,
+                                        ZoneType.Battlefield.name,
+                                    ),
+                                ),
+                        ),
+                        listOf(source),
+                    )
+                }
+            }
+        }
     })

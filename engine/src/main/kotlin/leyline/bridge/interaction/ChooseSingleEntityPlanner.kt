@@ -61,11 +61,7 @@ object ChooseSingleEntityPlanner {
             max = 1,
             candidateRefsPolicy =
                 if (route == ChooseSingleEntityRoutePolicy.Prompt) {
-                    if (semantic == PromptSemantic.ManifestDread) {
-                        CandidateRefsPolicy.SelectableAndUnfilteredForResolution
-                    } else {
-                        CandidateRefsPolicy.Selectable
-                    }
+                    CandidateRefsPolicy.Selectable
                 } else {
                     CandidateRefsPolicy.None
                 },

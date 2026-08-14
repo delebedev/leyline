@@ -56,11 +56,7 @@ class PromptRouteMatrixTest :
                             SelectNEnvelopeKind.Resolution,
                         ),
                     PromptSemantic.ManifestDread to
-                        selectN(
-                            PromptSemantic.ManifestDread,
-                            SelectNInnerPrompt.ManifestDreadInnerParameter,
-                            SelectNEnvelopeKind.ManifestDread,
-                        ),
+                        cardSelect(PromptSemantic.ManifestDread, CardSelectKind.ManifestDread),
                     PromptSemantic.SuspectChoice to
                         cardSelect(PromptSemantic.SuspectChoice, CardSelectKind.Suspect, sentiment = 2),
                     PromptSemantic.SelectNLibraryPutback to

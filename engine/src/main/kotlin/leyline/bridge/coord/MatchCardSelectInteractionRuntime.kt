@@ -71,7 +71,17 @@ internal class MatchCardSelectInteractionRuntime(
         synchronized(owner.feedLock) {
             owner.ensureOpen()
             val pending = matching(interactionId, gameStateId) ?: return false
-            if (pending.value.kind == CardSelectKind.LegendRule || pending.value.kind == CardSelectKind.LibraryPutback) return false
+            when (pending.value.kind) {
+                CardSelectKind.LegendRule,
+                CardSelectKind.LibraryPutback,
+                CardSelectKind.ManifestDread,
+                -> return false
+                CardSelectKind.Discard,
+                CardSelectKind.SacrificeEffect,
+                CardSelectKind.Suspect,
+                CardSelectKind.MutateTopBottom,
+                -> Unit
+            }
             completeSelection(pending, selectedInstanceIds)
         }
 

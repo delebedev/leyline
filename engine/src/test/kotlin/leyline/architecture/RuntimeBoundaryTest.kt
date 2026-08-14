@@ -267,6 +267,7 @@ class RuntimeBoundaryTest :
                 "SuspectChoice",
                 "MutateTopBottom",
                 "SelectNLibraryPutback",
+                "ManifestDread",
             ).forEach { semantic ->
                 check(
                     "PromptSemantic.$semantic -> cardSelect" in route ||

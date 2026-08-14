@@ -26,6 +26,7 @@ import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -45,6 +46,7 @@ class MatchCardSelectInteractionRuntimeTest :
             HumanLife=20
             AILife=20
             humanhand=Mountain;Forest
+            humanlibrary=Grizzly Bears;Centaur Courser
             humanbattlefield=Island
             ailibrary=Forest
             """.trimIndent()
@@ -52,6 +54,12 @@ class MatchCardSelectInteractionRuntimeTest :
         fun options(board: Board): List<Card> =
             board.human
                 .getZone(ZoneType.Hand)
+                .cards
+                .toList()
+
+        fun manifestOptions(board: Board): List<Card> =
+            board.human
+                .getZone(ZoneType.Library)
                 .cards
                 .toList()
 
@@ -68,23 +76,22 @@ class MatchCardSelectInteractionRuntimeTest :
             min: Int = 1,
             max: Int = 1,
             defaultIndex: Int = 0,
-        ): PromptRequest {
-            val cards = options(board)
-            return PromptRequest(
+            candidates: List<Card> = options(board),
+        ): PromptRequest =
+            PromptRequest(
                 promptType = "choose_cards",
                 message = "Choose a card",
-                options = cards.map { it.name },
+                options = candidates.map { it.name },
                 min = min,
                 max = max,
                 defaultIndex = defaultIndex,
                 candidateRefs =
-                    cards.mapIndexed { index, card ->
-                        PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Hand.name)
+                    candidates.mapIndexed { index, card ->
+                        PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
                     },
                 route = PromptRouteResolver.resolve(semantic),
                 sourceEntityId = sourceId,
             )
-        }
 
         fun awaitPublished(coordinator: MatchCutCoordinator): PublishedCardSelectInteraction {
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
@@ -173,6 +180,17 @@ class MatchCardSelectInteractionRuntimeTest :
                     outerPromptId = PromptIds.SELECT_N_LIBRARY_PUTBACK,
                     allowCancel = AllowCancel.No_a526,
                 ),
+                Case(
+                    PromptSemantic.ManifestDread,
+                    CardSelectKind.ManifestDread,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.MANIFEST_DREAD_INNER_PARAMETER,
+                    outerPromptId = PromptIds.MANIFEST_DREAD,
+                    allowCancel = AllowCancel.No_a526,
+                ),
             )
 
         cases.forEach { case ->
@@ -180,13 +198,19 @@ class MatchCardSelectInteractionRuntimeTest :
                 val board = startPuzzleAtMain1(puzzle)
                 val coordinator = board.bridge.cutCoordinator
                 coordinator.drain(SeatId(1))
-                val handles = options(board)
+                val handles =
+                    if (case.kind == CardSelectKind.ManifestDread) manifestOptions(board) else options(board)
                 val result = AtomicReference<CardSelectInteractionResult>()
                 val finished = CountDownLatch(1)
                 Thread {
                     result.set(
                         coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
-                            request(board, case.semantic, sourceId = source(board).id.takeIf { case.includeRequestSource }),
+                            request(
+                                board,
+                                case.semantic,
+                                sourceId = source(board).id.takeIf { case.includeRequestSource },
+                                candidates = handles,
+                            ),
                             handles,
                             3_000,
                         ),
@@ -231,6 +255,7 @@ class MatchCardSelectInteractionRuntimeTest :
                             CardSelectKind.Suspect,
                             CardSelectKind.MutateTopBottom,
                             CardSelectKind.LibraryPutback,
+                            CardSelectKind.ManifestDread,
                             -> board.bridge.getOrAllocInstanceId(ForgeCardId(source(board).id)).value
                         }
                     if (case.kind == CardSelectKind.LegendRule) {
@@ -239,6 +264,18 @@ class MatchCardSelectInteractionRuntimeTest :
                     if (case.kind == CardSelectKind.LibraryPutback) {
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
+                    }
+                    if (case.kind == CardSelectKind.ManifestDread) {
+                        req.unfilteredIdsList shouldContainExactly req.idsList
+                        message.prompt.parametersList.map { it.numberValue } shouldContainExactly
+                            listOf(req.sourceId, req.maxSel)
+                        val exposed =
+                            batch
+                                .first()
+                                .gameStateMessage.gameObjectsList
+                                .filter { it.instanceId in req.idsList }
+                        exposed.map { it.instanceId } shouldContainExactly req.idsList
+                        exposed.all { it.visibility == Visibility.Private && it.viewersList == listOf(1) } shouldBe true
                     }
                     coordinator.cardSelect.submitSelectN(
                         published.interactionId,
@@ -360,6 +397,43 @@ class MatchCardSelectInteractionRuntimeTest :
                 coordinator.cardSelect.current().shouldBeNull()
                 requestMessage.selectNReq.minSel shouldBe 2
                 requestMessage.selectNReq.maxSel shouldBe 2
+                coordinator.cardSelect.submitSelectN(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(requestMessage.selectNReq.idsList[1]),
+                ) shouldBe false
+            }
+        }
+
+        test("Manifest Dread timeout returns its exact default library card and rejects a late response") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val handles = manifestOptions(board)
+            var timedOut = false
+            val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
+            coordinator.cardSelect.beforeTimeoutClaim = {
+                publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
+            }
+            val prompt =
+                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                    it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
+                    it.timeoutListener = { timedOut = true }
+                }
+            val result =
+                prompt.requestCardSelect(
+                    request(board, PromptSemantic.ManifestDread, candidates = handles),
+                    handles,
+                )
+            val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
+            val published = checkNotNull(publishedAtTimeout.get())
+
+            assertSoftly {
+                result.optionIndices shouldContainExactly listOf(0)
+                (result.handles.single() === handles[0]) shouldBe true
+                timedOut shouldBe true
+                coordinator.cardSelect.current().shouldBeNull()
+                requestMessage.selectNReq.idsList shouldContainExactly requestMessage.selectNReq.unfilteredIdsList
                 coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
