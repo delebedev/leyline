@@ -236,6 +236,28 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
+        test("familiar channel ignores mirrored stale gameplay responses") {
+            val registry = MatchRegistry()
+            val matchId = "familiar-stale-gameplay-response"
+            val (local, familiar) = connectPair(registry, matchId)
+
+            try {
+                familiar.writeInbound(
+                    greServiceMessage(
+                        greMessage(2, ClientMessageType.PerformActionResp_097b) {
+                            setRespId(1)
+                        },
+                        5,
+                    ),
+                )
+
+                greOutbound(familiar).map { it.type } shouldBe emptyList()
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
         test("two mulligans then keep preserve the final redraw hand") {
             val registry = MatchRegistry()
             val matchId = "mulligan-flow-redraw"

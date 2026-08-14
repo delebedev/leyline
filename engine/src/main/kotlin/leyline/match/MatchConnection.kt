@@ -319,20 +319,19 @@ class MatchConnection(
     private fun processGREMessage(greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
 
-        val activeSession = session
-        if (activeSession != null && ResponseEnvelopeGuard.rejectMismatch(greMsg, activeSession.counter, activeSession)) return
-
         // Pre-session messages drive the handshake/mulligan flow, which read session
         // state defensively through providers. Everything else is a post-handshake
-        // game action that requires a live session — dispatched against Connected.
+        // game action that requires a live session — dispatched against Connected,
+        // where MatchSession owns response correlation. Read-only familiar and
+        // spectator sessions intentionally ignore mirrored gameplay responses.
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ConnectAttempt(matchId, seatId, isFamiliar))
 
             ClientMessageType.ChooseStartingPlayerResp_097b ->
-                mulliganHandler.onChooseStartingPlayer()
+                withConnectionOwnedResponse(greMsg) { mulliganHandler.onChooseStartingPlayer() }
 
             ClientMessageType.MulliganResp_097b ->
-                mulliganHandler.onMulliganResp(greMsg)
+                withConnectionOwnedResponse(greMsg) { mulliganHandler.onMulliganResp(greMsg) }
 
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
@@ -352,9 +351,21 @@ class MatchConnection(
             )
         ) {
             GroupResponseRoute.Grouping -> checkNotNull(gameSession).onGroupResp(greMsg)
-            GroupResponseRoute.LondonTuck -> mulliganHandler.onGroupResp(greMsg)
+            GroupResponseRoute.LondonTuck -> {
+                checkNotNull(gameSession)
+                withConnectionOwnedResponse(greMsg) { mulliganHandler.onGroupResp(greMsg) }
+            }
             GroupResponseRoute.Stale -> log.warn("Match Door GRE: stale GroupResp without Grouping or London-tuck window")
         }
+    }
+
+    /** Validate responses consumed by the connection-owned pre-game flow. */
+    private inline fun withConnectionOwnedResponse(
+        greMsg: ClientToGREMessage,
+        block: () -> Unit,
+    ) {
+        val activeSession = session ?: return
+        if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, activeSession.counter, activeSession)) block()
     }
 
     /** Dispatch a post-handshake game action against the live [Connected] session. */
