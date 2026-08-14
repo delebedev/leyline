@@ -102,7 +102,7 @@ class DiscardInteractionTest :
                     .current()
                     .shouldNotBeNull()
             pending.kind shouldBe leyline.bridge.handoff.CardSelectKind.Discard
-            harness.bridge.cutCoordinator.cardSelect.submit(
+            harness.bridge.cutCoordinator.cardSelect.submitSelectN(
                 pending.interactionId,
                 pending.gameStateId,
                 emptyList(),

@@ -2,6 +2,7 @@ package leyline.bridge.coord
 
 import forge.game.card.Card
 import leyline.bridge.handoff.CardSelectCandidateValue
+import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -33,6 +34,12 @@ internal object CardSelectWindowCapture {
         }
         check(request.min in 0..request.max && request.max <= candidates.size) { "Invalid CardSelect cardinality" }
         check(request.defaultIndex in candidates.indices) { "Invalid CardSelect default option" }
+        if (route.descriptor.kind == CardSelectKind.LegendRule) {
+            check(candidates.size >= 2) { "Legend Rule requires multiple candidates" }
+            check(request.min == 1 && request.max == 1) { "Legend Rule requires exactly one selection" }
+            check(request.defaultIndex == 0) { "Legend Rule default must keep the first candidate" }
+            check(request.sourceEntityId == null) { "Legend Rule has no card source" }
+        }
         return Initial(
             value =
                 CardSelectWindowValue(

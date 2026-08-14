@@ -132,13 +132,20 @@ class TargetingCoordinator(
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
-        val indices = bridge.requestChoice(request)
-        val idx = indices.firstOrNull()
         val chosen =
-            if (idx != null && idx in 0 until optionList.size) {
-                optionList.get(idx)
+            if (request.route is ResolvedPromptRoute.CardSelect) {
+                val cards = optionList.filterIsInstance<Card>()
+                check(cards.size == optionList.size) { "CardSelect requires card options" }
+                @Suppress("UNCHECKED_CAST")
+                (bridge.requestCardSelect(request, cards).handles.firstOrNull() as? T)
+                    ?: if (isOptional) null else optionList.getFirst()
             } else {
-                if (isOptional) null else optionList.getFirst()
+                val idx = bridge.requestChoice(request).firstOrNull()
+                if (idx != null && idx in 0 until optionList.size) {
+                    optionList.get(idx)
+                } else {
+                    if (isOptional) null else optionList.getFirst()
+                }
             }
 
         recordLearnRevealIfNeeded(plan.isLearn, chosen)

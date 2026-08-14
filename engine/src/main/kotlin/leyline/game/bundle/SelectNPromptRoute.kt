@@ -15,7 +15,6 @@ internal fun SelectNPromptRoute.envelope(
 ): SelectNEnvelope =
     when (envelopeKind) {
         SelectNEnvelopeKind.Default -> SelectNEnvelope.default(req)
-        SelectNEnvelopeKind.LegendRule -> SelectNEnvelope.legendRule(req)
         SelectNEnvelopeKind.RevealChoose -> SelectNEnvelope.revealChoose(req)
         SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
         SelectNEnvelopeKind.ManifestDread -> SelectNEnvelope.manifestDread(req)
@@ -29,10 +28,6 @@ internal fun SelectNPromptRoute.configureInnerPrompt(
     bridge: GameBridge,
 ) {
     when (innerPrompt) {
-        SelectNInnerPrompt.LegendRule -> {
-            builder.setPrompt(Prompt.newBuilder())
-            builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
-        }
         SelectNInnerPrompt.GenericSelectN -> {
             builder.setSourceIdIfPresent(prompt, bridge)
             builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))

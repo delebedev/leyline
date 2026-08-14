@@ -1551,7 +1551,7 @@ class BundleBuilder(
 
     /**
      * Residual SelectN bundle: GameState + SelectNReq.
-     * Used for reveal, resolution, legend, Learn, and other dynamic residual SelectN prompts.
+     * Used for reveal, resolution, Learn, and other dynamic residual SelectN prompts.
      */
     fun selectNBundle(
         game: Game,

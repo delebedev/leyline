@@ -260,9 +260,16 @@ class RuntimeBoundaryTest :
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             check("CardSelect prompts must be published by MatchCardSelectInteractionRuntime" in targeting)
             val route = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptRoute.kt"))
-            listOf("SelectNDiscard", "SelectNSacrificeEffect", "SuspectChoice", "MutateTopBottom").forEach { semantic ->
+            listOf(
+                "SelectNLegendRule",
+                "SelectNDiscard",
+                "SelectNSacrificeEffect",
+                "SuspectChoice",
+                "MutateTopBottom",
+            ).forEach { semantic ->
                 check(
-                    "PromptSemantic.$semantic -> cardSelect" in route || "PromptSemantic.$semantic ->\n                cardSelect" in route,
+                    "PromptSemantic.$semantic -> cardSelect" in route ||
+                        "PromptSemantic.$semantic ->\n                cardSelect" in route,
                 )
             }
 

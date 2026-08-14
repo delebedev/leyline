@@ -12,6 +12,8 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.PublishedCardSelectInteraction
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -84,7 +86,7 @@ class MatchCardSelectInteractionRuntimeTest :
             )
         }
 
-        fun awaitPublished(coordinator: MatchCutCoordinator): leyline.bridge.handoff.PublishedCardSelectInteraction {
+        fun awaitPublished(coordinator: MatchCutCoordinator): PublishedCardSelectInteraction {
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
             var published = coordinator.cardSelect.current()
             while (published == null && System.nanoTime() < deadline) {
@@ -104,11 +106,22 @@ class MatchCardSelectInteractionRuntimeTest :
             val innerParameterId: Int? = null,
             val outerPromptId: Int,
             val allowCancel: AllowCancel,
-            val sourceId: Boolean = true,
+            val includeRequestSource: Boolean = true,
         )
 
         val cases =
             listOf(
+                Case(
+                    PromptSemantic.SelectNLegendRule,
+                    CardSelectKind.LegendRule,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    outerPromptId = PromptIds.SELECT_N_LEGEND_RULE,
+                    allowCancel = AllowCancel.No_a526,
+                    includeRequestSource = false,
+                ),
                 Case(
                     PromptSemantic.SelectNDiscard,
                     CardSelectKind.Discard,
@@ -118,7 +131,7 @@ class MatchCardSelectInteractionRuntimeTest :
                     innerPromptId = PromptIds.DISCARD_COST,
                     outerPromptId = PromptIds.SELECT_N,
                     allowCancel = AllowCancel.None_a526,
-                    sourceId = false,
+                    includeRequestSource = false,
                 ),
                 Case(
                     PromptSemantic.SelectNSacrificeEffect,
@@ -162,7 +175,7 @@ class MatchCardSelectInteractionRuntimeTest :
                 Thread {
                     result.set(
                         coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
-                            request(board, case.semantic, sourceId = source(board).id.takeIf { case.sourceId }),
+                            request(board, case.semantic, sourceId = source(board).id.takeIf { case.includeRequestSource }),
                             handles,
                             3_000,
                         ),
@@ -199,8 +212,19 @@ class MatchCardSelectInteractionRuntimeTest :
                     }
                     message.prompt.promptId shouldBe case.outerPromptId
                     message.allowCancel shouldBe case.allowCancel
-                    (req.sourceId != 0) shouldBe case.sourceId
-                    coordinator.cardSelect.submit(
+                    req.sourceId shouldBe
+                        when (case.kind) {
+                            CardSelectKind.LegendRule -> PromptIds.SELECT_N_LEGEND_RULE_SOURCE
+                            CardSelectKind.Discard -> 0
+                            CardSelectKind.SacrificeEffect,
+                            CardSelectKind.Suspect,
+                            CardSelectKind.MutateTopBottom,
+                            -> board.bridge.getOrAllocInstanceId(ForgeCardId(source(board).id)).value
+                        }
+                    if (case.kind == CardSelectKind.LegendRule) {
+                        message.prompt.parametersList.map { it.numberValue } shouldContainExactly listOf(0)
+                    }
+                    coordinator.cardSelect.submitSelectN(
                         published.interactionId,
                         published.gameStateId,
                         listOf(req.idsList[1]),
@@ -232,7 +256,7 @@ class MatchCardSelectInteractionRuntimeTest :
                         .single { it.hasSelectNReq() }
                         .selectNReq.idsList[1]
 
-                coordinator.cardSelect.submit(
+                coordinator.cardSelect.submitSelectN(
                     published.interactionId,
                     published.gameStateId,
                     listOf(id),
@@ -253,26 +277,40 @@ class MatchCardSelectInteractionRuntimeTest :
             }
         }
 
-        test("timeout returns the configured default exact handle and rejects a late response") {
+        test("Legend Rule timeout returns its exact default handle and rejects a late response") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val handles = options(board)
             var timedOut = false
+            val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
+            coordinator.cardSelect.beforeTimeoutClaim = {
+                publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
+            }
             val prompt =
                 InteractivePromptBridge(timeoutMs = 25, strict = false).also {
                     it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
                     it.timeoutListener = { timedOut = true }
                 }
-            val result = prompt.requestCardSelect(request(board, PromptSemantic.MutateTopBottom, defaultIndex = 1), handles)
+            val result =
+                prompt.requestCardSelect(
+                    request(board, PromptSemantic.SelectNLegendRule, sourceId = null),
+                    handles,
+                )
             val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
+            val published = checkNotNull(publishedAtTimeout.get())
 
             assertSoftly {
-                result.optionIndices shouldContainExactly listOf(1)
-                (result.handles.single() === handles[1]) shouldBe true
+                result.optionIndices shouldContainExactly listOf(0)
+                (result.handles.single() === handles[0]) shouldBe true
                 timedOut shouldBe true
                 coordinator.cardSelect.current().shouldBeNull()
                 requestMessage.selectNReq.idsCount shouldBe 2
+                coordinator.cardSelect.submitSelectN(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(requestMessage.selectNReq.idsList[1]),
+                ) shouldBe false
             }
         }
     })

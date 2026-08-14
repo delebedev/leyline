@@ -4,6 +4,7 @@ import forge.game.card.Card
 import leyline.bridge.handoff.CardSelectInteractionResult
 import leyline.bridge.handoff.CardSelectInteractionRuntime
 import leyline.bridge.handoff.CardSelectInteractionTimeoutException
+import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSideEffect
@@ -51,7 +52,7 @@ internal class MatchCardSelectInteractionRuntime(
 
     fun current(): PublishedCardSelectInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
 
-    fun submit(
+    fun submitSelectN(
         interactionId: String,
         gameStateId: Int,
         selectedInstanceIds: List<Int>,
@@ -59,13 +60,19 @@ internal class MatchCardSelectInteractionRuntime(
         synchronized(owner.feedLock) {
             owner.ensureOpen()
             val pending = matching(interactionId, gameStateId) ?: return false
-            if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return false
-            if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-            val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-            recordChoiceResults(pending, selectedInstanceIds)
-            val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
-            window = null
-            pending.future.complete(result)
+            completeSelection(pending, selectedInstanceIds)
+        }
+
+    fun submitEffectCost(
+        interactionId: String,
+        gameStateId: Int,
+        selectedInstanceIds: List<Int>,
+    ): Boolean =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val pending = matching(interactionId, gameStateId) ?: return false
+            if (pending.value.kind == CardSelectKind.LegendRule) return false
+            completeSelection(pending, selectedInstanceIds)
         }
 
     fun terminate(cause: Throwable) {
@@ -173,6 +180,19 @@ internal class MatchCardSelectInteractionRuntime(
                 .prompt.journal
                 .record(PromptSideEffect.ChoiceResult(source, owner.humanSeat, instanceId, sentiment = sentiment))
         }
+    }
+
+    private fun completeSelection(
+        pending: Window,
+        selectedInstanceIds: List<Int>,
+    ): Boolean {
+        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return false
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
+        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
+        recordChoiceResults(pending, selectedInstanceIds)
+        val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
+        window = null
+        return pending.future.complete(result)
     }
 
     private fun await(
