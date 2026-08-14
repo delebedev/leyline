@@ -130,7 +130,7 @@ at entry, awaits once, and publishes the resulting horizon without releasing
 it. Auto-pass may invoke the operation again explicitly; action handlers stop
 at the single semantic horizon. A safe direct Skip allocates and publishes
 nothing.
-Optional, Numeric, Damage, explicitly bound Targeting and Search prompts, and iterative mana-source payments carry typed value inputs. The
+Optional, Numeric, Damage, explicitly bound Targeting and Search prompts, and all PayCosts windows carry typed value inputs. The
 coordinator commits the complete batch before signalling and resolves retained
 live handles only on the Forge thread. Targeting taps use a correlated mailbox;
 the engine recomputes legality and commits each replacement request before its
@@ -144,6 +144,9 @@ Convoke, Improvise, and Waterbend similarly freeze candidate, shard, source, and
 mana-cost facts. Their initial and replacement PayCosts cuts commit before
 signal or delivery acknowledgement; Pass and Cancel resolve only original
 option indices through the bounded handle table.
+The seven non-iterative PayCosts routes freeze source, cardinality, weights, and
+exact option handles. Their single state-and-request cut commits before signal,
+and the correlated immutable response returns those original handles.
 Timeout and disconnect handling use the same two mechanisms; they do not run
 session logic concurrently.
 

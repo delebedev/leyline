@@ -210,8 +210,8 @@ class RuntimeBoundaryTest :
                 "ConvokePayments",
             ).forEach { forbidden -> check(forbidden !in handler) }
 
-            val legacy = Files.readString(sourceRoot.resolve("leyline/match/PayCostsInteractionHandler.kt"))
-            check("route.manaSourcePayment == null" in legacy)
+            val oneShot = Files.readString(sourceRoot.resolve("leyline/bridge/coord/MatchOneShotPayCostsRuntime.kt"))
+            listOf("getZone(", "findCard(", "getForgeCardId(").forEach { forbidden -> check(forbidden !in oneShot) }
 
             val producer = Files.readString(sourceRoot.resolve("leyline/bridge/coord/CostPaymentCoordinator.kt"))
             check("recordConvokePayments" !in producer)
@@ -243,6 +243,62 @@ class RuntimeBoundaryTest :
                         "leyline/game/bundle/BundleBuilder.kt",
                     ),
             ) { "Unexpected mana-source payment preparers: ${owners.sorted()}" }
+        }
+
+        test("one-shot PayCosts windows are coordinator-owned and session responses stay value-only") {
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.OneShotPayCostsMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.bridge\\.handoff\\.OneShotPayCosts.*Value(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            val handler = Files.readString(sourceRoot.resolve("leyline/match/ManaSourcePaymentHandler.kt"))
+            listOf("import forge.", "findCard(", "getZone(", "getForgeCardId(").forEach { forbidden ->
+                check(forbidden !in handler)
+            }
+            val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
+            check("request.route !is ResolvedPromptRoute.PayCosts" in bridge)
+            val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
+            check("PayCostsInteractionHandler" !in targeting)
+            val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))
+            listOf(
+                "buildSacrificePayCostsReq",
+                "buildSelectCostPayCostsReq",
+                "buildStationTapCostPayCostsReq",
+                "buildEnlistCostPayCostsReq",
+                "buildTeamworkCostPayCostsReq",
+            ).forEach { removed -> check(removed !in requestBuilder) }
+
+            val owners = mutableSetOf<String>()
+            val stream = Files.walk(sourceRoot.resolve("leyline"))
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        if ("prepareOneShotPayCosts(" in Files.readString(file)) {
+                            owners += sourceRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+            check(
+                owners ==
+                    setOf(
+                        "leyline/bridge/coord/MatchOneShotPayCostsRuntime.kt",
+                        "leyline/game/bundle/BundleBuilder.kt",
+                    ),
+            ) { "Unexpected one-shot PayCosts preparers: ${owners.sorted()}" }
         }
 
         test("deferred cast cost handoff is value-only and session code does not rediscover abilities") {

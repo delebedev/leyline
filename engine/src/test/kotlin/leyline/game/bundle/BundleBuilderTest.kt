@@ -1878,20 +1878,6 @@ class BundleBuilderTest :
             }
         }
 
-        test("payCostsBundle shape") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
-
-            val req = Messages.PayCostsReq.newBuilder().build()
-            val result = bundleBuilder(b).payCostsBundle(game, counter, req)
-
-            assertSoftly {
-                result.messages.size shouldBe 2
-                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-                result.messages[1].type shouldBe GREMessageType.PayCostsReq_695e
-                result.messages[1].prompt.promptId shouldBe PromptIds.PAY_COSTS
-            }
-        }
-
         // --- isTurnOrTriggerDraw unit tests (leyline-pey) ---
         //
         // postAction overrides the default `SendAndRecord` to `SendHiFi` when the

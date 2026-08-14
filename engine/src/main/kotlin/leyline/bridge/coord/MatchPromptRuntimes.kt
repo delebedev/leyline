@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import leyline.bridge.handoff.ManaSourcePaymentRuntime
+import leyline.bridge.handoff.OneShotPayCostsRuntime
 import leyline.bridge.handoff.SearchInteractionRuntime
 import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.types.SeatId
@@ -19,4 +20,9 @@ internal fun MatchCutCoordinator.searchRuntime(seatId: SeatId): SearchInteractio
 internal fun MatchCutCoordinator.manaSourcePaymentRuntime(seatId: SeatId): ManaSourcePaymentRuntime {
     check(seatId == humanSeat) { "Mana-source payment runtime is only registered for the human seat" }
     return manaSourcePayments
+}
+
+internal fun MatchCutCoordinator.oneShotPayCostsRuntime(seatId: SeatId): OneShotPayCostsRuntime {
+    check(seatId == humanSeat) { "One-shot PayCosts runtime is only registered for the human seat" }
+    return oneShotPayCosts
 }

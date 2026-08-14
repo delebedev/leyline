@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 
-/** Value-only session adapter for coordinator-owned iterative mana-source payments. */
+/** Value-only session adapter for coordinator-owned iterative and one-shot PayCosts windows. */
 internal class ManaSourcePaymentHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
@@ -74,6 +74,40 @@ internal class ManaSourcePaymentHandler(
             return true
         }
         deliver(receipt, autoPass)
+        return true
+    }
+
+    fun tryHandleOneShotEffectCost(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ): Boolean {
+        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
+        val pending = runtime.current() ?: return false
+        val accepted =
+            runtime.submit(
+                pending.interactionId,
+                greMsg.gameStateId,
+                greMsg.effectCostResp.costSelection.idsList,
+            )
+        if (!accepted) {
+            log.warn("One-shot PayCosts response did not match the current interaction")
+            DevCheck.failOnAutoPass { "One-shot PayCosts response did not match the current interaction" }
+            return true
+        }
+        ctx.bridge.awaitPriority()
+        autoPass()
+        return true
+    }
+
+    fun tryHandleOneShotCancel(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ): Boolean {
+        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
+        val pending = runtime.current() ?: return false
+        if (!runtime.cancel(pending.interactionId, greMsg.gameStateId)) return true
+        ctx.bridge.awaitPriority()
+        autoPass()
         return true
     }
 

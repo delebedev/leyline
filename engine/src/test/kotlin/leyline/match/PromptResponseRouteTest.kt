@@ -33,7 +33,6 @@ class PromptResponseRouteTest :
                     ),
                 PromptResponseKind.EffectCost to
                     setOf(
-                        representativeRoutes.getValue(PromptSemantic.SelectNCostSacrifice),
                         representativeRoutes.getValue(PromptSemantic.SelectNResolution),
                         representativeRoutes.getValue(PromptSemantic.SelectNDiscard),
                         representativeRoutes.getValue(PromptSemantic.Generic),

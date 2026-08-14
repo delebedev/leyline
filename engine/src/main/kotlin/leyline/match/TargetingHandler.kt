@@ -64,7 +64,6 @@ class TargetingHandler(
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
     private val promptResponseSubmitter = PromptResponseSubmitter(counters, ctx)
-    private val payCostsInteractionHandler = PayCostsInteractionHandler(sink, counters, bundles, ctx)
     private val manaSourcePaymentHandler = ManaSourcePaymentHandler(sink, counters, ctx)
     private val deferredCastCostInteractionHandler =
         DeferredCastCostInteractionHandler(
@@ -206,6 +205,7 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) {
         if (manaSourcePaymentHandler.tryHandleEffectCost(greMsg, autoPass)) return
+        if (manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg, autoPass)) return
         promptResponseSubmitter.onEffectCost(greMsg, autoPass)
     }
 
@@ -281,6 +281,7 @@ class TargetingHandler(
         if (bridge.cutCoordinator.targeting.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.search.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.manaSourcePayments.current() != null) return PromptResult.SENT_TO_CLIENT
+        if (bridge.cutCoordinator.oneShotPayCosts.current() != null) return PromptResult.SENT_TO_CLIENT
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         return if (sendPrompt(pendingPrompt, PromptDispatchContext.PENDING_CHECK)) {
@@ -360,11 +361,7 @@ class TargetingHandler(
             }
 
             is ResolvedPromptRoute.PayCosts -> {
-                check(route.descriptor.manaSourcePayment == null) {
-                    "Iterative mana-source payments must be published by MatchManaSourcePaymentRuntime"
-                }
-                payCostsInteractionHandler.sendPayCostsReq(pendingPrompt, route.descriptor)
-                true
+                error("PayCosts prompts must be published by a match-scoped coordinator runtime")
             }
 
             is ResolvedPromptRoute.Targeting -> {
@@ -489,6 +486,7 @@ class TargetingHandler(
         }
 
         if (manaSourcePaymentHandler.tryHandleCancel(greMsg, autoPass)) return
+        if (manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg, autoPass)) return
 
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()

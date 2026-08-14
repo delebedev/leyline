@@ -19,6 +19,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.interaction.ChooseCardsForEffectContext
 import leyline.bridge.interaction.ChooseCardsForEffectPlanner
@@ -268,6 +269,12 @@ class TargetingCoordinator(
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
+        if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
+            val candidateCards = optionList.filterIsInstance<Card>()
+            check(candidateCards.size == optionList.size) { "One-shot PayCosts options must be cards" }
+            val selected = bridge.requestOneShotPayCosts(request, candidateCards)
+            return selected.handles.map { handle -> optionList.first { it === handle } }
+        }
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
@@ -1019,6 +1026,9 @@ class TargetingCoordinator(
                 minSelectionWeight = minSelectionWeight,
                 searchSource = searchSource,
             )
+        if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
+            return CardCollection(bridge.requestOneShotPayCosts(request, cards.toList()).handles)
+        }
         val indices = bridge.requestChoice(request)
         val result = CardCollection()
         for (idx in indices) {

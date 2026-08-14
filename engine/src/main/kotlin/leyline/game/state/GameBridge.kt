@@ -20,6 +20,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
 import leyline.bridge.coord.manaSourcePaymentRuntime
+import leyline.bridge.coord.oneShotPayCostsRuntime
 import leyline.bridge.coord.searchRuntime
 import leyline.bridge.coord.targetingRuntime
 import leyline.bridge.forge.RevealTrackingAiController
@@ -509,6 +510,7 @@ class GameBridge(
         promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
         promptBridge(seatId).searchRuntime = cutCoordinator.searchRuntime(seatId)
         promptBridge(seatId).manaSourcePaymentRuntime = cutCoordinator.manaSourcePaymentRuntime(seatId)
+        promptBridge(seatId).oneShotPayCostsRuntime = cutCoordinator.oneShotPayCostsRuntime(seatId)
         val collector = GameEventCollector(this)
         eventCollector = collector
         game.subscribeToEvents(collector)
@@ -1336,7 +1338,8 @@ class GameBridge(
             cutCoordinator.currentBlockingInteraction() != null ||
             cutCoordinator.targeting.current() != null ||
             cutCoordinator.search.current() != null ||
-            cutCoordinator.manaSourcePayments.current() != null
+            cutCoordinator.manaSourcePayments.current() != null ||
+            cutCoordinator.oneShotPayCosts.current() != null
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1586,6 +1589,7 @@ class GameBridge(
             it.targetingRuntime = null
             it.searchRuntime = null
             it.manaSourcePaymentRuntime = null
+            it.oneShotPayCostsRuntime = null
         }
         cutCoordinator.shutdown()
         val g = game

@@ -20,8 +20,7 @@ internal fun ResolvedPromptRoute.accepts(response: PromptResponseKind): Boolean 
         PromptResponseKind.ModalChoice -> this is ResolvedPromptRoute.ModalChoice
         PromptResponseKind.SelectN -> this is ResolvedPromptRoute.SelectN
         PromptResponseKind.EffectCost ->
-            this is ResolvedPromptRoute.PayCosts ||
-                this is ResolvedPromptRoute.SelectN ||
+            this is ResolvedPromptRoute.SelectN ||
                 this is ResolvedPromptRoute.UnclassifiedCandidate
         PromptResponseKind.Search -> this is ResolvedPromptRoute.Search
         PromptResponseKind.Order -> this is ResolvedPromptRoute.Order
