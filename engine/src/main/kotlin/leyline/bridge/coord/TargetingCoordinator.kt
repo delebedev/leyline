@@ -14,6 +14,7 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderMoveIntent
 import leyline.bridge.handoff.PromptRequest
@@ -926,43 +927,21 @@ class TargetingCoordinator(
                 "Surveil" -> PromptSemantic.GroupingSurveil
                 else -> PromptSemantic.GroupingScry
             }
-        if (topN.size == 1) {
-            val request =
-                PromptRequest(
-                    promptType = "confirm",
-                    message = singleAwayPrompt(topN[0].name),
-                    options = listOf("Top of library", awayZone),
-                    min = 1,
-                    max = 1,
-                    defaultIndex = 0,
-                    candidateRefs = refs,
-                    route = PromptRouteResolver.resolve(groupingSemantic),
-                )
-            val result = bridge.requestChoice(request)
-            return if (result.firstOrNull() == 1) {
-                ImmutablePair.of(null, topN)
-            } else {
-                ImmutablePair.of(topN, null)
-            }
-        }
-        val labels = topN.map { it.name }
         val request =
             PromptRequest(
-                promptType = "choose_cards",
-                message = multiAwayPrompt,
-                options = labels,
-                min = 0,
-                max = topN.size,
+                promptType = if (topN.size == 1) "confirm" else "choose_cards",
+                message = if (topN.size == 1) singleAwayPrompt(topN[0].name) else multiAwayPrompt,
+                options = if (topN.size == 1) listOf("Top of library", awayZone) else topN.map { it.name },
+                min = if (topN.size == 1) 1 else 0,
+                max = if (topN.size == 1) 1 else topN.size,
                 defaultIndex = 0,
                 candidateRefs = refs,
                 route = PromptRouteResolver.resolve(groupingSemantic),
+                groupingSource = groupingSource(),
             )
-        val awayIndices = bridge.requestChoice(request)
-        val toAway = CardCollection()
-        val toTop = CardCollection()
-        for ((i, card) in topN.withIndex()) {
-            if (i in awayIndices) toAway.add(card) else toTop.add(card)
-        }
+        val grouping = bridge.requestGrouping(request, topN.toList())
+        val toAway = CardCollection(grouping.awayHandles)
+        val toTop = CardCollection(grouping.topHandles)
         if (toTop.size > 1) {
             val topLabels = toTop.map { it.name }
             val orderReq =
@@ -978,12 +957,21 @@ class TargetingCoordinator(
                     sourceEntityId = currentSourceEntityId()?.takeIf { it > 0 },
                 )
             val ordered = CardCollection(bridge.requestOrder(orderReq, toTop.toList()).handles)
+            bridge.finalizeGroupingArrangement(grouping, ordered.toList(), toAway.toList())
             return ImmutablePair.of(ordered, if (toAway.isEmpty()) null else toAway)
         }
+        bridge.finalizeGroupingArrangement(grouping, toTop.toList(), toAway.toList())
         return ImmutablePair.of(
             if (toTop.isEmpty()) null else toTop,
             if (toAway.isEmpty()) null else toAway,
         )
+    }
+
+    private fun groupingSource(): GroupingSourceValue? {
+        val stackAbilityId = currentStackAbilityId()
+        val hostCardId = currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId)
+        return GroupingSourceValue(hostCardId, stackAbilityId ?: 0, stackAbilityId != null)
+            .takeIf { it.hostCardId != null || it.abilityOnStack }
     }
 
     /**

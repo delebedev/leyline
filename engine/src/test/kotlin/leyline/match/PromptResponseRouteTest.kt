@@ -12,7 +12,6 @@ class PromptResponseRouteTest :
 
         val representativeRoutes =
             mapOf(
-                PromptSemantic.GroupingSurveil to PromptRouteResolver.resolve(PromptSemantic.GroupingSurveil),
                 PromptSemantic.ModalChoice to PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
                 PromptSemantic.SelectNResolution to PromptRouteResolver.resolve(PromptSemantic.SelectNResolution),
                 PromptSemantic.SelectNDiscard to PromptRouteResolver.resolve(PromptSemantic.SelectNDiscard),
@@ -24,7 +23,6 @@ class PromptResponseRouteTest :
             )
         val acceptedRoutes =
             mapOf(
-                PromptResponseKind.Group to setOf(representativeRoutes.getValue(PromptSemantic.GroupingSurveil)),
                 PromptResponseKind.ModalChoice to setOf(representativeRoutes.getValue(PromptSemantic.ModalChoice)),
                 PromptResponseKind.SelectN to
                     setOf(representativeRoutes.getValue(PromptSemantic.SelectNResolution)),

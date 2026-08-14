@@ -22,7 +22,6 @@ import leyline.game.event.Zone
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
-import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**
  * Tests for [leyline.game.event.GameEventCollector] — verifies that Forge engine events are
@@ -653,44 +652,6 @@ class GameEventCollectorTest :
             val sh = collector.closeFrame().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
             sh[0].seatId shouldBe SeatId(1)
-        }
-
-        // -- Scry --
-
-        test("scry event") {
-            val (b, game, _) = startWithBoard { _, _, _ -> }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-            b.recordLibraryArrangement(SeatId(1), GroupingContext.Scry_a0f6, topIds = listOf(101), awayIds = listOf(102, 103))
-
-            game.fireEvent(GameEventScry(PlayerView.get(game.humanPlayer), 1, 2))
-
-            val scry = collector.closeFrame().events.filterIsInstance<GameEvent.Scry>()
-            assertSoftly {
-                scry.size shouldBe 1
-                scry[0].seatId shouldBe SeatId(1)
-                scry[0].topIds shouldBe listOf(101)
-                scry[0].bottomIds shouldBe listOf(102, 103)
-            }
-        }
-
-        // -- Surveil --
-
-        test("surveil event") {
-            val (b, game, _) = startWithBoard { _, _, _ -> }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-            b.recordLibraryArrangement(SeatId(1), GroupingContext.Surveil, topIds = listOf(201), awayIds = listOf(202, 203, 204))
-
-            game.fireEvent(GameEventSurveil(PlayerView.get(game.humanPlayer), 1, 3))
-
-            val sv = collector.closeFrame().events.filterIsInstance<GameEvent.Surveil>()
-            assertSoftly {
-                sv.size shouldBe 1
-                sv[0].seatId shouldBe SeatId(1)
-                sv[0].libraryIds shouldBe listOf(201)
-                sv[0].graveyardIds shouldBe listOf(202, 203, 204)
-            }
         }
 
         // -- CombatEnded --

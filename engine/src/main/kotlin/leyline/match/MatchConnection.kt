@@ -344,16 +344,16 @@ class MatchConnection(
 
     private fun dispatchGroupResp(greMsg: ClientToGREMessage) {
         val gameSession = session as? GameOps
-        val pendingPrompt =
-            gameSession
-                ?.gameBridge
-                ?.seat(SeatId(seatId))
-                ?.prompt
-                ?.getPendingPrompt()
-        if (pendingPrompt != null) {
-            gameSession.onGroupResp(greMsg)
-        } else {
-            mulliganHandler.onGroupResp(greMsg)
+        val bridge = gameSession?.gameBridge
+        when (
+            groupResponseRoute(
+                groupingPending = bridge?.cutCoordinator?.grouping?.current() != null,
+                mulliganPhase = bridge?.mulliganBridge(SeatId(seatId))?.pendingPrompt()?.phase,
+            )
+        ) {
+            GroupResponseRoute.Grouping -> checkNotNull(gameSession).onGroupResp(greMsg)
+            GroupResponseRoute.LondonTuck -> mulliganHandler.onGroupResp(greMsg)
+            GroupResponseRoute.Stale -> log.warn("Match Door GRE: stale GroupResp without Grouping or London-tuck window")
         }
     }
 

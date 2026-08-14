@@ -122,6 +122,18 @@ original handles before releasing the engine wait. Timeout retires the window
 and returns the default-first order, while publication and delivery failures
 use the match terminal path.
 
+### Grouping Interaction Lifecycle
+
+Bound Scry and Surveil routes are coordinator-owned. The engine thread freezes
+the source, private candidates, and exact card handles. `MatchGroupingInteractionRuntime`
+materializes and commits the private reveal state and `GroupReq` as one cut before
+signalling. The session submits only a correlated complete instance-id partition;
+the runtime maps it to the retained original handles before releasing the engine wait.
+When kept cards require ordering, the arrangement remains pending until the ordered-card
+window returns, then records the final top order. Timeout retires the exact window and
+returns the existing default partition; publication and delivery failures use the match
+terminal path.
+
 ### Cost Interaction Lifecycles
 
 `DeferredCastCostInteractionHandler` owns pre-engine cast prompts:

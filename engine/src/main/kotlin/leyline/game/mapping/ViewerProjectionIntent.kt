@@ -8,6 +8,7 @@ import java.util.Collections
 /** Immutable, viewer-specific projection work appended to one state frame. */
 class ViewerProjectionIntent private constructor(
     supplements: List<ProjectionSupplement>,
+    val privateCardPrompt: PrivateCardPromptProjection?,
     val orderPrompt: OrderPromptProjection?,
 ) {
     val supplements: List<ProjectionSupplement> = supplements.frozenCopy()
@@ -16,17 +17,43 @@ class ViewerProjectionIntent private constructor(
         this === other ||
             other is ViewerProjectionIntent &&
             supplements == other.supplements &&
+            privateCardPrompt == other.privateCardPrompt &&
             orderPrompt == other.orderPrompt
 
-    override fun hashCode(): Int = 31 * supplements.hashCode() + (orderPrompt?.hashCode() ?: 0)
+    override fun hashCode(): Int =
+        31 * (31 * supplements.hashCode() + (privateCardPrompt?.hashCode() ?: 0)) + (orderPrompt?.hashCode() ?: 0)
 
     companion object {
-        val EMPTY = ViewerProjectionIntent(emptyList(), null)
+        val EMPTY = ViewerProjectionIntent(emptyList(), null, null)
 
         fun of(
             supplements: List<ProjectionSupplement> = emptyList(),
+            privateCardPrompt: PrivateCardPromptProjection? = null,
             orderPrompt: OrderPromptProjection? = null,
-        ): ViewerProjectionIntent = ViewerProjectionIntent(supplements, orderPrompt)
+        ): ViewerProjectionIntent = ViewerProjectionIntent(supplements, privateCardPrompt, orderPrompt)
+    }
+}
+
+/** Private card exposure and source identity required by one hidden-card prompt. */
+class PrivateCardPromptProjection private constructor(
+    candidateForgeIds: List<ForgeCardId>,
+    val sourceForgeId: ForgeCardId?,
+) {
+    val candidateForgeIds: List<ForgeCardId> = candidateForgeIds.frozenCopy()
+
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            other is PrivateCardPromptProjection &&
+            candidateForgeIds == other.candidateForgeIds &&
+            sourceForgeId == other.sourceForgeId
+
+    override fun hashCode(): Int = 31 * candidateForgeIds.hashCode() + (sourceForgeId?.hashCode() ?: 0)
+
+    companion object {
+        fun of(
+            candidateForgeIds: List<ForgeCardId>,
+            sourceForgeId: ForgeCardId?,
+        ): PrivateCardPromptProjection = PrivateCardPromptProjection(candidateForgeIds, sourceForgeId)
     }
 }
 

@@ -90,6 +90,21 @@ internal data class OrderMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.OrderWindowValue,
 )
 
+/** Exact Scry or Surveil cut retained on terminal failure. */
+internal data class PendingGroupingCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.GroupingWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen Grouping input retained when materialization itself fails. */
+internal data class GroupingMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.GroupingWindowValue,
+)
+
 /** Exact card-backed SelectN cut retained on terminal failure. */
 internal data class PendingCardSelectCut(
     val interactionId: String,
@@ -155,6 +170,8 @@ internal data class PromptTerminalFailureContext(
     val searchDiagnostic: SearchMaterializationDiagnostic? = null,
     val pendingOrderCut: PendingOrderCut? = null,
     val orderDiagnostic: OrderMaterializationDiagnostic? = null,
+    val pendingGroupingCut: PendingGroupingCut? = null,
+    val groupingDiagnostic: GroupingMaterializationDiagnostic? = null,
     val pendingCardSelectCut: PendingCardSelectCut? = null,
     val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
     val pendingStaticChoiceCut: PendingStaticChoiceCut? = null,
@@ -176,6 +193,8 @@ internal class PlaybackTerminalFailure(
     val searchDiagnostic get() = prompt.searchDiagnostic
     val pendingOrderCut get() = prompt.pendingOrderCut
     val orderDiagnostic get() = prompt.orderDiagnostic
+    val pendingGroupingCut get() = prompt.pendingGroupingCut
+    val groupingDiagnostic get() = prompt.groupingDiagnostic
     val pendingCardSelectCut get() = prompt.pendingCardSelectCut
     val cardSelectDiagnostic get() = prompt.cardSelectDiagnostic
     val pendingStaticChoiceCut get() = prompt.pendingStaticChoiceCut

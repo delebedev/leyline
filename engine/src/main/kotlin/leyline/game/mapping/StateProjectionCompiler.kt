@@ -55,7 +55,16 @@ object StateProjectionCompiler {
     ): Result {
         val editor = prior.editor()
         val draft = StateMapper.buildDraft(input, environment, prior, editor, actions)
-        val orderResult = projectOrder(draft.gsm, input.snapshot, input.viewingSeatId, intent.orderPrompt, environment, editor)
+        val privatePromptGsm =
+            projectPrivateCardPrompt(
+                draft.gsm,
+                input.snapshot,
+                input.viewingSeatId,
+                intent.privateCardPrompt,
+                environment,
+                editor,
+            )
+        val orderResult = projectOrder(privatePromptGsm, input.snapshot, input.viewingSeatId, intent.orderPrompt, environment, editor)
         val supplementAnnotations = projectSupplements(input, prior, intent.supplements, draft, editor)
         val finalized =
             AnnotationFrameFinalizer.finalize(
@@ -160,6 +169,20 @@ object StateProjectionCompiler {
         val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
     )
 
+    private fun projectPrivateCardPrompt(
+        gsm: GameStateMessage,
+        snapshot: GsmSnapshot,
+        viewingSeatId: Int,
+        prompt: PrivateCardPromptProjection?,
+        environment: StateProjectionEnvironment,
+        editor: ProjectionState.Editor,
+    ): GameStateMessage {
+        prompt ?: return gsm
+        prompt.sourceForgeId?.let(editor.identities::getOrAlloc)
+        prompt.candidateForgeIds.forEach(editor.identities::getOrAlloc)
+        return exposePrivateCandidates(gsm, snapshot, prompt.candidateForgeIds, viewingSeatId, environment, editor)
+    }
+
     private fun projectOrder(
         gsm: GameStateMessage,
         snapshot: GsmSnapshot,
@@ -173,7 +196,7 @@ object StateProjectionCompiler {
         val move = order.move
         if (move == null) {
             return OrderResult(
-                exposeOrderCandidates(gsm, snapshot, order.candidateForgeIds, viewingSeatId, environment, editor),
+                exposePrivateCandidates(gsm, snapshot, order.candidateForgeIds, viewingSeatId, environment, editor),
                 snapshot,
             )
         }
@@ -302,7 +325,7 @@ object StateProjectionCompiler {
         return builder.build()
     }
 
-    private fun exposeOrderCandidates(
+    private fun exposePrivateCandidates(
         gsm: GameStateMessage,
         snapshot: GsmSnapshot,
         candidates: List<ForgeCardId>,

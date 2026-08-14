@@ -49,6 +49,7 @@ internal class MatchCutCoordinator(
     internal val targeting = MatchTargetingInteractionRuntime(this)
     internal val search = MatchSearchInteractionRuntime(this)
     internal val order = MatchOrderInteractionRuntime(this)
+    internal val grouping = MatchGroupingInteractionRuntime(this)
     internal val cardSelect = MatchCardSelectInteractionRuntime(this)
     internal val staticChoices = MatchStaticChoiceInteractionRuntime(this)
     internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
@@ -187,6 +188,7 @@ internal class MatchCutCoordinator(
         targeting.terminate(failure)
         search.terminate(failure)
         order.terminate(failure)
+        grouping.terminate(failure)
         cardSelect.terminate(failure)
         staticChoices.terminate(failure)
         manaSourcePayments.terminate(failure)
@@ -203,6 +205,7 @@ internal class MatchCutCoordinator(
             targeting.reset()
             search.reset()
             order.reset()
+            grouping.reset()
             cardSelect.reset()
             staticChoices.reset()
             manaSourcePayments.reset()
@@ -411,6 +414,7 @@ internal class MatchCutCoordinator(
             manaSourcePayments.pendingCutLocked()?.let { failManaSourcePayment(cause, it) }
             search.pendingCutLocked()?.let { failSearch(cause, it) }
             order.pendingCutLocked()?.let { failOrder(cause, it) }
+            grouping.pendingCutLocked()?.let { failGrouping(cause, it) }
             cardSelect.pendingCutLocked()?.let { failCardSelect(cause, it) }
             staticChoices.pendingCutLocked()?.let { failStaticChoice(cause, it) }
             fail(cause)

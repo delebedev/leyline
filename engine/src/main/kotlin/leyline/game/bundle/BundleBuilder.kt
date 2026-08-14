@@ -7,6 +7,7 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
+import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.SearchWindowValue
@@ -14,7 +15,6 @@ import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
@@ -23,10 +23,12 @@ import leyline.game.event.GameEvent
 import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.OrderPromptProjection
 import leyline.game.mapping.OrderZoneMoveFact
 import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PrivateCardPromptProjection
 import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
@@ -35,7 +37,6 @@ import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
@@ -90,6 +91,7 @@ class BundleBuilder(
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val orderWindows = OrderWindowMaterializer(seatId)
+    private val groupingWindows = GroupingWindowMaterializer(seatId)
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
     private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
 
@@ -308,7 +310,7 @@ class BundleBuilder(
                             )
                         },
                     )
-            finalizeFrameInputLocked(input, ViewerProjectionIntent.of(allSupplements, orderPrompt))
+            finalizeFrameInputLocked(input, ViewerProjectionIntent.of(supplements = allSupplements, orderPrompt = orderPrompt))
         }
 
     private fun finalizeFrameInputLocked(
@@ -1404,6 +1406,44 @@ class BundleBuilder(
         )
     }
 
+    /** Prepare, but do not install, one coordinator-owned Scry or Surveil window. */
+    internal fun prepareGroupingWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: GroupingWindowValue,
+    ): GroupingWindowMaterializer.Prepared {
+        val sourceForgeId =
+            window.source
+                ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
+                ?.let { FrameIdResolver.triggerStackAbilityForgeId(it.forgeAbilityId) }
+                ?: window.source?.hostCardId
+        val privatePrompt =
+            PrivateCardPromptProjection.of(
+                candidateForgeIds = window.candidates.map { it.forgeCardId },
+                sourceForgeId = sourceForgeId,
+            )
+        val supplements =
+            listOfNotNull(
+                window.source
+                    ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
+                    ?.let { ProjectionSupplement.ReserveTriggeredAbility(it.forgeAbilityId) },
+            )
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val diff =
+            prepareFrameInputLocked(
+                input,
+                ViewerProjectionIntent.of(supplements = supplements, privateCardPrompt = privatePrompt),
+            )
+        return groupingWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Prepare, but do not install, one coordinator-owned card-backed SelectN window. */
     internal fun prepareCardSelectWindow(
         game: Game,
@@ -2161,53 +2201,12 @@ class BundleBuilder(
         }
     }
 
-    /**
-     * Resolve candidateRefs to Forge cards and build a surveil/scry bundle.
-     *
-     * Encapsulates card resolution (candidateRefs → Forge Card + instanceId) plus
-     * bundle building (reveal diff + GroupReq) so callers don't need to do inline
-     * card resolution. Returns null if no cards could be resolved from candidateRefs.
-     *
-     * @param candidateRefs prompt candidate references from [InteractivePromptBridge]
-     * @param context whether this is surveil or scry
-     * @param counter message counter for sequencing
-     */
-    fun resolveSurveilScryBundle(
-        candidateRefs: List<PromptCandidateRefDto>,
-        context: GroupingContext,
-        counter: MessageCounter,
-    ): BundleResult? =
-        projectAndCommitIfNotNull {
-            val game = bridge.getGame() ?: return@projectAndCommitIfNotNull null
-            val resolved =
-                candidateRefs
-                    .filter { it.isCard() }
-                    .mapNotNull { ref ->
-                        val card = game.findById(ref.entityId)
-                        if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
-                    }
-            if (resolved.isEmpty()) return@projectAndCommitIfNotNull null
-            val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            val topCardSnaps = resolved.mapNotNull { (card, _) -> snap.objects[ForgeCardId(card.id)] }
-            if (topCardSnaps.size != resolved.size) return@projectAndCommitIfNotNull null
-            val cardInstanceIds = resolved.map { it.second }
-            val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
-            surveilScryBundle(topCardSnaps, cardInstanceIds, sourceId, context, counter)
-        }
-
     private fun <T> projectAndCommit(block: () -> T): T =
         synchronized(bridge.projectionBuildLock) {
             val prior = bridge.projectionStateSnapshot()
             val (result, next) = bridge.editProjection(prior) { block() }
             bridge.commitProjection(ProjectionTransition(prior.revision, next))
             result
-        }
-
-    private fun <T : Any> projectAndCommitIfNotNull(block: () -> T?): T? =
-        synchronized(bridge.projectionBuildLock) {
-            val prior = bridge.projectionStateSnapshot()
-            val (result, next) = bridge.editProjection(prior) { block() }
-            result?.also { bridge.commitProjection(ProjectionTransition(prior.revision, next)) }
         }
 
     private fun rebaseFrameIdentityState(
@@ -2223,59 +2222,6 @@ class BundleBuilder(
                 }
             }
         return rebased.copy(revision = committed.revision)
-    }
-
-    /**
-     * Surveil/scry bundle: reveal diff (card objects with Private visibility) + GroupReq.
-     *
-     * Builds a GSM diff that exposes library top card(s) as `visibility=Private, viewers=[seatId]`
-     * so the client shows them face-up in the surveil/scry modal, followed by a GroupReq.
-     *
-     * @param topCardSnaps snapshots for the cards being surveilled/scryed
-     * @param cardInstanceIds instanceIds corresponding to [topCardSnaps]
-     * @param sourceId instanceId of the triggering spell
-     * @param context whether this is surveil or scry
-     * @param counter message counter for sequencing
-     */
-    fun surveilScryBundle(
-        topCardSnaps: List<CardSnapshot>,
-        cardInstanceIds: List<Int>,
-        sourceId: Int,
-        context: GroupingContext,
-        counter: MessageCounter,
-    ): BundleResult {
-        val libZoneId = ZoneIds.libraryOf(seatId)
-        val revealedObjects =
-            topCardSnaps.zip(cardInstanceIds).map { (cardSnap, iid) ->
-                ObjectMapper
-                    .buildFromSnapshot(cardSnap, iid, libZoneId, seatId, bridge.cardProto, Visibility.Private)
-                    .toBuilder()
-                    .addViewers(seatId)
-                    .build()
-            }
-        val gsId = counter.nextGsId()
-        val revealDiff =
-            makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
-                it.gameStateMessage =
-                    GameStateMessage
-                        .newBuilder()
-                        .setType(GameStateType.Diff)
-                        .setGameStateId(gsId)
-                        .setPrevGameStateId(gsId - 1)
-                        .addAllGameObjects(revealedObjects)
-                        .build()
-            }
-
-        val groupReq =
-            GsmBuilder.buildSurveilScryGroupReq(
-                msgId = counter.nextMsgId(),
-                gameStateId = gsId,
-                seatId = seatId,
-                cardInstanceIds = cardInstanceIds,
-                context = context,
-                sourceInstanceId = sourceId,
-            )
-        return BundleResult(listOf(revealDiff, groupReq))
     }
 
     /** Build a single GRE message. */

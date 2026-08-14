@@ -5,7 +5,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.annotations
@@ -55,6 +54,7 @@ class LibraryOrderInteractionTest :
                 req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
                 req.groupSpecsList[0].subZoneType shouldBe SubZoneType.Top
                 req.groupSpecsList[1].zoneType shouldBe ZoneType.Graveyard
+                req.sourceId shouldNotBe 0
             }
 
             // Revealed card must be library top (Grizzly Bears)
@@ -80,16 +80,18 @@ class LibraryOrderInteractionTest :
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
             val promptBefore =
                 harness.bridge
-                    .promptBridge(SeatId(1))
-                    .getPendingPrompt()
+                    .cutCoordinator
+                    .grouping
+                    .current()
                     .shouldNotBeNull()
 
             selectTargetsIterative(emptyList())
 
             harness.bridge
-                .promptBridge(SeatId(1))
-                .getPendingPrompt()
-                ?.promptId shouldBe promptBefore.promptId
+                .cutCoordinator
+                .grouping
+                .current()
+                ?.interactionId shouldBe promptBefore.interactionId
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
             human
                 .getZone(ForgeZoneType.Library)
@@ -204,11 +206,19 @@ class LibraryOrderInteractionTest :
 
             respondToOrder(orderedIds)
 
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .take(2)
-                .map { it.name } shouldBe orderedNames
+            val annotation =
+                allMessages
+                    .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
+                    .last { AnnotationType.Scry_af5a in it.typeList }
+            assertSoftly {
+                human
+                    .getZone(ForgeZoneType.Library)
+                    .cards
+                    .take(2)
+                    .map { it.name } shouldBe orderedNames
+                annotation.detailIntList("topIds") shouldBe orderedIds
+                annotation.detailIntList("bottomIds") shouldBe emptyList()
+            }
         }
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
@@ -329,10 +339,18 @@ class LibraryOrderInteractionTest :
 
             respondToOrder(orderedIds)
 
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .take(2)
-                .map { it.name } shouldBe orderedNames
+            val annotation =
+                allMessages
+                    .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
+                    .last { AnnotationType.Scry_af5a in it.typeList }
+            assertSoftly {
+                human
+                    .getZone(ForgeZoneType.Library)
+                    .cards
+                    .take(2)
+                    .map { it.name } shouldBe orderedNames
+                annotation.detailIntList("topIds") shouldBe orderedIds
+                annotation.detailIntList("bottomIds") shouldBe emptyList()
+            }
         }
     })

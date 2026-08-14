@@ -227,7 +227,7 @@ class TargetingHandler(
         val game = ctx.game
         val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
-            if (sendPrompt(pendingPrompt, PromptDispatchContext.POST_CAST)) return true
+            if (sendPrompt(pendingPrompt)) return true
             when (checkPendingPrompt()) {
                 PromptResult.SENT_TO_CLIENT -> return true
                 PromptResult.AUTO_RESOLVED,
@@ -267,7 +267,6 @@ class TargetingHandler(
     /**
      * Check for a residual pending interactive prompt.
      * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
-     * - Surveil/scry prompts → send GroupReq to client.
      * - Other non-targeting prompts (confirm, choose_cards, order) → auto-resolve with
      *   defaultIndex. Coordinator-owned prompts never enter this fallback.
      */
@@ -275,12 +274,13 @@ class TargetingHandler(
         val bridge = ctx.bridge
         if (bridge.cutCoordinator.targeting.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.search.current() != null) return PromptResult.SENT_TO_CLIENT
+        if (bridge.cutCoordinator.grouping.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.staticChoices.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.manaSourcePayments.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.oneShotPayCosts.current() != null) return PromptResult.SENT_TO_CLIENT
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
-        return if (sendPrompt(pendingPrompt, PromptDispatchContext.PENDING_CHECK)) {
+        return if (sendPrompt(pendingPrompt)) {
             PromptResult.SENT_TO_CLIENT
         } else {
             when (pendingPrompt.request.route) {
@@ -338,20 +338,10 @@ class TargetingHandler(
         }
     }
 
-    private enum class PromptDispatchContext {
-        POST_CAST,
-        PENDING_CHECK,
-    }
-
-    private fun sendPrompt(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        context: PromptDispatchContext,
-    ): Boolean {
-        return when (val route = pendingPrompt.request.route) {
+    private fun sendPrompt(pendingPrompt: InteractivePromptBridge.PendingPrompt): Boolean =
+        when (val route = pendingPrompt.request.route) {
             is ResolvedPromptRoute.Grouping -> {
-                if (context != PromptDispatchContext.PENDING_CHECK) return false
-                sendGroupReqForSurveilScry(pendingPrompt, route.context)
-                true
+                error("Grouping prompts must be published by MatchGroupingInteractionRuntime")
             }
 
             is ResolvedPromptRoute.ModalChoice -> {
@@ -395,69 +385,6 @@ class TargetingHandler(
 
             is ResolvedPromptRoute.AutoResolve -> false
         }
-    }
-
-    /**
-     * Handle GroupResp for surveil/scry: translate client grouping back to prompt indices.
-     *
-     * Arena sends GroupResp with 2 groups:
-     *   - Group 0 (Library/Top): cards to keep on top
-     *   - Group 1 (Graveyard or Library/Bottom): cards to send away
-     *
-     * For single-card surveil: group 0 non-empty → index 0 (keep), group 1 non-empty → index 1 (graveyard).
-     * For multi-card: group 1 IDs → indices of cards chosen for "away" zone.
-     */
-    fun onGroupResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
-        val bridge = ctx.bridge
-        val seatBridge = bridge.seat(counters.seatId)
-        val pendingPrompt =
-            seatBridge.prompt.getPendingPrompt() ?: run {
-                log.warn("TargetingHandler: GroupResp but no pending prompt (likely timeout race)")
-                DevCheck.failOnAutoPass { "GroupResp but no pending prompt" }
-                return
-            }
-        if (!pendingPrompt.request.route.accepts(PromptResponseKind.Group)) {
-            log.warn("TargetingHandler: GroupResp does not match bound route {}", pendingPrompt.request.route)
-            DevCheck.failOnAutoPass { "GroupResp does not match bound route ${pendingPrompt.request.route}" }
-            return
-        }
-
-        val groups = greMsg.groupResp.groupsList
-        val req = pendingPrompt.request
-        val route = pendingPrompt.request.route as ResolvedPromptRoute.Grouping
-        val topIds = groups.getOrNull(0)?.idsList.orEmpty()
-        val awayIds = groups.getOrNull(1)?.idsList.orEmpty()
-        bridge.recordLibraryArrangement(counters.seatId, route.context, topIds, awayIds)
-        val selectedIndices =
-            if (req.max == 1 && req.options.size == 2) {
-                // Single-card surveil/scry: "Top of library" (0) vs "Graveyard"/"Bottom" (1)
-                // Group 1 (away zone) has the card → user chose "away" → index 1
-                if (awayIds.isNotEmpty()) {
-                    listOf(1) // away (graveyard for surveil, bottom for scry)
-                } else {
-                    listOf(0) // keep on top
-                }
-            } else {
-                // Multi-card surveil/scry: away group IDs → indices into options
-                awayIds
-                    .mapNotNull { iid ->
-                        val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
-                        // Cards may be zoneless during surveil — use game.findById
-                        // instead of player.allCards (which only sees zoned cards).
-                        val card = ctx.game.findById(cardId.value) ?: return@mapNotNull null
-                        req.options.indexOf(card.name)
-                    }.filter { it >= 0 }
-            }
-
-        log.info("TargetingHandler: GroupResp → prompt indices={}", selectedIndices)
-
-        seatBridge.prompt.submitResponse(pendingPrompt.promptId, selectedIndices)
-        bridge.awaitPriority()
-        autoPass()
-    }
 
     /**
      * Handle CancelActionReq: player backed out of targeting (cancel spell cast).
@@ -852,42 +779,6 @@ class TargetingHandler(
     private fun learnPromptId(pendingPrompt: InteractivePromptBridge.PendingPrompt): Int {
         val hasHandChoice = pendingPrompt.request.candidateRefs.any { it.zone == "Hand" }
         return if (hasHandChoice) PromptIds.LEARN_LESSON_OR_DISCARD else PromptIds.LEARN_LESSON_ONLY
-    }
-
-    /**
-     * Build and send a GroupReq for surveil/scry. Looks up instanceIds for
-     * the cards being surveilled from the library top.
-     *
-     * Client expects a GSM diff that exposes the library top card(s) as
-     * `visibility=Private, viewers=[seatId]` before the GroupReq — this makes
-     * the card visible (face-up) in the client's surveil/scry modal.
-     */
-    private fun sendGroupReqForSurveilScry(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        context: GroupingContext,
-    ) {
-        val bridge = ctx.bridge
-        val game = ctx.game
-        val req = pendingPrompt.request
-
-        // Resolve candidateRefs → cards + build bundle. Returns null if no cards resolved.
-        val result = bundles.bundleBuilder.resolveSurveilScryBundle(req.candidateRefs, context, counters.counter)
-        if (result == null) {
-            log.warn(
-                "TargetingHandler: surveil/scry resolve failed — candidateRefs={} (falling back)",
-                req.candidateRefs.size,
-            )
-            bridge.seat(counters.seatId).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-            bridge.awaitPriority()
-            return
-        }
-
-        val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
-        val msgCount = result.messages.size
-        log.info("TargetingHandler: sending GroupReq for {} messages={}", contextLabel, msgCount)
-
-        Tap.outboundTemplate("GroupReq($contextLabel) seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
     }
 
     /** Submit default response and wait — used when modal lookup fails. */

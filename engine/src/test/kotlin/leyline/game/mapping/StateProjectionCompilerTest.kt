@@ -39,11 +39,12 @@ class StateProjectionCompilerTest :
             val moveCards = mutableListOf(ForgeCardId(10))
             val intent =
                 ViewerProjectionIntent.of(
-                    supplementValues,
-                    OrderPromptProjection.of(
-                        candidates,
-                        move = OrderZoneMoveFact.of(SeatId(1), moveCards, putOnTop = true),
-                    ),
+                    supplements = supplementValues,
+                    orderPrompt =
+                        OrderPromptProjection.of(
+                            candidates,
+                            move = OrderZoneMoveFact.of(SeatId(1), moveCards, putOnTop = true),
+                        ),
                 )
 
             supplementValues += ProjectionSupplement.ReserveTriggeredAbility(7)
