@@ -38,13 +38,6 @@ data class SelectNEnvelope(
                 allowCancel = AllowCancel.No_a526,
             )
 
-        fun revealChoose(req: SelectNReq): SelectNEnvelope =
-            SelectNEnvelope(
-                req = req,
-                prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build(),
-                allowCancel = AllowCancel.No_a526,
-            )
-
         fun resolution(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,

@@ -41,16 +41,6 @@ class SelectNEnvelopeTest :
             }
         }
 
-        test("reveal choose envelope disables cancel") {
-            val envelope = SelectNEnvelope.revealChoose(req)
-
-            assertSoftly {
-                envelope.prompt.promptId shouldBe PromptIds.SELECT_N
-                envelope.allowCancel shouldBe AllowCancel.No_a526
-                envelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.None
-            }
-        }
-
         test("resolution envelope uses look-and-pick prompt and augmentation") {
             val envelope = SelectNEnvelope.resolution(req)
 

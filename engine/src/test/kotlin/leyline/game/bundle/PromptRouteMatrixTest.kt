@@ -48,7 +48,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.OrderForTop to ResolvedPromptRoute.Order(PromptSemantic.OrderForTop, OrderRouteKind.Top),
                     PromptSemantic.OrderGeneric to ResolvedPromptRoute.AutoResolve(PromptSemantic.OrderGeneric),
                     PromptSemantic.RevealChoose to
-                        selectN(PromptSemantic.RevealChoose, SelectNInnerPrompt.GenericSelectN, SelectNEnvelopeKind.RevealChoose),
+                        ResolvedPromptRoute.RevealChoice(PromptSemantic.RevealChoose),
                     PromptSemantic.SelectNResolution to
                         selectN(
                             PromptSemantic.SelectNResolution,

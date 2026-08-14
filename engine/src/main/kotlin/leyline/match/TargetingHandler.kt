@@ -58,6 +58,7 @@ class TargetingHandler(
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
     private val promptResponseSubmitter = PromptResponseSubmitter(counters, ctx)
     private val cardSelectInteractionHandler = CardSelectInteractionHandler(ctx)
+    private val revealChoiceInteractionHandler = RevealChoiceInteractionHandler(ctx)
     private val staticChoiceInteractionHandler = StaticChoiceInteractionHandler(ctx)
     private val manaSourcePaymentHandler = ManaSourcePaymentHandler(sink, counters, ctx)
     private val deferredCastCostInteractionHandler =
@@ -189,6 +190,7 @@ class TargetingHandler(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ) {
+        if (revealChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         if (staticChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         if (cardSelectInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         promptResponseSubmitter.onSelectN(greMsg, autoPass)
@@ -272,12 +274,7 @@ class TargetingHandler(
      */
     fun checkPendingPrompt(): PromptResult {
         val bridge = ctx.bridge
-        if (bridge.cutCoordinator.targeting.current() != null) return PromptResult.SENT_TO_CLIENT
-        if (bridge.cutCoordinator.search.current() != null) return PromptResult.SENT_TO_CLIENT
-        if (bridge.cutCoordinator.grouping.current() != null) return PromptResult.SENT_TO_CLIENT
-        if (bridge.cutCoordinator.staticChoices.current() != null) return PromptResult.SENT_TO_CLIENT
-        if (bridge.cutCoordinator.manaSourcePayments.current() != null) return PromptResult.SENT_TO_CLIENT
-        if (bridge.cutCoordinator.oneShotPayCosts.current() != null) return PromptResult.SENT_TO_CLIENT
+        if (hasCoordinatorPrompt(bridge)) return PromptResult.SENT_TO_CLIENT
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         return if (sendPrompt(pendingPrompt)) {
@@ -326,6 +323,9 @@ class TargetingHandler(
                 is ResolvedPromptRoute.StaticChoice ->
                     error("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime")
 
+                is ResolvedPromptRoute.RevealChoice ->
+                    error("RevealChoice prompts must be published by MatchRevealChoiceInteractionRuntime")
+
                 is ResolvedPromptRoute.Grouping,
                 is ResolvedPromptRoute.ModalChoice,
                 is ResolvedPromptRoute.PayCosts,
@@ -337,6 +337,17 @@ class TargetingHandler(
             }
         }
     }
+
+    private fun hasCoordinatorPrompt(bridge: leyline.game.state.GameBridge): Boolean =
+        bridge.cutCoordinator.let { coordinator ->
+            coordinator.targeting.current() != null ||
+                coordinator.search.current() != null ||
+                coordinator.grouping.current() != null ||
+                coordinator.staticChoices.current() != null ||
+                coordinator.revealChoices.current() != null ||
+                coordinator.manaSourcePayments.current() != null ||
+                coordinator.oneShotPayCosts.current() != null
+        }
 
     private fun sendPrompt(pendingPrompt: InteractivePromptBridge.PendingPrompt): Boolean =
         when (val route = pendingPrompt.request.route) {
@@ -364,6 +375,10 @@ class TargetingHandler(
 
             is ResolvedPromptRoute.StaticChoice -> {
                 error("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime")
+            }
+
+            is ResolvedPromptRoute.RevealChoice -> {
+                error("RevealChoice prompts must be published by MatchRevealChoiceInteractionRuntime")
             }
 
             is ResolvedPromptRoute.Targeting -> {

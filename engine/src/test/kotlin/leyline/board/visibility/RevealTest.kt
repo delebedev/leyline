@@ -6,20 +6,11 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.TargetingCoordinator
-import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.PromptRouteResolver
-import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.RequestBuilder
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
@@ -34,18 +25,14 @@ import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
-import wotc.mtgo.gre.external.messaging.Messages.IdType
-import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
-import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
-import java.util.concurrent.CompletableFuture
 
 /**
  * Reveal subsystem tests.
  *
  * Covers: RevealedCardCreated annotations, RevealedCard proxy synthesis,
  * hand visibility flip during reveal, proxy cleanup lifecycle,
- * and SelectNReq construction for reveal-choose prompts.
+ * and reveal-choice projected-object cleanup.
  */
 class RevealTest :
     BoardTest({
@@ -246,7 +233,9 @@ class RevealTest :
                 .shouldNotBeEmpty()
 
             // Clear reveal (simulates choice completion)
-            TargetingCoordinator.endReveal(board.bridge.promptBridge(SeatId(1)))
+            board.bridge.promptBridge(SeatId(1)).journal.let { journal ->
+                journal.clearActiveReveal(checkNotNull(journal.activeRevealEntry()))
+            }
 
             val gsm = board.snapshotDiff {}
 
@@ -266,89 +255,6 @@ class RevealTest :
             val gsm = board.snapshotDiff {}
 
             gsm.revealedCardProxies().shouldBeEmpty()
-        }
-
-        // ── RequestBuilder ──────────────────────────────────────────────
-
-        test("SelectNReq for reveal-choose with valid targets") {
-            val board =
-                startWithBoard { _, _, ai ->
-                    addCard("Lightning Bolt", ai, ZoneType.Hand)
-                    addCard("Grizzly Bears", ai, ZoneType.Hand)
-                }
-
-            val bolt =
-                board.game.aiPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Lightning Bolt" }
-            val bears =
-                board.game.aiPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
-            val boltId = board.instanceId(bolt.id)
-            val bearsId = board.instanceId(bears.id)
-
-            val prompt =
-                revealChoosePrompt(
-                    candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, bolt.id, "Hand")),
-                    unfilteredRefs =
-                        listOf(
-                            PromptCandidateRefDto(0, PromptCandidateKind.Card, bolt.id),
-                            PromptCandidateRefDto(1, PromptCandidateKind.Card, bears.id),
-                        ),
-                    min = 1,
-                    max = 1,
-                    sourceEntityId = 999,
-                )
-
-            val req = RequestBuilder.buildSelectNReq(prompt, board.bridge, prompt.selectNRoute())
-
-            assertSoftly {
-                req.idsList shouldHaveSize 1
-                req.idsList.first() shouldBe boltId
-                req.unfilteredIdsList shouldHaveSize 2
-                req.unfilteredIdsList.toSet() shouldBe setOf(boltId, bearsId)
-                req.context shouldBe SelectionContext.Resolution_a163
-                req.listType shouldBe SelectionListType.Dynamic
-                req.idType shouldBe IdType.InstanceId_ab2c
-                req.minSel shouldBe 1
-                req.maxSel shouldBe 1
-                req.sourceId shouldBeGreaterThan 0
-            }
-        }
-
-        test("SelectNReq for reveal-choose with no valid targets") {
-            val board =
-                startWithBoard { _, _, ai ->
-                    addCard("Grizzly Bears", ai, ZoneType.Hand)
-                }
-
-            val bears =
-                board.game.aiPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first()
-            val bearsId = board.instanceId(bears.id)
-
-            val prompt =
-                revealChoosePrompt(
-                    candidateRefs = emptyList(),
-                    unfilteredRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, bears.id)),
-                    min = 0,
-                    max = 0,
-                )
-
-            val req = RequestBuilder.buildSelectNReq(prompt, board.bridge, prompt.selectNRoute())
-
-            assertSoftly {
-                req.idsList.shouldBeEmpty()
-                req.unfilteredIdsList shouldHaveSize 1
-                req.unfilteredIdsList.first() shouldBe bearsId
-                req.minSel shouldBe 0
-                req.maxSel shouldBe 0
-            }
         }
     }) {
     companion object {
@@ -371,32 +277,5 @@ class RevealTest :
             TargetingCoordinator.startReveal(b.promptBridge(SeatId(1)), cardIds, ownerSeat)
             b.promptBridge(SeatId(1)).recordReveal(cardIds, ownerSeat, SeatId(if (ownerSeat.value == 1) 2 else 1))
         }
-
-        /** Build a PendingPrompt for reveal-choose scenarios. */
-        private fun revealChoosePrompt(
-            candidateRefs: List<PromptCandidateRefDto>,
-            unfilteredRefs: List<PromptCandidateRefDto>,
-            min: Int,
-            max: Int,
-            sourceEntityId: Int = 0,
-        ): InteractivePromptBridge.PendingPrompt =
-            InteractivePromptBridge.PendingPrompt(
-                promptId = "test",
-                request =
-                    PromptRequest(
-                        promptType = "choose_cards",
-                        message = "Choose a card to discard",
-                        options = candidateRefs.map { "card" },
-                        min = min,
-                        max = max,
-                        candidateRefs = candidateRefs,
-                        route = PromptRouteResolver.resolve(PromptSemantic.RevealChoose),
-                        unfilteredRefs = unfilteredRefs,
-                        sourceEntityId = sourceEntityId,
-                    ),
-                future = CompletableFuture(),
-            )
     }
 }
-
-private fun InteractivePromptBridge.PendingPrompt.selectNRoute() = (request.route as ResolvedPromptRoute.SelectN).descriptor

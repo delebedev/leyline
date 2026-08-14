@@ -14,6 +14,7 @@ class PromptResponseRouteTest :
             mapOf(
                 PromptSemantic.ModalChoice to PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
                 PromptSemantic.SelectNResolution to PromptRouteResolver.resolve(PromptSemantic.SelectNResolution),
+                PromptSemantic.RevealChoose to PromptRouteResolver.resolve(PromptSemantic.RevealChoose),
                 PromptSemantic.SelectNDiscard to PromptRouteResolver.resolve(PromptSemantic.SelectNDiscard),
                 PromptSemantic.SelectNCostSacrifice to PromptRouteResolver.resolve(PromptSemantic.SelectNCostSacrifice),
                 PromptSemantic.Search to PromptRouteResolver.resolve(PromptSemantic.Search),
@@ -25,7 +26,10 @@ class PromptResponseRouteTest :
             mapOf(
                 PromptResponseKind.ModalChoice to setOf(representativeRoutes.getValue(PromptSemantic.ModalChoice)),
                 PromptResponseKind.SelectN to
-                    setOf(representativeRoutes.getValue(PromptSemantic.SelectNResolution)),
+                    setOf(
+                        representativeRoutes.getValue(PromptSemantic.SelectNResolution),
+                        representativeRoutes.getValue(PromptSemantic.RevealChoose),
+                    ),
                 PromptResponseKind.EffectCost to
                     setOf(
                         representativeRoutes.getValue(PromptSemantic.SelectNResolution),

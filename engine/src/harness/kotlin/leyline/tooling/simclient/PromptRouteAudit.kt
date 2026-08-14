@@ -87,6 +87,7 @@ object PromptRouteAuditor {
             is ResolvedPromptRoute.SelectN -> "SelectNReq"
             is ResolvedPromptRoute.CardSelect -> "SelectNReq"
             is ResolvedPromptRoute.StaticChoice -> "SelectNReq"
+            is ResolvedPromptRoute.RevealChoice -> "SelectNReq"
             is ResolvedPromptRoute.PayCosts -> "PayCostsReq"
             is ResolvedPromptRoute.Search -> "SearchReq"
             is ResolvedPromptRoute.Order -> "OrderReq"

@@ -120,6 +120,21 @@ internal data class CardSelectMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.CardSelectWindowValue,
 )
 
+/** Exact reveal-backed SelectN cut retained on terminal failure. */
+internal data class PendingRevealChoiceCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.RevealChoiceWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen reveal-backed SelectN input retained when materialization itself fails. */
+internal data class RevealChoiceMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.RevealChoiceWindowValue,
+)
+
 /** Exact static enum SelectN cut retained on terminal failure. */
 internal data class PendingStaticChoiceCut(
     val interactionId: String,
@@ -174,6 +189,8 @@ internal data class PromptTerminalFailureContext(
     val groupingDiagnostic: GroupingMaterializationDiagnostic? = null,
     val pendingCardSelectCut: PendingCardSelectCut? = null,
     val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
+    val pendingRevealChoiceCut: PendingRevealChoiceCut? = null,
+    val revealChoiceDiagnostic: RevealChoiceMaterializationDiagnostic? = null,
     val pendingStaticChoiceCut: PendingStaticChoiceCut? = null,
     val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
     val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
@@ -197,6 +214,8 @@ internal class PlaybackTerminalFailure(
     val groupingDiagnostic get() = prompt.groupingDiagnostic
     val pendingCardSelectCut get() = prompt.pendingCardSelectCut
     val cardSelectDiagnostic get() = prompt.cardSelectDiagnostic
+    val pendingRevealChoiceCut get() = prompt.pendingRevealChoiceCut
+    val revealChoiceDiagnostic get() = prompt.revealChoiceDiagnostic
     val pendingStaticChoiceCut get() = prompt.pendingStaticChoiceCut
     val staticChoiceDiagnostic get() = prompt.staticChoiceDiagnostic
     val pendingManaSourcePaymentCut get() = prompt.pendingManaSourcePaymentCut

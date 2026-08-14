@@ -11,6 +11,7 @@ import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderWindowValue
+import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.TargetingWindowValue
@@ -46,6 +47,7 @@ import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import leyline.game.state.PromptFactConsumption
+import leyline.game.state.PromptFactKey
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.StaleProjectionTransitionException
 import leyline.game.state.ViewerProjectionCursor
@@ -88,6 +90,7 @@ class BundleBuilder(
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
     private val cardSelectWindows = CardSelectWindowMaterializer(seatId)
+    private val revealChoiceWindows = RevealChoiceWindowMaterializer(seatId)
     private val staticChoiceWindows = StaticChoiceWindowMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
@@ -1472,6 +1475,35 @@ class BundleBuilder(
         )
     }
 
+    /** Prepare, but do not install, one coordinator-owned reveal-backed SelectN window. */
+    internal fun prepareRevealChoiceWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: RevealChoiceWindowValue,
+    ): RevealChoiceWindowMaterializer.Prepared {
+        val promptFacts =
+            bridge
+                .materializePromptProjectionFacts()
+                .withClaimedReveal(PromptFactKey(window.journalSeatId, window.revealVersion))
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+                promptFactsOverride = promptFacts,
+            ) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return revealChoiceWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Prepare, but do not install, one coordinator-owned static enum SelectN window. */
     internal fun prepareStaticChoiceWindow(
         game: Game,
@@ -1561,7 +1593,7 @@ class BundleBuilder(
 
     /**
      * Residual SelectN bundle: GameState + SelectNReq.
-     * Used for reveal, resolution, Learn, and other dynamic residual SelectN prompts.
+     * Used for resolution, Learn, and other dynamic residual SelectN prompts.
      */
     fun selectNBundle(
         game: Game,
