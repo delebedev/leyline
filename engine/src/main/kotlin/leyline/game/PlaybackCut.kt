@@ -75,11 +75,28 @@ internal data class SearchMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.SearchWindowValue,
 )
 
+/** Exact iterative mana-source payment cut retained on terminal failure. */
+internal data class PendingManaSourcePaymentCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.ManaSourcePaymentWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen mana-source payment input retained when materialization itself fails. */
+internal data class ManaSourcePaymentMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.ManaSourcePaymentWindowValue,
+)
+
 internal class PlaybackTerminalFailure(
     val pendingCut: PendingCut?,
     val diagnostic: MaterializationDiagnostic?,
     val pendingInteractionCut: PendingInteractionCut? = null,
     val pendingSearchCut: PendingSearchCut? = null,
     val searchDiagnostic: SearchMaterializationDiagnostic? = null,
+    val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
+    val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     cause: Throwable,
 ) : IllegalStateException("Playback projection terminated", cause)

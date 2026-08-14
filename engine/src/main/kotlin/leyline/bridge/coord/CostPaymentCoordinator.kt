@@ -12,21 +12,21 @@ import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import leyline.bridge.handoff.FinalManaSourcePaymentEntryValue
+import leyline.bridge.handoff.FinalManaSourcePaymentValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
-import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.interaction.ConvokeOrImproviseCostPlan
 import leyline.bridge.interaction.ConvokeOrImproviseCostPlanner
 import leyline.bridge.interaction.candidateRefs
 import leyline.bridge.interaction.shouldInclude
-import leyline.bridge.interaction.shouldRecord
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ManaCostText
 import leyline.bridge.types.toCandidateRefs
-import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -79,13 +79,19 @@ class CostPaymentCoordinator(
                 creatures = creatures,
             )
         val request = buildConvokeOrImproviseRequest(sa, manaCost, untappedCards, options, plan)
-        val indices = bridge.requestChoice(request)
-        if (indices.isEmpty()) return emptyMap()
-
         val cardList = untappedCards.toList()
-        val selectedCards = indices.mapNotNull { cardList.getOrNull(it) }
+        val resolution = bridge.requestManaSourcePayment(request, cardList)
+        val selectedCards = resolution.mapNotNull { cardList.getOrNull(it) }
+        val exactShards =
+            resolution.shards.mapNotNull { selected ->
+                val card = cardList.getOrNull(selected.originalOptionIndex) ?: return@mapNotNull null
+                val shard = ManaColorMapping.paymentShard(selected.costColor) ?: return@mapNotNull null
+                card to shard
+            }
         val result =
-            if (artifacts) {
+            if (exactShards.size == selectedCards.size) {
+                exactShards.toMap()
+            } else if (artifacts) {
                 selectedCards
                     .take(manaCost.genericCost)
                     .associateWith { ManaCostShard.GENERIC }
@@ -94,7 +100,24 @@ class CostPaymentCoordinator(
                     .assign(selectedCards, ConvokeShardAssigner.costCounts(manaCost)) { it.color }
                     .toMap()
             }
-        if (plan.convokePaymentRecordPolicy.shouldRecord) recordConvokePayments(sa, result, artifacts)
+        val paymentKind = (request.route as? ResolvedPromptRoute.PayCosts)?.descriptor?.manaSourcePayment
+        if (paymentKind != null) {
+            sa.hostCard?.let { source ->
+                bridge.recordFinalManaSourcePayment(
+                    FinalManaSourcePaymentValue(
+                        kind = paymentKind,
+                        sourceForgeCardId = ForgeCardId(source.id),
+                        payments =
+                            result.map { (card, shard) ->
+                                FinalManaSourcePaymentEntryValue(
+                                    paymentForgeCardId = ForgeCardId(card.id),
+                                    paymentColor = ManaColorMapping.paymentWireColor(shard),
+                                )
+                            },
+                    ),
+                )
+            }
+        }
         return result
     }
 
@@ -121,29 +144,6 @@ class CostPaymentCoordinator(
             sourceCardName = sa.hostCard?.name,
             waterbendManaCost = displayedCost,
             waterbendCostString = if (includeManaFields) ManaCostText.clientText(displayedCost) else null,
-        )
-    }
-
-    private fun recordConvokePayments(
-        sa: SpellAbility,
-        payments: Map<Card, ManaCostShard>,
-        improvise: Boolean,
-    ) {
-        val source = sa.hostCard ?: return
-        if (payments.isEmpty()) return
-        bridge.journal.record(
-            PromptSideEffect.ConvokePayments(
-                sourceForgeCardId = ForgeCardId(source.id),
-                payments =
-                    payments.map { (card, shard) ->
-                        PromptSideEffect.ConvokePayment(
-                            paymentForgeCardId = ForgeCardId(card.id),
-                            color = ManaColorMapping.paymentWireColor(shard).number,
-                            substitutionGrpId = if (improvise) KeywordAbilityIds.IMPROVISE else KeywordAbilityIds.CONVOKE,
-                            paymentAbilityGrpId = if (improvise) KeywordAbilityIds.IMPROVISE else KeywordAbilityIds.CONVOKE_PAYMENT,
-                        )
-                    },
-            ),
         )
     }
 

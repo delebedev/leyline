@@ -38,7 +38,7 @@ internal fun SelectNPromptRoute.staticChoiceOuterPromptId(): Int =
         -> PromptIds.CHOOSE_TYPE
     }
 
-internal fun PayCostsPromptRoute.build(
+internal fun PayCostsPromptRoute.buildOneShot(
     prompt: InteractivePromptBridge.PendingPrompt,
     bridge: GameBridge,
 ): Pair<PayCostsReq, Prompt> =
@@ -52,9 +52,10 @@ internal fun PayCostsPromptRoute.build(
         PayCostsRouteKind.StationTapCost -> RequestBuilder.buildStationTapCostPayCostsReq(prompt, bridge)
         PayCostsRouteKind.EnlistCost -> RequestBuilder.buildEnlistCostPayCostsReq(prompt, bridge)
         PayCostsRouteKind.TeamworkCost -> RequestBuilder.buildTeamworkCostPayCostsReq(prompt, bridge)
-        PayCostsRouteKind.ConvokeCost -> RequestBuilder.buildConvokeCostPayCostsReq(prompt, bridge)
-        PayCostsRouteKind.ImproviseCost -> RequestBuilder.buildImproviseCostPayCostsReq(prompt, bridge)
-        PayCostsRouteKind.WaterbendCost -> RequestBuilder.buildWaterbendCostPayCostsReq(prompt, bridge)
+        PayCostsRouteKind.ConvokeCost,
+        PayCostsRouteKind.ImproviseCost,
+        PayCostsRouteKind.WaterbendCost,
+        -> error("Iterative mana-source payments are coordinator-owned")
     }
 
 internal fun SelectNPromptRoute.configureInnerPrompt(

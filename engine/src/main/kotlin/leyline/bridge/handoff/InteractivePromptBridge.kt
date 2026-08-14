@@ -1,6 +1,7 @@
 package leyline.bridge.handoff
 
 import forge.game.Game
+import forge.game.card.Card
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.DevCheck
@@ -78,6 +79,10 @@ class InteractivePromptBridge(
     /** Match-scoped owner for the migrated Search route. Null keeps setup bridges inert. */
     @Volatile
     var searchRuntime: SearchInteractionRuntime? = null
+
+    /** Match-scoped owner for iterative Convoke, Improvise, and Waterbend payments. */
+    @Volatile
+    var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
 
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
@@ -464,6 +469,42 @@ class InteractivePromptBridge(
         } finally {
             pending.set(null)
         }
+    }
+
+    /** Route one iterative mana-source payment with its exact Forge option handles. */
+    fun requestManaSourcePayment(
+        request: PromptRequest,
+        candidateHandles: List<Card>,
+    ): ManaSourcePaymentResult {
+        val route = request.route as? ResolvedPromptRoute.PayCosts
+        val runtime = manaSourcePaymentRuntime
+        if (route?.descriptor?.manaSourcePayment == null || runtime == null) {
+            return ManaSourcePaymentResult(requestChoice(request), emptyList())
+        }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return ManaSourcePaymentResult(requestChoice(request), emptyList())
+        }
+
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitPayment(request, candidateHandles, timeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: ManaSourcePaymentTimeoutException) {
+            val fallback = ManaSourcePaymentResult(listOf(request.defaultIndex), emptyList())
+            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    /** Replace provisional payment facts with the exact map returned to Forge. */
+    fun recordFinalManaSourcePayment(value: FinalManaSourcePaymentValue) {
+        manaSourcePaymentRuntime?.recordFinalPayment(value)
     }
 
     private fun requestTargetingChoice(

@@ -52,6 +52,12 @@ internal class MatchSearchInteractionRuntime(
 
     fun current(): PublishedSearchInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
 
+    internal fun pendingCutLocked(): PendingSearchCut? =
+        window
+            ?.takeUnless { it.future.isDone }
+            ?.cut
+            .also { afterDeliveryCutLookup?.invoke() }
+
     fun submit(
         interactionId: String,
         gameStateId: Int,

@@ -130,7 +130,7 @@ at entry, awaits once, and publishes the resulting horizon without releasing
 it. Auto-pass may invoke the operation again explicitly; action handlers stop
 at the single semantic horizon. A safe direct Skip allocates and publishes
 nothing.
-Optional, Numeric, Damage, and explicitly bound Targeting and Search prompts carry typed value inputs. The
+Optional, Numeric, Damage, explicitly bound Targeting and Search prompts, and iterative mana-source payments carry typed value inputs. The
 coordinator commits the complete batch before signalling and resolves retained
 live handles only on the Forge thread. Targeting taps use a correlated mailbox;
 the engine recomputes legality and commits each replacement request before its
@@ -140,6 +140,10 @@ from live-handle presence.
 Search freezes its library, candidate, source, and picker-shape facts on the
 engine thread. Its state reveal and request commit as one cut; the correlated
 instance-id answer resets the reveal baseline before the engine wait returns.
+Convoke, Improvise, and Waterbend similarly freeze candidate, shard, source, and
+mana-cost facts. Their initial and replacement PayCosts cuts commit before
+signal or delivery acknowledgement; Pass and Cancel resolve only original
+option indices through the bounded handle table.
 Timeout and disconnect handling use the same two mechanisms; they do not run
 session logic concurrently.
 
@@ -166,7 +170,7 @@ are:
 - SyncOnly state cut with no action catalog or client timer and an exact
   engine-derived continuation policy (manual flow requires the next Visible
   stop; explicit auto-resolve may allow a subsequent SyncOnly stop);
-- typed prompt, Targeting window, or Search window plus immutable display and validation facts;
+- typed prompt, Targeting window, Search window, or mana-source payment window plus immutable display and validation facts;
 - synthetic pre-mutation intent needed by the client UI;
 - mulligan, reset, game-over, or intermission transition.
 

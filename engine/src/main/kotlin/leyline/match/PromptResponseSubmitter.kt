@@ -47,16 +47,10 @@ internal class PromptResponseSubmitter(
     fun onEffectCost(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-        clearManaSourcePayment: (String) -> Unit,
     ) {
         val pendingPrompt = pendingPromptOrWarn("EffectCostResp", PromptResponseKind.EffectCost) ?: return
         val ids = greMsg.effectCostResp.costSelection.idsList
         val selectedIndices = mapSelectedInstanceIdsToPromptIndices(ids, pendingPrompt)
-        val route = pendingPrompt.request.route as? ResolvedPromptRoute.PayCosts
-        if (route?.descriptor?.manaSourcePayment != null) {
-            clearManaSourcePayment(pendingPrompt.promptId)
-        }
-
         log.info("PromptResponseSubmitter: EffectCostResp indices={}", selectedIndices)
         submit(pendingPrompt, selectedIndices, autoPass)
     }

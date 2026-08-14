@@ -86,6 +86,7 @@ class BundleBuilder(
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
+    private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -1372,6 +1373,30 @@ class BundleBuilder(
     }
 
     internal fun prepareSearchBaselineReset(prior: ProjectionState): ProjectionTransition = searchWindows.resetBaseline(prior)
+
+    /** Prepare, but do not install, one coordinator-owned mana-source payment presentation. */
+    internal fun prepareManaSourcePayment(
+        game: Game,
+        counter: MessageCounter,
+        window: leyline.bridge.handoff.ManaSourcePaymentWindowValue,
+    ): ManaSourcePaymentMaterializer.Prepared {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return manaSourcePayments.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
 
     /** Legacy SelectTargets presentation for candidate-backed Generic prompts. */
     fun unclassifiedCandidateBundle(

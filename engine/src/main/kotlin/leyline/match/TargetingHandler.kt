@@ -65,6 +65,7 @@ class TargetingHandler(
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
     private val promptResponseSubmitter = PromptResponseSubmitter(counters, ctx)
     private val payCostsInteractionHandler = PayCostsInteractionHandler(sink, counters, bundles, ctx)
+    private val manaSourcePaymentHandler = ManaSourcePaymentHandler(sink, counters, ctx)
     private val deferredCastCostInteractionHandler =
         DeferredCastCostInteractionHandler(
             sink = sink,
@@ -203,8 +204,9 @@ class TargetingHandler(
     fun onEffectCost(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-    ) = promptResponseSubmitter.onEffectCost(greMsg, autoPass) { promptId ->
-        payCostsInteractionHandler.clearPayment(promptId)
+    ) {
+        if (manaSourcePaymentHandler.tryHandleEffectCost(greMsg, autoPass)) return
+        promptResponseSubmitter.onEffectCost(greMsg, autoPass)
     }
 
     /**
@@ -214,7 +216,7 @@ class TargetingHandler(
     fun tryHandlePayCostsPerformAction(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-    ): Boolean = payCostsInteractionHandler.tryHandlePayCostsPerformAction(greMsg, autoPass)
+    ): Boolean = manaSourcePaymentHandler.tryHandlePerformAction(greMsg, autoPass)
 
     /**
      * After a cast, check for a pending targeting prompt or intermediate stack state.
@@ -278,6 +280,7 @@ class TargetingHandler(
         val bridge = ctx.bridge
         if (bridge.cutCoordinator.targeting.current() != null) return PromptResult.SENT_TO_CLIENT
         if (bridge.cutCoordinator.search.current() != null) return PromptResult.SENT_TO_CLIENT
+        if (bridge.cutCoordinator.manaSourcePayments.current() != null) return PromptResult.SENT_TO_CLIENT
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         return if (sendPrompt(pendingPrompt, PromptDispatchContext.PENDING_CHECK)) {
@@ -357,6 +360,9 @@ class TargetingHandler(
             }
 
             is ResolvedPromptRoute.PayCosts -> {
+                check(route.descriptor.manaSourcePayment == null) {
+                    "Iterative mana-source payments must be published by MatchManaSourcePaymentRuntime"
+                }
                 payCostsInteractionHandler.sendPayCostsReq(pendingPrompt, route.descriptor)
                 true
             }
@@ -482,15 +488,13 @@ class TargetingHandler(
             return
         }
 
+        if (manaSourcePaymentHandler.tryHandleCancel(greMsg, autoPass)) return
+
         val seatBridge = bridge.seat(counters.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
             log.warn("TargetingHandler: CancelActionReq but no pending prompt (likely timeout race)")
             DevCheck.failOnAutoPass { "CancelActionReq but no pending prompt" }
-            return
-        }
-
-        if (payCostsInteractionHandler.submitPartialPaymentForCancel(pendingPrompt, autoPass)) {
             return
         }
 

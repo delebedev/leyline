@@ -22,6 +22,7 @@ import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ManaSelection
 import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
@@ -56,7 +57,7 @@ class ConvokeLifecycleTest :
             }
         }
 
-        test("Conclave Tribunal accepts native Convoke MakePayment responses") {
+        test("Conclave Tribunal accepts duplicate native Convoke source fields once") {
             startPuzzle(
                 """
                 ActivePlayer=Human
@@ -96,7 +97,7 @@ class ConvokeLifecycleTest :
             }
 
             val firstPaymentSnap = messageSnapshot()
-            val updatedPayCosts = after { respondToConvokeMakePayment(merfolkIid) }.expectOnePayCostsReq()
+            val updatedPayCosts = after { respondToConvokeMakePayment(merfolkIid, repeatInManaSelection = true) }.expectOnePayCostsReq()
             val interimConvokeCount =
                 messagesSince(firstPaymentSnap).persistentAnnotationsOfType(AnnotationType.AbilityWordActive).filter {
                     it.detailString(DetailKeys.ABILITY_WORD_NAME) == "ConvokeCount"
@@ -205,6 +206,76 @@ class ConvokeLifecycleTest :
             passUntilResolved(maxPasses = 8)
             human.battlefield.iid("Conclave Tribunal") shouldBeGreaterThan 0
         }
+
+        test("selected white source keeps its frozen generic shard when its white peer is omitted") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Conclave Tribunal
+                humanbattlefield=Plains;Plains;Plains;Savannah Lions;Savannah Lions
+                humanlibrary=Plains;Plains;Plains
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Convoke Frozen Shard",
+                validating = true,
+            )
+
+            val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
+            val genericWhiteSource =
+                initialPayCosts.paymentActions.actionsList.single { action ->
+                    action.manaPaymentOptionsList
+                        .single()
+                        .manaList
+                        .single()
+                        .color == ManaColor.Colorless_afc9
+                }
+
+            val paymentSnap = messageSnapshot()
+            respondToConvokeMakePayment(genericWhiteSource.instanceId)
+            respondToConvokePaymentDone()
+
+            val payment =
+                annotationsSince(paymentSnap).single {
+                    AnnotationType.ManaPaid in it.typeList &&
+                        it.hasDetail(DetailKeys.SUBSTITUTION_GRPID) &&
+                        it.detailInt(DetailKeys.SUBSTITUTION_GRPID) == KeywordAbilityIds.CONVOKE
+                }
+            assertSoftly {
+                payment.affectorId shouldBe genericWhiteSource.instanceId
+                payment.detailInt(DetailKeys.COLOR) shouldBe ManaColor.Colorless_afc9.number
+            }
+        }
+
+        test("declining all reducers does not mark the spell as convoked") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Conclave Tribunal
+                humanbattlefield=Plains;Plains;Plains;Plains;Savannah Lions
+                humanlibrary=Plains;Plains;Plains
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Convoke Declined",
+                validating = true,
+            )
+
+            after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
+            val paymentSnap = messageSnapshot()
+            respondToConvokePaymentDone()
+            passUntilResolved(maxPasses = 8)
+
+            annotationsSince(paymentSnap)
+                .filter { AnnotationType.AbilityWordActive in it.typeList }
+                .filter { it.detailString(DetailKeys.ABILITY_WORD_NAME) == "Convoke" } shouldBe emptyList()
+        }
     })
 
 private fun assertConvokePaymentActions(
@@ -232,12 +303,18 @@ private fun assertConvokePaymentActions(
     }
 }
 
-private fun SessionTest.respondToConvokeMakePayment(instanceId: Int) {
+private fun SessionTest.respondToConvokeMakePayment(
+    instanceId: Int,
+    repeatInManaSelection: Boolean = false,
+) {
     harness.session.onPerformAction(
         harness.submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
+                if (repeatInManaSelection) {
+                    addManaSelections(ManaSelection.newBuilder().setInstanceId(instanceId))
+                }
             }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
         ),
     )
