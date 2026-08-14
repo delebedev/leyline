@@ -12,6 +12,7 @@ import leyline.bridge.handoff.GroupingInteractionResult
 import leyline.bridge.handoff.GroupingInteractionRuntime
 import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptRecord
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -243,7 +244,7 @@ class MatchGroupingInteractionRuntimeTest :
             fun historyResult(
                 away: Boolean,
                 timedOut: Boolean,
-            ): InteractivePromptBridge.PromptRecord {
+            ): PromptRecord {
                 val promptBridge = InteractivePromptBridge(timeoutMs = 25)
                 promptBridge.groupingRuntime =
                     object : GroupingInteractionRuntime {

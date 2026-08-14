@@ -85,7 +85,6 @@ class AutoPassEngine(
             if (numericInputHandler.checkPendingNumericInput()) return
             when (targetingHandler.checkPendingPrompt()) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
                 TargetingHandler.PromptResult.NONE -> {} // continue
             }
 
@@ -136,7 +135,6 @@ class AutoPassEngine(
             // Interactive prompt (targeting, sacrifice, discard, etc.)
             when (targetingHandler.checkPendingPrompt()) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
                 TargetingHandler.PromptResult.NONE -> {} // continue
             }
 

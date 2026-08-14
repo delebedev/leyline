@@ -213,29 +213,6 @@ class InteractivePromptBridge(
     // a trace it's impossible to tell WHAT prompted and WHETHER it timed out.
     // Tests inspect `history` to diagnose unexpected blocking calls.
 
-    enum class PromptCallStatus { RESPONDED, TIMEOUT, ERROR, ALREADY_PENDING, NON_GAME_THREAD, NON_INTERACTIVE_SCOPE }
-
-    data class PromptRecord(
-        val promptType: String,
-        /** Exact route used by the pending prompt; diagnostics must not resolve it again. */
-        val route: ResolvedPromptRoute,
-        val message: String,
-        val options: List<String>,
-        val min: Int,
-        val max: Int,
-        val candidateCount: Int,
-        val outcome: PromptCallStatus,
-        val result: List<Int>,
-        val callerFrames: List<String>,
-        val costSelectionWeights: List<Int> = emptyList(),
-        val minSelectionWeight: Int? = null,
-    ) {
-        val semantic: PromptSemantic get() = route.semantic
-
-        override fun toString(): String =
-            "[$outcome] $promptType/$semantic: \"$message\" opts=$options result=$result\n  ${callerFrames.joinToString("\n  ")}"
-    }
-
     private val _history = ArrayDeque<PromptRecord>(HISTORY_CAP)
 
     /** Immutable snapshot of recent prompt calls (oldest first, capped at [HISTORY_CAP]). */
@@ -277,7 +254,9 @@ class InteractivePromptBridge(
         val secs = "%.1f".format(elapsedMs / 1000.0)
         val msg = "Prompt [${request.promptType}] \"${request.message}\" → $outcome $result (${secs}s)"
         when (outcome) {
-            PromptCallStatus.RESPONDED -> log.info(msg)
+            PromptCallStatus.RESPONDED,
+            PromptCallStatus.DEFAULTED_POLICY,
+            -> log.info(msg)
             PromptCallStatus.TIMEOUT,
             PromptCallStatus.ERROR,
             PromptCallStatus.ALREADY_PENDING,
@@ -357,7 +336,9 @@ class InteractivePromptBridge(
     }
 
     /**
-     * Called from the engine thread (BLOCKS until client responds or timeout).
+     * Called from the engine thread. Interactive routes block until a client
+     * response or timeout; [ResolvedPromptRoute.AutoResolve] returns its
+     * configured default synchronously without publishing pending state.
      *
      * @param request describes the prompt to show the client
      * @return list of selected indices into [request.options]
@@ -366,6 +347,10 @@ class InteractivePromptBridge(
         request: PromptRequest,
         targetingSa: SpellAbility? = null,
     ): List<Int> {
+        resolvePromptPolicyDefault(request, log) { indices ->
+            record(request, PromptCallStatus.DEFAULTED_POLICY, indices, 0)
+            prioritySignal?.markPromptResolved()
+        }?.let { return it }
         // A callback reached outside a real prompt window must refuse, not
         // guess: each fallback below manufactures an answer indistinguishable
         // from a real choice. Strict mode surfaces the bug on the first
@@ -855,15 +840,13 @@ enum class PromptSemantic {
     /** Order cards going to the top of a library. */
     OrderForTop,
 
-    /** Order cards or objects without a known library-top/bottom context. */
-    OrderGeneric,
-
     /** "Choose from revealed hand" — Duress, Revealing Eye, Thoughtseize, etc. */
     RevealChoose,
 
     /**
-     * Resolution-time choice. Dig-shaped all-Card Library candidates bind the
-     * projected CardSelect owner; other candidate domains remain residual.
+     * Resolution-time choice. Dig-shaped all-Card Library candidates and
+     * complete chooser-visible Card candidates bind CardSelect; other entity
+     * domains remain residual.
      */
     SelectNResolution,
 

@@ -130,7 +130,7 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val route =
-            (prompt.request.route as? ResolvedPromptRoute.ResolutionResidual)?.descriptor
+            (prompt.request.route as? ResolvedPromptRoute.UnclassifiedEntityChoice)?.descriptor
                 ?: error("SelectN builder requires a bound SelectN route")
         return buildSelectNReq(prompt, bridge, route)
     }

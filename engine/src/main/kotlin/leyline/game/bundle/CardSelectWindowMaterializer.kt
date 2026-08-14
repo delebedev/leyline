@@ -85,7 +85,9 @@ internal class CardSelectWindowMaterializer(
                         addAllUnfilteredIds(idsList)
                         setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
                     }
-                    CardSelectKind.Resolution -> {
+                    CardSelectKind.Resolution,
+                    CardSelectKind.ResolutionMapped,
+                    -> {
                         addAllUnfilteredIds(idsList)
                         setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     }
@@ -107,7 +109,9 @@ internal class CardSelectWindowMaterializer(
             CardSelectKind.LegendRule -> SelectNEnvelope.legendRule(request)
             CardSelectKind.LibraryPutback -> SelectNEnvelope.libraryPutback(request)
             CardSelectKind.ManifestDread -> SelectNEnvelope.manifestDread(request)
-            CardSelectKind.Resolution -> SelectNEnvelope.resolution(request)
+            CardSelectKind.Resolution,
+            CardSelectKind.ResolutionMapped,
+            -> SelectNEnvelope.resolution(request)
             CardSelectKind.Learn ->
                 SelectNEnvelope.learnLesson(
                     request,

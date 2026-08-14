@@ -14,6 +14,7 @@ data class ChooseEntitiesContext(
     val max: Int,
     val optionCount: Int,
     val candidateRefs: List<PromptCandidateRefDto>,
+    val allCandidatesProjectable: Boolean,
 )
 
 data class ChooseEntitiesPlan(
@@ -35,6 +36,7 @@ object ChooseEntitiesPlanner {
                 context.candidateRefs,
                 context.optionCount,
                 if (context.sa?.api == ApiType.Dig) ResolutionAbilityShape.Dig else ResolutionAbilityShape.Other,
+                context.allCandidatesProjectable,
             )
         val semantic = semanticFor(context.sa, resolutionInput)
         val prompted = context.optionCount > effectiveMin

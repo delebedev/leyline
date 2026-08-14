@@ -6,7 +6,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
@@ -314,6 +314,6 @@ class DiscardInteractionTest :
                     .history
                     .filter { it.message.contains("iscard", ignoreCase = true) }
             discardPrompts shouldHaveSize 1
-            discardPrompts.first().outcome shouldBe InteractivePromptBridge.PromptCallStatus.RESPONDED
+            discardPrompts.first().outcome shouldBe PromptCallStatus.RESPONDED
         }
     })

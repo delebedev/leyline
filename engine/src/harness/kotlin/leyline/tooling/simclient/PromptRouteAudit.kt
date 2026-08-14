@@ -1,6 +1,7 @@
 package leyline.tooling.simclient
 
-import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.PromptCallStatus
+import leyline.bridge.handoff.PromptRecord
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.tooling.simclient.PromptRouteFinding
@@ -20,7 +21,7 @@ object PromptRouteAuditor {
     const val SAME_GRE_ROUTE_UNVERIFIED = "same_gre_route_unverified"
 
     fun audit(
-        history: List<InteractivePromptBridge.PromptRecord>,
+        history: List<PromptRecord>,
         promptHistogram: Map<GREMessageType, Int>,
     ): PromptRouteAudit {
         if (history.isEmpty()) return PromptRouteAudit.Empty
@@ -70,7 +71,7 @@ object PromptRouteAuditor {
         return PromptRouteAudit(requestsByKind, samplesByKind, findings)
     }
 
-    private fun InteractivePromptBridge.PromptRecord.expectedRoute(): ExpectedRoute? {
+    private fun PromptRecord.expectedRoute(): ExpectedRoute? {
         val expectedGreType = route.expectedGreType() ?: return null
         return ExpectedRoute(
             routeKey = kindKey(),
@@ -84,7 +85,7 @@ object PromptRouteAuditor {
         when (this) {
             is ResolvedPromptRoute.Grouping -> "GroupReq"
             is ResolvedPromptRoute.ModalChoice -> "CastingTimeOptionsReq"
-            is ResolvedPromptRoute.ResolutionResidual -> "SelectNReq"
+            is ResolvedPromptRoute.UnclassifiedEntityChoice -> "SelectNReq"
             is ResolvedPromptRoute.CardSelect -> "SelectNReq"
             is ResolvedPromptRoute.StaticChoice -> "SelectNReq"
             is ResolvedPromptRoute.RevealChoice -> "SelectNReq"
@@ -102,13 +103,13 @@ object PromptRouteAuditor {
         outcomeCounts: Map<String, Int>,
     ): String =
         when {
-            outcomeCounts.getOrDefault(InteractivePromptBridge.PromptCallStatus.TIMEOUT.name, 0) > 0 -> "defaulted_timeout"
-            emittedCount == 0 && outcomeCounts.getOrDefault(InteractivePromptBridge.PromptCallStatus.RESPONDED.name, 0) == expectedCount ->
+            outcomeCounts.getOrDefault(PromptCallStatus.TIMEOUT.name, 0) > 0 -> "defaulted_timeout"
+            emittedCount == 0 && outcomeCounts.getOrDefault(PromptCallStatus.RESPONDED.name, 0) == expectedCount ->
                 "swallowed_auto_resolve"
             else -> "wrong_req"
         }
 
-    private fun InteractivePromptBridge.PromptRecord.kindKey(): String = "$promptType|${semantic.name}"
+    private fun PromptRecord.kindKey(): String = "$promptType|${semantic.name}"
 
     private fun Map<GREMessageType, Int>.toRouteNames(): Map<String, Int> {
         val out = mutableMapOf<String, Int>()

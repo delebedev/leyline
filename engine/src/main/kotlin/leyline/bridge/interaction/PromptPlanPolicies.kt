@@ -61,6 +61,7 @@ fun resolutionRouteInput(
     refs: List<PromptCandidateRefDto>,
     optionCount: Int,
     abilityShape: ResolutionAbilityShape,
+    allCandidatesProjectable: Boolean,
 ): ResolutionRouteInput =
     ResolutionRouteInput(
         optionCount = optionCount,
@@ -68,6 +69,7 @@ fun resolutionRouteInput(
         candidateKinds = refs.mapTo(linkedSetOf()) { it.kind },
         candidateZones = refs.mapTo(linkedSetOf()) { it.zone },
         abilityShape = abilityShape,
+        allCandidatesProjectable = allCandidatesProjectable,
     )
 
 val AutoReturnPolicy.shouldReturnAll: Boolean

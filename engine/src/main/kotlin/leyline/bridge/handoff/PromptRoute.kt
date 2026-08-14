@@ -25,8 +25,8 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
-    /** Dynamic resolution choice outside the characterized hidden-library card shape. */
-    data class ResolutionResidual(
+    /** Resolution choice whose exact entity domain is not yet coordinator-owned. */
+    data class UnclassifiedEntityChoice(
         val descriptor: SelectNPromptRoute,
     ) : ResolvedPromptRoute {
         override val semantic: PromptSemantic = descriptor.semantic
@@ -97,6 +97,7 @@ enum class CardSelectKind {
     Suspect,
     MutateTopBottom,
     Resolution,
+    ResolutionMapped,
     Learn,
 }
 
@@ -112,15 +113,35 @@ data class ResolutionRouteInput(
     val candidateKinds: Set<PromptCandidateKind>,
     val candidateZones: Set<String?>,
     val abilityShape: ResolutionAbilityShape,
+    val allCandidatesProjectable: Boolean,
 ) {
+    val isCompleteCardChoice: Boolean
+        get() = candidateCount == optionCount && candidateKinds == setOf(PromptCandidateKind.Card)
+
     val isCompleteLibraryCardChoice: Boolean
         get() =
-            candidateCount == optionCount &&
-                candidateKinds == setOf(PromptCandidateKind.Card) &&
+            isCompleteCardChoice &&
                 candidateZones == setOf("Library")
 
     val isHiddenLibraryCardChoice: Boolean
         get() = isCompleteLibraryCardChoice && abilityShape == ResolutionAbilityShape.Dig
+
+    val isMappedCardChoice: Boolean
+        get() = isCompleteCardChoice && allCandidatesProjectable && !isHiddenLibraryCardChoice
+}
+
+/** Synchronous answer selected by an explicitly non-interactive route. */
+data class PromptPolicyDefault(
+    val indices: List<Int>,
+    val warnAmbiguousGeneric: Boolean,
+)
+
+fun PromptRequest.policyDefault(): PromptPolicyDefault? {
+    if (route !is ResolvedPromptRoute.AutoResolve) return null
+    return PromptPolicyDefault(
+        indices = listOf(defaultIndex),
+        warnAmbiguousGeneric = semantic == PromptSemantic.Generic && options.size > 1,
+    )
 }
 
 data class CardSelectPromptRoute(
@@ -205,15 +226,16 @@ object PromptRouteResolver {
             PromptSemantic.Search -> ResolvedPromptRoute.Search(semantic)
             PromptSemantic.OrderForBottom -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Bottom)
             PromptSemantic.OrderForTop -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Top)
-            PromptSemantic.OrderGeneric -> ResolvedPromptRoute.AutoResolve(semantic)
             PromptSemantic.SelectNLegendRule -> cardSelect(semantic, CardSelectKind.LegendRule)
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
             PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)
             PromptSemantic.SelectNResolution ->
-                if (resolutionInput?.isHiddenLibraryCardChoice == true) {
-                    cardSelect(semantic, CardSelectKind.Resolution)
-                } else {
-                    resolutionResidual(semantic, dynamicResolutionShape)
+                when {
+                    resolutionInput?.isHiddenLibraryCardChoice == true ->
+                        cardSelect(semantic, CardSelectKind.Resolution)
+                    resolutionInput?.isMappedCardChoice == true ->
+                        cardSelect(semantic, CardSelectKind.ResolutionMapped)
+                    else -> unclassifiedEntityChoice(semantic, dynamicResolutionShape)
                 }
             PromptSemantic.ManifestDread -> cardSelect(semantic, CardSelectKind.ManifestDread)
             PromptSemantic.SuspectChoice -> cardSelect(semantic, CardSelectKind.Suspect, choiceResultSentiment = 2)
@@ -246,11 +268,11 @@ object PromptRouteResolver {
                 payCosts(semantic, PayCostsRouteKind.WaterbendCost, "waterbend", ManaSourcePaymentKind.Waterbend)
         }
 
-    private fun resolutionResidual(
+    private fun unclassifiedEntityChoice(
         semantic: PromptSemantic,
         shape: SelectNShape,
-    ): ResolvedPromptRoute.ResolutionResidual =
-        ResolvedPromptRoute.ResolutionResidual(
+    ): ResolvedPromptRoute.UnclassifiedEntityChoice =
+        ResolvedPromptRoute.UnclassifiedEntityChoice(
             SelectNPromptRoute(semantic, shape),
         )
 

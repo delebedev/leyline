@@ -67,7 +67,6 @@ class ActionPerformer(
                 seatBridge.action.getPending() ?: run {
                     when (targetingHandler.checkPendingPrompt()) {
                         TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                        TargetingHandler.PromptResult.AUTO_RESOLVED -> autoPassEngine.autoPassAndAdvance()
                         TargetingHandler.PromptResult.NONE -> {
                             log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
                             bridge.cutCoordinator.drain(counters.seatId).forEach { sink.sendBundle(BundleBuilder.BundleResult(it)) }
@@ -187,9 +186,6 @@ class ActionPerformer(
                 // Check for pending modal prompt from ETB trigger
                 when (targetingHandler.checkPendingPrompt()) {
                     TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                    TargetingHandler.PromptResult.AUTO_RESOLVED -> {
-                        // Fall through to autoPass
-                    }
                     TargetingHandler.PromptResult.NONE -> {
                         if (g.stack.isEmpty) {
                             val nextPending = seatBridge.action.getPending()
@@ -245,8 +241,6 @@ class ActionPerformer(
         internal fun shouldDelegateSynchronization(
             promptResult: TargetingHandler.PromptResult,
             autoResolveEnabled: Boolean,
-        ): Boolean =
-            promptResult == TargetingHandler.PromptResult.AUTO_RESOLVED ||
-                (promptResult == TargetingHandler.PromptResult.NONE && autoResolveEnabled)
+        ): Boolean = promptResult == TargetingHandler.PromptResult.NONE && autoResolveEnabled
     }
 }

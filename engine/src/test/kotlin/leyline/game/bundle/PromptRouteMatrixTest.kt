@@ -47,7 +47,6 @@ class PromptRouteMatrixTest :
                     PromptSemantic.OrderForBottom to
                         ResolvedPromptRoute.Order(PromptSemantic.OrderForBottom, OrderRouteKind.Bottom),
                     PromptSemantic.OrderForTop to ResolvedPromptRoute.Order(PromptSemantic.OrderForTop, OrderRouteKind.Top),
-                    PromptSemantic.OrderGeneric to ResolvedPromptRoute.AutoResolve(PromptSemantic.OrderGeneric),
                     PromptSemantic.RevealChoose to
                         ResolvedPromptRoute.RevealChoice(PromptSemantic.RevealChoose),
                     PromptSemantic.SelectNResolution to selectN(PromptSemantic.SelectNResolution),
@@ -133,8 +132,9 @@ class PromptRouteMatrixTest :
                     candidateKinds = setOf(PromptCandidateKind.Card),
                     candidateZones = setOf("Library"),
                     abilityShape = ResolutionAbilityShape.Dig,
+                    allCandidatesProjectable = false,
                 )
-            val visibleCards = projected.copy(candidateZones = setOf("Battlefield"))
+            val visibleCards = projected.copy(candidateZones = setOf("Battlefield"), allCandidatesProjectable = true)
             val mixed = projected.copy(candidateKinds = setOf(PromptCandidateKind.Card, PromptCandidateKind.Player))
             val incomplete = projected.copy(candidateCount = 1)
             val otherAbility = projected.copy(abilityShape = ResolutionAbilityShape.Other)
@@ -148,11 +148,16 @@ class PromptRouteMatrixTest :
             ) shouldBe
                 listOf(
                     ResolvedPromptRoute.CardSelect::class,
-                    ResolvedPromptRoute.ResolutionResidual::class,
-                    ResolvedPromptRoute.ResolutionResidual::class,
-                    ResolvedPromptRoute.ResolutionResidual::class,
-                    ResolvedPromptRoute.ResolutionResidual::class,
+                    ResolvedPromptRoute.CardSelect::class,
+                    ResolvedPromptRoute.UnclassifiedEntityChoice::class,
+                    ResolvedPromptRoute.UnclassifiedEntityChoice::class,
+                    ResolvedPromptRoute.UnclassifiedEntityChoice::class,
                 )
+
+            (
+                PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = visibleCards) as
+                    ResolvedPromptRoute.CardSelect
+            ).descriptor.kind shouldBe CardSelectKind.ResolutionMapped
         }
     })
 
@@ -162,7 +167,7 @@ private val dynamicShape =
 private fun selectN(
     semantic: PromptSemantic,
     shape: SelectNShape = dynamicShape,
-): ResolvedPromptRoute.ResolutionResidual = ResolvedPromptRoute.ResolutionResidual(SelectNPromptRoute(semantic, shape))
+): ResolvedPromptRoute.UnclassifiedEntityChoice = ResolvedPromptRoute.UnclassifiedEntityChoice(SelectNPromptRoute(semantic, shape))
 
 private fun cardSelect(
     semantic: PromptSemantic,

@@ -74,7 +74,7 @@ Conceptually:
 ResolvedPromptRoute
   Grouping(context)
   ModalChoice
-  SelectN(selectNRoute)
+  UnclassifiedEntityChoice(selectNRoute)
   CardSelect(cardSelectRoute)
   PayCosts(payCostsRoute)
   Search
@@ -91,7 +91,7 @@ The exact names may follow existing vocabulary. The required properties are:
 - the route retains its `PromptSemantic` for diagnostics and mapping docs;
 - `PromptRequest` does not store a second independent semantic value after
   migration;
-- generic fallback resolves once to `Targeting` or `AutoResolve` and is not
+- generic fallback resolves once to `UnclassifiedCandidate` or `AutoResolve` and is not
   reconsidered later.
 
 If callback planners continue to return `PromptSemantic` during migration, one
@@ -150,7 +150,7 @@ callback context has not yet been assigned a semantic route.
 
 The existing fallback remains:
 
-- candidate references present: resolve to `Targeting`;
+- candidate references present: resolve to `UnclassifiedCandidate`;
 - no candidate references: resolve to `AutoResolve`.
 
 That decision occurs once. A resolved generic prompt must be observable in the
@@ -164,7 +164,7 @@ explicit planner routes without changing this ADR.
    matrix with table-driven tests before deleting either table.
 3. Attach the resolved route to the pending prompt handoff. Keep any temporary
    `semantic` field derived from the route, never independently writable.
-4. Dispatch directly from distinct `ResolvedPromptRoute.ResolutionResidual` and
+4. Dispatch directly from distinct `ResolvedPromptRoute.UnclassifiedEntityChoice` and
    `ResolvedPromptRoute.PayCosts` variants carrying their concrete descriptors.
 5. Pass the bound route into `RequestBuilder` and Pay-Costs builders; remove
    route lookups from request construction and re-prompt paths.
@@ -250,7 +250,7 @@ package. `PromptRequest` stores the resolved route and derives `semantic` from
 it for diagnostics. The resolver is exhaustive over `PromptSemantic`; Generic
 resolves once from candidate presence.
 
-`ResolvedPromptRoute.ResolutionResidual` carries `SelectNPromptRoute`, while
+`ResolvedPromptRoute.UnclassifiedEntityChoice` carries `SelectNPromptRoute`, while
 `ResolvedPromptRoute.PayCosts` carries `PayCostsPromptRoute`. The descriptors
 contain immutable request-shape and response-policy data. Match lifecycle
 handlers and request builders consume those descriptors; builder behavior

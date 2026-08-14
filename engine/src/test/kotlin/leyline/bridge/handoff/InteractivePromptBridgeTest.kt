@@ -1,11 +1,13 @@
 package leyline.bridge.handoff
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.NonInteractiveScope
+import leyline.bridge.types.PrioritySignal
 
 class InteractivePromptBridgeTest :
     FunSpec({
@@ -25,10 +27,11 @@ class InteractivePromptBridgeTest :
                     message = "Delve how many cards?",
                     options = listOf("0", "1"),
                     defaultIndex = 1,
+                    route = ResolvedPromptRoute.ModalChoice(PromptSemantic.ModalChoice),
                 ),
             ) shouldContainExactly listOf(1)
 
-            bridge.history.single().outcome shouldBe InteractivePromptBridge.PromptCallStatus.NON_GAME_THREAD
+            bridge.history.single().outcome shouldBe PromptCallStatus.NON_GAME_THREAD
         }
 
         test("prompt inside a non-interactive scope defaults and records the refusal") {
@@ -41,11 +44,12 @@ class InteractivePromptBridgeTest :
                         message = "Choose cards to tap",
                         options = listOf("a", "b"),
                         defaultIndex = 0,
+                        route = ResolvedPromptRoute.ModalChoice(PromptSemantic.ModalChoice),
                     ),
                 )
             } shouldContainExactly listOf(0)
 
-            bridge.history.single().outcome shouldBe InteractivePromptBridge.PromptCallStatus.NON_INTERACTIVE_SCOPE
+            bridge.history.single().outcome shouldBe PromptCallStatus.NON_INTERACTIVE_SCOPE
         }
 
         test("strict bridge throws on a prompt inside a non-interactive scope") {
@@ -54,7 +58,12 @@ class InteractivePromptBridgeTest :
             shouldThrow<StrictPromptRefusalException> {
                 NonInteractiveScope.bestEffort {
                     bridge.requestChoice(
-                        PromptRequest(promptType = "choose_one", message = "?", options = listOf("a")),
+                        PromptRequest(
+                            promptType = "choose_one",
+                            message = "?",
+                            options = listOf("a"),
+                            route = ResolvedPromptRoute.ModalChoice(PromptSemantic.ModalChoice),
+                        ),
                     )
                 }
             }
@@ -69,8 +78,39 @@ class InteractivePromptBridgeTest :
 
             shouldThrow<StrictPromptRefusalException> {
                 bridge.requestChoice(
-                    PromptRequest(promptType = "choose_one", message = "?", options = listOf("a")),
+                    PromptRequest(
+                        promptType = "choose_one",
+                        message = "?",
+                        options = listOf("a"),
+                        route = ResolvedPromptRoute.ModalChoice(PromptSemantic.ModalChoice),
+                    ),
                 )
+            }
+        }
+
+        test("AutoResolve defaults synchronously without publishing and preserves prompt scheduling") {
+            val signal = PrioritySignal()
+            val bridge = InteractivePromptBridge(timeoutMs = null, prioritySignal = signal, strict = true)
+            val diagnosticThread = Thread({ }, "different-game-loop")
+            val field = InteractivePromptBridge::class.java.getDeclaredField("diagnosticThread")
+            field.isAccessible = true
+            field.set(bridge, diagnosticThread)
+
+            val result =
+                bridge.requestChoice(
+                    PromptRequest(
+                        promptType = "choose_one",
+                        message = "Default this policy choice",
+                        options = listOf("first", "second"),
+                        defaultIndex = 1,
+                    ),
+                )
+
+            assertSoftly {
+                result shouldContainExactly listOf(1)
+                bridge.getPendingPrompt() shouldBe null
+                bridge.history.single().outcome shouldBe PromptCallStatus.DEFAULTED_POLICY
+                signal.consumePromptResolved() shouldBe true
             }
         }
 

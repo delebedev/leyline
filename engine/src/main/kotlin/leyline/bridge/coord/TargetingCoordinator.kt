@@ -14,6 +14,7 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.DevCheck
 import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderMoveIntent
@@ -101,6 +102,7 @@ class TargetingCoordinator(
                     optionCount = optionList.size,
                     candidateRefs = candidateRefs,
                     activeReveal = reveal != null,
+                    allCandidatesProjectable = allCandidatesProjectable(optionList),
                 ),
             )
         when (plan.routePolicy) {
@@ -136,6 +138,7 @@ class TargetingCoordinator(
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
+        auditUnclassifiedEntityChoice(request)
         val chosen =
             if (request.route is ResolvedPromptRoute.CardSelect) {
                 val cards = optionList.filterIsInstance<Card>()
@@ -266,6 +269,7 @@ class TargetingCoordinator(
                     max = max,
                     optionCount = optionList.size,
                     candidateRefs = candidateRefs,
+                    allCandidatesProjectable = allCandidatesProjectable(optionList),
                 ),
             )
         if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
@@ -288,6 +292,7 @@ class TargetingCoordinator(
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
+        auditUnclassifiedEntityChoice(request)
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             val candidateCards = optionList.filterIsInstance<Card>()
             check(candidateCards.size == optionList.size) { "One-shot PayCosts options must be cards" }
@@ -340,6 +345,7 @@ class TargetingCoordinator(
                     optionCount = sourceList.size,
                     candidateRefs = candidateRefs,
                     activeReveal = reveal != null,
+                    allCandidatesProjectable = allCandidatesProjectable(sourceList),
                 ),
             )
         if (plan.semantic == PromptSemantic.RevealChoose && reveal != null) {
@@ -356,6 +362,7 @@ class TargetingCoordinator(
             title ?: "Choose cards",
             semantic = plan.semantic,
             candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
+            unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
             sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             forcePrompt = plan.forcePrompt,
             searchSource = searchSource(plan.semantic, sa),
@@ -602,8 +609,9 @@ class TargetingCoordinator(
         sa: SpellAbility?,
     ): CardCollectionView {
         if (cards.size <= 1) return cards
+        if (!zone.isDeck) return cards
+        val semantic = orderSemantic(sa)
         val labels = cards.map { it.name }
-        val semantic = orderSemantic(zone, sa)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -616,9 +624,7 @@ class TargetingCoordinator(
                 route = PromptRouteResolver.resolve(semantic, hasCandidateRefs = true),
                 sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
             )
-        if (request.route !is ResolvedPromptRoute.Order) {
-            return orderedCards(cards, bridge.requestChoice(request))
-        }
+        check(request.route is ResolvedPromptRoute.Order) { "Library order must bind an Order route" }
         val handles = cards.filterIsInstance<Card>()
         check(handles.size == cards.size) { "Order route requires card options" }
         val ordered = CardCollection(bridge.requestOrder(request, handles, orderMoveIntent(handles, zone, semantic)).handles)
@@ -644,15 +650,8 @@ class TargetingCoordinator(
         )
     }
 
-    private fun orderSemantic(
-        zone: ZoneType,
-        sa: SpellAbility?,
-    ): PromptSemantic =
-        when {
-            !zone.isDeck -> PromptSemantic.OrderGeneric
-            isLibraryBottomOrder(sa) -> PromptSemantic.OrderForBottom
-            else -> PromptSemantic.OrderForTop
-        }
+    private fun orderSemantic(sa: SpellAbility?): PromptSemantic =
+        if (isLibraryBottomOrder(sa)) PromptSemantic.OrderForBottom else PromptSemantic.OrderForTop
 
     private fun isLibraryBottomOrder(sa: SpellAbility?): Boolean {
         val explicitPosition =
@@ -674,20 +673,6 @@ class TargetingCoordinator(
     ): Int? {
         if (sa == null || !sa.hasParam(param)) return null
         return runCatching { AbilityUtils.calculateAmount(sa.hostCard, sa.getParam(param), sa) }.getOrNull()
-    }
-
-    private fun orderedCards(
-        cards: CardCollectionView,
-        indices: List<Int>,
-    ): CardCollection {
-        val result = CardCollection()
-        for (idx in indices) {
-            if (idx in 0 until cards.size) result.add(cards.get(idx))
-        }
-        for (card in cards) {
-            if (card !in result) result.add(card)
-        }
-        return result
     }
 
     // -- Interactive target selection ------------------------------------
@@ -1009,6 +994,7 @@ class TargetingCoordinator(
         message: String,
         semantic: PromptSemantic = PromptSemantic.Generic,
         candidateRefs: List<PromptCandidateRefDto> = emptyList(),
+        unfilteredRefs: List<PromptCandidateRefDto> = emptyList(),
         sourceEntityId: Int? = null,
         forcePrompt: Boolean = false,
         costSelectionWeights: List<Int> = emptyList(),
@@ -1030,12 +1016,14 @@ class TargetingCoordinator(
                 max = effectiveMax,
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
+                unfilteredRefs = unfilteredRefs,
                 route = PromptRouteResolver.resolve(semantic, candidateRefs.isNotEmpty(), resolutionRouteInput),
                 sourceEntityId = sourceEntityId,
                 costSelectionWeights = costSelectionWeights,
                 minSelectionWeight = minSelectionWeight,
                 searchSource = searchSource,
             )
+        auditUnclassifiedEntityChoice(request)
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             return CardCollection(bridge.requestOneShotPayCosts(request, cards.toList()).handles)
         }
@@ -1109,6 +1097,52 @@ class TargetingCoordinator(
             (sa.hasParamValue("Duration", "UntilHostLeavesPlay") || sa.hasParam("IsCurse"))
 
     private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> = entities.toCandidateRefs()
+
+    private fun allCandidatesProjectable(entities: Iterable<GameEntity>): Boolean {
+        val values = entities.toList()
+        return values.isNotEmpty() && values.all { entity -> entity is Card && entity.isProjectableToChooser() }
+    }
+
+    private fun Card.isProjectableToChooser(): Boolean =
+        when (zone?.zoneType) {
+            ZoneType.Hand,
+            ZoneType.Sideboard,
+            -> ownerSeat() == viewerSeatId
+            ZoneType.Battlefield,
+            ZoneType.Graveyard,
+            ZoneType.Exile,
+            ZoneType.Command,
+            ZoneType.Stack,
+            -> true
+            ZoneType.Library,
+            ZoneType.Flashback,
+            ZoneType.Ante,
+            ZoneType.Merged,
+            ZoneType.SchemeDeck,
+            ZoneType.PlanarDeck,
+            ZoneType.AttractionDeck,
+            ZoneType.Junkyard,
+            ZoneType.ContraptionDeck,
+            ZoneType.Subgame,
+            ZoneType.ExtraHand,
+            ZoneType.None,
+            null,
+            -> false
+        }
+
+    private fun Card.ownerSeat(): SeatId = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+
+    private fun auditUnclassifiedEntityChoice(request: PromptRequest) {
+        if (request.route !is ResolvedPromptRoute.UnclassifiedEntityChoice) return
+        log.warn(
+            "Resolution choice remains unclassified: options={} refs={} kinds={} zones={}",
+            request.options.size,
+            request.candidateRefs.size,
+            request.candidateRefs.map { it.kind }.distinct(),
+            request.candidateRefs.map { it.zone }.distinct(),
+        )
+        DevCheck.fail { "Resolution choice has an incomplete, mixed, or unprojectable candidate domain" }
+    }
 
     private fun GameEntity.entityLabel(): String =
         when (this) {

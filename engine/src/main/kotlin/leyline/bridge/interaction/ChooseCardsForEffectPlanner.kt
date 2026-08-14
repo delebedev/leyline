@@ -12,6 +12,7 @@ data class ChooseCardsForEffectContext(
     val optionCount: Int,
     val candidateRefs: List<PromptCandidateRefDto>,
     val activeReveal: Boolean,
+    val allCandidatesProjectable: Boolean,
 )
 
 data class ChooseCardsForEffectPlan(
@@ -30,6 +31,7 @@ object ChooseCardsForEffectPlanner {
                 context.candidateRefs,
                 context.optionCount,
                 ResolutionAbilityShape.Other,
+                context.allCandidatesProjectable,
             )
         return when {
             context.activeReveal ->
