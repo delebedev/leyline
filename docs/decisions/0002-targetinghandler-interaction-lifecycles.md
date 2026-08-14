@@ -28,7 +28,7 @@ Current residual responsibilities include:
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
 
-Target selection, Search, Top/Bottom Order, card-backed SelectN, and all PayCosts
+Target selection, Search, Top/Bottom Order, card-backed SelectN, static-enum SelectN, and all PayCosts
 payments are match-coordinator-owned lifecycles with value-only session adapters.
 
 This produces a large, high-churn file whose name no longer describes most of
@@ -90,7 +90,6 @@ for simple non-target prompt responses:
 - Client id to prompt-index mapping using `PromptResponseMapper`.
 - `submitResponse`, `awaitPriority`, and `autoPass` sequencing.
 - Shared response paths for `SelectNResp` and residual `EffectCostResp` routes.
-- Small choice-result side-effect recording if it remains local to Select-N responses.
 
 It does not own:
 

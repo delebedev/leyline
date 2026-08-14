@@ -7,6 +7,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.StaticChoiceIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -22,7 +23,7 @@ class StaticChoiceCoordinator(
     ): Boolean {
         val parityIds = parityOptionIds(options)
         val result =
-            bridge.requestChoice(
+            requestChoice(
                 PromptRequest(
                     promptType = "confirm",
                     message = message,
@@ -57,7 +58,7 @@ class StaticChoiceCoordinator(
         val labels = binaryLabels(kindOfChoice)
         val parityIds = parityOptionIds(labels)
         val result =
-            bridge.requestChoice(
+            requestChoice(
                 PromptRequest(
                     promptType = "confirm",
                     message = question ?: "Choose one",
@@ -97,7 +98,7 @@ class StaticChoiceCoordinator(
         val colorOptions = colorChoices.map { it.translatedName }
         log.debug("chooseColor: options={}", colorOptions)
         val indices =
-            bridge.requestChoice(
+            requestChoice(
                 PromptRequest(
                     promptType = "choose_one",
                     message = message,
@@ -128,7 +129,7 @@ class StaticChoiceCoordinator(
 
         val colorChoices = options.orderedColors.toList()
         val indices =
-            bridge.requestChoice(
+            requestChoice(
                 PromptRequest(
                     promptType = "choose_colors",
                     message = message,
@@ -159,21 +160,20 @@ class StaticChoiceCoordinator(
         if (choices.isEmpty()) return if (isOptional) null else validTypes.firstOrNull()
 
         val idx =
-            bridge
-                .requestChoice(
-                    PromptRequest(
-                        promptType = "choose_type",
-                        message = "Choose a ${kindOfType.lowercase()} type",
-                        options = choices.map { it.first },
-                        min = if (isOptional) 0 else 1,
-                        max = 1,
-                        defaultIndex = 0,
-                        route = PromptRouteResolver.resolve(PromptSemantic.StaticSubtypeChoice),
-                        sourceEntityId = sourceEntityId(sa),
-                        staticList = StaticList.SubTypes,
-                        staticOptionIds = choices.map { it.second },
-                    ),
-                ).firstOrNull()
+            requestChoice(
+                PromptRequest(
+                    promptType = "choose_type",
+                    message = "Choose a ${kindOfType.lowercase()} type",
+                    options = choices.map { it.first },
+                    min = if (isOptional) 0 else 1,
+                    max = 1,
+                    defaultIndex = 0,
+                    route = PromptRouteResolver.resolve(PromptSemantic.StaticSubtypeChoice),
+                    sourceEntityId = sourceEntityId(sa),
+                    staticList = StaticList.SubTypes,
+                    staticOptionIds = choices.map { it.second },
+                ),
+            ).firstOrNull()
         return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
     }
 
@@ -198,6 +198,13 @@ class StaticChoiceCoordinator(
     }
 
     private fun sourceEntityId(sa: SpellAbility?): Int? = sa?.hostCard?.id?.takeIf { it > 0 }
+
+    private fun requestChoice(request: PromptRequest): List<Int> =
+        if (request.route is ResolvedPromptRoute.StaticChoice) {
+            bridge.requestStaticChoice(request)
+        } else {
+            bridge.requestChoice(request)
+        }
 
     companion object {
         private val log = LoggerFactory.getLogger(StaticChoiceCoordinator::class.java)

@@ -86,6 +86,7 @@ class BundleBuilder(
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
     private val cardSelectWindows = CardSelectWindowMaterializer(seatId)
+    private val staticChoiceWindows = StaticChoiceWindowMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val orderWindows = OrderWindowMaterializer(seatId)
@@ -1421,6 +1422,24 @@ class BundleBuilder(
         )
     }
 
+    /** Prepare, but do not install, one coordinator-owned static enum SelectN window. */
+    internal fun prepareStaticChoiceWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: leyline.bridge.handoff.StaticChoiceWindowValue,
+    ): StaticChoiceWindowMaterializer.Prepared {
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return staticChoiceWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Prepare, but do not install, one coordinator-owned mana-source payment presentation. */
     internal fun prepareManaSourcePayment(
         game: Game,
@@ -1492,7 +1511,7 @@ class BundleBuilder(
 
     /**
      * Residual SelectN bundle: GameState + SelectNReq.
-     * Used for reveal, resolution, legend, Learn, and static-choice prompts.
+     * Used for reveal, resolution, legend, Learn, and other dynamic residual SelectN prompts.
      */
     fun selectNBundle(
         game: Game,

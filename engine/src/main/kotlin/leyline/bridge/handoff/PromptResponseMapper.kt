@@ -7,14 +7,7 @@ object PromptResponseMapper {
         selectedIds: List<Int>,
         request: PromptRequest,
         resolveForgeCardId: (Int) -> ForgeCardId?,
-    ): List<Int> =
-        if (request.staticOptionIds.isNotEmpty()) {
-            selectedIds
-                .map { staticId -> request.staticOptionIds.indexOf(staticId) }
-                .filter { it >= 0 }
-        } else {
-            cardInstanceIdsToPromptIndices(selectedIds, request, resolveForgeCardId)
-        }
+    ): List<Int> = cardInstanceIdsToPromptIndices(selectedIds, request, resolveForgeCardId)
 
     fun cardInstanceIdsToPromptIndices(
         instanceIds: List<Int>,

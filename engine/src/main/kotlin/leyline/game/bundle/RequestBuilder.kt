@@ -8,7 +8,6 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNPromptRoute
-import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
@@ -91,14 +90,13 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for residual legend, reveal, resolution, Learn, and static-choice prompts.
+     * Used for residual legend, reveal, resolution, and Learn prompts.
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
      *
      * Context/listType vary by prompt type:
      * - `legend_rule`: context=Resolution, listType=Dynamic
-     * - static choices: context=Resolution, listType=Static or StaticSubset
      * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
     fun buildSelectNReq(
@@ -106,7 +104,9 @@ object RequestBuilder {
         bridge: GameBridge,
         route: SelectNPromptRoute,
     ): SelectNReq {
-        val staticList = prompt.request.staticList
+        check(prompt.request.staticList == null && prompt.request.staticOptionIds.isEmpty()) {
+            "Static choices require StaticChoiceWindowMaterializer"
+        }
         val shape = route.shape
         val builder =
             SelectNReq
@@ -118,13 +118,7 @@ object RequestBuilder {
                 // Always per spec — INT32 extremes (no weight filtering on resolution picks).
                 .setMinWeight(Int.MIN_VALUE)
                 .setMaxWeight(Int.MAX_VALUE)
-                .apply {
-                    if (staticList == null) {
-                        setIdType(IdType.InstanceId_ab2c)
-                    } else {
-                        setStaticList(staticList)
-                    }
-                }
+                .setIdType(IdType.InstanceId_ab2c)
 
         // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
         val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
@@ -133,7 +127,7 @@ object RequestBuilder {
             builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
         }
 
-        builder.addSelectNIds(prompt, bridge, route)
+        builder.addSelectNIds(prompt, bridge)
         route.configureInnerPrompt(builder, prompt, bridge)
         return builder.build()
     }
@@ -161,14 +155,7 @@ object RequestBuilder {
     private fun SelectNReq.Builder.addSelectNIds(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-        route: SelectNPromptRoute,
     ) {
-        if (prompt.request.staticList != null) {
-            if (route.staticChoice?.kind == StaticChoiceKind.Subtype) {
-                prompt.request.staticOptionIds.forEach { addIds(it) }
-            }
-            return
-        }
         prompt.request.candidateRefs.forEach { ref ->
             addIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }

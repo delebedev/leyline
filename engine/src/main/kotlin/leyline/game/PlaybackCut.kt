@@ -105,6 +105,21 @@ internal data class CardSelectMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.CardSelectWindowValue,
 )
 
+/** Exact static enum SelectN cut retained on terminal failure. */
+internal data class PendingStaticChoiceCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.StaticChoiceWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen static enum SelectN input retained when materialization itself fails. */
+internal data class StaticChoiceMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.StaticChoiceWindowValue,
+)
+
 /** Exact iterative mana-source payment cut retained on terminal failure. */
 internal data class PendingManaSourcePaymentCut(
     val interactionId: String,
@@ -142,6 +157,8 @@ internal data class PromptTerminalFailureContext(
     val orderDiagnostic: OrderMaterializationDiagnostic? = null,
     val pendingCardSelectCut: PendingCardSelectCut? = null,
     val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
+    val pendingStaticChoiceCut: PendingStaticChoiceCut? = null,
+    val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
     val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
     val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     val pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
@@ -161,6 +178,8 @@ internal class PlaybackTerminalFailure(
     val orderDiagnostic get() = prompt.orderDiagnostic
     val pendingCardSelectCut get() = prompt.pendingCardSelectCut
     val cardSelectDiagnostic get() = prompt.cardSelectDiagnostic
+    val pendingStaticChoiceCut get() = prompt.pendingStaticChoiceCut
+    val staticChoiceDiagnostic get() = prompt.staticChoiceDiagnostic
     val pendingManaSourcePaymentCut get() = prompt.pendingManaSourcePaymentCut
     val manaSourcePaymentDiagnostic get() = prompt.manaSourcePaymentDiagnostic
     val pendingOneShotPayCostsCut get() = prompt.pendingOneShotPayCostsCut

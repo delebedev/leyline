@@ -4,7 +4,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
-import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 /**
  * Immutable protocol route fixed when a [PromptRequest] is created.
@@ -34,6 +33,13 @@ sealed interface ResolvedPromptRoute {
     /** Card-backed SelectN semantics owned by one exact-handle runtime. */
     data class CardSelect(
         val descriptor: CardSelectPromptRoute,
+    ) : ResolvedPromptRoute {
+        override val semantic: PromptSemantic = descriptor.semantic
+    }
+
+    /** Static enum SelectN semantics owned by one value-only runtime. */
+    data class StaticChoice(
+        val descriptor: StaticChoicePromptRoute,
     ) : ResolvedPromptRoute {
         override val semantic: PromptSemantic = descriptor.semantic
     }
@@ -95,7 +101,6 @@ data class SelectNShape(
 )
 
 enum class SelectNInnerPrompt {
-    StaticChoice,
     LegendRule,
     GenericSelectN,
     SelectNInnerParameter,
@@ -111,7 +116,6 @@ enum class SelectNEnvelopeKind {
     ManifestDread,
     LibraryPutback,
     LearnLesson,
-    StaticChoice,
 }
 
 enum class StaticChoiceKind {
@@ -120,9 +124,9 @@ enum class StaticChoiceKind {
     Parity,
 }
 
-data class StaticChoicePolicy(
+data class StaticChoicePromptRoute(
+    val semantic: PromptSemantic,
     val kind: StaticChoiceKind,
-    val choiceDomain: Int,
 )
 
 data class SelectNPromptRoute(
@@ -130,8 +134,6 @@ data class SelectNPromptRoute(
     val shape: SelectNShape,
     val innerPrompt: SelectNInnerPrompt,
     val envelopeKind: SelectNEnvelopeKind,
-    val staticChoice: StaticChoicePolicy? = null,
-    val choiceResultSentiment: Int? = null,
 )
 
 enum class PayCostsRouteKind {
@@ -161,13 +163,12 @@ data class PayCostsPromptRoute(
 )
 
 object PromptRouteResolver {
-    private val staticResolutionShape =
+    private val dynamicResolutionShape =
         SelectNShape(
             SelectionContext.Resolution_a163,
-            SelectionListType.Static,
+            SelectionListType.Dynamic,
             OptionContext.Resolution_a9d7,
         )
-    private val dynamicResolutionShape = staticResolutionShape.copy(listType = SelectionListType.Dynamic)
 
     @Suppress("CyclomaticComplexMethod") // Exhaustive PromptSemantic catalog is the single route authority.
     fun resolve(
@@ -212,16 +213,11 @@ object PromptRouteResolver {
             PromptSemantic.LearnLesson ->
                 selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.LearnInnerParameter, SelectNEnvelopeKind.LearnLesson)
             PromptSemantic.StaticColorChoice ->
-                staticChoice(semantic, staticResolutionShape, StaticChoiceKind.Color, 6)
+                staticChoice(semantic, StaticChoiceKind.Color)
             PromptSemantic.StaticSubtypeChoice ->
-                staticChoice(
-                    semantic,
-                    staticResolutionShape.copy(listType = SelectionListType.StaticSubset),
-                    StaticChoiceKind.Subtype,
-                    5,
-                )
+                staticChoice(semantic, StaticChoiceKind.Subtype)
             PromptSemantic.StaticParityChoice ->
-                staticChoice(semantic, staticResolutionShape, StaticChoiceKind.Parity, StaticList.Parities.number)
+                staticChoice(semantic, StaticChoiceKind.Parity)
             PromptSemantic.SelectNCostSacrifice -> payCosts(semantic, PayCostsRouteKind.Sacrifice, "sacrifice")
             PromptSemantic.SelectNCostExileFromGrave ->
                 payCosts(semantic, PayCostsRouteKind.SelectCostExileFromGrave, "exile-from-grave")
@@ -245,10 +241,9 @@ object PromptRouteResolver {
         shape: SelectNShape,
         innerPrompt: SelectNInnerPrompt,
         envelopeKind: SelectNEnvelopeKind,
-        choiceResultSentiment: Int? = null,
     ): ResolvedPromptRoute.SelectN =
         ResolvedPromptRoute.SelectN(
-            SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind, choiceResultSentiment = choiceResultSentiment),
+            SelectNPromptRoute(semantic, shape, innerPrompt, envelopeKind),
         )
 
     private fun cardSelect(
@@ -260,20 +255,8 @@ object PromptRouteResolver {
 
     private fun staticChoice(
         semantic: PromptSemantic,
-        shape: SelectNShape,
         kind: StaticChoiceKind,
-        choiceDomain: Int,
-    ): ResolvedPromptRoute.SelectN =
-        ResolvedPromptRoute.SelectN(
-            SelectNPromptRoute(
-                semantic,
-                shape,
-                SelectNInnerPrompt.StaticChoice,
-                SelectNEnvelopeKind.StaticChoice,
-                StaticChoicePolicy(kind, choiceDomain),
-                choiceResultSentiment = 2,
-            ),
-        )
+    ): ResolvedPromptRoute.StaticChoice = ResolvedPromptRoute.StaticChoice(StaticChoicePromptRoute(semantic, kind))
 
     private fun payCosts(
         semantic: PromptSemantic,
