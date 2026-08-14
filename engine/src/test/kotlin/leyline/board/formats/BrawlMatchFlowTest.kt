@@ -34,8 +34,9 @@ class BrawlMatchFlowTest :
 
             val human = board.human
             assertSoftly {
+                board.game.phaseHandler.turn shouldBe 2
                 human.life shouldBe 25
-                human.getZone(ZoneType.Hand).size() shouldBe 7
+                human.getZone(ZoneType.Hand).size() shouldBe 8
                 "Isamaru, Hound of Konda" should beInCommandOf(human, count = 1)
                 board.bridge.getHandGrpIds(SeatId(1)).shouldNotBeEmpty()
                 board.bridge.getCommanderGrpIds(SeatId(1)) shouldBe listOf(72175, 72175)

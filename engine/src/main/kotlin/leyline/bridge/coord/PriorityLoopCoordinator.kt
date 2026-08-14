@@ -10,6 +10,7 @@ import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.findCard
+import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DamageAssignmentGate
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.OwnerContext
@@ -44,9 +45,10 @@ class PriorityLoopCoordinator(
     private val phaseStopProfile: PhaseStopProfile?,
     private val smartPhaseSkip: Boolean,
     private val spellExecutor: SpellExecutor,
+    interactionRuntime: BlockingInteractionRuntime,
 ) {
     private val log = LoggerFactory.getLogger(PriorityLoopCoordinator::class.java)
-    private val damageAssignmentGate = DamageAssignmentGate(owner, actionBridge)
+    private val damageAssignmentGate = DamageAssignmentGate(actionBridge, interactionRuntime)
     private var pendingAttackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap()
 
     private var lastSeenTurn: Int = -1
@@ -71,30 +73,10 @@ class PriorityLoopCoordinator(
             return null
         }
 
-        // Full control: skip all engine-side auto-pass, always return priority to session layer
-        val fullControl = owner.autoPassState?.isFullControl ?: false
-
-        // Smart phase skip (ADR-008): auto-pass when player has no meaningful actions.
-        // Only on own turn — on opponent's turn the player needs priority at their
-        // phase stops to cast instants (e.g. Kill Shot during combat).
-        // Never skip when stack has items — player should see stack state.
-        // Never skip right after a prompt resolved — player needs to see the result.
-        // Never skip when full control is on.
-        val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
-        val smartSkipAllowed = !fullControl && smartPhaseSkip && !promptJustResolved
-        if (smartSkipAllowed &&
-            handler.playerTurn?.id == player.id &&
-            game.stack.isEmpty &&
-            !PriorityActionCandidates.hasLegalNonManaAction(game, player)
-        ) {
-            owner.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
-            return null
-        }
-
         val isOwnTurn = handler.playerTurn?.id == player.id
         // Phase stop check only applies on human's own turn. During opponent's turn
         // the session layer (advanceOrWait) handles opponent-turn stops separately.
-        if (!fullControl &&
+        if (owner.autoPassState?.isFullControl != true &&
             isOwnTurn &&
             phaseStopProfile != null &&
             !phaseStopProfile.isEnabled(player.id, handler.phase)
@@ -104,7 +86,26 @@ class PriorityLoopCoordinator(
         }
 
         // Loop so that mana abilities (which don't use the stack) keep priority with the player.
+        var forceVisibleAfterMana = false
         while (true) {
+            val priorityCandidates = PriorityActionCandidates.query(game, player)
+            val forceVisible = actionBridge.consumeForceNextWindowVisible()
+            val mode =
+                priorityWindowMode(
+                    fullControl = owner.autoPassState?.isFullControl == true || forceVisible || forceVisibleAfterMana,
+                    smartPhaseSkip = smartPhaseSkip,
+                    promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true,
+                    stackEmpty = game.stack.isEmpty,
+                    opponentStop =
+                        !isOwnTurn &&
+                            handler.phase?.let { owner.autoPassState?.hasOpponentStop(it) } == true,
+                    hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
+                )
+            forceVisibleAfterMana = false
+            if (mode == PriorityWindowMode.Skip) {
+                owner.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
+                return null
+            }
             owner.notifyStateChanged()
 
             val state =
@@ -113,8 +114,9 @@ class PriorityLoopCoordinator(
                     turn = handler.turn,
                     activePlayerId = handler.playerTurn?.id ?: -1,
                     priorityPlayerId = player.id,
+                    kind = if (mode == PriorityWindowMode.SyncOnly) PendingActionKind.SYNC_ONLY else PendingActionKind.PRIORITY,
                 )
-            when (val action = actionBridge.awaitAction(state)) {
+            when (val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })) {
                 is PlayerAction.PassPriority -> return null
                 is PlayerAction.EndTurn -> {
                     actionBridge.setAutoPassUntilEndOfTurn(true)
@@ -131,12 +133,29 @@ class PriorityLoopCoordinator(
                     if (!spellExecutor.activateMana(action.cardId, action.abilityId, action.selectedColor, action.ability)) {
                         log.debug("Mana activation failed for card {}", action.cardId.value)
                     }
+                    forceVisibleAfterMana = true
                     continue
                 }
                 is PlayerAction.PlayLand -> return spellExecutor.playLand(action.cardId)
                 else -> return null
             }
         }
+    }
+
+    companion object {
+        internal fun priorityWindowMode(
+            fullControl: Boolean,
+            smartPhaseSkip: Boolean,
+            promptJustResolved: Boolean,
+            stackEmpty: Boolean,
+            opponentStop: Boolean,
+            hasMeaningfulAction: Boolean,
+        ): PriorityWindowMode =
+            when {
+                fullControl || opponentStop || hasMeaningfulAction -> PriorityWindowMode.Visible
+                promptJustResolved || !stackEmpty || !smartPhaseSkip -> PriorityWindowMode.SyncOnly
+                else -> PriorityWindowMode.Skip
+            }
     }
 
     fun declareAttackers(
@@ -233,3 +252,5 @@ class PriorityLoopCoordinator(
             fallback = fallback,
         )
 }
+
+internal enum class PriorityWindowMode { Visible, SyncOnly, Skip }

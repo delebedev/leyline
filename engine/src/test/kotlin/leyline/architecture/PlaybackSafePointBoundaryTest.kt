@@ -24,7 +24,7 @@ class PlaybackSafePointBoundaryTest :
                     .substringAfter("override fun visit(ev: GameEventLandPlayed)")
                     .substringBefore("fun onMainLoopStepCompleted()")
             assertSoftly {
-                source shouldContain "private fun flushRequestedCut("
+                source shouldContain "bridge.cutCoordinator.flushPlaybackCut("
                 visitors.split("override fun visit(").size - 1 shouldBe 10
                 listOf(
                     "closeBundleFrame(",
@@ -39,15 +39,47 @@ class PlaybackSafePointBoundaryTest :
                 source shouldNotContain "pendingResolutionFrame"
                 source shouldNotContain "shouldAwaitResolutionBoundary"
             }
+            val coordinator = sourceRoot.resolve("leyline/bridge/coord/MatchCutCoordinator.kt").toFile().readText()
+            assertSoftly {
+                coordinator shouldContain "bridge.closeBundleFrame(seatId.value)"
+                coordinator shouldContain "PendingCut("
+                coordinator shouldContain "feed.builder.materializePlaybackCut("
+                coordinator shouldContain "feed.builder.compilePlaybackCut("
+            }
         }
 
         test("playback producers preserve the shared frame lock order") {
-            val source = sourceRoot.resolve("leyline/game/GamePlayback.kt").toFile().readText()
-            val producer = source.substringAfter("private fun flushRequestedCut(").substringBefore("private fun playbackFrameSpecs(")
+            val source = sourceRoot.resolve("leyline/bridge/coord/MatchCutCoordinator.kt").toFile().readText()
+            val producer = source.substringAfter("fun flushPlaybackCut(").substringBefore("fun acknowledgeExternalFrame(")
             val counter = producer.indexOf("synchronized(counter)")
             val projection = producer.indexOf("synchronized(bridge.projectionBuildLock)")
-            val queue = producer.indexOf("synchronized(queueLock)")
-            (counter in 0 until projection && projection in 0 until queue) shouldBe true
+            val feed = producer.indexOf("synchronized(feedLock)")
+            (counter in 0 until projection && projection in 0 until feed) shouldBe true
+        }
+
+        test("migrated session paths do not compile or close state frames") {
+            val migrated =
+                listOf(
+                    "leyline/match/ActionPerformer.kt",
+                    "leyline/match/AutoPassEngine.kt",
+                    "leyline/match/CombatHandler.kt",
+                    "leyline/match/NumericInputHandler.kt",
+                    "leyline/match/OptionalActionHandler.kt",
+                )
+            migrated.size shouldBe 5
+            migrated.forEach { relative ->
+                val source = sourceRoot.resolve(relative).toFile().readText()
+                source shouldNotContain "stateOnlyDiff("
+                source shouldNotContain "closeBundleFrame("
+            }
+
+            val spectator = sourceRoot.resolve("leyline/match/SpectatorSession.kt").toFile().readText()
+            spectator shouldContain "bundleBuilder.stateOnlyDiff("
+            spectator shouldNotContain "closeBundleFrame("
+
+            val session = sourceRoot.resolve("leyline/match/MatchSession.kt").toFile().readText()
+            val legacySearch = session.substringAfter("override fun sendLegacyPromptState(").substringBefore("override fun sendBundle(")
+            legacySearch shouldContain "bundleBuilder.stateOnlyDiff("
         }
 
         test("every game-loop launch uses the pre-start playback pipeline") {

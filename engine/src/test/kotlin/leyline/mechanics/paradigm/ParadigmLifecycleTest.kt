@@ -176,7 +176,13 @@ class ParadigmLifecycleTest :
 
             val copyTargetMessage = allMessages.last { it.hasSelectTargetsReq() && it.selectTargetsReq.sourceId != originalTargetSourceId }
             val copyTargetReq = copyTargetMessage.selectTargetsReq
-            val copyTargetGsm = gsms().last { it.gameStateId == copyTargetMessage.gameStateId }
+            val copyTargetGsm =
+                gsms().first { gsm ->
+                    gsm.gameStateId == copyTargetMessage.gameStateId &&
+                        gsm.gameObjectsList.any {
+                            it.type == GameObjectType.Ability && it.grpId == PARADIGM_COPY_TRIGGER
+                        }
+                }
             assertSoftly {
                 copyTargetReq.sourceId shouldNotBe 0
                 copyTargetReq.abilityGrpId shouldBe DECORUM_DISSERTATION
@@ -191,7 +197,8 @@ class ParadigmLifecycleTest :
                         .first {
                             it.type == GameObjectType.Ability && it.grpId == PARADIGM_COPY_TRIGGER
                         }.instanceId
-                copyTargetGsm.annotationsList
+                gsms()
+                    .flatMap { it.annotationsList }
                     .first { it.isExileToStackParadigmCastTransfer(copyTargetReq.sourceId) }
                     .affectorId shouldBe triggerIid
                 val copySourceObjects =

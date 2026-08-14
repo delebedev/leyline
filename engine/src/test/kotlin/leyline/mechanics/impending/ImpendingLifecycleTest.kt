@@ -6,6 +6,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
@@ -103,7 +105,12 @@ class ImpendingLifecycleTest :
                     removedAllCounters = true
                     return@repeat
                 }
-                if (allMessages.lastOrNull { it.hasDeclareAttackersReq() } != null) {
+                if (harness.bridge
+                        .actionBridge(SeatId(1))
+                        .getPending()
+                        ?.state
+                        ?.kind == PendingActionKind.DECLARE_ATTACKERS
+                ) {
                     declareNoAttackers()
                 } else {
                     passPriority()

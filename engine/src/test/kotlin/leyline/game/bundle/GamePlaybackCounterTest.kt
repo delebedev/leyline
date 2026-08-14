@@ -80,7 +80,7 @@ class GamePlaybackCounterTest :
         test("GamePlayback uses shared counter (no local atomics)") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
             val bridge = GameBridge(cardRepository = InMemoryCardRepository(), messageCounter = counter)
-            val playback = GamePlayback(bridge, "test", 1, counter)
+            val playback = GamePlayback(bridge, 1)
 
             assertSoftly {
                 playback.drainQueue().shouldBeEmpty()

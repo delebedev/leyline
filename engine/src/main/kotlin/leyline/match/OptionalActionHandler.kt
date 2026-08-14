@@ -1,31 +1,18 @@
 package leyline.match
 
-import leyline.bridge.handoff.CommanderReturnPromptContext
-import leyline.bridge.handoff.OptionalActionPrompt
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
-import leyline.game.annotations.AnnotationBuilder
-import leyline.game.bundle.GsmFrame
-import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.ObjectMapper
-import leyline.game.mapping.PlayerMapper
-import leyline.game.mapping.PromptIds
-import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.GsmSnapshot
+import leyline.bridge.handoff.BlockingInteraction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Handles "you may" trigger decisions via OptionalActionMessage (GRE type 45).
  *
  * Lifecycle (mirrors [CombatHandler]'s damage assignment pattern):
- * 1. Engine thread calls `PlayerController.confirmTrigger` → sets
- *    `pendingOptionalAction` → blocks on CompletableFuture
- * 2. Auto-pass loop calls [checkPendingOptionalAction] → detects non-null →
- *    sends OptionalActionMessage to client → returns true (loop exits)
+ * 1. Engine thread calls `PlayerController.confirmTrigger` → coordinator commits
+ *    OptionalActionMessage output → blocks on its runtime answer.
+ * 2. Auto-pass loop calls [checkPendingOptionalAction] and drains committed output.
  * 3. Client responds with OptionalResp (AllowYes / CancelNo)
- * 4. [MatchHandler] dispatches to [onOptionalActionResp] → completes future →
+ * 4. [MatchHandler] dispatches to [onOptionalActionResp] → submits the value →
  *    engine unblocks → ability resolves or is deleted
  */
 class OptionalActionHandler(
@@ -42,14 +29,14 @@ class OptionalActionHandler(
      * @return true if an OptionalActionMessage was sent (caller should exit loop)
      */
     fun checkPendingOptionalAction(): Boolean {
-        val wpc = ctx.bridge.humanController ?: return false
-        val prompt = wpc.pendingOptionalAction ?: return false
+        val pending = ctx.bridge.cutCoordinator.currentBlockingInteraction() ?: return false
+        val prompt = pending.interaction as? BlockingInteraction.Optional ?: return false
 
         log.info(
             "OptionalActionHandler: optional trigger pending for {}",
-            prompt.hostCard?.name ?: "unknown",
+            prompt.sourceId ?: "unknown",
         )
-        sendOptionalActionMessage(prompt)
+        drainCommittedInteraction()
         return true
     }
 
@@ -61,16 +48,12 @@ class OptionalActionHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
-        val wpc =
-            bridge.humanController ?: run {
-                log.warn("OptionalActionHandler: no humanController for OptionalActionResp")
-                return
-            }
-        val prompt =
-            wpc.pendingOptionalAction ?: run {
+        val pending =
+            bridge.cutCoordinator.currentBlockingInteraction()?.takeIf { it.interaction is BlockingInteraction.Optional } ?: run {
                 log.warn("OptionalActionHandler: no pending prompt for OptionalActionResp")
                 return
             }
+        val prompt = pending.interaction as BlockingInteraction.Optional
 
         val resp = greMsg.optionalResp
         val accepted = resp.response == OptionResponse.AllowYes
@@ -79,276 +62,20 @@ class OptionalActionHandler(
             "OptionalActionHandler: {} responded {} for {}",
             if (accepted) "Accept" else "Decline",
             resp.response,
-            prompt.hostCard?.name ?: "unknown",
+            prompt.sourceId ?: "unknown",
         )
 
-        val commanderReturn = prompt.commanderReturn
-        if (commanderReturn != null) {
-            bridge.retireToLimbo(InstanceId(commanderReturn.promptInstanceId))
-        }
+        if (!bridge.cutCoordinator.submitOptionalAnswer(pending.interactionId, greMsg.gameStateId, accepted)) return
         bridge.prioritySignal.markPromptResolved()
-        prompt.future.complete(accepted)
         bridge.awaitActionPriority(counters.seatId)
-        if (commanderReturn != null) {
-            sendCommanderPromptCleanup(commanderReturn)
-            sink.sendRealGameState(bridge)
-        }
         autoPass()
     }
 
-    // --- Private ---
-
-    private fun sendOptionalActionMessage(prompt: OptionalActionPrompt) {
-        val bridge = ctx.bridge
-        val hostCard = prompt.hostCard
-        if (hostCard == null) {
-            log.warn("OptionalActionHandler: hostCard is null — cannot send OptionalActionMessage")
-            prompt.future.complete(true) // auto-accept to avoid engine deadlock
-            return
-        }
-
-        val commanderReturn = prompt.commanderReturn
-        val isCommanderReturnPrompt = commanderReturn != null
-        val hostCardId = ForgeCardId(hostCard.id)
-        val sourceId = commanderReturn?.oldInstanceId ?: bridge.getOrAllocInstanceId(hostCardId).value
-        val recipientId = commanderReturn?.promptInstanceId ?: sourceId
-        val optionalSourceId = if (isCommanderReturnPrompt) recipientId else sourceId
-
-        // For mid-resolution prompts (e.g. Madness: the card moves Hand→Exile via
-        // replacement BEFORE the engine asks "cast for madness?"), force a full
-        // state snapshot so the client sees the post-replacement zones before the
-        // prompt arrives. Without this the client renders the prompt while the
-        // card is still in hand.
-        if (prompt.forceSnapshotBeforePrompt) {
-            sink.sendRealGameState(bridge)
-        }
-
-        val optionalMsgBuilder =
-            OptionalActionMessage
-                .newBuilder()
-                .setSourceId(optionalSourceId)
-        if (isCommanderReturnPrompt) {
-            optionalMsgBuilder
-                .addOptionalActionTypes(CardMechanicType.ZoneTransfer_a57f)
-                .addRecipientIds(recipientId)
-        }
-        val optionalMsg = optionalMsgBuilder.build()
-
-        // TODO: shock land ETB needs promptId 2233 + ReplacementEffect pAnn with
-        // allocated affectorId as sourceId. Currently uses generic prompt for all,
-        // unless overridden via prompt.customPromptId (e.g. Endure → ENDURE_PUT_COUNTERS).
-        val promptBuilder =
-            Prompt
-                .newBuilder()
-                .setPromptId(prompt.customPromptId ?: PromptIds.OPTIONAL_ACTION)
-        if (isCommanderReturnPrompt) {
-            promptBuilder.addParameters(
-                PromptParameter
-                    .newBuilder()
-                    .setParameterName("CardId")
-                    .setType(ParameterType.Number)
-                    .setNumberValue(0),
-            )
-        }
-        val promptProto =
-            promptBuilder
-                .addParameters(
-                    PromptParameter
-                        .newBuilder()
-                        .setParameterName("CardId")
-                        .setType(ParameterType.Number)
-                        .setNumberValue(recipientId),
-                ).build()
-
-        if (!isCommanderReturnPrompt) {
-            PendingPromptEnvelope.sendBare(
-                sink,
-                counters,
-                GREMessageType.OptionalActionMessage_695e,
-            ) {
-                it.optionalActionMessage = optionalMsg
-                it.prompt = promptProto
-                // Controls Cancel button visibility, NOT whether declining is allowed.
-                // Player can always decline via CancelNo response regardless of this value.
-                it.allowCancel = AllowCancel.No_a526
-            }
-            return
-        }
-        val commanderContext = checkNotNull(commanderReturn)
-
-        val link = counters.counter.nextGameStateLink()
-        val pendingGsmBuilder =
-            GameStateMessage
-                .newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(link.gsId)
-                .setPrevGameStateId(link.prevGsId)
-                .setPendingMessageCount(1)
-        val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
-        pendingGsmBuilder
-            .setTurnInfo(GsmFrame.from(snap).turnInfo())
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(GameStateUpdate.Send)
-        addReplacementPromptContext(pendingGsmBuilder, snap, hostCard.id, commanderContext)
-        val actions = ActionMapper.buildFromSnapshot(counters.seatId.value, snap, bridge)
-        for (action in actions.actionsList) {
-            pendingGsmBuilder.addActions(
-                ActionInfo
-                    .newBuilder()
-                    .setSeatId(counters.seatId.value)
-                    .setAction(ActionMapper.stripActionForGsm(action)),
-            )
-        }
-        val pendingGsm = pendingGsmBuilder.build()
-
-        val gsmGre =
-            sink.makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counters.counter.nextMsgId()) {
-                it.gameStateMessage = pendingGsm
-            }
-
-        val optionalGre =
-            sink.makeGRE(GREMessageType.OptionalActionMessage_695e, link.gsId, counters.counter.nextMsgId()) {
-                it.optionalActionMessage = optionalMsg
-                it.prompt = promptProto
-                // Controls Cancel button visibility, NOT whether declining is allowed.
-                // Player can always decline via CancelNo response regardless of this value.
-                it.allowCancel = AllowCancel.No_a526
-            }
-
-        sink.sendBundledGRE(listOf(gsmGre, optionalGre))
+    private fun drainCommittedInteraction() {
+        ctx.bridge
+            .playbackFor(counters.seatId)
+            ?.drainQueue()
+            .orEmpty()
+            .forEach(sink::sendBundledGRE)
     }
-
-    private fun addReplacementPromptContext(
-        builder: GameStateMessage.Builder,
-        snap: GsmSnapshot,
-        forgeCardId: Int,
-        context: CommanderReturnPromptContext,
-    ) {
-        val cardId = ForgeCardId(forgeCardId)
-        val bound = snap.boundCards[cardId] ?: return
-        val ownerSeat = bound.snapshot.owner.value
-
-        fun zoneWithContents(
-            zoneId: Int,
-            extraIds: List<Int> = emptyList(),
-            dropId: Int? = null,
-        ): ZoneInfo {
-            val zone = snap.zones[zoneId]
-            val contents =
-                zone
-                    ?.contents
-                    ?.map { ctx.bridge.getOrAllocInstanceId(it).value }
-                    ?.filter { it != dropId }
-                    .orEmpty() + extraIds
-            return ZoneInfo
-                .newBuilder()
-                .setZoneId(zoneId)
-                .setType(zone?.type ?: zoneTypeFor(zoneId))
-                .setVisibility(zone?.visibility ?: Visibility.Public)
-                .apply { zone?.owner?.let { setOwnerSeatId(it.value) } }
-                .addAllObjectInstanceIds(contents.distinct())
-                .build()
-        }
-
-        builder
-            .addZones(zoneWithContents(originZoneId(context), dropId = context.oldInstanceId))
-            .addZones(zoneWithContents(destinationZoneId(context), extraIds = listOf(context.promptInstanceId)))
-            .addGameObjects(
-                ObjectMapper.buildFromSnapshot(
-                    bound.snapshot,
-                    context.promptInstanceId,
-                    destinationZoneId(context),
-                    ownerSeat,
-                    ctx.bridge.cardProto,
-                    Visibility.Public,
-                    parentLinkage = bound.parentLinkage,
-                ),
-            ).addAnnotations(
-                AnnotationBuilder
-                    .objectIdChanged(
-                        InstanceId(context.oldInstanceId),
-                        InstanceId(context.promptInstanceId),
-                    ).toBuilder()
-                    .setId(ctx.bridge.nextAnnotationId())
-                    .build(),
-            ).addAnnotations(
-                AnnotationBuilder
-                    .zoneTransfer(
-                        InstanceId(context.promptInstanceId),
-                        originZoneId(context),
-                        destinationZoneId(context),
-                        context.transferCategory,
-                    ).toBuilder()
-                    .setId(ctx.bridge.nextAnnotationId())
-                    .build(),
-            )
-    }
-
-    private fun sendCommanderPromptCleanup(context: CommanderReturnPromptContext) {
-        val bridge = ctx.bridge
-        val link = counters.counter.nextGameStateLink()
-        val snap = GsmSnapshot.capture(ctx.game, bridge, "", link.gsId)
-        val destinationZoneId = destinationZoneId(context)
-        val destinationZone = snap.zones[destinationZoneId]
-        val zoneInfo =
-            ZoneInfo
-                .newBuilder()
-                .setZoneId(destinationZoneId)
-                .setType(destinationZone?.type ?: zoneTypeFor(destinationZoneId))
-                .setVisibility(destinationZone?.visibility ?: Visibility.Public)
-                .apply { destinationZone?.owner?.let { setOwnerSeatId(it.value) } }
-                .addAllObjectInstanceIds(
-                    destinationZone
-                        ?.contents
-                        ?.map { bridge.getOrAllocInstanceId(it).value }
-                        .orEmpty(),
-                ).build()
-
-        val cleanupGsm =
-            GameStateMessage
-                .newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(link.gsId)
-                .setPrevGameStateId(link.prevGsId)
-                .setUpdate(GameStateUpdate.Send)
-                .addDiffDeletedInstanceIds(context.promptInstanceId)
-                .addZones(zoneInfo)
-                .build()
-
-        val cleanupGre =
-            sink.makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counters.counter.nextMsgId()) {
-                it.gameStateMessage = cleanupGsm
-            }
-        sink.sendBundledGRE(listOf(cleanupGre))
-    }
-
-    private fun zoneTypeFor(zoneId: Int): ZoneType =
-        when (zoneId) {
-            ZoneIds.BATTLEFIELD -> ZoneType.Battlefield
-            ZoneIds.EXILE -> ZoneType.Exile
-            ZoneIds.COMMAND -> ZoneType.Command
-            ZoneIds.P1_HAND, ZoneIds.P2_HAND -> ZoneType.Hand
-            ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY -> ZoneType.Library
-            ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> ZoneType.Graveyard
-            else -> ZoneType.Limbo
-        }
-
-    private fun originZoneId(context: CommanderReturnPromptContext): Int = protocolZoneId(context.originZone, context.ownerSeatId)
-
-    private fun destinationZoneId(context: CommanderReturnPromptContext): Int = protocolZoneId(context.destinationZone, context.ownerSeatId)
-
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
-    private fun protocolZoneId(
-        zone: ForgeZoneType,
-        ownerSeatId: Int,
-    ): Int =
-        when (zone) {
-            ForgeZoneType.Battlefield -> ZoneIds.BATTLEFIELD
-            ForgeZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeatId)
-            ForgeZoneType.Exile -> ZoneIds.EXILE
-            ForgeZoneType.Hand -> ZoneIds.handOf(ownerSeatId)
-            ForgeZoneType.Library -> ZoneIds.libraryOf(ownerSeatId)
-            ForgeZoneType.Command -> ZoneIds.COMMAND
-            else -> ZoneIds.LIMBO
-        }
 }

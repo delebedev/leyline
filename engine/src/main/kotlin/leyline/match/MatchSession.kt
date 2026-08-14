@@ -1,9 +1,6 @@
 package leyline.match
 
 import forge.game.player.GameLossReason
-import leyline.bridge.PriorityActionCandidates
-import leyline.bridge.handoff.ActionResponseKey
-import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
@@ -98,7 +95,6 @@ class MatchSession(
         CombatHandler(
             sink = this,
             counters = this,
-            bundles = this,
             pacing = this,
             ctx = ctx,
         )
@@ -139,7 +135,6 @@ class MatchSession(
             sink = this,
             counters = this,
             matchRecorder = recorder,
-            bundles = this,
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,
             autoPassState = autoPassState,
@@ -163,22 +158,12 @@ class MatchSession(
 
             bridge.awaitPriority()
 
-            // Drain AI action diffs queued during awaitPriority.
-            // These have gsIds allocated by the engine thread via the shared counter
-            // during awaitPriority. Send them first (lower gsIds).
-            val playback = ctx.bridge.playbackFor(seatId)
-            if (playback != null) {
-                for (batch in playback.drainQueue()) {
-                    sendBundledGRE(batch)
-                }
-            }
-
-            // phaseTransitionDiff after AI diffs — uses the shared counter which is
-            // now past whatever the engine allocated. gsIds are higher than AI diffs
-            // but the prevGsId chain is valid (references last AI diff's gsId).
-            val bb = bundleBuilder
-            val result = bb.phaseTransitionDiff(ctx.game, counter)
-            sendBundle(result)
+            // The priority presentation is still coordinator-owned and unpublished.
+            // Replace it before draining the feed so prior AI batches retain their
+            // order and the replacement receives the next shared game-state id.
+            val pending = checkNotNull(bridge.seat(seatId).action.getPending()) { "Initial priority window was not published" }
+            bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
+            drainCoordinatorFeed()
 
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()
@@ -530,62 +515,38 @@ class MatchSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) {
-        val game =
-            bridge.getGame() ?: run {
-                log.warn("MatchSession: sendRealGameState but game is null")
-                return
-            }
         if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
             bridge.awaitActionPriority(seatId)
         }
-        if (bridge.seat(seatId).action.getPending() == null) {
-            sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
+        if (bridge.seat(seatId).action.getPending() != null) {
+            drainCoordinatorFeed()
             return
         }
-        sendPriorityState(bridge, revealForSeat, null)
+        drainCoordinatorFeed()
     }
 
-    override fun sendPriorityState(
-        bridge: GameBridge,
-        candidates: PriorityActionCandidates,
-    ) = sendPriorityState(bridge, null, candidates)
+    override fun sendPriorityState(bridge: GameBridge) = drainCoordinatorFeed()
 
-    private fun sendPriorityState(
+    override fun sendLegacyPromptState(
         bridge: GameBridge,
-        revealForSeat: Int?,
-        candidates: PriorityActionCandidates?,
+        revealForSeat: Int,
     ) {
-        val game =
-            bridge.getGame() ?: run {
-                log.warn("MatchSession: sendRealGameState but game is null")
-                return
-            }
-
-        val bb = bundleBuilder
-        val result = bb.postAction(game, counter, revealForSeat, candidates)
-
-        // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
-        val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
-        // TODO: empty diff detection — disabled for now, many legitimate empty diffs exist
-        //  (actions-only updates, phase transitions). Needs filtering by caller context.
-
-        sendBundle(result)
-
-        // Decision timer — client shows rope countdown while waiting for action
-        if (bridge.matchConfig.game.timer) {
-            val timer = bb.timerStart(counter)
-            sendBundledGRE(timer.messages)
-        }
+        drainCoordinatorFeed()
+        val game = bridge.getGame() ?: return
+        sendBundledGRE(bundleBuilder.stateOnlyDiff(game, counter, revealForSeat).messages)
     }
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {
-        bindActionOffers(result.actionGameStateId, result.actionOffers)
         for (gre in result.messages) {
             if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
             if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
         }
         sendBundledGRE(result.messages)
+    }
+
+    private fun drainCoordinatorFeed() {
+        drainCoordinatorBarrier(this, gameBridge, seatId)
     }
 
     /**
@@ -727,27 +688,6 @@ class MatchSession(
             gameBridge.autoAdvanceRequester = null
         }
         autoAdvanceExecutor.shutdownNow()
-    }
-
-    private fun bindActionOffers(
-        gameStateId: Int?,
-        offers: List<GameActionBridge.ActionOffer>,
-    ) {
-        if (gameStateId == null && offers.isEmpty()) return
-        val promptGameStateId = checkNotNull(gameStateId) { "Action offers require a game-state id" }
-        val actionBridge = gameBridge.seat(seatId).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Cannot expose priority actions without a pending window" }
-        check(actionBridge.bindActionCatalog(pending.actionId, promptGameStateId, offers)) {
-            val current = actionBridge.getPending()
-            val duplicateSelectors =
-                offers
-                    .groupBy { ActionResponseKey.from(it.action) }
-                    .filterValues { it.size > 1 }
-                    .mapValues { (_, variants) -> variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) } }
-            "Cannot bind priority actions to pending window ${pending.actionId.take(8)} " +
-                "(current=${current?.actionId?.take(8)}, completed=${pending.future.isDone}, offers=${offers.size}, " +
-                "duplicates=$duplicateSelectors)"
-        }
     }
 
     /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */

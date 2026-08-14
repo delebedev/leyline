@@ -1,49 +1,41 @@
 package leyline.bridge.handoff
 
 import forge.game.card.Card
-import org.slf4j.LoggerFactory
+import leyline.bridge.types.ForgeCardId
 
 /**
- * Owns the [PlayerController.pendingNumericInput] future lifecycle for the three
+ * Publishes coordinator-owned numeric interactions for the three
  * `chooseNumber` override sites that share it (range, range+params, list-overload).
  *
  * Mirrors [OptionalActionGate] — a `Cost$ X` triggered/activated ability lands in
- * Forge's `PlayerController.chooseNumber`, the override builds the prompt and blocks
- * the engine thread until `NumericInputHandler.onNumericInputResp` completes the future.
+ * Forge's `PlayerController.chooseNumber`, the override publishes the value and blocks
+ * until the response handler submits the answer.
  *
  * Threading: [await] runs on the Forge engine thread. It blocks until the Netty
  * session thread completes the future via the response handler. On timeout, returns
  * [defaultOnTimeout] (`0` is the conventional default — payment of 0 is always safe).
  */
 class NumericInputGate(
-    private val owner: OwnerContext,
     private val actionBridge: GameActionBridge?,
+    private val interactionRuntime: BlockingInteractionRuntime,
 ) {
-    private val log = LoggerFactory.getLogger(NumericInputGate::class.java)
-
+    @Suppress("UnusedParameter")
     fun await(
         sourceCard: Card?,
         min: Int,
         max: Int,
         defaultOnTimeout: Int,
         logContext: String,
-    ): Int =
-        PendingGate.await(
-            publish = { owner.pendingNumericInput = it },
-            prompt = { future ->
-                NumericInputPrompt(
-                    sourceCard = sourceCard,
-                    min = min,
-                    max = max,
-                    future = future,
-                )
-            },
-            signal = { actionBridge?.prioritySignal?.signal() },
-            timeoutMs = { actionBridge?.getTimeoutMs() },
-            defaultOnTimeout = { defaultOnTimeout },
-            log = log,
-            logContext = logContext,
-            subject = sourceCard?.name,
-            timeoutDetail = "defaulting to $defaultOnTimeout",
+    ): Int {
+        if (sourceCard == null) return min
+        return interactionRuntime.awaitNumeric(
+            BlockingInteraction.Numeric(
+                sourceId = ForgeCardId(sourceCard.id),
+                min = min,
+                max = max,
+                defaultValue = defaultOnTimeout,
+            ),
+            timeoutMs = actionBridge?.getTimeoutMs(),
         )
+    }
 }

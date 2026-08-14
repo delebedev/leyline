@@ -391,7 +391,13 @@ private class ScenarioRun(
             if (index > 0 && harness.game().stack.isEmpty) return
             if (harness.isGameOver()) return
             harness.passPriority()
-            if (harness.bridge.humanController?.pendingOptionalAction != null) return
+            if (harness.bridge.cutCoordinator
+                    .currentBlockingInteraction()
+                    ?.interaction is
+                    leyline.bridge.handoff.BlockingInteraction.Optional
+            ) {
+                return
+            }
             if (harness.game().stack.isEmpty) return
         }
         error(
@@ -411,7 +417,13 @@ private class ScenarioRun(
     }
 
     private fun respondToOptionalAction(step: OptionalActionStep) {
-        val ready = harness.passUntil(maxPasses = 20) { harness.bridge.humanController?.pendingOptionalAction != null }
+        val ready =
+            harness.passUntil(maxPasses = 20) {
+                harness.bridge.cutCoordinator
+                    .currentBlockingInteraction()
+                    ?.interaction is
+                    leyline.bridge.handoff.BlockingInteraction.Optional
+            }
         require(ready) { "$context optional action did not become pending" }
         harness.respondToOptionalAction(step.accept)
     }

@@ -108,6 +108,8 @@ object ActionMapper {
     ): ActionProjection {
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()
+        val player = bridge.getPlayer(SeatId(seatId))
+        val candidates = priorityCandidates ?: bridge.getGame()?.let { game -> player?.let { PriorityActionCandidates.query(game, it) } }
 
         fun bindOffer(
             action: Action,
@@ -116,7 +118,13 @@ object ActionMapper {
             forgeAbilityId: Int? = null,
             spellGrpId: Int? = null,
         ) {
-            offers += ActionOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId)
+            val castCandidates =
+                (command as? PlayerAction.CastSpell)
+                    ?.ability
+                    ?.hostCard
+                    ?.let { candidates?.forCard(it)?.casts }
+                    .orEmpty()
+            offers += ActionOffer(action, command, stackAbilityGrpId, forgeAbilityId, spellGrpId, castCandidates.toList())
         }
 
         fun addOffer(
@@ -133,8 +141,6 @@ object ActionMapper {
         val handZoneId = ZoneIds.handOf(seatId)
         val hand = snap.zones[handZoneId]?.contents.orEmpty()
         val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
-        val player = bridge.getPlayer(SeatId(seatId))
-        val candidates = priorityCandidates ?: bridge.getGame()?.let { game -> player?.let { PriorityActionCandidates.query(game, it) } }
 
         fun autoTapForCost(
             player: Player,

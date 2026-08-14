@@ -2,12 +2,9 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import leyline.bridge.PriorityActionCandidates
-import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PriorityDecision
-import leyline.game.bundle.BundleBuilder
 import org.slf4j.LoggerFactory
 
 /**
@@ -110,21 +107,16 @@ class AutoPassEngine(
                         // Still emit a state-only diff when actions are pass-only so
                         // combat/death animations don't collapse into the next later
                         // priority-stop packet on the human turn.
-                        val bb = bundles.bundleBuilder
                         if (drainPlayback()) return@repeat
                         if (bridge.seat(counters.seatId).action.getPending() == null) {
                             log.debug("SEND_STATE: no pending priority window at {}", phase)
-                            sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
                             return
                         }
-                        val candidates = human?.let { PriorityActionCandidates.query(game, it) }
-                        val actions = bb.buildActions(candidates)
-                        if (!BundleBuilder.shouldAutoPass(actions)) {
-                            sink.sendPriorityState(bridge, checkNotNull(candidates))
+                        val pending = checkNotNull(bridge.seat(counters.seatId).action.getPending())
+                        if (bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)) {
+                            sink.sendPriorityState(bridge)
                             return
                         }
-                        log.debug("SEND_STATE: emitting state-only diff at {}", phase)
-                        sink.sendBundle(bb.stateOnlyDiff(game, counters.counter))
                         // State-only diffs carry no actions — the client cannot respond.
                         // If the engine is blocked at chooseSpellAbilityToPlay with a
                         // pending pass-only action, fall through to advanceOrWait so it
@@ -153,11 +145,16 @@ class AutoPassEngine(
             // human priority window; otherwise instant-speed actions can make
             // us emit an ActionsAvailableReq while the AI still has priority.
             if (shouldCheckHumanActions(isAiTurn)) {
-                val candidates = human?.let { PriorityActionCandidates.query(game, it) }
-                val decision = checkHumanActions(game, isAiTurn, candidates)
+                val pending = checkNotNull(bridge.seat(counters.seatId).action.getPending())
+                val decision =
+                    checkHumanActions(
+                        game,
+                        isAiTurn,
+                        bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId),
+                    )
                 if (decision is PriorityDecision.Grant) {
                     if (drainPlayback()) return@repeat
-                    sink.sendPriorityState(bridge, checkNotNull(candidates))
+                    sink.sendPriorityState(bridge)
                     return
                 }
             }
@@ -178,8 +175,6 @@ class AutoPassEngine(
             log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
         } else if (bridge.seat(counters.seatId).action.getPending() != null) {
             sink.sendRealGameState(bridge)
-        } else {
-            sink.sendBundle(bundles.bundleBuilder.stateOnlyDiff(game, counters.counter))
         }
     }
 
@@ -189,7 +184,9 @@ class AutoPassEngine(
         ctx.bridge
             .seat(counters.seatId)
             .action
-            .getPending() != null
+            .getPending()
+            ?.state
+            ?.kind == leyline.bridge.handoff.PendingActionKind.PRIORITY
 
     /**
      * Drain pending AI-action playback diffs. Returns true if diffs were sent
@@ -201,18 +198,14 @@ class AutoPassEngine(
     fun drainPlayback(): Boolean {
         val playback = ctx.bridge.playbackFor(counters.seatId) ?: return false
         if (!playback.hasPendingMessages()) return false
-        val batches = playback.drainQueue()
-        for ((idx, batch) in batches.withIndex()) {
-            if (idx > 0) pacing.paceDelay(1)
-            sink.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
-        }
-        log.debug("drainPlayback: drained {} batches", batches.size)
+        val sent = drainCoordinatorBarrier(sink, ctx.bridge, counters.seatId) { pacing.paceDelay(1) }
+        log.debug("drainPlayback: drained committed coordinator feed")
         // Do NOT snapshot current engine state here — the playback diffs represent
         // an earlier point in time. Snapshotting now would advance the diff baseline
         // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
         // causing subsequent diffs to omit new objects (drawn cards) that the client
         // hasn't received yet. The next buildDiff() call will advance the cursor correctly.
-        return true
+        return sent
     }
 
     /**
@@ -224,12 +217,8 @@ class AutoPassEngine(
     internal fun checkHumanActions(
         game: Game,
         isAiTurn: Boolean,
-        candidates: PriorityActionCandidates? = null,
+        hasLegalAction: Boolean,
     ): PriorityDecision {
-        val player = ctx.bridge.getPlayer(counters.seatId)
-        val resolvedCandidates = candidates ?: player?.let { PriorityActionCandidates.query(game, it) }
-        val hasLegalAction = player != null && resolvedCandidates?.hasLegalNonManaAction(player) == true
-
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
             val decision =
@@ -298,7 +287,16 @@ class AutoPassEngine(
                 val edictal = bundles.bundleBuilder.edictalPass(counters.counter)
                 sink.sendBundledGRE(edictal.messages)
             }
-            bridge.seat(counters.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)
+            bridge.cutCoordinator
+                .claimPriorityResponse(
+                    pending.actionId,
+                    pending.promptGameStateId ?: 0,
+                    wotc.mtgo.gre.external.messaging.Messages.Action
+                        .newBuilder()
+                        .setActionType(wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass)
+                        .build(),
+                    defer = false,
+                )?.let { bridge.cutCoordinator.completeActionClaim(it.actionClaim) }
             bridge.awaitPriority()
         } else if (isAiTurn) {
             val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)

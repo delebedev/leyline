@@ -8,8 +8,6 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markPrompts
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
@@ -50,6 +48,7 @@ class PuzzleHandler(
             registry.getOrCreateMatch(matchId) {
                 val bridge =
                     GameBridge(
+                        matchId = matchId,
                         bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
                         promptFailsafeMs = matchConfig.server.promptFailsafeMs,
                         matchConfig = matchConfig,
@@ -93,11 +92,7 @@ class PuzzleHandler(
         bridge.awaitPriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
-        val snap = SnapshotCapture.run(checkNotNull(bridge.getGame()), bridge, matchId, gsId)
-        val projection = ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
-        check(actionBridge.bindActionCatalog(pending.actionId, gsId, projection.offers)) {
-            "Puzzle priority actions did not bind to the pending window"
-        }
+        val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
 
         // Expose the request only after its executable catalog is installed.
         val (actionsMsg, nextMsgId2) =
@@ -105,7 +100,7 @@ class PuzzleHandler(
                 session.counter.currentMsgId(),
                 gsId,
                 SeatId(seatId),
-                projection.actions,
+                actions,
             )
         session.counter.setMsgId(nextMsgId2)
         markPrompts(session.counter, actionsMsg)

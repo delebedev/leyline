@@ -280,8 +280,9 @@ retain one numbering authority:
   `GsmBuilder` and `BundleBuilder`;
 - combat toggle echoes, reveal/group helpers, and other request-specific
   synthetic GSMs that do not start from a `StateMapper` annotation list;
-- commander-choice cleanup GSMs in `OptionalActionHandler`, whose local
-  identity-change and zone-transfer pair is complete before construction.
+- commander-choice cleanup GSMs in `BlockingInteractionMaterializer`; the match
+  coordinator installs their identity-change, zone-transfer, and limbo retirement
+  in the same transition before waking the blocked engine callback.
 
 These paths remain outside the state-frame finalizer. A future migration is
 appropriate only if one of them gains a late annotation producer; uniform use

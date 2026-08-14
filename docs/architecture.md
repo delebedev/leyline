@@ -93,11 +93,11 @@ The local-control server exposes puzzle control, best-play, and full-state injec
 
 ## 4. Bridge Pattern
 
-The gameplay path bridges an asynchronous, protobuf-driven client to a synchronous, single-threaded Java engine. When the engine reaches a priority stop or interactive prompt, a bridge class blocks the engine thread on a `CompletableFuture` until the client's response arrives; the session thread builds and sends the outbound message in the meantime, then completes the future to unblock the engine.
+The gameplay path bridges an asynchronous, protobuf-driven client to a synchronous, single-threaded Java engine. `MatchCutCoordinator` is the match-scoped imperative owner for ordinary and combat playback cuts, priority/action windows, and the Optional, Numeric, and Damage blocking interactions. It closes the frame journal, retains the exact cut, compiles and commits projection state, publishes a monotonic viewer feed, and only then signals the waiting session domain.
 
-Three bridges cover the engine callback surface: `GameActionBridge` for priority stops, `InteractivePromptBridge` for engine-initiated choices (targeting, sacrifice, scry, modal), and `MulliganBridge` for the mulligan loop.
+`GameActionBridge` blocks the engine at attacker and blocker windows and at client-visible priority windows. Priority policy evaluates one frozen candidate set and chooses one of three shapes: a Visible window commits an action catalog and bounded executable handles; a SyncOnly stop commits a state-only cut before signalling, then resumes with an internal pass only after the session drains it; a safe Skip resumes directly without closing a journal or allocating protocol state. Sessions submit correlated value responses for Visible windows and never re-enumerate live actions. `InteractivePromptBridge` still owns routed choices such as targeting, sacrifice, scry, and modal selection. `MulliganBridge` remains the mulligan-loop owner.
 
-A fourth family covers prompts that fire mid-override rather than at a priority stop or bridge-initiated choice — `confirmTrigger`, `chooseNumber`, `assignCombatDamage`, and similar sites where the engine is already inside a specific `PlayerController` method and can't route through `GameActionBridge`'s priority-loop future. Small gates — `OptionalActionGate`, `NumericInputGate`, `DamageAssignmentGate` — each own a single-use `CompletableFuture` for the override cluster they serve, built on a shared `PendingGate` core (publish the prompt, signal, await with timeout, clear on completion). The pending future lives as a field on `PlayerController` itself rather than on a bridge object; `GameBridge.hasPendingInteraction()` polls those fields alongside the three bridges above to detect a live interaction.
+`OptionalActionGate`, `NumericInputGate`, and `DamageAssignmentGate` are thin engine-thread adapters. They publish immutable `BlockingInteraction` values to the coordinator, which commits the complete prompt batch before signalling, retains live engine handles in a bounded runtime table, and resolves answer values only after the engine wakes. Routed prompts, mulligan, lifecycle wire construction, and multi-view compilation remain explicit residual owners rather than hidden coordinator fallbacks.
 
 The bridges are transport-agnostic by design: the same classes are driven by `MatchHandler` in production and by `MatchFlowHarness` in tests. See [`bridge-threading.md`](bridge-threading.md) for the threading invariants that keep engine and wire coherent.
 
@@ -201,10 +201,11 @@ diff baseline. A match-scoped shell lock
 preserves frame-cut order across builders while the transition install remains
 a revision-checked compare-and-set.
 
-Engine playback closes and materializes only from Forge completion hooks. The
+The match-scoped `MatchCutCoordinator` closes and materializes migrated playback
+only from Forge completion hooks. The
 main-loop hook owns ordinary completed steps; narrower hooks own complete
 attacker declarations, blocker declarations, and combat teardown. Event
-subscribers only request those cuts. `GamePlayback` retains an immutable
+subscribers only request those cuts. The coordinator retains an immutable
 `PendingCut` containing the exact prior projection and every ordered frame plan
 for the closed journal, including fixed logical ids. A combat-damage journal
 may describe several frames, but they compile as one private fold and publish

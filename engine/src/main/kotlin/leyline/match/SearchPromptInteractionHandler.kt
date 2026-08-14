@@ -43,19 +43,17 @@ internal class SearchPromptInteractionHandler(
             prompt.request.route.accepts(PromptResponseKind.Search)
         ) {
             val responseIndices = responseIndices(itemsFound, prompt)
+            bundles.bundleBuilder.invalidateProjectionBaseline()
             seatBridge.prompt.submitResponse(pending.promptId, responseIndices)
             bridge.awaitPriority()
-            drainPendingPlayback()
         }
-        bundles.bundleBuilder.invalidateProjectionBaseline()
-        sink.sendRealGameState(bridge)
         autoPass()
     }
 
     fun sendSearchReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
         val bridge = ctx.bridge
         // Reveal library contents so the client can populate the search picker.
-        sink.sendRealGameState(bridge, revealForSeat = counters.seatId.value)
+        sink.sendLegacyPromptState(bridge, revealForSeat = counters.seatId.value)
 
         val req = pendingPrompt.request
         val player = bridge.getPlayer(counters.seatId)
@@ -144,15 +142,6 @@ internal class SearchPromptInteractionHandler(
                     prompt.request.defaultIndex
                 }
             }
-        }
-    }
-
-    private fun drainPendingPlayback() {
-        val playback = ctx.bridge.playbackFor(counters.seatId) ?: return
-        if (!playback.hasPendingMessages()) return
-
-        for (batch in playback.drainQueue()) {
-            sink.sendBundledGRE(batch)
         }
     }
 }

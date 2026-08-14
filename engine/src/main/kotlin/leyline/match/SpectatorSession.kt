@@ -83,9 +83,13 @@ class SpectatorSession(
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) {
-        val game = bridge.getGame() ?: return
-        sendBundle(bundleBuilder.stateOnlyDiff(game, counter))
+    ) = sendLegacySpectatorState(revealForSeat)
+
+    /** Explicit residual projection path until spectator/multi-view ownership migrates. */
+    private fun sendLegacySpectatorState(revealForSeat: Int?) {
+        for (batch in gameBridge.cutCoordinator.drain(seatId)) sendBundledGRE(batch)
+        val game = gameBridge.getGame() ?: return
+        sendBundledGRE(bundleBuilder.stateOnlyDiff(game, counter, revealForSeat).messages)
     }
 
     override fun sendBundle(result: BundleBuilder.BundleResult) = sendBundledGRE(result.messages)

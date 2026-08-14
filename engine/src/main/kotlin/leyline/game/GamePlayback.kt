@@ -5,85 +5,38 @@ import forge.game.event.*
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
-import leyline.game.event.DamageSourceKind
-import leyline.game.event.FrameEventLog
 import leyline.game.event.combatDamageFact
 import leyline.game.state.GameBridge
-import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.Phase
-import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import leyline.game.event.GameEvent as LeylineGameEvent
 
 /**
  * Requests and delivers per-action GRE state diffs for the client.
  *
- * EventBus callbacks only aggregate a [PlaybackCutRequest]. Forge's matching
- * mutation-completion hook closes one journal, materializes one immutable
- * [PendingCut], compiles its complete ordered frame plan, enqueues it immediately
- * before one install, and applies pacing. A stale exact-revision install is
- * terminal. Any failure after journal close becomes a durable
- * [PlaybackTerminalFailure] and stops progress.
- *
- * Uses the shared [leyline.game.bundle.MessageCounter] for protocol sequencing. Frame
- * production follows one lock order across engine and session domains: [counter], then
- * [leyline.game.state.GameBridge.projectionBuildLock], then [queueLock]. Individual counter
- * operations remain atomic; the monitor serializes allocation of a complete frame batch.
- *
- * Shares [leyline.game.state.ProjectionState] with the session-layer
- * `BundleBuilder`, including one common diff baseline.
- *
- * The [MatchHandler][leyline.match.MatchHandler] drains the queue
- * via [drainQueue] and sends messages to the TCP socket.
+ * EventBus callbacks classify mutations and delegate immutable requests to the
+ * match-scoped cut coordinator. Forge completion hooks delegate the matching
+ * journal boundary. This adapter owns no projection, feed, or terminal state.
  *
  * @param bridge the GameBridge for state mapping and zone tracking
- * @param matchId match identifier for GRE messages
  * @param seatId the human player's seat (messages are from their perspective)
- * @param counter shared protocol counter (same instance used by MatchSession)
  */
 class GamePlayback(
     private val bridge: GameBridge,
-    private val matchId: String,
     private val seatId: Int,
-    private val counter: MessageCounter,
-    /** Delay multiplier (1.0 = default, 0.5 = 2x speed, 0 = instant). Derived from config ai.speed. */
-    private val delayMultiplier: Double = 1.0,
     /** Spectator playback captures both seats because every turn is remote to the viewer. */
     private val captureLocalActions: Boolean = false,
 ) : IGameEventVisitor.Base<Unit>() {
-    private val bundleBuilder = BundleBuilder(bridge, matchId, seatId)
-
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
+
+    init {
+        bridge.cutCoordinator.registerViewer(SeatId(seatId))
+    }
 
     /** Dedup: last turn+phase captured by TurnBegan, so TurnPhase can skip the duplicate. */
     private var lastCapturedTurn = 0
     private var lastCapturedPhase: PhaseType? = null
-
-    /** Thread-safe queue of GRE message batches for the handler to drain. */
-    private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
-
-    @VisibleForTesting
-    internal var beforeBatchEnqueue: ((Int, List<GREToClientMessage>) -> Unit)? = null
-
-    /** Playback callbacks aggregate until Forge reaches their matching completion boundary. */
-    private var requestedCut: PlaybackCutRequest? = null
-
-    @Volatile
-    private var terminalFailure: PlaybackTerminalFailure? = null
-
-    @Volatile
-    private var pendingCut: PendingCut? = null
-
-    /**
-     * Guards the build-and-enqueue window. Producers acquire this only after the shared
-     * message counter and projection-build monitors. Drains acquire this monitor alone.
-     */
-    private val queueLock = Any()
 
     // -- EventBus entry point --
 
@@ -217,76 +170,42 @@ class GamePlayback(
         // Local turn needs a post-damage combat snapshot too. Without this,
         // damage/life/death annotations can sit in the collector queue until the
         // next later priority stop and get folded into a post-combat action GSM.
-        if (isRemoteActing()) return
         requestCut(PlaybackCutReason.CombatEnded, 0, boundary = PlaybackCutBoundary.CombatEnded)
     }
 
     /** Forge main-loop completion entry point. Event visitors do no projection work. */
-    fun onMainLoopStepCompleted() {
-        terminalFailure?.let { throw it }
-        flushRequestedCut(PlaybackCutBoundary.MainLoopStep)
-    }
+    fun onMainLoopStepCompleted() = bridge.cutCoordinator.flushPlaybackCut(SeatId(seatId), PlaybackCutBoundary.MainLoopStep)
 
-    fun onAttackersDeclaredCompleted() = flushRequestedCut(PlaybackCutBoundary.AttackersDeclared)
+    fun onAttackersDeclaredCompleted() = bridge.cutCoordinator.flushPlaybackCut(SeatId(seatId), PlaybackCutBoundary.AttackersDeclared)
 
-    fun onBlockersDeclaredCompleted() = flushRequestedCut(PlaybackCutBoundary.BlockersDeclared)
+    fun onBlockersDeclaredCompleted() = bridge.cutCoordinator.flushPlaybackCut(SeatId(seatId), PlaybackCutBoundary.BlockersDeclared)
 
-    fun onCombatEndedCompleted() = flushRequestedCut(PlaybackCutBoundary.CombatEnded)
+    fun onCombatEndedCompleted() = bridge.cutCoordinator.flushPlaybackCut(SeatId(seatId), PlaybackCutBoundary.CombatEnded)
 
     /**
      * Establishes the ownership boundary between setup/mulligan state and ordinary
      * playback before Forge enters its first main-loop step.
      */
-    fun onMainGameLoopStarted() {
-        terminalFailure?.let { throw it }
-        synchronized(queueLock) {
-            bridge.closeBundleFrame(seatId)
-            requestedCut = null
-        }
-    }
+    fun onMainGameLoopStarted() = bridge.cutCoordinator.onMainGameLoopStarted(SeatId(seatId))
 
     /** A successfully installed shell frame subsumes the pending request for its journal. */
-    internal fun onFrameCommitted() {
-        synchronized(queueLock) { requestedCut = null }
-    }
+    internal fun onFrameCommitted() = bridge.cutCoordinator.acknowledgeExternalFrame(SeatId(seatId))
 
     // -- Queue access (called from MatchHandler / Netty thread) --
 
     /** Drain all queued message batches. Returns empty list if nothing queued. */
-    fun drainQueue(): List<List<GREToClientMessage>> =
-        synchronized(queueLock) {
-            buildList {
-                while (true) {
-                    add(queue.poll() ?: break)
-                }
-            }
-        }
+    fun drainQueue(): List<List<GREToClientMessage>> = bridge.cutCoordinator.drain(SeatId(seatId))
 
     /** Drain queued batches that must precede the caller's next outbound message. */
     fun drainQueueBeforeMsgId(
         msgId: Int,
         maxGsId: Int = 0,
-    ): List<List<GREToClientMessage>> =
-        synchronized(queueLock) {
-            buildList {
-                while (true) {
-                    val batch = queue.peek() ?: break
-                    val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
-                    val firstGsId = batch.firstGameStateId()
-                    if (maxGsId != 0 && firstGsId != null) {
-                        if (firstGsId >= maxGsId) break
-                    } else if (firstMsgId >= msgId) {
-                        break
-                    }
-                    add(queue.poll() ?: break)
-                }
-            }
-        }
+    ): List<List<GREToClientMessage>> = bridge.cutCoordinator.drain(SeatId(seatId), msgId, maxGsId)
 
     /** True if there are messages waiting to be sent. */
-    fun hasPendingMessages(): Boolean = synchronized(queueLock) { queue.isNotEmpty() }
+    fun hasPendingMessages(): Boolean = bridge.cutCoordinator.hasCommittedBatches(SeatId(seatId))
 
-    internal fun failure(): PlaybackTerminalFailure? = terminalFailure
+    internal fun failure(): PlaybackTerminalFailure? = bridge.cutCoordinator.failure()
 
     // -- Internal --
 
@@ -296,296 +215,10 @@ class GamePlayback(
         turnStarted: Boolean = false,
         boundary: PlaybackCutBoundary = PlaybackCutBoundary.MainLoopStep,
     ) {
-        terminalFailure?.let { throw it }
-        synchronized(queueLock) {
-            val next = PlaybackCutRequest(reason, delayMs, turnStarted, boundary)
-            requestedCut = requestedCut?.aggregate(next) ?: next
-        }
-    }
-
-    private fun flushRequestedCut(boundary: PlaybackCutBoundary) {
-        terminalFailure?.let { throw it }
-        val game = bridge.getGame()
-        val request =
-            synchronized(counter) {
-                synchronized(bridge.projectionBuildLock) {
-                    synchronized(queueLock) {
-                        val request = requestedCut ?: return
-                        if (request.boundary != boundary) return
-                        if (game == null) {
-                            failTerminal(
-                                null,
-                                MaterializationDiagnostic(request, null),
-                                IllegalStateException("Game unavailable"),
-                            )
-                        }
-                        val events =
-                            try {
-                                bridge.closeBundleFrame(seatId)
-                            } catch (ex: Exception) {
-                                failTerminal(null, MaterializationDiagnostic(request, null), ex)
-                            }
-                        val pending =
-                            try {
-                                PendingCut(
-                                    request,
-                                    bundleBuilder.materializePlaybackCut(
-                                        game,
-                                        counter,
-                                        playbackFrameSpecs(game, request, events),
-                                    ),
-                                )
-                            } catch (ex: Exception) {
-                                failTerminal(null, MaterializationDiagnostic(request, events), ex)
-                            }
-                        pendingCut = pending
-                        val prepared =
-                            try {
-                                bundleBuilder.compilePlaybackCut(pending.projection)
-                            } catch (ex: Exception) {
-                                failTerminal(pending, null, ex)
-                            }
-                        val enqueued = mutableListOf<List<GREToClientMessage>>()
-                        try {
-                            for ((index, batch) in prepared.batches.withIndex()) {
-                                beforeBatchEnqueue?.invoke(index, batch)
-                                queue.add(batch)
-                                enqueued += batch
-                            }
-                        } catch (ex: Exception) {
-                            removeEnqueuedBatches(enqueued)
-                            failTerminal(pending, null, ex)
-                        }
-                        var installed = false
-                        try {
-                            bridge.commitProjection(prepared.transition) { installed = true }
-                            pendingCut = null
-                            requestedCut = null
-                            if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
-                            }
-                        } catch (ex: Exception) {
-                            if (!installed) removeEnqueuedBatches(enqueued)
-                            failTerminal(pending, null, ex)
-                        }
-                        request
-                    }
-                }
-            }
-        pace(request.delayMs)
-    }
-
-    private fun removeEnqueuedBatches(enqueued: List<List<GREToClientMessage>>) {
-        for (batch in enqueued) {
-            val iterator = queue.iterator()
-            while (iterator.hasNext()) {
-                if (iterator.next() === batch) {
-                    iterator.remove()
-                    break
-                }
-            }
-        }
-    }
-
-    private fun playbackFrameSpecs(
-        game: forge.game.Game,
-        request: PlaybackCutRequest,
-        events: FrameEventLog,
-    ): List<BundleBuilder.PlaybackFrameSpec> {
-        if (!events.events.shouldSplitCombatDamageWindow()) {
-            return listOf(BundleBuilder.PlaybackFrameSpec(events, turnStarted = request.turnStarted))
-        }
-        val damageFrames = events.events.combatDamageFrames(game)
-        val endCombatEvents =
-            events.events.filter { event ->
-                event is LeylineGameEvent.PhaseChanged && event.step == Step.EndCombat_a2cb.number
-            }
-        return buildList {
-            damageFrames.forEach { frame ->
-                add(
-                    BundleBuilder.PlaybackFrameSpec(
-                        events = FrameEventLog(frame.events),
-                        lifeTotals = frame.lifeTotals,
-                    ),
-                )
-            }
-            if (endCombatEvents.isNotEmpty()) {
-                add(BundleBuilder.PlaybackFrameSpec(FrameEventLog(endCombatEvents)))
-            }
-        }
-    }
-
-    private fun terminate(
-        pending: PendingCut?,
-        diagnostic: MaterializationDiagnostic?,
-        cause: Throwable,
-    ): PlaybackTerminalFailure =
-        PlaybackTerminalFailure(pending, diagnostic, cause).also {
-            pendingCut = pending
-            terminalFailure = it
-        }
-
-    private fun failTerminal(
-        pending: PendingCut?,
-        diagnostic: MaterializationDiagnostic?,
-        cause: Throwable,
-    ): Nothing = throw terminate(pending, diagnostic, cause)
-
-    private fun pace(delayMs: Int) {
-        val adjustedDelay = (delayMs * delayMultiplier).toLong()
-        if (adjustedDelay <= 0) return
-        try {
-            Thread.sleep(adjustedDelay)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
-    }
-
-    private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
-
-    private fun List<LeylineGameEvent>.hasCombatDamage(): Boolean = any { it.combatDamageFact() == true }
-
-    private data class CombatDamageFrame(
-        val events: List<LeylineGameEvent>,
-        val lifeTotals: Map<Int, Int> = emptyMap(),
-    )
-
-    private fun List<LeylineGameEvent>.combatDamageFrames(game: forge.game.Game): List<CombatDamageFrame> {
-        if (!canSafelySplitCombatDamage()) {
-            return listOf(
-                CombatDamageFrame(
-                    filterNot { event -> event is LeylineGameEvent.PhaseChanged }
-                        .prependCombatDamagePhase(game, this),
-                ),
-            )
-        }
-
-        val frames = mutableListOf<CombatDamageFrame>()
-        var current = mutableListOf<LeylineGameEvent>()
-
-        fun flushFrame() {
-            if (current.hasCombatDamage()) {
-                frames += CombatDamageFrame(current.toList(), current.lifeTotals())
-            }
-            current = mutableListOf()
-        }
-
-        for (event in this) {
-            if (event is LeylineGameEvent.PhaseChanged) {
-                if (event.isDamageStep()) {
-                    if (current.hasCombatDamage()) {
-                        flushFrame()
-                    } else {
-                        current.removeAll { pending -> pending is LeylineGameEvent.PhaseChanged && pending.isDamageStep() }
-                    }
-                    current += event
-                }
-                continue
-            }
-            current += event
-        }
-
-        flushFrame()
-        if (frames.isNotEmpty()) return frames
-
-        return listOf(
-            CombatDamageFrame(
-                filterNot { event -> event is LeylineGameEvent.PhaseChanged }
-                    .prependCombatDamagePhase(game, this),
-            ),
+        bridge.cutCoordinator.requestPlaybackCut(
+            SeatId(seatId),
+            PlaybackCutRequest(reason, delayMs, turnStarted, boundary),
         )
-    }
-
-    private fun List<LeylineGameEvent>.canSafelySplitCombatDamage(): Boolean {
-        var inDamageStep = false
-        for (event in this) {
-            val damageFact = event.combatDamageFact()
-            if (event is LeylineGameEvent.PhaseChanged) {
-                if (event.isDamageStep()) inDamageStep = true
-            } else if (damageFact != null) {
-                if (!damageFact || !inDamageStep) return false
-                if (event is LeylineGameEvent.DamageDealtToCard) return false
-            } else if (event is LeylineGameEvent.LifeChanged ||
-                event == LeylineGameEvent.CombatEnded
-            ) {
-                if (!inDamageStep) return false
-            } else {
-                if (!inDamageStep && !event.isSafeBeforeDamageStep()) return false
-            }
-        }
-        return true
-    }
-
-    private fun LeylineGameEvent.isSafeBeforeDamageStep(): Boolean =
-        this is LeylineGameEvent.CardTapped ||
-            this is LeylineGameEvent.AttackersDeclared ||
-            this is LeylineGameEvent.BlockersDeclared
-
-    private fun List<LeylineGameEvent>.lifeTotals(): Map<Int, Int> =
-        filterIsInstance<LeylineGameEvent.LifeChanged>()
-            .associate { event -> event.seatId.value to event.newLife }
-
-    private fun LeylineGameEvent.PhaseChanged.isDamageStep(): Boolean =
-        step == Step.FirstStrikeDamage_a2cb.number || step == Step.CombatDamage_a2cb.number
-
-    private fun List<LeylineGameEvent>.prependCombatDamagePhase(
-        game: forge.game.Game,
-        sourceEvents: List<LeylineGameEvent>,
-    ): List<LeylineGameEvent> {
-        val activeSeat = combatDamageSourceSeat(sourceEvents) ?: currentTurnSeat(game) ?: seatId
-        val damageStep = sourceEvents.combatDamageStep()
-        return listOf(
-            LeylineGameEvent.PhaseChanged(
-                SeatId(activeSeat),
-                Phase.Combat_a549.number,
-                damageStep,
-            ),
-        ) + this
-    }
-
-    private fun List<LeylineGameEvent>.combatDamageStep(): Int =
-        run {
-            var currentDamageStep = Step.CombatDamage_a2cb.number
-            for (event in this) {
-                if (event is LeylineGameEvent.PhaseChanged) {
-                    if (event.step == Step.FirstStrikeDamage_a2cb.number || event.step == Step.CombatDamage_a2cb.number) {
-                        currentDamageStep = event.step
-                    }
-                }
-                if (event.combatDamageFact() == true) {
-                    return@run currentDamageStep
-                }
-            }
-            Step.CombatDamage_a2cb.number
-        }
-
-    private fun combatDamageSourceSeat(events: List<LeylineGameEvent>): Int? {
-        events
-            .firstNotNullOfOrNull { event ->
-                (event as? LeylineGameEvent.DamageDealtToPlayer)
-                    ?.takeIf { it.sourceKind == DamageSourceKind.Combat }
-                    ?.targetSeatId
-                    ?.value
-            }?.let { defenderSeat ->
-                val otherSeats = bridge.gameSeatIds() - defenderSeat
-                if (otherSeats.size == 1) return otherSeats.single()
-                return if (defenderSeat == 1) 2 else 1
-            }
-        val sourceId =
-            events.firstNotNullOfOrNull { event ->
-                when (event) {
-                    is LeylineGameEvent.DamageDealtToCard -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
-                    is LeylineGameEvent.DamageDealtToPlayer -> event.sourceCardId.takeIf { event.sourceKind == DamageSourceKind.Combat }
-                    else -> null
-                }
-            } ?: return null
-        val controller = bridge.findCard(sourceId)?.controller ?: return null
-        return bridge.gameSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == controller }
-    }
-
-    private fun currentTurnSeat(game: forge.game.Game): Int? {
-        val turnPlayer = game.phaseHandler.playerTurn ?: return null
-        return bridge.gameSeatIds().firstOrNull { seat -> bridge.getPlayer(SeatId(seat)) == turnPlayer }
     }
 
     /**

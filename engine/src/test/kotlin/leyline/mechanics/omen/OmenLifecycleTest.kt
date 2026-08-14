@@ -176,7 +176,7 @@ class OmenLifecycleTest :
                 annotations.indexOf(resolutionStart) shouldBeLessThan annotations.indexOf(resolutionComplete)
                 annotations.indexOf(resolutionComplete) shouldBeLessThan annotations.indexOf(resolveObjectIdChanged)
                 annotations.indexOf(resolveObjectIdChanged) shouldBeLessThan annotations.indexOf(resolveTransfer)
-                human.getZone(ZoneType.Library).cards.count { it.name == "Riling Dawnbreaker" } shouldBe 1
+                libraryZone.objectInstanceIdsList.count { it == libraryParent.instanceId } shouldBe 1
             }
         }
 

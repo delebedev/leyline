@@ -1,0 +1,439 @@
+package leyline.game.bundle
+
+import leyline.bridge.handoff.BlockingInteraction
+import leyline.bridge.handoff.CommanderReturnPromptContext
+import leyline.bridge.handoff.CommanderZone
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.bridge.types.opponent
+import leyline.game.annotations.AnnotationBuilder
+import leyline.game.data.CardProtoBuilder
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateProjectionCompiler
+import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionTransition
+import wotc.mtgo.gre.external.messaging.Messages.*
+
+/** Value-oriented message/state preparation for coordinator-owned blocking interactions. */
+internal class BlockingInteractionMaterializer(
+    private val seatId: Int,
+) {
+    data class Prepared(
+        val bundle: BundleBuilder.BundleResult,
+        val transition: ProjectionTransition?,
+        val closesPlaybackFrame: Boolean = false,
+    )
+
+    fun generalOptional(
+        prior: ProjectionState,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Optional,
+    ): Prepared =
+        edit(prior) { editor ->
+            val sourceId =
+                interaction.sourceId?.let { editor.identities.getOrAlloc(it).value }
+                    ?: error("Optional interaction requires a source")
+            val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
+            val prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(interaction.customPromptId ?: PromptIds.OPTIONAL_ACTION)
+                    .addParameters(cardIdPromptParameter(sourceId))
+                    .build()
+            val link = counter.nextGameStateLink()
+            val pending = pendingMessage(link)
+            BundleBuilder.BundleResult(
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) { it.gameStateMessage = pending },
+                    makeGRE(GREMessageType.OptionalActionMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.optionalActionMessage = optional
+                        it.prompt = prompt
+                        it.allowCancel = AllowCancel.No_a526
+                    },
+                ),
+                actionGameStateId = link.gsId,
+            )
+        }
+
+    fun snapshotOptional(
+        compiled: StateProjectionCompiler.Result,
+        stateMessages: List<GREToClientMessage>,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Optional,
+    ): Prepared {
+        val sourceId =
+            interaction.sourceId?.let {
+                compiled.transition.nextState.identities.forgeIdToInstanceId[it]
+                    ?.value
+            }
+                ?: error("Optional interaction requires a source")
+        val link = counter.nextGameStateLink()
+        val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
+        val prompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(interaction.customPromptId ?: PromptIds.OPTIONAL_ACTION)
+                .addParameters(cardIdPromptParameter(sourceId))
+                .build()
+        return Prepared(
+            BundleBuilder.BundleResult(
+                stateMessages +
+                    listOf(
+                        makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                            it.gameStateMessage = pendingMessage(link)
+                        },
+                        makeGRE(GREMessageType.OptionalActionMessage_695e, link.gsId, counter.nextMsgId()) {
+                            it.optionalActionMessage = optional
+                            it.prompt = prompt
+                            it.allowCancel = AllowCancel.No_a526
+                        },
+                    ),
+                actionGameStateId = link.gsId,
+            ),
+            compiled.transition,
+            closesPlaybackFrame = true,
+        )
+    }
+
+    fun commanderOptional(
+        stateMessages: List<GREToClientMessage>,
+        snapshot: GsmSnapshot,
+        actions: ActionsAvailableReq,
+        link: MessageCounter.GameStateLink,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Optional,
+        context: CommanderReturnPromptContext,
+        editor: ProjectionState.Editor,
+        cardProto: CardProtoBuilder,
+    ): BundleBuilder.BundleResult {
+        val pending =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(link.gsId)
+                .setPrevGameStateId(link.prevGsId)
+                .setPendingMessageCount(1)
+                .setTurnInfo(GsmFrame.from(snapshot).turnInfo())
+                .addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.Send)
+        addCommanderContext(pending, snapshot, interaction.sourceId, context, editor, cardProto)
+        actions.actionsList.forEach { action ->
+            pending.addActions(
+                ActionInfo.newBuilder().setSeatId(seatId).setAction(ActionMapper.stripActionForGsm(action)),
+            )
+        }
+        val optional =
+            OptionalActionMessage
+                .newBuilder()
+                .setSourceId(context.promptInstanceId)
+                .addOptionalActionTypes(CardMechanicType.ZoneTransfer_a57f)
+                .addRecipientIds(context.promptInstanceId)
+                .build()
+        val prompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(interaction.customPromptId ?: PromptIds.OPTIONAL_ACTION)
+                .addParameters(cardIdPromptParameter(0))
+                .addParameters(cardIdPromptParameter(context.promptInstanceId))
+                .build()
+        editor.limboInstanceIds += context.promptInstanceId
+        return BundleBuilder.BundleResult(
+            stateMessages +
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.gameStateMessage = pending.build()
+                    },
+                    makeGRE(GREMessageType.OptionalActionMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.optionalActionMessage = optional
+                        it.prompt = prompt
+                        it.allowCancel = AllowCancel.No_a526
+                    },
+                ),
+            actionGameStateId = link.gsId,
+        )
+    }
+
+    fun commanderCleanup(
+        prior: ProjectionState,
+        snapshot: GsmSnapshot,
+        link: MessageCounter.GameStateLink,
+        counter: MessageCounter,
+        context: CommanderReturnPromptContext,
+    ): Prepared =
+        edit(prior) { editor ->
+            editor.limboInstanceIds -= context.promptInstanceId
+            val destinationZoneId = protocolZoneId(context.destinationZone, context.ownerSeatId)
+            val destinationZone = snapshot.zones[destinationZoneId]
+            val zoneInfo =
+                ZoneInfo
+                    .newBuilder()
+                    .setZoneId(destinationZoneId)
+                    .setType(destinationZone?.type ?: protocolZoneType(destinationZoneId))
+                    .setVisibility(destinationZone?.visibility ?: Visibility.Public)
+                    .apply { destinationZone?.owner?.let { setOwnerSeatId(it.value) } }
+                    .addAllObjectInstanceIds(destinationZone?.contents?.map { editor.identities.getOrAlloc(it).value }.orEmpty())
+                    .build()
+            val cleanup =
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(link.gsId)
+                    .setPrevGameStateId(link.prevGsId)
+                    .setUpdate(GameStateUpdate.Send)
+                    .addDiffDeletedInstanceIds(context.promptInstanceId)
+                    .addZones(zoneInfo)
+                    .build()
+            BundleBuilder.BundleResult(
+                listOf(makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) { it.gameStateMessage = cleanup }),
+                actionGameStateId = link.gsId,
+            )
+        }
+
+    fun numeric(
+        prior: ProjectionState,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Numeric,
+    ): Prepared =
+        edit(prior) { editor ->
+            val sourceId =
+                interaction.sourceId?.let { editor.identities.getOrAlloc(it).value }
+                    ?: error("Numeric interaction requires a source")
+            val req =
+                NumericInputReq
+                    .newBuilder()
+                    .setMaxValue(interaction.max)
+                    .setStepSize(1)
+                    .setSourceId(sourceId)
+                    .setNumericInputType(NumericInputType.ChooseX_ad80)
+                    .also { if (interaction.min > 0) it.minValue = interaction.min }
+                    .build()
+            val prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.NUMERIC_INPUT)
+                    .addParameters(cardIdPromptParameter(sourceId))
+                    .build()
+            val link = counter.nextGameStateLink()
+            BundleBuilder.BundleResult(
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.gameStateMessage = pendingMessage(link)
+                    },
+                    makeGRE(GREMessageType.NumericInputReq_695e, link.gsId, counter.nextMsgId()) {
+                        it.numericInputReq = req
+                        it.prompt = prompt
+                        it.allowCancel = AllowCancel.No_a526
+                    },
+                ),
+                actionGameStateId = link.gsId,
+            )
+        }
+
+    fun damage(
+        prior: ProjectionState,
+        counter: MessageCounter,
+        interaction: BlockingInteraction.Damage,
+        blockerToughness: Map<ForgeCardId, Int>,
+    ): Prepared =
+        edit(prior) { editor ->
+            val attackerId = editor.identities.getOrAlloc(interaction.attackerId).value
+            val assignments = mutableListOf<DamageAssignment>()
+            var assigned = 0
+            for (blockerId in interaction.blockerIds) {
+                val lethal = if (interaction.hasDeathtouch) 1 else maxOf(0, blockerToughness[blockerId] ?: 0)
+                assigned += lethal
+                assignments +=
+                    DamageAssignment
+                        .newBuilder()
+                        .setInstanceId(editor.identities.getOrAlloc(blockerId).value)
+                        .setMinDamage(lethal)
+                        .setAssignedDamage(lethal)
+                        .build()
+            }
+            if (interaction.hasTrample && interaction.hasDefender) {
+                val overflow = interaction.damageDealt - assigned
+                assignments +=
+                    DamageAssignment
+                        .newBuilder()
+                        .setInstanceId(SeatId(seatId).opponent.value)
+                        .setMaxDamage(overflow)
+                        .setAssignedDamage(overflow)
+                        .build()
+            }
+            val assigner =
+                DamageAssigner
+                    .newBuilder()
+                    .setInstanceId(attackerId)
+                    .setTotalDamage(interaction.damageDealt)
+                    .addAllAssignments(assignments)
+                    .setCanIgnoreBlockers(interaction.hasTrample)
+                    .setDecisionPrompt(
+                        Prompt.newBuilder().setPromptId(PromptIds.ASSIGN_DAMAGE).addParameters(cardIdPromptParameter(attackerId)),
+                    ).build()
+            BundleBuilder.BundleResult(
+                listOf(
+                    makeGRE(GREMessageType.AssignDamageReq_695e, counter.currentGsId(), counter.nextMsgId()) {
+                        it.assignDamageReq = AssignDamageReq.newBuilder().addDamageAssigners(assigner).build()
+                    },
+                ),
+                actionGameStateId = counter.currentGsId(),
+            )
+        }
+
+    fun damageConfirmation(counter: MessageCounter): BundleBuilder.BundleResult =
+        BundleBuilder.BundleResult(
+            listOf(
+                makeGRE(GREMessageType.AssignDamageConfirmation_695e, counter.currentGsId(), counter.nextMsgId()) {
+                    it.assignDamageConfirmation = AssignDamageConfirmation.newBuilder().setResult(ResultCode.Success_a500).build()
+                },
+            ),
+        )
+
+    private fun edit(
+        prior: ProjectionState,
+        block: (ProjectionState.Editor) -> BundleBuilder.BundleResult,
+    ): Prepared {
+        val editor = prior.editor()
+        val bundle = block(editor)
+        val next = editor.freeze()
+        val changed = next.copy(revision = prior.revision) != prior
+        return Prepared(bundle, if (changed) ProjectionTransition(prior.revision, next) else null)
+    }
+
+    private fun addCommanderContext(
+        builder: GameStateMessage.Builder,
+        snapshot: GsmSnapshot,
+        sourceId: ForgeCardId?,
+        context: CommanderReturnPromptContext,
+        editor: ProjectionState.Editor,
+        cardProto: CardProtoBuilder,
+    ) {
+        val cardId = sourceId ?: error("Commander optional interaction requires a source")
+        val bound = snapshot.boundCards[cardId] ?: error("Commander source is absent from the interaction snapshot")
+        val originZoneId = protocolZoneId(context.originZone, context.ownerSeatId)
+        val destinationZoneId = protocolZoneId(context.destinationZone, context.ownerSeatId)
+
+        fun zoneWithContents(
+            zoneId: Int,
+            extraIds: List<Int> = emptyList(),
+            dropId: Int? = null,
+        ): ZoneInfo {
+            val zone = snapshot.zones[zoneId]
+            val contents =
+                zone
+                    ?.contents
+                    ?.map { editor.identities.getOrAlloc(it).value }
+                    ?.filter { it != dropId }
+                    .orEmpty() + extraIds
+            return ZoneInfo
+                .newBuilder()
+                .setZoneId(zoneId)
+                .setType(zone?.type ?: protocolZoneType(zoneId))
+                .setVisibility(zone?.visibility ?: Visibility.Public)
+                .apply { zone?.owner?.let { setOwnerSeatId(it.value) } }
+                .addAllObjectInstanceIds(contents.distinct())
+                .build()
+        }
+        builder
+            .addZones(zoneWithContents(originZoneId, dropId = context.oldInstanceId))
+            .addZones(zoneWithContents(destinationZoneId, extraIds = listOf(context.promptInstanceId)))
+            .addGameObjects(
+                ObjectMapper.buildFromSnapshot(
+                    bound.snapshot,
+                    context.promptInstanceId,
+                    destinationZoneId,
+                    bound.snapshot.owner.value,
+                    cardProto,
+                    Visibility.Public,
+                    parentLinkage = bound.parentLinkage,
+                ),
+            ).addAnnotations(
+                AnnotationBuilder
+                    .objectIdChanged(InstanceId(context.oldInstanceId), InstanceId(context.promptInstanceId))
+                    .toBuilder()
+                    .setId(nextAnnotationId(editor))
+                    .build(),
+            ).addAnnotations(
+                AnnotationBuilder
+                    .zoneTransfer(
+                        InstanceId(context.promptInstanceId),
+                        originZoneId,
+                        destinationZoneId,
+                        context.transferCategory,
+                    ).toBuilder()
+                    .setId(nextAnnotationId(editor))
+                    .build(),
+            )
+    }
+
+    private fun nextAnnotationId(editor: ProjectionState.Editor): Int {
+        val id = editor.persistentAnnotations.nextAnnotationId
+        editor.persistentAnnotations = editor.persistentAnnotations.copy(nextAnnotationId = id + 1)
+        return id
+    }
+
+    private fun pendingMessage(link: MessageCounter.GameStateLink): GameStateMessage =
+        GameStateMessage
+            .newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(link.gsId)
+            .setPrevGameStateId(link.prevGsId)
+            .setPendingMessageCount(1)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+            .build()
+
+    private fun cardIdPromptParameter(value: Int): PromptParameter =
+        PromptParameter
+            .newBuilder()
+            .setParameterName("CardId")
+            .setType(ParameterType.Number)
+            .setNumberValue(value)
+            .build()
+
+    private fun protocolZoneType(zoneId: Int): ZoneType =
+        when (zoneId) {
+            ZoneIds.BATTLEFIELD -> ZoneType.Battlefield
+            ZoneIds.EXILE -> ZoneType.Exile
+            ZoneIds.COMMAND -> ZoneType.Command
+            ZoneIds.P1_HAND, ZoneIds.P2_HAND -> ZoneType.Hand
+            ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY -> ZoneType.Library
+            ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD -> ZoneType.Graveyard
+            else -> ZoneType.Limbo
+        }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun protocolZoneId(
+        zone: CommanderZone,
+        ownerSeatId: Int,
+    ): Int =
+        when (zone) {
+            CommanderZone.Battlefield -> ZoneIds.BATTLEFIELD
+            CommanderZone.Graveyard -> ZoneIds.graveyardOf(ownerSeatId)
+            CommanderZone.Exile -> ZoneIds.EXILE
+            CommanderZone.Hand -> ZoneIds.handOf(ownerSeatId)
+            CommanderZone.Library -> ZoneIds.libraryOf(ownerSeatId)
+            CommanderZone.Command -> ZoneIds.COMMAND
+            CommanderZone.Limbo -> ZoneIds.LIMBO
+        }
+
+    private fun makeGRE(
+        type: GREMessageType,
+        gsId: Int,
+        msgId: Int,
+        configure: (GREToClientMessage.Builder) -> Unit,
+    ): GREToClientMessage =
+        GREToClientMessage
+            .newBuilder()
+            .setType(type)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(seatId)
+            .also(configure)
+            .build()
+}

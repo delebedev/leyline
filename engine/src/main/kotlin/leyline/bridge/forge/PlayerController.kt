@@ -59,17 +59,16 @@ import leyline.bridge.coord.PriorityLoopCoordinator
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.CommanderReturnPromptContext
-import leyline.bridge.handoff.DamageAssignmentPrompt
+import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ModalChoiceOption
 import leyline.bridge.handoff.ModalChoicePayload
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputGate
-import leyline.bridge.handoff.NumericInputPrompt
 import leyline.bridge.handoff.OptionalActionGate
-import leyline.bridge.handoff.OptionalActionPrompt
 import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
@@ -86,7 +85,6 @@ import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
 
 /**
@@ -130,25 +128,16 @@ import java.util.function.Predicate
  * - [SpellExecutor] — the `executeCastSpell` / `executeActivateAbility` /
  *   `executeActivateMana` / `executePlayLand` cluster. Called only from
  *   `chooseSpellAbilityToPlay` inside [PriorityLoopCoordinator].
- * - [OptionalActionGate] — owns the [pendingOptionalAction] future lifecycle
- *   shared by confirm callbacks, `playSaFromPlayEffect`, and `payCostToPreventEffect`.
+ * - [OptionalActionGate] — publishes typed optional interactions through the
+ *   match coordinator for confirm callbacks and optional costs.
  *
  * ## State ownership
  *
- * Five mutable fields stay on this class because external classes read them
- * through the public field path. Moving any of them into a coordinator would
- * require a forwarding property with zero benefit.
- *
- * - [pendingDamageAssignment] — written by [PriorityLoopCoordinator.promptForCombatDamage];
- *   read by `GameBridge.hasPendingInteraction`, `CombatHandler`, and
- *   [assignCombatDamage] (completed future).
- * - [pendingOptionalAction] — written by [OptionalActionGate.await]; read by
- *   `GameBridge.hasPendingInteraction`, `OptionalActionHandler`, `MatchFlowHarness`.
- * - [damageAssignCache] — written by `CombatHandler.onAssignDamage`; read by
- *   [assignCombatDamage].
- * - [autoPassState] — written via [setAutoPassState] (called by
+ * Interaction windows and live response handles belong to the match coordinator.
+ * [autoPassState] remains here because the priority loop consumes it directly:
+ * it is written via [setAutoPassState] (called by
  *   `MatchSession.connectBridge`); read by [PriorityLoopCoordinator.chooseSpellAbility].
- * - Priority decisions are emitted as structured log entries by [recordDecision].
+ * Priority decisions are emitted as structured log entries by [recordDecision].
  *
  * Coordinators read and write these through [OwnerContext]; external callers use
  * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
@@ -162,8 +151,7 @@ import java.util.function.Predicate
  *   through [OwnerContext] or Forge engine state.
  * - **No reflection or dispatch tables.** Route override → coordinator via direct
  *   Kotlin calls.
- * - **No `suspend` conversion.** `CompletableFuture<Boolean>` is the wire contract
- *   with `MatchSession`.
+ * - **No `suspend` conversion.** Engine callbacks keep their synchronous Forge contract.
  * - **No per-mechanic split** (`MadnessOverrides`, `FlashbackOverrides` etc.) —
  *   fractures the surface along the wrong axis.
  * - **No generic `ChoiceHandler<T>` abstraction.** Forge's signatures diverge too
@@ -183,8 +171,8 @@ import java.util.function.Predicate
  *    Keep it here. Update [PlayerControllerStructureTest]'s pinned override
  *    count in the same commit.
  * 2. **Fits an existing coordinator's concern?** Add a method there, delegate.
- * 3. **Shares a lifecycle pattern with other overrides** (e.g. a future dance)?
- *    Extract a shared helper before adding the override — see [OptionalActionGate].
+ * 3. **Shares a lifecycle pattern with other overrides** (e.g. a blocking interaction)?
+ *    Route it through the match-scoped interaction runtime.
  * 4. **New concern that does not fit any existing coordinator?** Propose a new
  *    coordinator; justify it against the anti-patterns above.
  *
@@ -193,18 +181,18 @@ import java.util.function.Predicate
  *
  * ## Threading
  *
- * Every override runs on the Forge engine thread, synchronously during game-loop
- * execution. Methods that need client input block the engine thread via
- * [InteractivePromptBridge.requestChoice] (`CompletableFuture.get()`); the Netty
- * I/O thread unblocks by completing the future. Consequences for every coordinator:
+ * Every override runs on the Forge engine thread. Input callbacks publish a complete
+ * committed interaction before blocking; the session thread submits immutable answers.
+ * Match-cut publication follows the shared counter → projection-build → feed lock order.
+ * Consequences for every coordinator:
  *
  * - A missing or slow override blocks the entire game loop.
- * - [PriorityLoopCoordinator.notifyStateChanged] must fire before
- *   [GameActionBridge.awaitAction] so the client sees updated state before being
- *   asked for a decision.
- * - Coordinators must not acquire locks, do I/O, or block on any other thread.
+ * - Client-visible and state-only priority stops publish their coordinator-owned
+ *   batch before the engine blocks; safe direct skips publish nothing.
+ * - Engine callbacks must not hold Forge mutation locks while waiting for input.
+ * - Session handlers may only drain committed batches and submit answers.
  *
- * See `docs/bridge-threading.md` for the full two-thread contract.
+ * See `docs/bridge-threading.md` for ownership, lock-order, and residual-path contracts.
  */
 @Suppress("LargeClass") // Forge dispatches via single inheritance; the override surface lives on this class.
 class PlayerController(
@@ -219,57 +207,20 @@ class PlayerController(
     private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
     autoPassState: ClientAutoPassState? = null,
+    interactionRuntime: BlockingInteractionRuntime,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
     @Volatile
     override var autoPassState: ClientAutoPassState? = autoPassState
         private set
 
-    /**
-     * Pending damage assignment prompt. Set by [assignCombatDamage] when the engine
-     * needs manual damage distribution. The auto-pass loop detects this via
-     * [CombatHandler.checkPendingDamageAssignment] and sends AssignDamageReq.
-     * Completed by [CombatHandler.onAssignDamage] when the client responds.
-     *
-     * Uses a dedicated [CompletableFuture] instead of [GameActionBridge] to avoid
-     * the auto-pass loop racing to auto-pass the pending action. Future engine-
-     * initiated prompts (DistributionReq, NumericInputReq, SelectReplacementReq,
-     * OptionalActionMessage, OrderReq) may benefit from the same approach if
-     * they hit similar timing issues with the action bridge.
-     */
-    @Volatile override var pendingDamageAssignment: DamageAssignmentPrompt? = null
-
-    /**
-     * Pending "you may" trigger decision. Set by [confirmTrigger] when an optional
-     * trigger fires (Forge's [WrappedAbility] with [OptionalDecider]).
-     * Detected by OptionalActionHandler in the auto-pass loop, which sends
-     * [OptionalActionMessage] to the client. Completed when the client responds
-     * with [OptionalResp] (Allow_Yes → true, Cancel_No → false).
-     *
-     * Same dedicated-future pattern as [pendingDamageAssignment].
-     */
-    @Volatile override var pendingOptionalAction: OptionalActionPrompt? = null
-
-    /**
-     * Pending numeric-input prompt. Set by [NumericInputGate] when Forge calls one of
-     * the [chooseNumber] overloads with a `Cost$ X` / `Announce$ X` / similar request.
-     * Detected by `NumericInputHandler` in the auto-pass loop, which emits
-     * `NumericInputReq` to the client and completes the future on `NumericInputResp`.
-     *
-     * Same dedicated-future pattern as [pendingOptionalAction] / [pendingDamageAssignment].
-     */
-    @Volatile override var pendingNumericInput: NumericInputPrompt? = null
-
-    /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
-    override val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
-
     /** Set client auto-pass state (called by MatchSession after bridge connection). */
     fun setAutoPassState(state: ClientAutoPassState) {
         autoPassState = state
     }
 
-    private val optionalActionGate = OptionalActionGate(this, actionBridge)
-    private val numericInputGate = NumericInputGate(this, actionBridge)
+    private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
+    private val numericInputGate = NumericInputGate(actionBridge, interactionRuntime)
     private val spellExecutor = SpellExecutor(game, player, bridge)
     private val targetingCoordinator =
         TargetingCoordinator(
@@ -293,6 +244,7 @@ class PlayerController(
                 phaseStopProfile = phaseStopProfile,
                 smartPhaseSkip = smartPhaseSkip,
                 spellExecutor = spellExecutor,
+                interactionRuntime = interactionRuntime,
             )
         }
 
@@ -537,8 +489,7 @@ class PlayerController(
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
         if (wrapper.isMandatory) return true
         if (isParadigmDelayedTrigger(wrapper)) return true
-        // Route through OptionalActionGate → pendingOptionalAction → OptionalActionMessage
-        // (GRE type 45). Auto-accept on timeout is safe: the ability resolves normally.
+        // Route through the coordinator-owned OptionalActionMessage interaction.
         val accepted =
             optionalActionGate.await(
                 hostCard = wrapper.hostCard,
@@ -722,12 +673,24 @@ class PlayerController(
         return CommanderReturnPromptContext(
             oldInstanceId = oldInstanceId,
             promptInstanceId = promptInstanceId,
-            originZone = origin,
-            destinationZone = destination,
+            originZone = origin.commanderZone(),
+            destinationZone = destination.commanderZone(),
             ownerSeatId = seating.humanSeat.value,
             transferCategory = commanderTransferCategory(origin, destination),
         )
     }
+
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
+    private fun ZoneType.commanderZone(): CommanderZone =
+        when (this) {
+            ZoneType.Battlefield -> CommanderZone.Battlefield
+            ZoneType.Graveyard -> CommanderZone.Graveyard
+            ZoneType.Exile -> CommanderZone.Exile
+            ZoneType.Hand -> CommanderZone.Hand
+            ZoneType.Library -> CommanderZone.Library
+            ZoneType.Command -> CommanderZone.Command
+            else -> CommanderZone.Limbo
+        }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun commanderTransferCategory(
@@ -1598,13 +1561,6 @@ class PlayerController(
         defender: GameEntity?,
         overrideOrder: Boolean,
     ): MutableMap<Card?, Int>? {
-        // Cache hit: CombatHandler pre-filled this attacker's damage map from a
-        // batched client response earlier in the per-attacker loop.
-        damageAssignCache.remove(ForgeCardId(attacker.id))?.let { cached ->
-            log.info("assignCombatDamage: cache hit for {} (id={})", attacker.name, attacker.id)
-            return cached
-        }
-
         // Single blocker, no trample → auto-assign, no UI needed.
         val needsManualAssign =
             blockers.size > 1 ||

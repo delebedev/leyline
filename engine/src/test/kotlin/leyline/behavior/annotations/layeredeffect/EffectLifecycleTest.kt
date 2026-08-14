@@ -134,7 +134,7 @@ class EffectLifecycleTest :
 
             // Cast Giant Growth targeting Swiftspear
             val pending = awaitFreshPending(b, null).shouldNotBeNull()
-            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
+            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
 
             // Engine prompts for target selection (mandatory=false for voluntary casts)
             val targetPrompt = awaitPrompt(b, timeoutMs = 5_000).shouldNotBeNull()
@@ -157,7 +157,7 @@ class EffectLifecycleTest :
                 if (game.stack.size() > 0) stackWasNonEmpty = true
                 // Stop once stack empties after having items (spell resolved)
                 if (stackWasNonEmpty && game.stack.size() == 0) break
-                b.actionBridge(SeatId(1)).submitAction(next.actionId, PlayerAction.PassPriority)
+                b.actionBridge(SeatId(1)).submitTestRuntimeAction(next.actionId, PlayerAction.PassPriority)
                 lastId = next.actionId
                 passes++
             }

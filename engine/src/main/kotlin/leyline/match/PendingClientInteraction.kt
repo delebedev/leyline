@@ -1,8 +1,7 @@
 package leyline.match
 
-import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.coord.MatchActionWindowRuntime
 import leyline.bridge.types.ForgeCardId
-import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
@@ -11,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * Only one such interaction should be pending at a time for a seat.
  * Keeping it typed avoids dispatch based on multiple nullable fields.
  */
-sealed interface PendingClientInteraction {
+internal sealed interface PendingClientInteraction {
     data class ModalChoice(
         val promptId: String,
         val childGrpIds: List<Int>,
@@ -41,8 +40,7 @@ sealed interface PendingClientInteraction {
     ) : PendingClientInteraction
 
     data class OptionalCost(
-        val pendingActionId: String,
-        val action: PlayerAction.CastSpell,
+        val actionClaim: MatchActionWindowRuntime.ActionClaim,
         val costCtoIds: List<Int>,
         /**
          * Subset of [costCtoIds] that correspond to keyword-cost keywords
@@ -56,19 +54,15 @@ sealed interface PendingClientInteraction {
     ) : PendingClientInteraction
 
     data class HybridManaType(
-        val pendingActionId: String,
-        val action: PlayerAction.CastSpell,
-        val clientAction: Action,
-        val castAbilityIndex: Int?,
+        val actionClaim: MatchActionWindowRuntime.ActionClaim,
         val ctoIds: List<Int>,
         val promptColors: List<ManaColor>,
         val paymentColors: List<ManaColor>,
     ) : PendingClientInteraction
 
     data class AlternateCostChoice(
-        val pendingActionId: String,
-        val cardId: ForgeCardId,
-        val abilityIndicesByCtoId: Map<Int, Int>,
+        val actionClaim: MatchActionWindowRuntime.ActionClaim,
+        val runtimeTokensByCtoId: Map<Int, Long>,
     ) : PendingClientInteraction
 
     data class Search(

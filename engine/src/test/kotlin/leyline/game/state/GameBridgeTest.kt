@@ -32,6 +32,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailString
+import leyline.tooling.headless.ClientAccumulator
 import wotc.mtgo.gre.external.messaging.Messages
 import java.util.Random
 import leyline.testkit.StateMapperShell as StateMapper
@@ -69,7 +70,7 @@ class GameBridgeTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+                b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 lastId = pending.actionId
                 awaitFreshPending(b, lastId)
             }
@@ -78,7 +79,7 @@ class GameBridgeTest :
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
             if (creature != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
+                b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
                 awaitFreshPending(b, pending.actionId)
             }
         }
@@ -94,7 +95,7 @@ class GameBridgeTest :
             while (passes < maxPasses) {
                 val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: break
                 if (pending.state.phase == target) return
-                b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
+                b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
                 lastId = pending.actionId
                 passes++
                 if (game.isGameOver) break
@@ -230,7 +231,7 @@ class GameBridgeTest :
                 awaitFreshPending(b, null)
                     ?: error("No pending action available")
 
-            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
             val handAfter = player.getZone(ZoneType.Hand).size()
@@ -302,33 +303,16 @@ class GameBridgeTest :
             b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
-            val game = b.getGame()!!
+            val accumulator = ClientAccumulator()
+            accumulator.processAll(b.cutCoordinator.drain(SeatId(1)).flatten())
             val player = b.getPlayer(SeatId(1))!!
             val landInHand = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val pending = awaitFreshPending(b, null)!!
-            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
+            accumulator.processAll(b.cutCoordinator.drain(SeatId(1)).flatten())
 
-            val result =
-                BundleBuilder(b, "test-match", 1).postAction(
-                    game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
-                )
-            val gs = result.messages.first().gameStateMessage
-            val actions = result.messages.last().actionsAvailableReq
-
-            val allZoneInstanceIds =
-                gs.zonesList
-                    .flatMap { it.objectInstanceIdsList }
-                    .toSet()
-            assertSoftly {
-                actions.actionsList
-                    .filter { it.instanceId != 0 && it.instanceId !in allZoneInstanceIds }
-                    .map { it.instanceId } shouldBe emptyList()
-                gs.gameObjectsList
-                    .filter { obj -> gs.zonesList.none { obj.instanceId in it.objectInstanceIdsList } }
-                    .map { it.instanceId } shouldBe emptyList()
-            }
+            accumulator.assertConsistent("after land action window")
         }
 
         // --- Die roll winner randomization ---
@@ -496,22 +480,6 @@ class GameBridgeTest :
             b.submitKeep(SeatId(1))
             advanceToMain1(b)
 
-            val game = b.getGame()!!
-
-            // Build initial state to seed previousZones
-            val snapGb2 = GsmSnapshot.capture(game, b, "test-match", 1)
-            val seedResult =
-                StateMapper.buildFromSnapshot(
-                    snapGb2,
-                    1,
-                    "test-match",
-                    b,
-                    effectFacts = b.materializeEffectProjectionFacts(),
-                    abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                )
-            b.commitProjection(seedResult.transition)
-
-            // Play a land
             val player = b.getPlayer(SeatId(1))!!
             val land =
                 player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
@@ -519,25 +487,17 @@ class GameBridgeTest :
             val pending =
                 awaitFreshPending(b, null)
                     ?: error("No pending action available")
-            b.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+            b.cutCoordinator.drain(SeatId(1))
+            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
             awaitFreshPending(b, pending.actionId)
 
-            // Build post-action state — should have ZoneTransfer annotation
-            val snapGb3 = GsmSnapshot.capture(game, b, "test-match", 2)
-            val gs =
-                StateMapper
-                    .buildFromSnapshot(
-                        snapGb3,
-                        2,
-                        "test-match",
-                        b,
-                        effectFacts = b.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                    ).gsm
             val zoneTransfers =
-                gs.annotationsList.filter {
-                    it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
-                }
+                b.cutCoordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .filter { it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a) }
             assertSoftly {
                 zoneTransfers.size shouldBe 1
                 zoneTransfers.first().detailString("category") shouldBe "PlayLand"

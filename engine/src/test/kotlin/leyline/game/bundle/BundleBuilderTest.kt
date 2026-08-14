@@ -354,13 +354,13 @@ class BundleBuilderTest :
                         ),
                     manaCost =
                         listOf(
-                            CastingTimeOptionsBuilder.ManaRequirementSpec(
+                            leyline.bridge.handoff.ManaRequirementSpec.frozen(
                                 listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Green_afc9),
                             ),
-                            CastingTimeOptionsBuilder.ManaRequirementSpec(
+                            leyline.bridge.handoff.ManaRequirementSpec.frozen(
                                 listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Blue_afc9),
                             ),
-                            CastingTimeOptionsBuilder.ManaRequirementSpec(
+                            leyline.bridge.handoff.ManaRequirementSpec.frozen(
                                 listOf(Messages.ManaColor.TwoGeneric, Messages.ManaColor.Red_afc9),
                             ),
                         ),
@@ -887,7 +887,7 @@ class BundleBuilderTest :
                     .cards
                     .single()
             val builder = bundleBuilder(b)
-            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val playback = GamePlayback(b, 1)
             b.registerPlaybackForTest(SeatId(1), playback)
             game.subscribeToEvents(playback)
             val shellEnteredCompiler = CountDownLatch(1)
@@ -956,8 +956,8 @@ class BundleBuilderTest :
         }
 
         test("stale exact playback cut becomes terminal and emits nothing") {
-            val (b, _, counter) = startWithBoard { _, _, _ -> }
-            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val (b, _, _) = startWithBoard { _, _, _ -> }
+            val playback = GamePlayback(b, 1)
             var writerRan = false
             b.diffListener = { _, _, _, _ ->
                 if (!writerRan) {
@@ -990,8 +990,8 @@ class BundleBuilderTest :
         }
 
         test("post-install playback failure retains the queued cut across a later writer") {
-            val (b, _, counter) = startWithBoard { _, _, _ -> }
-            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val (b, _, _) = startWithBoard { _, _, _ -> }
+            val playback = GamePlayback(b, 1)
             val timeoutField = GameBridge::class.java.getDeclaredField("promptTimeoutNeedsAutoAdvance")
             timeoutField.isAccessible = true
             (timeoutField.get(b) as AtomicBoolean).set(true)
@@ -1021,7 +1021,7 @@ class BundleBuilderTest :
         }
 
         test("combat safe point subsumes ordinary request after reversed subscriber order") {
-            val (b, game, counter) =
+            val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
@@ -1030,7 +1030,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val playback = GamePlayback(b, 1)
             val collector = checkNotNull(b.eventCollector)
             game.unsubscribeFromEvents(collector)
             game.subscribeToEvents(playback)
@@ -1062,7 +1062,7 @@ class BundleBuilderTest :
         }
 
         test("startup boundary discards setup facts and retains first gameplay facts") {
-            val (b, game, counter) =
+            val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
@@ -1071,7 +1071,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val playback = GamePlayback(b, "test", 1, counter, delayMultiplier = 0.0)
+            val playback = GamePlayback(b, 1)
             game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
 
             playback.onMainGameLoopStarted()
@@ -1488,7 +1488,16 @@ class BundleBuilderTest :
             val allIds = creatures.map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
             val selectedIds = listOf(allIds.first())
 
-            val result = bundleBuilder(b).echoAttackersBundle(game, counter, selectedIds, allIds)
+            val prepared =
+                bundleBuilder(b).prepareEchoAttackers(
+                    game,
+                    counter,
+                    selectedIds,
+                    allIds,
+                    presentationActions = Messages.ActionsAvailableReq.getDefaultInstance(),
+                )
+            b.commitProjection(checkNotNull(prepared.transition))
+            val result = prepared.bundle
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -1531,7 +1540,15 @@ class BundleBuilderTest :
             val blockerId = b.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
             val blockAssignments = mapOf(blockerId to 999)
 
-            val result = bundleBuilder(b).echoBlockersBundle(game, counter, blockAssignments)
+            val prepared =
+                bundleBuilder(b).prepareEchoBlockers(
+                    game,
+                    counter,
+                    blockAssignments,
+                    presentationActions = Messages.ActionsAvailableReq.getDefaultInstance(),
+                )
+            b.commitProjection(checkNotNull(prepared.transition))
+            val result = prepared.bundle
 
             assertSoftly {
                 result.messages.size shouldBe 2

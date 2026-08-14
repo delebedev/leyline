@@ -301,6 +301,6 @@ private fun advanceToEndOfTurn(bridge: GameBridge) {
         val pending = awaitFreshPending(bridge, null) ?: return
         val nowTurn = game.phaseHandler.turn
         if (nowTurn != startTurn) return
-        bridge.actionBridge(SeatId(1)).submitAction(pending.actionId, PlayerAction.PassPriority)
+        bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
     }
 }

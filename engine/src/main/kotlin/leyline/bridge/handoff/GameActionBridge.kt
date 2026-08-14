@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.spellability.SpellAbility
 import leyline.DevCheck
 import leyline.bridge.BridgeTimeoutDiagnostic
+import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.PrioritySignal
@@ -12,6 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -21,9 +23,8 @@ import java.util.concurrent.atomic.AtomicReference
  * Thread-safe bridge between the blocking engine game loop and async Netty handlers.
  *
  * When the engine reaches a priority stop (via [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay]),
- * it calls [awaitAction] which blocks the game thread. The message handler broadcasts state to the
- * client, and when the client responds (cast, pass, attack, etc.), [submitAction] completes
- * the future so the engine resumes.
+ * it calls [awaitAction] which blocks the game thread. The match cut runtime publishes the
+ * complete window before signalling and resolves a value response after the engine wakes.
  *
  * Sibling to [InteractivePromptBridge] which handles non-priority prompts (targeting, sacrifice).
  * One pending action at a time — the engine is single-threaded per game.
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference
 class GameActionBridge(
     @Volatile private var timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
     val prioritySignal: PrioritySignal? = null,
+    private val windowRuntime: ActionWindowRuntime? = null,
 ) {
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
@@ -87,15 +89,66 @@ class GameActionBridge(
         val stackAbilityGrpId: Int? = null,
         val forgeAbilityId: Int? = null,
         val spellGrpId: Int? = null,
+        internal val castCandidates: List<SpellAbility> = emptyList(),
     )
 
     data class PendingAction(
         val actionId: String,
         val state: PendingActionState,
-        val future: CompletableFuture<PlayerAction>,
+        val future: CompletableFuture<ActionSubmission>,
         @Volatile var promptGameStateId: Int? = null,
-        @Volatile var actionCatalog: Map<ActionResponseKey, List<ActionOffer>>? = null,
+        @Volatile var published: Boolean = false,
+        @Volatile var claimed: Boolean = false,
+        internal val priorityCandidates: PriorityActionCandidates? = null,
     )
+
+    private data class AwaitedSubmission(
+        val submission: ActionSubmission,
+        val closeReason: WindowCloseReason,
+    )
+
+    sealed interface ActionSubmission {
+        data class RuntimeToken(
+            val token: Long,
+        ) : ActionSubmission
+
+        data class LegacyRuntimeAction(
+            val action: PlayerAction,
+        ) : ActionSubmission
+    }
+
+    /** Imperative-shell runtime for publishing and resolving one priority window. */
+    interface ActionWindowRuntime {
+        fun publish(pending: PendingAction)
+
+        fun resolve(
+            pending: PendingAction,
+            submission: ActionSubmission.RuntimeToken,
+        ): PlayerAction?
+
+        fun close(
+            pending: PendingAction,
+            reason: WindowCloseReason,
+        )
+
+        /** Atomically retire a timed-out window against a concurrent session answer. */
+        fun claimTimeout(
+            pending: PendingAction,
+            cause: TimeoutException,
+        ): Boolean = pending.future.completeExceptionally(cause)
+
+        /** Atomically claim timeout for a committed state-only delivery barrier. */
+        fun claimSynchronizationTimeout(
+            pending: PendingAction,
+            cause: TimeoutException,
+        ): Boolean = pending.future.completeExceptionally(cause)
+
+        /** Complete a delivered state-only barrier with its engine-only pass. */
+        fun completeSynchronization(pending: PendingAction): Boolean =
+            pending.future.complete(ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+    }
+
+    enum class WindowCloseReason { Answered, TimedOut, Cancelled, Failed }
 
     private val pending = AtomicReference<PendingAction?>(null)
 
@@ -120,6 +173,7 @@ class GameActionBridge(
      * Matches desktop Forge "End Turn" behavior.
      */
     private val _autoPassUntilEndOfTurn = AtomicBoolean(false)
+    private val forceNextVisible = AtomicBoolean(false)
 
     val autoPassUntilEndOfTurn: Boolean get() = _autoPassUntilEndOfTurn.get()
 
@@ -127,183 +181,176 @@ class GameActionBridge(
         _autoPassUntilEndOfTurn.set(value)
     }
 
+    internal fun forceNextWindowVisible() {
+        forceNextVisible.set(true)
+    }
+
+    internal fun consumeForceNextWindowVisible(): Boolean = forceNextVisible.compareAndSet(true, false)
+
     /**
      * Called from the engine thread (BLOCKS until client responds or timeout).
      *
      * @param state describes the current game state context for the pending action
      * @return the player's chosen action
      */
-    fun awaitAction(state: PendingActionState): PlayerAction {
+    @Suppress("ThrowsCount")
+    fun awaitAction(
+        state: PendingActionState,
+        priorityCandidates: PriorityActionCandidates? = null,
+    ): PlayerAction {
         val configuredTimeoutMs = timeoutMs
         if (configuredTimeoutMs == 0L) {
             return PlayerAction.PassPriority
         }
 
         val actionId = UUID.randomUUID().toString()
-        val future = CompletableFuture<PlayerAction>()
-        val action = PendingAction(actionId, state, future)
+        val future = CompletableFuture<ActionSubmission>()
+        val action = PendingAction(actionId, state, future, priorityCandidates = priorityCandidates)
 
         if (!pending.compareAndSet(null, action)) {
             log.warn("Action bridge already has a pending action; auto-passing")
             DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
             return PlayerAction.PassPriority
         }
+        try {
+            if (windowRuntime == null) {
+                action.published = true
+            } else {
+                windowRuntime.publish(action)
+                check(action.published) { "Action window runtime returned before publication completed" }
+            }
+        } catch (ex: Exception) {
+            pending.compareAndSet(action, null)
+            windowRuntime?.close(action, WindowCloseReason.Failed)
+            throw ex
+        }
         prioritySignal?.signal()
 
         val effectiveTimeout = if (paused) null else configuredTimeoutMs
         deadlineMs = effectiveTimeout?.let { System.currentTimeMillis() + it }
 
+        val awaited = awaitSubmission(action, effectiveTimeout)
+        var closeReason = awaited.closeReason
         return try {
-            if (effectiveTimeout == null) {
-                future.get()
-            } else {
-                future.get(effectiveTimeout, TimeUnit.MILLISECONDS)
+            when (val submission = awaited.submission) {
+                is ActionSubmission.LegacyRuntimeAction -> submission.action
+                is ActionSubmission.RuntimeToken ->
+                    checkNotNull(windowRuntime?.resolve(action, submission)) { "Action runtime token did not resolve" }
             }
-        } catch (_: TimeoutException) {
-            val diagnostic =
-                BridgeTimeoutDiagnostic.buildMessage(
-                    bridgeName = "GameActionBridge",
-                    timeoutMs = checkNotNull(effectiveTimeout),
-                    game = diagnosticGame,
-                    engineThread = diagnosticThread,
-                    lastContext =
-                        "PendingAction(id=${actionId.take(8)}, phase=${state.phase}, " +
-                            "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
-                )
-            log.warn("Action timed out, auto-passing\n{}", diagnostic)
-            DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
-            PlayerAction.PassPriority
         } catch (ex: Exception) {
-            log.warn("Action await failed: ${ex.message}, auto-passing")
-            DevCheck.failOnAutoPass { "Action await failed: ${ex.message}" }
-            PlayerAction.PassPriority
+            closeReason = WindowCloseReason.Failed
+            throw ex
         } finally {
-            deadlineMs = null
-            pending.set(null)
+            windowRuntime?.close(action, closeReason)
         }
     }
 
-    /**
-     * Called from the Netty handler. Completes the pending action future
-     * so the blocked engine thread can resume.
-     *
-     * @return true if the action was matched and completed
-     */
-    fun submitAction(
+    @Suppress("ThrowsCount")
+    private fun awaitSubmission(
+        action: PendingAction,
+        effectiveTimeout: Long?,
+    ): AwaitedSubmission =
+        try {
+            if (effectiveTimeout == null) {
+                AwaitedSubmission(action.future.get(), WindowCloseReason.Answered)
+            } else {
+                awaitTimedSubmission(action, effectiveTimeout)
+            }
+        } catch (ex: ExecutionException) {
+            windowRuntime?.close(action, WindowCloseReason.Failed)
+            throw ex.cause ?: ex
+        } catch (ex: Exception) {
+            windowRuntime?.close(action, WindowCloseReason.Failed)
+            throw ex
+        } finally {
+            deadlineMs = null
+            pending.compareAndSet(action, null)
+        }
+
+    private fun awaitTimedSubmission(
+        action: PendingAction,
+        effectiveTimeout: Long,
+    ): AwaitedSubmission =
+        try {
+            AwaitedSubmission(
+                action.future.get(effectiveTimeout, TimeUnit.MILLISECONDS),
+                WindowCloseReason.Answered,
+            )
+        } catch (_: TimeoutException) {
+            handleActionTimeout(action, effectiveTimeout)
+        }
+
+    private fun handleActionTimeout(
+        action: PendingAction,
+        effectiveTimeout: Long,
+    ): AwaitedSubmission {
+        val timeout = TimeoutException("Action window timed out")
+        val claimed =
+            if (action.state.kind == PendingActionKind.SYNC_ONLY) {
+                windowRuntime?.claimSynchronizationTimeout(action, timeout)
+                    ?: action.future.completeExceptionally(timeout)
+            } else {
+                windowRuntime?.claimTimeout(action, timeout) ?: action.future.completeExceptionally(timeout)
+            }
+        if (!claimed) {
+            return try {
+                AwaitedSubmission(action.future.getNow(null) ?: action.future.get(), WindowCloseReason.Answered)
+            } catch (ex: Exception) {
+                throw when (ex) {
+                    is ExecutionException -> ex.cause ?: ex
+                    is java.util.concurrent.CompletionException -> ex.cause ?: ex
+                    else -> ex
+                }
+            }
+        }
+        if (action.state.kind == PendingActionKind.SYNC_ONLY) {
+            throw timeout
+        }
+
+        val diagnostic =
+            BridgeTimeoutDiagnostic.buildMessage(
+                bridgeName = "GameActionBridge",
+                timeoutMs = effectiveTimeout,
+                game = diagnosticGame,
+                engineThread = diagnosticThread,
+                lastContext =
+                    "PendingAction(id=${action.actionId.take(8)}, phase=${action.state.phase}, " +
+                        "active=${action.state.activePlayerId}, priority=${action.state.priorityPlayerId})",
+            )
+        log.warn("Action timed out, auto-passing\n{}", diagnostic)
+        DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
+        return AwaitedSubmission(
+            ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority),
+            WindowCloseReason.TimedOut,
+        )
+    }
+
+    /** Complete the exact pending window with a coordinator-owned runtime token. */
+    fun submitRuntimeToken(
+        actionId: String,
+        token: Long,
+    ): Boolean {
+        val current = pending.get() ?: return false
+        if (current.actionId != actionId) return false
+        return current.future.complete(ActionSubmission.RuntimeToken(token))
+    }
+
+    /** Complete an engine-only synchronization stop without a client action catalog. */
+    internal fun completeSyncPass(actionId: String): Boolean {
+        val current = pending.get() ?: return false
+        if (current.actionId != actionId || current.state.kind != PendingActionKind.SYNC_ONLY) return false
+        return windowRuntime?.completeSynchronization(current)
+            ?: current.future.complete(ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+    }
+
+    @org.jetbrains.annotations.VisibleForTesting
+    internal fun submitTestRuntimeAction(
         actionId: String,
         action: PlayerAction,
     ): Boolean {
         val current = pending.get() ?: return false
-        if (current.actionId != actionId) {
-            log.warn("Action ID mismatch: expected=${current.actionId}, got=$actionId")
-            return false
-        }
-        return current.future.complete(action)
-    }
-
-    /**
-     * Atomically bind an executable priority catalog to its outbound prompt.
-     *
-     * Call this before the corresponding ActionsAvailableReq becomes visible.
-     * A later AAR for the same still-blocked priority window supersedes the
-     * previous catalog atomically; responses to the earlier game-state id then
-     * cannot resolve.
-     */
-    fun bindActionCatalog(
-        actionId: String,
-        gameStateId: Int,
-        offers: List<ActionOffer>,
-    ): Boolean {
-        val groupedOffers = offers.groupBy { ActionResponseKey.from(it.action) }
-        val hasAmbiguousKey =
-            groupedOffers.values.any { variants ->
-                val identities = variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct()
-                identities.size > 1 && variants.map { it.action }.distinct().size == 1
-            }
-        if (hasAmbiguousKey) {
-            log.warn(
-                "Refusing ambiguous action catalog with duplicate response keys: {}",
-                groupedOffers.filterValues { variants ->
-                    variants.map { Triple(it.command, it.stackAbilityGrpId, it.forgeAbilityId) }.distinct().size > 1
-                },
-            )
-            return false
-        }
-        val catalog = groupedOffers
-
-        val current =
-            pending.get() ?: run {
-                log.warn("Cannot bind action catalog: no pending action")
-                return false
-            }
-        synchronized(current) {
-            if (current.actionId != actionId) {
-                log.warn("Cannot bind action catalog: pending window was superseded")
-                return false
-            }
-            if (current.future.isDone) {
-                log.warn("Cannot bind action catalog: pending window already completed")
-                return false
-            }
-            current.actionCatalog = catalog
-            current.promptGameStateId = gameStateId
-            return true
-        }
-    }
-
-    /** Resolve a response only against the catalog bound to its pending window. */
-    fun resolveOfferedAction(
-        pendingAction: PendingAction,
-        responseGameStateId: Int,
-        action: Action,
-    ): ActionOffer? {
-        if (!acceptsResponse(pendingAction, responseGameStateId)) return null
-        val catalog = pendingAction.actionCatalog ?: return null
-        val keyedMatches = catalog[ActionResponseKey.from(action)].orEmpty()
-        chooseExecutionIdentity(keyedMatches, action)?.let { return it }
-        val partialMatches = catalog.values.flatten().filter { offer -> matchesPartialResponse(offer.action, action) }
-        return chooseExecutionIdentity(partialMatches, action)
-    }
-
-    private fun chooseExecutionIdentity(
-        offers: List<ActionOffer>,
-        response: Action,
-    ): ActionOffer? {
-        val identities = offers.distinctBy { listOf(it.command, it.stackAbilityGrpId, it.forgeAbilityId, it.spellGrpId) }
-        val exactPayloadMatches = identities.filter { it.action == response }
-        if (exactPayloadMatches.size == 1) return exactPayloadMatches.single()
-        if (identities.size == 1) return identities.first()
-
-        val bestScore = identities.maxOfOrNull { selectorMatchScore(it.action, response) } ?: return null
-        return identities.filter { selectorMatchScore(it.action, response) == bestScore }.singleOrNull()
-    }
-
-    private fun selectorMatchScore(
-        offer: Action,
-        response: Action,
-    ): Int =
-        listOf(
-            offer.grpId to response.grpId,
-            offer.abilityGrpId to response.abilityGrpId,
-            offer.alternativeGrpId to response.alternativeGrpId,
-        ).count { (offered, returned) -> offered != 0 && returned != 0 && offered == returned }
-
-    private fun matchesPartialResponse(
-        offer: Action,
-        response: Action,
-    ): Boolean =
-        offer.actionType == response.actionType &&
-            offer.instanceId == response.instanceId &&
-            (response.grpId == 0 || offer.grpId == 0 || offer.grpId == response.grpId) &&
-            (response.abilityGrpId == 0 || offer.abilityGrpId == 0 || offer.abilityGrpId == response.abilityGrpId) &&
-            (response.alternativeGrpId == 0 || offer.alternativeGrpId == 0 || offer.alternativeGrpId == response.alternativeGrpId)
-
-    fun acceptsResponse(
-        pendingAction: PendingAction,
-        responseGameStateId: Int,
-    ): Boolean {
-        if (responseGameStateId == 0) return true
-        return pendingAction.promptGameStateId == responseGameStateId
+        if (current.actionId != actionId) return false
+        return current.future.complete(ActionSubmission.LegacyRuntimeAction(action))
     }
 
     /**
@@ -319,8 +366,10 @@ class GameActionBridge(
      */
     fun getPending(): PendingAction? {
         val p = pending.get() ?: return null
-        return if (p.future.isDone) null else p
+        return if (!p.published || p.claimed || p.future.isDone) null else p
     }
+
+    internal fun exactPending(actionId: String): PendingAction? = pending.get()?.takeIf { it.actionId == actionId && !it.future.isDone }
 
     /**
      * Cancel any pending action (e.g. on disconnect / game reset).
@@ -328,6 +377,11 @@ class GameActionBridge(
     fun cancelPending() {
         val current = pending.getAndSet(null)
         current?.future?.cancel(true)
+    }
+
+    /** Wake an engine thread waiting in this bridge with the coordinator's terminal cause. */
+    fun failPending(cause: Throwable) {
+        pending.getAndSet(null)?.future?.completeExceptionally(cause)
     }
 }
 
@@ -343,7 +397,7 @@ data class ActionResponseKey(
         @Suppress("ElseCaseInsteadOfExhaustiveWhen")
         fun from(action: Action) =
             when (action.actionType) {
-                ActionType.Pass, ActionType.FloatMana -> ActionResponseKey(action.actionType, 0, 0, 0, 0)
+                ActionType.Pass, ActionType.FloatMana -> ActionResponseKey(ActionType.Pass, 0, 0, 0, 0)
                 ActionType.Play_add3, ActionType.PlayMdfc, ActionType.SpecialTurnFaceUp_add3 ->
                     ActionResponseKey(action.actionType, action.instanceId, 0, 0, 0)
                 else ->
@@ -371,6 +425,7 @@ data class PendingActionState(
 
 enum class PendingActionKind {
     PRIORITY,
+    SYNC_ONLY,
     DECLARE_ATTACKERS,
     DECLARE_BLOCKERS,
 }
