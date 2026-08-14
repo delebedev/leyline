@@ -13,7 +13,6 @@ import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionOutput
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
-import leyline.game.state.PromptFactKey
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
@@ -96,8 +95,6 @@ object StateProjectionCompiler {
                         ProjectionAcknowledgements(
                             consumedEarthbendResolutionVersions = output.consumedEarthbendResolutionVersions,
                             promptFacts = output.promptFactConsumption,
-                            pendingOrderMove =
-                                intent.orderPrompt?.move?.let { PromptFactKey(it.seatId, it.version) },
                         ),
                 ),
             objectRefreshInstanceIds = draft.objectRefreshInstanceIds,

@@ -117,6 +117,7 @@ class MatchSession(
             counters = this,
             ctx = ctx,
         )
+    private val orderInteractionHandler = OrderInteractionHandler(ctx)
     val autoPassEngine =
         AutoPassEngine(
             sink = this,
@@ -295,7 +296,7 @@ class MatchSession(
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            orderInteractionHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =

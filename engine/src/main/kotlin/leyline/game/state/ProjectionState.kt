@@ -88,7 +88,6 @@ data class PendingSubmittedTargets(
 data class ProjectionAcknowledgements(
     val consumedEarthbendResolutionVersions: Set<Long> = emptySet(),
     val promptFacts: PromptFactConsumption = PromptFactConsumption(),
-    val pendingOrderMove: PromptFactKey? = null,
 )
 
 /** One tentative projection result. Installing it is one compare-and-set operation. */

@@ -8,10 +8,12 @@ import leyline.bridge.types.SeatId
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
 import leyline.game.OneShotPayCostsMaterializationDiagnostic
+import leyline.game.OrderMaterializationDiagnostic
 import leyline.game.PendingCut
 import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
 import leyline.game.PendingOneShotPayCostsCut
+import leyline.game.PendingOrderCut
 import leyline.game.PendingSearchCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
@@ -54,11 +56,11 @@ internal class MatchCutCoordinator(
     internal val interactions = MatchBlockingInteractionRuntime(this)
     internal val targeting = MatchTargetingInteractionRuntime(this)
     internal val search = MatchSearchInteractionRuntime(this)
+    internal val order = MatchOrderInteractionRuntime(this)
     internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
     internal val oneShotPayCosts = MatchOneShotPayCostsRuntime(this)
 
-    @Volatile
-    private var terminalFailure: PlaybackTerminalFailure? = null
+    private val terminal = MatchCutTerminalRuntime(this)
 
     internal val humanSeat: SeatId get() = bridge.seating.humanSeat
 
@@ -185,11 +187,12 @@ internal class MatchCutCoordinator(
 
     /** Terminalize every owned waiter and reject later cuts/interactions. */
     fun shutdown(cause: Throwable = CancellationException("Match projection coordinator shut down")) {
-        val failure = synchronized(feedLock) { terminalFailure ?: terminate(null, null, cause) }
+        val failure = synchronized(feedLock) { terminal.current() ?: terminal.terminate(cause) }
         interactions.terminate(failure)
         actions.terminate()
         targeting.terminate(failure)
         search.terminate(failure)
+        order.terminate(failure)
         manaSourcePayments.terminate(failure)
         oneShotPayCosts.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
@@ -199,10 +202,11 @@ internal class MatchCutCoordinator(
     fun resetForNewGame() {
         synchronized(feedLock) {
             check(feeds.isEmpty()) { "Cannot reset coordinator with registered viewers" }
-            terminalFailure = null
+            terminal.reset()
             actions.reset()
             targeting.reset()
             search.reset()
+            order.reset()
             manaSourcePayments.reset()
             oneShotPayCosts.reset()
         }
@@ -242,12 +246,17 @@ internal class MatchCutCoordinator(
                         val feed = feed(seatId)
                         val request = feed.requestedCut ?: return
                         if (request.boundary != boundary) return
-                        if (game == null) fail(null, MaterializationDiagnostic(request, null), IllegalStateException("Game unavailable"))
+                        if (game == null) {
+                            failPlayback(
+                                IllegalStateException("Game unavailable"),
+                                diagnostic = MaterializationDiagnostic(request, null),
+                            )
+                        }
                         val events =
                             try {
                                 bridge.closeBundleFrame(seatId.value)
                             } catch (ex: Exception) {
-                                fail(null, MaterializationDiagnostic(request, null), ex)
+                                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
                             }
                         val pending =
                             try {
@@ -260,14 +269,14 @@ internal class MatchCutCoordinator(
                                     ),
                                 )
                             } catch (ex: Exception) {
-                                fail(null, MaterializationDiagnostic(request, events), ex)
+                                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
                             }
                         feed.pendingCut = pending
                         val prepared =
                             try {
                                 feed.builder.compilePlaybackCut(pending.projection)
                             } catch (ex: Exception) {
-                                fail(pending, null, ex)
+                                failPlayback(ex, pending = pending)
                             }
                         val enqueued = mutableListOf<List<GREToClientMessage>>()
                         try {
@@ -278,7 +287,7 @@ internal class MatchCutCoordinator(
                             }
                         } catch (ex: Exception) {
                             removeEnqueuedBatches(feed, enqueued)
-                            fail(pending, null, ex)
+                            failPlayback(ex, pending = pending)
                         }
                         var installed = false
                         try {
@@ -290,7 +299,7 @@ internal class MatchCutCoordinator(
                             }
                         } catch (ex: Exception) {
                             if (!installed) removeEnqueuedBatches(feed, enqueued)
-                            fail(pending, null, ex)
+                            failPlayback(ex, pending = pending)
                         }
                         request
                     }
@@ -329,7 +338,7 @@ internal class MatchCutCoordinator(
 
     fun hasCommittedBatches(seatId: SeatId): Boolean = synchronized(feedLock) { feeds[seatId]?.queue?.isNotEmpty() == true }
 
-    fun failure(): PlaybackTerminalFailure? = terminalFailure
+    fun failure(): PlaybackTerminalFailure? = terminal.current()
 
     fun setBeforeBatchEnqueue(
         seatId: SeatId,
@@ -350,7 +359,7 @@ internal class MatchCutCoordinator(
     internal fun feed(seatId: SeatId): ViewerFeed = feeds[seatId] ?: error("No projection feed registered for seat ${seatId.value}")
 
     internal fun ensureOpen() {
-        terminalFailure?.let { throw it }
+        terminal.ensureOpen()
     }
 
     internal fun publishPrepared(
@@ -396,97 +405,69 @@ internal class MatchCutCoordinator(
     internal fun fail(
         cause: Throwable,
         pendingInteraction: PendingInteractionCut? = null,
-    ): Nothing = fail(null, null, cause, pendingInteraction)
+    ): Nothing = fail(cause, MatchCutTerminalRuntime.Context(pendingInteraction = pendingInteraction))
 
     internal fun failSearch(
         cause: Throwable,
         pendingSearch: PendingSearchCut? = null,
         diagnostic: SearchMaterializationDiagnostic? = null,
-    ): Nothing = fail(null, null, cause, pendingSearchCut = pendingSearch, searchDiagnostic = diagnostic)
+    ): Nothing = fail(cause, MatchCutTerminalRuntime.Context(pendingSearch = pendingSearch, searchDiagnostic = diagnostic))
 
     internal fun failManaSourcePayment(
         cause: Throwable,
         pending: PendingManaSourcePaymentCut? = null,
         diagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
-    ): Nothing = fail(null, null, cause, pendingManaSourcePaymentCut = pending, manaSourcePaymentDiagnostic = diagnostic)
+    ): Nothing =
+        fail(
+            cause,
+            MatchCutTerminalRuntime.Context(
+                pendingManaSourcePayment = pending,
+                manaSourcePaymentDiagnostic = diagnostic,
+            ),
+        )
 
     internal fun failOneShotPayCosts(
         cause: Throwable,
         pending: PendingOneShotPayCostsCut? = null,
         diagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
-    ): Nothing = fail(null, null, cause, pendingOneShotPayCostsCut = pending, oneShotPayCostsDiagnostic = diagnostic)
+    ): Nothing =
+        fail(
+            cause,
+            MatchCutTerminalRuntime.Context(
+                pendingOneShotPayCosts = pending,
+                oneShotPayCostsDiagnostic = diagnostic,
+            ),
+        )
+
+    internal fun failOrder(
+        cause: Throwable,
+        pending: PendingOrderCut? = null,
+        diagnostic: OrderMaterializationDiagnostic? = null,
+    ): Nothing = fail(cause, MatchCutTerminalRuntime.Context(pendingOrder = pending, orderDiagnostic = diagnostic))
 
     internal fun failDelivery(cause: Throwable): Nothing =
         synchronized(feedLock) {
             oneShotPayCosts.pendingCutLocked()?.let { failOneShotPayCosts(cause, it) }
             manaSourcePayments.pendingCutLocked()?.let { failManaSourcePayment(cause, it) }
             search.pendingCutLocked()?.let { failSearch(cause, it) }
+            order.pendingCutLocked()?.let { failOrder(cause, it) }
             fail(cause)
         }
 
     private fun fail(
-        pending: PendingCut?,
-        diagnostic: MaterializationDiagnostic?,
         cause: Throwable,
-        pendingInteraction: PendingInteractionCut? = null,
-        pendingSearchCut: PendingSearchCut? = null,
-        searchDiagnostic: SearchMaterializationDiagnostic? = null,
-        pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
-        manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
-        pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
-        oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
-    ): Nothing =
-        throw terminate(
-            pending,
-            diagnostic,
-            cause,
-            pendingInteraction,
-            pendingSearchCut,
-            searchDiagnostic,
-            pendingManaSourcePaymentCut,
-            manaSourcePaymentDiagnostic,
-            pendingOneShotPayCostsCut,
-            oneShotPayCostsDiagnostic,
-        )
+        context: MatchCutTerminalRuntime.Context,
+    ): Nothing = throw terminal.terminate(cause, context)
 
-    private fun terminate(
-        pending: PendingCut?,
-        diagnostic: MaterializationDiagnostic?,
+    private fun failPlayback(
         cause: Throwable,
-        pendingInteraction: PendingInteractionCut? = null,
-        pendingSearchCut: PendingSearchCut? = null,
-        searchDiagnostic: SearchMaterializationDiagnostic? = null,
-        pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
-        manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
-        pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
-        oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
-    ): PlaybackTerminalFailure =
-        synchronized(feedLock) {
-            terminalFailure?.let { return@synchronized it }
-            PlaybackTerminalFailure(
-                pendingCut = pending,
-                diagnostic = diagnostic,
-                pendingInteractionCut = pendingInteraction,
-                pendingSearchCut = pendingSearchCut,
-                searchDiagnostic = searchDiagnostic,
-                pendingManaSourcePaymentCut = pendingManaSourcePaymentCut,
-                manaSourcePaymentDiagnostic = manaSourcePaymentDiagnostic,
-                pendingOneShotPayCostsCut = pendingOneShotPayCostsCut,
-                oneShotPayCostsDiagnostic = oneShotPayCostsDiagnostic,
-                cause = cause,
-            ).also { failure ->
-                pending?.let { retained -> feeds.values.firstOrNull { it.pendingCut === retained }?.pendingCut = retained }
-                terminalFailure = failure
-                interactions.terminate(failure)
-                actions.terminate()
-                targeting.terminate(failure)
-                search.terminate(failure)
-                manaSourcePayments.terminate(failure)
-                oneShotPayCosts.terminate(failure)
-                bridge.failActionWindows(failure)
-                bridge.prioritySignal.signal()
-            }
-        }
+        pending: PendingCut? = null,
+        diagnostic: MaterializationDiagnostic? = null,
+    ): Nothing = fail(cause, MatchCutTerminalRuntime.Context(pending = pending, diagnostic = diagnostic))
+
+    internal fun retainPendingCut(pending: PendingCut) {
+        feeds.values.firstOrNull { it.pendingCut === pending }?.pendingCut = pending
+    }
 
     private fun removeEnqueuedBatches(
         feed: ViewerFeed,

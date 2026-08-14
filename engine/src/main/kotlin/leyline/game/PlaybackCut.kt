@@ -75,6 +75,21 @@ internal data class SearchMaterializationDiagnostic(
     val interaction: leyline.bridge.handoff.SearchWindowValue,
 )
 
+/** Exact ordered-card cut retained on terminal failure. */
+internal data class PendingOrderCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.OrderWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen ordered-card input retained when materialization itself fails. */
+internal data class OrderMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.OrderWindowValue,
+)
+
 /** Exact iterative mana-source payment cut retained on terminal failure. */
 internal data class PendingManaSourcePaymentCut(
     val interactionId: String,
@@ -111,6 +126,8 @@ internal class PlaybackTerminalFailure(
     val pendingInteractionCut: PendingInteractionCut? = null,
     val pendingSearchCut: PendingSearchCut? = null,
     val searchDiagnostic: SearchMaterializationDiagnostic? = null,
+    val pendingOrderCut: PendingOrderCut? = null,
+    val orderDiagnostic: OrderMaterializationDiagnostic? = null,
     val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
     val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     val pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,

@@ -7,7 +7,7 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.OrderRouteKind
+import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.TargetingWindowValue
@@ -86,6 +86,7 @@ class BundleBuilder(
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
+    private val orderWindows = OrderWindowMaterializer(seatId)
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
     private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
 
@@ -732,7 +733,6 @@ class BundleBuilder(
             consumedEarthbendResolutionVersions =
                 consumedEarthbendResolutionVersions + next.consumedEarthbendResolutionVersions,
             promptFacts = promptFacts.merge(next.promptFacts),
-            pendingOrderMove = next.pendingOrderMove ?: pendingOrderMove,
         )
 
     private fun PromptFactConsumption.merge(next: PromptFactConsumption): PromptFactConsumption =
@@ -804,12 +804,6 @@ class BundleBuilder(
         prompt: InteractivePromptBridge.PendingPrompt,
         route: SelectNPromptRoute,
     ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge, route)
-
-    /** Build an [OrderReq] from a pending ordering prompt. */
-    fun buildOrderReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        kind: OrderRouteKind,
-    ): Pair<OrderReq, Prompt> = RequestBuilder.buildOrderReq(prompt, bridge, kind)
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
@@ -1375,6 +1369,38 @@ class BundleBuilder(
 
     internal fun prepareSearchBaselineReset(prior: ProjectionState): ProjectionTransition = searchWindows.resetBaseline(prior)
 
+    /** Prepare, but do not install, one coordinator-owned ordered-card window. */
+    internal fun prepareOrderWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: OrderWindowValue,
+    ): OrderWindowMaterializer.Prepared {
+        val orderPrompt =
+            OrderPromptProjection.of(
+                candidateForgeIds = window.candidates.map { it.forgeCardId },
+                sourceForgeId = window.sourceForgeCardId,
+                move =
+                    window.move?.let { move ->
+                        OrderZoneMoveFact.of(
+                            move.seatId,
+                            move.forgeCardIds,
+                            move.putOnTop,
+                        )
+                    },
+            )
+        val input =
+            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(orderPrompt = orderPrompt))
+        return orderWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Prepare, but do not install, one coordinator-owned mana-source payment presentation. */
     internal fun prepareManaSourcePayment(
         game: Game,
@@ -1535,48 +1561,6 @@ class BundleBuilder(
         }
     }
 
-    /** Order bundle: GameState + OrderReq. */
-    fun orderBundle(
-        game: Game,
-        counter: MessageCounter,
-        prompt: InteractivePromptBridge.PendingPrompt,
-        kind: OrderRouteKind,
-    ): BundleResult {
-        val diff = buildOrderFrame(game, counter, prompt)
-        val (req, promptProto) = buildOrderReq(prompt, kind)
-        val gs =
-            diff.result.gsm
-                .toBuilder()
-                .setPendingMessageCount(1)
-                .build()
-        return promptRequestBundle(
-            diff,
-            counter,
-            gs,
-            GREMessageType.OrderReq_695e,
-        ) {
-            it.orderReq = req
-            it.setPrompt(promptProto)
-            it.allowCancel = AllowCancel.No_a526
-            if (kind == OrderRouteKind.Top) {
-                it.allowUndo = true
-            }
-        }
-    }
-
-    private fun buildOrderFrame(
-        game: Game,
-        counter: MessageCounter,
-        prompt: InteractivePromptBridge.PendingPrompt,
-    ): FrameDiff =
-        synchronized(bridge.projectionBuildLock) {
-            val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-            finalizeFrameInputLocked(
-                input,
-                ViewerProjectionIntent.of(orderPrompt = materializeOrderPrompt(prompt)),
-            )
-        }
-
     private fun promptRequestBundle(
         diff: FrameDiff,
         counter: MessageCounter,
@@ -1592,30 +1576,6 @@ class BundleBuilder(
         val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
 
         return BundleResult(listOf(msg1, msg2))
-    }
-
-    private fun materializeOrderPrompt(prompt: InteractivePromptBridge.PendingPrompt): OrderPromptProjection {
-        val candidateFids =
-            prompt.request.candidateRefs
-                .filter { it.isCard() }
-                .map { ForgeCardId(it.entityId) }
-        val pending =
-            candidateFids
-                .takeIf { it.isNotEmpty() }
-                ?.let { bridge.promptBridge(SeatId(seatId)).findPendingOrderZoneMove(SeatId(seatId), it) }
-        return OrderPromptProjection.of(
-            candidateForgeIds = candidateFids,
-            sourceForgeId = prompt.request.sourceEntityId?.let(::ForgeCardId),
-            move =
-                pending?.let {
-                    OrderZoneMoveFact.of(
-                        seatId = it.seatId,
-                        forgeCardIds = it.forgeCardIds,
-                        putOnTop = it.putOnTop,
-                        version = it.version,
-                    )
-                },
-        )
     }
 
     /**

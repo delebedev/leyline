@@ -6,8 +6,6 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.NonInteractiveScope
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 
 class InteractivePromptBridgeTest :
     FunSpec({
@@ -76,21 +74,19 @@ class InteractivePromptBridgeTest :
             }
         }
 
-        test("puzzle reset clears staged order zone moves") {
-            val bridge = InteractivePromptBridge(timeoutMs = null)
-            val cardIds = listOf(ForgeCardId(10))
+        test("generic pending-prompt API refuses migrated Order routes") {
+            val bridge = InteractivePromptBridge(timeoutMs = null, strict = false)
 
-            bridge.recordPendingOrderZoneMove(
-                InteractivePromptBridge.PendingOrderZoneMove(
-                    seatId = SeatId(1),
-                    forgeCardIds = cardIds,
-                    putOnTop = true,
-                ),
-            )
-
-            bridge.resetForPuzzle()
-
-            bridge.findPendingOrderZoneMove(SeatId(1), cardIds) shouldBe null
+            shouldThrow<IllegalStateException> {
+                bridge.requestChoice(
+                    PromptRequest(
+                        promptType = "order",
+                        message = "Order cards",
+                        options = listOf("First", "Second"),
+                        route = ResolvedPromptRoute.Order(PromptSemantic.OrderForTop, OrderRouteKind.Top),
+                    ),
+                )
+            }
         }
 
         test("observed pending target consumption preserves a later equal target") {

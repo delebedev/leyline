@@ -15,6 +15,7 @@ import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderMoveIntent
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -581,7 +582,6 @@ class TargetingCoordinator(
         if (cards.size <= 1) return cards
         val labels = cards.map { it.name }
         val semantic = orderSemantic(zone, sa)
-        recordPendingOrderZoneMove(cards, zone, semantic)
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -592,33 +592,33 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 candidateRefs = buildCandidateRefs(cards),
                 route = PromptRouteResolver.resolve(semantic, hasCandidateRefs = true),
-                sourceEntityId = sa?.hostCard?.id,
+                sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
             )
-        val indices = bridge.requestChoice(request)
-        val ordered = orderedCards(cards, indices)
+        if (request.route !is ResolvedPromptRoute.Order) {
+            return orderedCards(cards, bridge.requestChoice(request))
+        }
+        val handles = cards.filterIsInstance<Card>()
+        check(handles.size == cards.size) { "Order route requires card options" }
+        val ordered = CardCollection(bridge.requestOrder(request, handles, orderMoveIntent(handles, zone, semantic)).handles)
         if (semantic == PromptSemantic.OrderForTop && zone.isDeck) {
             return CardCollection(ordered.reversed())
         }
         return ordered
     }
 
-    private fun recordPendingOrderZoneMove(
-        cards: CardCollectionView,
+    private fun orderMoveIntent(
+        cards: List<Card>,
         zone: ZoneType,
         semantic: PromptSemantic,
-    ) {
-        if (semantic != PromptSemantic.OrderForTop || !zone.isDeck) return
-        val movedCards = cards.filterIsInstance<Card>()
-        if (movedCards.size != cards.size || movedCards.any { !it.isInZone(ZoneType.Hand) }) return
-        val owner = movedCards.firstOrNull()?.owner ?: return
-        if (movedCards.any { it.owner != owner }) return
+    ): OrderMoveIntent? {
+        if (semantic != PromptSemantic.OrderForTop || !zone.isDeck || cards.any { !it.isInZone(ZoneType.Hand) }) return null
+        val owner = cards.firstOrNull()?.owner ?: return null
+        if (cards.any { it.owner != owner }) return null
         val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        bridge.recordPendingOrderZoneMove(
-            InteractivePromptBridge.PendingOrderZoneMove(
-                seatId = ownerSeat,
-                forgeCardIds = movedCards.map { ForgeCardId(it.id) },
-                putOnTop = true,
-            ),
+        return OrderMoveIntent(
+            seatId = ownerSeat,
+            forgeCardIds = cards.map { ForgeCardId(it.id) },
+            putOnTop = true,
         )
     }
 
@@ -975,9 +975,9 @@ class TargetingCoordinator(
                     defaultIndex = 0,
                     candidateRefs = buildCandidateRefs(toTop),
                     route = PromptRouteResolver.resolve(PromptSemantic.OrderForTop),
+                    sourceEntityId = currentSourceEntityId()?.takeIf { it > 0 },
                 )
-            val ordering = bridge.requestChoice(orderReq)
-            val ordered = orderedCards(toTop, ordering)
+            val ordered = CardCollection(bridge.requestOrder(orderReq, toTop.toList()).handles)
             return ImmutablePair.of(ordered, if (toAway.isEmpty()) null else toAway)
         }
         return ImmutablePair.of(

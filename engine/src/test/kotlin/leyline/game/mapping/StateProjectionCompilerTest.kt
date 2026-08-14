@@ -22,7 +22,6 @@ import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PendingSubmittedTargets
 import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionState
-import leyline.game.state.PromptFactKey
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -43,7 +42,7 @@ class StateProjectionCompilerTest :
                     supplementValues,
                     OrderPromptProjection.of(
                         candidates,
-                        move = OrderZoneMoveFact.of(SeatId(1), moveCards, putOnTop = true, version = 4),
+                        move = OrderZoneMoveFact.of(SeatId(1), moveCards, putOnTop = true),
                     ),
                 )
 
@@ -80,7 +79,7 @@ class StateProjectionCompilerTest :
                         OrderPromptProjection.of(
                             candidateForgeIds = listOf(cardId),
                             sourceForgeId = sourceId,
-                            move = OrderZoneMoveFact.of(SeatId(1), listOf(cardId), putOnTop = true, version = 5),
+                            move = OrderZoneMoveFact.of(SeatId(1), listOf(cardId), putOnTop = true),
                         ),
                 )
 
@@ -133,7 +132,6 @@ class StateProjectionCompilerTest :
                 next.identities.forgeIdToInstanceId shouldContainKey FrameIdResolver.triggerStackAbilityForgeId(10)
                 next.viewerCursors.getValue(0).previousSnapshot shouldBe first.projectionSnapshot
                 next.viewerCursors.getValue(0).pendingSubmittedTargets shouldBe null
-                first.transition.acknowledgements.pendingOrderMove shouldBe PromptFactKey(SeatId(1), 5)
                 next.limboInstanceIds shouldBe setOf(100)
                 next.protoZones[newCardId.value] shouldBe ZoneIds.P1_LIBRARY
                 first.gsm.annotationsList.map { it.id } shouldContainExactly
@@ -162,7 +160,6 @@ class StateProjectionCompilerTest :
                 result.projectionSnapshot shouldBe snapshot
                 cardObject.visibility shouldBe Visibility.Private
                 cardObject.viewersList shouldContainExactly listOf(1)
-                result.transition.acknowledgements.pendingOrderMove shouldBe null
             }
         }
 

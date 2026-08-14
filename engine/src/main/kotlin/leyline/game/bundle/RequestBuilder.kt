@@ -5,7 +5,6 @@ import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SelectNEnvelopeKind
 import leyline.bridge.handoff.SelectNPromptRoute
@@ -30,31 +29,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
 @Suppress("LargeClass") // One object mirrors the interactive request proto surface.
 object RequestBuilder {
     private val log = LoggerFactory.getLogger(RequestBuilder::class.java)
-
-    /** Build an [OrderReq] plus its outer prompt envelope. */
-    fun buildOrderReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-        kind: OrderRouteKind,
-    ): Pair<OrderReq, Prompt> {
-        val ids =
-            prompt.request.candidateRefs
-                .filter { it.isCard() }
-                .map { bridge.getOrAllocInstanceId(ForgeCardId(it.entityId)).value }
-        val orderReq =
-            OrderReq
-                .newBuilder()
-                .addAllIds(ids)
-                .apply {
-                    if (kind == OrderRouteKind.Bottom) {
-                        setOrderingContext(OrderingContext.OrderingForBottom)
-                    }
-                }.build()
-        val sourceInstanceId = orderSourceInstanceId(prompt, bridge)
-        val promptProto =
-            promptWithCardId(orderPromptId(kind), sourceInstanceId)
-        return orderReq to promptProto
-    }
 
     /** Build a [SearchReq] GRE message with populated inner fields for library search.
      *
@@ -114,28 +88,6 @@ object RequestBuilder {
             ).setSearchReq(searchReq)
             .build()
     }
-
-    private fun orderPromptId(kind: OrderRouteKind): Int =
-        when (kind) {
-            OrderRouteKind.Bottom -> PromptIds.ORDER_LIBRARY_BOTTOM
-            OrderRouteKind.Top -> PromptIds.ORDER_LIBRARY_TOP
-        }
-
-    private fun orderSourceInstanceId(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ): Int =
-        PromptSourceResolver
-            .resolve(
-                prompt,
-                bridge,
-                fallbackSourceEntityId =
-                    bridge
-                        .getGame()
-                        ?.stack
-                        ?.firstOrNull()
-                        ?.id,
-            ).sourceCardInstanceId
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
