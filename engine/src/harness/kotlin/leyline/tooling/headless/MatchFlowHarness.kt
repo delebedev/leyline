@@ -411,8 +411,14 @@ class MatchFlowHarness(
 
     private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
-    /** Pass priority — sends a real Pass action through MatchSession. */
+    /** Advance one exact priority or state-only synchronization stop. */
     fun passPriority() {
+        val pending = bridge.actionBridge(seatId).getPending()
+        if (pending?.state?.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
+            session.sendPriorityState(bridge)
+            drainSink()
+            return
+        }
         session.onPerformAction(submitWithGsId(performAction { actionType = ActionType.Pass }))
         drainSink()
     }

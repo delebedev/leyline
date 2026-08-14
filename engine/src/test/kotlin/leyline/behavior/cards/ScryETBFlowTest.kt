@@ -127,14 +127,12 @@ class ScryETBFlowTest :
             playLand().shouldBeTrue()
 
             val snap = messageSnapshot()
-            castSpellByName("Wall of Runes").shouldBeTrue()
-            passPriority() // auto-pass resolves creature, blocks on scry GroupReq
+            val groupReq = harness.castSpellUntilGroupReq("Wall of Runes")
 
             // Resolution annotations are deferred until after the GroupReq interaction:
             // auto-pass detects the pending scry prompt and sends GroupReq directly,
             // deferring the resolution state diff. Resolve to release them.
-            val groupReq = allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = groupReq.instanceIdsList
             harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             val allAnnotations = annotationsSince(snap)

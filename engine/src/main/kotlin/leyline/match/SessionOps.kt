@@ -41,16 +41,56 @@ interface GreMessageSink {
     ): GREToClientMessage
 }
 
-/** Deliver committed batches, then release any state-only synchronization stop. */
+internal enum class SynchronizationDrain {
+    None,
+    Completed,
+    Stale,
+}
+
+internal data class DrainOutcome(
+    val sent: Boolean,
+    val synchronization: SynchronizationDrain = SynchronizationDrain.None,
+    val synchronizationActionId: String? = null,
+) {
+    val progressed: Boolean get() = sent || synchronization == SynchronizationDrain.Completed
+}
+
+/** Deliver committed batches, then release at most the synchronization stop observed at entry. */
 internal fun drainCoordinatorBarrier(
     sink: GreMessageSink,
     bridge: GameBridge,
     seatId: SeatId,
     betweenBatches: () -> Unit = {},
-): Boolean {
+): DrainOutcome =
+    drainOneCoordinatorBarrier(
+        sink = sink,
+        synchronizationActionId =
+            bridge
+                .actionBridge(seatId)
+                .getPending()
+                ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
+                ?.actionId,
+        drainCommitted = { bridge.cutCoordinator.drain(seatId) },
+        completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
+        awaitNext = bridge::awaitPriority,
+        failDelivery = bridge.cutCoordinator::failDelivery,
+        betweenBatches = betweenBatches,
+    )
+
+@org.jetbrains.annotations.VisibleForTesting
+internal fun drainOneCoordinatorBarrier(
+    sink: GreMessageSink,
+    synchronizationActionId: String?,
+    drainCommitted: () -> List<List<GREToClientMessage>>,
+    completeSynchronization: (String) -> Boolean,
+    awaitNext: () -> Unit,
+    failDelivery: (Exception) -> Nothing,
+    betweenBatches: () -> Unit = {},
+): DrainOutcome {
     var sent = false
-    while (true) {
-        val batches = bridge.cutCoordinator.drain(seatId)
+
+    fun deliverCommittedBatches() {
+        val batches = drainCommitted()
         try {
             batches.forEach { batch ->
                 if (sent) betweenBatches()
@@ -58,13 +98,20 @@ internal fun drainCoordinatorBarrier(
                 sent = true
             }
         } catch (ex: Exception) {
-            bridge.cutCoordinator.failDelivery(ex)
+            failDelivery(ex)
         }
-        val pending = bridge.actionBridge(seatId).getPending()
-        if (pending?.state?.kind != leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) return sent
-        if (!bridge.actionBridge(seatId).completeSyncPass(pending.actionId)) continue
-        bridge.awaitPriority()
     }
+    deliverCommittedBatches()
+    if (synchronizationActionId == null) return DrainOutcome(sent)
+    if (!completeSynchronization(synchronizationActionId)) {
+        return DrainOutcome(sent, SynchronizationDrain.Stale, synchronizationActionId)
+    }
+    awaitNext()
+    // Publish the next engine-owned horizon without releasing it. A following
+    // invocation may release that exact synchronization stop; Visible windows
+    // remain blocked for a correlated client answer.
+    deliverCommittedBatches()
+    return DrainOutcome(sent, SynchronizationDrain.Completed, synchronizationActionId)
 }
 
 /**

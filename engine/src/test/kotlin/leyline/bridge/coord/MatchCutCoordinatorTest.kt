@@ -306,6 +306,8 @@ class MatchCutCoordinatorTest :
                                 activePlayerId = 1,
                                 priorityPlayerId = 1,
                                 kind = leyline.bridge.handoff.PendingActionKind.SYNC_ONLY,
+                                synchronizationContinuation =
+                                    leyline.bridge.handoff.SynchronizationContinuation.RequireVisible,
                             ),
                         )
                     }.onSuccess(result::set).onFailure(failure::set)
@@ -324,6 +326,8 @@ class MatchCutCoordinatorTest :
                 board.bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe true
                 result.get() shouldBe null
                 actionBridge.getPending() shouldBe null
+                actionBridge.consumeSynchronizationContinuation() shouldBe
+                    leyline.bridge.handoff.SynchronizationContinuation.Reevaluate
             }
         }
 

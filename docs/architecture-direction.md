@@ -121,8 +121,15 @@ A lifecycle signal that arrives while Forge is running waits in a bounded
 mailbox until the runtime reaches a safe point. An answer for a blocked
 controller callback is correlated against a coordinator-owned window. Visible
 priority offers carry immutable action views and opaque runtime tokens. A
-SyncOnly priority stop commits a state-only cut before signalling and resumes
-only after delivery; a safe direct Skip allocates and publishes nothing.
+SyncOnly priority stop commits a state-only cut before signalling and freezes
+the next engine decision as reevaluate, require Visible, or allow SyncOnly.
+Completing the barrier does not arm that decision; the engine arms it only
+after its exact wait returns successfully. One drain
+invocation delivers the queued horizon, releases only the exact stop observed
+at entry, awaits once, and publishes the resulting horizon without releasing
+it. Auto-pass may invoke the operation again explicitly; action handlers stop
+at the single semantic horizon. A safe direct Skip allocates and publishes
+nothing.
 Optional, Numeric, and Damage prompts carry typed value inputs. The coordinator
 commits the complete batch before signalling and resolves retained live handles
 only on the Forge thread.
@@ -149,7 +156,9 @@ are:
 
 - resulting state plus ordered facts;
 - Visible priority window plus immutable action views and opaque action tokens;
-- SyncOnly state cut with no action catalog or client timer;
+- SyncOnly state cut with no action catalog or client timer and an exact
+  engine-derived continuation policy (manual flow requires the next Visible
+  stop; explicit auto-resolve may allow a subsequent SyncOnly stop);
 - typed prompt plus immutable display and validation facts;
 - synthetic pre-mutation intent needed by the client UI;
 - mulligan, reset, game-over, or intermission transition.

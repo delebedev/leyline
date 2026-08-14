@@ -117,7 +117,7 @@ sequenceDiagram
     SESS->>CUT: drain committed batch
 ```
 
-For migrated interactions the signal means that the coordinator has committed and enqueued the complete batch while holding its feed lock. Releasing that lock makes the batch drainable; the subsequent signal wakes the session. A Visible priority window includes the immutable action catalog. A SyncOnly stop includes a state-only cut with no action request or client timer; the session drains that cut before completing the internal pass. Delivery failure or timeout is terminal and cannot resume Forge past an undelivered barrier. A safe priority Skip emits no signal because it closes no journal, allocates no IDs, and blocks on no future. A session submits immutable answers and never infers readiness from a guessed game-state id or settle delay. Routed prompt and mulligan paths retain their named handoff contracts until they migrate.
+For migrated interactions the signal means that the coordinator has committed and enqueued the complete batch while holding its feed lock. Releasing that lock makes the batch drainable; the subsequent signal wakes the session. A Visible priority window includes the immutable action catalog. A SyncOnly stop includes a state-only cut with no action request or client timer and freezes one engine continuation: reevaluate, require Visible, or allow SyncOnly. One drain snapshots the exact SyncOnly action id, delivers committed batches, completes only that stop, awaits once, and delivers the resulting horizon without releasing it. Completion itself cannot arm the continuation; only the engine thread does so after the exact wait returns successfully. Manual flow requires a Visible next stop. Explicit auto-resolve may allow another pass-only SyncOnly stop, while meaningful actions still select Visible. A stale id is not retried. Auto-pass repeats this operation through its explicit outer policy loop; an action response stops after one completed synchronization horizon. Delivery failure or timeout is terminal and cannot resume Forge or alter the next priority decision past an undelivered barrier. A safe priority Skip emits no signal because it closes no journal, allocates no IDs, and blocks on no future. A session submits immutable answers and never infers readiness from a guessed game-state id or settle delay. Routed prompt and mulligan paths retain their named handoff contracts until they migrate.
 
 ---
 
@@ -204,7 +204,7 @@ message in response to a phase, it must call `bridge.awaitPriority()` (or
 For coordinator-backed Visible priority, SyncOnly, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
-2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only and must be delivered before their internal pass completes.
+2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
 3. The projection baseline for that batch has settled.
 
 Legacy routed prompts and mulligan retain their named handoff contracts until they migrate.
