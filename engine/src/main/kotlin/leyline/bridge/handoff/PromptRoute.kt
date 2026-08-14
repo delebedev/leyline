@@ -50,6 +50,14 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
+    /**
+     * Candidate-backed Generic prompt whose response family is not yet
+     * classified. This route remains on [InteractivePromptBridge].
+     */
+    data class UnclassifiedCandidate(
+        override val semantic: PromptSemantic,
+    ) : ResolvedPromptRoute
+
     data class AutoResolve(
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
@@ -158,10 +166,11 @@ object PromptRouteResolver {
         when (semantic) {
             PromptSemantic.Generic ->
                 if (hasCandidateRefs) {
-                    ResolvedPromptRoute.Targeting(semantic)
+                    ResolvedPromptRoute.UnclassifiedCandidate(semantic)
                 } else {
                     ResolvedPromptRoute.AutoResolve(semantic)
                 }
+            PromptSemantic.TargetSelection -> ResolvedPromptRoute.Targeting(semantic)
             PromptSemantic.GroupingSurveil -> ResolvedPromptRoute.Grouping(semantic, GroupingContext.Surveil)
             PromptSemantic.GroupingScry -> ResolvedPromptRoute.Grouping(semantic, GroupingContext.Scry_a0f6)
             PromptSemantic.ModalChoice -> ResolvedPromptRoute.ModalChoice(semantic)

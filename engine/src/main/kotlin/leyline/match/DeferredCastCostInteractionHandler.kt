@@ -40,7 +40,7 @@ internal class DeferredCastCostInteractionHandler(
             }
             is PendingClientInteraction.ModalChoice,
             is PendingClientInteraction.Search,
-            is PendingClientInteraction.TargetSelection,
+            is PendingClientInteraction.UnclassifiedCandidateSelection,
             null,
             -> return false
         }

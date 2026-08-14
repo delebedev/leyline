@@ -22,8 +22,10 @@ internal fun ResolvedPromptRoute.accepts(response: PromptResponseKind): Boolean 
         PromptResponseKind.EffectCost ->
             this is ResolvedPromptRoute.PayCosts ||
                 this is ResolvedPromptRoute.SelectN ||
-                this is ResolvedPromptRoute.Targeting
+                this is ResolvedPromptRoute.UnclassifiedCandidate
         PromptResponseKind.Search -> this is ResolvedPromptRoute.Search
         PromptResponseKind.Order -> this is ResolvedPromptRoute.Order
-        PromptResponseKind.Targeting -> this is ResolvedPromptRoute.Targeting
+        PromptResponseKind.Targeting ->
+            this is ResolvedPromptRoute.Targeting ||
+                this is ResolvedPromptRoute.UnclassifiedCandidate
     }

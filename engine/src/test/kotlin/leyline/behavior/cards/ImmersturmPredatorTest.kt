@@ -99,20 +99,18 @@ class ImmersturmPredatorTest :
                 .shouldBeTrue()
 
             // --- Step 3: Tap trigger fires → targeting prompt for GY exile ---
-            val tapPrompt =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
-            if (tapPrompt != null && tapPrompt.request.candidateRefs.isNotEmpty()) {
-                // Pick first GY card to exile
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .submitResponse(tapPrompt.promptId, listOf(0))
-                harness.bridge.awaitPriority()
-                harness.session.triggerAutoPass()
-                harness.drainSink()
+            if (harness.bridge.cutCoordinator.targeting
+                    .current() != null
+            ) {
+                val targetInstanceId =
+                    harness.allMessages
+                        .last { it.hasSelectTargetsReq() }
+                        .selectTargetsReq.targetsList
+                        .single()
+                        .targetsList
+                        .first()
+                        .targetInstanceId
+                harness.selectTargets(listOf(targetInstanceId))
             }
 
             // --- Step 4: Pass until trigger resolves ---

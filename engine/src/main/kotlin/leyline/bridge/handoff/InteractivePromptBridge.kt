@@ -71,6 +71,10 @@ class InteractivePromptBridge(
     @Volatile
     var timeoutListener: (() -> Unit)? = null
 
+    /** Match-scoped owner for the migrated Targeting route. Null keeps setup and synthetic bridges inert. */
+    @Volatile
+    var targetingRuntime: TargetingInteractionRuntime? = null
+
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; shell-owned consumers
@@ -401,6 +405,11 @@ class InteractivePromptBridge(
             return listOf(request.defaultIndex)
         }
 
+        val migratedTargeting = targetingRuntime
+        if (request.route is ResolvedPromptRoute.Targeting && migratedTargeting != null) {
+            return requestTargetingChoice(request, targetingSa, migratedTargeting, configuredTimeoutMs)
+        }
+
         val promptId = UUID.randomUUID().toString()
         val future = CompletableFuture<List<Int>>()
         val prompt = PendingPrompt(promptId, request, future, targetingSa, targetingSa?.let { resolveAbilityIdentity(it) })
@@ -453,6 +462,35 @@ class InteractivePromptBridge(
             fallback
         } finally {
             pending.set(null)
+        }
+    }
+
+    private fun requestTargetingChoice(
+        request: PromptRequest,
+        targetingSa: SpellAbility?,
+        runtime: TargetingInteractionRuntime,
+        configuredTimeoutMs: Long?,
+    ): List<Int> {
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result =
+                runtime.awaitTargeting(
+                    request,
+                    targetingSa,
+                    targetingSa?.let(::resolveAbilityIdentity),
+                    configuredTimeoutMs,
+                )
+            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: TargetingInteractionTimeoutException) {
+            val fallback = listOf(request.defaultIndex)
+            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
         }
     }
 
@@ -517,6 +555,9 @@ class InteractivePromptBridge(
  */
 enum class PromptSemantic {
     Generic,
+
+    /** Target selection performed by Forge's targeting coordinator. */
+    TargetSelection,
     GroupingSurveil,
     GroupingScry,
     ModalChoice,

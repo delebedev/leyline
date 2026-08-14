@@ -20,6 +20,8 @@ import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.handoff.TargetingCandidateValue
+import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -42,6 +44,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
+import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.game.sid
 import leyline.game.snapshot.CardSnapshot
@@ -84,6 +87,23 @@ class BundleBuilderTest :
             seatId: Int = 1,
             matchId: String = "test-match",
         ) = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), matchId, seatId)
+
+        fun targetingWindow(source: ForgeCardId?) =
+            TargetingWindowValue(
+                sourceForgeCardId = source,
+                sourceGrpId = 0,
+                outerAbilityGrpId = 0,
+                targetingAbilityGrpId = 0,
+                targetSourceZoneId = ZoneIds.BATTLEFIELD,
+                targetPromptId = PromptIds.SELECT_TARGETS,
+                targetIndex = 1,
+                minTargets = 1,
+                maxTargets = 1,
+                chooserSeatId = SeatId(1),
+                candidates = listOf(TargetingCandidateValue.Card(0, ForgeCardId(999), ZoneIds.BATTLEFIELD)),
+                isTriggeredAbility = false,
+                forgeAbilityId = 0,
+            )
 
         // --- Unit tests (pure proto, no game) ---
 
@@ -654,28 +674,12 @@ class BundleBuilderTest :
             }
         }
 
-        test("selectTargetsBundle shape") {
+        test("prepared targeting window shape") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
-
-            val candidateRefs =
-                listOf(
-                    PromptCandidateRefDto(0, PromptCandidateKind.Card, 999, "Battlefield"),
-                )
-            val prompt =
-                InteractivePromptBridge.PendingPrompt(
-                    promptId = "test-prompt",
-                    request =
-                        PromptRequest(
-                            promptType = "choose_cards",
-                            message = "Choose target",
-                            options = listOf("Target A"),
-                            min = 1,
-                            max = 1,
-                            candidateRefs = candidateRefs,
-                        ),
-                    future = java.util.concurrent.CompletableFuture(),
-                )
-            val result = bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
+            val result =
+                bundleBuilder(b)
+                    .prepareTargetingWindow(game, counter, targetingWindow(source = null))
+                    .bundle
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -697,23 +701,14 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val prompt =
-                InteractivePromptBridge.PendingPrompt(
-                    promptId = "target-finalization",
-                    request =
-                        PromptRequest(
-                            promptType = "choose_cards",
-                            message = "Choose target",
-                            options = listOf("Target A"),
-                            min = 1,
-                            max = 1,
-                            candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, 999, "Battlefield")),
-                            sourceEntityId = source.id,
-                        ),
-                    future = java.util.concurrent.CompletableFuture(),
+            val prepared =
+                bundleBuilder(b).prepareTargetingWindow(
+                    game,
+                    counter,
+                    targetingWindow(source = ForgeCardId(source.id)),
                 )
-
-            val result = bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
+            b.commitProjection(checkNotNull(prepared.transition))
+            val result = prepared.bundle
             val gsm = result.messages.first().gameStateMessage
             val rider = gsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
 
@@ -727,7 +722,8 @@ class BundleBuilderTest :
         test("submitted-target rider leads the finalized frame with ascending ids") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val builder = bundleBuilder(b)
-            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val staged = builder.prepareTargetingSubmit(counter, b.projectionStateSnapshot(), 777.iid, SeatId(1))
+            b.commitProjection(checkNotNull(staged.transition))
 
             val result = builder.stateOnlyDiff(game, counter)
             val gsm = result.messages.first().gameStateMessage
@@ -1112,7 +1108,8 @@ class BundleBuilderTest :
             val startZones = b.getProtoZones()
             val startId = b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId
             val startJournal = b.annotationProjectionStateSnapshot()
-            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val staged = builder.prepareTargetingSubmit(counter, b.projectionStateSnapshot(), 777.iid, SeatId(1))
+            b.commitProjection(checkNotNull(staged.transition))
             val pending = checkNotNull(builder.pendingSubmittedTargets())
             val card =
                 game.humanPlayer
@@ -1427,13 +1424,15 @@ class BundleBuilderTest :
         test("same-value replacement submitted-target rider aborts before bridge mutations commit") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val builder = bundleBuilder(b)
-            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val initial = builder.prepareTargetingSubmit(counter, b.projectionStateSnapshot(), 777.iid, SeatId(1))
+            b.commitProjection(checkNotNull(initial.transition))
             val expected = checkNotNull(builder.pendingSubmittedTargets())
             b.seedDiffBaseline(game, counter.currentGsId())
             val snap = checkNotNull(builder.previousProjectionSnapshot())
             val prior = b.projectionStateSnapshot()
             val startId = b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId
-            builder.queuePendingSubmittedTargets(777.iid, SeatId(1))
+            val replacementCut = builder.prepareTargetingSubmit(counter, b.projectionStateSnapshot(), 777.iid, SeatId(1))
+            b.commitProjection(checkNotNull(replacementCut.transition))
             val replacement = checkNotNull(builder.pendingSubmittedTargets())
             val compiled =
                 StateProjectionCompiler.compileOneViewer(

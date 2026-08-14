@@ -89,6 +89,7 @@ object PromptRouteAuditor {
             is ResolvedPromptRoute.Search -> "SearchReq"
             is ResolvedPromptRoute.Order -> "OrderReq"
             is ResolvedPromptRoute.Targeting -> "SelectTargetsReq"
+            is ResolvedPromptRoute.UnclassifiedCandidate -> "SelectTargetsReq"
             is ResolvedPromptRoute.AutoResolve -> null
         }
 

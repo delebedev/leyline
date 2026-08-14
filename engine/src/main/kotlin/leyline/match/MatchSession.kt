@@ -284,7 +284,7 @@ class MatchSession(
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSubmitTargets { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onSubmitTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
@@ -344,7 +344,7 @@ class MatchSession(
                 combatHandler.onCancelAttackers { autoPassEngine.autoPassAndAdvance() }
                 return
             }
-            targetingHandler.onCancelAction { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onCancelAction(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */

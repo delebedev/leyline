@@ -710,6 +710,7 @@ class TargetingCoordinator(
                 max = stillNeeded.coerceAtMost(allCandidates.size),
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
+                route = PromptRouteResolver.resolve(PromptSemantic.TargetSelection),
                 sourceEntityId = sa.hostCard?.id,
                 targetIndex = targetGroupIndex(sa),
                 targetPromptId = effectiveTargetPromptId(sa),

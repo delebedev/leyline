@@ -22,6 +22,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import java.util.concurrent.TimeUnit
 import leyline.testkit.StateMapperShell as StateMapper
 
 /**
@@ -137,9 +138,43 @@ class EffectLifecycleTest :
             b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
 
             // Engine prompts for target selection (mandatory=false for voluntary casts)
-            val targetPrompt = awaitPrompt(b, timeoutMs = 5_000).shouldNotBeNull()
-            targetPrompt.request.options.size shouldBe 1 // only Swiftspear
-            b.promptBridge(SeatId(1)).submitResponse(targetPrompt.promptId, listOf(0))
+            val targetingDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            var targeting = b.cutCoordinator.targeting.current()
+            while (targeting == null && System.nanoTime() < targetingDeadline) {
+                Thread.onSpinWait()
+                targeting = b.cutCoordinator.targeting.current()
+            }
+            val initial = targeting.shouldNotBeNull()
+            val targetInstanceId =
+                b.cutCoordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .single { it.hasSelectTargetsReq() }
+                    .selectTargetsReq.targetsList
+                    .single()
+                    .targetsList
+                    .single()
+                    .targetInstanceId
+            val tap =
+                b.cutCoordinator.targeting
+                    .submitToggle(
+                        initial.interactionId,
+                        initial.gameStateId,
+                        initial.targetIndex,
+                        listOf(leyline.bridge.handoff.TargetToggleValue(targetInstanceId, selected = true)),
+                    ).shouldNotBeNull()
+            b.cutCoordinator.drain(SeatId(1))
+            b.cutCoordinator.targeting.acknowledgeDelivery(tap.interactionId, checkNotNull(tap.deliveryToken)) shouldBe true
+            val latest =
+                b.cutCoordinator.targeting
+                    .current()
+                    .shouldNotBeNull()
+            val done =
+                b.cutCoordinator.targeting
+                    .submitTargets(latest.interactionId, latest.gameStateId)
+                    .shouldNotBeNull()
+            b.cutCoordinator.drain(SeatId(1))
+            b.cutCoordinator.targeting.acknowledgeDelivery(done.interactionId, checkNotNull(done.deliveryToken)) shouldBe true
 
             // Pass priority until spell resolves — stop once stack is empty in MAIN1
             // (don't advance to combat or the +X/+X until end of turn effects expire)

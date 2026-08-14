@@ -134,8 +134,9 @@ class TargetingInteractionTest :
             castSpellByName("Giant Growth").shouldBeTrue()
             val promptBefore =
                 harness.bridge
-                    .promptBridge(SeatId(1))
-                    .getPendingPrompt()
+                    .cutCoordinator
+                    .targeting
+                    .current()
                     .shouldNotBeNull()
 
             harness.respondToSelectN(emptyList())
@@ -145,9 +146,10 @@ class TargetingInteractionTest :
             harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
 
             harness.bridge
-                .promptBridge(SeatId(1))
-                .getPendingPrompt()
-                ?.promptId shouldBe promptBefore.promptId
+                .cutCoordinator
+                .targeting
+                .current()
+                ?.interactionId shouldBe promptBefore.interactionId
             selectTargets(listOf(creatureIid))
             passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
