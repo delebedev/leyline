@@ -1,12 +1,16 @@
 package leyline.copilot
 
+import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.ints.shouldBeExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
-import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.net.InetSocketAddress
@@ -15,215 +19,235 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * Push path end to end without the client: stand up a stub bridge HTTP server,
- * point [CopilotAutopush] at it, and feed it a real prompt from a live harness
- * game. Asserts the copilot computes the response on the LIVE game (no snapshot)
- * and POSTs response bytes to the bridge.
- */
+/** Client-native push transport exercised against a live session prompt. */
 @Suppress("SleepInsteadOfDelay", "NoThreadSleepInTests")
 class CopilotAutopushTest :
     SessionTest({
-
-        test("autopush applies a pass on ActionsAvailableReq server-side (no client inject)") {
-            // A pass on an empty priority window is invisible; autopush must apply it
-            // directly to the action bridge and kick the async drive, NOT round-trip
-            // through the client — otherwise rapid phase bursts (a castable instant
-            // makes every phase stop) outrun the HTTP injector and the game-loop parks.
-            val injectCount = AtomicInteger(0)
+        test("autopush waits for the exact request and submits pass through the client workflow") {
+            val statusCount = AtomicInteger(0)
+            val submitCount = AtomicInteger(0)
+            val rawCount = AtomicInteger(0)
+            val statusBody = AtomicReference("")
+            val submitBody = AtomicReference("")
+            val onSubmit = AtomicReference<() -> Unit>({})
+            val submitted = CountDownLatch(1)
             val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-            server.createContext("/respond") { ex ->
-                injectCount.incrementAndGet()
-                ex.sendResponseHeaders(200, 0)
-                ex.responseBody.close()
+            server.createContext("/respond/native/status") { exchange ->
+                statusBody.set(exchange.readBody())
+                val status = if (statusCount.incrementAndGet() == 1) "no_request" else "ready"
+                exchange.respond("""{"status":"$status"}""")
             }
-            server.executor = null
+            server.createContext("/respond/native") { exchange ->
+                submitCount.incrementAndGet()
+                submitBody.set(exchange.readBody())
+                onSubmit.get().invoke()
+                submitted.countDown()
+                exchange.respond("""{"status":"submitted"}""")
+            }
+            server.createContext("/respond") { exchange ->
+                rawCount.incrementAndGet()
+                exchange.respond("ok")
+            }
             server.start()
-            val url = "http://127.0.0.1:${server.address.port}"
 
             try {
-                startPuzzleRaw(
-                    """
-                    [metadata]
-                    Name:Autopush Pass
-                    Goal:Win
-                    Turns:5
-
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=Main1
-                    HumanLife=20
-                    AILife=20
-                    humanhand=Lightning Bolt
-                    humanbattlefield=Mountain
-                    humanlibrary=Mountain;Mountain;Mountain
-                    ailibrary=Mountain;Mountain;Mountain
-                    """.trimIndent(),
-                )
-                // The last priority window the copilot faces here is a pass (it holds
-                // the burn rather than casting it), which is exactly the empty-window
-                // case the server-side path must handle.
-                val aar = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
-                val drove = CountDownLatch(1)
-                harness.bridge.autoAdvanceRequester = { drove.countDown() }
-
-                val autopush = CopilotAutopush(harness.bridge, SeatId(1), url)
-                autopush.onPrompt(aar)
-
-                // Server-side path: the async drive was kicked and no response inject happened.
-                drove.await(10, TimeUnit.SECONDS).shouldBeTrue()
-                Thread.sleep(500) // allow any (incorrect) client inject to arrive
-                autopush.shutdown()
-                injectCount.get() shouldBe 0
-            } finally {
-                server.stop(0)
-            }
-        }
-
-        test("autopush skips a prompt already superseded at dequeue (burst coalescing)") {
-            // During a prompt burst the single-thread exec backs up; a prompt that
-            // is already superseded when dequeued can never land (stale respId), so
-            // autopush must skip it outright rather than burn re-injects that let
-            // the queue back up further.
-            val injectCount = AtomicInteger(0)
-            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-            server.createContext("/respond") { ex ->
-                injectCount.incrementAndGet()
-                ex.sendResponseHeaders(200, 0)
-                ex.responseBody.close()
-            }
-            server.executor = null
-            server.start()
-            val url = "http://127.0.0.1:${server.address.port}"
-
-            try {
-                startPuzzleRaw(
-                    """
-                    [metadata]
-                    Name:Autopush Coalesce
-                    Goal:Win
-                    Turns:5
-
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=Main1
-                    HumanLife=20
-                    AILife=20
-                    humanhand=Lightning Bolt
-                    humanbattlefield=Mountain
-                    humanlibrary=Mountain;Mountain;Mountain
-                    ailibrary=Mountain;Mountain;Mountain
-                    """.trimIndent(),
-                )
-                val aar = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
-                // Simulate a newer prompt having already fired: advance the prompt
-                // horizon past this prompt's msgId.
-                harness.bridge.messageCounter.markPromptMsgId(aar.msgId + 1)
-
-                val autopush = CopilotAutopush(harness.bridge, SeatId(1), url)
-                autopush.onPrompt(aar)
-                Thread.sleep(1_000) // give the push thread room to (not) inject
-                autopush.shutdown()
-
-                injectCount.get() shouldBe 0
-            } finally {
-                server.stop(0)
-            }
-        }
-
-        test("autopush re-injects a dropped ACTION response and stops once the host accepts it") {
-            // Uses a creature cast (a real, visible action) so autopush takes the
-            // client-inject path (server-side pass only applies to ActionsAvailableReq
-            // passes). Bridge swallows the first inject and, on the
-            // second, marks a response accepted — as the host would.
-            val injectCount = AtomicInteger(0)
-            val landedLatch = CountDownLatch(1)
-            val onSecondInject = AtomicReference<() -> Unit> {}
-            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-            server.createContext("/respond") { ex ->
-                val n = injectCount.incrementAndGet()
-                if (n >= 2) {
-                    onSecondInject.get().invoke()
-                    landedLatch.countDown()
+                startPuzzleRaw(PASS_PUZZLE)
+                val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
+                val actionBridge = harness.bridge.seat(SeatId(1)).action
+                val pending = actionBridge.getPending() ?: error("expected a pending priority action")
+                onSubmit.set {
+                    harness.bridge.messageCounter.markResponseAccepted()
+                    actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                ex.sendResponseHeaders(200, 0)
-                ex.responseBody.close()
-            }
-            server.executor = null
-            server.start()
-            val url = "http://127.0.0.1:${server.address.port}"
 
-            try {
-                startPuzzleRaw(
-                    """
-                    [metadata]
-                    Name:Autopush Reinject
-                    Goal:Win
-                    Turns:5
-
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=Main1
-                    HumanLife=20
-                    AILife=20
-                    humanhand=Grizzly Bears
-                    humanbattlefield=Forest;Forest
-                    humanlibrary=Forest;Forest;Forest
-                    ailibrary=Forest;Forest;Forest
-                    """.trimIndent(),
-                )
-                // A MulliganReq deterministically injects (KeepHand) and is NOT an
-                // ActionsAvailableReq, so the server-side-pass path never applies —
-                // isolating the inject self-heal from any AI decision. msgId far ahead
-                // of any real prompt so it is neither coalesced (superseded-at-dequeue)
-                // nor read as superseded mid-flight.
-                val mulliganReq =
-                    GREToClientMessage
-                        .newBuilder()
-                        .setType(GREMessageType.MulliganReq_aa0d)
-                        .setMsgId(999_999)
-                        .setGameStateId(harness.bridge.messageCounter.currentGsId())
-                        .setMulliganReq(Messages.MulliganReq.getDefaultInstance())
-                        .build()
-                onSecondInject.set { harness.bridge.messageCounter.markResponseAccepted() }
-
-                val autopush = CopilotAutopush(harness.bridge, SeatId(1), url)
-                autopush.onPrompt(mulliganReq)
-
-                landedLatch.await(10, TimeUnit.SECONDS).shouldBeTrue()
-                // Give the push loop room to (not) fire a third inject.
-                Thread.sleep(1_000)
+                val autopush =
+                    CopilotAutopush(
+                        harness.bridge,
+                        SeatId(1),
+                        "http://127.0.0.1:${server.address.port}",
+                        nativeReadyPollMs = 0,
+                        nativeReadyChecks = 3,
+                        landPollMs = 1,
+                        landPollChecks = 20,
+                    )
+                autopush.onPrompt(prompt)
+                submitted.await(5, TimeUnit.SECONDS).shouldBeTrue()
+                Thread.sleep(100)
                 autopush.shutdown()
 
-                // Dropped once, landed on the retry, then stopped — no wasted re-injects.
-                injectCount.get() shouldBe 2
+                assertSoftly {
+                    statusCount.get() shouldBeExactly 2
+                    submitCount.get() shouldBeExactly 1
+                    rawCount.get() shouldBeExactly 0
+                    statusBody.get() shouldContain "\"family\":\"ActionsAvailableReq\""
+                    statusBody.get() shouldContain "\"gameStateId\":${prompt.gameStateId}"
+                    statusBody.get() shouldContain "\"respId\":${prompt.msgId}"
+                    submitBody.get() shouldContain "\"hex\":"
+                    actionBridge.getPending()?.actionId shouldNotBe pending.actionId
+                }
             } finally {
                 server.stop(0)
             }
         }
 
-        test("landed() requires the priority window to advance, not just an envelope-accept bump") {
-            // The wedge's core: responsesAccepted() bumps when a response clears
-            // the envelope guard (respId match), NOT when it is applied. For an AAR
-            // inject the copilot must anchor to the pending action id — a bare
-            // counter bump while the same window stays parked is NOT landed, so the
-            // copilot keeps re-injecting instead of stopping and leaving the
-            // game-loop stuck in awaitAction.
-            startPuzzleRaw(GRIZZLY_CAST_PUZZLE)
+        test("autopush skips a prompt superseded before native readiness") {
+            val requestCount = AtomicInteger(0)
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/") { exchange ->
+                requestCount.incrementAndGet()
+                exchange.respond("""{"status":"ready"}""")
+            }
+            server.start()
+
+            try {
+                startPuzzleRaw(PASS_PUZZLE)
+                val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
+                harness.bridge.messageCounter.markPromptMsgId(prompt.msgId + 1)
+
+                val autopush =
+                    CopilotAutopush(
+                        harness.bridge,
+                        SeatId(1),
+                        "http://127.0.0.1:${server.address.port}",
+                        nativeReadyPollMs = 0,
+                        nativeReadyChecks = 3,
+                        landPollMs = 1,
+                        landPollChecks = 20,
+                    )
+                autopush.onPrompt(prompt)
+                Thread.sleep(100)
+                autopush.shutdown()
+
+                requestCount.get() shouldBeExactly 0
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        test("native transport waits for an older request in the same prompt family") {
+            val statusCount = AtomicInteger(0)
+            val submitCount = AtomicInteger(0)
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/respond/native/status") { exchange ->
+                exchange.readBody()
+                if (statusCount.incrementAndGet() == 1) {
+                    exchange.respond(
+                        """{"status":"stale","observed":{"family":"SelectTargetsReq","gameStateId":41,"msgId":72}}""",
+                    )
+                } else {
+                    exchange.respond("""{"status":"ready"}""")
+                }
+            }
+            server.createContext("/respond/native") { exchange ->
+                exchange.readBody()
+                submitCount.incrementAndGet()
+                exchange.respond("""{"status":"submitted"}""")
+            }
+            server.start()
+
+            try {
+                val prompt = prompt(GREMessageType.SelectTargetsReq_695e, gsId = 42, msgId = 74)
+                val result =
+                    CopilotNativeTransport(
+                        "http://127.0.0.1:${server.address.port}",
+                        readyPollMs = 0,
+                        maxReadyChecks = 3,
+                    ).submit(prompt, "00") { false }
+
+                assertSoftly {
+                    result.outcome shouldBe NativeSubmitOutcome.SUBMITTED
+                    statusCount.get() shouldBeExactly 2
+                    submitCount.get() shouldBeExactly 1
+                }
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        test("native transport rejects a newer request identity") {
+            val submitCount = AtomicInteger(0)
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/respond/native/status") { exchange ->
+                exchange.readBody()
+                exchange.respond(
+                    """{"status":"stale","observed":{"family":"SelectTargetsReq","gameStateId":43,"msgId":76}}""",
+                )
+            }
+            server.createContext("/respond/native") { exchange ->
+                exchange.readBody()
+                submitCount.incrementAndGet()
+                exchange.respond("""{"status":"submitted"}""")
+            }
+            server.start()
+
+            try {
+                val prompt = prompt(GREMessageType.SelectTargetsReq_695e, gsId = 42, msgId = 74)
+                val result =
+                    CopilotNativeTransport(
+                        "http://127.0.0.1:${server.address.port}",
+                        readyPollMs = 0,
+                        maxReadyChecks = 3,
+                    ).submit(prompt, "00") { false }
+
+                result.outcome shouldBe NativeSubmitOutcome.IDENTITY_ERROR
+                submitCount.get() shouldBeExactly 0
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        test("autopush never resubmits after the client delegate reports submitted") {
+            val submitCount = AtomicInteger(0)
+            val submitted = CountDownLatch(1)
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/respond/native/status") { exchange ->
+                exchange.readBody()
+                exchange.respond("""{"status":"ready"}""")
+            }
+            server.createContext("/respond/native") { exchange ->
+                exchange.readBody()
+                submitCount.incrementAndGet()
+                submitted.countDown()
+                exchange.respond("""{"status":"submitted"}""")
+            }
+            server.start()
+
+            try {
+                startPuzzleRaw(CAST_PUZZLE)
+                val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
+                val autopush =
+                    CopilotAutopush(
+                        harness.bridge,
+                        SeatId(1),
+                        "http://127.0.0.1:${server.address.port}",
+                        nativeReadyPollMs = 0,
+                        nativeReadyChecks = 3,
+                        landPollMs = 1,
+                        landPollChecks = 2,
+                    )
+                autopush.onPrompt(prompt)
+                submitted.await(5, TimeUnit.SECONDS).shouldBeTrue()
+                Thread.sleep(100)
+                autopush.shutdown()
+
+                submitCount.get() shouldBeExactly 1
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        test("landed requires the priority window to advance") {
+            startPuzzleRaw(CAST_PUZZLE)
             val autopush = CopilotAutopush(harness.bridge, SeatId(1), "http://127.0.0.1:1")
             try {
                 val seatAction = harness.bridge.seat(SeatId(1)).action
-                val pending = seatAction.getPending() ?: error("expected a pending priority window after puzzle start")
+                val pending = seatAction.getPending() ?: error("expected a pending priority window")
                 val baseline = harness.bridge.messageCounter.responsesAccepted()
 
-                // Envelope accepted but the window has not advanced → NOT landed.
                 harness.bridge.messageCounter.markResponseAccepted()
                 autopush.landed(baseline, pending.actionId) shouldBe false
-
-                // A non-AAR prompt has no window anchor and falls back to the counter.
                 autopush.landed(baseline, null) shouldBe true
 
-                // The window advances (future completes) → landed.
                 seatAction.submitAction(pending.actionId, PlayerAction.PassPriority)
                 autopush.landed(baseline, pending.actionId) shouldBe true
             } finally {
@@ -232,12 +256,28 @@ class CopilotAutopushTest :
         }
     }) {
     private companion object {
-        // A pending priority window is parked at Human Main1 after this puzzle
-        // starts, giving [CopilotAutopush.landed] a real action-bridge anchor.
-        val GRIZZLY_CAST_PUZZLE =
+        val PASS_PUZZLE =
             """
             [metadata]
-            Name:Autopush AAR Cast
+            Name:Autopush Pass
+            Goal:Win
+            Turns:5
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanhand=Lightning Bolt
+            humanbattlefield=Mountain
+            humanlibrary=Mountain;Mountain;Mountain
+            ailibrary=Mountain;Mountain;Mountain
+            """.trimIndent()
+
+        val CAST_PUZZLE =
+            """
+            [metadata]
+            Name:Autopush Cast
             Goal:Win
             Turns:5
 
@@ -252,4 +292,24 @@ class CopilotAutopushTest :
             ailibrary=Forest;Forest;Forest
             """.trimIndent()
     }
+}
+
+private fun HttpExchange.readBody(): String = requestBody.use { it.readBytes().decodeToString() }
+
+private fun prompt(
+    type: GREMessageType,
+    gsId: Int,
+    msgId: Int,
+): GREToClientMessage =
+    GREToClientMessage
+        .newBuilder()
+        .setType(type)
+        .setGameStateId(gsId)
+        .setMsgId(msgId)
+        .build()
+
+private fun HttpExchange.respond(body: String) {
+    val bytes = body.toByteArray()
+    sendResponseHeaders(200, bytes.size.toLong())
+    responseBody.use { it.write(bytes) }
 }

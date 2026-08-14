@@ -482,6 +482,34 @@ class TargetingInteractionTest :
             (preBoltAiLife - ai.life) shouldBe 3
         }
 
+        test("triggered single-target selection echoes before submit") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Spellbook Vendor;Grizzly Bears
+                humanlibrary=Plains
+                ailibrary=Mountain
+                """.trimIndent(),
+                name = "Triggered Target Two-Phase",
+            )
+            harness.holdNextOptionalAction()
+            passPriority()
+            harness.respondToOptionalAction(accept = true)
+            val vendorIid = human.battlefield.iid("Spellbook Vendor")
+
+            val phase1Messages = after { selectTargetsIterative(listOf(vendorIid)) }.messages
+
+            assertSoftly {
+                phase1Messages.count { it.hasSelectTargetsReq() } shouldBe 1
+                phase1Messages.count { it.hasSubmitTargetsResp() } shouldBe 0
+            }
+            after { submitTargets() }.messages.count { it.hasSubmitTargetsResp() } shouldBe 1
+        }
+
         // ─── Run Away Together: multi-target + TargetsWithDifferentControllers ──
 
         val runAwayTogetherState =

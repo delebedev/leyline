@@ -370,7 +370,7 @@ class MatchSession(
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSelectTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onSelectTargets(greMsg)
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
