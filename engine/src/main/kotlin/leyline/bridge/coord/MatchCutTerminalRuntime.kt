@@ -1,9 +1,11 @@
 package leyline.bridge.coord
 
+import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
 import leyline.game.OneShotPayCostsMaterializationDiagnostic
 import leyline.game.OrderMaterializationDiagnostic
+import leyline.game.PendingCardSelectCut
 import leyline.game.PendingCut
 import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
@@ -11,6 +13,7 @@ import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingOrderCut
 import leyline.game.PendingSearchCut
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.PromptTerminalFailureContext
 import leyline.game.SearchMaterializationDiagnostic
 
 /** Write-once terminal state and waiter teardown for one match cut coordinator. */
@@ -25,6 +28,8 @@ internal class MatchCutTerminalRuntime(
         val searchDiagnostic: SearchMaterializationDiagnostic? = null,
         val pendingOrder: PendingOrderCut? = null,
         val orderDiagnostic: OrderMaterializationDiagnostic? = null,
+        val pendingCardSelect: PendingCardSelectCut? = null,
+        val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
         val pendingManaSourcePayment: PendingManaSourcePaymentCut? = null,
         val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
         val pendingOneShotPayCosts: PendingOneShotPayCostsCut? = null,
@@ -54,14 +59,19 @@ internal class MatchCutTerminalRuntime(
                 pendingCut = context.pending,
                 diagnostic = context.diagnostic,
                 pendingInteractionCut = context.pendingInteraction,
-                pendingSearchCut = context.pendingSearch,
-                searchDiagnostic = context.searchDiagnostic,
-                pendingOrderCut = context.pendingOrder,
-                orderDiagnostic = context.orderDiagnostic,
-                pendingManaSourcePaymentCut = context.pendingManaSourcePayment,
-                manaSourcePaymentDiagnostic = context.manaSourcePaymentDiagnostic,
-                pendingOneShotPayCostsCut = context.pendingOneShotPayCosts,
-                oneShotPayCostsDiagnostic = context.oneShotPayCostsDiagnostic,
+                prompt =
+                    PromptTerminalFailureContext(
+                        pendingSearchCut = context.pendingSearch,
+                        searchDiagnostic = context.searchDiagnostic,
+                        pendingOrderCut = context.pendingOrder,
+                        orderDiagnostic = context.orderDiagnostic,
+                        pendingCardSelectCut = context.pendingCardSelect,
+                        cardSelectDiagnostic = context.cardSelectDiagnostic,
+                        pendingManaSourcePaymentCut = context.pendingManaSourcePayment,
+                        manaSourcePaymentDiagnostic = context.manaSourcePaymentDiagnostic,
+                        pendingOneShotPayCostsCut = context.pendingOneShotPayCosts,
+                        oneShotPayCostsDiagnostic = context.oneShotPayCostsDiagnostic,
+                    ),
                 cause = cause,
             ).also { terminal ->
                 context.pending?.let(owner::retainPendingCut)
@@ -71,6 +81,7 @@ internal class MatchCutTerminalRuntime(
                 owner.targeting.terminate(terminal)
                 owner.search.terminate(terminal)
                 owner.order.terminate(terminal)
+                owner.cardSelect.terminate(terminal)
                 owner.manaSourcePayments.terminate(terminal)
                 owner.oneShotPayCosts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)

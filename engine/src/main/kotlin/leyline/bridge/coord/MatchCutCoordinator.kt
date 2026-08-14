@@ -5,10 +5,12 @@ import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.SeatId
+import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
 import leyline.game.OneShotPayCostsMaterializationDiagnostic
 import leyline.game.OrderMaterializationDiagnostic
+import leyline.game.PendingCardSelectCut
 import leyline.game.PendingCut
 import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
@@ -57,6 +59,7 @@ internal class MatchCutCoordinator(
     internal val targeting = MatchTargetingInteractionRuntime(this)
     internal val search = MatchSearchInteractionRuntime(this)
     internal val order = MatchOrderInteractionRuntime(this)
+    internal val cardSelect = MatchCardSelectInteractionRuntime(this)
     internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
     internal val oneShotPayCosts = MatchOneShotPayCostsRuntime(this)
 
@@ -193,6 +196,7 @@ internal class MatchCutCoordinator(
         targeting.terminate(failure)
         search.terminate(failure)
         order.terminate(failure)
+        cardSelect.terminate(failure)
         manaSourcePayments.terminate(failure)
         oneShotPayCosts.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
@@ -207,6 +211,7 @@ internal class MatchCutCoordinator(
             targeting.reset()
             search.reset()
             order.reset()
+            cardSelect.reset()
             manaSourcePayments.reset()
             oneShotPayCosts.reset()
         }
@@ -445,12 +450,19 @@ internal class MatchCutCoordinator(
         diagnostic: OrderMaterializationDiagnostic? = null,
     ): Nothing = fail(cause, MatchCutTerminalRuntime.Context(pendingOrder = pending, orderDiagnostic = diagnostic))
 
+    internal fun failCardSelect(
+        cause: Throwable,
+        pending: PendingCardSelectCut? = null,
+        diagnostic: CardSelectMaterializationDiagnostic? = null,
+    ): Nothing = fail(cause, MatchCutTerminalRuntime.Context(pendingCardSelect = pending, cardSelectDiagnostic = diagnostic))
+
     internal fun failDelivery(cause: Throwable): Nothing =
         synchronized(feedLock) {
             oneShotPayCosts.pendingCutLocked()?.let { failOneShotPayCosts(cause, it) }
             manaSourcePayments.pendingCutLocked()?.let { failManaSourcePayment(cause, it) }
             search.pendingCutLocked()?.let { failSearch(cause, it) }
             order.pendingCutLocked()?.let { failOrder(cause, it) }
+            cardSelect.pendingCutLocked()?.let { failCardSelect(cause, it) }
             fail(cause)
         }
 

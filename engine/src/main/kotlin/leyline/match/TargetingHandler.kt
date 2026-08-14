@@ -63,6 +63,7 @@ class TargetingHandler(
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
     private val promptResponseSubmitter = PromptResponseSubmitter(counters, ctx)
+    private val cardSelectInteractionHandler = CardSelectInteractionHandler(ctx)
     private val manaSourcePaymentHandler = ManaSourcePaymentHandler(sink, counters, ctx)
     private val deferredCastCostInteractionHandler =
         DeferredCastCostInteractionHandler(
@@ -192,7 +193,10 @@ class TargetingHandler(
     fun onSelectN(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
-    ) = promptResponseSubmitter.onSelectN(greMsg, autoPass)
+    ) {
+        if (cardSelectInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
+        promptResponseSubmitter.onSelectN(greMsg, autoPass)
+    }
 
     fun onEffectCost(
         greMsg: ClientToGREMessage,
@@ -200,6 +204,7 @@ class TargetingHandler(
     ) {
         if (manaSourcePaymentHandler.tryHandleEffectCost(greMsg, autoPass)) return
         if (manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg, autoPass)) return
+        if (cardSelectInteractionHandler.tryHandleEffectCost(greMsg, autoPass)) return
         promptResponseSubmitter.onEffectCost(greMsg, autoPass)
     }
 
@@ -264,11 +269,11 @@ class TargetingHandler(
     }
 
     /**
-     * Check for pending interactive prompt (targeting, sacrifice, discard, etc.).
+     * Check for a residual pending interactive prompt.
      * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
      * - Surveil/scry prompts → send GroupReq to client.
      * - Other non-targeting prompts (confirm, choose_cards, order) → auto-resolve with
-     *   defaultIndex. Covers discard-to-hand-size at Cleanup and similar engine prompts.
+     *   defaultIndex. Coordinator-owned prompts never enter this fallback.
      */
     fun checkPendingPrompt(): PromptResult {
         val bridge = ctx.bridge
@@ -318,6 +323,9 @@ class TargetingHandler(
                 is ResolvedPromptRoute.Order ->
                     error("Order prompts must be published by MatchOrderInteractionRuntime")
 
+                is ResolvedPromptRoute.CardSelect ->
+                    error("CardSelect prompts must be published by MatchCardSelectInteractionRuntime")
+
                 is ResolvedPromptRoute.Grouping,
                 is ResolvedPromptRoute.ModalChoice,
                 is ResolvedPromptRoute.PayCosts,
@@ -358,6 +366,10 @@ class TargetingHandler(
 
             is ResolvedPromptRoute.PayCosts -> {
                 error("PayCosts prompts must be published by a match-scoped coordinator runtime")
+            }
+
+            is ResolvedPromptRoute.CardSelect -> {
+                error("CardSelect prompts must be published by MatchCardSelectInteractionRuntime")
             }
 
             is ResolvedPromptRoute.Targeting -> {

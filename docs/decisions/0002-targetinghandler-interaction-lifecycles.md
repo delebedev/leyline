@@ -24,11 +24,11 @@ input, advance priority, and send follow-up GRE messages when needed.
 
 Current residual responsibilities include:
 
-- Select-N, order, effect-cost, and group response mapping.
+- Residual Select-N, effect-cost, and group response mapping.
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
 
-Target selection, Search, and all PayCosts
+Target selection, Search, Top/Bottom Order, card-backed SelectN, and all PayCosts
 payments are match-coordinator-owned lifecycles with value-only session adapters.
 
 This produces a large, high-churn file whose name no longer describes most of

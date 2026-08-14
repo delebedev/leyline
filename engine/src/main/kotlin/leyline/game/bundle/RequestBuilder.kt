@@ -91,14 +91,14 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for "choose N cards" prompts (discard, sacrifice, legend rule, reveal-choose, etc.).
+     * Used for residual legend, reveal, resolution, Learn, and static-choice prompts.
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
      *
      * Context/listType vary by prompt type:
      * - `legend_rule`: context=Resolution, listType=Dynamic
-     * - `choose_cards` (discard): context=Discard, listType=Static
+     * - static choices: context=Resolution, listType=Static or StaticSubset
      * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
     fun buildSelectNReq(

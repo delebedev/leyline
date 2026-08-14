@@ -1,5 +1,6 @@
 package leyline.bridge.coord
 
+import leyline.bridge.handoff.CardSelectInteractionRuntime
 import leyline.bridge.handoff.ManaSourcePaymentRuntime
 import leyline.bridge.handoff.OneShotPayCostsRuntime
 import leyline.bridge.handoff.OrderInteractionRuntime
@@ -21,6 +22,11 @@ internal fun MatchCutCoordinator.searchRuntime(seatId: SeatId): SearchInteractio
 internal fun MatchCutCoordinator.orderRuntime(seatId: SeatId): OrderInteractionRuntime {
     check(seatId == humanSeat) { "Order interaction runtime is only registered for the human seat" }
     return order
+}
+
+internal fun MatchCutCoordinator.cardSelectRuntime(seatId: SeatId): CardSelectInteractionRuntime {
+    check(seatId == humanSeat) { "CardSelect interaction runtime is only registered for the human seat" }
+    return cardSelect
 }
 
 internal fun MatchCutCoordinator.manaSourcePaymentRuntime(seatId: SeatId): ManaSourcePaymentRuntime {

@@ -222,12 +222,12 @@ class TargetingCoordinator(
                 route = PromptRouteResolver.resolve(PromptSemantic.MutateTopBottom),
                 sourceEntityId = sa.hostCard?.id,
             )
-        val idx = bridge.requestChoice(request).firstOrNull()
-        return if (idx != null && idx in 0 until optionList.size) {
-            optionList.get(idx)
-        } else {
-            if (isOptional) null else optionList.get(request.defaultIndex)
-        }
+        val handles = optionList.filterIsInstance<Card>()
+        check(handles.size == optionList.size) { "Mutate card selection requires card options" }
+        val selected = bridge.requestCardSelect(request, handles).handles.firstOrNull()
+        if (selected == null && !isOptional) return optionList.get(request.defaultIndex)
+        @Suppress("UNCHECKED_CAST")
+        return selected as? T
     }
 
     fun <T : GameEntity> chooseEntities(
@@ -1028,6 +1028,9 @@ class TargetingCoordinator(
             )
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             return CardCollection(bridge.requestOneShotPayCosts(request, cards.toList()).handles)
+        }
+        if (request.route is ResolvedPromptRoute.CardSelect) {
+            return CardCollection(bridge.requestCardSelect(request, cards.toList()).handles)
         }
         val indices = bridge.requestChoice(request)
         val result = CardCollection()

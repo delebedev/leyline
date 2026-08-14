@@ -19,6 +19,7 @@ import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
+import leyline.bridge.coord.cardSelectRuntime
 import leyline.bridge.coord.manaSourcePaymentRuntime
 import leyline.bridge.coord.oneShotPayCostsRuntime
 import leyline.bridge.coord.orderRuntime
@@ -508,6 +509,7 @@ class GameBridge(
         promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
         promptBridge(seatId).searchRuntime = cutCoordinator.searchRuntime(seatId)
         promptBridge(seatId).orderRuntime = cutCoordinator.orderRuntime(seatId)
+        promptBridge(seatId).cardSelectRuntime = cutCoordinator.cardSelectRuntime(seatId)
         promptBridge(seatId).manaSourcePaymentRuntime = cutCoordinator.manaSourcePaymentRuntime(seatId)
         promptBridge(seatId).oneShotPayCostsRuntime = cutCoordinator.oneShotPayCostsRuntime(seatId)
         val collector = GameEventCollector(this)
@@ -1338,6 +1340,7 @@ class GameBridge(
             cutCoordinator.targeting.current() != null ||
             cutCoordinator.search.current() != null ||
             cutCoordinator.order.current() != null ||
+            cutCoordinator.cardSelect.current() != null ||
             cutCoordinator.manaSourcePayments.current() != null ||
             cutCoordinator.oneShotPayCosts.current() != null
 
@@ -1589,6 +1592,7 @@ class GameBridge(
             it.targetingRuntime = null
             it.searchRuntime = null
             it.orderRuntime = null
+            it.cardSelectRuntime = null
             it.manaSourcePaymentRuntime = null
             it.oneShotPayCostsRuntime = null
         }

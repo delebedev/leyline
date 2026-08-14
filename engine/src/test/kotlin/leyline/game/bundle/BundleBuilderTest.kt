@@ -22,8 +22,6 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.GamePlayback
 import leyline.game.InMemoryCardRepository
@@ -1625,91 +1623,6 @@ class BundleBuilderTest :
             }
         }
 
-        test("effect SelectN route uses Resolution context and Dynamic listType (#175)") {
-            val (b, _, _) =
-                startWithBoard { _, human, _ ->
-                    addCard("Mountain", human, ZoneType.Hand)
-                    addCard("Forest", human, ZoneType.Hand)
-                }
-
-            val handCards =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .toList()
-            val prompt =
-                InteractivePromptBridge.PendingPrompt(
-                    promptId = "discard-test",
-                    request =
-                        PromptRequest(
-                            promptType = "choose_cards",
-                            message = "Choose a card to discard",
-                            options = listOf("Discard"),
-                            min = 1,
-                            max = 1,
-                            candidateRefs =
-                                handCards.mapIndexed { i, c ->
-                                    PromptCandidateRefDto(i, PromptCandidateKind.Card, c.id, "Hand")
-                                },
-                            route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
-                        ),
-                    future = java.util.concurrent.CompletableFuture(),
-                )
-
-            val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
-
-            assertSoftly {
-                req.context shouldBe Messages.SelectionContext.Resolution_a163
-                req.listType shouldBe Messages.SelectionListType.Dynamic
-                req.optionContext shouldBe Messages.OptionContext.Resolution_a9d7
-                req.idType shouldBe Messages.IdType.InstanceId_ab2c
-                req.validationType shouldBe Messages.SelectionValidationType.NonRepeatable
-                req.minSel shouldBe 1
-                req.maxSel shouldBe 1
-                req.idsCount shouldBe 2
-                req.prompt.promptId shouldBe PromptIds.SELECT_N
-            }
-        }
-
-        test("generic SelectNReq does not infer cost-payment from sacrifice text") {
-            val (b, _, _) =
-                startWithBoard { _, human, _ ->
-                    addCard("Walking Corpse", human, ZoneType.Battlefield)
-                }
-
-            val creature =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .single()
-            val prompt =
-                InteractivePromptBridge.PendingPrompt(
-                    promptId = "sacrifice-text-test",
-                    request =
-                        PromptRequest(
-                            promptType = "choose_cards",
-                            message = "Sacrifice a creature",
-                            options = listOf(creature.name),
-                            min = 1,
-                            max = 1,
-                            candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creature.id, "Battlefield")),
-                            route = PromptRouteResolver.resolve(PromptSemantic.SelectNSacrificeEffect),
-                        ),
-                    future = java.util.concurrent.CompletableFuture(),
-                )
-
-            val req = RequestBuilder.buildSelectNReq(prompt, b, prompt.selectNRoute())
-
-            assertSoftly {
-                req.context shouldBe Messages.SelectionContext.Resolution_a163
-                req.listType shouldBe Messages.SelectionListType.Dynamic
-                req.optionContext shouldBe Messages.OptionContext.Resolution_a9d7
-                req.prompt.promptId shouldBe PromptIds.SELECT_N
-            }
-        }
-
         // --- isTurnOrTriggerDraw unit tests (leyline-pey) ---
         //
         // postAction overrides the default `SendAndRecord` to `SendHiFi` when the
@@ -1840,5 +1753,3 @@ class BundleBuilderTest :
             gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
         }
     })
-
-private fun InteractivePromptBridge.PendingPrompt.selectNRoute() = (request.route as ResolvedPromptRoute.SelectN).descriptor

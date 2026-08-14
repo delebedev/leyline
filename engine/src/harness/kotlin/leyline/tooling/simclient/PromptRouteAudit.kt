@@ -85,6 +85,7 @@ object PromptRouteAuditor {
             is ResolvedPromptRoute.Grouping -> "GroupReq"
             is ResolvedPromptRoute.ModalChoice -> "CastingTimeOptionsReq"
             is ResolvedPromptRoute.SelectN -> "SelectNReq"
+            is ResolvedPromptRoute.CardSelect -> "SelectNReq"
             is ResolvedPromptRoute.PayCosts -> "PayCostsReq"
             is ResolvedPromptRoute.Search -> "SearchReq"
             is ResolvedPromptRoute.Order -> "OrderReq"

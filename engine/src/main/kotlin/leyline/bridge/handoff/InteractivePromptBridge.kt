@@ -84,6 +84,10 @@ class InteractivePromptBridge(
     @Volatile
     var orderRuntime: OrderInteractionRuntime? = null
 
+    /** Match-scoped owner for the four card-backed SelectN semantics. */
+    @Volatile
+    var cardSelectRuntime: CardSelectInteractionRuntime? = null
+
     /** Match-scoped owner for iterative Convoke, Improvise, and Waterbend payments. */
     @Volatile
     var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
@@ -397,12 +401,7 @@ class InteractivePromptBridge(
             return listOf(request.defaultIndex)
         }
 
-        check(request.route !is ResolvedPromptRoute.PayCosts) {
-            "PayCosts routes require their match-scoped runtime"
-        }
-        check(request.route !is ResolvedPromptRoute.Order) {
-            "Order routes require their match-scoped runtime"
-        }
+        requireLegacyRoute(request.route)
 
         requestMigratedChoice(request, targetingSa, configuredTimeoutMs)?.let { return it }
 
@@ -459,6 +458,12 @@ class InteractivePromptBridge(
         } finally {
             pending.set(null)
         }
+    }
+
+    private fun requireLegacyRoute(route: ResolvedPromptRoute) {
+        check(route !is ResolvedPromptRoute.PayCosts) { "PayCosts routes require their match-scoped runtime" }
+        check(route !is ResolvedPromptRoute.Order) { "Order routes require their match-scoped runtime" }
+        check(route !is ResolvedPromptRoute.CardSelect) { "CardSelect routes require their match-scoped runtime" }
     }
 
     /** Route one iterative mana-source payment with its exact Forge option handles. */
@@ -551,12 +556,47 @@ class InteractivePromptBridge(
         }
     }
 
+    /** Route one card-backed SelectN request with its exact Forge option handles. */
+    fun requestCardSelect(
+        request: PromptRequest,
+        candidateHandles: List<Card>,
+    ): CardSelectInteractionResult {
+        check(request.route is ResolvedPromptRoute.CardSelect) { "CardSelect route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
+        }
+        val runtime = checkNotNull(cardSelectRuntime) { "CardSelect runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitSelection(request, candidateHandles, timeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: CardSelectInteractionTimeoutException) {
+            val fallback = fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
+            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
     private fun fallbackOrder(
         indices: List<Int>,
         candidateHandles: List<Card>,
     ): OrderInteractionResult {
         val ordered = (indices.filter(candidateHandles.indices::contains) + candidateHandles.indices).distinct()
         return OrderInteractionResult(ordered, ordered.map(candidateHandles::get))
+    }
+
+    private fun fallbackCardSelect(
+        indices: List<Int>,
+        candidateHandles: List<Card>,
+    ): CardSelectInteractionResult {
+        val selected = indices.filter(candidateHandles.indices::contains).distinct()
+        return CardSelectInteractionResult(selected, selected.map(candidateHandles::get))
     }
 
     private fun fallbackOneShot(

@@ -75,6 +75,7 @@ ResolvedPromptRoute
   Grouping(context)
   ModalChoice
   SelectN(selectNRoute)
+  CardSelect(cardSelectRoute)
   PayCosts(payCostsRoute)
   Search
   Order(orderKind)
