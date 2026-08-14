@@ -22,15 +22,15 @@ messages. It now handles several interaction lifecycles because they all share
 the same final operation: convert a client response into Forge prompt/action
 input, advance priority, and send follow-up GRE messages when needed.
 
-Current responsibilities include:
+Current residual responsibilities include:
 
-- Target selection: `SelectTargetsResp`, `SubmitTargetsReq`, and echo re-prompts.
 - Select-N, order, effect-cost, and group response mapping.
-- Correlated `SearchResp` value submission to the match coordinator.
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
-- Native `PayCostsReq` interaction loops for mana-source payment choices such as Convoke and Waterbend.
-- Prompt-journal side effects associated with those responses.
+- One-shot `PayCostsReq` routes and their prompt-journal side effects.
+
+Target selection, Search, and iterative Convoke, Improvise, and Waterbend
+payments are match-coordinator-owned lifecycles with value-only session adapters.
 
 This produces a large, high-churn file whose name no longer describes most of
 its contents. The pressure is not only file length: unrelated mechanics often
@@ -124,24 +124,24 @@ library, stack, spell ability, or instance-id registry for this lifecycle.
 - Deferred cast replay through the pending action bridge.
 - Helpers for hybrid/two-generic mana color ordering and optional-cost slot lookup.
 
-`PayCostsInteractionHandler` owns native `PayCostsReq` mana-source loops:
+`MatchManaSourcePaymentRuntime` owns the iterative Convoke, Improvise, and
+Waterbend `PayCostsReq` loops:
 
-- `PerformActionResp` handling for `MakePayment` / `Pass` on PayCosts prompts.
-- Mana-source payment accumulation.
-- Convoke payment selection and prompt-journal recording.
-- PayCosts re-prompt adjustment.
-- Convoke count persistent annotation injection for PayCosts bundles.
+- The engine thread freezes exact candidate handles, shard choices, source, and mana-cost values.
+- Initial state and PayCosts request commit before signalling.
+- MakePayment updates the immutable plan and commits the replacement request before delivery acknowledgement.
+- Pass and Cancel resolve original prompt indices; timeout returns the configured default.
+- Convoke and Improvise payment facts are staged by the replacement cut, corrected before engine progression, and retained until stack-exit consumption.
 
-Both handlers preserve a single pending-interaction owner per seat. Cost-specific
-`PendingClientInteraction` variants remain part of the shared session slot; the
-cost handlers access that slot through explicit getters/setters rather than
-creating independent pending state.
+`PayCostsInteractionHandler` retains only the seven one-shot PayCosts routes.
+The thin mana-source session adapter submits correlated immutable values and
+does not retain live cards or mutable payment maps.
 
 ## Non-Goals
 
 - Do not introduce a generic prompt interaction framework.
 - Do not move planner responsibilities from `bridge.interaction` into `match`.
-- Do not move GRE construction out of `RequestBuilder` / `BundleBuilder`.
+- Keep migrated interaction construction in value-only materializers.
 - Do not turn `SelectNPromptRoute` or `PayCostsPromptRoute` into route-owned response handlers.
 - Do not refactor target selection echo re-prompting under these handlers.
 - Do not split the file by protocol message type alone; send and response halves of one lifecycle should stay together.
@@ -152,11 +152,11 @@ creating independent pending state.
 multiple independent pending slots for the same seat.
 
 Cancel behavior crosses domains. `CancelActionReq` cancels deferred cast
-prompts, completes partial mana-source payments, or submits empty target lists.
-Those branches must stay explicit at the coordinator boundary.
+prompts, finalizes the coordinator-owned partial mana-source selection, or
+submits empty target lists. Those branches stay explicit at the coordinator boundary.
 
-Convoke payment state is distributed across in-memory selection maps and the
-prompt journal. The PayCosts extraction must move those pieces together.
+Convoke and Improvise selection values and payment facts share one coordinator
+transaction; the session no longer owns either state.
 
 Search ordering is fragile. Initial publication commits the reveal state and
 `SearchReq` before signalling. A correlated response resets the reveal baseline

@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
@@ -89,6 +90,10 @@ class WaterbendLifecycleTest :
                 tappedIds shouldContain merfolkIid
                 tappedIds shouldContain bearIid
                 tappedIds shouldContain solRingIid
+                harness.bridge
+                    .promptBridge(SeatId(1))
+                    .journal
+                    .activeConvokePayments() shouldBe emptyMap()
             }
         }
 

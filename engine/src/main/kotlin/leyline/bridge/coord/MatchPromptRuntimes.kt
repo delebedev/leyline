@@ -1,5 +1,6 @@
 package leyline.bridge.coord
 
+import leyline.bridge.handoff.ManaSourcePaymentRuntime
 import leyline.bridge.handoff.SearchInteractionRuntime
 import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.types.SeatId
@@ -13,4 +14,9 @@ internal fun MatchCutCoordinator.targetingRuntime(seatId: SeatId): TargetingInte
 internal fun MatchCutCoordinator.searchRuntime(seatId: SeatId): SearchInteractionRuntime {
     check(seatId == humanSeat) { "Search interaction runtime is only registered for the human seat" }
     return search
+}
+
+internal fun MatchCutCoordinator.manaSourcePaymentRuntime(seatId: SeatId): ManaSourcePaymentRuntime {
+    check(seatId == humanSeat) { "Mana-source payment runtime is only registered for the human seat" }
+    return manaSourcePayments
 }

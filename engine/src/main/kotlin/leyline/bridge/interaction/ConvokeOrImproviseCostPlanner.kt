@@ -8,7 +8,6 @@ data class ConvokeOrImproviseCostPlan(
     val maxSelection: Int,
     val candidateRefsPolicy: CandidateRefsPolicy,
     val manaFieldsPolicy: CostManaFieldsPolicy,
-    val convokePaymentRecordPolicy: ConvokePaymentRecordPolicy,
 )
 
 enum class CostManaFieldsPolicy {
@@ -18,14 +17,6 @@ enum class CostManaFieldsPolicy {
 
 val CostManaFieldsPolicy.shouldInclude: Boolean
     get() = this == CostManaFieldsPolicy.IncludeNativePaymentCost
-
-enum class ConvokePaymentRecordPolicy {
-    None,
-    Record,
-}
-
-val ConvokePaymentRecordPolicy.shouldRecord: Boolean
-    get() = this == ConvokePaymentRecordPolicy.Record
 
 object ConvokeOrImproviseCostPlanner {
     fun plan(
@@ -43,7 +34,6 @@ object ConvokeOrImproviseCostPlanner {
                     maxSelection = maxSelection,
                     candidateRefsPolicy = CandidateRefsPolicy.Selectable,
                     manaFieldsPolicy = CostManaFieldsPolicy.IncludeNativePaymentCost,
-                    convokePaymentRecordPolicy = ConvokePaymentRecordPolicy.None,
                 )
 
             creatures ->
@@ -53,7 +43,6 @@ object ConvokeOrImproviseCostPlanner {
                     maxSelection = maxSelection,
                     candidateRefsPolicy = CandidateRefsPolicy.Selectable,
                     manaFieldsPolicy = CostManaFieldsPolicy.IncludeNativePaymentCost,
-                    convokePaymentRecordPolicy = ConvokePaymentRecordPolicy.Record,
                 )
 
             artifacts ->
@@ -63,7 +52,6 @@ object ConvokeOrImproviseCostPlanner {
                     maxSelection = maxSelection,
                     candidateRefsPolicy = CandidateRefsPolicy.Selectable,
                     manaFieldsPolicy = CostManaFieldsPolicy.IncludeNativePaymentCost,
-                    convokePaymentRecordPolicy = ConvokePaymentRecordPolicy.Record,
                 )
 
             else ->
@@ -73,7 +61,6 @@ object ConvokeOrImproviseCostPlanner {
                     maxSelection = maxSelection,
                     candidateRefsPolicy = CandidateRefsPolicy.None,
                     manaFieldsPolicy = CostManaFieldsPolicy.None,
-                    convokePaymentRecordPolicy = ConvokePaymentRecordPolicy.None,
                 )
         }
     }

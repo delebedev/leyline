@@ -1,9 +1,7 @@
 package leyline.game.bundle
 
 import forge.game.card.Card
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -18,11 +16,8 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.BoardTest
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.IdType
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -289,78 +284,6 @@ class RequestBuilderEscapeCostTest :
                 sel.weightsList.toList() shouldBe listOf(3, 2, 1)
                 prompt.promptId shouldBe PromptIds.TEAMWORK_TAP_COST
                 prompt.parametersList.first { it.parameterName == "CardId" }.numberValue shouldBe sourceIid
-            }
-        }
-
-        test("buildConvokeCostPayCostsReq emits creature MakePayment actions") {
-            lateinit var source: Card
-            lateinit var blueCreature: Card
-            lateinit var greenCreature: Card
-            val (b, _, _) =
-                startWithBoard { _, human, _ ->
-                    source = addCard("Plains", human, ZoneType.Hand)
-                    blueCreature = addCard("Coral Merfolk", human, ZoneType.Battlefield)
-                    greenCreature = addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                }
-            val sourceIid = b.getOrAllocInstanceId(ForgeCardId(source.id)).value
-            val blueIid = b.getOrAllocInstanceId(ForgeCardId(blueCreature.id)).value
-            val greenIid = b.getOrAllocInstanceId(ForgeCardId(greenCreature.id)).value
-
-            val request =
-                PromptRequest(
-                    promptType = "choose_cards",
-                    message = "Choose creatures to tap for convoke",
-                    options = listOf(blueCreature.name, greenCreature.name),
-                    min = 0,
-                    max = 2,
-                    route = PromptRouteResolver.resolve(PromptSemantic.ConvokeCost),
-                    candidateRefs =
-                        listOf(
-                            PromptCandidateRefDto(0, PromptCandidateKind.Card, blueCreature.id, ZoneType.Battlefield.name),
-                            PromptCandidateRefDto(1, PromptCandidateKind.Card, greenCreature.id, ZoneType.Battlefield.name),
-                        ),
-                    sourceEntityId = source.id,
-                    waterbendManaCost = listOf(ManaColor.Blue_afc9 to 1, ManaColor.Generic to 2),
-                    waterbendCostString = "oUo2",
-                )
-            val pending =
-                InteractivePromptBridge.PendingPrompt(
-                    promptId = "test-convoke",
-                    request = request,
-                    future = java.util.concurrent.CompletableFuture(),
-                )
-
-            val (req, prompt) = RequestBuilder.buildConvokeCostPayCostsReq(pending, b)
-            val blueAction = req.paymentActions.actionsList.single { it.instanceId == blueIid }
-            val greenAction = req.paymentActions.actionsList.single { it.instanceId == greenIid }
-            val blueMana =
-                blueAction.manaPaymentOptionsList
-                    .single()
-                    .manaList
-                    .single()
-            val greenMana =
-                greenAction.manaPaymentOptionsList
-                    .single()
-                    .manaList
-                    .single()
-
-            assertSoftly {
-                prompt.promptId shouldBe PromptIds.PAY_COSTS
-                prompt.parametersList.first { it.parameterName == "Cost" }.stringValue shouldBe "oUo2"
-                req.manaCostList.map { it.objectId }.toSet() shouldBe setOf(sourceIid)
-                req.paymentSelection.context shouldBe SelectionContext.ManaPool
-                req.paymentSelection.idType shouldBe IdType.ManaId
-                blueAction.actionType shouldBe ActionType.MakePayment
-                blueAction.abilityGrpId shouldBe 172
-                blueMana.abilityGrpId shouldBe 172
-                blueMana.srcInstanceId shouldBe blueIid
-                blueMana.color shouldBe ManaColor.Blue_afc9
-                blueMana.specsList.map { it.type } shouldContain ManaSpecType.FromCreature
-                blueMana.specsList.map { it.type } shouldContain ManaSpecType.ManaSubstitution
-                greenAction.actionType shouldBe ActionType.MakePayment
-                greenMana.color shouldBe ManaColor.Colorless_afc9
-                greenMana.specsList.map { it.type } shouldContain ManaSpecType.FromCreature
-                greenMana.specsList.map { it.type } shouldContain ManaSpecType.ManaSubstitution
             }
         }
 

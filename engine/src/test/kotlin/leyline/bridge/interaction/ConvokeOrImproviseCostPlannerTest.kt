@@ -19,7 +19,6 @@ class ConvokeOrImproviseCostPlannerTest :
                 maxSelection shouldBe 3
                 candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                 manaFieldsPolicy shouldBe CostManaFieldsPolicy.IncludeNativePaymentCost
-                convokePaymentRecordPolicy shouldBe ConvokePaymentRecordPolicy.None
             }
         }
 
@@ -32,7 +31,6 @@ class ConvokeOrImproviseCostPlannerTest :
                 maxSelection shouldBe 4
                 candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                 manaFieldsPolicy shouldBe CostManaFieldsPolicy.IncludeNativePaymentCost
-                convokePaymentRecordPolicy shouldBe ConvokePaymentRecordPolicy.Record
             }
         }
 
@@ -45,7 +43,6 @@ class ConvokeOrImproviseCostPlannerTest :
                 maxSelection shouldBe 2
                 candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
                 manaFieldsPolicy shouldBe CostManaFieldsPolicy.IncludeNativePaymentCost
-                convokePaymentRecordPolicy shouldBe ConvokePaymentRecordPolicy.Record
             }
         }
 
@@ -61,7 +58,6 @@ class ConvokeOrImproviseCostPlannerTest :
                 semantic shouldBe PromptSemantic.Generic
                 candidateRefsPolicy shouldBe CandidateRefsPolicy.None
                 manaFieldsPolicy shouldBe CostManaFieldsPolicy.None
-                convokePaymentRecordPolicy shouldBe ConvokePaymentRecordPolicy.None
             }
         }
     })

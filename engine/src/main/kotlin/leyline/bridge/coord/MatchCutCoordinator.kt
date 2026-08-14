@@ -5,9 +5,11 @@ import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.SeatId
+import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
 import leyline.game.PendingInteractionCut
+import leyline.game.PendingManaSourcePaymentCut
 import leyline.game.PendingSearchCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
@@ -46,80 +48,21 @@ internal class MatchCutCoordinator(
     internal val feedLock = Any()
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
     internal val syncOnly = MatchSyncOnlyRuntime(this)
-    private val actions = MatchActionWindowRuntime(this)
-    private val interactions = MatchBlockingInteractionRuntime(this)
+    internal val actions = MatchActionWindowRuntime(this)
+    internal val interactions = MatchBlockingInteractionRuntime(this)
     internal val targeting = MatchTargetingInteractionRuntime(this)
     internal val search = MatchSearchInteractionRuntime(this)
+    internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
 
     @Volatile
     private var terminalFailure: PlaybackTerminalFailure? = null
 
     internal val humanSeat: SeatId get() = bridge.seating.humanSeat
 
-    internal var beforeBlockingInstall: (() -> Unit)?
-        get() = interactions.beforeInstall
-        set(value) {
-            interactions.beforeInstall = value
-        }
-
-    internal var beforeBlockingTimeoutClaim: (() -> Unit)?
-        get() = interactions.beforeTimeoutClaim
-        set(value) {
-            interactions.beforeTimeoutClaim = value
-        }
-
     internal var beforeCommanderCleanupMaterialization: (() -> Unit)? = null
     internal var beforeCommanderCleanupInstall: (() -> Unit)? = null
 
-    internal var afterBlockingMaterialization: (() -> Unit)?
-        get() = interactions.afterMaterialization
-        set(value) {
-            interactions.afterMaterialization = value
-        }
-
     internal var beforePublicationLock: (() -> Unit)? = null
-
-    internal var beforeActionEnqueue: (() -> Unit)?
-        get() = actions.beforeEnqueue
-        set(value) {
-            actions.beforeEnqueue = value
-        }
-
-    internal var beforeActionInstall: (() -> Unit)?
-        get() = actions.beforeInstall
-        set(value) {
-            actions.beforeInstall = value
-        }
-
-    internal var afterActionInstall: (() -> Unit)?
-        get() = actions.afterInstall
-        set(value) {
-            actions.afterInstall = value
-        }
-
-    internal var beforeActionCatalogInstall: (() -> Unit)?
-        get() = actions.beforeCatalogInstall
-        set(value) {
-            actions.beforeCatalogInstall = value
-        }
-
-    internal var beforeActionPublished: (() -> Unit)?
-        get() = actions.beforePublished
-        set(value) {
-            actions.beforePublished = value
-        }
-
-    internal var beforeActionTimeoutClaim: (() -> Unit)?
-        get() = actions.beforeTimeoutClaim
-        set(value) {
-            actions.beforeTimeoutClaim = value
-        }
-
-    internal var beforeSynchronizationTimeoutClaim: (() -> Unit)?
-        get() = actions.beforeSynchronizationTimeoutClaim
-        set(value) {
-            actions.beforeSynchronizationTimeoutClaim = value
-        }
 
     fun actionWindowRuntime(seatId: SeatId): GameActionBridge.ActionWindowRuntime = actions.bridge(seatId)
 
@@ -244,6 +187,7 @@ internal class MatchCutCoordinator(
         actions.terminate()
         targeting.terminate(failure)
         search.terminate(failure)
+        manaSourcePayments.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
         bridge.prioritySignal.signal()
     }
@@ -255,6 +199,7 @@ internal class MatchCutCoordinator(
             actions.reset()
             targeting.reset()
             search.reset()
+            manaSourcePayments.reset()
         }
     }
 
@@ -454,7 +399,18 @@ internal class MatchCutCoordinator(
         diagnostic: SearchMaterializationDiagnostic? = null,
     ): Nothing = fail(null, null, cause, pendingSearchCut = pendingSearch, searchDiagnostic = diagnostic)
 
-    internal fun failDelivery(cause: Throwable): Nothing = search.failDelivery(cause)
+    internal fun failManaSourcePayment(
+        cause: Throwable,
+        pending: PendingManaSourcePaymentCut? = null,
+        diagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
+    ): Nothing = fail(null, null, cause, pendingManaSourcePaymentCut = pending, manaSourcePaymentDiagnostic = diagnostic)
+
+    internal fun failDelivery(cause: Throwable): Nothing =
+        synchronized(feedLock) {
+            manaSourcePayments.pendingCutLocked()?.let { failManaSourcePayment(cause, it) }
+            search.pendingCutLocked()?.let { failSearch(cause, it) }
+            fail(cause)
+        }
 
     private fun fail(
         pending: PendingCut?,
@@ -463,7 +419,19 @@ internal class MatchCutCoordinator(
         pendingInteraction: PendingInteractionCut? = null,
         pendingSearchCut: PendingSearchCut? = null,
         searchDiagnostic: SearchMaterializationDiagnostic? = null,
-    ): Nothing = throw terminate(pending, diagnostic, cause, pendingInteraction, pendingSearchCut, searchDiagnostic)
+        pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
+        manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
+    ): Nothing =
+        throw terminate(
+            pending,
+            diagnostic,
+            cause,
+            pendingInteraction,
+            pendingSearchCut,
+            searchDiagnostic,
+            pendingManaSourcePaymentCut,
+            manaSourcePaymentDiagnostic,
+        )
 
     private fun terminate(
         pending: PendingCut?,
@@ -472,16 +440,28 @@ internal class MatchCutCoordinator(
         pendingInteraction: PendingInteractionCut? = null,
         pendingSearchCut: PendingSearchCut? = null,
         searchDiagnostic: SearchMaterializationDiagnostic? = null,
+        pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
+        manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     ): PlaybackTerminalFailure =
         synchronized(feedLock) {
             terminalFailure?.let { return@synchronized it }
-            PlaybackTerminalFailure(pending, diagnostic, pendingInteraction, pendingSearchCut, searchDiagnostic, cause).also { failure ->
+            PlaybackTerminalFailure(
+                pendingCut = pending,
+                diagnostic = diagnostic,
+                pendingInteractionCut = pendingInteraction,
+                pendingSearchCut = pendingSearchCut,
+                searchDiagnostic = searchDiagnostic,
+                pendingManaSourcePaymentCut = pendingManaSourcePaymentCut,
+                manaSourcePaymentDiagnostic = manaSourcePaymentDiagnostic,
+                cause = cause,
+            ).also { failure ->
                 pending?.let { retained -> feeds.values.firstOrNull { it.pendingCut === retained }?.pendingCut = retained }
                 terminalFailure = failure
                 interactions.terminate(failure)
                 actions.terminate()
                 targeting.terminate(failure)
                 search.terminate(failure)
+                manaSourcePayments.terminate(failure)
                 bridge.failActionWindows(failure)
                 bridge.prioritySignal.signal()
             }
