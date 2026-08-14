@@ -50,8 +50,4 @@ internal sealed interface PendingClientInteraction {
         val actionClaim: MatchActionWindowRuntime.ActionClaim,
         val runtimeTokensByCtoId: Map<Int, Long>,
     ) : PendingClientInteraction
-
-    data class Search(
-        val promptId: String,
-    ) : PendingClientInteraction
 }

@@ -119,7 +119,11 @@ sequenceDiagram
 
 For migrated interactions the signal means that the coordinator has committed and enqueued the complete batch while holding its feed lock. Releasing that lock makes the batch drainable; the subsequent signal wakes the session. A Visible priority window includes the immutable action catalog. A SyncOnly stop includes a state-only cut with no action request or client timer and freezes one engine continuation: reevaluate, require Visible, or allow SyncOnly. One drain snapshots the exact SyncOnly action id, delivers committed batches, completes only that stop, awaits once, and delivers the resulting horizon without releasing it. Completion itself cannot arm the continuation; only the engine thread does so after the exact wait returns successfully. Manual flow requires a Visible next stop. Explicit auto-resolve may allow another pass-only SyncOnly stop, while meaningful actions still select Visible. A stale id is not retried. Auto-pass repeats this operation through its explicit outer policy loop; an action response stops after one completed synchronization horizon. Delivery failure or SyncOnly timeout is terminal and cannot resume Forge or alter the next priority decision past an undelivered barrier. A safe priority Skip emits no signal because it closes no journal, allocates no IDs, and blocks on no future. A session submits immutable answers and never infers readiness from a guessed game-state id or settle delay.
 
-An explicitly bound `TargetSelection` callback publishes its initial state and request before signalling, then blocks on the coordinator mailbox. Route identity alone selects this owner; a nullable live ability is retained only for legality and final resolution. Each correlated tap is consumed on the Forge thread, where legality is recomputed against the retained exact ability; the replacement request is committed before the session delivery acknowledgement releases the mailbox. Finish and cancel release only their exact window. A Targeting choice deadline differs from a delivery barrier: timeout atomically retires the unpublished answer state, clears retained handles, returns the configured default, and rejects late commands without failing the match. Materialization, projection install, delivery, and teardown failures remain exceptional and wake the blocked callback. Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the legacy bridge/session path. Grouping, modal, select-N, payment, search, ordering, automatic routes, and mulligan retain their named handoff contracts until they migrate.
+An explicitly bound `TargetSelection` callback publishes its initial state and request before signalling, then blocks on the coordinator mailbox. Route identity alone selects this owner; a nullable live ability is retained only for legality and final resolution. Each correlated tap is consumed on the Forge thread, where legality is recomputed against the retained exact ability; the replacement request is committed before the session delivery acknowledgement releases the mailbox. Finish and cancel release only their exact window. A Targeting choice deadline differs from a delivery barrier: timeout atomically retires the unpublished answer state, clears retained handles, returns the configured default, and rejects late commands without failing the match. Materialization, projection install, delivery, and teardown failures remain exceptional and wake the blocked callback.
+
+An explicitly bound Search callback freezes library, candidate, source, and picker-shape values on the engine thread. The coordinator compiles the reveal state and `SearchReq` as one batch under `MessageCounter` → `projectionBuildLock` → `feedLock`, installs it, acknowledges its journal frame, and only then signals. A correlated instance-id response is mapped through the frozen option table and resets the reveal baseline under `projectionBuildLock` → `feedLock` before completing the engine future. Timeout uses the same retirement lock and returns the configured default through the prompt bridge; a concurrent accepted response wins without rollback.
+
+Candidate-backed `Generic` prompts bind `UnclassifiedCandidate` and remain on the legacy bridge/session path. Grouping, modal, select-N, payment, ordering, automatic routes, and mulligan retain their named handoff contracts until they migrate.
 
 ---
 
@@ -203,13 +207,13 @@ frame—when phase transitions fire.
 message in response to a phase, it must call `bridge.awaitPriority()` (or
 `awaitPriorityWithTimeout` with a tighter budget).
 
-For coordinator-backed Visible priority, SyncOnly, Targeting, and blocking interactions, the wait guarantees:
+For coordinator-backed Visible priority, SyncOnly, Targeting, Search, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
 3. The projection baseline for that batch has settled.
 
-Residual routed prompts and mulligan retain their named handoff contracts until they migrate.
+Grouping, modal, select-N, payment, ordering, automatic, and unclassified-candidate routes plus mulligan retain their named handoff contracts until they migrate.
 
 Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
 

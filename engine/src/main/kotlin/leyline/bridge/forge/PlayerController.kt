@@ -229,6 +229,13 @@ class PlayerController(
             viewerSeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
             currentSourceEntityId = ::currentSourceEntityId,
             isCastingSpell = { activeSourceIsSpell },
+            currentStackAbilityId = {
+                game.stack
+                    .firstOrNull()
+                    ?.takeIf { it.isAbility }
+                    ?.spellAbility
+                    ?.id
+            },
         )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)

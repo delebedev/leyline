@@ -60,9 +60,26 @@ internal data class PendingInteractionCut(
     val transition: ProjectionTransition?,
 )
 
+/** Exact pre-publication Search cut retained on terminal failure. */
+internal data class PendingSearchCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.SearchWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen Search input retained when materialization itself fails. */
+internal data class SearchMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.SearchWindowValue,
+)
+
 internal class PlaybackTerminalFailure(
     val pendingCut: PendingCut?,
     val diagnostic: MaterializationDiagnostic?,
     val pendingInteractionCut: PendingInteractionCut? = null,
+    val pendingSearchCut: PendingSearchCut? = null,
+    val searchDiagnostic: SearchMaterializationDiagnostic? = null,
     cause: Throwable,
 ) : IllegalStateException("Playback projection terminated", cause)

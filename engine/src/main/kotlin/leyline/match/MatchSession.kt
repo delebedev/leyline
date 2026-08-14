@@ -318,8 +318,7 @@ class MatchSession(
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
-            targetingHandler.onSearchResp(itemsFound) { autoPassEngine.autoPassAndAdvance() }
+            targetingHandler.onSearchResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
     private fun withValidResponse(
@@ -526,15 +525,6 @@ class MatchSession(
     }
 
     override fun sendPriorityState(bridge: GameBridge) = drainCoordinatorFeed()
-
-    override fun sendLegacyPromptState(
-        bridge: GameBridge,
-        revealForSeat: Int,
-    ) {
-        drainCoordinatorFeed()
-        val game = bridge.getGame() ?: return
-        sendBundledGRE(bundleBuilder.stateOnlyDiff(game, counter, revealForSeat).messages)
-    }
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {

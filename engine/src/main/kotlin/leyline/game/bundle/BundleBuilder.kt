@@ -8,6 +8,7 @@ import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderRouteKind
+import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
@@ -84,6 +85,7 @@ class BundleBuilder(
     private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
+    private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -1327,6 +1329,49 @@ class BundleBuilder(
         sourceInstanceId: InstanceId?,
         casterSeatId: SeatId,
     ): TargetingWindowMaterializer.Prepared = targetingWindows.submit(counter, prior, sourceInstanceId, casterSeatId)
+
+    /** Prepare, but do not install, one coordinator-owned library-search window. */
+    internal fun prepareSearchWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: SearchWindowValue,
+    ): SearchWindowMaterializer.Prepared {
+        val pendingSubmittedTargets = bridge.viewerProjectionCursor().pendingSubmittedTargets
+        val supplements =
+            buildList {
+                pendingSubmittedTargets?.let { pending ->
+                    add(ProjectionSupplement.SubmitPendingTargets(pending.spellInstanceId, pending.casterSeatId, pending.version))
+                }
+                window.source
+                    ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
+                    ?.let { add(ProjectionSupplement.ReserveTriggeredAbility(it.forgeAbilityId)) }
+            }
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = seatId,
+                eventsOverride = null,
+            ) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
+        val stateMessages =
+            listOf(
+                makeGRE(GREMessageType.GameStateMessage_695e, diff.gameStateId, counter.nextMsgId()) {
+                    it.gameStateMessage = diff.result.gsm
+                },
+            ) + coinFlipPromptMessages(diff.events.events, diff.gameStateId, counter) +
+                listOf(buildEchoDiffGsm(counter, diff.result.gsm.update, previousGsId = diff.result.gsm.gameStateId))
+        return searchWindows.initial(
+            stateMessages = stateMessages,
+            requestGameStateId = counter.currentGsId(),
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
+    internal fun prepareSearchBaselineReset(prior: ProjectionState): ProjectionTransition = searchWindows.resetBaseline(prior)
 
     /** Legacy SelectTargets presentation for candidate-backed Generic prompts. */
     fun unclassifiedCandidateBundle(

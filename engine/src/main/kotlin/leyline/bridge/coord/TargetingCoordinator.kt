@@ -19,6 +19,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.interaction.ChooseCardsForEffectContext
 import leyline.bridge.interaction.ChooseCardsForEffectPlanner
 import leyline.bridge.interaction.ChooseEntitiesContext
@@ -41,6 +42,7 @@ import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.SearchShape
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 
@@ -69,6 +71,7 @@ class TargetingCoordinator(
     private val viewerSeatId: SeatId = seating.humanSeat,
     private val currentSourceEntityId: () -> Int? = { null },
     private val isCastingSpell: () -> Boolean = { false },
+    private val currentStackAbilityId: () -> Int? = { null },
 ) {
     private val log = LoggerFactory.getLogger(TargetingCoordinator::class.java)
     private val spellAffectorIids = mutableMapOf<Int, Int>()
@@ -124,6 +127,7 @@ class TargetingCoordinator(
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
+                searchSource = searchSource(plan.semantic, sa),
             )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
@@ -262,6 +266,7 @@ class TargetingCoordinator(
                 route = PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true),
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
+                searchSource = searchSource(plan.semantic, sa),
             )
         val indices = bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
@@ -276,6 +281,20 @@ class TargetingCoordinator(
         cards: List<Card>,
         optionCount: Int,
     ): Boolean = cards.size == optionCount && cards.isNotEmpty() && cards.all { it.zone?.zoneType == ZoneType.Library }
+
+    private fun searchSource(
+        semantic: PromptSemantic,
+        ability: SpellAbility?,
+    ): SearchSourceValue? {
+        if (semantic != PromptSemantic.Search) return null
+        val exactStackAbilityId = currentStackAbilityId()
+        return SearchSourceValue(
+            hostCardId = (ability?.hostCard?.id ?: currentSourceEntityId())?.let(::ForgeCardId),
+            forgeAbilityId = exactStackAbilityId ?: ability?.id ?: 0,
+            abilityOnStack = exactStackAbilityId != null,
+            typeCycling = SearchShape.isTypeCycling(ability),
+        )
+    }
 
     fun chooseCardsForEffect(
         sourceList: CardCollectionView,
@@ -310,6 +329,7 @@ class TargetingCoordinator(
             candidateRefs = plan.candidateRefsPolicy.candidateRefs(buildCandidateRefs(sourceList)),
             sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             forcePrompt = plan.forcePrompt,
+            searchSource = searchSource(plan.semantic, sa),
         )
     }
 
@@ -977,6 +997,7 @@ class TargetingCoordinator(
         forcePrompt: Boolean = false,
         costSelectionWeights: List<Int> = emptyList(),
         minSelectionWeight: Int? = null,
+        searchSource: SearchSourceValue? = null,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
@@ -996,6 +1017,7 @@ class TargetingCoordinator(
                 sourceEntityId = sourceEntityId,
                 costSelectionWeights = costSelectionWeights,
                 minSelectionWeight = minSelectionWeight,
+                searchSource = searchSource,
             )
         val indices = bridge.requestChoice(request)
         val result = CardCollection()

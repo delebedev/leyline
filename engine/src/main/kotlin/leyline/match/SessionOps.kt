@@ -22,12 +22,6 @@ interface GreMessageSink {
 
     fun sendPriorityState(bridge: GameBridge) = sendRealGameState(bridge)
 
-    /** Explicit residual publication for routed prompts that need fresh hidden-zone objects. */
-    fun sendLegacyPromptState(
-        bridge: GameBridge,
-        revealForSeat: Int,
-    ) = sendRealGameState(bridge, revealForSeat)
-
     fun sendBundle(result: BundleBuilder.BundleResult)
 
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)

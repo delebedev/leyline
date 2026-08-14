@@ -14,7 +14,6 @@ import leyline.match.OptionalActionHandler
 import leyline.match.PayCostsInteractionHandler
 import leyline.match.PromptResponseSubmitter
 import leyline.match.PuzzleHandler
-import leyline.match.SearchPromptInteractionHandler
 import leyline.match.SessionOps
 import leyline.match.TargetingHandler
 import kotlin.reflect.KClass
@@ -53,7 +52,6 @@ class HandlerConstructorContractTest :
                 NumericInputHandler::class,
                 PayCostsInteractionHandler::class,
                 DeferredCastCostInteractionHandler::class,
-                SearchPromptInteractionHandler::class,
                 PromptResponseSubmitter::class,
                 ActionPerformer::class,
                 PuzzleHandler::class,

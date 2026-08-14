@@ -75,6 +75,10 @@ class InteractivePromptBridge(
     @Volatile
     var targetingRuntime: TargetingInteractionRuntime? = null
 
+    /** Match-scoped owner for the migrated Search route. Null keeps setup bridges inert. */
+    @Volatile
+    var searchRuntime: SearchInteractionRuntime? = null
+
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; shell-owned consumers
@@ -405,10 +409,7 @@ class InteractivePromptBridge(
             return listOf(request.defaultIndex)
         }
 
-        val migratedTargeting = targetingRuntime
-        if (request.route is ResolvedPromptRoute.Targeting && migratedTargeting != null) {
-            return requestTargetingChoice(request, targetingSa, migratedTargeting, configuredTimeoutMs)
-        }
+        requestMigratedChoice(request, targetingSa, configuredTimeoutMs)?.let { return it }
 
         val promptId = UUID.randomUUID().toString()
         val future = CompletableFuture<List<Int>>()
@@ -492,6 +493,42 @@ class InteractivePromptBridge(
             record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
             throw ex
         }
+    }
+
+    private fun requestSearchChoice(
+        request: PromptRequest,
+        runtime: SearchInteractionRuntime,
+        configuredTimeoutMs: Long?,
+    ): List<Int> {
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitSearch(request, configuredTimeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: SearchInteractionTimeoutException) {
+            val fallback = listOf(request.defaultIndex)
+            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    private fun requestMigratedChoice(
+        request: PromptRequest,
+        targetingSa: SpellAbility?,
+        configuredTimeoutMs: Long?,
+    ): List<Int>? {
+        if (request.route is ResolvedPromptRoute.Targeting) {
+            return targetingRuntime?.let { requestTargetingChoice(request, targetingSa, it, configuredTimeoutMs) }
+        }
+        if (request.route is ResolvedPromptRoute.Search) {
+            return searchRuntime?.let { requestSearchChoice(request, it, configuredTimeoutMs) }
+        }
+        return null
     }
 
     private fun isGameLoopThread(): Boolean {
@@ -746,6 +783,8 @@ data class PromptRequest(
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */
     val waterbendCostString: String? = null,
+    /** Frozen source/shape facts for the migrated library-search route. */
+    val searchSource: SearchSourceValue? = null,
 ) {
     /** Diagnostic identity derived from the immutable route. */
     val semantic: PromptSemantic get() = route.semantic

@@ -27,10 +27,18 @@ class SearchPromptSessionTest :
             castSpellByName("Sylvan Ranger") shouldBe true
             passPriority()
 
-            val searchReq =
-                allMessages.lastOrNull { it.hasSearchReq() }?.searchReq
-                    ?: error("Expected SearchReq after resolving Sylvan Ranger")
+            val searchMessage = allMessages.lastOrNull { it.hasSearchReq() } ?: error("Expected SearchReq after resolving Sylvan Ranger")
+            val searchReq = searchMessage.searchReq
             searchReq.itemsSoughtList.shouldNotBeEmpty()
+            check(searchReq.sourceId != 0) { "Triggered search must retain its engine-side source identity" }
+            val hostId =
+                searchMessage.prompt.parametersList
+                    .first()
+                    .numberValue
+            check(hostId != 0) {
+                "Triggered search must retain its host-card identity"
+            }
+            check(searchReq.sourceId != hostId) { "Triggered search ability and host identities must remain distinct" }
             val requestIndex = allMessages.indexOfLast { it.hasSearchReq() }
             val libraryIids = searchReq.itemsSoughtList.toSet()
             check(
