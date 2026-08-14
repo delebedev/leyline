@@ -14,6 +14,22 @@ data class PromptProjectionFacts(
 ) {
     val activeReveal: RevealFact? get() = reveals.firstOrNull()
 
+    /** Freeze one exact reveal as pending for a coordinator-owned prompt cut. */
+    fun withClaimedReveal(key: PromptFactKey): PromptProjectionFacts {
+        var matched = false
+        val claimed =
+            reveals.map { fact ->
+                if (fact.key == key) {
+                    matched = true
+                    fact.copy(hasPendingPrompt = true)
+                } else {
+                    fact
+                }
+            }
+        check(matched) { "Claimed reveal ${key.version} is not active for seat ${key.seatId.value}" }
+        return copy(reveals = claimed)
+    }
+
     data class ChoiceResultFact(
         val key: PromptFactKey,
         val result: ChoiceResult,

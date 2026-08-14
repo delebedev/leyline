@@ -5,6 +5,7 @@ import leyline.bridge.handoff.GroupingInteractionRuntime
 import leyline.bridge.handoff.ManaSourcePaymentRuntime
 import leyline.bridge.handoff.OneShotPayCostsRuntime
 import leyline.bridge.handoff.OrderInteractionRuntime
+import leyline.bridge.handoff.RevealChoiceInteractionRuntime
 import leyline.bridge.handoff.SearchInteractionRuntime
 import leyline.bridge.handoff.StaticChoiceInteractionRuntime
 import leyline.bridge.handoff.TargetingInteractionRuntime
@@ -19,8 +20,10 @@ import leyline.game.PendingGroupingCut
 import leyline.game.PendingManaSourcePaymentCut
 import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingOrderCut
+import leyline.game.PendingRevealChoiceCut
 import leyline.game.PendingSearchCut
 import leyline.game.PendingStaticChoiceCut
+import leyline.game.RevealChoiceMaterializationDiagnostic
 import leyline.game.SearchMaterializationDiagnostic
 import leyline.game.StaticChoiceMaterializationDiagnostic
 
@@ -53,6 +56,11 @@ internal fun MatchCutCoordinator.cardSelectRuntime(seatId: SeatId): CardSelectIn
 internal fun MatchCutCoordinator.staticChoiceRuntime(seatId: SeatId): StaticChoiceInteractionRuntime {
     check(seatId == humanSeat) { "StaticChoice interaction runtime is only registered for the human seat" }
     return staticChoices
+}
+
+internal fun MatchCutCoordinator.revealChoiceRuntime(seatId: SeatId): RevealChoiceInteractionRuntime {
+    check(seatId == humanSeat) { "RevealChoice interaction runtime is only registered for the human seat" }
+    return revealChoices
 }
 
 internal fun MatchCutCoordinator.manaSourcePaymentRuntime(seatId: SeatId): ManaSourcePaymentRuntime {
@@ -120,3 +128,9 @@ internal fun MatchCutCoordinator.failStaticChoice(
     pending: PendingStaticChoiceCut? = null,
     diagnostic: StaticChoiceMaterializationDiagnostic? = null,
 ): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingStaticChoice = pending, staticChoiceDiagnostic = diagnostic))
+
+internal fun MatchCutCoordinator.failRevealChoice(
+    cause: Throwable,
+    pending: PendingRevealChoiceCut? = null,
+    diagnostic: RevealChoiceMaterializationDiagnostic? = null,
+): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingRevealChoice = pending, revealChoiceDiagnostic = diagnostic))

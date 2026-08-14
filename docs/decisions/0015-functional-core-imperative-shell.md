@@ -124,7 +124,7 @@ The first implementation work is already visible in current types:
 - `MatchCutCoordinator` now owns journal close, immutable cut materialization,
   compilation, projection commit, and viewer feed publication for migrated
   playback, Visible priority/action windows, SyncOnly state cuts, explicitly bound Targeting,
-  Search, Top/Bottom Order and Scry/Surveil Grouping windows, card-backed and static-enum SelectN windows, all PayCosts windows, and Optional, Numeric, and Damage blocking interactions. Safe direct
+  Search, Top/Bottom Order and Scry/Surveil Grouping windows, card-backed, static-enum, and reveal-backed SelectN windows, all PayCosts windows, and Optional, Numeric, and Damage blocking interactions. Safe direct
   priority skips close no journal and allocate no protocol state. Event
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.

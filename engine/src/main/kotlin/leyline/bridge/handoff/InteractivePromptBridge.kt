@@ -96,6 +96,10 @@ class InteractivePromptBridge(
     @Volatile
     var staticChoiceRuntime: StaticChoiceInteractionRuntime? = null
 
+    /** Match-scoped owner for reveal-backed SelectN choices. */
+    @Volatile
+    var revealChoiceRuntime: RevealChoiceInteractionRuntime? = null
+
     /** Match-scoped owner for iterative Convoke, Improvise, and Waterbend payments. */
     @Volatile
     var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
@@ -474,6 +478,7 @@ class InteractivePromptBridge(
         check(route !is ResolvedPromptRoute.Grouping) { "Grouping routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.CardSelect) { "CardSelect routes require their match-scoped runtime" }
         check(route !is ResolvedPromptRoute.StaticChoice) { "StaticChoice routes require their match-scoped runtime" }
+        check(route !is ResolvedPromptRoute.RevealChoice) { "RevealChoice routes require their match-scoped runtime" }
     }
 
     /** Route one iterative mana-source payment with its exact Forge option handles. */
@@ -660,50 +665,48 @@ class InteractivePromptBridge(
         }
     }
 
-    private fun fallbackOrder(
-        indices: List<Int>,
-        candidateHandles: List<Card>,
-    ): OrderInteractionResult {
-        val ordered = (indices.filter(candidateHandles.indices::contains) + candidateHandles.indices).distinct()
-        return OrderInteractionResult(ordered, ordered.map(candidateHandles::get))
-    }
-
-    private fun fallbackGrouping(
+    /** Route one reveal-backed SelectN request through its exact journal entry and card handles. */
+    fun requestRevealChoice(
         request: PromptRequest,
-        selectedIndices: List<Int>,
         candidateHandles: List<Card>,
-    ): GroupingInteractionResult {
-        val awayIndices =
-            if (candidateHandles.size == 1 && request.options.size == 2) {
-                if (selectedIndices.firstOrNull() == 1) listOf(0) else emptyList()
-            } else {
-                selectedIndices.filter(candidateHandles.indices::contains).distinct()
-            }
-        return GroupingInteractionResult(
-            interactionId = "",
-            context = (request.route as ResolvedPromptRoute.Grouping).context,
-            topHandles = candidateHandles.filterIndexed { index, _ -> index !in awayIndices },
-            awayHandles = candidateHandles.filterIndexed { index, _ -> index in awayIndices },
-            timedOut = false,
-        )
+        revealEntry: PromptJournal.RevealEntry,
+        recordExiledUnderSource: Boolean,
+    ): RevealChoiceInteractionResult {
+        check(request.route is ResolvedPromptRoute.RevealChoice) { "RevealChoice route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            val indices =
+                try {
+                    requestChoice(request)
+                } catch (ex: Exception) {
+                    journal.clearActiveReveal(revealEntry)
+                    throw ex
+                }
+            return fallbackRevealChoice(
+                indices,
+                request,
+                candidateHandles,
+                revealEntry,
+                recordExiledUnderSource,
+                journal,
+            )
+        }
+        val runtime = checkNotNull(revealChoiceRuntime) { "RevealChoice runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitSelection(request, candidateHandles, revealEntry, recordExiledUnderSource, timeoutMs)
+            record(
+                request,
+                if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
+                result.optionIndices,
+                System.currentTimeMillis() - startMs,
+            )
+            if (result.timedOut) timeoutListener?.invoke() else prioritySignal?.markPromptResolved()
+            result
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
     }
-
-    private fun fallbackCardSelect(
-        indices: List<Int>,
-        candidateHandles: List<Card>,
-    ): CardSelectInteractionResult {
-        val selected = indices.filter(candidateHandles.indices::contains).distinct()
-        return CardSelectInteractionResult(selected, selected.map(candidateHandles::get))
-    }
-
-    private fun fallbackOneShot(
-        indices: List<Int>,
-        candidateHandles: List<Card>,
-    ): OneShotPayCostsResult =
-        OneShotPayCostsResult(
-            indices,
-            indices.mapNotNull(candidateHandles::getOrNull),
-        )
 
     /** Replace provisional payment facts with the exact map returned to Forge. */
     fun recordFinalManaSourcePayment(value: FinalManaSourcePaymentValue) {

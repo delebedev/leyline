@@ -162,6 +162,51 @@ class DiscardInteractionTest :
             response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard) shouldHaveSize 0
         }
 
+        test("targeted reveal with no matching cards emits an empty SelectNReq and resumes") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Duress
+                humanbattlefield=Swamp
+                humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+                aihand=Walking Corpse;Swamp
+                ailibrary=Island;Island;Island;Island;Island
+                """,
+                name = "Duress reveal with no eligible card",
+                turns = 10,
+            )
+
+            castSpellByName("Duress") shouldBe true
+            passPriority()
+
+            val req = lastSelectNReq()
+            assertSoftly {
+                req.context shouldBe SelectionContext.Resolution_a163
+                req.minSel shouldBe 0
+                req.maxSel shouldBe 0
+                req.idsList shouldHaveSize 0
+                req.unfilteredIdsList shouldHaveSize 2
+            }
+
+            respondToSelectN(emptyList())
+
+            assertSoftly {
+                ai.getZone(ForgeZoneType.Hand).cards shouldHaveSize 2
+                ai.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
+                game().stack.isEmpty shouldBe true
+                harness.bridge
+                    .promptBridge(SeatId(1))
+                    .journal
+                    .activeRevealEntry() shouldBe null
+                harness.bridge.cutCoordinator.revealChoices
+                    .current() shouldBe null
+            }
+        }
+
         test("Deep-Cavern Bat reveal exile emits SelectNReq") {
             startPuzzle(
                 """

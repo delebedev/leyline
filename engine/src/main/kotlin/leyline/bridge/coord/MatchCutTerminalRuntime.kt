@@ -13,10 +13,12 @@ import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
 import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingOrderCut
+import leyline.game.PendingRevealChoiceCut
 import leyline.game.PendingSearchCut
 import leyline.game.PendingStaticChoiceCut
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.PromptTerminalFailureContext
+import leyline.game.RevealChoiceMaterializationDiagnostic
 import leyline.game.SearchMaterializationDiagnostic
 import leyline.game.StaticChoiceMaterializationDiagnostic
 
@@ -38,6 +40,8 @@ internal class MatchCutTerminalRuntime(
         val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
         val pendingStaticChoice: PendingStaticChoiceCut? = null,
         val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
+        val pendingRevealChoice: PendingRevealChoiceCut? = null,
+        val revealChoiceDiagnostic: RevealChoiceMaterializationDiagnostic? = null,
         val pendingManaSourcePayment: PendingManaSourcePaymentCut? = null,
         val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
         val pendingOneShotPayCosts: PendingOneShotPayCostsCut? = null,
@@ -79,6 +83,8 @@ internal class MatchCutTerminalRuntime(
                         cardSelectDiagnostic = context.cardSelectDiagnostic,
                         pendingStaticChoiceCut = context.pendingStaticChoice,
                         staticChoiceDiagnostic = context.staticChoiceDiagnostic,
+                        pendingRevealChoiceCut = context.pendingRevealChoice,
+                        revealChoiceDiagnostic = context.revealChoiceDiagnostic,
                         pendingManaSourcePaymentCut = context.pendingManaSourcePayment,
                         manaSourcePaymentDiagnostic = context.manaSourcePaymentDiagnostic,
                         pendingOneShotPayCostsCut = context.pendingOneShotPayCosts,
@@ -96,6 +102,7 @@ internal class MatchCutTerminalRuntime(
                 owner.grouping.terminate(terminal)
                 owner.cardSelect.terminate(terminal)
                 owner.staticChoices.terminate(terminal)
+                owner.revealChoices.terminate(terminal)
                 owner.manaSourcePayments.terminate(terminal)
                 owner.oneShotPayCosts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)

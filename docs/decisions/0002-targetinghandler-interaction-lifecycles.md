@@ -28,7 +28,7 @@ Current residual responsibilities include:
 - Modal `CastingTimeOptionsReq` and `CastingTimeOptionsResp` handling.
 - Deferred cast cost prompts: optional costs, hybrid mana type choices, and alternate additional cost choices.
 
-Target selection, Search, Top/Bottom Order, card-backed SelectN, static-enum SelectN, and all PayCosts
+Target selection, Search, Top/Bottom Order, card-backed SelectN, static-enum SelectN, reveal-backed SelectN, and all PayCosts
 payments are match-coordinator-owned lifecycles with value-only session adapters.
 
 This produces a large, high-churn file whose name no longer describes most of
@@ -133,6 +133,18 @@ When kept cards require ordering, the arrangement remains pending until the orde
 window returns, then records the final top order. Timeout retires the exact window and
 returns the existing default partition; publication and delivery failures use the match
 terminal path.
+
+### Reveal Choice Lifecycle
+
+Bound RevealChoice routes are coordinator-owned. The engine thread freezes the exact
+reveal journal version, owner, full revealed set, selectable card handles, source,
+cardinality, and default. `MatchRevealChoiceInteractionRuntime` marks that reveal pending
+in the frozen projection facts and commits the state and `SelectNReq` together before
+signalling. The session submits only correlated instance IDs. Completion maps them to
+the retained handles, stages any source-linked exile, and compare-clears only the
+claimed reveal before releasing the engine wait. Timeout and zero-selectable windows
+use the same finalization; publication and delivery failures clear the claimed version
+without an exile side effect.
 
 ### Cost Interaction Lifecycles
 

@@ -25,13 +25,13 @@ class PromptJournalTest :
             }
         }
 
-        test("activeReveal returns last RevealStarted until RevealEnded") {
+        test("activeReveal returns last RevealStarted until its exact version is cleared") {
             val j = PromptJournal()
             j.activeReveal() shouldBe null
             val r = PromptSideEffect.RevealStarted(listOf(ForgeCardId(7)), SeatId(1))
             j.record(r)
             j.activeReveal() shouldBe r
-            j.endActiveReveal()
+            j.clearActiveReveal(checkNotNull(j.activeRevealEntry()))
             j.activeReveal() shouldBe null
         }
 
@@ -126,7 +126,7 @@ class PromptJournalTest :
             j.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(1)), SeatId(1)))
             j.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(2)), SeatId(2)))
             j.activeReveal()?.ownerSeatId shouldBe SeatId(2)
-            j.endActiveReveal()
+            j.clearActiveReveal(checkNotNull(j.activeRevealEntry()))
             j.activeReveal() shouldBe null
         }
 
@@ -134,15 +134,15 @@ class PromptJournalTest :
             val j = PromptJournal()
             j.record(PromptSideEffect.LegendVictim(ForgeCardId(42)))
             j.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(1)), SeatId(1)))
-            j.endActiveReveal()
+            j.clearActiveReveal(checkNotNull(j.activeRevealEntry()))
             // Reveal end must not drain unrelated effects.
             j.consumeLegendVictim(ForgeCardId(42)) shouldBe true
         }
 
-        test("activeReveal peek returns the latest RevealStarted after endActiveReveal + restart") {
+        test("activeReveal peek returns the latest RevealStarted after exact clear and restart") {
             val j = PromptJournal()
             j.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(1)), SeatId(1)))
-            j.endActiveReveal()
+            j.clearActiveReveal(checkNotNull(j.activeRevealEntry()))
             j.activeReveal() shouldBe null
             j.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(2)), SeatId(2)))
             j.activeReveal()?.ownerSeatId shouldBe SeatId(2)

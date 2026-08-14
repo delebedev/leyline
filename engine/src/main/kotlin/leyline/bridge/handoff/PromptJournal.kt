@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Per-seat typed journal of prompt side-effects. Engine thread writes via
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong
  *   record duplicates for the same id within a single prompt resolution.
  * - `currentReveal` — ambient singleton: at most one reveal-choose is active
  *   at a time. [record] of [PromptSideEffect.RevealStarted] replaces the slot;
- *   [endActiveReveal] and [record] of [PromptSideEffect.RevealEnded] clear it.
+ *   [clearActiveReveal] compare-clears the exact version after completion.
  * - `currentStash` — ambient singleton: last-writer-wins for the
  *   [PromptSideEffect.OptionalCostStash] decision. [consumeOptionalCostStash]
  *   drains.
@@ -68,8 +69,7 @@ class PromptJournal {
     private val nextVersion = AtomicLong()
     private val drains = ConcurrentLinkedDeque<DrainEntry>()
 
-    @Volatile
-    private var currentReveal: RevealEntry? = null
+    private val currentReveal = AtomicReference<RevealEntry?>()
 
     @Volatile
     private var currentStash: List<Int>? = null
@@ -95,8 +95,7 @@ class PromptJournal {
             is PromptSideEffect.ChoiceResult,
             -> drains.add(DrainEntry(version, effect))
             is PromptSideEffect.RevealStarted ->
-                currentReveal = RevealEntry(version, effect.copy(allHandCardIds = effect.allHandCardIds.toList()))
-            PromptSideEffect.RevealEnded -> currentReveal = null
+                currentReveal.set(RevealEntry(version, effect.copy(allHandCardIds = effect.allHandCardIds.toList())))
             is PromptSideEffect.OptionalCostStash -> currentStash = effect.indices
             is PromptSideEffect.KeywordCostStash -> currentKeywordStash = effect.decisionsByKeyword
             is PromptSideEffect.HybridManaStash -> currentHybridManaStash = effect.choices
@@ -174,9 +173,9 @@ class PromptJournal {
     }
 
     /** Peek the active reveal (non-draining), or null. O(1). */
-    fun activeReveal(): PromptSideEffect.RevealStarted? = currentReveal?.reveal
+    fun activeReveal(): PromptSideEffect.RevealStarted? = currentReveal.get()?.reveal
 
-    fun activeRevealEntry(): RevealEntry? = currentReveal
+    fun activeRevealEntry(): RevealEntry? = currentReveal.get()
 
     fun snapshotChoiceResults(): List<ChoiceResultEntry> =
         drains.mapNotNull { entry ->
@@ -188,13 +187,8 @@ class PromptJournal {
         if (versions.isNotEmpty()) drains.removeIf { it.version in versions && it.effect is PromptSideEffect.ChoiceResult }
     }
 
-    /** Force-end any active reveal (stale-clear path). Idempotent. */
-    fun endActiveReveal() {
-        currentReveal = null
-    }
-
     fun clearActiveReveal(entry: RevealEntry) {
-        if (currentReveal?.version == entry.version) currentReveal = null
+        currentReveal.compareAndSet(entry, null)
     }
 
     /** Consume the stashed optional cost indices, or null. */
@@ -258,7 +252,7 @@ class PromptJournal {
 
     fun resetForPuzzle() {
         drains.clear()
-        currentReveal = null
+        currentReveal.set(null)
         currentStash = null
         currentKeywordStash = null
         currentHybridManaStash = null

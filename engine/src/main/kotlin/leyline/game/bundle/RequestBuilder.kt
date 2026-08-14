@@ -90,13 +90,12 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for residual reveal, resolution, and Learn prompts.
+     * Used for residual resolution and Learn prompts.
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
      *
-     * Context/listType vary by prompt type:
-     * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
+     * Context/listType vary by prompt type.
      */
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -119,12 +118,8 @@ object RequestBuilder {
                 .setMaxWeight(Int.MAX_VALUE)
                 .setIdType(IdType.InstanceId_ab2c)
 
-        // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
-        val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
-        if (route.envelopeKind != SelectNEnvelopeKind.RevealChoose || hasValidChoices) {
-            builder.setMinSel(selectNMinSel(prompt, route))
-            builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
-        }
+        builder.setMinSel(selectNMinSel(prompt, route))
+        builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
 
         builder.addSelectNIds(prompt, bridge)
         route.configureInnerPrompt(builder, prompt, bridge)
@@ -158,7 +153,7 @@ object RequestBuilder {
         prompt.request.candidateRefs.forEach { ref ->
             addIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }
-        // unfilteredIds — all revealed cards (superset of ids) for reveal-choose prompts.
+        // unfilteredIds — all viewed cards for residual resolution prompts.
         prompt.request.unfilteredRefs.forEach { ref ->
             addUnfilteredIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
         }

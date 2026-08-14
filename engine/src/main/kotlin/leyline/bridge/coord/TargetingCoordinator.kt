@@ -37,7 +37,6 @@ import leyline.bridge.interaction.sourceEntityId
 import leyline.bridge.interaction.unfilteredRefs
 import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.RevealZone
@@ -57,7 +56,7 @@ import org.slf4j.LoggerFactory
  * and translates the client response back into Forge types. A few methods also
  * record typed [PromptSideEffect]s on the bridge's [leyline.bridge.handoff.PromptJournal]
  * ([PromptSideEffect.LegendVictim],
- * [PromptSideEffect.RevealStarted]/[PromptSideEffect.RevealEnded]) that downstream
+ * [PromptSideEffect.RevealStarted]) that downstream
  * classes (`GameEventCollector`, `StateMapper`, `TargetingHandler`) consume.
  *
  * PCHuman's `super.<method>` calls stay on `PlayerController` — the
@@ -89,7 +88,7 @@ class TargetingCoordinator(
         hasDelayedReveal: Boolean,
     ): T? {
         if (optionList.isEmpty()) return null
-        val reveal = bridge.journal.activeReveal()
+        val reveal = bridge.journal.activeRevealEntry()
         val revealedCards = optionList.filterIsInstance<Card>()
         val plan =
             ChooseSingleEntityPlanner.plan(
@@ -177,7 +176,7 @@ class TargetingCoordinator(
         isOptional: Boolean,
         sa: SpellAbility?,
         title: String?,
-        reveal: PromptSideEffect.RevealStarted,
+        reveal: leyline.bridge.handoff.PromptJournal.RevealEntry,
     ): T? {
         val message = revealChoiceMessage(sa, title)
         val chosen =
@@ -326,8 +325,7 @@ class TargetingCoordinator(
         max: Int,
         isOptional: Boolean,
     ): CardCollectionView {
-        if (sourceList.isEmpty()) return CardCollection()
-        val reveal = bridge.journal.activeReveal()
+        val reveal = bridge.journal.activeRevealEntry()
         val plan =
             ChooseCardsForEffectPlanner.plan(
                 ChooseCardsForEffectContext(
@@ -340,6 +338,7 @@ class TargetingCoordinator(
             val effectiveMin = if (isOptional) 0 else min
             return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
         }
+        if (sourceList.isEmpty()) return CardCollection()
         if (plan.mandatoryChoicePolicy.shouldAutoResolve(isOptional, sourceList.size, min)) return sourceList
         val effectiveMin = if (isOptional) 0 else min
         return chooseCardsViaBridge(
@@ -400,10 +399,9 @@ class TargetingCoordinator(
         min: Int,
         max: Int,
     ): CardCollection {
-        val reveal = bridge.journal.activeReveal()
+        val reveal = bridge.journal.activeRevealEntry()
         if (reveal != null) {
-            // Reveal-choose path (Duress, Thoughtseize): validCards is filtered,
-            // reveal.allHandCardIds has the full hand for unfilteredIds.
+            // Reveal-choose path: validCards is filtered while the journal entry owns the full hand.
             return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
         }
         return chooseCardsViaBridge(
@@ -425,7 +423,7 @@ class TargetingCoordinator(
         max: Int,
         visibleToChooser: CardCollectionView,
     ): CardCollection {
-        val reveal = bridge.journal.activeReveal() ?: revealFromVisibleHand(discarder, visibleToChooser)
+        val reveal = bridge.journal.activeRevealEntry() ?: revealFromVisibleHand(discarder, visibleToChooser)
         if (reveal != null) {
             return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
         }
@@ -443,12 +441,13 @@ class TargetingCoordinator(
     private fun revealFromVisibleHand(
         discarder: Player,
         visibleToChooser: CardCollectionView,
-    ): PromptSideEffect.RevealStarted? {
+    ): leyline.bridge.handoff.PromptJournal.RevealEntry? {
         if (visibleToChooser.isEmpty()) return null
         val visibleIds = visibleToChooser.map { ForgeCardId(it.id) }
         if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
         val ownerSeat = if (discarder.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        return PromptSideEffect.RevealStarted(visibleIds, ownerSeat)
+        TargetingCoordinator.startReveal(bridge, visibleIds, ownerSeat)
+        return bridge.journal.activeRevealEntry()
     }
 
     fun chooseCardsToDiscardToMaximumHandSize(
@@ -1042,70 +1041,41 @@ class TargetingCoordinator(
     }
 
     /**
-     * Reveal-choose bridge path: builds a prompt with filtered [candidateRefs] (selectable)
-     * and unfiltered [unfilteredRefs] (all revealed cards) for the SelectNReq wire shape.
+     * Reveal-choose bridge path: binds exact selectable handles to the active reveal entry.
      */
     private fun chooseCardsViaBridgeForReveal(
         filteredCards: CardCollectionView,
         min: Int,
         max: Int,
         sa: SpellAbility?,
-        reveal: PromptSideEffect.RevealStarted,
+        reveal: leyline.bridge.handoff.PromptJournal.RevealEntry,
         message: String = revealChoiceMessage(sa, null),
         recordExiledUnderSource: Boolean = false,
     ): CardCollection {
-        try {
-            val candidateRefs = buildCandidateRefs(filteredCards)
-            val unfilteredRefs =
-                reveal.allHandCardIds.mapIndexed { idx, forgeCardId ->
-                    PromptCandidateRefDto(idx, PromptCandidateKind.Card, forgeCardId.value)
-                }
-            val effectiveMin = if (filteredCards.isEmpty()) 0 else min.coerceAtLeast(0)
-            val effectiveMax = if (filteredCards.isEmpty()) 0 else max.coerceAtMost(filteredCards.size)
-            val labels = filteredCards.map { it.name }
-            val request =
-                PromptRequest(
-                    promptType = "choose_cards",
-                    message = message,
-                    options = labels,
-                    min = effectiveMin,
-                    max = effectiveMax.coerceAtLeast(effectiveMin),
-                    defaultIndex = 0,
-                    candidateRefs = candidateRefs,
-                    route = PromptRouteResolver.resolve(PromptSemantic.RevealChoose),
-                    unfilteredRefs = unfilteredRefs,
-                    sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
-                )
-            val indices = bridge.requestChoice(request)
-            if (recordExiledUnderSource) {
-                recordRevealChoiceExileSources(indices, candidateRefs, request.sourceEntityId)
-            }
-            val result = CardCollection()
-            for (idx in indices) {
-                if (idx in 0 until filteredCards.size) {
-                    result.add(filteredCards.get(idx) as Card)
-                }
-            }
-            return result
-        } finally {
-            TargetingCoordinator.endReveal(bridge)
-        }
-    }
-
-    private fun recordRevealChoiceExileSources(
-        selectedIndices: List<Int>,
-        candidateRefs: List<PromptCandidateRefDto>,
-        sourceEntityId: Int?,
-    ) {
-        val source = sourceEntityId?.let(::ForgeCardId) ?: return
-        val selectedCardIds =
-            selectedIndices.mapNotNull { idx ->
-                candidateRefs
-                    .firstOrNull { it.index == idx }
-                    ?.entityId
-                    ?.let(::ForgeCardId)
-            }
-        selectedCardIds.forEach { cardId -> bridge.journal.record(PromptSideEffect.ExiledUnderSource(cardId, source)) }
+        val candidateRefs = buildCandidateRefs(filteredCards)
+        val effectiveMin = if (filteredCards.isEmpty()) 0 else min.coerceAtLeast(0)
+        val effectiveMax = if (filteredCards.isEmpty()) 0 else max.coerceAtMost(filteredCards.size)
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = message,
+                options = filteredCards.map { it.name },
+                min = effectiveMin,
+                max = effectiveMax.coerceAtLeast(effectiveMin),
+                defaultIndex = 0,
+                candidateRefs = candidateRefs,
+                route = PromptRouteResolver.resolve(PromptSemantic.RevealChoose),
+                sourceEntityId = sa?.hostCard?.id ?: currentSourceEntityId()?.takeIf { it > 0 },
+            )
+        return CardCollection(
+            bridge
+                .requestRevealChoice(
+                    request,
+                    filteredCards.filterIsInstance<Card>(),
+                    reveal,
+                    recordExiledUnderSource,
+                ).handles,
+        )
     }
 
     private fun revealChoiceMessage(
@@ -1151,10 +1121,6 @@ class TargetingCoordinator(
             ownerSeat: SeatId,
         ) {
             prompt.journal.record(PromptSideEffect.RevealStarted(cardIds, ownerSeat))
-        }
-
-        fun endReveal(prompt: InteractivePromptBridge) {
-            prompt.journal.endActiveReveal()
         }
     }
 }

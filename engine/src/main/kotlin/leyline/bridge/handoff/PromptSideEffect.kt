@@ -35,9 +35,6 @@ sealed interface PromptSideEffect {
         val ownerSeatId: SeatId,
     ) : PromptSideEffect
 
-    /** Paired with RevealStarted — reveal-choose completed. */
-    data object RevealEnded : PromptSideEffect
-
     /** Stashed optional cost decision (kicker, buyback, etc.). Indices into OptionalCostValue list. */
     data class OptionalCostStash(
         val indices: List<Int>,

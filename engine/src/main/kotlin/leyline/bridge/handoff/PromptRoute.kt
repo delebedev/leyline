@@ -44,6 +44,11 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic = descriptor.semantic
     }
 
+    /** Reveal-backed SelectN choice owned by its exact journal entry. */
+    data class RevealChoice(
+        override val semantic: PromptSemantic,
+    ) : ResolvedPromptRoute
+
     data class PayCosts(
         val descriptor: PayCostsPromptRoute,
     ) : ResolvedPromptRoute {
@@ -111,7 +116,6 @@ enum class SelectNInnerPrompt {
 
 enum class SelectNEnvelopeKind {
     Default,
-    RevealChoose,
     Resolution,
     LearnLesson,
 }
@@ -190,8 +194,7 @@ object PromptRouteResolver {
             PromptSemantic.OrderGeneric -> ResolvedPromptRoute.AutoResolve(semantic)
             PromptSemantic.SelectNLegendRule -> cardSelect(semantic, CardSelectKind.LegendRule)
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
-            PromptSemantic.RevealChoose ->
-                selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.GenericSelectN, SelectNEnvelopeKind.RevealChoose)
+            PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)
             PromptSemantic.SelectNResolution ->
                 selectN(semantic, dynamicResolutionShape, SelectNInnerPrompt.SelectNInnerParameter, SelectNEnvelopeKind.Resolution)
             PromptSemantic.ManifestDread -> cardSelect(semantic, CardSelectKind.ManifestDread)

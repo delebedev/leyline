@@ -15,7 +15,6 @@ internal fun SelectNPromptRoute.envelope(
 ): SelectNEnvelope =
     when (envelopeKind) {
         SelectNEnvelopeKind.Default -> SelectNEnvelope.default(req)
-        SelectNEnvelopeKind.RevealChoose -> SelectNEnvelope.revealChoose(req)
         SelectNEnvelopeKind.Resolution -> SelectNEnvelope.resolution(req)
         SelectNEnvelopeKind.LearnLesson -> SelectNEnvelope.learnLesson(req, learnPromptId())
     }
