@@ -2,7 +2,6 @@ package leyline.match
 
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
@@ -195,11 +194,6 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) = promptResponseSubmitter.onSelectN(greMsg, autoPass)
 
-    fun onOrderResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) = promptResponseSubmitter.onOrderResp(greMsg, autoPass)
-
     fun onEffectCost(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
@@ -321,9 +315,11 @@ class TargetingHandler(
                     PromptResult.AUTO_RESOLVED
                 }
 
+                is ResolvedPromptRoute.Order ->
+                    error("Order prompts must be published by MatchOrderInteractionRuntime")
+
                 is ResolvedPromptRoute.Grouping,
                 is ResolvedPromptRoute.ModalChoice,
-                is ResolvedPromptRoute.Order,
                 is ResolvedPromptRoute.PayCosts,
                 is ResolvedPromptRoute.Search,
                 is ResolvedPromptRoute.SelectN,
@@ -378,8 +374,7 @@ class TargetingHandler(
             }
 
             is ResolvedPromptRoute.Order -> {
-                sendOrderReq(pendingPrompt, route.kind)
-                true
+                error("Order prompts must be published by MatchOrderInteractionRuntime")
             }
 
             is ResolvedPromptRoute.AutoResolve -> false
@@ -835,15 +830,6 @@ class TargetingHandler(
                 route,
             ) { req -> route.envelope(req) { learnPromptId(pendingPrompt) } }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    private fun sendOrderReq(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        kind: OrderRouteKind,
-    ) {
-        val result = bundles.bundleBuilder.orderBundle(ctx.game, counters.counter, pendingPrompt, kind)
-        Tap.outboundTemplate("OrderReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
     }
 

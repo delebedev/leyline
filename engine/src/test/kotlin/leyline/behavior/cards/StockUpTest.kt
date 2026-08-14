@@ -143,6 +143,11 @@ class StockUpTest :
             assertSoftly {
                 orderMsg.type shouldBe GREMessageType.OrderReq_695e
                 orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_BOTTOM
+                cardByIid(
+                    orderMsg.prompt.parametersList
+                        .single()
+                        .numberValue,
+                )?.name shouldBe "Stock Up"
                 orderMsg.allowCancel shouldBe AllowCancel.No_a526
                 orderReq.orderingContext shouldBe OrderingContext.OrderingForBottom
                 orderReq.idsList shouldContainExactlyInAnyOrder tailIids

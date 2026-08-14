@@ -42,6 +42,11 @@ class BrainstormOrderTest :
             assertSoftly {
                 orderMsg.type shouldBe GREMessageType.OrderReq_695e
                 orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
+                cardByIid(
+                    orderMsg.prompt.parametersList
+                        .single()
+                        .numberValue,
+                )?.name shouldBe "Brainstorm"
                 orderReq.orderingContext shouldBe OrderingContext.None_a89f
                 orderNames shouldContainExactlyInAnyOrder selectedNames
                 orderReq.idsList.forEach { iid ->

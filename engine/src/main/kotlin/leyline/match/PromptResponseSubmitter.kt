@@ -32,18 +32,6 @@ internal class PromptResponseSubmitter(
         submit(pendingPrompt, selectedIndices, autoPass)
     }
 
-    fun onOrderResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
-        val pendingPrompt = pendingPromptOrWarn("OrderResp", PromptResponseKind.Order) ?: return
-        val orderedIds = greMsg.orderResp.idsList
-        val selectedIndices = mapSelectedInstanceIdsToPromptIndices(orderedIds, pendingPrompt)
-
-        log.info("PromptResponseSubmitter: OrderResp ids={} indices={}", orderedIds, selectedIndices)
-        submit(pendingPrompt, selectedIndices, autoPass)
-    }
-
     fun onEffectCost(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,

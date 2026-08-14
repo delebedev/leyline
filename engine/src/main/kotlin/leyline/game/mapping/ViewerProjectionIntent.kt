@@ -77,12 +77,11 @@ class OrderPromptProjection private constructor(
     }
 }
 
-/** Versioned shell observation for a pending synthetic hand-to-library move. */
+/** Shell observation for a synthetic hand-to-library move owned by one Order window. */
 class OrderZoneMoveFact private constructor(
     val seatId: SeatId,
     forgeCardIds: List<ForgeCardId>,
     val putOnTop: Boolean,
-    val version: Long,
 ) {
     val forgeCardIds: List<ForgeCardId> = forgeCardIds.frozenCopy()
 
@@ -91,18 +90,16 @@ class OrderZoneMoveFact private constructor(
             other is OrderZoneMoveFact &&
             seatId == other.seatId &&
             forgeCardIds == other.forgeCardIds &&
-            putOnTop == other.putOnTop &&
-            version == other.version
+            putOnTop == other.putOnTop
 
-    override fun hashCode(): Int = 31 * (31 * (31 * seatId.hashCode() + forgeCardIds.hashCode()) + putOnTop.hashCode()) + version.hashCode()
+    override fun hashCode(): Int = 31 * (31 * seatId.hashCode() + forgeCardIds.hashCode()) + putOnTop.hashCode()
 
     companion object {
         fun of(
             seatId: SeatId,
             forgeCardIds: List<ForgeCardId>,
             putOnTop: Boolean,
-            version: Long,
-        ): OrderZoneMoveFact = OrderZoneMoveFact(seatId, forgeCardIds, putOnTop, version)
+        ): OrderZoneMoveFact = OrderZoneMoveFact(seatId, forgeCardIds, putOnTop)
     }
 }
 

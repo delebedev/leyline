@@ -123,8 +123,8 @@ The first implementation work is already visible in current types:
   and `FrameInput` directly with no Forge or `GameBridge`.
 - `MatchCutCoordinator` now owns journal close, immutable cut materialization,
   compilation, projection commit, and viewer feed publication for migrated
-  playback, Visible priority/action windows, SyncOnly state cuts, explicitly bound Targeting
-  and Search windows, all PayCosts windows, and Optional, Numeric, and Damage blocking interactions. Safe direct
+  playback, Visible priority/action windows, SyncOnly state cuts, explicitly bound Targeting,
+  Search, and Top/Bottom Order windows, all PayCosts windows, and Optional, Numeric, and Damage blocking interactions. Safe direct
   priority skips close no journal and allocate no protocol state. Event
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.
@@ -132,7 +132,7 @@ The first implementation work is already visible in current types:
   `Generic` prompts remain a named `UnclassifiedCandidate` residual. Runtime
   ownership is selected from this immutable route, never nullable live handles.
 - `PhaseHandler` provides broad step completion plus narrow UI-neutral combat
-  hooks. Grouping, modal, select-N, ordering, and automatic
+  hooks. Grouping, modal, select-N, generic ordering, and automatic
   prompt routes, mulligan, lifecycle output, and multi-view compilation remain
   outside the coordinator boundary.
 

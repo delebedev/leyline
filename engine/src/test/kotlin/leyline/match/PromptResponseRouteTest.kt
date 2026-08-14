@@ -38,7 +38,6 @@ class PromptResponseRouteTest :
                         representativeRoutes.getValue(PromptSemantic.Generic),
                     ),
                 PromptResponseKind.Search to setOf(representativeRoutes.getValue(PromptSemantic.Search)),
-                PromptResponseKind.Order to setOf(representativeRoutes.getValue(PromptSemantic.OrderForBottom)),
                 PromptResponseKind.Targeting to
                     setOf(
                         representativeRoutes.getValue(PromptSemantic.Generic),

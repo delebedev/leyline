@@ -184,6 +184,56 @@ class RuntimeBoundaryTest :
             ) { "Unexpected targeting-window preparers: ${owners.sorted()}" }
         }
 
+        test("ordered-card windows are coordinator-owned and session responses stay value-only") {
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.game\\.bundle\\.OrderWindowMaterializer(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameMatching("leyline\\.bridge\\.handoff\\.Order(Window|Candidate|Move)Value(\\$.*)?")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("forge..")
+                .check(classes)
+
+            val sessionHandler = Files.readString(sourceRoot.resolve("leyline/match/OrderInteractionHandler.kt"))
+            listOf("import forge.", "findCard(", "getZone(", "getForgeCardId(").forEach { forbidden ->
+                check(forbidden !in sessionHandler)
+            }
+            val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
+            check("request.route !is ResolvedPromptRoute.Order" in bridge)
+            val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
+            listOf("sendOrderReq", "orderBundle", "fun onOrderResp").forEach { removed -> check(removed !in targeting) }
+            val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))
+            check("buildOrderReq" !in requestBuilder)
+
+            val owners = mutableSetOf<String>()
+            val stream = Files.walk(sourceRoot.resolve("leyline"))
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        if ("prepareOrderWindow(" in Files.readString(file)) {
+                            owners += sourceRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+            check(
+                owners ==
+                    setOf(
+                        "leyline/bridge/coord/MatchOrderInteractionRuntime.kt",
+                        "leyline/game/bundle/BundleBuilder.kt",
+                    ),
+            ) { "Unexpected Order-window preparers: ${owners.sorted()}" }
+        }
+
         test("iterative mana-source payments are coordinator-owned and session values stay frozen") {
             noClasses()
                 .that()

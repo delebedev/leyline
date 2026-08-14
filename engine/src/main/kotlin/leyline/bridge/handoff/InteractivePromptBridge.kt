@@ -80,6 +80,10 @@ class InteractivePromptBridge(
     @Volatile
     var searchRuntime: SearchInteractionRuntime? = null
 
+    /** Match-scoped owner for top/bottom ordered-card windows. */
+    @Volatile
+    var orderRuntime: OrderInteractionRuntime? = null
+
     /** Match-scoped owner for iterative Convoke, Improvise, and Waterbend payments. */
     @Volatile
     var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
@@ -94,29 +98,6 @@ class InteractivePromptBridge(
      * materialize and acknowledge them around GSM assembly.
      */
     val journal: PromptJournal = PromptJournal()
-
-    data class PendingOrderZoneMove(
-        val seatId: SeatId,
-        val forgeCardIds: List<ForgeCardId>,
-        val putOnTop: Boolean,
-        val version: Long = 0,
-    )
-
-    private val pendingOrderZoneMoves = ConcurrentLinkedQueue<PendingOrderZoneMove>()
-    private val nextPendingOrderZoneMoveVersion = AtomicLong()
-
-    fun recordPendingOrderZoneMove(move: PendingOrderZoneMove) {
-        pendingOrderZoneMoves.add(move.copy(version = nextPendingOrderZoneMoveVersion.incrementAndGet()))
-    }
-
-    fun findPendingOrderZoneMove(
-        seatId: SeatId,
-        forgeCardIds: List<ForgeCardId>,
-    ): PendingOrderZoneMove? = pendingOrderZoneMoves.firstOrNull { it.seatId == seatId && it.forgeCardIds == forgeCardIds }
-
-    fun acknowledgePendingOrderZoneMove(version: Long) {
-        pendingOrderZoneMoves.removeIf { it.version == version }
-    }
 
     // --- Pending TargetSpec data (recorded after chooseTargetsFor completes) ---
 
@@ -344,8 +325,6 @@ class InteractivePromptBridge(
     fun resetForPuzzle() {
         synchronized(_history) { _history.clear() }
         revealQueue.clear()
-        pendingOrderZoneMoves.clear()
-        nextPendingOrderZoneMoveVersion.set(0)
         pendingTargetSpecs.clear()
         journal.resetForPuzzle()
         pending.set(null)
@@ -420,6 +399,9 @@ class InteractivePromptBridge(
 
         check(request.route !is ResolvedPromptRoute.PayCosts) {
             "PayCosts routes require their match-scoped runtime"
+        }
+        check(request.route !is ResolvedPromptRoute.Order) {
+            "Order routes require their match-scoped runtime"
         }
 
         requestMigratedChoice(request, targetingSa, configuredTimeoutMs)?.let { return it }
@@ -539,6 +521,42 @@ class InteractivePromptBridge(
             record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
             throw ex
         }
+    }
+
+    /** Route one ordered-card request with its exact Forge option handles. */
+    fun requestOrder(
+        request: PromptRequest,
+        candidateHandles: List<Card>,
+        move: OrderMoveIntent? = null,
+    ): OrderInteractionResult {
+        check(request.route is ResolvedPromptRoute.Order) { "Order route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return fallbackOrder(requestChoice(request), candidateHandles)
+        }
+        val runtime = checkNotNull(orderRuntime) { "Order runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitOrder(request, candidateHandles, move, timeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result
+        } catch (_: OrderInteractionTimeoutException) {
+            val fallback = fallbackOrder(listOf(request.defaultIndex), candidateHandles)
+            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    private fun fallbackOrder(
+        indices: List<Int>,
+        candidateHandles: List<Card>,
+    ): OrderInteractionResult {
+        val ordered = (indices.filter(candidateHandles.indices::contains) + candidateHandles.indices).distinct()
+        return OrderInteractionResult(ordered, ordered.map(candidateHandles::get))
     }
 
     private fun fallbackOneShot(

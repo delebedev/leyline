@@ -21,6 +21,7 @@ import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
 import leyline.bridge.coord.manaSourcePaymentRuntime
 import leyline.bridge.coord.oneShotPayCostsRuntime
+import leyline.bridge.coord.orderRuntime
 import leyline.bridge.coord.searchRuntime
 import leyline.bridge.coord.targetingRuntime
 import leyline.bridge.forge.RevealTrackingAiController
@@ -207,9 +208,6 @@ class GameBridge(
             it.version in transition.acknowledgements.consumedEarthbendResolutionVersions
         }
         consumePromptFacts(transition.acknowledgements.promptFacts)
-        transition.acknowledgements.pendingOrderMove?.let { key ->
-            promptBridge(key.seatId).acknowledgePendingOrderZoneMove(key.version)
-        }
     }
 
     private fun <T> updateProjection(block: (ProjectionState.Editor) -> T): T =
@@ -509,6 +507,7 @@ class GameBridge(
     ) {
         promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
         promptBridge(seatId).searchRuntime = cutCoordinator.searchRuntime(seatId)
+        promptBridge(seatId).orderRuntime = cutCoordinator.orderRuntime(seatId)
         promptBridge(seatId).manaSourcePaymentRuntime = cutCoordinator.manaSourcePaymentRuntime(seatId)
         promptBridge(seatId).oneShotPayCostsRuntime = cutCoordinator.oneShotPayCostsRuntime(seatId)
         val collector = GameEventCollector(this)
@@ -1338,6 +1337,7 @@ class GameBridge(
             cutCoordinator.currentBlockingInteraction() != null ||
             cutCoordinator.targeting.current() != null ||
             cutCoordinator.search.current() != null ||
+            cutCoordinator.order.current() != null ||
             cutCoordinator.manaSourcePayments.current() != null ||
             cutCoordinator.oneShotPayCosts.current() != null
 
@@ -1588,6 +1588,7 @@ class GameBridge(
         promptBridges.values.forEach {
             it.targetingRuntime = null
             it.searchRuntime = null
+            it.orderRuntime = null
             it.manaSourcePaymentRuntime = null
             it.oneShotPayCostsRuntime = null
         }

@@ -13,6 +13,10 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.OrderInteractionResult
+import leyline.bridge.handoff.OrderInteractionRuntime
+import leyline.bridge.handoff.OrderMoveIntent
+import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
@@ -65,7 +69,18 @@ private fun abilitySub(
 
 private val testSeating = Seating(humanSeat = SeatId(1), familiarSeat = SeatId(2))
 
-private fun testPromptBridge(): InteractivePromptBridge = InteractivePromptBridge(timeoutMs = 1, strict = false)
+private fun testPromptBridge(): InteractivePromptBridge =
+    InteractivePromptBridge(timeoutMs = 1, strict = false).also { bridge ->
+        bridge.orderRuntime =
+            object : OrderInteractionRuntime {
+                override fun awaitOrder(
+                    request: PromptRequest,
+                    candidateHandles: List<Card>,
+                    move: OrderMoveIntent?,
+                    timeoutMs: Long?,
+                ): OrderInteractionResult = OrderInteractionResult(candidateHandles.indices.toList(), candidateHandles)
+            }
+    }
 
 private fun orderCards(): CardCollection =
     CardCollection(

@@ -89,7 +89,7 @@ for simple non-target prompt responses:
 - Pending prompt lookup with the existing timeout/race warning behavior.
 - Client id to prompt-index mapping using `PromptResponseMapper`.
 - `submitResponse`, `awaitPriority`, and `autoPass` sequencing.
-- Shared response paths for `SelectNResp`, `OrderResp`, and `EffectCostResp`.
+- Shared response paths for `SelectNResp` and residual `EffectCostResp` routes.
 - Small choice-result side-effect recording if it remains local to Select-N responses.
 
 It does not own:
@@ -111,6 +111,17 @@ and delivery failures use the match terminal path.
 
 `TargetingHandler` retains only thin `SearchResp` dispatch. It does not read the
 library, stack, spell ability, or instance-id registry for this lifecycle.
+
+### Ordered-Card Interaction Lifecycle
+
+Bound top- and bottom-library Order routes are coordinator-owned. The engine
+thread freezes the source, exact card options, and any pending hand-to-library
+move. `MatchOrderInteractionRuntime` materializes and commits the state change
+and `OrderReq` as one cut before signalling. The session submits only the
+correlated instance-id permutation; the runtime resolves it to the retained
+original handles before releasing the engine wait. Timeout retires the window
+and returns the default-first order, while publication and delivery failures
+use the match terminal path.
 
 ### Cost Interaction Lifecycles
 
