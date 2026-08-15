@@ -194,6 +194,31 @@ object SnapshotHydration {
         val unresolvedIds = mutableSetOf<Int>()
         val projectedIds = mutableSetOf<Int>()
 
+        fun tokenEntry(
+            obj: GameObjectInfo,
+            name: String,
+        ): String {
+            val types =
+                (obj.superTypesList + obj.cardTypesList + obj.subtypesList)
+                    .map { it.name.substringBefore('_') }
+                    .filterNot { it.startsWith("None") }
+                    .ifEmpty { listOf("Creature") }
+            val color =
+                obj.colorList
+                    .singleOrNull()
+                    ?.name
+                    ?.substringBefore('_')
+            return buildString {
+                append("t:").append(name.replace(',', ' '))
+                append(",P:").append(obj.power.value)
+                append(",T:").append(obj.toughness.value)
+                append(",Cost:0")
+                color?.let { append(",Color:").append(it) }
+                append(",Types:").append(types.joinToString("-"))
+                append(",Keywords:,Image:")
+            }
+        }
+
         fun cardEntry(obj: GameObjectInfo): String? {
             val name = cardRepository.findNameByGrpId(obj.grpId)
             if (name == null) {
@@ -207,7 +232,7 @@ object SnapshotHydration {
             }
             projectedIds += obj.instanceId
             return buildString {
-                append(name)
+                append(if (obj.type == GameObjectType.Token) tokenEntry(obj, name) else name)
                 append("|Id:").append(obj.instanceId)
                 if (obj.isTapped) append("|Tapped")
                 if (obj.hasSummoningSickness) append("|SummonSick")
