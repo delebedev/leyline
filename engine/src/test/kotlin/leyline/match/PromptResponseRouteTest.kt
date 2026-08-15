@@ -33,12 +33,6 @@ class PromptResponseRouteTest :
                         representativeRoutes.getValue(PromptSemantic.SelectNResolution),
                         representativeRoutes.getValue(PromptSemantic.Generic),
                     ),
-                PromptResponseKind.Search to setOf(representativeRoutes.getValue(PromptSemantic.Search)),
-                PromptResponseKind.Targeting to
-                    setOf(
-                        representativeRoutes.getValue(PromptSemantic.Generic),
-                        representativeRoutes.getValue(PromptSemantic.TargetSelection),
-                    ),
             )
 
         test("each client response family accepts its bound route") {

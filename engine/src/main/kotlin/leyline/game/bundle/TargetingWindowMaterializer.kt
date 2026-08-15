@@ -3,6 +3,7 @@ package leyline.game.bundle
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.InstanceId
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.state.PendingSubmittedTargets
 import leyline.game.state.ProjectionState
@@ -143,7 +144,13 @@ internal class TargetingWindowMaterializer(
             selection.prompt = targetPrompt(window.targetPromptId ?: PromptIds.SELECT_TARGETS, sourceInstanceId)
         }
         window.candidates.forEach { candidate ->
-            val instanceId = candidate.instanceId(projection) ?: return@forEach
+            val instanceId =
+                candidate.instanceId(projection)
+                    ?: if (candidate is TargetingCandidateValue.StackObject) {
+                        error("Missing projection instance id for stack target option ${candidate.optionIndex}")
+                    } else {
+                        return@forEach
+                    }
             when {
                 candidate.optionIndex in selectedOptionIndices ->
                     selection.addTargets(
@@ -181,12 +188,17 @@ internal class TargetingWindowMaterializer(
         when (this) {
             is TargetingCandidateValue.Card -> projection.identities.forgeIdToInstanceId[forgeCardId]?.value
             is TargetingCandidateValue.Player -> seatId.value
+            is TargetingCandidateValue.StackObject ->
+                projection.identities.forgeIdToInstanceId[
+                    if (isSpell) sourceForgeCardId else FrameIdResolver.triggerStackAbilityForgeId(forgeAbilityId),
+                ]?.value
         }
 
     private fun TargetingCandidateValue.highlight(chooserSeatId: leyline.bridge.types.SeatId): HighlightType =
         when (this) {
             is TargetingCandidateValue.Card -> HighlightType.Tepid
             is TargetingCandidateValue.Player -> if (seatId == chooserSeatId) HighlightType.Cold else HighlightType.Hot
+            is TargetingCandidateValue.StackObject -> HighlightType.Tepid
         }
 
     private fun targetPrompt(

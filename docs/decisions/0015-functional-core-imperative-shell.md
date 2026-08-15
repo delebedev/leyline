@@ -128,9 +128,11 @@ The first implementation work is already visible in current types:
   priority skips close no journal and allocate no protocol state. Event
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.
-- Forge's target-selection producer binds `TargetSelection`; candidate-backed
-  `Generic` prompts remain a named `UnclassifiedCandidate` residual. Runtime
-  ownership is selected from this immutable route, never nullable live handles.
+- Forge's target-selection producer binds `TargetSelection` and freezes exact
+  stack-object candidates before publication; candidate-backed `Generic`
+  prompts remain a named `UnclassifiedCandidate` residual. Runtime ownership is
+  selected from this immutable route, while a nullable live targeting ability
+  remains only in the Forge shell for legality and final resolution.
 - `PhaseHandler` provides broad step completion plus narrow UI-neutral combat
   hooks. Incomplete, mixed, or chooser-hidden resolution choices remain the named
   `UnclassifiedEntityChoice` residual. Candidate-free Generic choices default synchronously,

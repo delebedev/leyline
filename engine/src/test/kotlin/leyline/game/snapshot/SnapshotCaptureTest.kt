@@ -2,11 +2,14 @@ package leyline.game.snapshot
 
 import forge.card.GamePieceType
 import forge.game.card.Card
+import forge.game.card.CardFactory
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.BoardTest
@@ -106,6 +109,30 @@ class SnapshotCaptureTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
 
             snap.objects.getValue(ForgeCardId(paradigm.id)).hasParadigmKeyword shouldBe true
+        }
+
+        test("copied spell remains projectable as a distinct stack card") {
+            val board =
+                startWithBoard { _, player, _ ->
+                    addCard("Grizzly Bears", player, ZoneType.Hand)
+                }
+            val source =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val original = source.firstSpellAbility.also { it.activatingPlayer = board.human }
+            board.game.stack.addAndUnfreeze(original)
+            val copy = CardFactory.copySpellAbilityAndPossiblyHost(original, original, board.human)
+            board.game.stack.addAndUnfreeze(copy)
+            val copyId = ForgeCardId(copy.hostCard.id)
+            val snap = SnapshotCapture.run(board.game, board.bridge, "test", 0)
+
+            assertSoftly {
+                snap.zones.getValue(ZoneIds.STACK).contents shouldContain copyId
+                snap.objects.getValue(copyId).isProjectable shouldBe true
+                copyId shouldNotBe ForgeCardId(source.id)
+            }
         }
 
         test("discarded snapshot capture does not advance token or instance identity") {

@@ -45,14 +45,18 @@ class MatchTargetingInteractionRuntimeTest :
         fun request(
             opponentEntityId: Int,
             triggered: Boolean = false,
+            minTargets: Int = 1,
+            maxTargets: Int = 1,
+            finishOptionIndex: Int? = null,
         ): PromptRequest =
             PromptRequest(
                 promptType = "choose_entities",
                 message = "Choose target",
-                options = listOf("Opponent"),
-                min = 1,
-                max = 1,
+                options = if (finishOptionIndex == null) listOf("Opponent") else listOf("Opponent", "Other", "[FINISH TARGETING]"),
+                min = minTargets,
+                max = maxTargets,
                 candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Player, opponentEntityId)),
+                targetingFinishOptionIndex = finishOptionIndex,
                 route = ResolvedPromptRoute.Targeting(PromptSemantic.TargetSelection),
                 isTriggeredAbility = triggered,
             )
@@ -200,6 +204,51 @@ class MatchTargetingInteractionRuntimeTest :
             }
             coordinator.targeting.beforeTimeoutClaim = null
             coordinator.targeting.afterCommandClaim = null
+        }
+
+        test("mandatory and optional finish preserve callback identity while cancel stays empty") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+
+            fun runChoice(minTargets: Int): Pair<AtomicReference<List<Int>>, CountDownLatch> {
+                val result = AtomicReference<List<Int>>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    result.set(
+                        coordinator
+                            .targetingRuntime(SeatId(1))
+                            .awaitTargeting(
+                                request(board.ai.id, minTargets = minTargets, finishOptionIndex = 2),
+                                null,
+                                null,
+                                timeoutMs = 3_000,
+                            ),
+                    )
+                    finished.countDown()
+                }.start()
+                return result to finished
+            }
+
+            val (finishResult, finishFinished) = runChoice(minTargets = 1)
+            val finishWindow = awaitPublished(coordinator)
+            coordinator.drain(SeatId(1)).flatten().single { it.hasSelectTargetsReq() }
+            val finish = coordinator.targeting.submitTargets(finishWindow.interactionId, finishWindow.gameStateId).shouldNotBeNull()
+            coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
+            assertSoftly {
+                coordinator.targeting.acknowledgeDelivery(finish.interactionId, checkNotNull(finish.deliveryToken)) shouldBe true
+                finishFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                finishResult.get() shouldContainExactly listOf(2)
+            }
+
+            val (cancelResult, cancelFinished) = runChoice(minTargets = 0)
+            val cancelWindow = awaitPublished(coordinator)
+            coordinator.drain(SeatId(1)).flatten().single { it.hasSelectTargetsReq() }
+            assertSoftly {
+                coordinator.targeting.cancel(cancelWindow.interactionId, cancelWindow.gameStateId).shouldNotBeNull()
+                cancelFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                cancelResult.get() shouldBe emptyList()
+            }
         }
 
         test("deadline fallback retires the window and rejects late commands") {

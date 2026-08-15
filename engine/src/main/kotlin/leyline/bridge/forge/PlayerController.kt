@@ -3,6 +3,7 @@ package leyline.bridge.forge
 import forge.LobbyPlayer
 import forge.ai.LobbyPlayerAi
 import forge.card.ColorSet
+import forge.card.GamePieceType
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.Game
@@ -46,6 +47,8 @@ import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import forge.game.spellability.SpellAbilityView
+import forge.game.spellability.StackItemView
 import forge.game.spellability.TargetChoices
 import forge.game.staticability.StaticAbility
 import forge.game.trigger.WrappedAbility
@@ -72,6 +75,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
@@ -237,6 +241,7 @@ class PlayerController(
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
     private var activeSpellSourceId: Int? = null
     private var activeSourceIsSpell: Boolean = false
+    private var activeStackTargetingAbility: SpellAbility? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -256,9 +261,17 @@ class PlayerController(
             ClientGuiGame(
                 bridge,
                 currentStackSourceId = {
-                    currentSourceEntityId()
+                    activeStackTargetingAbility?.let(::targetingSourceCardId)
                 },
-                stackCardRefs = { game.stack.map { it.sourceCard.id to it.sourceCard.name } },
+                stackTargetingActive = { activeStackTargetingAbility != null },
+                currentStackTargetingAbility = { activeStackTargetingAbility },
+                currentStackTargetIndex = {
+                    activeStackTargetingAbility?.let(targetingCoordinator::targetGroupIndex) ?: 1
+                },
+                currentStackTargetPromptId = {
+                    activeStackTargetingAbility?.let(targetingCoordinator::effectiveTargetPromptId)
+                },
+                stackTargetCandidate = ::stackTargetCandidate,
             ),
         )
     }
@@ -909,9 +922,59 @@ class PlayerController(
     // the user interaction portion.
 
     override fun chooseTargetsFor(currentAbility: SpellAbility): Boolean {
-        val chosen = super.chooseTargetsFor(currentAbility)
+        val previousStackTargetingAbility = activeStackTargetingAbility
+        activeStackTargetingAbility =
+            currentAbility
+                .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+        val chosen =
+            try {
+                super.chooseTargetsFor(currentAbility)
+            } finally {
+                activeStackTargetingAbility = previousStackTargetingAbility
+            }
         if (chosen) targetingCoordinator.recordCompletedTargetSpec(currentAbility)
         return chosen
+    }
+
+    internal fun stackTargetCandidate(
+        optionIndex: Int,
+        option: Any?,
+    ): TargetingCandidateValue.StackObject? {
+        val stackEntry =
+            when (option) {
+                is StackItemView -> game.stack.firstOrNull { it.id == option.id }
+                is CardView -> {
+                    val matches = game.stack.filter { it.sourceCard.id == option.id && it.isSpell }
+                    require(matches.size <= 1) {
+                        "Ambiguous stack spell for card option ${option.id}: ${matches.map { it.id }}"
+                    }
+                    matches.singleOrNull()
+                }
+                is SpellAbilityView -> {
+                    val matches = game.stack.filter { it.spellAbility.id == option.id }
+                    require(matches.size <= 1) {
+                        "Ambiguous stack ability for option ${option.id}: ${matches.map { it.id }}"
+                    }
+                    matches.singleOrNull()
+                }
+                else -> null
+            } ?: return null
+        val ability = stackEntry.spellAbility
+        return TargetingCandidateValue.StackObject(
+            optionIndex = optionIndex,
+            stackInstanceId = stackEntry.id,
+            sourceForgeCardId = ForgeCardId(stackEntry.sourceCard.id),
+            forgeAbilityId = ability.id,
+            isSpell = stackEntry.isSpell,
+            isAbility = stackEntry.isAbility,
+            isTrigger = stackEntry.isTrigger,
+            abilityIdentity = bridge.resolveAbilityIdentity(ability),
+        )
+    }
+
+    private fun targetingSourceCardId(ability: SpellAbility): Int? {
+        val host = ability.hostCard ?: return null
+        return if (ability.isSpell && host.gamePieceType == GamePieceType.COPIED_SPELL) host.copiedPermanent?.id ?: host.id else host.id
     }
 
     override fun chooseNewTargetsFor(
@@ -919,7 +982,16 @@ class PlayerController(
         filter: Predicate<GameObject>?,
         optional: Boolean,
     ): TargetChoices? {
-        val selected = super.chooseNewTargetsFor(ability, filter, optional)
+        val previousStackTargetingAbility = activeStackTargetingAbility
+        activeStackTargetingAbility =
+            ability
+                .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+        val selected =
+            try {
+                super.chooseNewTargetsFor(ability, filter, optional)
+            } finally {
+                activeStackTargetingAbility = previousStackTargetingAbility
+            }
         if (selected != null) {
             val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
             targetingCoordinator.recordCompletedTargetSpec(targetAbility)
