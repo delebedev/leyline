@@ -12,9 +12,6 @@ import leyline.game.OrderMaterializationDiagnostic
 import leyline.game.PendingOrderCut
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchOrderInteractionRuntime(
@@ -26,10 +23,13 @@ internal class MatchOrderInteractionRuntime(
         val cut: PendingOrderCut,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
-        val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
-    )
+        override val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
+    ) : SinglePromptWindow<OrderInteractionResult> {
+        override val interactionId: String get() = published.interactionId
+        override val gameStateId: Int get() = published.gameStateId
+    }
 
-    private var window: Window? = null
+    private val windows = SinglePromptWindowState<Window, PendingOrderCut, OrderInteractionResult>(owner, Window::cut)
 
     internal var beforeInstall: (() -> Unit)? = null
     internal var afterInstall: (() -> Unit)? = null
@@ -51,7 +51,7 @@ internal class MatchOrderInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedOrderInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
+    fun current(): PublishedOrderInteraction? = windows.current()?.published
 
     fun submit(
         interactionId: String,
@@ -60,32 +60,20 @@ internal class MatchOrderInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = matching(interactionId, gameStateId) ?: return false
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
             if (orderedInstanceIds.size != pending.value.candidates.size) return false
             if (orderedInstanceIds.size != orderedInstanceIds.distinct().size) return false
             val options = orderedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
             if (options.toSet() != pending.handlesByOption.keys) return false
             val result = OrderInteractionResult(options, options.map(pending.handlesByOption::getValue))
-            window = null
-            pending.future.complete(result)
+            windows.completeLocked(pending, result)
         }
 
-    fun terminate(cause: Throwable) {
-        synchronized(owner.feedLock) {
-            window?.future?.completeExceptionally(cause)
-            window = null
-        }
-    }
+    fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun reset() {
-        synchronized(owner.feedLock) { window = null }
-    }
+    fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingOrderCut? =
-        window
-            ?.takeUnless { it.future.isDone }
-            ?.cut
-            .also { afterDeliveryCutLookup?.invoke() }
+    internal fun pendingCutLocked(): PendingOrderCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
     private fun publish(initial: OrderWindowCapture.Initial): Window {
         owner.beforePublicationLock?.invoke()
@@ -94,7 +82,7 @@ internal class MatchOrderInteractionRuntime(
                 synchronized(owner.bridge.projectionBuildLock) {
                     synchronized(owner.feedLock) {
                         owner.ensureOpen()
-                        check(window == null) { "An Order interaction is already pending" }
+                        windows.ensureEmptyLocked("An Order interaction is already pending")
                         val feed = owner.feed(owner.humanSeat)
                         val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                         val interactionId = UUID.randomUUID().toString()
@@ -147,7 +135,7 @@ internal class MatchOrderInteractionRuntime(
                             if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
                             owner.failOrder(ex, exact)
                         }
-                        window = created
+                        windows.installLocked(created)
                         created
                     }
                 }
@@ -159,36 +147,5 @@ internal class MatchOrderInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): OrderInteractionResult =
-        try {
-            if (timeoutMs == null) pending.future.get() else pending.future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (_: TimeoutException) {
-            beforeTimeoutClaim?.invoke()
-            synchronized(owner.feedLock) {
-                if (window === pending && !pending.future.isDone) {
-                    window = null
-                    pending.future.completeExceptionally(OrderInteractionTimeoutException())
-                }
-            }
-            completedValue(pending)
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
-
-    private fun completedValue(pending: Window): OrderInteractionResult =
-        try {
-            pending.future.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
-
-    private fun matching(
-        interactionId: String,
-        gameStateId: Int,
-    ): Window? {
-        val pending = window ?: return null
-        if (pending.future.isDone) return null
-        if (pending.published.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
-        return pending
-    }
+    ): OrderInteractionResult = windows.await(pending, timeoutMs, ::OrderInteractionTimeoutException, beforeTimeoutClaim)
 }

@@ -104,7 +104,7 @@ class PlaybackSafePointBoundaryTest :
             assertSoftly {
                 registrations.size shouldBe 3
                 registrations.zip(launches).all { (registration, launch) -> registration in 0 until launch } shouldBe true
-                source shouldContain "it.searchRuntime = null"
+                source shouldContain "it.runtimeBindings = leyline.bridge.handoff.PromptRuntimeBindings()"
             }
         }
     })

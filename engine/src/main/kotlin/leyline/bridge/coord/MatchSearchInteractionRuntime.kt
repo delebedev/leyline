@@ -10,9 +10,6 @@ import leyline.game.PendingSearchCut
 import leyline.game.SearchMaterializationDiagnostic
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /** Exact library-search lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchSearchInteractionRuntime(
@@ -23,11 +20,14 @@ internal class MatchSearchInteractionRuntime(
         val value: SearchWindowValue,
         val cut: PendingSearchCut,
         val optionByInstanceId: Map<Int, Int>,
-        val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    )
+        override val future: CompletableFuture<List<Int>> = CompletableFuture(),
+    ) : SinglePromptWindow<List<Int>> {
+        override val interactionId: String get() = published.interactionId
+        override val gameStateId: Int get() = published.gameStateId
+    }
 
     private val capture = SearchWindowCapture(owner)
-    private var window: Window? = null
+    private val windows = SinglePromptWindowState<Window, PendingSearchCut, List<Int>>(owner, Window::cut)
 
     internal var beforeInstall: (() -> Unit)? = null
     internal var afterInstall: (() -> Unit)? = null
@@ -50,13 +50,9 @@ internal class MatchSearchInteractionRuntime(
         return await(pending, timeoutMs)
     }
 
-    fun current(): PublishedSearchInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
+    fun current(): PublishedSearchInteraction? = windows.current()?.published
 
-    internal fun pendingCutLocked(): PendingSearchCut? =
-        window
-            ?.takeUnless { it.future.isDone }
-            ?.cut
-            .also { afterDeliveryCutLookup?.invoke() }
+    internal fun pendingCutLocked(): PendingSearchCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
     fun submit(
         interactionId: String,
@@ -66,7 +62,7 @@ internal class MatchSearchInteractionRuntime(
         synchronized(owner.bridge.projectionBuildLock) {
             synchronized(owner.feedLock) {
                 owner.ensureOpen()
-                val pending = matching(interactionId, gameStateId) ?: return false
+                val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
                 if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
                 val selectedOptions =
                     if (selectedInstanceIds.isEmpty()) {
@@ -78,28 +74,20 @@ internal class MatchSearchInteractionRuntime(
                     }
                 resetBaseline()
                 afterBaselineResetBeforeRelease?.invoke()
-                window = null
-                pending.future.complete(selectedOptions)
+                windows.completeLocked(pending, selectedOptions)
             }
         }
 
-    fun terminate(cause: Throwable) {
-        synchronized(owner.feedLock) {
-            window?.future?.completeExceptionally(cause)
-            window = null
-        }
-    }
+    fun terminate(cause: Throwable) = windows.terminate(cause)
 
     fun failDelivery(cause: Throwable): Nothing =
         synchronized(owner.feedLock) {
-            val pending = window?.takeUnless { it.future.isDone }?.cut
+            val pending = windows.pendingCutLocked()
             afterDeliveryCutLookup?.invoke()
             pending?.let { owner.failSearch(cause, it) } ?: owner.fail(cause)
         }
 
-    fun reset() {
-        synchronized(owner.feedLock) { window = null }
-    }
+    fun reset() = windows.reset()
 
     private fun publish(value: SearchWindowValue): Window {
         owner.beforePublicationLock?.invoke()
@@ -108,7 +96,7 @@ internal class MatchSearchInteractionRuntime(
                 synchronized(owner.bridge.projectionBuildLock) {
                     synchronized(owner.feedLock) {
                         owner.ensureOpen()
-                        check(window == null) { "A search interaction is already pending" }
+                        windows.ensureEmptyLocked("A search interaction is already pending")
                         val feed = owner.feed(owner.humanSeat)
                         val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                         val interactionId = UUID.randomUUID().toString()
@@ -163,7 +151,7 @@ internal class MatchSearchInteractionRuntime(
                             if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
                             owner.failSearch(ex, exact)
                         }
-                        window = created
+                        windows.installLocked(created)
                         created
                     }
                 }
@@ -176,31 +164,21 @@ internal class MatchSearchInteractionRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): List<Int> =
-        try {
-            if (timeoutMs == null) pending.future.get() else pending.future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (_: TimeoutException) {
-            beforeTimeoutClaim?.invoke()
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    if (window === pending && !pending.future.isDone) {
-                        resetBaseline()
-                        afterBaselineResetBeforeRelease?.invoke()
-                        window = null
-                        pending.future.completeExceptionally(SearchInteractionTimeoutException())
-                    }
+        windows.await(
+            pending = pending,
+            timeoutMs = timeoutMs,
+            timeoutException = ::SearchInteractionTimeoutException,
+            beforeTimeoutClaim = beforeTimeoutClaim,
+            timeoutClaim = { claim ->
+                synchronized(owner.bridge.projectionBuildLock) {
+                    synchronized(owner.feedLock) { claim() }
                 }
-            }
-            completedValue(pending)
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
-
-    private fun completedValue(pending: Window): List<Int> =
-        try {
-            pending.future.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
+            },
+            beforeTimeoutCompleteLocked = {
+                resetBaseline()
+                afterBaselineResetBeforeRelease?.invoke()
+            },
+        )
 
     private fun resetBaseline() {
         val transition = owner.feed(owner.humanSeat).builder.prepareSearchBaselineReset(owner.bridge.projectionStateSnapshot())
@@ -209,15 +187,5 @@ internal class MatchSearchInteractionRuntime(
         } catch (ex: Exception) {
             owner.fail(ex)
         }
-    }
-
-    private fun matching(
-        interactionId: String,
-        gameStateId: Int,
-    ): Window? {
-        val pending = window ?: return null
-        if (pending.future.isDone) return null
-        if (pending.published.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
-        return pending
     }
 }

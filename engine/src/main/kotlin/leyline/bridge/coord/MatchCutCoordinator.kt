@@ -46,17 +46,20 @@ internal class MatchCutCoordinator(
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
     internal val interactions = MatchBlockingInteractionRuntime(this)
-    internal val targeting = MatchTargetingInteractionRuntime(this)
-    internal val compatibilityCostSelection = MatchCompatibilityCostSelectionRuntime(this)
-    internal val search = MatchSearchInteractionRuntime(this)
-    internal val order = MatchOrderInteractionRuntime(this)
-    internal val grouping = MatchGroupingInteractionRuntime(this)
-    internal val cardSelect = MatchCardSelectInteractionRuntime(this)
-    internal val staticChoices = MatchStaticChoiceInteractionRuntime(this)
-    internal val revealChoices = MatchRevealChoiceInteractionRuntime(this)
-    internal val modalChoices = MatchModalChoiceRuntime(this)
-    internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
-    internal val oneShotPayCosts = MatchOneShotPayCostsRuntime(this)
+    internal val prompts = MatchPromptRuntimeSet(this)
+
+    // Test-facing compatibility accessors. Production composition uses [prompts].
+    internal val targeting get() = prompts.targeting
+    internal val compatibilityCostSelection get() = prompts.compatibilityCostSelection
+    internal val search get() = prompts.search
+    internal val order get() = prompts.order
+    internal val grouping get() = prompts.grouping
+    internal val cardSelect get() = prompts.cardSelect
+    internal val staticChoices get() = prompts.staticChoices
+    internal val revealChoices get() = prompts.revealChoices
+    internal val modalChoices get() = prompts.modalChoices
+    internal val manaSourcePayments get() = prompts.manaSourcePayments
+    internal val oneShotPayCosts get() = prompts.oneShotPayCosts
 
     private val terminal = MatchCutTerminalRuntime(this)
 
@@ -185,20 +188,7 @@ internal class MatchCutCoordinator(
 
     /** Terminalize every owned waiter and reject later cuts/interactions. */
     fun shutdown(cause: Throwable = CancellationException("Match projection coordinator shut down")) {
-        val failure = synchronized(feedLock) { terminal.current() ?: terminal.terminate(cause) }
-        interactions.terminate(failure)
-        actions.terminate()
-        targeting.terminate(failure)
-        compatibilityCostSelection.terminate(failure)
-        search.terminate(failure)
-        order.terminate(failure)
-        grouping.terminate(failure)
-        cardSelect.terminate(failure)
-        staticChoices.terminate(failure)
-        revealChoices.terminate(failure)
-        modalChoices.terminate(failure)
-        manaSourcePayments.terminate(failure)
-        oneShotPayCosts.terminate(failure)
+        synchronized(feedLock) { terminal.current() ?: terminal.terminate(cause) }
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
         bridge.prioritySignal.signal()
     }
@@ -208,17 +198,7 @@ internal class MatchCutCoordinator(
             check(feeds.isEmpty()) { "Cannot reset coordinator with registered viewers" }
             terminal.reset()
             actions.reset()
-            targeting.reset()
-            compatibilityCostSelection.reset()
-            search.reset()
-            order.reset()
-            grouping.reset()
-            cardSelect.reset()
-            staticChoices.reset()
-            revealChoices.reset()
-            modalChoices.reset()
-            manaSourcePayments.reset()
-            oneShotPayCosts.reset()
+            prompts.reset()
         }
     }
 
@@ -417,18 +397,7 @@ internal class MatchCutCoordinator(
         pendingInteraction: PendingInteractionCut? = null,
     ): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingInteraction = pendingInteraction))
 
-    internal fun failDelivery(cause: Throwable): Nothing =
-        synchronized(feedLock) {
-            oneShotPayCosts.pendingCutLocked()?.let { failOneShotPayCosts(cause, it) }
-            manaSourcePayments.pendingCutLocked()?.let { failManaSourcePayment(cause, it) }
-            search.pendingCutLocked()?.let { failSearch(cause, it) }
-            order.pendingCutLocked()?.let { failOrder(cause, it) }
-            grouping.pendingCutLocked()?.let { failGrouping(cause, it) }
-            cardSelect.pendingCutLocked()?.let { failCardSelect(cause, it) }
-            staticChoices.pendingCutLocked()?.let { failStaticChoice(cause, it) }
-            modalChoices.pendingCutLocked()?.let { failModalChoice(cause, it) }
-            revealChoices.failDelivery(cause)
-        }
+    internal fun failDelivery(cause: Throwable): Nothing = prompts.failDelivery(cause)
 
     internal fun failTerminal(
         cause: Throwable,
