@@ -1,5 +1,7 @@
 package leyline.bridge.forge
 
+import forge.ai.AiCostDecision
+import forge.ai.PlayerControllerAi
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
@@ -25,6 +27,7 @@ import forge.player.HumanCostDecision
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -331,6 +334,74 @@ class CostDecisionTest :
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.StationTapCost
                 }
+            }
+        }
+
+        test("Forge cost policy selects a payable tap cost and refuses it once unavailable") {
+            val fx = fixture()
+            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
+            val cost = CostTapType("1", "Land", "a land", false)
+            val ai = PlayerControllerAi(fx.player.game, fx.player, fx.player.lobbyPlayer)
+            fx.player.addController(Long.MAX_VALUE, fx.player, ai, false)
+            try {
+                cost.accept(AiCostDecision(fx.player, fx.ability, false))!!.cards.map { it.id } shouldContainExactly
+                    listOf(mountain.id)
+                mountain.tap(true, fx.ability, fx.player)
+                cost.accept(AiCostDecision(fx.player, fx.ability, false)).shouldBeNull()
+            } finally {
+                fx.player.removeController(Long.MAX_VALUE, false)
+            }
+        }
+
+        test("Forge cost policy selects enough creatures for crew") {
+            val localBridge = GameBridge(bridgeTimeoutMs = 0, cardRepository = TestCardRegistry.repo)
+            bridge = localBridge
+            localBridge.startPuzzle(
+                PuzzleSource.loadFromText(
+                    """
+                    [metadata]
+                    Name:Crew Cost Decision Fixture
+                    Goal:Win
+                    Turns:1
+                    Difficulty:Easy
+                    Description:Crew cost decision fixture.
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+
+                    humanhand=Lightning Bolt
+                    humanbattlefield=Llanowar Elves;Frenzied Baloth;Forest
+                    humanlibrary=Forest
+                    ailibrary=Mountain
+                    """.trimIndent(),
+                ),
+            )
+            TestCardRegistry.registerPuzzleCards(localBridge.getGame()!!)
+            val player = localBridge.getPlayer(SeatId(1))!!
+            val source = player.getCardsIn(ZoneType.Hand).first { it.name == "Lightning Bolt" }
+            val ability = source.spellAbilities.first()
+            ability.setKeyword(
+                forge.game.keyword.Keyword
+                    .getInstance("Crew:4"),
+            )
+            val cost = CostTapType("Any", "Creature.YouCtrl+withTotalPowerGE4", "creatures", false)
+            player
+                .getCardsIn(ZoneType.Battlefield)
+                .filter { it.isCreature }
+                .map { it.name to it.netPower } shouldContainExactlyInAnyOrder
+                listOf("Llanowar Elves" to 1, "Frenzied Baloth" to 3)
+            val ai = PlayerControllerAi(player.game, player, player.lobbyPlayer)
+            player.addController(Long.MAX_VALUE, player, ai, false)
+            try {
+                cost
+                    .accept(AiCostDecision(player, ability, false))!!
+                    .cards
+                    .map { it.name } shouldContainExactlyInAnyOrder listOf("Llanowar Elves", "Frenzied Baloth")
+            } finally {
+                player.removeController(Long.MAX_VALUE, false)
             }
         }
 
