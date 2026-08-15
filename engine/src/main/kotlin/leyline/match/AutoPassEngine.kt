@@ -202,7 +202,14 @@ class AutoPassEngine(
                 ?.state
                 ?.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY
         if (!playback.hasPendingMessages() && !retainedSynchronization) return DrainOutcome(sent = false)
-        val outcome = drainCoordinatorBarrier(sink, ctx.bridge, counters.seatId) { pacing.paceDelay(1) }
+        val outcome =
+            drainCoordinatorBarrier(
+                sink = sink,
+                bridge = ctx.bridge,
+                seatId = counters.seatId,
+                betweenBatches = { pacing.paceDelay(1) },
+                beforeDrain = ::suppressPassOnlyAiPriorityPresentation,
+            )
         log.debug("drainPlayback: drained committed coordinator feed")
         // Do NOT snapshot current engine state here — the playback diffs represent
         // an earlier point in time. Snapshotting now would advance the diff baseline
@@ -210,6 +217,19 @@ class AutoPassEngine(
         // causing subsequent diffs to omit new objects (drawn cards) that the client
         // hasn't received yet. The next buildDiff() call will advance the cursor correctly.
         return outcome
+    }
+
+    private fun suppressPassOnlyAiPriorityPresentation() {
+        val bridge = ctx.bridge
+        val game = ctx.game
+        val human = bridge.getPlayer(counters.seatId) ?: return
+        if (game.phaseHandler.playerTurn == human || autoPassState.isFullControl) return
+        val phase = game.phaseHandler.phase
+        if (phase != null && autoPassState.hasOpponentStop(phase)) return
+        val pending = bridge.seat(counters.seatId).action.getPending() ?: return
+        if (pending.state.kind != leyline.bridge.handoff.PendingActionKind.PRIORITY) return
+        if (bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)) return
+        bridge.cutCoordinator.suppressPriorityPresentation(pending.actionId)
     }
 
     /**
