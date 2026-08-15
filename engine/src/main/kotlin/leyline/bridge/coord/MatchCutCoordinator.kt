@@ -100,9 +100,14 @@ internal class MatchCutCoordinator(
         gameStateId: Int,
     ): ActionsAvailableReq = actions.bindInitial(actionId, gameStateId)
 
-    fun replaceWithPhaseTransition(actionId: String): List<GREToClientMessage> = actions.replaceWithPhaseTransition(actionId)
+    fun replaceWithPhaseTransition(
+        actionId: String,
+        includePriorityPrompt: Boolean = true,
+    ): List<GREToClientMessage> = actions.replaceWithPhaseTransition(actionId, includePriorityPrompt)
 
     fun hasMeaningfulPriorityAction(actionId: String): Boolean = actions.hasMeaningfulAction(actionId)
+
+    fun suppressPriorityPresentation(actionId: String): Boolean = actions.suppressPriorityPresentation(actionId)
 
     fun claimPriorityResponse(
         actionId: String,

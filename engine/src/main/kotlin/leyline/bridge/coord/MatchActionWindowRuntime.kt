@@ -192,7 +192,10 @@ internal class MatchActionWindowRuntime(
             window.actions
         }
 
-    fun replaceWithPhaseTransition(actionId: String): List<GREToClientMessage> =
+    fun replaceWithPhaseTransition(
+        actionId: String,
+        includePriorityPrompt: Boolean = true,
+    ): List<GREToClientMessage> =
         synchronized(owner.counter) {
             synchronized(owner.bridge.projectionBuildLock) {
                 synchronized(owner.feedLock) {
@@ -203,13 +206,48 @@ internal class MatchActionWindowRuntime(
                     val game = owner.bridge.getGame() ?: error("Game unavailable")
                     val prepared =
                         try {
-                            feed.builder.preparePhaseTransitionDiff(game, owner.counter, window.actions)
+                            feed.builder.preparePhaseTransitionDiff(
+                                game,
+                                owner.counter,
+                                window.actions,
+                                includePriorityPrompt,
+                            )
                         } catch (ex: Exception) {
                             owner.fail(ex)
                         }
                     publishPresentation(feed, window, prepared, removePrevious = true)
                 }
             }
+        }
+
+    /** Preserve an undrained priority window's state frame without exposing its response prompt. */
+    fun suppressPriorityPresentation(actionId: String): Boolean =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val window = actionWindows[actionId] ?: return false
+            val pending = owner.bridge.actionBridge(window.seatId).exactPending(actionId) ?: return false
+            if (pending.state.kind != PendingActionKind.PRIORITY || window.status != ActionWindowStatus.Published) return false
+            val feed = owner.feed(window.seatId)
+            if (!owner.removeOwnedBatch(feed, window.publishedBatch)) return false
+            val stateOnly =
+                window.publishedBatch.mapNotNull { message ->
+                    when {
+                        message.hasActionsAvailableReq() -> null
+                        message.hasGameStateMessage() ->
+                            message
+                                .toBuilder()
+                                .setGameStateMessage(
+                                    message.gameStateMessage
+                                        .toBuilder()
+                                        .clearActions()
+                                        .setPendingMessageCount(0),
+                                ).build()
+                        else -> message
+                    }
+                }
+            feed.queue.add(stateOnly)
+            actionWindows[actionId] = window.copy(publishedBatch = stateOnly)
+            true
         }
 
     fun claimPriority(

@@ -26,8 +26,8 @@ class BoundedTargetingInteractionTest :
                 name = "Bounded Optional Targets",
             )
 
-            castSpellByName("Eddymurk Crab").shouldBeTrue()
-            val targetPrompt = after { passPriority() }.messages.firstOrNull { it.hasSelectTargetsReq() }
+            val castMessages = after { castSpellByName("Eddymurk Crab").shouldBeTrue() }.messages
+            val targetPrompt = castMessages.firstOrNull { it.hasSelectTargetsReq() }
             targetPrompt.shouldNotBeNull()
 
             assertSoftly {

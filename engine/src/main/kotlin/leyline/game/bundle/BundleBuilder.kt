@@ -934,18 +934,23 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         priorityActions: ActionsAvailableReq? = null,
+        includePriorityPrompt: Boolean = true,
     ): BundleResult =
         synchronized(bridge.projectionBuildLock) {
-            commitActionWindow(preparePhaseTransitionDiff(game, counter, priorityActions))
+            commitActionWindow(preparePhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt))
         }
 
     internal fun preparePhaseTransitionDiff(
         game: Game,
         counter: MessageCounter,
         priorityActions: ActionsAvailableReq? = null,
+        includePriorityPrompt: Boolean = true,
     ): ActionWindowPrepared {
         val prior = bridge.projectionStateSnapshot()
-        val (result, next) = bridge.editProjection(prior) { buildPhaseTransitionDiff(game, counter, priorityActions) }
+        val (result, next) =
+            bridge.editProjection(prior) {
+                buildPhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt)
+            }
         val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
         return ActionWindowPrepared(
             result.bundle,
@@ -970,6 +975,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         priorityActions: ActionsAvailableReq?,
+        includePriorityPrompt: Boolean,
     ): PhaseTransitionResult {
         val prevGs = counter.currentGsId()
         val nextGs = counter.nextGsId()
@@ -1036,28 +1042,28 @@ class BundleBuilder(
                 .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
                 .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(GameStateUpdate.SendAndRecord)
-        embedActions(commitBuilder, actions, seatId)
+        embedActions(commitBuilder, actions, seatId, pending = includePriorityPrompt)
         val msg3 =
             makeGRE(GREMessageType.GameStateMessage_695e, commitGs, counter.nextMsgId()) {
                 it.gameStateMessage = commitBuilder.build()
             }
 
-        // Message 4: PromptReq (promptId=37)
-        val msg4 =
-            makeGRE(GREMessageType.PromptReq, commitGs, counter.nextMsgId()) {
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
-            }
-
-        // Message 5: ActionsAvailableReq (promptId=2)
-        val msg5 =
-            makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
-                it.actionsAvailableReq = projectedPriority
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-            }
+        val messages = mutableListOf(msg1, msg2, msg3)
+        if (includePriorityPrompt) {
+            messages +=
+                makeGRE(GREMessageType.PromptReq, commitGs, counter.nextMsgId()) {
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
+                }
+            messages +=
+                makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
+                    it.actionsAvailableReq = projectedPriority
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                }
+        }
 
         return PhaseTransitionResult(
             BundleResult(
-                listOf(msg1, msg2, msg3, msg4, msg5),
+                messages,
                 actionOffers = actionOffers,
                 actionGameStateId = commitGs,
             ),

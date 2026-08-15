@@ -55,6 +55,7 @@ internal fun drainCoordinatorBarrier(
     bridge: GameBridge,
     seatId: SeatId,
     betweenBatches: () -> Unit = {},
+    beforeDrain: () -> Unit = {},
 ): DrainOutcome =
     drainOneCoordinatorBarrier(
         sink = sink,
@@ -69,6 +70,7 @@ internal fun drainCoordinatorBarrier(
         awaitNext = bridge::awaitPriority,
         failDelivery = bridge.cutCoordinator::failDelivery,
         betweenBatches = betweenBatches,
+        beforeDrain = beforeDrain,
     )
 
 @org.jetbrains.annotations.VisibleForTesting
@@ -80,10 +82,12 @@ internal fun drainOneCoordinatorBarrier(
     awaitNext: () -> Unit,
     failDelivery: (Exception) -> Nothing,
     betweenBatches: () -> Unit = {},
+    beforeDrain: () -> Unit = {},
 ): DrainOutcome {
     var sent = false
 
     fun deliverCommittedBatches() {
+        beforeDrain()
         val batches = drainCommitted()
         try {
             batches.forEach { batch ->

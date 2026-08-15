@@ -230,27 +230,13 @@ class MatchSession(
 
             bridge.awaitPriority()
 
-            // Drain AI action diffs queued during awaitPriority.
-            // These have gsIds allocated by the engine thread via the shared counter
-            // during awaitPriority. Send them first (lower gsIds).
-            val playback = ctx.bridge.playbackFor(seatId)
-            if (playback != null) {
-                for (batch in playback.drainQueue()) {
-                    sendBundledGRE(batch)
-                }
-            }
-
-            // phaseTransitionDiff after AI diffs — uses the shared counter which is
-            // now past whatever the engine allocated. gsIds are higher than AI diffs
-            // but the prevGsId chain is valid (references last AI diff's gsId).
-            val bb = bundleBuilder
+            // The priority presentation is still coordinator-owned and unpublished.
+            // Replace it before draining the feed so prior AI batches retain their
+            // order and the replacement receives the next shared game-state id.
+            val pending = checkNotNull(bridge.seat(seatId).action.getPending()) { "Initial priority window was not published" }
             val humanTurn = ctx.game.phaseHandler.playerTurn == bridge.getPlayer(seatId)
-            val result = bb.phaseTransitionDiff(ctx.game, counter, includePriorityPrompt = humanTurn)
-            sendBundle(result)
-
-            // Seed state snapshot for subsequent diff computation.
-            val snap1 = GsmSnapshot.capture(ctx.game, ctx.bridge, matchId, counter.currentGsId())
-            bb.cursor.lastSent = snap1
+            bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId, includePriorityPrompt = humanTurn)
+            drainCoordinatorFeed()
 
             // Auto-pass through phases where human has no real actions
             autoPassEngine.autoPassAndAdvance()

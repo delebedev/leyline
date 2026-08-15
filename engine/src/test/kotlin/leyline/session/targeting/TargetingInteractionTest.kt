@@ -482,7 +482,7 @@ class TargetingInteractionTest :
             (preBoltAiLife - ai.life) shouldBe 3
         }
 
-        test("triggered single-target selection echoes before submit") {
+        test("triggered mandatory single-target selection auto-submits") {
             startPuzzle(
                 """
                 ActivePlayer=Human
@@ -504,10 +504,10 @@ class TargetingInteractionTest :
             val phase1Messages = after { selectTargetsIterative(listOf(vendorIid)) }.messages
 
             assertSoftly {
-                phase1Messages.count { it.hasSelectTargetsReq() } shouldBe 1
-                phase1Messages.count { it.hasSubmitTargetsResp() } shouldBe 0
+                phase1Messages.count { it.hasSelectTargetsReq() } shouldBe 0
+                phase1Messages.count { it.hasSubmitTargetsResp() } shouldBe 1
             }
-            after { submitTargets() }.messages.count { it.hasSubmitTargetsResp() } shouldBe 1
+            after { submitTargets() }.messages.count { it.hasSubmitTargetsResp() } shouldBe 0
         }
 
         // ─── Run Away Together: multi-target + TargetsWithDifferentControllers ──
