@@ -1,0 +1,14 @@
+name: "Cavern of Souls"
+grpId: 87435
+titleId: 40483
+abilities:
+  - id: 176647
+    textId: 912452
+    category: 3
+  - id: 1152
+    textId: 227595
+    category: 1
+  - id: 99835
+    textId: 325370
+    category: 1
+expansionCode: "LCI"

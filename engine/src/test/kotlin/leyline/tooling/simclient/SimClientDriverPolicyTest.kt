@@ -10,6 +10,7 @@ import leyline.copilot.SimDecision
 import leyline.copilot.allowedStaticColorIds
 import leyline.copilot.chooseCastActionByVariant
 import leyline.copilot.colorSetFromStaticIds
+import leyline.copilot.effectCostSelectionIds
 import leyline.copilot.sacrificeCostSelectionIds
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
@@ -233,14 +234,16 @@ class SimClientDriverPolicyTest :
             chooseBoardAwareGroupAwayIds(groupPrompt(listOf(801, 802), GroupingContext.Surveil), harness) shouldBe emptyList()
         }
 
-        test("forge-ai SelectTargets adapter consults exact and committed target prompts") {
+        test("forge-ai SelectTargets adapter admits sane bounded target prompts") {
             val policy = ForgeAiPolicy({ MatchFlowHarness().bridge }, SeatId(1))
 
             policy.canChooseSelectTargets(selectTargetsPrompt()) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 0, max = 1)) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 0, max = 2, targetIds = listOf(2, 3))) shouldBe true
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 1, max = 2, targetIds = listOf(2, 3))) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2, targetIds = listOf(2, 3))) shouldBe true
             policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 2)) shouldBe false
-            policy.canChooseSelectTargets(selectTargetsPrompt(max = 2)) shouldBe false
+            policy.canChooseSelectTargets(selectTargetsPrompt(min = 2, max = 1, targetIds = listOf(2, 3))) shouldBe false
             policy.canChooseSelectTargets(selectTargetsPrompt(legalAction = SelectAction.Unselect)) shouldBe true
         }
 
@@ -330,6 +333,19 @@ class SimClientDriverPolicyTest :
             sacrificeCostSelectionIds(listOf(202, 202), selection) shouldBe null
             sacrificeCostSelectionIds(emptyList(), selection) shouldBe null
             sacrificeCostSelectionIds(listOf(0), selection) shouldBe null
+        }
+
+        test("effect-cost selection accepts one offered Station creature") {
+            val selection = payCostsPrompt(ids = listOf(301, 302)).payCostsReq.effectCostReq.costSelection
+
+            effectCostSelectionIds(listOf(302), selection) shouldBe listOf(302)
+        }
+
+        test("effect-cost selection refuses Station when Forge finds no payable creature") {
+            val selection = payCostsPrompt(ids = listOf(301, 302)).payCostsReq.effectCostReq.costSelection
+
+            effectCostSelectionIds(emptyList(), selection) shouldBe null
+            effectCostSelectionIds(listOf(999), selection) shouldBe null
         }
 
         test("greedy PayCosts policy selects minimum required cost ids") {

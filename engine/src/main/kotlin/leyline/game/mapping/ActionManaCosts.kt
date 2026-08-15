@@ -72,7 +72,7 @@ internal object ActionManaCosts {
         creatures: Boolean,
     ): Boolean {
         val cost = computeEffectiveCost(sa, player) ?: return false
-        val sourceColors = availableManaSourceColors(player).toMutableList()
+        val sourceColors = availableManaSourceColors(player, sa).toMutableList()
         val reducerColors =
             player
                 .getZone(ForgeZoneType.Battlefield)
@@ -150,7 +150,7 @@ internal object ActionManaCosts {
             cost.mapNotNull { shard ->
                 if (ManaColorMapping.fromOrTwoGenericShard(shard) == null) ManaColorMapping.fromShard(shard) else null
             }
-        val sourceColors = availableManaSourceColors(player)
+        val sourceColors = availableManaSourceColors(player, sa)
         if (sourceColors.isEmpty()) return false
 
         fun canPayColor(
@@ -208,7 +208,10 @@ internal object ActionManaCosts {
         return payColored(0, BooleanArray(sourceColors.size))
     }
 
-    private fun availableManaSourceColors(player: Player): List<Set<ManaColor>> =
+    private fun availableManaSourceColors(
+        player: Player,
+        payingAbility: SpellAbility? = null,
+    ): List<Set<ManaColor>> =
         player
             .getZone(ForgeZoneType.Battlefield)
             .cards
@@ -217,6 +220,9 @@ internal object ActionManaCosts {
                 getPlayableManaAbilities(card, player)
                     .flatMap { sa ->
                         val mana = sa.manaPart ?: return@flatMap emptyList()
+                        if (payingAbility != null && !mana.meetsManaRestrictions(payingAbility)) {
+                            return@flatMap emptyList()
+                        }
                         val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
                         produced.split(" ").mapNotNull { producedToManaColor(it) }
                     }.toSet()

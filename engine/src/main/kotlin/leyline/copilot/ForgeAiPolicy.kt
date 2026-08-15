@@ -14,7 +14,9 @@ import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
+import forge.game.cost.CostPart
 import forge.game.cost.CostSacrifice
+import forge.game.cost.CostTapType
 import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.spellability.AbilitySub
@@ -23,6 +25,7 @@ import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
@@ -44,6 +47,69 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
+
+@Suppress("ReturnCount")
+private fun effectCostContexts(
+    bridge: GameBridge,
+    seatId: SeatId,
+    seatPlayer: Player,
+    msg: GREToClientMessage,
+): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> {
+    if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return emptyList()
+    if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return emptyList()
+
+    val pending = bridge.promptBridge(seatId).getPendingPrompt()
+    val route = pending?.request?.route as? ResolvedPromptRoute.PayCosts
+    val pendingSa = pending?.targetingSa
+    if (route != null && pendingSa != null) return costPartsForRoute(pendingSa, route.descriptor.kind)
+
+    val sourceId =
+        msg.prompt.parametersList
+            .firstOrNull { it.parameterName == "CardId" }
+            ?.numberValue
+            ?: return emptyList()
+    val forgeId = bridge.getForgeCardId(InstanceId(sourceId)) ?: return emptyList()
+    val source = bridge.findCard(forgeId) ?: return emptyList()
+    val abilities = getAllCastableAbilities(source, seatPlayer) + getNonManaActivatedAbilities(source, seatPlayer)
+    return abilities.distinctBy { it.id }.flatMap { sa ->
+        sa.activatingPlayer = seatPlayer
+        listOf(
+            PayCostsRouteKind.Sacrifice to CostSacrifice::class.java,
+            PayCostsRouteKind.StationTapCost to CostTapType::class.java,
+        ).flatMap { (kind, type) ->
+            sa.payCosts
+                ?.costParts
+                .orEmpty()
+                .filter { type.isInstance(it) }
+                .map { Triple(sa, it, kind) }
+        }
+    }
+}
+
+private fun costPartsForRoute(
+    sa: SpellAbility,
+    kind: PayCostsRouteKind,
+): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> {
+    val type =
+        when (kind) {
+            PayCostsRouteKind.Sacrifice -> CostSacrifice::class.java
+            PayCostsRouteKind.StationTapCost -> CostTapType::class.java
+            PayCostsRouteKind.SelectCostExileFromGrave,
+            PayCostsRouteKind.SelectCostReturnAttacker,
+            PayCostsRouteKind.CollectEvidence,
+            PayCostsRouteKind.EnlistCost,
+            PayCostsRouteKind.TeamworkCost,
+            PayCostsRouteKind.ConvokeCost,
+            PayCostsRouteKind.ImproviseCost,
+            PayCostsRouteKind.WaterbendCost,
+            -> return emptyList()
+        }
+    return sa.payCosts
+        ?.costParts
+        .orEmpty()
+        .filter { type.isInstance(it) }
+        .map { Triple(sa, it, kind) }
+}
 
 /**
  * Forge-AI advisor that picks the response the AI would submit for a pending
@@ -446,7 +512,10 @@ class ForgeAiPolicy(
         return selected.takeIf { it.isNotEmpty() }
     }
 
-    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean = sacrificeCostContext(msg) != null
+    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean =
+        effectCostContexts(msg).any { it.third == PayCostsRouteKind.Sacrifice }
+
+    fun canChooseEffectCostPayment(msg: GREToClientMessage): Boolean = effectCostContexts(msg).isNotEmpty()
 
     /**
      * Recover the Forge-AI cost decision for a sacrifice cost-payment prompt.
@@ -461,51 +530,55 @@ class ForgeAiPolicy(
      * correlation. Candidate-id validation keeps a mismatched decision from
      * being submitted — it degrades to greedy instead.
      */
-    fun chooseSacrificeCostPayment(msg: GREToClientMessage): List<Int>? {
-        val (sa, costPart) = sacrificeCostContext(msg) ?: return null
+    fun chooseSacrificeCostPayment(msg: GREToClientMessage): List<Int>? =
+        effectCostContexts(msg)
+            .asSequence()
+            .filter { it.third == PayCostsRouteKind.Sacrifice }
+            .mapNotNull { chooseEffectCostPayment(msg, it) }
+            .firstOrNull()
+
+    /** Choose cards for a supported non-mana cost through Forge's cost visitor. */
+    fun chooseEffectCostPayment(msg: GREToClientMessage): List<Int>? =
+        effectCostContexts(msg)
+            .asSequence()
+            .mapNotNull { chooseEffectCostPayment(msg, it) }
+            .firstOrNull()
+
+    private fun chooseEffectCostPayment(
+        msg: GREToClientMessage,
+        context: Triple<SpellAbility, CostPart, PayCostsRouteKind>,
+    ): List<Int>? {
+        val (sa, costPart, _) = context
         val decision =
-            askAi("sacrificeCostDecision") {
+            askAi("effectCostDecision") {
                 costPart.accept(AiCostDecision(seatPlayer, sa, false))
             } ?: return null
         val chosenIds = decision.cards.map { instanceIdForCard(it) }
-        return sacrificeCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+        return effectCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
     }
 
-    @Suppress("ReturnCount")
-    private fun sacrificeCostContext(msg: GREToClientMessage): Pair<SpellAbility, CostSacrifice>? {
-        if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
-        if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
-        val liveBridge = runCatching { bridge }.getOrNull() ?: return null
-        val pending = liveBridge.promptBridge(seatId).getPendingPrompt() ?: return null
-        val route = pending.request.route as? ResolvedPromptRoute.PayCosts ?: return null
-        if (route.descriptor.kind != PayCostsRouteKind.Sacrifice) return null
-        val sa = pending.targetingSa ?: return null
-        val costPart =
-            sa.payCosts
-                ?.costParts
-                ?.filterIsInstance<CostSacrifice>()
-                ?.firstOrNull() ?: return null
-        return sa to costPart
-    }
+    private fun effectCostContexts(msg: GREToClientMessage): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> =
+        runCatching { effectCostContexts(bridge, seatId, seatPlayer, msg) }.getOrElse { emptyList() }
 
     fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
         if (!msg.hasSelectTargetsReq()) return false
         val req = msg.selectTargetsReq
         if (req.targetsCount == 0) return false
         return req.targetsList.all { group ->
-            val exactRequired = group.minTargets == group.maxTargets && group.minTargets >= 0
-            val optionalSingle = group.minTargets == 0 && group.maxTargets == 1
+            val saneBounds = group.minTargets >= 0 && group.maxTargets >= group.minTargets
             val availableCount =
                 group.targetsList
                     .map { it.targetInstanceId }
                     .distinct()
                     .size
-            (exactRequired || optionalSingle) && availableCount >= group.minTargets
+            saneBounds && availableCount >= group.minTargets
         }
     }
 
     fun chooseSelectTargets(msg: GREToClientMessage): TargetGroupSelections? {
         if (!canChooseSelectTargets(msg)) return null
+
+        val costTargets = chooseTapCostTargets(msg)
 
         // Preferred path: let Forge's AI pick the target for the bound spell/
         // ability. When no prompt-bound ability exists (a consult against a
@@ -516,22 +589,53 @@ class ForgeAiPolicy(
             bridge.promptBridge(seatId).getPendingPrompt()?.targetingSa
                 ?: rebuiltTargetingSa(msg.selectTargetsReq.sourceId)
         val preferredIds =
-            if (sa != null) {
-                val previousTargets = sa.targets.clone()
-                val chosenTargets =
-                    try {
-                        sa.targets.clear()
-                        val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
-                        if (chose) sa.targets.toList() else null
-                    } finally {
-                        sa.targets.clear()
-                        sa.targets.addAll(previousTargets)
-                    }
-                chosenTargets?.mapNotNull { targetInstanceId(it) }.orEmpty()
-            } else {
-                emptyList()
-            }
+            costTargets
+                ?: if (sa != null) {
+                    val previousTargets = sa.targets.clone()
+                    val chosenTargets =
+                        try {
+                            sa.targets.clear()
+                            val chose = askAi("chooseTargetsFor") { aiController.chooseTargetsFor(sa) } ?: false
+                            if (chose) sa.targets.toList() else null
+                        } finally {
+                            sa.targets.clear()
+                            sa.targets.addAll(previousTargets)
+                        }
+                    chosenTargets?.mapNotNull { targetInstanceId(it) }.orEmpty()
+                } else {
+                    emptyList()
+                }
         return selectTargetPlan(msg.selectTargetsReq, preferredIds)
+    }
+
+    private fun chooseTapCostTargets(msg: GREToClientMessage): List<Int>? {
+        val req = msg.selectTargetsReq
+        val group = req.targetsList.singleOrNull() ?: return null
+        val source = cardForInstance(req.sourceId) ?: return null
+        val abilities =
+            getAllCastableAbilities(source, seatPlayer) +
+                getNonManaActivatedAbilities(source, seatPlayer) +
+                source.spellAbilities
+        val legalIds = group.targetsList.map { it.targetInstanceId }.toSet()
+        val min = group.minTargets.coerceAtLeast(0)
+        val max = group.maxTargets.takeIf { it >= min } ?: return null
+        return abilities
+            .asSequence()
+            .distinctBy { it.id }
+            .flatMap { sa ->
+                sa.activatingPlayer = seatPlayer
+                sa.payCosts
+                    ?.costParts
+                    .orEmpty()
+                    .filterIsInstance<CostTapType>()
+                    .asSequence()
+                    .map { sa to it }
+            }.mapNotNull { (sa, cost) ->
+                val decision = askAi("tapCostDecision") { cost.accept(AiCostDecision(seatPlayer, sa, false)) }
+                decision?.cards?.map { instanceIdForCard(it) }
+            }.firstOrNull { ids ->
+                ids.isNotEmpty() && ids.distinct().size == ids.size && ids.size in min..max && ids.all { it in legalIds }
+            }
     }
 
     /** Build a legal desired set independently for every target group. */
@@ -835,7 +939,7 @@ internal fun chooseCastActionByVariant(
  * every id must be an offered candidate, chosen exactly once, and the count
  * must satisfy the selection's min/max. Null means "no usable AI decision".
  */
-internal fun sacrificeCostSelectionIds(
+internal fun effectCostSelectionIds(
     chosenIds: List<Int>,
     selection: SelectNReq,
 ): List<Int>? {
@@ -848,6 +952,11 @@ internal fun sacrificeCostSelectionIds(
     if (chosenIds.size !in min..max) return null
     return chosenIds
 }
+
+internal fun sacrificeCostSelectionIds(
+    chosenIds: List<Int>,
+    selection: SelectNReq,
+): List<Int>? = effectCostSelectionIds(chosenIds, selection)
 
 internal fun allowedStaticColorIds(
     req: SelectNReq,

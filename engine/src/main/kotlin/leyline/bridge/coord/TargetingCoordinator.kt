@@ -753,7 +753,7 @@ class TargetingCoordinator(
 
         val numAlreadyTargeted = sa.targets.size
         val stillNeeded = maxTargets - numAlreadyTargeted
-        val minNeeded = (minTargets - numAlreadyTargeted).coerceAtLeast(if (mandatory) 1 else 0)
+        val minNeeded = (minTargets - numAlreadyTargeted).coerceAtLeast(0)
 
         val request =
             PromptRequest(

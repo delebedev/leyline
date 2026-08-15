@@ -2,6 +2,7 @@ package leyline.copilot
 
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -440,6 +441,88 @@ class SnapshotConsultTest :
                 )
 
             result.proposal.responses shouldBe live.responses
+        }
+
+        test("bounded target consult realizes zero-to-two and one-to-two groups") {
+            val pzl =
+                """
+                [metadata]
+                Name:Snapshot Consult Bounded Targets
+                Goal:Win
+                Turns:5
+                Difficulty:Easy
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Grizzly Bears
+                humanlibrary=Forest
+                aibattlefield=Raging Goblin
+                ailibrary=Mountain
+                """.trimIndent()
+            startPuzzleRaw(pzl)
+
+            val sourceBridge = harness.bridge
+            val gsm =
+                StateMapper
+                    .buildFromSnapshot(
+                        GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0),
+                        0,
+                        "consult",
+                        sourceBridge,
+                        viewingSeatId = 1,
+                    ).gsm
+            val candidateIds = listOf(human.battlefield.iid("Grizzly Bears"), ai.battlefield.iid("Raging Goblin"))
+
+            fun prompt(
+                min: Int,
+                max: Int,
+                msgId: Int,
+            ): GREToClientMessage =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.SelectTargetsReq_695e)
+                    .setMsgId(msgId)
+                    .setGameStateId(gsm.gameStateId)
+                    .addSystemSeatIds(1)
+                    .setSelectTargetsReq(
+                        SelectTargetsReq
+                            .newBuilder()
+                            .addTargets(
+                                TargetSelection
+                                    .newBuilder()
+                                    .setTargetIdx(1)
+                                    .setMinTargets(min)
+                                    .setMaxTargets(max)
+                                    .apply {
+                                        candidateIds.forEach { instanceId ->
+                                            addTargets(
+                                                Target
+                                                    .newBuilder()
+                                                    .setTargetInstanceId(instanceId)
+                                                    .setLegalAction(SelectAction.Select_a1ad),
+                                            )
+                                        }
+                                    },
+                            ),
+                    ).build()
+
+            fun consult(prompt: GREToClientMessage): ClientToGREMessage =
+                decodeSingle(
+                    SnapshotConsult
+                        .consult(gsm = gsm, prompt = prompt, seat = 1, cardRepository = TestCardRegistry.repo)
+                        .proposal.responses
+                        .single(),
+                )
+
+            consult(prompt(min = 0, max = 2, msgId = 61)).type shouldBe ClientMessageType.SubmitTargetsReq
+            val required = consult(prompt(min = 1, max = 2, msgId = 62))
+            required.type shouldBe ClientMessageType.SelectTargetsResp_097b
+            required.selectTargetsResp.target.targetsList shouldHaveSize 1
+            required.selectTargetsResp.target.targetIdx shouldBe 1
         }
 
         test("multi-group target consult advances one group per echoed prompt") {

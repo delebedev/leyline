@@ -174,6 +174,36 @@ class CastDisplayCostBoardTest :
             }
         }
 
+        test("restricted any-color mana only enables matching creature spells") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Voice of Victory", human, ZoneType.Hand)
+                    addCard("Island", human)
+                    addCard("Cavern of Souls", human).setChosenType("Elf")
+                }
+            val voice = game.humanPlayerCard("Voice of Victory")
+            val cavern = game.humanPlayerCard("Cavern of Souls")
+            val instanceId = b.getOrAllocInstanceId(ForgeCardId(voice.id)).value
+
+            fun castOffer(): Pair<List<Action>, List<Action>> {
+                val snap = SnapshotCapture.run(game, b, "test", 0)
+                val req = ActionMapper.buildFromSnapshot(1, snap, b)
+                return req.actionsList.filter { it.actionType == ActionType.Cast && it.instanceId == instanceId } to
+                    req.inactiveActionsList.filter { it.actionType == ActionType.Cast && it.instanceId == instanceId }
+            }
+
+            castOffer().let { (active, inactive) ->
+                active.shouldBeEmpty()
+                inactive.size shouldBe 1
+            }
+
+            cavern.setChosenType("Human")
+            castOffer().let { (active, inactive) ->
+                active.size shouldBe 1
+                inactive.shouldBeEmpty()
+            }
+        }
+
         test("naive and snapshot builders agree on displayed cost for every hand card") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->

@@ -101,7 +101,7 @@ class CopilotProposalService(
                     // the game-loop parks on the half-activated ability. Cancelling
                     // unwinds it to a priority window so the game keeps moving.
                     proposalFor(
-                        policy.chooseSacrificeCostPayment(prompt)?.let(SimDecision::EffectCost) ?: SimDecision.CancelAction,
+                        policy.chooseEffectCostPayment(prompt)?.let(SimDecision::EffectCost) ?: SimDecision.CancelAction,
                         prompt,
                     )
                 }
