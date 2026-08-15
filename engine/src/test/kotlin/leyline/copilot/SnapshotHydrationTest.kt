@@ -10,11 +10,18 @@ import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CardColor
+import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.Int32Value
 import wotc.mtgo.gre.external.messaging.Messages.PlayerInfo
+import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
+import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -45,6 +52,77 @@ class SnapshotHydrationTest :
                 hydrated.getGame().shouldNotBeNull()
             } finally {
                 hydrated.teardownResources()
+            }
+        }
+
+        test("token attachment target hydrates as a Forge token") {
+            val tokenGrpId = 990_001
+            val tokenIid = 201
+            val auraIid = 202
+            val pacifismGrpId = TestCardRegistry.ensureCardRegistered("Pacifism")
+            TestCardRegistry.repo.register(tokenGrpId, "Spider")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(tokenIid)
+                            .setGrpId(tokenGrpId)
+                            .setType(GameObjectType.Token)
+                            .setZoneId(7)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .addCardTypes(CardType.Creature)
+                            .addSubtypes(SubType.Spider)
+                            .addColor(CardColor.Green_a3b0)
+                            .setPower(Int32Value.newBuilder().setValue(1))
+                            .setToughness(Int32Value.newBuilder().setValue(2)),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(auraIid)
+                            .setGrpId(pacifismGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(300)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(auraIid)
+                            .addAffectedIds(tokenIid),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val game = hydrated.bridge.getGame().shouldNotBeNull()
+                val token =
+                    game.players[1]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Spider" }
+                val aura =
+                    game.players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Pacifism" }
+
+                token.isToken shouldBe true
+                token.basePower shouldBe 1
+                token.baseToughness shouldBe 2
+                aura.entityAttachedTo shouldBe token
+                hydrated.fidelity.features
+                    .first { it.feature == "attachments" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
             }
         }
 
