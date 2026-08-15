@@ -144,6 +144,21 @@ internal data class PendingStaticChoiceCut(
     val transition: ProjectionTransition,
 )
 
+/** Exact modal CastingTimeOptionsReq cut retained on terminal failure. */
+internal data class PendingModalChoiceCut(
+    val interactionId: String,
+    val gameStateId: Int,
+    val interaction: leyline.bridge.handoff.ModalChoiceWindowValue,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+)
+
+/** Frozen modal choice input retained when materialization itself fails. */
+internal data class ModalChoiceMaterializationDiagnostic(
+    val interactionId: String,
+    val interaction: leyline.bridge.handoff.ModalChoiceWindowValue,
+)
+
 /** Frozen static enum SelectN input retained when materialization itself fails. */
 internal data class StaticChoiceMaterializationDiagnostic(
     val interactionId: String,
@@ -193,6 +208,8 @@ internal data class PromptTerminalFailureContext(
     val revealChoiceDiagnostic: RevealChoiceMaterializationDiagnostic? = null,
     val pendingStaticChoiceCut: PendingStaticChoiceCut? = null,
     val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
+    val pendingModalChoiceCut: PendingModalChoiceCut? = null,
+    val modalChoiceDiagnostic: ModalChoiceMaterializationDiagnostic? = null,
     val pendingManaSourcePaymentCut: PendingManaSourcePaymentCut? = null,
     val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
     val pendingOneShotPayCostsCut: PendingOneShotPayCostsCut? = null,
@@ -218,6 +235,8 @@ internal class PlaybackTerminalFailure(
     val revealChoiceDiagnostic get() = prompt.revealChoiceDiagnostic
     val pendingStaticChoiceCut get() = prompt.pendingStaticChoiceCut
     val staticChoiceDiagnostic get() = prompt.staticChoiceDiagnostic
+    val pendingModalChoiceCut get() = prompt.pendingModalChoiceCut
+    val modalChoiceDiagnostic get() = prompt.modalChoiceDiagnostic
     val pendingManaSourcePaymentCut get() = prompt.pendingManaSourcePaymentCut
     val manaSourcePaymentDiagnostic get() = prompt.manaSourcePaymentDiagnostic
     val pendingOneShotPayCostsCut get() = prompt.pendingOneShotPayCostsCut

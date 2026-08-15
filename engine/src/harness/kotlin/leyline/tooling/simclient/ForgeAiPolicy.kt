@@ -7,7 +7,6 @@ import forge.card.MagicColor
 import forge.game.GameActionUtil
 import forge.game.GameObject
 import forge.game.IEntityMap
-import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
@@ -423,16 +422,17 @@ class ForgeAiPolicy(
                 .single()
                 .modalReq
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
-        val pending = harness.bridge.promptBridge(seatId).getPendingPrompt() ?: return null
-        val sa = pending.targetingSa ?: return null
-        val possible =
-            modalPossibleAbilities(
-                sa,
-                pending.request.modalChoice
-                    ?.possible
-                    ?.map { it.fullIndex },
-                modalGrpIds.size,
-            ) ?: return null
+        val context =
+            harness
+                .bridge
+                .cutCoordinator
+                .modalChoices
+                .aiContext()
+                ?: return null
+        if (context.possibleFullIndices.size != modalGrpIds.size) return null
+        val sa = context.sourceAbility
+        val possible = context.possible.toMutableList()
+        if (possible.size != modalGrpIds.size) return null
         modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let { return it }
         modalChoiceGrpIds(subAbilityChain(sa.subAbility), possible, modalGrpIds)?.let { return it }
         val previousSub = sa.subAbility
@@ -518,21 +518,6 @@ class ForgeAiPolicy(
             current = current.subAbility
         }
         return result
-    }
-
-    private fun modalPossibleAbilities(
-        sa: SpellAbility,
-        possibleFullIndices: List<Int>?,
-        modalOptionCount: Int,
-    ): MutableList<AbilitySub>? {
-        val fullList = sa.getAdditionalAbilityList("Choices")
-        if (possibleFullIndices != null) {
-            if (fullList == null) return null
-            val possible = possibleFullIndices.map { idx -> fullList.getOrNull(idx) ?: return null }
-            return possible.toMutableList().takeIf { it.size == modalOptionCount }
-        }
-        val possible = CharmEffect.makePossibleOptions(sa) ?: return null
-        return possible.toMutableList().takeIf { it.size == modalOptionCount }
     }
 
     private fun selectNCount(req: SelectNReq): Int {

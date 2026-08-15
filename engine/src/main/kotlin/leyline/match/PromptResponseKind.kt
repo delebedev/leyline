@@ -4,7 +4,6 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 
 /** Client response families accepted by a bound prompt route. */
 internal enum class PromptResponseKind {
-    ModalChoice,
     SelectN,
     EffectCost,
     Search,
@@ -14,7 +13,6 @@ internal enum class PromptResponseKind {
 /** Pure route/response contract used before any response side effects run. */
 internal fun ResolvedPromptRoute.accepts(response: PromptResponseKind): Boolean =
     when (response) {
-        PromptResponseKind.ModalChoice -> this is ResolvedPromptRoute.ModalChoice
         PromptResponseKind.SelectN ->
             this is ResolvedPromptRoute.UnclassifiedEntityChoice || this is ResolvedPromptRoute.RevealChoice
         PromptResponseKind.EffectCost ->

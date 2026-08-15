@@ -2,6 +2,7 @@ package leyline.bridge.handoff
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.DevCheck
@@ -25,14 +26,13 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 internal class StrictPromptRefusalException(
     message: String,
 ) : IllegalStateException(message)
 
-private fun refuseStrictPrompt(message: String): Nothing = throw StrictPromptRefusalException(message)
+internal fun refuseStrictPrompt(message: String): Nothing = throw StrictPromptRefusalException(message)
 
 /**
  * Thread-safe bridge between the blocking engine thread and async Netty handlers.
@@ -91,6 +91,21 @@ class InteractivePromptBridge(
     /** Match-scoped owner for card-backed SelectN semantics. */
     @Volatile
     var cardSelectRuntime: CardSelectInteractionRuntime? = null
+
+    /** Match-scoped owner for modal CastingTimeOptionsReq semantics. */
+    @Volatile
+    var modalChoiceRuntime: ModalChoiceInteractionRuntime? = null
+
+    private val modalChoiceAdapter =
+        ModalChoicePromptAdapter(
+            timeoutMs = timeoutMs,
+            strict = strict,
+            isGameLoopThread = ::isGameLoopThread,
+            runtime = { modalChoiceRuntime },
+            prioritySignal = prioritySignal,
+            timeoutListener = { timeoutListener?.invoke() },
+            record = ::record,
+        )
 
     /** Match-scoped owner for color, subtype, and parity SelectN semantics. */
     @Volatile
@@ -160,30 +175,19 @@ class InteractivePromptBridge(
         val spec: PendingTarget,
     )
 
-    private val nextPendingTargetVersion = AtomicLong()
-    private val pendingTargetSpecs = ConcurrentLinkedQueue<PendingTargetEntry>()
+    private val pendingTargetSpecs = PendingTargetStore()
 
     fun addPendingTargetSpec(spec: PendingTarget) {
-        pendingTargetSpecs.add(
-            PendingTargetEntry(
-                nextPendingTargetVersion.incrementAndGet(),
-                spec.copy(affectees = spec.affectees.map { it.copy() }),
-            ),
-        )
+        pendingTargetSpecs.add(spec)
     }
 
-    fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.map { it.spec }
+    fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.specs()
 
-    fun snapshotPendingTargetSpecEntries(): List<PendingTargetEntry> = pendingTargetSpecs.toList()
+    fun snapshotPendingTargetSpecEntries(): List<PendingTargetEntry> = pendingTargetSpecs.entries()
 
-    fun consumePendingTargetSpecs(specs: List<PendingTarget>) {
-        pendingTargetSpecs.removeIf { queued -> specs.any { queued.spec === it } }
-    }
+    fun consumePendingTargetSpecs(specs: List<PendingTarget>) = pendingTargetSpecs.consume(specs)
 
-    fun consumePendingTargetSpecEntries(entries: List<PendingTargetEntry>) {
-        val versions = entries.mapTo(mutableSetOf()) { it.version }
-        if (versions.isNotEmpty()) pendingTargetSpecs.removeIf { it.version in versions }
-    }
+    fun consumePendingTargetSpecEntries(entries: List<PendingTargetEntry>) = pendingTargetSpecs.consumeEntries(entries)
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
@@ -213,58 +217,17 @@ class InteractivePromptBridge(
     // a trace it's impossible to tell WHAT prompted and WHETHER it timed out.
     // Tests inspect `history` to diagnose unexpected blocking calls.
 
-    private val _history = ArrayDeque<PromptRecord>(HISTORY_CAP)
+    private val promptHistory = PromptHistory(HISTORY_CAP)
 
     /** Immutable snapshot of recent prompt calls (oldest first, capped at [HISTORY_CAP]). */
-    val history: List<PromptRecord> get() = synchronized(_history) { _history.toList() }
+    val history: List<PromptRecord> get() = promptHistory.snapshot
 
     private fun record(
         request: PromptRequest,
         outcome: PromptCallStatus,
         result: List<Int>,
         elapsedMs: Long,
-    ) {
-        val frames =
-            Thread
-                .currentThread()
-                .stackTrace
-                .drop(3) // skip getStackTrace, record, requestChoice
-                .filter { it.className.startsWith("forge.") }
-                .take(6)
-                .map { "${it.className.substringAfterLast('.')}#${it.methodName}:${it.lineNumber}" }
-        synchronized(_history) {
-            if (_history.size >= HISTORY_CAP) _history.removeFirst()
-            _history.addLast(
-                PromptRecord(
-                    promptType = request.promptType,
-                    route = request.route,
-                    message = request.message,
-                    options = request.options,
-                    min = request.min,
-                    max = request.max,
-                    candidateCount = request.candidateRefs.size,
-                    outcome = outcome,
-                    result = result,
-                    callerFrames = frames,
-                    costSelectionWeights = request.costSelectionWeights,
-                    minSelectionWeight = request.minSelectionWeight,
-                ),
-            )
-        }
-        val secs = "%.1f".format(elapsedMs / 1000.0)
-        val msg = "Prompt [${request.promptType}] \"${request.message}\" → $outcome $result (${secs}s)"
-        when (outcome) {
-            PromptCallStatus.RESPONDED,
-            PromptCallStatus.DEFAULTED_POLICY,
-            -> log.info(msg)
-            PromptCallStatus.TIMEOUT,
-            PromptCallStatus.ERROR,
-            PromptCallStatus.ALREADY_PENDING,
-            PromptCallStatus.NON_GAME_THREAD,
-            PromptCallStatus.NON_INTERACTIVE_SCOPE,
-            -> log.warn(msg)
-        }
-    }
+    ) = promptHistory.record(request, outcome, result, elapsedMs)
     // ────────────────────────────────────────────────────────────────────────
 
     private val pending = AtomicReference<PendingPrompt?>(null)
@@ -318,7 +281,7 @@ class InteractivePromptBridge(
 
     /** Clear all accumulated state for puzzle hot-swap. */
     fun resetForPuzzle() {
-        synchronized(_history) { _history.clear() }
+        promptHistory.clear()
         revealQueue.clear()
         pendingTargetSpecs.clear()
         journal.resetForPuzzle()
@@ -456,6 +419,14 @@ class InteractivePromptBridge(
             pending.set(null)
         }
     }
+
+    /** Route one Forge modal choice through the match-scoped runtime. */
+    fun requestModalChoice(
+        request: PromptRequest,
+        possible: List<AbilitySub>,
+        sourceCard: Card,
+        sourceAbility: SpellAbility,
+    ): List<AbilitySub> = modalChoiceAdapter.request(request, possible, sourceCard, sourceAbility)
 
     private fun requireLegacyRoute(route: ResolvedPromptRoute) {
         check(route !is ResolvedPromptRoute.PayCosts) { "PayCosts routes require their match-scoped runtime" }
@@ -760,6 +731,9 @@ class InteractivePromptBridge(
         if (request.route is ResolvedPromptRoute.Search) {
             return searchRuntime?.let { requestSearchChoice(request, it, configuredTimeoutMs) }
         }
+        if (request.route is ResolvedPromptRoute.ModalChoice) {
+            error("ModalChoice requests must use requestModalChoice with exact Forge handles")
+        }
         return null
     }
 
@@ -930,25 +904,6 @@ enum class PromptSemantic {
     StaticParityChoice,
 }
 
-/** One modal choice in the original, unfiltered Forge `Choices` index space. */
-data class ModalChoiceOption(
-    val fullIndex: Int,
-    /** Empty means the option is free. */
-    val cost: List<Pair<ManaColor, Int>>,
-)
-
-/**
- * Modal choice metadata handed from the Forge controller to the session.
- *
- * [possible] remains in the same order as [PromptRequest.options]; [fullIndex]
- * addresses the original full mode list so legality filtering cannot shift the
- * child grpId selected for an option.
- */
-data class ModalChoicePayload(
-    val possible: List<ModalChoiceOption>,
-    val excluded: List<ModalChoiceOption>,
-)
-
 /**
  * Engine-thread request for one blocking Forge choice.
  *
@@ -968,6 +923,7 @@ data class PromptRequest(
     val options: List<String>,
     val min: Int = 1,
     val max: Int = 1,
+    val allowRepeat: Boolean = false,
     val defaultIndex: Int = 0,
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
     /** Sole route authority; data-class copies used for re-prompts retain this value. */
@@ -986,8 +942,6 @@ data class PromptRequest(
     val targetPromptId: Int? = null,
     /** Source card name when the live Forge id no longer resolves to card data. */
     val sourceCardName: String? = null,
-    /** Card name for modal ETB prompts — session layer resolves grpId from this. */
-    val modalSourceCardName: String? = null,
     /** True when modal originates from a triggered ability (ETB), not spell-time. */
     val isTriggeredAbility: Boolean = false,
     /**
@@ -1007,8 +961,6 @@ data class PromptRequest(
     val staticList: StaticList? = null,
     /** Per-option static enum values frozen into coordinator-owned StaticChoice windows. */
     val staticOptionIds: List<Int> = emptyList(),
-    /** Modal index/cost metadata; null preserves the unfiltered, all-free fallback. */
-    val modalChoice: ModalChoicePayload? = null,
     /** Waterbend mana component carried into its PayCostsReq payment envelope. */
     val waterbendManaCost: List<Pair<wotc.mtgo.gre.external.messaging.Messages.ManaColor, Int>> = emptyList(),
     /** Non-localized cost string for Waterbend's PayCostsReq prompt parameter. */

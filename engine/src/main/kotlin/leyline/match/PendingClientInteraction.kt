@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.coord.MatchActionWindowRuntime
-import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
@@ -11,13 +10,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * Keeping it typed avoids dispatch based on multiple nullable fields.
  */
 internal sealed interface PendingClientInteraction {
-    data class ModalChoice(
-        val promptId: String,
-        val childGrpIds: List<Int>,
-        val stackAbilityInstanceId: Int? = null,
-        val sourceForgeCardId: ForgeCardId? = null,
-    ) : PendingClientInteraction
-
     /** Transitional response state for candidate-backed Generic prompts. */
     data class UnclassifiedCandidateSelection(
         val promptId: String,

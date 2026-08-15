@@ -11,11 +11,8 @@ import leyline.bridge.handoff.TargetingCommandReceipt
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.CastingTimeOptionsBuilder
-import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.UnclassifiedCandidateRequestBuilder
 import leyline.game.bundle.envelope
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -47,11 +44,6 @@ class TargetingHandler(
             pendingPrompt: InteractivePromptBridge.PendingPrompt,
             resolveForgeCardId: (Int) -> ForgeCardId?,
         ): List<Int> = PromptResponseSubmitter.mapSelectNIdsToPromptIndices(selectedIds, pendingPrompt, resolveForgeCardId)
-
-        internal fun mapModalGrpIdsToPromptIndices(
-            selectedGrpIds: List<Int>,
-            childGrpIds: List<Int>,
-        ): List<Int> = selectedGrpIds.mapNotNull { grpId -> childGrpIds.indexOf(grpId).takeIf { it >= 0 } }
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -260,7 +252,7 @@ class TargetingHandler(
     /**
      * Check for a residual pending interactive prompt.
      * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
-     * - Modal and unclassified entity choices retain their legacy request path.
+     * - Unclassified entity choices retain their legacy request path.
      * Coordinator-owned prompts and synchronous default policies never enter this fallback.
      */
     fun checkPendingPrompt(): PromptResult {
@@ -306,6 +298,7 @@ class TargetingHandler(
                 coordinator.grouping.current() != null ||
                 coordinator.staticChoices.current() != null ||
                 coordinator.revealChoices.current() != null ||
+                coordinator.modalChoices.current() != null ||
                 coordinator.manaSourcePayments.current() != null ||
                 coordinator.oneShotPayCosts.current() != null
         }
@@ -317,8 +310,7 @@ class TargetingHandler(
             }
 
             is ResolvedPromptRoute.ModalChoice -> {
-                sendCastingTimeOptionsReq(pendingPrompt)
-                true
+                error("ModalChoice prompts must be published by MatchModalChoiceRuntime")
             }
 
             is ResolvedPromptRoute.UnclassifiedEntityChoice -> {
@@ -376,28 +368,30 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
-        when (val interaction = pendingInteraction) {
-            is PendingClientInteraction.OptionalCost -> {
-                return cancelDeferredCast(interaction.actionClaim, autoPass)
+        val deferredClaim =
+            when (val interaction = pendingInteraction) {
+                is PendingClientInteraction.OptionalCost -> interaction.actionClaim
+                is PendingClientInteraction.AlternateCostChoice -> interaction.actionClaim
+                is PendingClientInteraction.HybridManaType -> interaction.actionClaim
+                is PendingClientInteraction.UnclassifiedCandidateSelection,
+                null,
+                -> null
             }
-            is PendingClientInteraction.AlternateCostChoice -> {
-                return cancelDeferredCast(interaction.actionClaim, autoPass)
-            }
-            is PendingClientInteraction.HybridManaType -> {
-                return cancelDeferredCast(interaction.actionClaim, autoPass)
-            }
-            is PendingClientInteraction.ModalChoice,
-            is PendingClientInteraction.UnclassifiedCandidateSelection,
-            null,
-            -> Unit
+        if (deferredClaim != null) {
+            cancelDeferredCast(deferredClaim, autoPass)
+            return
         }
 
         val targeting = bridge.cutCoordinator.targeting.current()
         if (targeting != null) {
-            val receipt = bridge.cutCoordinator.targeting.cancel(targeting.interactionId, greMsg.gameStateId) ?: return
-            deliverTargetingReceipt(receipt, autoPass)
-            return
+            bridge.cutCoordinator.targeting.cancel(targeting.interactionId, greMsg.gameStateId)?.let { receipt ->
+                deliverTargetingReceipt(receipt, autoPass)
+                return
+            }
         }
+
+        val modal = bridge.cutCoordinator.modalChoices.current()
+        if (modal != null && cancelModalChoice(modal, greMsg.gameStateId, autoPass)) return
 
         if (manaSourcePaymentHandler.tryHandleCancel(greMsg, autoPass)) return
         if (manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg, autoPass)) return
@@ -416,6 +410,24 @@ class TargetingHandler(
         seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
         bridge.awaitPriority()
         autoPass()
+    }
+
+    private fun cancelModalChoice(
+        modal: leyline.bridge.handoff.PublishedModalChoiceInteraction,
+        gameStateId: Int,
+        autoPass: () -> Unit,
+    ): Boolean {
+        val bridge = ctx.bridge
+        if (!bridge.cutCoordinator.modalChoices.cancel(modal.interactionId, gameStateId)) {
+            log.warn("TargetingHandler: CancelActionReq did not match current modal window")
+            DevCheck.failOnAutoPass { "CancelActionReq did not match current modal window" }
+            return false
+        }
+        log.info("TargetingHandler: CancelActionReq — cancelling modal choice")
+        bridge.awaitPriority()
+        bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(modal.interactionId)
+        autoPass()
+        return true
     }
 
     private fun cancelDeferredCast(
@@ -518,201 +530,42 @@ class TargetingHandler(
     // --- Helpers ---
 
     /**
-     * Build and send CastingTimeOptionsReq for a modal prompt.
-     * Looks up card grpId and modal option grpIds from CardRepository,
-     * saves PendingModal state for response mapping.
-     */
-    @Suppress("LongMethod") // Sequential CTO assembly: lookup → translate → build → bundle. Splitting hides the data-flow.
-    private fun sendCastingTimeOptionsReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        val game = ctx.game
-        val req = pendingPrompt.request
-        val cardName = req.modalSourceCardName
-        if (cardName == null) {
-            log.warn("TargetingHandler: modal prompt but no modalSourceCardName, auto-resolving")
-            DevCheck.fail { "modal prompt but no modalSourceCardName" }
-            autoResolvePrompt(pendingPrompt)
-            return
-        }
-
-        // Look up card grpId and modal options
-        val cardGrpId = bridge.cardRepository.findGrpIdByName(cardName)
-        if (cardGrpId == null) {
-            log.warn("TargetingHandler: card '{}' not in card DB, auto-resolving modal", cardName)
-            DevCheck.fail { "modal card '$cardName' not in card DB" }
-            autoResolvePrompt(pendingPrompt)
-            return
-        }
-
-        val modalInfo = bridge.cardRepository.lookupModalOptions(cardGrpId)
-        if (modalInfo == null) {
-            log.warn("TargetingHandler: no modal options for grpId={}, auto-resolving", cardGrpId)
-            DevCheck.fail { "no modal options for card '$cardName' grpId=$cardGrpId" }
-            autoResolvePrompt(pendingPrompt)
-            return
-        }
-
-        // For triggered abilities (ETB modals), the protocol references the
-        // ability object on the stack, not the source card.
-        val isTriggered = req.isTriggeredAbility
-        val sourceInstanceId: Int
-        val ctoGrpId: Int
-        val ctoId: Int
-        if (isTriggered && req.sourceEntityId != null) {
-            // SA-id-keyed surrogate matches the iid the StateMapper emits on
-            // the matching AbilityInstanceCreated; falls back to the legacy
-            // source-card-keyed scheme when the producer didn't surface
-            // forgeAbilityId (e.g. activated-ability modal).
-            val surrogate =
-                if (req.forgeAbilityId != 0) {
-                    FrameIdResolver.triggerStackAbilityForgeId(req.forgeAbilityId)
-                } else {
-                    FrameIdResolver.stackAbilityForgeId(ForgeCardId(req.sourceEntityId))
-                }
-            sourceInstanceId = bridge.getOrAllocInstanceId(surrogate).value
-            ctoGrpId = modalInfo.parentGrpId
-            ctoId = 2
-        } else {
-            sourceInstanceId =
-                if (req.sourceEntityId != null) {
-                    bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
-                } else {
-                    0
-                }
-            ctoGrpId = cardGrpId
-            ctoId = 2
-        }
-
-        // Resolve per-mode grpIds. When the bridge supplies full-list indices
-        // (Spree/Tiered paths, and any Charm cast where Forge filtered at least one
-        // mode), translate via card-DB childGrpIds — keeps the modal ordering
-        // aligned with `possible[]` upstream. Otherwise fall back to unfiltered
-        // (legacy Charm-with-all-modes-legal path).
-        val modalChoice = req.modalChoice
-        val modalOptions: List<ModalOptionSpec>
-        val excludedOptions: List<ModalOptionSpec>
-        if (modalChoice != null && modalChoice.possible.all { it.fullIndex in modalInfo.childGrpIds.indices }) {
-            modalOptions =
-                modalChoice.possible.map { option ->
-                    ModalOptionSpec(modalInfo.childGrpIds[option.fullIndex], option.cost)
-                }
-            excludedOptions =
-                modalChoice.excluded
-                    .filter { it.fullIndex in modalInfo.childGrpIds.indices }
-                    .map { option -> ModalOptionSpec(modalInfo.childGrpIds[option.fullIndex], option.cost) }
-        } else {
-            // Silent fallback: bridge populated full-list indices but they fell
-            // outside card-DB childGrpIds (Forge SVar count vs. card-DB
-            // modalChildIds count drift). Modal-cost picked-mode mapping will
-            // regress here. Loud in tests, soft in prod.
-            if (modalChoice != null) {
-                DevCheck.fail {
-                    "modal full-list indices out of card-DB range: " +
-                        "indices=${modalChoice.possible.map { it.fullIndex }} " +
-                        "childCount=${modalInfo.childGrpIds.size} " +
-                        "card='$cardName' grpId=$cardGrpId"
-                }
-            }
-            modalOptions = modalInfo.childGrpIds.map(::ModalOptionSpec)
-            excludedOptions = emptyList()
-        }
-
-        val ctoReq =
-            CastingTimeOptionsBuilder.buildModalCastingTimeOptionsReq(
-                parentGrpId = modalInfo.parentGrpId,
-                modalOptions = modalOptions,
-                excludedOptions = excludedOptions,
-                minSel = req.min,
-                maxSel = req.max,
-                sourceInstanceId = sourceInstanceId,
-                grpId = ctoGrpId,
-                ctoId = ctoId,
-                playerIdToPrompt = counters.seatId.value,
-            )
-
-        // Save pending state for response mapping. Store the *effective* child
-        // grpIds so `onCastingTimeOptions`'s `indexOf(pickedGrpId)` returns an
-        // index that aligns with `possible[]` upstream — not an unfiltered index.
-        pendingInteraction =
-            PendingClientInteraction.ModalChoice(
-                pendingPrompt.promptId,
-                modalOptions.map { it.grpId },
-                stackAbilityInstanceId = sourceInstanceId.takeIf { isTriggered && it > 0 },
-                sourceForgeCardId = req.sourceEntityId?.let(::ForgeCardId),
-            )
-
-        // For triggered abilities, pass the source card's instanceId and grpId so the
-        // synthesized ability object has correct parentId and objectSourceGrpId.
-        val cardInstanceId =
-            if (isTriggered && req.sourceEntityId != null) {
-                bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
-            } else {
-                null
-            }
-
-        val result =
-            bundles.bundleBuilder.castingTimeOptionsBundle(
-                game,
-                counters.counter,
-                ctoReq,
-                sourceCardInstanceId = cardInstanceId,
-                sourceCardGrpId = if (isTriggered) cardGrpId else null,
-            )
-        Tap.outboundTemplate("CastingTimeOptionsReq seat=${counters.seatId} card=$cardName")
-        sink.sendBundledGRE(result.messages)
-    }
-
-    /**
      * Handle CastingTimeOptionsResp: dispatches to modal or kicker/optional cost handler.
      */
     fun onCastingTimeOptions(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ) {
+        // Deferred cast costs retain the cast action claim; modal ability choices use the coordinator window below.
         if (deferredCastCostInteractionHandler.onCastingTimeOptions(greMsg, autoPass)) {
             return
         }
         val bridge = ctx.bridge
-        when (val pending = pendingInteraction) {
-            is PendingClientInteraction.ModalChoice -> {
-                val prompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-                if (prompt == null || !prompt.request.route.accepts(PromptResponseKind.ModalChoice)) {
-                    log.warn("TargetingHandler: CastingTimeOptionsResp modal does not match bound route")
-                    DevCheck.failOnAutoPass { "CastingTimeOptionsResp modal does not match bound route" }
-                    return
-                }
-                val resp = greMsg.castingTimeOptionsResp
-                val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
+        val modal = bridge.cutCoordinator.modalChoices.current()
+        if (modal == null) {
+            when (val pending = pendingInteraction) {
+                is PendingClientInteraction.AlternateCostChoice,
+                is PendingClientInteraction.OptionalCost,
+                is PendingClientInteraction.HybridManaType,
+                -> error("deferred cast-cost handler did not consume ${pending::class.simpleName}")
 
-                val selectedIndices = mapModalGrpIdsToPromptIndices(chosenGrpIds, pending.childGrpIds)
-
-                chosenGrpIds.singleOrNull()?.let { selectedGrpId ->
-                    pending.sourceForgeCardId?.let { source ->
-                        bridge.recordSelectedModalAbilityGrpId(source, selectedGrpId)
-                    }
-                }
-
-                log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
-
-                bridge.seat(counters.seatId).prompt.submitResponse(pending.promptId, selectedIndices)
-                pendingInteraction = null
-                bridge.awaitPriority()
-                autoPass()
-                pending.stackAbilityInstanceId?.let { abilityIid ->
-                    sink.sendBundledGRE(listOf(bundles.bundleBuilder.modalStackCleanup(counters.counter, abilityIid)))
+                else -> {
+                    log.warn("TargetingHandler: CastingTimeOptionsResp but no modal or deferred-cost window")
+                    DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no modal or deferred-cost window" }
                 }
             }
-
-            is PendingClientInteraction.AlternateCostChoice,
-            is PendingClientInteraction.OptionalCost,
-            is PendingClientInteraction.HybridManaType,
-            -> error("deferred cast-cost handler did not consume ${pending::class.simpleName}")
-
-            else -> {
-                log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost (likely timeout race)")
-                DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no pending modal or optional cost" }
-            }
+            return
         }
+        val chosenGrpIds = greMsg.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList
+        if (!bridge.cutCoordinator.modalChoices.submit(modal.interactionId, greMsg.gameStateId, chosenGrpIds)) {
+            log.warn("TargetingHandler: CastingTimeOptionsResp did not match current modal window")
+            DevCheck.failOnAutoPass { "CastingTimeOptionsResp did not match current modal window" }
+            return
+        }
+        log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={}", chosenGrpIds)
+        bridge.awaitPriority()
+        bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(modal.interactionId)
+        autoPass()
     }
 
     internal fun checkHybridManaTypeOptions(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =
@@ -750,12 +603,5 @@ class TargetingHandler(
             ) { req -> route.envelope(req) }
         Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
         sink.sendBundledGRE(result.messages)
-    }
-
-    /** Submit default response and wait — used when modal lookup fails. */
-    private fun autoResolvePrompt(prompt: InteractivePromptBridge.PendingPrompt) {
-        val bridge = ctx.bridge
-        bridge.seat(counters.seatId).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
-        bridge.awaitPriority()
     }
 }

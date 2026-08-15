@@ -4,6 +4,7 @@ import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.GroupingMaterializationDiagnostic
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
+import leyline.game.ModalChoiceMaterializationDiagnostic
 import leyline.game.OneShotPayCostsMaterializationDiagnostic
 import leyline.game.OrderMaterializationDiagnostic
 import leyline.game.PendingCardSelectCut
@@ -11,6 +12,7 @@ import leyline.game.PendingCut
 import leyline.game.PendingGroupingCut
 import leyline.game.PendingInteractionCut
 import leyline.game.PendingManaSourcePaymentCut
+import leyline.game.PendingModalChoiceCut
 import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingOrderCut
 import leyline.game.PendingRevealChoiceCut
@@ -42,6 +44,8 @@ internal class MatchCutTerminalRuntime(
         val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
         val pendingRevealChoice: PendingRevealChoiceCut? = null,
         val revealChoiceDiagnostic: RevealChoiceMaterializationDiagnostic? = null,
+        val pendingModalChoice: PendingModalChoiceCut? = null,
+        val modalChoiceDiagnostic: ModalChoiceMaterializationDiagnostic? = null,
         val pendingManaSourcePayment: PendingManaSourcePaymentCut? = null,
         val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
         val pendingOneShotPayCosts: PendingOneShotPayCostsCut? = null,
@@ -85,6 +89,8 @@ internal class MatchCutTerminalRuntime(
                         staticChoiceDiagnostic = context.staticChoiceDiagnostic,
                         pendingRevealChoiceCut = context.pendingRevealChoice,
                         revealChoiceDiagnostic = context.revealChoiceDiagnostic,
+                        pendingModalChoiceCut = context.pendingModalChoice,
+                        modalChoiceDiagnostic = context.modalChoiceDiagnostic,
                         pendingManaSourcePaymentCut = context.pendingManaSourcePayment,
                         manaSourcePaymentDiagnostic = context.manaSourcePaymentDiagnostic,
                         pendingOneShotPayCostsCut = context.pendingOneShotPayCosts,
@@ -103,6 +109,7 @@ internal class MatchCutTerminalRuntime(
                 owner.cardSelect.terminate(terminal)
                 owner.staticChoices.terminate(terminal)
                 owner.revealChoices.terminate(terminal)
+                owner.modalChoices.terminate(terminal)
                 owner.manaSourcePayments.terminate(terminal)
                 owner.oneShotPayCosts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)

@@ -64,8 +64,6 @@ import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.ModalChoiceOption
-import leyline.bridge.handoff.ModalChoicePayload
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputGate
 import leyline.bridge.handoff.OptionalActionGate
@@ -79,12 +77,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
-import leyline.bridge.types.manaTokenToPair
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.function.Predicate
 
 /**
@@ -1372,16 +1368,8 @@ class PlayerController(
     ): List<AbilitySub> {
         if (possible.isEmpty()) return emptyList()
 
-        // PlayerController cannot resolve card-DB grpIds across the bridge → game
-        // boundary, so it binds each possible/excluded full-list index to its
-        // parsed mode cost for the session layer to resolve later.
-        // Without this, the CastingTimeOptionsReq's ModalOption list reflects
-        // the unfiltered card-DB ordering, which gets out of sync with
-        // `possible` when modes are pruned (e.g. Spree's counter mode with no
-        // stack target) — response indices then map to the wrong AbilitySub.
-        val modalChoice = deriveModalChoicePayload(sa, possible)
-
-        if (!allowRepeat && min == num && num == possible.size && modalChoice?.excluded.orEmpty().isEmpty()) {
+        val fullList = sa.getAdditionalAbilityList("Choices")
+        if (!allowRepeat && min == num && num == possible.size && (fullList == null || fullList.size == possible.size)) {
             return possible
         }
 
@@ -1394,73 +1382,14 @@ class PlayerController(
                 options = labels,
                 min = min,
                 max = num,
+                allowRepeat = allowRepeat,
                 defaultIndex = 0,
                 route = PromptRouteResolver.resolve(PromptSemantic.ModalChoice),
-                modalSourceCardName = sa.hostCard.name,
                 sourceEntityId = sa.hostCard.id,
                 isTriggeredAbility = sa.isTrigger,
                 forgeAbilityId = if (sa.isTrigger) sa.id else 0,
-                modalChoice = modalChoice,
             )
-        val result = bridge.requestChoice(request, targetingSa = sa)
-        return result.mapNotNull { idx -> possible.getOrNull(idx) }
-    }
-
-    /**
-     * For an SP$ Charm SA (Charm, Spree, Tiered), compute possible/excluded mappings
-     * into the unfiltered Choices list plus per-mode costs parsed from Forge's
-     * `ModeCost$` SVar. Returns null when:
-     *   - the SA has no `getAdditionalAbilityList("Choices")` (not a Charm)
-     *   - any element of `possible` isn't in the full list (defensive)
-     *
-     * In those cases the caller falls back to legacy emit (no modeCost,
-     * unfiltered childGrpIds) — preserves existing behavior for non-modal
-     * paths and minimizes blast radius.
-     */
-    private fun deriveModalChoicePayload(
-        sa: SpellAbility,
-        possible: List<AbilitySub>,
-    ): ModalChoicePayload? {
-        val fullList = sa.getAdditionalAbilityList("Choices") ?: return null
-        if (fullList.isEmpty()) return null
-
-        val possibleSet = possible.toSet()
-        val possibleOptions = mutableListOf<ModalChoiceOption>()
-        val excludedOptions = mutableListOf<ModalChoiceOption>()
-
-        for (sub in possible) {
-            val fullIdx = fullList.indexOf(sub)
-            // Defensive: shouldn't happen with CharmEffect.makePossibleOptions,
-            // but bail to legacy if a mode in `possible` isn't in `fullList`.
-            if (fullIdx < 0) return null
-            possibleOptions += ModalChoiceOption(fullIdx, parseForgeModeCost(sub.getParam("ModeCost")))
-        }
-        for ((idx, sub) in fullList.withIndex()) {
-            if (sub in possibleSet) continue
-            excludedOptions += ModalChoiceOption(idx, parseForgeModeCost(sub.getParam("ModeCost")))
-        }
-
-        return ModalChoicePayload(possibleOptions, excludedOptions)
-    }
-
-    /**
-     * Parse Forge's `ModeCost$` text (e.g. `"0"`, `"3"`, `"2 R"`) into
-     * (ManaColor, count) pairs. Tokenizer differs from card-DB OldSchoolManaText
-     * (whitespace vs. `o` prefix) but the single-symbol vocabulary is shared via
-     * [manaTokenToPair]. Empty/null returns empty list (Charm-style cost-free mode).
-     */
-    private fun parseForgeModeCost(text: String?): List<Pair<ManaColor, Int>> {
-        if (text.isNullOrBlank()) return emptyList()
-        val counts = mutableMapOf<ManaColor, Int>()
-        for (token in text.trim().split(Regex("\\s+"))) {
-            if (token == "0") {
-                counts[ManaColor.Generic] = 0
-                continue
-            }
-            val pair = manaTokenToPair(token) ?: continue
-            counts.merge(pair.first, pair.second, Int::plus)
-        }
-        return counts.toList()
+        return bridge.requestModalChoice(request, possible, sa.hostCard, sa)
     }
 
     // -- Mulligan / starting player ----------------------------------------
