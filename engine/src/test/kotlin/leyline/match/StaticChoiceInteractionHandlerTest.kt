@@ -78,10 +78,6 @@ class StaticChoiceInteractionHandlerTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldBe listOf(1)
                 autoPassed shouldBe true
-                board.bridge
-                    .promptBridge(SeatId(1))
-                    .getPendingPrompt()
-                    .shouldBeNull()
                 coordinator.staticChoices.current().shouldBeNull()
             }
         }

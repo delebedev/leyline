@@ -14,7 +14,6 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
-import leyline.DevCheck
 import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderMoveIntent
@@ -34,6 +33,7 @@ import leyline.bridge.interaction.ChooseEntitiesPlanner
 import leyline.bridge.interaction.ChooseSingleEntityContext
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
 import leyline.bridge.interaction.ChooseSingleEntityRoutePolicy
+import leyline.bridge.interaction.UnclassifiedEntityChoicePolicy
 import leyline.bridge.interaction.candidateRefs
 import leyline.bridge.interaction.shouldAutoResolve
 import leyline.bridge.interaction.shouldReturnAll
@@ -140,9 +140,16 @@ class TargetingCoordinator(
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
-        auditUnclassifiedEntityChoice(request)
+        val residual =
+            UnclassifiedEntityChoicePolicy.decide(
+                request,
+                optional = isOptional,
+                allCandidatesProjectable = allCandidatesProjectable(optionList),
+            )
         val chosen =
-            if (request.route is ResolvedPromptRoute.CardSelect) {
+            if (residual != null) {
+                residual.indices.firstOrNull()?.let(optionList::get)
+            } else if (request.route is ResolvedPromptRoute.CardSelect) {
                 val cards = optionList.filterIsInstance<Card>()
                 check(cards.size == optionList.size) { "CardSelect requires card options" }
                 @Suppress("UNCHECKED_CAST")
@@ -294,7 +301,12 @@ class TargetingCoordinator(
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(plan.semantic, sa),
             )
-        auditUnclassifiedEntityChoice(request)
+        val residual =
+            UnclassifiedEntityChoicePolicy.decide(
+                request,
+                optional = plan.effectiveMin == 0,
+                allCandidatesProjectable = allCandidatesProjectable(optionList),
+            )
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             val candidateCards = optionList.filterIsInstance<Card>()
             check(candidateCards.size == optionList.size) { "One-shot PayCosts options must be cards" }
@@ -307,7 +319,13 @@ class TargetingCoordinator(
             val selected = bridge.requestCardSelect(request, candidateCards)
             return selected.handles.map { handle -> optionList.first { it === handle } }
         }
-        val indices = bridge.requestChoice(request)
+        if (request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
+            val candidateCards = optionList.filterIsInstance<Card>()
+            check(candidateCards.size == optionList.size) { "Compatibility options must be cards" }
+            val selected = bridge.requestCompatibilityCostSelection(request, candidateCards)
+            return selected.handles.map { handle -> optionList.first { it === handle } }
+        }
+        val indices = residual?.indices ?: bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
 
@@ -1034,14 +1052,22 @@ class TargetingCoordinator(
                 payCostsPromptSource = payCostsPromptSource,
                 searchSource = searchSource,
             )
-        auditUnclassifiedEntityChoice(request)
+        val residual =
+            UnclassifiedEntityChoicePolicy.decide(
+                request,
+                optional = effectiveMin == 0,
+                allCandidatesProjectable = allCandidatesProjectable(cards),
+            )
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             return CardCollection(bridge.requestOneShotPayCosts(request, cards.toList()).handles)
         }
         if (request.route is ResolvedPromptRoute.CardSelect) {
             return CardCollection(bridge.requestCardSelect(request, cards.toList()).handles)
         }
-        val indices = bridge.requestChoice(request)
+        if (request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
+            return CardCollection(bridge.requestCompatibilityCostSelection(request, cards.toList()).handles)
+        }
+        val indices = residual?.indices ?: bridge.requestChoice(request)
         val result = CardCollection()
         for (idx in indices) {
             if (idx in 0 until cards.size) result.add(cards.get(idx))
@@ -1142,18 +1168,6 @@ class TargetingCoordinator(
         }
 
     private fun Card.ownerSeat(): SeatId = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-
-    private fun auditUnclassifiedEntityChoice(request: PromptRequest) {
-        if (request.route !is ResolvedPromptRoute.UnclassifiedEntityChoice) return
-        log.warn(
-            "Resolution choice remains unclassified: options={} refs={} kinds={} zones={}",
-            request.options.size,
-            request.candidateRefs.size,
-            request.candidateRefs.map { it.kind }.distinct(),
-            request.candidateRefs.map { it.zone }.distinct(),
-        )
-        DevCheck.fail { "Resolution choice has an incomplete, mixed, or unprojectable candidate domain" }
-    }
 
     private fun GameEntity.entityLabel(): String =
         when (this) {

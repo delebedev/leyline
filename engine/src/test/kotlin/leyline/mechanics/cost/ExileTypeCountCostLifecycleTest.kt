@@ -4,10 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 
 /**
@@ -47,21 +44,7 @@ class ExileTypeCountCostLifecycleTest :
             startPuzzle(puzzle, name = "TypesGE exile accept", validating = true)
 
             castFromGraveyard("Nethergoyf").shouldBeTrue()
-            val pending =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
-                    .shouldNotBeNull()
-
-            assertSoftly {
-                pending.request.semantic shouldBe PromptSemantic.Generic
-                pending.request.min shouldBe 1
-                pending.request.max shouldBe 4
-                pending.request.candidateRefs shouldHaveSize 4
-            }
-
-            respondToEffectCost(graveyardIds("Duress", "Shock", "Grizzly Bears", "Portable Hole"))
+            selectTargets(graveyardIds("Duress", "Shock", "Grizzly Bears", "Portable Hole"))
             harness.bridge.awaitPriority()
             passUntilResolved(maxPasses = 8)
 
@@ -75,13 +58,7 @@ class ExileTypeCountCostLifecycleTest :
             startPuzzle(puzzle, name = "TypesGE exile reject", validating = true)
 
             castFromGraveyard("Nethergoyf").shouldBeTrue()
-            harness.bridge
-                .seat(SeatId(1))
-                .prompt
-                .getPendingPrompt()
-                .shouldNotBeNull()
-
-            respondToEffectCost(graveyardIds("Duress", "Shock"))
+            selectTargets(graveyardIds("Duress", "Shock"))
             harness.bridge.awaitPriority()
             passUntilResolved(maxPasses = 8)
 

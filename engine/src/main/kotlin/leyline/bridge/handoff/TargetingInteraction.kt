@@ -65,10 +65,16 @@ data class TargetToggleValue(
 )
 
 /** Session-visible identity of the latest committed targeting request. */
+enum class TargetingInteractionKind {
+    Targeting,
+    CompatibilityCostSelection,
+}
+
 data class PublishedTargetingInteraction(
     val interactionId: String,
     val gameStateId: Int,
     val targetIndex: Int,
+    val kind: TargetingInteractionKind = TargetingInteractionKind.Targeting,
 )
 
 /** Result of one command accepted by the targeting interaction owner. */

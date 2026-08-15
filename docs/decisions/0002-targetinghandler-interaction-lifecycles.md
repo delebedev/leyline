@@ -82,13 +82,13 @@ sequencing, while ADR 0015 coordinator migrations reduce it to value dispatch.
 
 ### Response Submission
 
-`PromptResponseSubmitter` owns repeated prompt response mapping and submission
-for simple non-target prompt responses:
+Typed match runtimes own prompt response mapping and submission for their
+simple non-target prompt responses:
 
-- Pending prompt lookup with the existing timeout/race warning behavior.
-- Client id to prompt-index mapping using `PromptResponseMapper`.
+- Correlated pending-window lookup with the existing timeout/race warning behavior.
+- Client id to prompt-index mapping through each runtime's retained candidate table.
 - `submitResponse`, `awaitPriority`, and `autoPass` sequencing.
-- Shared response paths for `SelectNResp` and residual `EffectCostResp` routes.
+- Typed response paths for `SelectNResp` and residual `EffectCostResp` routes.
 
 It does not own:
 

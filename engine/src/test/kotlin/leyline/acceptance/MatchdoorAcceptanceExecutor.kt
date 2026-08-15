@@ -5,6 +5,8 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.PromptCallStatus
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -199,7 +201,71 @@ private class ScenarioRun(
 
     private fun selectCost(step: SelectCostStep) {
         val ids = step.cards.map { resolveCardInZone(step.side, step.zone, it) }
-        harness.respondToEffectCost(ids)
+        val prompt = latestPromptMessage()
+        val activePayCosts =
+            harness.bridge
+                .cutCoordinator
+                .oneShotPayCosts
+                .current()
+        when {
+            prompt?.hasSelectNReq() == true ->
+                selectCards(SelectCardsStep(step.side, step.zone, step.cards))
+            prompt?.hasSelectTargetsReq() == true -> {
+                val offered =
+                    prompt.selectTargetsReq.targetsList
+                        .flatMap { it.targetsList }
+                        .map { it.targetInstanceId }
+                ids.forEach { id ->
+                    require(id in offered) {
+                        "$context selected cost iid=$id is not in SelectTargets candidates $offered"
+                    }
+                }
+                harness.selectTargets(ids)
+            }
+            prompt?.hasPayCostsReq() == true || activePayCosts != null ->
+                harness.respondToEffectCost(ids)
+            prompt == null -> acceptDefaultedCardCost(step)
+            else -> error("$context expected active PayCosts or SelectN/SelectTargets prompt")
+        }
+    }
+
+    private fun acceptDefaultedCardCost(step: SelectCostStep) {
+        val record =
+            harness.bridge
+                .promptBridge(OUR_SEAT)
+                .history
+                .lastOrNull()
+        require(record != null) {
+            "$context expected typed cost fallback, history=$record " +
+                "messages=${harness.allMessages.takeLast(8).map { it.promptName() }}"
+        }
+        when (val route = record.route) {
+            is ResolvedPromptRoute.CompatibilityCostSelection -> Unit
+            is ResolvedPromptRoute.PayCosts ->
+                require(route.descriptor.tapPayment != null) {
+                    "$context grounded tap cost lost its TapPayment descriptor: $record"
+                }
+            else -> error("$context expected CompatibilityCostSelection or grounded TapPayment route: $record")
+        }
+        require(
+            record.outcome in
+                setOf(
+                    PromptCallStatus.DEFAULTED_POLICY,
+                    PromptCallStatus.NON_GAME_THREAD,
+                    PromptCallStatus.NON_INTERACTIVE_SCOPE,
+                ),
+        ) {
+            "$context typed cost was not defaulted safely: $record"
+        }
+        val expectedIndices =
+            step.cards.map { card ->
+                record.options.indexOfFirst { it.equals(card, ignoreCase = true) }.also {
+                    require(it >= 0) { "$context defaulted cost card $card is not in options ${record.options}" }
+                }
+            }
+        require(record.result == expectedIndices) {
+            "$context defaulted cost result ${record.result} does not match $expectedIndices"
+        }
     }
 
     private fun selectCard(step: SelectCardStep) = selectCards(SelectCardsStep(step.side, step.zone, listOf(step.card)))

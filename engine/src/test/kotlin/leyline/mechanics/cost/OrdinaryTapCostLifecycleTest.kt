@@ -109,10 +109,6 @@ class OrdinaryTapCostLifecycleTest :
                 allMessages.persistentAnnotationsOfType(AnnotationType.TriggeringObject).filter {
                     it.affectorId == sourceIid
                 } shouldHaveSize 0
-                harness.bridge
-                    .seat(leyline.bridge.types.SeatId(1))
-                    .prompt
-                    .getPendingPrompt() shouldBe null
             }
 
             respondToEffectCost(listOf(bearIid, corpseIid))

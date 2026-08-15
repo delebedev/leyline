@@ -206,7 +206,7 @@ class RuntimeBoundaryTest :
                 check(forbidden !in sessionHandler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("route !is ResolvedPromptRoute.Order" in bridge)
+            check("check(request.route is ResolvedPromptRoute.Order)" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             listOf("sendOrderReq", "orderBundle", "fun onOrderResp").forEach { removed -> check(removed !in targeting) }
             val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))
@@ -256,9 +256,9 @@ class RuntimeBoundaryTest :
                 check(forbidden !in sessionHandler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("route !is ResolvedPromptRoute.CardSelect" in bridge)
+            check("check(request.route is ResolvedPromptRoute.CardSelect)" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
-            check("CardSelect prompts must be published by MatchCardSelectInteractionRuntime" in targeting)
+            check("coordinator.cardSelect.current() != null" in targeting)
             val route = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptRoute.kt"))
             listOf(
                 "SelectNLegendRule",
@@ -380,7 +380,7 @@ class RuntimeBoundaryTest :
                 check(forbidden !in handler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("route !is ResolvedPromptRoute.PayCosts" in bridge)
+            check("request.route as? ResolvedPromptRoute.PayCosts" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             check("PayCostsInteractionHandler" !in targeting)
             val tapPolicy = Files.readString(sourceRoot.resolve("leyline/bridge/forge/TapPaymentPolicy.kt"))

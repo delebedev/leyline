@@ -33,8 +33,6 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.TargetingCandidateValue
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
 import org.slf4j.LoggerFactory
 
 /**
@@ -125,17 +123,15 @@ class ClientGuiGame(
         val labels = choices.map { it?.toString() ?: "(none)" }
         val stackTargetOptions = stackTargetOptions(choices)
         val targetingCandidates = stackTargetOptions.candidates
-        val candidateRefs = if (targetingCandidates.isEmpty()) candidateRefsForResidual(message, choices) else emptyList()
-        if (choices.size == 1 && candidateRefs.isEmpty() && targetingCandidates.isEmpty()) return choices[0]
+        if (choices.size == 1 && targetingCandidates.isEmpty()) return choices[0]
         val request =
             PromptRequest(
-                promptType = if (candidateRefs.isNotEmpty() || targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
+                promptType = if (targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
                 min = if (stackTargetOptions.finishOptionIndex != null) 0 else 1,
                 max = 1,
                 defaultIndex = 0,
-                candidateRefs = candidateRefs,
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -146,7 +142,7 @@ class ClientGuiGame(
                     if (targetingCandidates.isNotEmpty()) {
                         PromptRouteResolver.resolve(PromptSemantic.TargetSelection)
                     } else {
-                        PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty())
+                        PromptRouteResolver.resolve(PromptSemantic.Generic)
                     },
                 sourceEntityId = if (targetingCandidates.isNotEmpty()) currentStackSourceId() else null,
             )
@@ -164,17 +160,15 @@ class ClientGuiGame(
         val labels = choices.map { display?.apply(it) ?: it?.toString() ?: "(none)" }
         val stackTargetOptions = stackTargetOptions(choices)
         val targetingCandidates = stackTargetOptions.candidates
-        val candidateRefs = if (targetingCandidates.isEmpty()) candidateRefsForResidual(message, choices) else emptyList()
-        if (choices.size == 1 && candidateRefs.isEmpty() && targetingCandidates.isEmpty()) return choices[0]
+        if (choices.size == 1 && targetingCandidates.isEmpty()) return choices[0]
         val request =
             PromptRequest(
-                promptType = if (candidateRefs.isNotEmpty() || targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
+                promptType = if (targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
                 min = if (stackTargetOptions.finishOptionIndex != null) 0 else 1,
                 max = 1,
                 defaultIndex = 0,
-                candidateRefs = candidateRefs,
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -185,7 +179,7 @@ class ClientGuiGame(
                     if (targetingCandidates.isNotEmpty()) {
                         PromptRouteResolver.resolve(PromptSemantic.TargetSelection)
                     } else {
-                        PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty())
+                        PromptRouteResolver.resolve(PromptSemantic.Generic)
                     },
                 sourceEntityId = if (targetingCandidates.isNotEmpty()) currentStackSourceId() else null,
             )
@@ -202,17 +196,15 @@ class ClientGuiGame(
         val labels = choices.map { it?.toString() ?: "(none)" }
         val stackTargetOptions = stackTargetOptions(choices)
         val targetingCandidates = stackTargetOptions.candidates
-        val candidateRefs = if (targetingCandidates.isEmpty()) candidateRefsForResidual(message, choices) else emptyList()
-        if (choices.size == 1 && candidateRefs.isEmpty() && targetingCandidates.isEmpty()) return choices[0]
+        if (choices.size == 1 && targetingCandidates.isEmpty()) return choices[0]
         val request =
             PromptRequest(
-                promptType = if (candidateRefs.isNotEmpty() || targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
+                promptType = if (targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
                 min = 0,
                 max = 1,
                 defaultIndex = 0,
-                candidateRefs = candidateRefs,
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -223,7 +215,7 @@ class ClientGuiGame(
                     if (targetingCandidates.isNotEmpty()) {
                         PromptRouteResolver.resolve(PromptSemantic.TargetSelection)
                     } else {
-                        PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty())
+                        PromptRouteResolver.resolve(PromptSemantic.Generic)
                     },
                 sourceEntityId = if (targetingCandidates.isNotEmpty()) currentStackSourceId() else null,
             )
@@ -449,16 +441,14 @@ class ClientGuiGame(
         val labels = optionList.map { it.toString() }
         val stackTargetOptions = stackTargetOptions(optionList)
         val targetingCandidates = stackTargetOptions.candidates
-        val candidateRefs = if (targetingCandidates.isEmpty()) candidateRefsForResidual(title, optionList) else emptyList()
         val request =
             PromptRequest(
-                promptType = "choose_cards",
+                promptType = if (targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
                 message = title,
                 options = labels,
                 min = if (isOptional || stackTargetOptions.finishOptionIndex != null) 0 else 1,
                 max = 1,
                 defaultIndex = 0,
-                candidateRefs = candidateRefs,
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -469,7 +459,7 @@ class ClientGuiGame(
                     if (targetingCandidates.isNotEmpty()) {
                         PromptRouteResolver.resolve(PromptSemantic.TargetSelection)
                     } else {
-                        PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty())
+                        PromptRouteResolver.resolve(PromptSemantic.Generic)
                     },
                 sourceEntityId = if (targetingCandidates.isNotEmpty()) currentStackSourceId() else null,
             )
@@ -477,22 +467,6 @@ class ClientGuiGame(
         val idx = indices.firstOrNull()
         if (idx != null && idx in optionList.indices) return optionList[idx]
         return if (isOptional) null else optionList.firstOrNull()
-    }
-
-    private fun candidateRefsForResidual(
-        title: String?,
-        optionList: List<*>,
-    ): List<PromptCandidateRefDto> {
-        // Compatibility shape only; typed stack targeting never consults the title.
-        if (!title.orEmpty().contains("target", ignoreCase = true)) return emptyList()
-        return optionList.mapIndexedNotNull { index, entity ->
-            when (entity) {
-                is CardView -> PromptCandidateRefDto(index, PromptCandidateKind.Card, entity.id, ZoneType.Stack.name)
-                is SpellAbilityView ->
-                    entity.hostCard?.id?.let { PromptCandidateRefDto(index, PromptCandidateKind.Card, it, ZoneType.Stack.name) }
-                else -> null
-            }
-        }
     }
 
     internal fun stackTargetCandidates(optionList: List<*>): List<TargetingCandidateValue.StackObject> =

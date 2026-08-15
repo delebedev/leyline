@@ -108,24 +108,8 @@ class InteractivePromptBridgeTest :
 
             assertSoftly {
                 result shouldContainExactly listOf(1)
-                bridge.getPendingPrompt() shouldBe null
                 bridge.history.single().outcome shouldBe PromptCallStatus.DEFAULTED_POLICY
                 signal.consumePromptResolved() shouldBe true
-            }
-        }
-
-        test("generic pending-prompt API refuses migrated Order routes") {
-            val bridge = InteractivePromptBridge(timeoutMs = null, strict = false)
-
-            shouldThrow<IllegalStateException> {
-                bridge.requestChoice(
-                    PromptRequest(
-                        promptType = "order",
-                        message = "Order cards",
-                        options = listOf("First", "Second"),
-                        route = ResolvedPromptRoute.Order(PromptSemantic.OrderForTop, OrderRouteKind.Top),
-                    ),
-                )
             }
         }
 

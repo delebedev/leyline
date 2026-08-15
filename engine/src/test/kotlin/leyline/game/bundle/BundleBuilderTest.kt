@@ -13,12 +13,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.PromptRouteResolver
-import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
-import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
@@ -35,7 +30,6 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.iid
-import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateFrameInput
@@ -1574,45 +1568,6 @@ class BundleBuilderTest :
                 result.messages[0].gameStateMessage.pendingMessageCount shouldBe 1
                 result.messages[1].type shouldBe GREMessageType.SelectNreq
                 result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
-            }
-        }
-
-        test("triggered selectN installs source ability identity in frame transition") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
-            val abilityId = 424_242
-            val route =
-                (
-                    PromptRouteResolver.resolve(PromptSemantic.SelectNResolution) as
-                        ResolvedPromptRoute.UnclassifiedEntityChoice
-                ).descriptor
-            val prompt =
-                InteractivePromptBridge.PendingPrompt(
-                    promptId = "triggered-select-n",
-                    request =
-                        PromptRequest(
-                            promptType = "choose_cards",
-                            message = "Choose",
-                            options = emptyList(),
-                            min = 0,
-                            max = 0,
-                            route = ResolvedPromptRoute.UnclassifiedEntityChoice(route),
-                            isTriggeredAbility = true,
-                            forgeAbilityId = abilityId,
-                        ),
-                    future = java.util.concurrent.CompletableFuture(),
-                )
-            val revisionBefore = b.projectionStateSnapshot().revision
-
-            val result =
-                bundleBuilder(b).selectNBundle(game, counter, prompt, route) { req ->
-                    SelectNEnvelope.default(req)
-                }
-
-            val sourceId = result.messages[1].selectNReq.sourceId
-            assertSoftly {
-                b.projectionStateSnapshot().revision shouldBe revisionBefore + 1
-                sourceId shouldBe
-                    b.peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
             }
         }
 

@@ -27,7 +27,7 @@ Forge callback
 -> PromptRequest.semantic
 -> PromptSemanticRouteMetadata family
 -> ClassifiedPrompt
--> SelectNPromptRoutes concrete route
+-> SelectN concrete route
 -> RequestBuilder request shape
 -> response-handler semantic checks
 ```
@@ -35,7 +35,7 @@ Forge callback
 `PromptSemanticRouteMetadata` maps each semantic to a broad request family.
 `PromptClassifier` then collapses both `SelectN` and `PayCosts` into
 `ClassifiedPrompt.SelectN`. `TargetingHandler` reads the semantic again to
-recover the distinction through `SelectNPromptRoutes`. Request construction
+recover the distinction through concrete route values. Request construction
 and response handling perform further route lookups and maintain additional
 semantic subsets.
 
@@ -77,6 +77,7 @@ ResolvedPromptRoute
   UnclassifiedEntityChoice(selectNRoute)
   CardSelect(cardSelectRoute)
   PayCosts(payCostsRoute)
+  CompatibilityCostSelection
   Search
   Order(orderKind)
   Targeting
@@ -91,8 +92,9 @@ The exact names may follow existing vocabulary. The required properties are:
 - the route retains its `PromptSemantic` for diagnostics and mapping docs;
 - `PromptRequest` does not store a second independent semantic value after
   migration;
-- generic fallback resolves once to `UnclassifiedCandidate` or `AutoResolve` and is not
-  reconsidered later.
+- generic card choices resolve once to `CompatibilityCostSelection`; unsupported
+  entity domains resolve to `UnclassifiedEntityChoice`, and candidate-free
+  generic callbacks resolve to `AutoResolve` without a pending interaction.
 
 If callback planners continue to return `PromptSemantic` during migration, one
 exhaustive resolver converts that semantic to a concrete route. That resolver
@@ -114,7 +116,7 @@ route are fixed.
 Forge callback context
 -> callback-specific planner
 -> PromptRequest + resolved route
--> PendingPrompt
+-> typed pending interaction
 -> match-layer dispatch
 -> request builder
 -> GRE request
@@ -148,9 +150,14 @@ ADR 0004's builder boundary. It does not replace any of them.
 `Generic` remains an explicit degraded input for Forge GUI adapters whose
 callback context has not yet been assigned a semantic route.
 
-The existing fallback remains:
+The explicit fallback remains:
 
-- candidate references present: resolve to `UnclassifiedCandidate`;
+- candidate-backed card choices: resolve to `CompatibilityCostSelection`, a
+  SelectTargets-compatible behavior path that preserves toggle/echo/submit and
+  exact handles without asserting protocol conformance;
+- unsupported entity domains: resolve to `UnclassifiedEntityChoice`, whose
+  synchronous policy refuses strictly before optional-empty or required
+  stable-prefix defaults;
 - no candidate references: resolve to `AutoResolve`.
 
 That decision occurs once. A resolved generic prompt must be observable in the

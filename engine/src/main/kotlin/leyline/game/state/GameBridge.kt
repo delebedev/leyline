@@ -20,6 +20,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
 import leyline.bridge.coord.cardSelectRuntime
+import leyline.bridge.coord.compatibilityCostSelectionRuntime
 import leyline.bridge.coord.groupingRuntime
 import leyline.bridge.coord.manaSourcePaymentRuntime
 import leyline.bridge.coord.modalChoiceRuntime
@@ -35,6 +36,7 @@ import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -518,6 +520,7 @@ class GameBridge(
         promptBridge(seatId).modalChoiceRuntime = cutCoordinator.modalChoiceRuntime(seatId)
         promptBridge(seatId).manaSourcePaymentRuntime = cutCoordinator.manaSourcePaymentRuntime(seatId)
         promptBridge(seatId).oneShotPayCostsRuntime = cutCoordinator.oneShotPayCostsRuntime(seatId)
+        promptBridge(seatId).compatibilityCostSelectionRuntime = cutCoordinator.compatibilityCostSelectionRuntime(seatId)
         val collector = GameEventCollector(this)
         eventCollector = collector
         game.subscribeToEvents(collector)
@@ -684,7 +687,7 @@ class GameBridge(
                     PromptProjectionFacts.RevealFact(
                         PromptFactKey(seatId, entry.version),
                         RevealStarted(entry.reveal.allHandCardIds.toList(), entry.reveal.ownerSeatId),
-                        prompt.getPendingPrompt() != null,
+                        cutCoordinator.revealChoices.current() != null || cutCoordinator.cardSelect.current() != null,
                     )
             }
             convokePayments +=
@@ -1314,9 +1317,9 @@ class GameBridge(
             hasPendingNonActionInteraction()
 
     fun hasPendingNonActionInteraction(): Boolean =
-        promptBridges.values.any { it.getPendingPrompt() != null } ||
-            cutCoordinator.currentBlockingInteraction() != null ||
+        cutCoordinator.currentBlockingInteraction() != null ||
             cutCoordinator.targeting.current() != null ||
+            cutCoordinator.compatibilityCostSelection.current() != null ||
             cutCoordinator.search.current() != null ||
             cutCoordinator.modalChoices.current() != null ||
             cutCoordinator.order.current() != null ||
@@ -1326,6 +1329,9 @@ class GameBridge(
             cutCoordinator.revealChoices.current() != null ||
             cutCoordinator.manaSourcePayments.current() != null ||
             cutCoordinator.oneShotPayCosts.current() != null
+
+    /** Current typed one-shot PayCosts window for harness policy inspection. */
+    fun currentOneShotPayCostsInteraction(): PublishedOneShotPayCostsInteraction? = cutCoordinator.oneShotPayCosts.current()
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1583,6 +1589,7 @@ class GameBridge(
             it.modalChoiceRuntime = null
             it.manaSourcePaymentRuntime = null
             it.oneShotPayCostsRuntime = null
+            it.compatibilityCostSelectionRuntime = null
         }
         val g = game
         if (g != null) {

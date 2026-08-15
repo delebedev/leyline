@@ -1,22 +1,20 @@
 package leyline.bridge.coord
 
-import forge.game.GameEntity
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedTargetingInteraction
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TargetToggleValue
 import leyline.bridge.handoff.TargetingCommandReceipt
+import leyline.bridge.handoff.TargetingInteractionKind
 import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.handoff.TargetingInteractionTimeoutException
 import leyline.bridge.handoff.TargetingWindowValue
-import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.bundle.TargetingWindowMaterializer
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
@@ -30,59 +28,8 @@ internal class MatchTargetingInteractionRuntime(
     internal var afterCompletedDeliveryRelease: (() -> Unit)? = null
     private val capture = TargetingWindowCapture(owner)
 
-    private sealed interface Command {
-        val reply: CompletableFuture<TargetingCommandReceipt>
-
-        data class Toggle(
-            val interactionId: String,
-            val gameStateId: Int,
-            val targetIndex: Int,
-            val toggles: List<TargetToggleValue>,
-            override val reply: CompletableFuture<TargetingCommandReceipt> = CompletableFuture(),
-        ) : Command
-
-        data class Submit(
-            val interactionId: String,
-            val gameStateId: Int,
-            override val reply: CompletableFuture<TargetingCommandReceipt> = CompletableFuture(),
-        ) : Command
-
-        data class Cancel(
-            val interactionId: String,
-            val gameStateId: Int,
-            override val reply: CompletableFuture<TargetingCommandReceipt> = CompletableFuture(),
-        ) : Command
-
-        data class Terminal(
-            val cause: Throwable,
-            override val reply: CompletableFuture<TargetingCommandReceipt> = CompletableFuture(),
-        ) : Command
-    }
-
-    private data class Delivery(
-        val token: Long,
-        val acknowledged: CompletableFuture<Unit>,
-        val released: CompletableFuture<Unit>,
-    )
-
-    private data class Window(
-        val interactionId: String,
-        val value: TargetingWindowValue,
-        val targetingAbility: SpellAbility?,
-        val entitiesByOptionIndex: Map<Int, GameEntity>,
-        val stackAbilitiesByOptionIndex: Map<Int, SpellAbility>,
-        val instanceIdByOptionIndex: Map<Int, Int>,
-        val sourceInstanceId: InstanceId?,
-        val deadlineNanos: Long?,
-        val commands: LinkedBlockingQueue<Command> = LinkedBlockingQueue(),
-        val selectedOptionIndices: MutableList<Int> = mutableListOf(),
-        var published: PublishedTargetingInteraction,
-        var commandInFlight: Boolean = false,
-        var delivery: Delivery? = null,
-    )
-
     private val nextDeliveryToken = AtomicLong()
-    private var window: Window? = null
+    private var window: TargetingWindow? = null
     private var duplicateSubmitGameStateId: Int? = null
 
     override fun awaitTargeting(
@@ -93,7 +40,31 @@ internal class MatchTargetingInteractionRuntime(
     ): List<Int> {
         check(request.route is ResolvedPromptRoute.Targeting)
         val value = capture.capture(request, targetingAbility, abilityIdentity)
-        val pending = publishInitial(value, targetingAbility, timeoutMs)
+        return awaitCaptured(value, targetingAbility, timeoutMs, TargetingInteractionKind.Targeting)
+    }
+
+    /** Shared SelectTargets lifecycle for residual card choices. */
+    internal fun awaitCompatibility(
+        request: PromptRequest,
+        candidateHandles: List<forge.game.card.Card>,
+        timeoutMs: Long?,
+    ): List<Int> {
+        check(request.route is ResolvedPromptRoute.CompatibilityCostSelection)
+        require(candidateHandles.size == request.options.size) { "Compatibility candidates must match prompt options" }
+        require(request.candidateRefs.all { ref -> candidateHandles.getOrNull(ref.index)?.id == ref.entityId }) {
+            "Compatibility candidate handles no longer match the frozen prompt"
+        }
+        val value = capture.capture(request, targetingAbility = null, abilityIdentity = null)
+        return awaitCaptured(value, targetingAbility = null, timeoutMs, TargetingInteractionKind.CompatibilityCostSelection)
+    }
+
+    private fun awaitCaptured(
+        value: TargetingWindowValue,
+        targetingAbility: SpellAbility?,
+        timeoutMs: Long?,
+        kind: TargetingInteractionKind,
+    ): List<Int> {
+        val pending = publishInitial(value, targetingAbility, timeoutMs, kind)
         return awaitCommands(pending)
     }
 
@@ -104,7 +75,7 @@ internal class MatchTargetingInteractionRuntime(
         gameStateId: Int,
         targetIndex: Int,
         toggles: List<TargetToggleValue>,
-    ): TargetingCommandReceipt? = submit(Command.Toggle(interactionId, gameStateId, targetIndex, toggles.toList()))
+    ): TargetingCommandReceipt? = submit(TargetingCommand.Toggle(interactionId, gameStateId, targetIndex, toggles.toList()))
 
     fun submitTargets(
         interactionId: String?,
@@ -120,13 +91,13 @@ internal class MatchTargetingInteractionRuntime(
                 }
             }
         }
-        return submit(Command.Submit(interactionId, gameStateId))
+        return submit(TargetingCommand.Submit(interactionId, gameStateId))
     }
 
     fun cancel(
         interactionId: String,
         gameStateId: Int,
-    ): TargetingCommandReceipt? = submit(Command.Cancel(interactionId, gameStateId))
+    ): TargetingCommandReceipt? = submit(TargetingCommand.Cancel(interactionId, gameStateId))
 
     fun acknowledgeDelivery(
         interactionId: String,
@@ -152,7 +123,7 @@ internal class MatchTargetingInteractionRuntime(
             pending.delivery?.acknowledged?.completeExceptionally(cause)
             pending.delivery?.released?.completeExceptionally(cause)
             pending.commands.forEach { it.reply.completeExceptionally(cause) }
-            pending.commands.offer(Command.Terminal(cause))
+            pending.commands.offer(TargetingCommand.Terminal(cause))
             window = null
         }
     }
@@ -168,7 +139,8 @@ internal class MatchTargetingInteractionRuntime(
         value: TargetingWindowValue,
         targetingAbility: SpellAbility?,
         timeoutMs: Long?,
-    ): Window {
+        kind: TargetingInteractionKind = TargetingInteractionKind.Targeting,
+    ): TargetingWindow {
         owner.beforePublicationLock?.invoke()
         val created =
             synchronized(owner.counter) {
@@ -191,9 +163,10 @@ internal class MatchTargetingInteractionRuntime(
                                 UUID.randomUUID().toString(),
                                 checkNotNull(prepared.bundle.actionGameStateId),
                                 value.targetIndex,
+                                kind,
                             )
                         val created =
-                            Window(
+                            TargetingWindow(
                                 interactionId = published.interactionId,
                                 value = value,
                                 targetingAbility = targetingAbility,
@@ -215,11 +188,11 @@ internal class MatchTargetingInteractionRuntime(
         return created
     }
 
-    private fun awaitCommands(pending: Window): List<Int> {
+    private fun awaitCommands(pending: TargetingWindow): List<Int> {
         while (true) {
             val command = poll(pending)
             when (command) {
-                is Command.Toggle -> {
+                is TargetingCommand.Toggle -> {
                     applyToggles(pending, command)
                     val completesTriggered =
                         pending.value.isTriggeredAbility &&
@@ -232,7 +205,7 @@ internal class MatchTargetingInteractionRuntime(
                     }
                     publishRePrompt(pending, command)
                 }
-                is Command.Submit -> {
+                is TargetingCommand.Submit -> {
                     publishSubmit(pending, command, duplicateDone = false)
                     return if (pending.selectedOptionIndices.isEmpty() && pending.value.finishOptionIndex != null) {
                         listOf(checkNotNull(pending.value.finishOptionIndex))
@@ -240,18 +213,18 @@ internal class MatchTargetingInteractionRuntime(
                         pending.selectedOptionIndices.toList()
                     }
                 }
-                is Command.Cancel -> {
+                is TargetingCommand.Cancel -> {
                     completeWithoutPublication(pending, command)
                     return emptyList()
                 }
-                is Command.Terminal -> throw command.cause
+                is TargetingCommand.Terminal -> throw command.cause
             }
         }
     }
 
     private fun applyToggles(
-        pending: Window,
-        command: Command.Toggle,
+        pending: TargetingWindow,
+        command: TargetingCommand.Toggle,
     ) {
         if (command.targetIndex != pending.value.targetIndex) return
         val optionByInstanceId = pending.instanceIdByOptionIndex.entries.associate { (option, iid) -> iid to option }
@@ -266,8 +239,8 @@ internal class MatchTargetingInteractionRuntime(
     }
 
     private fun publishRePrompt(
-        pending: Window,
-        command: Command.Toggle,
+        pending: TargetingWindow,
+        command: TargetingCommand.Toggle,
     ) {
         val selected = pending.selectedOptionIndices.toSet()
         val legal =
@@ -312,8 +285,8 @@ internal class MatchTargetingInteractionRuntime(
     }
 
     private fun publishSubmit(
-        pending: Window,
-        command: Command,
+        pending: TargetingWindow,
+        command: TargetingCommand,
         duplicateDone: Boolean,
     ) {
         synchronized(owner.counter) {
@@ -344,8 +317,8 @@ internal class MatchTargetingInteractionRuntime(
     }
 
     private fun completeWithoutPublication(
-        pending: Window,
-        command: Command,
+        pending: TargetingWindow,
+        command: TargetingCommand,
     ) {
         synchronized(owner.feedLock) {
             matching(pending.interactionId, commandGameStateId(command), requireIdle = false)
@@ -363,11 +336,11 @@ internal class MatchTargetingInteractionRuntime(
     }
 
     private fun beginDelivery(
-        pending: Window,
-        command: Command,
+        pending: TargetingWindow,
+        command: TargetingCommand,
         completed: Boolean,
     ) {
-        val delivery = Delivery(nextDeliveryToken.incrementAndGet(), CompletableFuture(), CompletableFuture())
+        val delivery = TargetingDelivery(nextDeliveryToken.incrementAndGet(), CompletableFuture(), CompletableFuture())
         pending.delivery = delivery
         command.reply.complete(
             TargetingCommandReceipt(
@@ -380,7 +353,7 @@ internal class MatchTargetingInteractionRuntime(
     }
 
     private fun awaitDelivery(
-        pending: Window,
+        pending: TargetingWindow,
         completed: Boolean,
     ) {
         val delivery = checkNotNull(pending.delivery)
@@ -399,7 +372,7 @@ internal class MatchTargetingInteractionRuntime(
         }
     }
 
-    private fun poll(pending: Window): Command {
+    private fun poll(pending: TargetingWindow): TargetingCommand {
         val deadline = pending.deadlineNanos ?: return pending.commands.take()
         val remaining = deadline - System.nanoTime()
         if (remaining <= 0) return claimTimedOutWindowOrCommand(pending)
@@ -407,7 +380,7 @@ internal class MatchTargetingInteractionRuntime(
             ?: claimTimedOutWindowOrCommand(pending)
     }
 
-    private fun claimTimedOutWindowOrCommand(pending: Window): Command {
+    private fun claimTimedOutWindowOrCommand(pending: TargetingWindow): TargetingCommand {
         beforeTimeoutClaim?.invoke()
         return synchronized(owner.feedLock) {
             if (window === pending && pending.commandInFlight) {
@@ -418,7 +391,7 @@ internal class MatchTargetingInteractionRuntime(
         }
     }
 
-    private fun submit(command: Command): TargetingCommandReceipt? {
+    private fun submit(command: TargetingCommand): TargetingCommandReceipt? {
         synchronized(owner.feedLock) {
             owner.ensureOpen()
             val pending = matching(commandInteractionId(command), commandGameStateId(command)) ?: return null
@@ -437,7 +410,7 @@ internal class MatchTargetingInteractionRuntime(
         interactionId: String,
         gameStateId: Int,
         requireIdle: Boolean = true,
-    ): Window? {
+    ): TargetingWindow? {
         val pending = window ?: return null
         if (pending.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
         if (requireIdle && pending.commandInFlight) return null
@@ -465,19 +438,19 @@ internal class MatchTargetingInteractionRuntime(
         }
     }
 
-    private fun commandInteractionId(command: Command): String =
+    private fun commandInteractionId(command: TargetingCommand): String =
         when (command) {
-            is Command.Toggle -> command.interactionId
-            is Command.Submit -> command.interactionId
-            is Command.Cancel -> command.interactionId
-            is Command.Terminal -> "terminal"
+            is TargetingCommand.Toggle -> command.interactionId
+            is TargetingCommand.Submit -> command.interactionId
+            is TargetingCommand.Cancel -> command.interactionId
+            is TargetingCommand.Terminal -> "terminal"
         }
 
-    private fun commandGameStateId(command: Command): Int =
+    private fun commandGameStateId(command: TargetingCommand): Int =
         when (command) {
-            is Command.Toggle -> command.gameStateId
-            is Command.Submit -> command.gameStateId
-            is Command.Cancel -> command.gameStateId
-            is Command.Terminal -> 0
+            is TargetingCommand.Toggle -> command.gameStateId
+            is TargetingCommand.Submit -> command.gameStateId
+            is TargetingCommand.Cancel -> command.gameStateId
+            is TargetingCommand.Terminal -> 0
         }
 }

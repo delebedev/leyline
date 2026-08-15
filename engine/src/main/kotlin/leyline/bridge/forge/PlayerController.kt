@@ -1102,7 +1102,9 @@ class PlayerController(
                 sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
                 tapPayment = tapPayment?.descriptor,
                 payCostsPromptSource = tapPayment?.promptSource,
-                forcePrompt = isOptional,
+                // Grounded tap rows retain their PayCosts envelope even when
+                // Forge offers exactly one eligible permanent.
+                forcePrompt = isOptional || tapPayment != null,
             )
         if (cpl is CostEnlist && selected.isNotEmpty()) {
             bridge.journal.record(
@@ -1178,9 +1180,9 @@ class PlayerController(
             sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
             tapPayment = tapPayment?.descriptor,
             payCostsPromptSource = tapPayment?.promptSource,
-            // Any-number taps prompt even with one candidate. Total-power
-            // costs preserve Forge's forced-list auto-take shortcut.
-            forcePrompt = totalPowerNeeded == null,
+            // Grounded total-power rows keep the one-shot PayCosts envelope,
+            // while unsupported rows retain Forge's forced-list shortcut.
+            forcePrompt = tapPayment != null,
             costSelectionWeights =
                 if (tapPayment != null) TapPaymentPolicy.totalPowerWeights(optionList, sa) else emptyList(),
             minSelectionWeight = tapPayment?.descriptor?.required,

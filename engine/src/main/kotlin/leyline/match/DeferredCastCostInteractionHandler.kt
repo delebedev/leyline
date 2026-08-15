@@ -38,7 +38,6 @@ internal class DeferredCastCostInteractionHandler(
                 withClaim(pending.actionClaim) { complete -> onHybridManaTypeResponse(greMsg, pending, autoPass, complete) }
                 return true
             }
-            is PendingClientInteraction.UnclassifiedCandidateSelection,
             null,
             -> return false
         }

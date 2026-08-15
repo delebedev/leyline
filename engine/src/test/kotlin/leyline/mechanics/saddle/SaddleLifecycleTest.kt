@@ -109,7 +109,13 @@ class SaddleLifecycleTest :
         test("saddled attack condition grants trample") {
             startPuzzleRaw(PUZZLE, validating = true)
 
-            activateAbility("Drover Grizzly").shouldBeTrue()
+            val helperIid = human.battlefield.iid("Grizzly Bears")
+            val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
+            paymentSlice.expectOnePayCostsReq()
+            val paymentMessage = paymentSlice.messages.single { it.hasPayCostsReq() }
+            paymentMessage.prompt.promptId shouldBe
+                checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 1)).promptId
+            respondToEffectCost(listOf(helperIid))
             passUntilResolved(maxPasses = 4)
 
             val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
@@ -135,7 +141,10 @@ class SaddleLifecycleTest :
         test("saddled state expires after turn changes") {
             startPuzzleRaw(PUZZLE, validating = true)
 
-            activateAbility("Drover Grizzly").shouldBeTrue()
+            val helperIid = human.battlefield.iid("Grizzly Bears")
+            val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
+            paymentSlice.expectOnePayCostsReq()
+            respondToEffectCost(listOf(helperIid))
             passUntilResolved(maxPasses = 4)
             passUntilTurn(2, maxPasses = 20)
 

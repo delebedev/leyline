@@ -9,10 +9,16 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import leyline.bridge.NonInteractiveScope
+import leyline.bridge.handoff.CompatibilityCostSelectionResult
+import leyline.bridge.handoff.CompatibilityCostSelectionRuntime
+import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import java.util.concurrent.atomic.AtomicReference
 
 /** CostDecision producer split: the grounded row uses GatherCounters; other shapes stay residual. */
 class CostDecisionCounterTest :
@@ -92,6 +98,36 @@ class CostDecisionCounterTest :
                 fx.bridge
                     .promptBridge(SeatId(1))
                     .history.size shouldBe 1
+            }
+        }
+
+        test("residual counter chooser uses compatibility runtime and exact selected handle") {
+            val fx = fixture()
+            addCounters(fx)
+            val observed = AtomicReference<PromptRequest>()
+            fx.bridge.promptBridge(SeatId(1)).compatibilityCostSelectionRuntime =
+                object : CompatibilityCostSelectionRuntime {
+                    override fun awaitSelection(
+                        request: PromptRequest,
+                        candidateHandles: List<forge.game.card.Card>,
+                        timeoutMs: Long?,
+                    ): CompatibilityCostSelectionResult {
+                        observed.set(request)
+                        return CompatibilityCostSelectionResult(listOf(1), listOf(candidateHandles[1]))
+                    }
+                }
+            val result =
+                fx.decision.visit(
+                    CostRemoveAnyCounter("1", CounterEnumType.P1P1, "Creature", "creature", false),
+                )
+            val creatures = fx.player.getCardsIn(ZoneType.Battlefield).filter { it.name == "Hopeful Initiate" }
+            val expected = creatures[1]
+
+            assertSoftly {
+                val request = checkNotNull(observed.get())
+                request.route shouldBe ResolvedPromptRoute.CompatibilityCostSelection(PromptSemantic.Generic)
+                result!!.counterTable.get(null, expected, CounterEnumType.P1P1) shouldBe 1
+                result.counterTable.get(null, creatures[0], CounterEnumType.P1P1) shouldBe 0
             }
         }
     })

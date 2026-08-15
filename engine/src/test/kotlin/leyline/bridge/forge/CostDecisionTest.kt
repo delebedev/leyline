@@ -221,10 +221,20 @@ class CostDecisionTest :
                 fx.controller
                     .chooseCardsForTapCost(cards, fx.ability, CostTeamwork("1"), 0, 1, 1, "tap for one power")
                     .map { it } shouldContainExactly listOf(fx.source)
-                fx.controller
-                    .chooseCardsForTapCost(cards, fx.ability, CostTeamwork("5"), 0, 1, 5, "tap for five power")
-                    .map { it } shouldContainExactly listOf(fx.source)
-                fx.bridge.promptBridge(SeatId(1)).history shouldBe emptyList()
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single()
+                    .semantic shouldBe PromptSemantic.TapPaymentCost
+            }
+
+            val unsupported = fixture()
+            val unsupportedCards = CardCollection(unsupported.source)
+            assertSoftly {
+                unsupported.controller
+                    .chooseCardsForTapCost(unsupportedCards, unsupported.ability, CostTeamwork("5"), 0, 1, 5, "tap for five power")
+                    .map { it } shouldContainExactly listOf(unsupported.source)
+                unsupported.bridge.promptBridge(SeatId(1)).history shouldBe emptyList()
             }
         }
 

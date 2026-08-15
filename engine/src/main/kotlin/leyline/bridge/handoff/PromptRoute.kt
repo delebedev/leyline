@@ -70,11 +70,8 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
-    /**
-     * Candidate-backed Generic prompt whose response family is not yet
-     * classified. This route remains on [InteractivePromptBridge].
-     */
-    data class UnclassifiedCandidate(
+    /** Candidate-backed SelectTargets compatibility route for residual card costs. */
+    data class CompatibilityCostSelection(
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
@@ -256,7 +253,7 @@ object PromptRouteResolver {
         when (semantic) {
             PromptSemantic.Generic ->
                 if (hasCandidateRefs) {
-                    ResolvedPromptRoute.UnclassifiedCandidate(semantic)
+                    ResolvedPromptRoute.CompatibilityCostSelection(semantic)
                 } else {
                     ResolvedPromptRoute.AutoResolve(semantic)
                 }

@@ -11,7 +11,6 @@ import leyline.match.MatchSession
 import leyline.match.MulliganHandler
 import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
-import leyline.match.PromptResponseSubmitter
 import leyline.match.PuzzleHandler
 import leyline.match.SessionOps
 import leyline.match.TargetingHandler
@@ -50,7 +49,6 @@ class HandlerConstructorContractTest :
                 OptionalActionHandler::class,
                 NumericInputHandler::class,
                 DeferredCastCostInteractionHandler::class,
-                PromptResponseSubmitter::class,
                 ActionPerformer::class,
                 PuzzleHandler::class,
                 MulliganHandler::class,

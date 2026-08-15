@@ -9,11 +9,9 @@ import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.GroupingWindowValue
-import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
-import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -809,12 +807,6 @@ class BundleBuilder(
             ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates).actions
         }
     }
-
-    /** Build a [SelectNReq] from a pending "choose cards" prompt. */
-    fun buildSelectNReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        route: SelectNPromptRoute,
-    ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge, route)
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
@@ -1654,47 +1646,6 @@ class BundleBuilder(
         )
     }
 
-    /** Legacy SelectTargets presentation for candidate-backed Generic prompts. */
-    fun unclassifiedCandidateBundle(
-        game: Game,
-        counter: MessageCounter,
-        prompt: InteractivePromptBridge.PendingPrompt,
-    ): BundleResult {
-        val diff =
-            buildFrameDiff(
-                game,
-                counter,
-                supplements = unclassifiedCandidateSupplements(prompt),
-            ) { _, _ -> GameStateUpdate.Send }
-        val request = UnclassifiedCandidateRequestBuilder.initial(prompt, bridge, seatId)
-        return promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.SelectTargetsReq_695e) {
-            it.selectTargetsReq = request
-            it.prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build()
-            it.allowCancel = AllowCancel.Abort
-            it.allowUndo = true
-        }
-    }
-
-    /**
-     * Residual SelectN bundle: GameState + SelectNReq.
-     * Used for residual dynamic resolution SelectN prompts.
-     */
-    fun selectNBundle(
-        game: Game,
-        counter: MessageCounter,
-        prompt: InteractivePromptBridge.PendingPrompt,
-        route: SelectNPromptRoute,
-        envelopeForReq: (SelectNReq) -> SelectNEnvelope,
-    ): BundleResult {
-        val diff =
-            buildFrameDiff(
-                game,
-                counter,
-                supplements = reservePromptAbilitySupplement(prompt),
-            ) { _, _ -> GameStateUpdate.Send }
-        return selectNBundleFromDiff(diff, counter, envelopeForReq(buildSelectNReq(prompt, route)))
-    }
-
     private fun targetingSupplements(window: TargetingWindowValue): List<ProjectionSupplement> {
         val abilityId = window.forgeAbilityId.takeIf { window.isTriggeredAbility && it != 0 }
         val sourceId = window.sourceForgeCardId
@@ -1711,23 +1662,6 @@ class BundleBuilder(
             else -> emptyList()
         }
     }
-
-    private fun unclassifiedCandidateSupplements(prompt: InteractivePromptBridge.PendingPrompt): List<ProjectionSupplement> {
-        val abilityId = prompt.request.forgeAbilityId.takeIf { prompt.request.isTriggeredAbility && it != 0 }
-        val sourceId = prompt.request.sourceEntityId
-        return when {
-            sourceId != null ->
-                listOf(ProjectionSupplement.PlayerSelectingTargets(ForgeCardId(sourceId), SeatId(seatId), abilityId))
-            abilityId != null -> listOf(ProjectionSupplement.ReserveTriggeredAbility(abilityId))
-            else -> emptyList()
-        }
-    }
-
-    private fun reservePromptAbilitySupplement(prompt: InteractivePromptBridge.PendingPrompt): List<ProjectionSupplement> =
-        prompt.request.forgeAbilityId
-            .takeIf { prompt.request.isTriggeredAbility && it != 0 }
-            ?.let { listOf(ProjectionSupplement.ReserveTriggeredAbility(it)) }
-            .orEmpty()
 
     fun selectNBundle(
         game: Game,

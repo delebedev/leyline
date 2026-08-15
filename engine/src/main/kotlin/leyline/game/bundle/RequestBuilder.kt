@@ -4,9 +4,6 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
-import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.ResolvedPromptRoute
-import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
@@ -85,67 +82,6 @@ object RequestBuilder {
                     .addParameters(cardIdPromptParameter(searchingSeat)),
             ).setSearchReq(searchReq)
             .build()
-    }
-
-    /**
-     * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for residual dynamic resolution prompts.
-     *
-     * Maps prompt candidate entity IDs to client instanceIds. The client
-     * responds with SelectNResp containing selected instanceIds.
-     *
-     * Context/listType vary by prompt type.
-     */
-    fun buildSelectNReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-        route: SelectNPromptRoute,
-    ): SelectNReq {
-        check(prompt.request.staticList == null && prompt.request.staticOptionIds.isEmpty()) {
-            "Static choices require StaticChoiceWindowMaterializer"
-        }
-        val shape = route.shape
-        val builder =
-            SelectNReq
-                .newBuilder()
-                .setContext(shape.context)
-                .setListType(shape.listType)
-                .setValidationType(SelectionValidationType.NonRepeatable)
-                .setOptionContext(shape.optionContext)
-                // Always per spec — INT32 extremes (no weight filtering on resolution picks).
-                .setMinWeight(Int.MIN_VALUE)
-                .setMaxWeight(Int.MAX_VALUE)
-                .setIdType(IdType.InstanceId_ab2c)
-
-        builder.setMinSel(prompt.request.min)
-        builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
-
-        builder.addSelectNIds(prompt, bridge)
-        route.configureInnerPrompt(builder, prompt, bridge)
-        return builder.build()
-    }
-
-    fun buildSelectNReq(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ): SelectNReq {
-        val route =
-            (prompt.request.route as? ResolvedPromptRoute.UnclassifiedEntityChoice)?.descriptor
-                ?: error("SelectN builder requires a bound SelectN route")
-        return buildSelectNReq(prompt, bridge, route)
-    }
-
-    private fun SelectNReq.Builder.addSelectNIds(
-        prompt: InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ) {
-        prompt.request.candidateRefs.forEach { ref ->
-            addIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
-        }
-        // unfilteredIds — all viewed cards for residual resolution prompts.
-        prompt.request.unfilteredRefs.forEach { ref ->
-            addUnfilteredIds(bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value)
-        }
     }
 
     private fun playerDamageRecipient(seatId: SeatId): DamageRecipient =

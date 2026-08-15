@@ -132,10 +132,6 @@ class CardSelectInteractionHandlerTest :
                 result.get().optionIndices shouldBe listOf(1)
                 (result.get().handles.single() === handles[1]) shouldBe true
                 autoPassed shouldBe true
-                board.bridge
-                    .promptBridge(SeatId(1))
-                    .getPendingPrompt()
-                    .shouldBeNull()
                 coordinator.cardSelect.current().shouldBeNull()
             }
         }

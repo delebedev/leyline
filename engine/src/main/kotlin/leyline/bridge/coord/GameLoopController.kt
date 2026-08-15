@@ -99,7 +99,6 @@ class GameLoopController(
                         terminalFailure.compareAndSet(null, ex)
                         log.error("Game loop crashed for game ${game.id}", ex)
                         actionBridges.forEach { it.cancelPending() }
-                        promptBridges.forEach { it.cancelPending() }
                         mulliganBridges.forEach { it.cancelPending() }
                     } else {
                         log.debug("Game loop interrupted during shutdown for game ${game.id}")
@@ -142,7 +141,6 @@ class GameLoopController(
         }
 
         actionBridges.forEach { it.cancelPending() }
-        promptBridges.forEach { it.cancelPending() }
         mulliganBridges.forEach { it.cancelPending() }
         gameThread?.interrupt()
 

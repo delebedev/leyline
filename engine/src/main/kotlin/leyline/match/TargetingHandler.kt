@@ -2,18 +2,10 @@ package leyline.match
 
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
-import leyline.bridge.handoff.PromptResponseMapper
 import leyline.bridge.handoff.PromptSideEffect
-import leyline.bridge.handoff.ResolvedPromptRoute
-import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.TargetToggleValue
 import leyline.bridge.handoff.TargetingCommandReceipt
-import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.InstanceId
-import leyline.bridge.types.SeatId
-import leyline.game.bundle.UnclassifiedCandidateRequestBuilder
-import leyline.game.bundle.envelope
-import leyline.game.mapping.PromptIds
+import leyline.bridge.handoff.TargetingInteractionKind
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -38,16 +30,9 @@ class TargetingHandler(
         ) {
             prompt.journal.record(PromptSideEffect.OptionalCostStash(indices))
         }
-
-        internal fun mapSelectNIdsToPromptIndices(
-            selectedIds: List<Int>,
-            pendingPrompt: InteractivePromptBridge.PendingPrompt,
-            resolveForgeCardId: (Int) -> ForgeCardId?,
-        ): List<Int> = PromptResponseSubmitter.mapSelectNIdsToPromptIndices(selectedIds, pendingPrompt, resolveForgeCardId)
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
-    private val promptResponseSubmitter = PromptResponseSubmitter(counters, ctx)
     private val cardSelectInteractionHandler = CardSelectInteractionHandler(ctx)
     private val revealChoiceInteractionHandler = RevealChoiceInteractionHandler(ctx)
     private val staticChoiceInteractionHandler = StaticChoiceInteractionHandler(ctx)
@@ -85,7 +70,24 @@ class TargetingHandler(
     ) {
         val bridge = ctx.bridge
         val resp = greMsg.selectTargetsResp
-        val targeting = bridge.cutCoordinator.targeting.current()
+        val compatibility = bridge.cutCoordinator.compatibilityCostSelection.current()
+        if (compatibility != null) {
+            val receipt =
+                bridge.cutCoordinator.compatibilityCostSelection.submitToggle(
+                    compatibility.interactionId,
+                    greMsg.gameStateId,
+                    resp.target.targetIdx,
+                    resp.target.targetsList.map { target ->
+                        TargetToggleValue(target.targetInstanceId, target.legalAction != SelectAction.Unselect)
+                    },
+                ) ?: return
+            deliverCompatibilityReceipt(receipt, autoPass)
+            return
+        }
+        val targeting =
+            bridge.cutCoordinator.targeting
+                .current()
+                ?.takeIf { it.kind == TargetingInteractionKind.Targeting }
         if (targeting != null) {
             val receipt =
                 bridge.cutCoordinator.targeting.submitToggle(
@@ -102,38 +104,8 @@ class TargetingHandler(
             deliverTargetingReceipt(receipt, autoPass)
             return
         }
-        val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        if (pendingPrompt == null || pendingPrompt.request.route !is ResolvedPromptRoute.UnclassifiedCandidate) {
-            log.warn("TargetingHandler: SelectTargetsResp did not match a bound candidate window")
-            DevCheck.failOnAutoPass { "SelectTargetsResp but no matching candidate window" }
-            return
-        }
-        val existing =
-            (pendingInteraction as? PendingClientInteraction.UnclassifiedCandidateSelection)
-                ?.takeIf { it.promptId == pendingPrompt.promptId }
-                ?.selectedInstanceIds
-                .orEmpty()
-        if (resp.target.targetIdx != pendingPrompt.request.targetIndex) {
-            sendUnclassifiedCandidateRePrompt(pendingPrompt, existing)
-            return
-        }
-        val selected = existing.toMutableList()
-        resp.target.targetsList.forEach { target ->
-            if (target.legalAction == SelectAction.Unselect) {
-                selected.remove(target.targetInstanceId)
-            } else if (target.targetInstanceId !in selected) {
-                selected += target.targetInstanceId
-            }
-        }
-        val indices =
-            PromptResponseMapper.targetIdsToPromptIndices(
-                selected,
-                pendingPrompt.request,
-                resolveForgeCardId = { bridge.getForgeCardId(InstanceId(it)) },
-                resolvePlayerEntityId = { bridge.getPlayer(SeatId(it))?.id },
-            )
-        pendingInteraction = PendingClientInteraction.UnclassifiedCandidateSelection(pendingPrompt.promptId, indices, selected)
-        sendUnclassifiedCandidateRePrompt(pendingPrompt, selected)
+        log.warn("TargetingHandler: SelectTargetsResp did not match a coordinator-owned window")
+        DevCheck.failOnAutoPass { "SelectTargetsResp but no coordinator-owned window" }
     }
 
     /**
@@ -146,31 +118,27 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
-        val targeting = bridge.cutCoordinator.targeting.current()
+        val compatibility = bridge.cutCoordinator.compatibilityCostSelection.current()
+        val compatibilityReceipt =
+            bridge.cutCoordinator.compatibilityCostSelection.submitTargets(
+                compatibility?.interactionId,
+                greMsg.gameStateId,
+            )
+        if (compatibilityReceipt != null) {
+            deliverCompatibilityReceipt(compatibilityReceipt, autoPass)
+            return
+        }
+        val targeting =
+            bridge.cutCoordinator.targeting
+                .current()
+                ?.takeIf { it.kind == TargetingInteractionKind.Targeting }
         val migrated = bridge.cutCoordinator.targeting.submitTargets(targeting?.interactionId, greMsg.gameStateId)
         if (migrated != null) {
             deliverTargetingReceipt(migrated, autoPass)
             return
         }
-        val pending = pendingInteraction as? PendingClientInteraction.UnclassifiedCandidateSelection
-        if (pending == null) {
-            log.warn("TargetingHandler: SubmitTargetsReq did not match a bound candidate window")
-            DevCheck.failOnAutoPass { "SubmitTargetsReq but no matching candidate window" }
-            return
-        }
-        val prompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        if (prompt?.promptId != pending.promptId || prompt.request.route !is ResolvedPromptRoute.UnclassifiedCandidate) return
-        pendingInteraction = null
-        sink.sendBundledGRE(
-            listOf(
-                sink.makeGRE(GREMessageType.SubmitTargetsResp_695e, counters.counter.currentGsId(), counters.counter.nextMsgId()) {
-                    it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
-                },
-            ),
-        )
-        bridge.seat(counters.seatId).prompt.submitResponse(pending.promptId, pending.selectedIndices)
-        bridge.awaitPriority()
-        autoPass()
+        log.warn("TargetingHandler: SubmitTargetsReq did not match a coordinator-owned window")
+        DevCheck.failOnAutoPass { "SubmitTargetsReq but no coordinator-owned window" }
     }
 
     /**
@@ -184,7 +152,8 @@ class TargetingHandler(
         if (revealChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         if (staticChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
         if (cardSelectInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
-        promptResponseSubmitter.onSelectN(greMsg, autoPass)
+        log.warn("TargetingHandler: SelectNResp did not match a coordinator-owned window")
+        DevCheck.failOnAutoPass { "SelectNResp but no coordinator-owned window" }
     }
 
     fun onEffectCost(
@@ -195,7 +164,8 @@ class TargetingHandler(
         if (manaSourcePaymentHandler.tryHandleGatherCounters(greMsg, autoPass)) return
         if (manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg, autoPass)) return
         if (cardSelectInteractionHandler.tryHandleEffectCost(greMsg, autoPass)) return
-        promptResponseSubmitter.onEffectCost(greMsg, autoPass)
+        log.warn("TargetingHandler: EffectCostResp did not match a coordinator-owned window")
+        DevCheck.failOnAutoPass { "EffectCostResp but no coordinator-owned window" }
     }
 
     /**
@@ -219,11 +189,7 @@ class TargetingHandler(
     fun handlePostCastPrompt(clientAutoResolve: Boolean = false): Boolean {
         val bridge = ctx.bridge
         val game = ctx.game
-        val pendingPrompt = bridge.seat(counters.seatId).prompt.getPendingPrompt()
-        if (pendingPrompt != null) {
-            if (sendPrompt(pendingPrompt)) return true
-            if (checkPendingPrompt() == PromptResult.SENT_TO_CLIENT) return true
-        }
+        if (checkPendingPrompt() == PromptResult.SENT_TO_CLIENT) return true
         if (!game.stack.isEmpty) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
@@ -251,45 +217,15 @@ class TargetingHandler(
     }
 
     /**
-     * Check for a residual pending interactive prompt.
-     * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
-     * - Unclassified entity choices retain their legacy request path.
-     * Coordinator-owned prompts and synchronous default policies never enter this fallback.
+     * Check whether a coordinator-owned prompt is visible to the session.
+     * Targeting and compatibility card windows publish SelectTargetsReq;
+     * typed runtimes own their response mapping and retirement. Other
+     * coordinator windows remain on their named dispatch paths.
      */
     fun checkPendingPrompt(): PromptResult {
         val bridge = ctx.bridge
         if (hasCoordinatorPrompt(bridge)) return PromptResult.SENT_TO_CLIENT
-        val seatBridge = bridge.seat(counters.seatId)
-        val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
-        return if (sendPrompt(pendingPrompt)) {
-            PromptResult.SENT_TO_CLIENT
-        } else {
-            when (pendingPrompt.request.route) {
-                is ResolvedPromptRoute.AutoResolve ->
-                    error("AutoResolve policy must complete before publishing a pending prompt")
-
-                is ResolvedPromptRoute.Order ->
-                    error("Order prompts must be published by MatchOrderInteractionRuntime")
-
-                is ResolvedPromptRoute.CardSelect ->
-                    error("CardSelect prompts must be published by MatchCardSelectInteractionRuntime")
-
-                is ResolvedPromptRoute.StaticChoice ->
-                    error("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime")
-
-                is ResolvedPromptRoute.RevealChoice ->
-                    error("RevealChoice prompts must be published by MatchRevealChoiceInteractionRuntime")
-
-                is ResolvedPromptRoute.Grouping,
-                is ResolvedPromptRoute.ModalChoice,
-                is ResolvedPromptRoute.PayCosts,
-                is ResolvedPromptRoute.Search,
-                is ResolvedPromptRoute.UnclassifiedEntityChoice,
-                is ResolvedPromptRoute.Targeting,
-                is ResolvedPromptRoute.UnclassifiedCandidate,
-                -> PromptResult.NONE
-            }
-        }
+        return PromptResult.NONE
     }
 
     private fun hasCoordinatorPrompt(bridge: leyline.game.state.GameBridge): Boolean =
@@ -297,62 +233,13 @@ class TargetingHandler(
             coordinator.targeting.current() != null ||
                 coordinator.search.current() != null ||
                 coordinator.grouping.current() != null ||
+                coordinator.cardSelect.current() != null ||
                 coordinator.staticChoices.current() != null ||
                 coordinator.revealChoices.current() != null ||
                 coordinator.modalChoices.current() != null ||
                 coordinator.manaSourcePayments.current() != null ||
-                coordinator.oneShotPayCosts.current() != null
-        }
-
-    private fun sendPrompt(pendingPrompt: InteractivePromptBridge.PendingPrompt): Boolean =
-        when (val route = pendingPrompt.request.route) {
-            is ResolvedPromptRoute.Grouping -> {
-                error("Grouping prompts must be published by MatchGroupingInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.ModalChoice -> {
-                error("ModalChoice prompts must be published by MatchModalChoiceRuntime")
-            }
-
-            is ResolvedPromptRoute.UnclassifiedEntityChoice -> {
-                sendSelectNReq(pendingPrompt, route.descriptor)
-                true
-            }
-
-            is ResolvedPromptRoute.PayCosts -> {
-                error("PayCosts prompts must be published by a match-scoped coordinator runtime")
-            }
-
-            is ResolvedPromptRoute.CardSelect -> {
-                error("CardSelect prompts must be published by MatchCardSelectInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.StaticChoice -> {
-                error("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.RevealChoice -> {
-                error("RevealChoice prompts must be published by MatchRevealChoiceInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.Targeting -> {
-                error("Targeting prompts must be published by MatchTargetingInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.UnclassifiedCandidate -> {
-                sendUnclassifiedCandidateReq(pendingPrompt)
-                true
-            }
-
-            is ResolvedPromptRoute.Search -> {
-                error("Search prompts must be published by MatchSearchInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.Order -> {
-                error("Order prompts must be published by MatchOrderInteractionRuntime")
-            }
-
-            is ResolvedPromptRoute.AutoResolve -> false
+                coordinator.oneShotPayCosts.current() != null ||
+                coordinator.compatibilityCostSelection.current() != null
         }
 
     /**
@@ -374,7 +261,6 @@ class TargetingHandler(
                 is PendingClientInteraction.OptionalCost -> interaction.actionClaim
                 is PendingClientInteraction.AlternateCostChoice -> interaction.actionClaim
                 is PendingClientInteraction.HybridManaType -> interaction.actionClaim
-                is PendingClientInteraction.UnclassifiedCandidateSelection,
                 null,
                 -> null
             }
@@ -383,7 +269,17 @@ class TargetingHandler(
             return
         }
 
-        val targeting = bridge.cutCoordinator.targeting.current()
+        val compatibility = bridge.cutCoordinator.compatibilityCostSelection.current()
+        if (compatibility != null) {
+            bridge.cutCoordinator.compatibilityCostSelection.cancel(compatibility.interactionId, greMsg.gameStateId)?.let { receipt ->
+                deliverCompatibilityReceipt(receipt, autoPass)
+                return
+            }
+        }
+        val targeting =
+            bridge.cutCoordinator.targeting
+                .current()
+                ?.takeIf { it.kind == TargetingInteractionKind.Targeting }
         if (targeting != null) {
             bridge.cutCoordinator.targeting.cancel(targeting.interactionId, greMsg.gameStateId)?.let { receipt ->
                 deliverTargetingReceipt(receipt, autoPass)
@@ -397,20 +293,8 @@ class TargetingHandler(
         if (manaSourcePaymentHandler.tryHandleCancel(greMsg, autoPass)) return
         if (manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg, autoPass)) return
 
-        val seatBridge = bridge.seat(counters.seatId)
-        val pendingPrompt = seatBridge.prompt.getPendingPrompt()
-        if (pendingPrompt == null) {
-            log.warn("TargetingHandler: CancelActionReq but no pending prompt (likely timeout race)")
-            DevCheck.failOnAutoPass { "CancelActionReq but no pending prompt" }
-            return
-        }
-
-        log.info("TargetingHandler: CancelActionReq — submitting empty targets to unwind spell")
-
-        // Submit empty list → engine sees no targets → spell fails → unwind
-        seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
-        bridge.awaitPriority()
-        autoPass()
+        log.warn("TargetingHandler: CancelActionReq but no coordinator-owned window")
+        DevCheck.failOnAutoPass { "CancelActionReq but no coordinator-owned window" }
     }
 
     private fun cancelModalChoice(
@@ -449,6 +333,23 @@ class TargetingHandler(
     private fun deliverTargetingReceipt(
         receipt: TargetingCommandReceipt,
         autoPass: () -> Unit,
+    ) = deliverReceipt(receipt, autoPass) { interactionId, deliveryToken ->
+        ctx.bridge.cutCoordinator.targeting
+            .acknowledgeDelivery(interactionId, deliveryToken)
+    }
+
+    private fun deliverCompatibilityReceipt(
+        receipt: TargetingCommandReceipt,
+        autoPass: () -> Unit,
+    ) = deliverReceipt(receipt, autoPass) { interactionId, deliveryToken ->
+        ctx.bridge.cutCoordinator.compatibilityCostSelection
+            .acknowledgeDelivery(interactionId, deliveryToken)
+    }
+
+    private fun deliverReceipt(
+        receipt: TargetingCommandReceipt,
+        autoPass: () -> Unit,
+        acknowledge: (interactionId: String, deliveryToken: Long) -> Boolean,
     ) {
         val bridge = ctx.bridge
         receipt.deliveryToken?.let { deliveryToken ->
@@ -458,7 +359,7 @@ class TargetingHandler(
             } catch (ex: Exception) {
                 bridge.cutCoordinator.failDelivery(ex)
             }
-            check(bridge.cutCoordinator.targeting.acknowledgeDelivery(receipt.interactionId, deliveryToken)) {
+            check(acknowledge(receipt.interactionId, deliveryToken)) {
                 "Targeting delivery acknowledgement was stale"
             }
         }
@@ -466,34 +367,6 @@ class TargetingHandler(
             bridge.awaitPriority()
             autoPass()
         }
-    }
-
-    private fun sendUnclassifiedCandidateRePrompt(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        selectedInstanceIds: List<Int>,
-    ) {
-        val echo = bundles.bundleBuilder.buildEchoDiffGsm(counters.counter)
-        val gameStateId = counters.counter.currentGsId()
-        val request =
-            UnclassifiedCandidateRequestBuilder.rePrompt(
-                pendingPrompt,
-                ctx.bridge,
-                counters.seatId.value,
-                selectedInstanceIds.toSet(),
-            )
-        val message =
-            sink.makeGRE(GREMessageType.SelectTargetsReq_695e, gameStateId, counters.counter.nextMsgId()) {
-                it.selectTargetsReq = request
-                it.prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build()
-                it.allowCancel = AllowCancel.Abort
-                it.allowUndo = true
-            }
-        sink.sendBundledGRE(listOf(echo, message))
-    }
-
-    private fun sendUnclassifiedCandidateReq(pendingPrompt: InteractivePromptBridge.PendingPrompt) {
-        val result = bundles.bundleBuilder.unclassifiedCandidateBundle(ctx.game, counters.counter, pendingPrompt)
-        sink.sendBundledGRE(result.messages)
     }
 
     /**
@@ -588,21 +461,4 @@ class TargetingHandler(
 
     internal fun checkAlternateAdditionalCostChoice(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =
         deferredCastCostInteractionHandler.checkAlternateAdditionalCostChoice(actionClaim)
-
-    private fun sendSelectNReq(
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-        route: SelectNPromptRoute,
-    ) {
-        val game = ctx.game
-        val bb = bundles.bundleBuilder
-        val result =
-            bb.selectNBundle(
-                game,
-                counters.counter,
-                pendingPrompt,
-                route,
-            ) { req -> route.envelope(req) }
-        Tap.outboundTemplate("SelectNReq seat=${counters.seatId}")
-        sink.sendBundledGRE(result.messages)
-    }
 }

@@ -55,12 +55,7 @@ class StaticChoiceRuntimeBoundaryTest :
                 check(forbidden !in handler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("route !is ResolvedPromptRoute.StaticChoice" in bridge)
-            val mapper = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptResponseMapper.kt"))
-            check("staticOptionIds" !in mapper)
-            val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
-            check("StaticChoice prompts must be published by MatchStaticChoiceInteractionRuntime" in targeting)
-
+            check("request.route is ResolvedPromptRoute.StaticChoice" in bridge)
             val route = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptRoute.kt"))
             listOf("StaticColorChoice", "StaticSubtypeChoice", "StaticParityChoice").forEach { semantic ->
                 check("PromptSemantic.$semantic ->" in route)

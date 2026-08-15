@@ -52,10 +52,10 @@ class PromptRouteBindingTest :
             request.semantic shouldBe PromptSemantic.SelectNDiscard
         }
 
-        test("target ownership is explicit and Generic candidates stay residual") {
+        test("target ownership is explicit and Generic candidates bind compatibility") {
             PromptRouteResolver.resolve(PromptSemantic.TargetSelection) shouldBe
                 ResolvedPromptRoute.Targeting(PromptSemantic.TargetSelection)
             PromptRouteResolver.resolve(PromptSemantic.Generic, hasCandidateRefs = true) shouldBe
-                ResolvedPromptRoute.UnclassifiedCandidate(PromptSemantic.Generic)
+                ResolvedPromptRoute.CompatibilityCostSelection(PromptSemantic.Generic)
         }
     })

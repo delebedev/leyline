@@ -2,7 +2,6 @@ package leyline.game
 
 import forge.game.Game
 import leyline.bridge.handoff.GameActionBridge
-import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
@@ -92,26 +91,6 @@ fun awaitFreshPending(
  * polling `game.phaseHandler.phase` -- eliminates a race where the live phase
  * is checked before the pending is found, causing an accidental pass at Main1.
  */
-
-/**
- * Wait for a pending interactive prompt (targeting, choices, etc.).
- * Returns null on timeout.
- *
- * Deadlined poll — see note on [awaitFreshPending].
- */
-@Suppress("NoThreadSleepInTests")
-fun awaitPrompt(
-    b: GameBridge,
-    timeoutMs: Long = 5_000,
-): InteractivePromptBridge.PendingPrompt? {
-    val deadline = System.currentTimeMillis() + timeoutMs
-    while (System.currentTimeMillis() < deadline) {
-        val p = b.promptBridge(SeatId(1)).getPendingPrompt()
-        if (p != null && !p.future.isDone) return p
-        Thread.sleep(5)
-    }
-    return null
-}
 
 /**
  * Advance the engine to a phase matching [predicate] by submitting one
