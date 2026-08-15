@@ -112,15 +112,15 @@ not disprove the value-only functional core.
 
 The first implementation work is already visible in current types:
 
-- `StateMapper.buildFromSnapshot` and `buildDiff` accept immutable snapshots
-  and ordered facts, but still accept `GameBridge` and read or mutate attached
-  trackers, registries, and allocators during compute.
-- `BridgeMutations` defers an enumerated subset of writes while explicitly
-  leaving monotonic allocators and several lifecycle trackers in place. A
-  discarded plan therefore does not own every state change it caused.
-- `PureDiffReplayTest` starts seeded Forge bridges and excludes tracker families
-  that remain live. The target forcing function constructs `ProjectionState`
-  and `FrameInput` directly with no Forge or `GameBridge`.
+- `StateMapper.buildDraft` and `StateProjectionCompiler.compileOneViewer` now
+  form a bridge-free boundary over immutable snapshots, ordered facts, scoped
+  projection facts, and a `StateProjectionEnvironment`.
+- `PureDiffReplayTest` covers replay from an explicit `StateFrameInput`, prior
+  projection state, and intent. `StateMapperValueBoundaryTest` exercises the
+  same direct value boundary without Forge or `GameBridge`.
+- `GameBridge` still materializes frame inputs and owns action, combat, and
+  event-to-fact seams; those remain incremental migration work rather than
+  hidden mapper reads.
 - `MatchCutCoordinator` now owns journal close, immutable cut materialization,
   compilation, projection commit, and viewer feed publication for migrated
   playback, Visible priority/action windows, SyncOnly state cuts, explicitly bound Targeting,
@@ -129,16 +129,26 @@ The first implementation work is already visible in current types:
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.
 - Forge's target-selection producer binds `TargetSelection` and freezes exact
-  stack-object candidates before publication; candidate-backed `Generic`
-  prompts remain a named `UnclassifiedCandidate` residual. Runtime ownership is
-  selected from this immutable route, while a nullable live targeting ability
-  remains only in the Forge shell for legality and final resolution.
+  stack-object candidates before publication; candidate-backed `Generic` card
+  choices bind the SelectTargets-compatible runtime, preserving existing
+  toggle/echo/submit behavior and exact handles without claiming protocol
+  conformance. Runtime ownership is selected from this immutable route, while
+  a nullable live targeting ability remains only in the Forge shell for legality
+  and final resolution.
 - `PhaseHandler` provides broad step completion plus narrow UI-neutral combat
-  hooks. Incomplete, mixed, or chooser-hidden resolution choices remain the named
-  `UnclassifiedEntityChoice` residual. Candidate-free Generic choices default synchronously,
-  while non-library ordering returns its input without allocating a prompt. Modal prompts,
-  mulligan, lifecycle output, and multi-view compilation remain
-  outside the coordinator boundary.
+  hooks. Incomplete, mixed, or chooser-hidden resolution choices use the named
+  `UnclassifiedEntityChoice` policy, which refuses strictly before applying an
+  optional-empty or required stable-prefix synchronous default. Candidate-free
+  Generic choices use the same explicit synchronous policy, while non-library
+  ordering returns its input without allocating a prompt. Modal choice now has
+  a coordinator-owned runtime; mulligan, lifecycle output, and multi-view
+  compilation remain outside the coordinator boundary.
+
+The current milestone completes blocking prompt-response ownership for the
+migrated interaction families, including the residual card compatibility path.
+It does not claim whole-runtime convergence: `GameBridge` orchestration,
+combat/action seams, `MatchSession`, and remaining event-to-fact work still
+require incremental migration.
 
 ## Decision
 

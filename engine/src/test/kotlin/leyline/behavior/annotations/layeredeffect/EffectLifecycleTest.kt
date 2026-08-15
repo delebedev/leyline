@@ -15,7 +15,6 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
-import leyline.game.awaitPrompt
 import leyline.game.event.FrameEventLog
 import leyline.game.generator.PuzzleSource
 import leyline.game.snapshot.GsmSnapshot
@@ -182,12 +181,6 @@ class EffectLifecycleTest :
             var passes = 0
             var stackWasNonEmpty = false
             while (passes < 20) {
-                val prompt = awaitPrompt(b, timeoutMs = 500)
-                if (prompt != null) {
-                    b.promptBridge(SeatId(1)).submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
-                    passes++
-                    continue
-                }
                 val next = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: break
                 if (game.stack.size() > 0) stackWasNonEmpty = true
                 // Stop once stack empties after having items (spell resolved)

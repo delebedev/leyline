@@ -134,9 +134,12 @@ Optional, Numeric, Damage, explicitly bound Targeting and Search prompts, and al
 coordinator commits the complete batch before signalling and resolves retained
 live handles only on the Forge thread. Targeting taps use a correlated mailbox;
 the engine recomputes legality and commits each replacement request before its
-delivery acknowledgement releases the mailbox. Candidate-backed Generic
-prompts remain a named residual route rather than acquiring Targeting ownership
-from live-handle presence.
+delivery acknowledgement releases the mailbox. Candidate-backed Generic card
+choices use a typed SelectTargets-compatible runtime that preserves the existing
+toggle/echo/submit behavior and exact handles; this is a behavior-preserving
+compatibility path, not a protocol conformance claim. Unsupported entity
+domains use a named synchronous policy, with strict refusal before the
+optional-empty or required stable-prefix default.
 Search freezes its library, candidate, source, and picker-shape facts on the
 engine thread. Its state reveal and request commit as one cut; the correlated
 instance-id answer resets the reveal baseline before the engine wait returns.

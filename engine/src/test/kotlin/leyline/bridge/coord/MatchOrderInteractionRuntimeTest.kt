@@ -216,10 +216,6 @@ class MatchOrderInteractionRuntimeTest :
                     .actionBridge(SeatId(1))
                     .getPending()
                     .shouldBeNull()
-                board.bridge
-                    .promptBridge(SeatId(1))
-                    .getPendingPrompt()
-                    .shouldBeNull()
                 coordinator.currentBlockingInteraction().shouldBeNull()
                 coordinator.targeting.current().shouldBeNull()
                 coordinator.search.current().shouldBeNull()

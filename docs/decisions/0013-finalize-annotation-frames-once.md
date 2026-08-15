@@ -1,7 +1,7 @@
 ---
 summary: "ADR: collect every transient annotation for a state frame, then order and number the completed frame once."
 read_when:
-  - "working in AnnotationPipeline, AnnotationOrderEnforcer, StateMapper, BundleBuilder, or BridgeMutations"
+  - "working in AnnotationPipeline, AnnotationOrderEnforcer, StateMapper, BundleBuilder, or frame finalization"
   - "adding an annotation owned by request or bundle delivery"
   - "changing transient annotation ordering, numbering, or frame assembly"
 ---
@@ -21,20 +21,19 @@ Leyline builds one state-diff GSM from several kinds of information:
 - annotations that exist because of the delivery interaction, such as target
   selection, target submission, or turn narration.
 
-These inputs become known at different layers. `AnnotationPipeline` sees the
-event and snapshot inputs. `StateMapper` assembles the state diff and plans
-bridge mutations. `BundleBuilder` knows which request or interaction owns the
-delivery and may add annotations after the mapped GSM exists.
+These inputs become known at different layers. The pre-boundary implementation
+assembled state and delivery riders in separate imperative objects, allowing a
+late append to observe an already ordered list. That historical shape is why
+this decision requires one finalization authority.
 
-The current implementation treats the annotation list as final inside
-`AnnotationPipeline`: it applies `AnnotationOrderEnforcer`, assigns transient
-IDs, and returns the next ID to `StateMapper`. `StateMapper` puts that value in
-`BridgeMutations`. `BundleBuilder` can then append delivery-owned annotations
-to the already ordered and numbered GSM.
+The current implementation carries an immutable `StateFrameInput` through
+`StateMapper.buildDraft` and `StateProjectionCompiler.compileOneViewer`.
+`AnnotationPipeline` returns unfinalized transients; the compiler appends
+viewer supplements, invokes `AnnotationFrameFinalizer` once, installs the
+resulting annotations in the tentative `ProjectionTransition`, and advances
+the next ID in that transition.
 
-One late append path compensates by applying the ordering kernel again and
-renumbering the frame. Other append paths add a newly allocated annotation
-without reconsidering the frame. The resulting lifecycle is conceptually:
+The historical lifecycle was conceptually:
 
 ```text
 collect -> order -> number -> plan counter commit -> append rider
@@ -186,14 +185,12 @@ ordering disposable.
 
 ### State Mapping And Frame Assembly
 
-`StateMapper` continues to build state projection and bridge mutation plans.
-It carries an annotation frame draft rather than committing a partial
-`nextAnnotationId` result.
+`StateMapper.buildDraft` builds state projection and an annotation frame draft
+from explicit values. It does not commit a partial next-ID result.
 
-The state-frame assembly boundary in `BundleBuilder` gathers delivery riders,
-invokes the finalizer, installs the finalized annotations in the GSM, and
-places the returned next ID in `BridgeMutations` before those mutations are
-applied.
+`StateProjectionCompiler.compileOneViewer` appends viewer supplements, invokes
+the finalizer, installs finalized annotations in the GSM, and places the
+returned next ID in the tentative `ProjectionTransition` before installation.
 
 The finalizer belongs under `game.annotations`. The orchestration call belongs
 at state-frame assembly, where both mapped state and delivery intent are known.
@@ -201,8 +198,8 @@ at state-frame assembly, where both mapped state and delivery intent are known.
 ### Bridge State
 
 The global transient annotation counter advances from the finalized frame
-result only. It is committed with the rest of `BridgeMutations` after frame
-construction succeeds.
+result only. It is committed with the rest of the projection transition after
+frame construction succeeds.
 
 Pending one-shot riders must keep their current transactional behavior. A
 failed frame build must not consume a pending rider or advance the counter. A
@@ -243,6 +240,10 @@ group hierarchy.
 
 ## Migration
 
+The sequence below records the historical migration plan. The current
+`StateMapper`-backed path has completed the finalizer and tentative-transition
+steps; the inventory remains as a boundary map for direct builders.
+
 1. Characterize current state-diff output for ordinary diffs, target-selection
    delivery, target-submission delivery, new-turn narration, and build failure
    or retry behavior.
@@ -252,8 +253,8 @@ group hierarchy.
 4. Carry the frame draft through state mapping without committing the final
    annotation counter.
 5. Materialize every current state-diff delivery rider before finalization.
-6. Finalize the completed frame, set `BridgeMutations.nextAnnotationId` from
-   that result, and apply mutations only after successful GSM construction.
+6. Finalize the completed frame, set the transition's next annotation ID from
+   that result, and install state only after successful GSM construction.
 7. Remove append-specific reorder, renumber, and direct counter-allocation
    repairs from the migrated path.
 8. Inventory direct, full-state, lifecycle, and synthetic GSM builders. Note
@@ -294,8 +295,8 @@ of the finalizer is not an objective.
 - One state-diff GSM invokes same-GSM ordering at most once.
 - One state-diff GSM assigns transient annotation IDs at most once.
 - Final transient IDs are unique, contiguous, and follow final list order.
-- `BridgeMutations.nextAnnotationId` equals the next ID after the finalized
-  frame, never after a partial producer list.
+- The projection transition's next annotation ID equals the next ID after the
+  finalized frame, never after a partial producer list.
 - A failed frame build advances neither the annotation counter nor pending
   rider state.
 - Frame-local instance ID resolution is complete before riders are finalized.

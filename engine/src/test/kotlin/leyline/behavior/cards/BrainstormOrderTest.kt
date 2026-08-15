@@ -40,10 +40,6 @@ class BrainstormOrderTest :
                 harness.bridge.cutCoordinator.cardSelect
                     .current()
                     .shouldNotBeNull()
-                harness.bridge
-                    .promptBridge(SeatId(1))
-                    .getPendingPrompt()
-                    .shouldBeNull()
             }
 
             respondToSelectN(selectedIids)

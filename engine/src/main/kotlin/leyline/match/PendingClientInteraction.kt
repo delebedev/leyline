@@ -10,13 +10,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * Keeping it typed avoids dispatch based on multiple nullable fields.
  */
 internal sealed interface PendingClientInteraction {
-    /** Transitional response state for candidate-backed Generic prompts. */
-    data class UnclassifiedCandidateSelection(
-        val promptId: String,
-        val selectedIndices: List<Int>,
-        val selectedInstanceIds: List<Int>,
-    ) : PendingClientInteraction
-
     data class OptionalCost(
         val actionClaim: MatchActionWindowRuntime.ActionClaim,
         val costCtoIds: List<Int>,

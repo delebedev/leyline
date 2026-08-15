@@ -128,7 +128,7 @@ both `GameEventCollector` and `StackAbilityGrpIdResolver`.
 ## Prompt Boundary
 
 Prompt identity is fixed while the exact callback `SpellAbility` is available.
-`PendingPrompt` and `PendingTarget` carry the resolved identity needed by
+`PromptRequest` and `PendingTarget` carry the resolved identity needed by
 `RequestBuilder`, `TargetSpecContributor`, and stack-surrogate selection.
 
 Ability identity does not decide prompt policy. Prompt semantics still decide

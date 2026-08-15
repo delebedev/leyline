@@ -154,7 +154,7 @@ class TargetingCoordinatorTest :
             }
         }
 
-        test("opponent-private card Resolution remains an audited entity residual") {
+        test("opponent-private card Resolution refuses projection and resolves optional empty") {
             val board =
                 startWithBoard { _, _, ai ->
                     addCard("Mountain", ai, ZoneType.Hand)
@@ -164,15 +164,17 @@ class TargetingCoordinatorTest :
             val bridge = testPromptBridge()
             val coordinator = TargetingCoordinator(bridge, testSeating)
 
-            coordinator.chooseSingleEntity(
-                cards,
-                abilitySub(ApiType.ChooseCard),
-                "Choose a card",
-                isOptional = true,
-                hasDelayedReveal = false,
-            )
+            val chosen =
+                coordinator.chooseSingleEntity(
+                    cards,
+                    abilitySub(ApiType.ChooseCard),
+                    "Choose a card",
+                    isOptional = true,
+                    hasDelayedReveal = false,
+                )
 
-            (bridge.history.single().route is ResolvedPromptRoute.UnclassifiedEntityChoice) shouldBe true
+            chosen shouldBe null
+            bridge.history.shouldBeEmpty()
         }
 
         test("legend rule returns the exact selected handle and records every unchosen victim") {

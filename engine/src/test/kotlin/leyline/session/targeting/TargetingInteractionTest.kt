@@ -15,7 +15,6 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.config.ServerConfig
@@ -209,13 +208,6 @@ class TargetingInteractionTest :
                 // cast → prompt round trip alone can exceed 5s on a slow runner.
                 waitFor(timeoutMs = 20_000L) {
                     h.drainSink()
-                    if (
-                        h.allMessages.none { it.hasSelectTargetsReq() } &&
-                        h.bridge.promptBridge(SeatId(1)).getPendingPrompt() != null
-                    ) {
-                        h.triggerAutoPass()
-                        h.drainSink()
-                    }
                     h.allMessages.any { it.hasSelectTargetsReq() }
                 }.shouldBeTrue()
                 val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
@@ -226,11 +218,10 @@ class TargetingInteractionTest :
                         h.allMessages.any { it.gameStateId > promptGsId }
                     }.shouldBeTrue()
 
-                    h.bridge.promptBridge(SeatId(1)).getPendingPrompt() shouldBe null
-                    h.allMessages
-                        .filter { it.gameStateId > promptGsId }
-                        .any { it.hasGameStateMessage() }
-                        .shouldBeTrue()
+                    val postPromptMessages = h.allMessages.filter { it.gameStateId > promptGsId }
+                    postPromptMessages.shouldNotBeEmpty()
+                    postPromptMessages.first().gameStateId shouldBeGreaterThan promptGsId
+                    postPromptMessages.any { it.hasGameStateMessage() }.shouldBeTrue()
                 }
             } finally {
                 h.shutdown()

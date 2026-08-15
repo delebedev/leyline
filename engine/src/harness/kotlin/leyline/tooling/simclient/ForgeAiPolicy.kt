@@ -18,8 +18,8 @@ import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
+import leyline.bridge.handoff.OneShotPayCostsWindowKind
 import leyline.bridge.handoff.PayCostsRouteKind
-import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -280,21 +280,19 @@ class ForgeAiPolicy(
     fun chooseStaticColorSelectN(msg: GREToClientMessage): List<Int>? {
         if (!canChooseStaticColorSelectN(msg)) return null
         val req = msg.selectNReq
-        val pending = harness.bridge.promptBridge(seatId).getPendingPrompt()
         val sa =
-            pending?.targetingSa
-                ?: harness
-                    .game()
-                    .stack
-                    .firstOrNull()
-                    ?.spellAbility
-        val allowedIds = allowedStaticColorIds(req, pending?.request?.staticOptionIds.orEmpty())
+            harness
+                .game()
+                .stack
+                .firstOrNull()
+                ?.spellAbility
+        val allowedIds = allowedStaticColorIds(req, emptyList())
         val allowedColors = colorSetFromStaticIds(allowedIds)
         if (allowedColors.isColorless) return null
         val colors =
             askAi("chooseColors") {
                 aiController.chooseColors(
-                    pending?.request?.message.orEmpty(),
+                    "Choose a color",
                     sa,
                     req.minSel.coerceAtLeast(1),
                     (if (req.maxSel > 0) req.maxSel else req.minSel).coerceAtLeast(1),
@@ -334,10 +332,17 @@ class ForgeAiPolicy(
         if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
         if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return null
         val bridge = runCatching { harness.bridge }.getOrNull() ?: return null
-        val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
-        val route = pending.request.route as? ResolvedPromptRoute.PayCosts ?: return null
-        if (route.descriptor.kind != PayCostsRouteKind.Sacrifice) return null
-        val sa = pending.targetingSa ?: return null
+        val published = bridge.currentOneShotPayCostsInteraction() ?: return null
+        if (published.windowKind != OneShotPayCostsWindowKind.Select || published.kind != PayCostsRouteKind.Sacrifice) {
+            return null
+        }
+        val sa =
+            bridge
+                .getGame()
+                ?.stack
+                ?.firstOrNull()
+                ?.spellAbility
+                ?: return null
         val costPart =
             sa.payCosts
                 ?.costParts
@@ -373,10 +378,12 @@ class ForgeAiPolicy(
                 .sumOf { group -> group.maxTargets.takeIf { it >= group.minTargets } ?: group.minTargets }
                 .coerceAtLeast(minCount)
         val sa =
-            harness.bridge
-                .promptBridge(seatId)
-                .getPendingPrompt()
-                ?.targetingSa ?: return null
+            harness
+                .game()
+                .stack
+                .firstOrNull()
+                ?.spellAbility
+                ?: return null
         val previousTargets = sa.targets.clone()
         val chosenTargets =
             try {

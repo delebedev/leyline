@@ -4,10 +4,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -50,21 +46,6 @@ class ExileAggregateCostLifecycleTest :
             passUntil(maxPasses = 12) { boastOfferAvailable(zemoIid) }
 
             activateAbility("Baron Helmut Zemo").shouldBeTrue()
-            val pending =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
-                    .shouldNotBeNull()
-
-            assertSoftly {
-                pending.request.semantic shouldBe PromptSemantic.Generic
-                pending.request.min shouldBe 1
-                pending.request.max shouldBe 16
-                pending.request.candidateRefs shouldHaveSize 16
-                pending.request.costSelectionWeights shouldBe emptyList<Int>()
-            }
-
             // Fourteen Duress carry 14 black pips < 15: payment must fail.
             val fourteen =
                 human
@@ -72,7 +53,7 @@ class ExileAggregateCostLifecycleTest :
                     .cards
                     .take(14)
                     .map { human.graveyard.iid(it) }
-            respondToEffectCost(fourteen)
+            selectTargets(fourteen)
             harness.bridge.awaitPriority()
 
             assertSoftly {
@@ -90,12 +71,6 @@ class ExileAggregateCostLifecycleTest :
             passUntil(maxPasses = 12) { boastOfferAvailable(zemoIid) }
 
             activateAbility("Baron Helmut Zemo").shouldBeTrue()
-            harness.bridge
-                .seat(SeatId(1))
-                .prompt
-                .getPendingPrompt()
-                .shouldNotBeNull()
-
             // Fifteen Duress carry 15 black pips >= 15: payment succeeds.
             val fifteen =
                 human
@@ -103,7 +78,7 @@ class ExileAggregateCostLifecycleTest :
                     .cards
                     .take(15)
                     .map { human.graveyard.iid(it) }
-            respondToEffectCost(fifteen)
+            selectTargets(fifteen)
             harness.bridge.awaitPriority()
 
             assertSoftly {

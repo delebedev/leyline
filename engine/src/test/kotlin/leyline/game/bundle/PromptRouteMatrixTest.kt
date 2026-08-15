@@ -134,7 +134,7 @@ class PromptRouteMatrixTest :
                 PromptRouteResolver.resolve(PromptSemantic.Generic, hasCandidateRefs = false)::class,
             ) shouldBe
                 listOf(
-                    ResolvedPromptRoute.UnclassifiedCandidate::class,
+                    ResolvedPromptRoute.CompatibilityCostSelection::class,
                     ResolvedPromptRoute.AutoResolve::class,
                 )
         }

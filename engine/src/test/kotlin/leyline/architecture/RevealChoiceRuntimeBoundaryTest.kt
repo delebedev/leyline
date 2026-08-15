@@ -55,9 +55,9 @@ class RevealChoiceRuntimeBoundaryTest :
                 check(forbidden !in handler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("route !is ResolvedPromptRoute.RevealChoice" in bridge)
+            check("check(request.route is ResolvedPromptRoute.RevealChoice)" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
-            check("RevealChoice prompts must be published by MatchRevealChoiceInteractionRuntime" in targeting)
+            check("coordinator.revealChoices.current() != null" in targeting)
             val route = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptRoute.kt"))
             check("PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice" in route)
 

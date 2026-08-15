@@ -5,13 +5,9 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
-import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -38,29 +34,11 @@ class UntapCostLifecycleTest :
             val battlefield = human.getZone(ZoneType.Battlefield).cards
             val bear = battlefield.single { it.name == "Grizzly Bears" }
             val corpse = battlefield.single { it.name == "Walking Corpse" }
-            val pending =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
-                    .shouldNotBeNull()
-            val bearChoice = pending.request.candidateRefs.single { it.entityId == bear.id }
-            val corpseChoice = pending.request.candidateRefs.single { it.entityId == corpse.id }
-
             assertSoftly {
-                pending.request.semantic shouldBe PromptSemantic.Generic
-                pending.request.min shouldBe 0
-                pending.request.max shouldBe 1
-                pending.request.candidateRefs shouldHaveSize 2
-                bearChoice.entityId shouldBe bear.id
                 bear.getCounters(CounterEnumType.STUN) shouldBe 1
             }
 
-            harness.bridge
-                .seat(SeatId(1))
-                .prompt
-                .submitResponse(pending.promptId, listOf(corpseChoice.index))
-            harness.bridge.awaitPriority()
+            selectTargets(listOf(human.battlefield.iid("Walking Corpse")))
 
             assertSoftly {
                 bear.isTapped.shouldBeTrue()

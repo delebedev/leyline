@@ -6,27 +6,18 @@ import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.DevCheck
-import leyline.bridge.BridgeTimeoutDiagnostic
 import leyline.bridge.NonInteractiveScope
-import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateRefDto
-import leyline.bridge.types.PromptChoiceDto
-import leyline.bridge.types.PromptOptionDto
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
-import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicReference
 
 internal class StrictPromptRefusalException(
     message: String,
@@ -37,12 +28,9 @@ internal fun refuseStrictPrompt(message: String): Nothing = throw StrictPromptRe
 /**
  * Thread-safe bridge between the blocking engine thread and async Netty handlers.
  *
- * When the engine needs interactive input (choose cards, pick option, etc.),
- * [requestChoice] blocks the engine thread on a [CompletableFuture]. The message
- * handler sends a prompt to the client, and when the client responds, [submitResponse]
- * completes the future so the engine resumes.
- *
- * One pending prompt at a time — the engine is single-threaded.
+ * When the engine needs interactive input, the bridge dispatches to the
+ * match-scoped runtime that owns that wire family. Untyped choices resolve
+ * synchronously; client-visible windows never share a generic pending slot.
  */
 class InteractivePromptBridge(
     private val timeoutMs: Long? = DEFAULT_TIMEOUT_MS,
@@ -123,6 +111,10 @@ class InteractivePromptBridge(
     @Volatile
     var oneShotPayCostsRuntime: OneShotPayCostsRuntime? = null
 
+    /** Match-scoped SelectTargets compatibility owner for residual card choices. */
+    @Volatile
+    var compatibilityCostSelectionRuntime: CompatibilityCostSelectionRuntime? = null
+
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
      * [PromptSideEffect] entries on the engine thread; shell-owned consumers
@@ -197,14 +189,6 @@ class InteractivePromptBridge(
 
     fun getTimeoutMs(): Long? = timeoutMs
 
-    data class PendingPrompt(
-        val promptId: String,
-        val request: PromptRequest,
-        val future: CompletableFuture<List<Int>>,
-        /** Live Forge ability retained for Forge-AI cost and target decisions. */
-        val targetingSa: SpellAbility? = null,
-    )
-
     // ── Call history ────────────────────────────────────────────────────────
     // Records every requestChoice invocation with its outcome. The engine
     // calls controller overrides that silently block on this bridge; without
@@ -223,8 +207,6 @@ class InteractivePromptBridge(
         elapsedMs: Long,
     ) = promptHistory.record(request, outcome, result, elapsedMs)
     // ────────────────────────────────────────────────────────────────────────
-
-    private val pending = AtomicReference<PendingPrompt?>(null)
 
     // -- Diagnostic context (set by GameLoopController after thread launch) --
 
@@ -279,7 +261,6 @@ class InteractivePromptBridge(
         revealQueue.clear()
         pendingTargetSpecs.clear()
         journal.resetForPuzzle()
-        pending.set(null)
     }
 
     /** Drain all pending reveal records (called from annotation-build thread). */
@@ -355,63 +336,11 @@ class InteractivePromptBridge(
             return listOf(request.defaultIndex)
         }
 
-        requireLegacyRoute(request.route)
-
         requestMigratedChoice(request, targetingSa, configuredTimeoutMs)?.let { return it }
-
-        val promptId = UUID.randomUUID().toString()
-        val future = CompletableFuture<List<Int>>()
-        val prompt = PendingPrompt(promptId, request, future, targetingSa)
-
-        if (!pending.compareAndSet(null, prompt)) {
-            if (strict) {
-                refuseStrictPrompt(
-                    "[strict] Prompt [${request.promptType}] \"${request.message}\" requested while another prompt is pending",
-                )
-            }
-            val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.ALREADY_PENDING, fallback, 0)
-            return fallback
-        }
-        prioritySignal?.signal()
-
-        val startMs = System.currentTimeMillis()
-        return try {
-            val result =
-                if (configuredTimeoutMs == null) {
-                    future.get()
-                } else {
-                    future.get(configuredTimeoutMs, TimeUnit.MILLISECONDS)
-                }
-            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
-            prioritySignal?.markPromptResolved()
-            result
-        } catch (_: TimeoutException) {
-            val diagnostic =
-                BridgeTimeoutDiagnostic.buildMessage(
-                    bridgeName = "InteractivePromptBridge",
-                    timeoutMs = checkNotNull(configuredTimeoutMs),
-                    game = diagnosticGame,
-                    engineThread = diagnosticThread,
-                    lastContext =
-                        "Prompt(type=${request.promptType}, msg=\"${request.message}\", " +
-                            "options=${request.options.size}, min=${request.min}, max=${request.max})",
-                )
-            log.warn("Prompt timed out, using default\n{}", diagnostic)
-            DevCheck.failOnAutoPass { "Prompt timed out (type=${request.promptType}, msg=${request.message})" }
-            val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
-            timeoutListener?.invoke()
-            fallback
-        } catch (ex: Exception) {
-            log.error("Prompt failed with exception, using default", ex)
-            DevCheck.failOnAutoPass { "Prompt failed: ${ex.message}" }
-            val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.ERROR, fallback, System.currentTimeMillis() - startMs)
-            fallback
-        } finally {
-            pending.set(null)
-        }
+        if (strict) refuseStrictPrompt("No coordinator-owned runtime for ${request.route}")
+        val fallback = listOf(request.defaultIndex)
+        record(request, PromptCallStatus.DEFAULTED_POLICY, fallback, 0)
+        return fallback
     }
 
     /** Route one Forge modal choice through the match-scoped runtime. */
@@ -421,15 +350,6 @@ class InteractivePromptBridge(
         sourceCard: Card,
         sourceAbility: SpellAbility,
     ): List<AbilitySub> = modalChoiceAdapter.request(request, possible, sourceCard, sourceAbility)
-
-    private fun requireLegacyRoute(route: ResolvedPromptRoute) {
-        check(route !is ResolvedPromptRoute.PayCosts) { "PayCosts routes require their match-scoped runtime" }
-        check(route !is ResolvedPromptRoute.Order) { "Order routes require their match-scoped runtime" }
-        check(route !is ResolvedPromptRoute.Grouping) { "Grouping routes require their match-scoped runtime" }
-        check(route !is ResolvedPromptRoute.CardSelect) { "CardSelect routes require their match-scoped runtime" }
-        check(route !is ResolvedPromptRoute.StaticChoice) { "StaticChoice routes require their match-scoped runtime" }
-        check(route !is ResolvedPromptRoute.RevealChoice) { "RevealChoice routes require their match-scoped runtime" }
-    }
 
     /** Route one iterative mana-source payment with its exact Forge option handles. */
     fun requestManaSourcePayment(
@@ -470,10 +390,20 @@ class InteractivePromptBridge(
         val route = request.route as? ResolvedPromptRoute.PayCosts
         val runtime = oneShotPayCostsRuntime
         if (route?.descriptor?.manaSourcePayment != null || runtime == null) {
-            return fallbackOneShot(requestChoice(request), candidateHandles)
+            val fallback = listOf(request.defaultIndex)
+            record(request, PromptCallStatus.DEFAULTED_POLICY, fallback, 0)
+            return fallbackOneShot(fallback, candidateHandles)
         }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
-            return fallbackOneShot(requestChoice(request), candidateHandles)
+            val fallback = listOf(request.defaultIndex)
+            val outcome =
+                when {
+                    NonInteractiveScope.active != null -> PromptCallStatus.NON_INTERACTIVE_SCOPE
+                    timeoutMs == 0L -> PromptCallStatus.DEFAULTED_POLICY
+                    else -> PromptCallStatus.NON_GAME_THREAD
+                }
+            record(request, outcome, fallback, 0)
+            return fallbackOneShot(fallback, candidateHandles)
         }
 
         val startMs = System.currentTimeMillis()
@@ -606,6 +536,47 @@ class InteractivePromptBridge(
             record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
             timeoutListener?.invoke()
             fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    /** Route one residual card choice through the SelectTargets compatibility runtime. */
+    fun requestCompatibilityCostSelection(
+        request: PromptRequest,
+        candidateHandles: List<Card>,
+    ): CompatibilityCostSelectionResult {
+        check(request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
+            "CompatibilityCostSelection route required"
+        }
+        val runtime = compatibilityCostSelectionRuntime
+        if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            val fallback = listOf(request.defaultIndex).filter { it in candidateHandles.indices }
+            val outcome =
+                when {
+                    runtime == null || timeoutMs == 0L -> PromptCallStatus.DEFAULTED_POLICY
+                    NonInteractiveScope.active != null -> PromptCallStatus.NON_INTERACTIVE_SCOPE
+                    else -> PromptCallStatus.NON_GAME_THREAD
+                }
+            record(request, outcome, fallback, 0)
+            return CompatibilityCostSelectionResult(fallback, fallback.map(candidateHandles::get))
+        }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitSelection(request, candidateHandles, timeoutMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            prioritySignal?.markPromptResolved()
+            result.copy(handles = result.optionIndices.mapNotNull(candidateHandles::getOrNull))
+        } catch (_: TargetingInteractionTimeoutException) {
+            val fallback = listOf(request.defaultIndex).filter { it in candidateHandles.indices }
+            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            CompatibilityCostSelectionResult(
+                optionIndices = fallback,
+                handles = fallback.map(candidateHandles::get),
+                timedOut = true,
+            )
         } catch (ex: Exception) {
             record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
             throw ex
@@ -757,55 +728,7 @@ class InteractivePromptBridge(
         return Thread.currentThread() == engineThread
     }
 
-    /**
-     * Called from the Netty handler. Completes the pending prompt future
-     * so the blocked engine thread can resume.
-     *
-     * @return true if the prompt was matched and completed
-     */
-    fun submitResponse(
-        promptId: String,
-        selectedIndices: List<Int>,
-    ): Boolean {
-        val current = pending.get() ?: return false
-        if (current.promptId != promptId) {
-            log.warn("Prompt ID mismatch: expected=${current.promptId}, got=$promptId")
-            return false
-        }
-        return current.future.complete(selectedIndices)
-    }
-
-    /**
-     * Get the current pending prompt for client broadcast. Returns null if no prompt
-     * is pending.
-     */
-    fun getPendingPrompt(): PendingPrompt? {
-        val p = pending.get() ?: return null
-        return if (p.future.isDone) null else p
-    }
-
     fun resolveAbilityIdentity(ability: SpellAbility): ResolvedAbilityIdentity? = abilityIdentityResolver?.invoke(ability)
-
-    /**
-     * Block until a prompt becomes pending (poll-based).
-     * Replaces hand-rolled poll loops in tests.
-     */
-    fun awaitPendingPrompt(timeoutMs: Long = 5_000): PendingPrompt {
-        var result: PendingPrompt? = null
-        GameLoopPoller.awaitCondition(timeoutMs, pollIntervalMs = 20) {
-            result = pending.get()
-            result != null
-        }
-        return checkNotNull(result) { "No prompt within ${timeoutMs}ms" }
-    }
-
-    /**
-     * Cancel any pending prompt (e.g. on game reset / disconnect).
-     */
-    fun cancelPending() {
-        val current = pending.getAndSet(null)
-        current?.future?.cancel(true)
-    }
 }
 
 /**
@@ -923,12 +846,12 @@ enum class PromptSemantic {
  * Engine-thread request for one blocking Forge choice.
  *
  * This is the handoff shape between Forge controller/gui overrides and the
- * session layer. It is not the client protocol prompt. Producers fill in the
- * source choice shape, option labels, selection cardinality, semantic route,
- * and optional entity metadata while the engine is blocked in [requestChoice].
- * The session layer emits the appropriate GRE request (`SelectNReq`,
- * `SelectTargetsReq`, `PayCostsReq`, etc.), then maps the client response back
- * to indices in [options].
+ * typed prompt runtime. It is not the client protocol prompt. Producers fill
+ * in the source choice shape, option labels, selection cardinality, semantic
+ * route, and optional entity metadata while the engine is blocked in a typed
+ * bridge request. The owning runtime materializes the appropriate GRE request
+ * (`SelectNReq`, `SelectTargetsReq`, `PayCostsReq`, etc.) and maps a correlated
+ * client response back to [options].
  */
 data class PromptRequest(
     /** Coarse source shape from the Forge API override; diagnostic only. */
@@ -991,21 +914,4 @@ data class PromptRequest(
 ) {
     /** Diagnostic identity derived from the immutable route. */
     val semantic: PromptSemantic get() = route.semantic
-}
-
-/** Convert a pending engine prompt into its wire DTO. */
-fun InteractivePromptBridge.PendingPrompt.toChoiceDto(): PromptChoiceDto {
-    val req = request
-    return PromptChoiceDto(
-        promptId = promptId,
-        promptType = req.promptType,
-        message = req.message,
-        min = req.min,
-        max = req.max,
-        options =
-            req.options.mapIndexed { idx, label ->
-                PromptOptionDto(id = idx.toString(), label = label)
-            },
-        candidateRefs = req.candidateRefs,
-    )
 }

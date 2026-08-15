@@ -16,6 +16,8 @@ import leyline.bridge.handoff.GatherCountersWindowInput
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PayCostsPromptSourceInput
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.toCandidateRefs
 import org.slf4j.LoggerFactory
@@ -139,10 +141,10 @@ class CostDecision(
                     max = 1,
                     defaultIndex = 0,
                     candidateRefs = refs,
+                    route = ResolvedPromptRoute.CompatibilityCostSelection(PromptSemantic.Generic),
                 )
-            val indices = bridge.requestChoice(request)
-            val idx = indices.firstOrNull() ?: return null
-            val card = list.toList().getOrNull(idx) ?: return null
+            val selection = bridge.requestCompatibilityCostSelection(request, list.toList())
+            val card = selection.handles.firstOrNull() ?: return null
 
             val cType =
                 if (cost.counter != null) {

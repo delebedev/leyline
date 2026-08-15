@@ -48,7 +48,7 @@ class GroupingRuntimeBoundaryTest :
                 check(forbidden !in handler)
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
-            check("route !is ResolvedPromptRoute.Grouping" in bridge)
+            check("check(request.route is ResolvedPromptRoute.Grouping)" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             listOf("sendGroupReqForSurveilScry", "resolveSurveilScryBundle", "fun onGroupResp").forEach { removed ->
                 check(removed !in targeting)

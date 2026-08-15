@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import leyline.bridge.handoff.CardSelectInteractionRuntime
+import leyline.bridge.handoff.CompatibilityCostSelectionRuntime
 import leyline.bridge.handoff.GroupingInteractionRuntime
 import leyline.bridge.handoff.ManaSourcePaymentRuntime
 import leyline.bridge.handoff.ModalChoiceInteractionRuntime
@@ -34,6 +35,11 @@ import leyline.game.StaticChoiceMaterializationDiagnostic
 internal fun MatchCutCoordinator.targetingRuntime(seatId: SeatId): TargetingInteractionRuntime {
     check(seatId == humanSeat) { "Targeting interaction runtime is only registered for the human seat" }
     return targeting
+}
+
+internal fun MatchCutCoordinator.compatibilityCostSelectionRuntime(seatId: SeatId): CompatibilityCostSelectionRuntime {
+    check(seatId == humanSeat) { "Compatibility cost selection runtime is only registered for the human seat" }
+    return compatibilityCostSelection
 }
 
 internal fun MatchCutCoordinator.searchRuntime(seatId: SeatId): SearchInteractionRuntime {
