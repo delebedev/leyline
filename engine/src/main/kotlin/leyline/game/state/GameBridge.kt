@@ -1779,9 +1779,14 @@ class GameBridge(
                     val counterType = entry.element
                     val count = entry.count
                     if (count <= 0) continue
+                    val counterTypeId = CounterTypes.counterTypeId(counterType.name)
+                    if (counterTypeId == 0) {
+                        log.debug("seedCounter: skipped unknown counter type {} on {}", counterType.name, card.name)
+                        continue
+                    }
                     val ann =
                         AnnotationBuilder
-                            .counter(instanceId, CounterTypes.counterTypeId(counterType.name), count)
+                            .counter(instanceId, counterTypeId, count)
                             .toBuilder()
                             .setId(nextPersistentAnnotationId())
                             .build()

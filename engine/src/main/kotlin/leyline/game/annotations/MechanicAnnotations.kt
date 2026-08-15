@@ -124,7 +124,12 @@ object MechanicAnnotations {
                         annotations.add(AnnotationBuilder.counterRemoved(instanceId, ev.counterType, -delta))
                     }
                     // Persistent: Counter state annotation with current count
-                    persistent.add(AnnotationBuilder.counter(instanceId, CounterTypes.counterTypeId(ev.counterType), ev.newCount))
+                    val counterType = CounterTypes.counterTypeId(ev.counterType)
+                    if (counterType != 0) {
+                        persistent.add(AnnotationBuilder.counter(instanceId, counterType, ev.newCount))
+                    } else {
+                        log.debug("mechanic: skipped unknown card counter type {} on iid={}", ev.counterType, instanceId.value)
+                    }
                     log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId.value)
                 }
                 is GameEvent.PlayerCountersChanged -> {
