@@ -299,6 +299,7 @@ object StateMapper {
                 editor,
                 snap,
                 eventsMutable,
+                prev,
                 mechanicSourceFacts,
                 zoneMoves = events.zoneMoves,
             )

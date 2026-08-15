@@ -18,6 +18,7 @@ import leyline.DevCheck
 import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderMoveIntent
+import leyline.bridge.handoff.PayCostsPromptSourceInput
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -25,6 +26,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchSourceValue
+import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.interaction.ChooseCardsForEffectContext
 import leyline.bridge.interaction.ChooseCardsForEffectPlanner
 import leyline.bridge.interaction.ChooseEntitiesContext
@@ -999,6 +1001,8 @@ class TargetingCoordinator(
         forcePrompt: Boolean = false,
         costSelectionWeights: List<Int> = emptyList(),
         minSelectionWeight: Int? = null,
+        tapPayment: TapPaymentDescriptor? = null,
+        payCostsPromptSource: PayCostsPromptSourceInput? = null,
         searchSource: SearchSourceValue? = null,
         resolutionRouteInput: ResolutionRouteInput? = null,
     ): CardCollection {
@@ -1017,10 +1021,17 @@ class TargetingCoordinator(
                 defaultIndex = 0,
                 candidateRefs = candidateRefs,
                 unfilteredRefs = unfilteredRefs,
-                route = PromptRouteResolver.resolve(semantic, candidateRefs.isNotEmpty(), resolutionRouteInput),
+                route =
+                    PromptRouteResolver.resolve(
+                        semantic,
+                        candidateRefs.isNotEmpty(),
+                        resolutionRouteInput,
+                        tapPayment,
+                    ),
                 sourceEntityId = sourceEntityId,
                 costSelectionWeights = costSelectionWeights,
                 minSelectionWeight = minSelectionWeight,
+                payCostsPromptSource = payCostsPromptSource,
                 searchSource = searchSource,
             )
         auditUnclassifiedEntityChoice(request)

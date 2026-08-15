@@ -383,6 +383,9 @@ class RuntimeBoundaryTest :
             check("route !is ResolvedPromptRoute.PayCosts" in bridge)
             val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
             check("PayCostsInteractionHandler" !in targeting)
+            val tapPolicy = Files.readString(sourceRoot.resolve("leyline/bridge/forge/TapPaymentPolicy.kt"))
+            check("game.stack" !in tapPolicy)
+            check("currentPayCostsPromptSource" !in tapPolicy)
             val requestBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/RequestBuilder.kt"))
             listOf(
                 "buildSacrificePayCostsReq",
@@ -391,6 +394,24 @@ class RuntimeBoundaryTest :
                 "buildEnlistCostPayCostsReq",
                 "buildTeamworkCostPayCostsReq",
             ).forEach { removed -> check(removed !in requestBuilder) }
+
+            val obsoleteTapSymbols = setOf("TeamworkCost", "TEAMWORK_TAP_COST", "buildTeamworkCostPayCostsReq")
+            val residuals = mutableMapOf<String, MutableSet<String>>()
+            val symbolStream = Files.walk(sourceRoot.resolve("leyline"))
+            try {
+                symbolStream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        val contents = Files.readString(file)
+                        val found = obsoleteTapSymbols.filterTo(mutableSetOf()) { it in contents }
+                        if (found.isNotEmpty()) {
+                            residuals[sourceRoot.relativize(file).toString()] = found
+                        }
+                    }
+            } finally {
+                symbolStream.close()
+            }
+            check(residuals.isEmpty()) { "Obsolete tap-payment symbols remain: $residuals" }
 
             val owners = mutableSetOf<String>()
             val stream = Files.walk(sourceRoot.resolve("leyline"))

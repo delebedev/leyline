@@ -893,8 +893,8 @@ enum class PromptSemantic {
     /** Enlist's optional attack cost: a PayCostsReq, not target selection. */
     EnlistCost,
 
-    /** Teamwork's spell-time creature tap payment after accepting the CTO branch. */
-    TeamworkCost,
+    /** Grounded total-power and exact-count tap or untap payments. */
+    TapPaymentCost,
 
     /**
      * Station's tap-a-creature activation cost. Routes to the Station-specific
@@ -976,6 +976,8 @@ data class PromptRequest(
     val costSelectionWeights: List<Int> = emptyList(),
     /** Minimum total selected weight for weighted cost-payment prompts. */
     val minSelectionWeight: Int? = null,
+    /** Exact stack object used by a grounded tap-payment prompt's CardId parameter. */
+    val payCostsPromptSource: PayCostsPromptSourceInput? = null,
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
     /** One-based target-group index within the spell or ability. */

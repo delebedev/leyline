@@ -3,15 +3,61 @@ package leyline.mechanics.cost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.types.SeatId
+import io.kotest.matchers.shouldNotBe
+import leyline.bridge.handoff.TapPaymentDescriptor
+import leyline.bridge.handoff.TapPaymentKind
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.allGameObjects
+import leyline.testkit.annotationsOfType
+import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class OrdinaryTapCostLifecycleTest :
     SessionTest({
+        test("spell tap-cost prompt uses the same-cut stack card identity") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                removesummoningsickness=true
+
+                humanhand=Fear of Exposure
+                humanbattlefield=Forest;Forest;Forest;Forest;Forest;Grizzly Bears;Walking Corpse
+                humanlibrary=Island;Island;Island
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Spell tap cost source identity",
+                validating = true,
+            )
+
+            val handIid = human.hand.iid("Fear of Exposure")
+            val paymentSlice = after { castSpellByName("Fear of Exposure").shouldBeTrue() }
+            val payCostsMessage = paymentSlice.messages.single { it.hasPayCostsReq() }
+            val sourceIid =
+                payCostsMessage.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue
+            val stackObject = paymentSlice.messages.allGameObjects().last { it.instanceId == sourceIid }
+
+            assertSoftly {
+                sourceIid shouldNotBe handIid
+                stackObject.type shouldBe GameObjectType.Card
+                stackObject.zoneId shouldBe ZoneIds.STACK
+                paymentSlice.messages
+                    .flatMap { message ->
+                        if (message.hasGameStateMessage()) message.gameStateMessage.zonesList else emptyList()
+                    }.last { it.zoneId == ZoneIds.STACK }
+                    .objectInstanceIdsList shouldContain sourceIid
+            }
+        }
+
         test("ordinary exact-count tap cost delegates through the shared Forge visitor") {
             startPuzzle(
                 """
@@ -32,37 +78,110 @@ class OrdinaryTapCostLifecycleTest :
             activateAbility("Goldfury Strider").shouldBeTrue()
             passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
             val bearIid = human.battlefield.iid("Grizzly Bears")
+            val corpseIid = human.battlefield.iid("Walking Corpse")
+            val striderIid = human.battlefield.iid("Goldfury Strider")
             selectTargets(listOf(bearIid))
 
             val battlefield = human.getZone(ZoneType.Battlefield).cards
-            val bear = battlefield.single { it.name == "Grizzly Bears" }
-            val corpse = battlefield.single { it.name == "Walking Corpse" }
-            val pending =
-                harness.bridge
-                    .seat(SeatId(1))
-                    .prompt
-                    .getPendingPrompt()
-                    .shouldNotBeNull()
-            val bearChoice = pending.request.candidateRefs.single { it.entityId == bear.id }
-            val corpseChoice = pending.request.candidateRefs.single { it.entityId == corpse.id }
+            val payCostsMessage = allMessages.last { it.hasPayCostsReq() }
+            val payCosts = payCostsMessage.payCostsReq
+            val selection = payCosts.effectCostReq.costSelection
+            val sourceIid =
+                payCostsMessage.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue
+            val sourceObject = allMessages.allGameObjects().last { it.instanceId == sourceIid }
 
             assertSoftly {
-                pending.request.semantic shouldBe PromptSemantic.Generic
-                pending.request.min shouldBe 0
-                pending.request.max shouldBe 2
-                pending.request.candidateRefs shouldHaveSize 3
+                payCostsMessage.prompt.promptId shouldBe
+                    checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TapExact, 2)).promptId
+                selection.minSel shouldBe 2
+                selection.maxSel shouldBe 2
+                selection.idsList shouldContain bearIid
+                selection.idsList shouldContain corpseIid
+                selection.weightsList.toSet() shouldBe setOf(1)
+                sourceObject.type shouldBe GameObjectType.Ability
+                sourceIid shouldBe sourceObject.instanceId
+                sourceObject.parentId shouldBe striderIid
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceCreated).filter {
+                    sourceIid in it.affectedIdsList
+                } shouldHaveSize 1
+                allMessages.persistentAnnotationsOfType(AnnotationType.TriggeringObject).filter {
+                    it.affectorId == sourceIid
+                } shouldHaveSize 0
+                harness.bridge
+                    .seat(leyline.bridge.types.SeatId(1))
+                    .prompt
+                    .getPendingPrompt() shouldBe null
             }
 
-            harness.bridge
-                .seat(SeatId(1))
-                .prompt
-                .submitResponse(pending.promptId, listOf(bearChoice.index, corpseChoice.index))
-            harness.bridge.awaitPriority()
+            respondToEffectCost(listOf(bearIid, corpseIid))
 
             assertSoftly {
                 battlefield.single { it.name == "Goldfury Strider" }.isTapped shouldBe false
                 battlefield.single { it.name == "Grizzly Bears" }.isTapped.shouldBeTrue()
                 battlefield.single { it.name == "Walking Corpse" }.isTapped.shouldBeTrue()
+            }
+
+            passUntilResolved(maxPasses = 4)
+
+            assertSoftly {
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceCreated).filter {
+                    sourceIid in it.affectedIdsList
+                } shouldHaveSize 1
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).filter {
+                    sourceIid in it.affectedIdsList
+                } shouldHaveSize 1
+                allMessages
+                    .allGameObjects()
+                    .filter { it.type == GameObjectType.Ability && it.parentId == striderIid }
+                    .map { it.instanceId }
+                    .toSet() shouldBe setOf(sourceIid)
+            }
+        }
+
+        test("cancelling exact-count tap cost deletes the pre-stack ability") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                removesummoningsickness=true
+
+                humanbattlefield=Goldfury Strider;Grizzly Bears;Walking Corpse
+                humanlibrary=Island;Island;Island
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                name = "Cancel ordinary tap cost",
+                validating = true,
+            )
+
+            activateAbility("Goldfury Strider").shouldBeTrue()
+            passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+            selectTargets(listOf(human.battlefield.iid("Grizzly Bears")))
+            val payCostsMessage = allMessages.last { it.hasPayCostsReq() }
+            val sourceIid =
+                payCostsMessage.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue
+
+            cancelAction()
+
+            assertSoftly {
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceCreated).filter {
+                    sourceIid in it.affectedIdsList
+                } shouldHaveSize 1
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).filter {
+                    sourceIid in it.affectedIdsList
+                } shouldHaveSize 1
+                harness.bridge.getLimboInstanceIds().map { it.value } shouldContain sourceIid
+                harness.bridge
+                    .projectionStateSnapshot()
+                    .annotations.abilityLineage
+                    .find(sourceIid) shouldBe null
+                harness.bridge.cutCoordinator.oneShotPayCosts
+                    .current() shouldBe null
             }
         }
     })

@@ -19,6 +19,8 @@ import leyline.bridge.handoff.SelectNPromptRoute
 import leyline.bridge.handoff.SelectNShape
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoicePromptRoute
+import leyline.bridge.handoff.TapPaymentDescriptor
+import leyline.bridge.handoff.TapPaymentKind
 import leyline.bridge.types.PromptCandidateKind
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
@@ -69,7 +71,13 @@ class PromptRouteMatrixTest :
                     PromptSemantic.SelectNCostCollectEvidence to
                         payCosts(PromptSemantic.SelectNCostCollectEvidence, PayCostsRouteKind.CollectEvidence, "collect-evidence"),
                     PromptSemantic.EnlistCost to payCosts(PromptSemantic.EnlistCost, PayCostsRouteKind.EnlistCost, "enlist"),
-                    PromptSemantic.TeamworkCost to payCosts(PromptSemantic.TeamworkCost, PayCostsRouteKind.TeamworkCost, "teamwork"),
+                    PromptSemantic.TapPaymentCost to
+                        payCosts(
+                            PromptSemantic.TapPaymentCost,
+                            PayCostsRouteKind.TapPayment,
+                            "tap-payment",
+                            tapPayment = checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 2)),
+                        ),
                     PromptSemantic.StationTapCost to payCosts(PromptSemantic.StationTapCost, PayCostsRouteKind.StationTapCost, "station"),
                     PromptSemantic.ReturnUnblockedAttackerCost to
                         payCosts(
@@ -109,8 +117,15 @@ class PromptRouteMatrixTest :
                 )
 
             PromptSemantic.entries
-                .associateWith { PromptRouteResolver.resolve(it) }
-                .shouldContainExactly(expected)
+                .associateWith { semantic ->
+                    PromptRouteResolver.resolve(
+                        semantic,
+                        tapPayment =
+                            TapPaymentDescriptor
+                                .grounded(TapPaymentKind.TotalPower, 2)
+                                .takeIf { semantic == PromptSemantic.TapPaymentCost },
+                    )
+                }.shouldContainExactly(expected)
         }
 
         test("Generic fallback resolves once from candidate presence") {
@@ -185,4 +200,6 @@ private fun payCosts(
     kind: PayCostsRouteKind,
     templateLabel: String,
     manaSourcePayment: ManaSourcePaymentKind? = null,
-): ResolvedPromptRoute.PayCosts = ResolvedPromptRoute.PayCosts(PayCostsPromptRoute(semantic, kind, templateLabel, manaSourcePayment))
+    tapPayment: TapPaymentDescriptor? = null,
+): ResolvedPromptRoute.PayCosts =
+    ResolvedPromptRoute.PayCosts(PayCostsPromptRoute(semantic, kind, templateLabel, manaSourcePayment, tapPayment))

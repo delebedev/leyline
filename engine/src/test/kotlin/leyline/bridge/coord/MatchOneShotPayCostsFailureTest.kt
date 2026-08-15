@@ -169,22 +169,40 @@ class MatchOneShotPayCostsFailureTest :
             coordinator.oneShotPayCosts.beforeTimeoutClaim = null
         }
 
-        test("materialize enqueue and install failures retain their exact publication stage") {
+        test("capture materialize enqueue and install failures retain their exact publication stage") {
+            val captureBoard = startPuzzleAtMain1(puzzle)
+            captureBoard.bridge.cutCoordinator.drain(SeatId(1))
+            val capture =
+                shouldThrow<PlaybackTerminalFailure> {
+                    captureBoard.bridge.cutCoordinator
+                        .oneShotPayCostsRuntime(SeatId(1))
+                        .awaitPayment(request(captureBoard), cards(captureBoard) + cards(captureBoard).first(), 3_000)
+                }
+            assertSoftly {
+                capture.oneShotPayCostsDiagnostic.shouldBeNull()
+                capture.pendingOneShotPayCostsCut.shouldBeNull()
+                captureBoard.bridge.cutCoordinator.drain(SeatId(1)) shouldBe emptyList()
+            }
+
             val materializeBoard = startPuzzleAtMain1(puzzle)
-            materializeBoard.bridge.cutCoordinator.drain(SeatId(1))
+            val materializeOwner = materializeBoard.bridge.cutCoordinator
+            materializeOwner.drain(SeatId(1))
             val materialize =
                 shouldThrow<PlaybackTerminalFailure> {
-                    materializeBoard.bridge.cutCoordinator
-                        .oneShotPayCostsRuntime(SeatId(1))
-                        .awaitPayment(request(materializeBoard, Int.MAX_VALUE), cards(materializeBoard), 3_000)
+                    materializeOwner.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(
+                        request(materializeBoard, Int.MAX_VALUE),
+                        cards(materializeBoard),
+                        3_000,
+                    )
                 }
             assertSoftly {
                 materialize.oneShotPayCostsDiagnostic
                     .shouldNotBeNull()
                     .interaction.sourceForgeCardId
-                    ?.value shouldBe Int.MAX_VALUE
+                    ?.value shouldBe
+                    Int.MAX_VALUE
                 materialize.pendingOneShotPayCostsCut.shouldBeNull()
-                materializeBoard.bridge.cutCoordinator.drain(SeatId(1)) shouldBe emptyList()
+                materializeOwner.drain(SeatId(1)) shouldBe emptyList()
             }
 
             val enqueueBoard = startPuzzleAtMain1(puzzle)

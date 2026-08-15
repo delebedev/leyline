@@ -4,14 +4,18 @@ import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PayCostsPromptRoute
+import leyline.bridge.handoff.PayCostsPromptSourceInput
 import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.handoff.TapPaymentDescriptor
+import leyline.bridge.handoff.TapPaymentKind
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -45,7 +49,7 @@ class MatchOneShotPayCostsRuntimeTest :
             ActivePhase=Main1
             HumanLife=20
             AILife=20
-            humanbattlefield=Savannah Lions;Coral Merfolk;Forest
+            humanbattlefield=Savannah Lions;Coral Merfolk;Grizzly Bears;Forest
             humanlibrary=Mountain
             ailibrary=Forest
             """.trimIndent()
@@ -60,8 +64,11 @@ class MatchOneShotPayCostsRuntimeTest :
             cards: List<Card>,
             kind: PayCostsRouteKind,
             sourceId: Int,
+            tapPayment: TapPaymentDescriptor? = null,
+            weights: List<Int> = listOf(2, 1, 1),
         ): PromptRequest {
-            val weighted = kind == PayCostsRouteKind.CollectEvidence || kind == PayCostsRouteKind.TeamworkCost
+            val weighted = kind == PayCostsRouteKind.CollectEvidence || tapPayment?.kind == TapPaymentKind.TotalPower
+            val semantic = if (tapPayment != null) PromptSemantic.TapPaymentCost else PromptSemantic.SelectNCostSacrifice
             return PromptRequest(
                 promptType = "choose_cards",
                 message = "Pay cost",
@@ -72,10 +79,11 @@ class MatchOneShotPayCostsRuntimeTest :
                     cards.mapIndexed { index, card ->
                         PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Battlefield.name)
                     },
-                route = ResolvedPromptRoute.PayCosts(PayCostsPromptRoute(PromptSemantic.SelectNCostSacrifice, kind, kind.name)),
+                route = ResolvedPromptRoute.PayCosts(PayCostsPromptRoute(semantic, kind, kind.name, tapPayment = tapPayment)),
                 sourceEntityId = sourceId,
-                costSelectionWeights = if (weighted) listOf(2, 1) else emptyList(),
-                minSelectionWeight = if (weighted) 2 else null,
+                payCostsPromptSource = PayCostsPromptSourceInput.StackCard(ForgeCardId(sourceId)),
+                costSelectionWeights = if (weighted) weights else emptyList(),
+                minSelectionWeight = if (weighted) tapPayment?.required ?: 2 else null,
             )
         }
 
@@ -99,22 +107,27 @@ class MatchOneShotPayCostsRuntimeTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single { it.name == "Forest" }
+            val tapPayment = checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 2))
             val routes =
                 listOf(
-                    PayCostsRouteKind.Sacrifice to PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE,
-                    PayCostsRouteKind.SelectCostExileFromGrave to PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE,
-                    PayCostsRouteKind.SelectCostReturnAttacker to PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST,
-                    PayCostsRouteKind.CollectEvidence to PromptIds.COLLECT_EVIDENCE_COST,
-                    PayCostsRouteKind.StationTapCost to PromptIds.STATION_TAP_COST,
-                    PayCostsRouteKind.EnlistCost to PromptIds.ENLIST_TAP_COST,
-                    PayCostsRouteKind.TeamworkCost to PromptIds.TEAMWORK_TAP_COST,
+                    Triple(PayCostsRouteKind.Sacrifice, PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE, null),
+                    Triple(PayCostsRouteKind.SelectCostExileFromGrave, PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE, null),
+                    Triple(PayCostsRouteKind.SelectCostReturnAttacker, PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST, null),
+                    Triple(PayCostsRouteKind.CollectEvidence, PromptIds.COLLECT_EVIDENCE_COST, null),
+                    Triple(PayCostsRouteKind.StationTapCost, PromptIds.STATION_TAP_COST, null),
+                    Triple(PayCostsRouteKind.EnlistCost, PromptIds.ENLIST_TAP_COST, null),
+                    Triple(PayCostsRouteKind.TapPayment, tapPayment.promptId, tapPayment),
                 )
 
-            routes.forEach { (kind, promptId) ->
+            routes.forEach { (kind, promptId, tapDescriptor) ->
                 val result = AtomicReference<leyline.bridge.handoff.OneShotPayCostsResult>()
                 val finished = CountDownLatch(1)
                 Thread {
-                    result.set(coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(cards, kind, source.id), cards, 3_000))
+                    result.set(
+                        coordinator
+                            .oneShotPayCostsRuntime(SeatId(1))
+                            .awaitPayment(request(cards, kind, source.id, tapDescriptor), cards, 3_000),
+                    )
                     finished.countDown()
                 }.start()
 
@@ -159,14 +172,14 @@ class MatchOneShotPayCostsRuntimeTest :
                             selection.minSel shouldBe 0
                             selection.maxSel shouldBe cards.size
                             selection.minWeight shouldBe 2
-                            selection.weightsList shouldContainExactly listOf(2, 1)
+                            selection.weightsList shouldContainExactly listOf(2, 1, 1)
                         }
-                    PayCostsRouteKind.TeamworkCost ->
+                    PayCostsRouteKind.TapPayment ->
                         assertSoftly {
                             selection.minSel shouldBe 2
                             selection.maxSel shouldBe Int.MAX_VALUE
                             selection.minWeight shouldBe Int.MIN_VALUE
-                            selection.weightsList shouldContainExactly listOf(2, 1)
+                            selection.weightsList shouldContainExactly listOf(2, 1, 1)
                         }
                     PayCostsRouteKind.SelectCostExileFromGrave ->
                         assertSoftly {
@@ -174,7 +187,7 @@ class MatchOneShotPayCostsRuntimeTest :
                             selection.minSel shouldBe 1
                             selection.maxSel shouldBe 1
                             selection.minWeight shouldBe Int.MIN_VALUE
-                            selection.weightsList shouldContainExactly listOf(1, 1)
+                            selection.weightsList shouldContainExactly listOf(1, 1, 1)
                         }
                     PayCostsRouteKind.Sacrifice,
                     PayCostsRouteKind.SelectCostReturnAttacker,
@@ -185,7 +198,7 @@ class MatchOneShotPayCostsRuntimeTest :
                             selection.minSel shouldBe 1
                             selection.maxSel shouldBe 1
                             selection.minWeight shouldBe Int.MIN_VALUE
-                            selection.weightsList shouldContainExactly listOf(1, 1)
+                            selection.weightsList shouldContainExactly listOf(1, 1, 1)
                         }
                     PayCostsRouteKind.ConvokeCost,
                     PayCostsRouteKind.ImproviseCost,
@@ -199,6 +212,89 @@ class MatchOneShotPayCostsRuntimeTest :
                     result.get().optionIndices shouldContainExactly listOf(0)
                     (result.get().handles.single() === cards.first()) shouldBe true
                 }
+            }
+        }
+
+        test("grounded tap-payment table preserves every prompt and selection envelope") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val cards = candidates(board)
+            val source =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Forest" }
+            val rows =
+                listOf(
+                    Triple(TapPaymentKind.TotalPower, 1, 8929),
+                    Triple(TapPaymentKind.TotalPower, 2, 8924),
+                    Triple(TapPaymentKind.TotalPower, 3, 8925),
+                    Triple(TapPaymentKind.TotalPower, 4, 8922),
+                    Triple(TapPaymentKind.TapExact, 2, 2595),
+                    Triple(TapPaymentKind.TapExact, 3, 3579),
+                    Triple(TapPaymentKind.UntapExact, 2, 8840),
+                )
+
+            rows.forEach { (kind, required, promptId) ->
+                val descriptor = checkNotNull(TapPaymentDescriptor.grounded(kind, required))
+                val weights =
+                    when {
+                        kind == TapPaymentKind.TotalPower && required == 4 -> listOf(-2, 1, 3)
+                        kind == TapPaymentKind.TotalPower -> listOf(2, 1, 1)
+                        else -> listOf(1, 1, 1)
+                    }
+                val emittedWeights = weights.map { it.coerceAtLeast(0) }
+                val result = AtomicReference<leyline.bridge.handoff.OneShotPayCostsResult>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    result.set(
+                        coordinator
+                            .oneShotPayCostsRuntime(SeatId(1))
+                            .awaitPayment(
+                                request(cards, PayCostsRouteKind.TapPayment, source.id, descriptor, weights),
+                                cards,
+                                3_000,
+                            ),
+                    )
+                    finished.countDown()
+                }.start()
+
+                val published = awaitPublished(coordinator)
+                val req =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasPayCostsReq() }
+                val selection = req.payCostsReq.effectCostReq.costSelection
+                val selectedIds =
+                    when {
+                        kind != TapPaymentKind.TotalPower -> selection.idsList.take(required)
+                        required <= 2 -> selection.idsList.take(1)
+                        else -> selection.idsList.take(required - 1)
+                    }
+                assertSoftly {
+                    descriptor.promptId shouldBe promptId
+                    req.prompt.promptId shouldBe promptId
+                    selection.minSel shouldBe required
+                    selection.maxSel shouldBe if (kind == TapPaymentKind.TotalPower) Int.MAX_VALUE else required
+                    selection.minWeight shouldBe Int.MIN_VALUE
+                    selection.maxWeight shouldBe Int.MAX_VALUE
+                    selection.weightsList shouldContainExactly emittedWeights
+                    coordinator.oneShotPayCosts.submit(
+                        published.interactionId,
+                        published.gameStateId,
+                        selectedIds,
+                    ) shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get().handles shouldHaveSize selectedIds.size
+                }
+            }
+
+            assertSoftly {
+                TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 5).shouldBeNull()
+                TapPaymentDescriptor.grounded(TapPaymentKind.TapExact, 1).shouldBeNull()
+                TapPaymentDescriptor.grounded(TapPaymentKind.UntapExact, 1).shouldBeNull()
             }
         }
 

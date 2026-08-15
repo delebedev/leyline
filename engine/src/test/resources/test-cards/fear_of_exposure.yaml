@@ -1,0 +1,11 @@
+name: "Fear of Exposure"
+grpId: 92265
+titleId: 812893
+abilities:
+  - id: 174471
+    textId: 812895
+    category: 5
+  - id: 14
+    textId: 28
+    category: 3
+expansionCode: "DSK"

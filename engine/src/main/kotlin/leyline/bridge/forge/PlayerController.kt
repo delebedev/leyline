@@ -31,7 +31,7 @@ import forge.game.cost.CostPayLife
 import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
 import forge.game.cost.CostTapType
-import forge.game.cost.CostTeamwork
+import forge.game.cost.CostUntapType
 import forge.game.cost.CostWaterbend
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
@@ -992,6 +992,7 @@ class PlayerController(
         isOptional: Boolean,
         prompt: String,
     ): CardCollectionView {
+        val tapPayment = TapPaymentPolicy.exact(cpl, amount, sa)
         val semantic =
             when (cpl) {
                 is CostDiscard -> PromptSemantic.SelectNDiscard
@@ -1008,7 +1009,12 @@ class PlayerController(
                 // Fixed-count Station taps (tapXType<1/...>) pay through the
                 // exact-count seam, not chooseCardsForTapCost.
                 is CostTapType ->
-                    if (sa.isKeyword(Keyword.STATION)) PromptSemantic.StationTapCost else PromptSemantic.Generic
+                    when {
+                        sa.isKeyword(Keyword.STATION) -> PromptSemantic.StationTapCost
+                        tapPayment != null -> PromptSemantic.TapPaymentCost
+                        else -> PromptSemantic.Generic
+                    }
+                is CostUntapType -> if (tapPayment != null) PromptSemantic.TapPaymentCost else PromptSemantic.Generic
                 is CostForage ->
                     if (optionList.all { it.isInPlay }) {
                         PromptSemantic.SelectNCostSacrifice
@@ -1026,6 +1032,8 @@ class PlayerController(
                 semantic = semantic,
                 candidateRefs = optionList.toCandidateRefs(),
                 sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+                tapPayment = tapPayment?.descriptor,
+                payCostsPromptSource = tapPayment?.promptSource,
                 forcePrompt = isOptional,
             )
         if (cpl is CostEnlist && selected.isNotEmpty()) {
@@ -1085,11 +1093,11 @@ class PlayerController(
         totalPowerNeeded: Int?,
         prompt: String,
     ): CardCollectionView {
-        val teamwork = cost is CostTeamwork
+        val tapPayment = totalPowerNeeded?.let { TapPaymentPolicy.totalPower(it, sa) }
         val semantic =
             when {
-                teamwork -> PromptSemantic.TeamworkCost
                 sa.isKeyword(Keyword.STATION) -> PromptSemantic.StationTapCost
+                tapPayment != null -> PromptSemantic.TapPaymentCost
                 else -> PromptSemantic.Generic
             }
         return targetingCoordinator.chooseCardsViaBridge(
@@ -1100,12 +1108,14 @@ class PlayerController(
             semantic = semantic,
             candidateRefs = optionList.toCandidateRefs(),
             sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
-            // Any-number taps (Station) prompt even with a single candidate;
-            // total-power taps keep the auto-take shortcut for a forced list.
+            tapPayment = tapPayment?.descriptor,
+            payCostsPromptSource = tapPayment?.promptSource,
+            // Any-number taps prompt even with one candidate. Total-power
+            // costs preserve Forge's forced-list auto-take shortcut.
             forcePrompt = totalPowerNeeded == null,
             costSelectionWeights =
-                if (teamwork) optionList.map { it.netPower.coerceAtLeast(0) } else emptyList(),
-            minSelectionWeight = totalPowerNeeded.takeIf { teamwork },
+                if (tapPayment != null) TapPaymentPolicy.totalPowerWeights(optionList, sa) else emptyList(),
+            minSelectionWeight = tapPayment?.descriptor?.required,
         )
     }
 

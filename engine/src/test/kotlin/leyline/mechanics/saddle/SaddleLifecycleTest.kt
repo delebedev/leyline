@@ -7,14 +7,18 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.TapPaymentDescriptor
+import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.testkit.SessionTest
+import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.detailUint
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 private val PUZZLE =
     """
@@ -39,9 +43,35 @@ private val PUZZLE =
 class SaddleLifecycleTest :
     SessionTest({
         test("saddle activation taps helper and emits saddled annotations") {
-            startPuzzleRaw(PUZZLE, validating = true)
+            startPuzzleRaw(
+                PUZZLE.replace("Drover Grizzly;Grizzly Bears", "Drover Grizzly;Grizzly Bears;Coral Merfolk"),
+                validating = true,
+            )
 
-            activateAbility("Drover Grizzly").shouldBeTrue()
+            val helperIid = human.battlefield.iid("Grizzly Bears")
+            val otherHelperIid = human.battlefield.iid("Coral Merfolk")
+            val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
+            val payment = paymentSlice.expectOnePayCostsReq()
+            val paymentMessage = paymentSlice.messages.single { it.hasPayCostsReq() }
+            val selection = payment.effectCostReq.costSelection
+            val sourceIid =
+                paymentMessage.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue
+            val sourceObject = paymentSlice.messages.allGameObjects().last { it.instanceId == sourceIid }
+
+            assertSoftly {
+                paymentMessage.prompt.promptId shouldBe
+                    checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 1)).promptId
+                sourceObject.type shouldBe GameObjectType.Ability
+                selection.minSel shouldBe 1
+                selection.maxSel shouldBe Int.MAX_VALUE
+                selection.idsList shouldContain helperIid
+                selection.idsList shouldContain otherHelperIid
+                selection.idsList.zip(selection.weightsList).toMap()[helperIid] shouldBe 2
+            }
+
+            respondToEffectCost(listOf(helperIid))
             passUntilResolved(maxPasses = 4)
 
             val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
