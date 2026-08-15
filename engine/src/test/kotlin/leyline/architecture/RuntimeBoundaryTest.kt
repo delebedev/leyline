@@ -257,8 +257,8 @@ class RuntimeBoundaryTest :
             }
             val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/InteractivePromptBridge.kt"))
             check("check(request.route is ResolvedPromptRoute.CardSelect)" in bridge)
-            val targeting = Files.readString(sourceRoot.resolve("leyline/match/TargetingHandler.kt"))
-            check("coordinator.cardSelect.current() != null" in targeting)
+            val runtimes = Files.readString(sourceRoot.resolve("leyline/bridge/coord/MatchPromptRuntimeSet.kt"))
+            check("cardSelect.current() != null" in runtimes)
             val route = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/PromptRoute.kt"))
             listOf(
                 "SelectNLegendRule",

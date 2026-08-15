@@ -215,6 +215,13 @@ with one transition install. A stale install cannot be rebased without changing
 that exact cut, so it becomes terminal and retains the cut for diagnosis.
 Failure after journal close is likewise terminal.
 
+`MatchPromptRuntimeSet` is the coordinator's single inventory for prompt
+runtimes. It installs one immutable `PromptRuntimeBindings` value into the
+engine bridge and owns pending visibility, reset, terminal teardown, and
+delivery-failure dispatch. CardSelect, StaticChoice, Order, and Search keep
+their distinct value freezing and wire materializers while sharing one
+single-window correlation, timeout, and retirement primitive.
+
 **Per-seat filtering.** Each seat receives its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are stripped before send — the same engine state produces different protobuf payloads per seat.
 
 **Counter sequencing.** The `MessageCounter` guarantees strictly increasing gsIds across the interleaved `GameStateMessage` stream and keeps msgIds on the same shared atomic path for local ordering and response bookkeeping. Thread-ownership rules live in [`bridge-threading.md`](bridge-threading.md#4-one-shared-counter-not-two).

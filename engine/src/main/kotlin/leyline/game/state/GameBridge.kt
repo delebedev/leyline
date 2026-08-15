@@ -19,17 +19,6 @@ import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
-import leyline.bridge.coord.cardSelectRuntime
-import leyline.bridge.coord.compatibilityCostSelectionRuntime
-import leyline.bridge.coord.groupingRuntime
-import leyline.bridge.coord.manaSourcePaymentRuntime
-import leyline.bridge.coord.modalChoiceRuntime
-import leyline.bridge.coord.oneShotPayCostsRuntime
-import leyline.bridge.coord.orderRuntime
-import leyline.bridge.coord.revealChoiceRuntime
-import leyline.bridge.coord.searchRuntime
-import leyline.bridge.coord.staticChoiceRuntime
-import leyline.bridge.coord.targetingRuntime
 import leyline.bridge.forge.RevealTrackingAiController
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
@@ -510,17 +499,7 @@ class GameBridge(
         seatId: SeatId,
         captureLocalActions: Boolean,
     ) {
-        promptBridge(seatId).targetingRuntime = cutCoordinator.targetingRuntime(seatId)
-        promptBridge(seatId).searchRuntime = cutCoordinator.searchRuntime(seatId)
-        promptBridge(seatId).orderRuntime = cutCoordinator.orderRuntime(seatId)
-        promptBridge(seatId).groupingRuntime = cutCoordinator.groupingRuntime(seatId)
-        promptBridge(seatId).cardSelectRuntime = cutCoordinator.cardSelectRuntime(seatId)
-        promptBridge(seatId).staticChoiceRuntime = cutCoordinator.staticChoiceRuntime(seatId)
-        promptBridge(seatId).revealChoiceRuntime = cutCoordinator.revealChoiceRuntime(seatId)
-        promptBridge(seatId).modalChoiceRuntime = cutCoordinator.modalChoiceRuntime(seatId)
-        promptBridge(seatId).manaSourcePaymentRuntime = cutCoordinator.manaSourcePaymentRuntime(seatId)
-        promptBridge(seatId).oneShotPayCostsRuntime = cutCoordinator.oneShotPayCostsRuntime(seatId)
-        promptBridge(seatId).compatibilityCostSelectionRuntime = cutCoordinator.compatibilityCostSelectionRuntime(seatId)
+        promptBridge(seatId).runtimeBindings = cutCoordinator.prompts.bindings(seatId)
         val collector = GameEventCollector(this)
         eventCollector = collector
         game.subscribeToEvents(collector)
@@ -687,7 +666,7 @@ class GameBridge(
                     PromptProjectionFacts.RevealFact(
                         PromptFactKey(seatId, entry.version),
                         RevealStarted(entry.reveal.allHandCardIds.toList(), entry.reveal.ownerSeatId),
-                        cutCoordinator.revealChoices.current() != null || cutCoordinator.cardSelect.current() != null,
+                        cutCoordinator.prompts.hasRevealProjectionPrompt(),
                     )
             }
             convokePayments +=
@@ -1317,21 +1296,10 @@ class GameBridge(
             hasPendingNonActionInteraction()
 
     fun hasPendingNonActionInteraction(): Boolean =
-        cutCoordinator.currentBlockingInteraction() != null ||
-            cutCoordinator.targeting.current() != null ||
-            cutCoordinator.compatibilityCostSelection.current() != null ||
-            cutCoordinator.search.current() != null ||
-            cutCoordinator.modalChoices.current() != null ||
-            cutCoordinator.order.current() != null ||
-            cutCoordinator.grouping.current() != null ||
-            cutCoordinator.cardSelect.current() != null ||
-            cutCoordinator.staticChoices.current() != null ||
-            cutCoordinator.revealChoices.current() != null ||
-            cutCoordinator.manaSourcePayments.current() != null ||
-            cutCoordinator.oneShotPayCosts.current() != null
+        cutCoordinator.currentBlockingInteraction() != null || cutCoordinator.prompts.hasPendingInteraction()
 
     /** Current typed one-shot PayCosts window for harness policy inspection. */
-    fun currentOneShotPayCostsInteraction(): PublishedOneShotPayCostsInteraction? = cutCoordinator.oneShotPayCosts.current()
+    fun currentOneShotPayCostsInteraction(): PublishedOneShotPayCostsInteraction? = cutCoordinator.prompts.currentOneShotPayCosts()
 
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
@@ -1578,19 +1546,7 @@ class GameBridge(
      */
     fun teardownResources() {
         cutCoordinator.shutdown()
-        promptBridges.values.forEach {
-            it.targetingRuntime = null
-            it.searchRuntime = null
-            it.orderRuntime = null
-            it.groupingRuntime = null
-            it.cardSelectRuntime = null
-            it.staticChoiceRuntime = null
-            it.revealChoiceRuntime = null
-            it.modalChoiceRuntime = null
-            it.manaSourcePaymentRuntime = null
-            it.oneShotPayCostsRuntime = null
-            it.compatibilityCostSelectionRuntime = null
-        }
+        promptBridges.values.forEach { it.runtimeBindings = leyline.bridge.handoff.PromptRuntimeBindings() }
         val g = game
         if (g != null) {
             g.phaseHandler.setMainGameLoopStartedHook(null)

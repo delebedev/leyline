@@ -52,6 +52,10 @@ actions and prompts use atomic references; `PrioritySignal` is a semaphore. The
 match-scoped `MatchCutCoordinator` owns viewer-keyed committed feeds, and
 `feedLock` covers the whole close-events/build/advance-cursor/enqueue window and
 every drain. The queue type alone is not the transaction.
+`MatchPromptRuntimeSet` owns the prompt-runtime inventory; match setup swaps one
+immutable binding value into `InteractivePromptBridge`, and teardown clears
+that value once. Single-window prompt families arbitrate response versus
+timeout and retire their waiter under `feedLock` through the same primitive.
 Frame producers that need all three monitors use one order:
 `MessageCounter` → `projectionBuildLock` → `feedLock`. Drainers take only
 `feedLock`; event subscribers that request a future cut also take only

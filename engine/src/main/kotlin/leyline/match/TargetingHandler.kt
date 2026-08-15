@@ -228,19 +228,7 @@ class TargetingHandler(
         return PromptResult.NONE
     }
 
-    private fun hasCoordinatorPrompt(bridge: leyline.game.state.GameBridge): Boolean =
-        bridge.cutCoordinator.let { coordinator ->
-            coordinator.targeting.current() != null ||
-                coordinator.search.current() != null ||
-                coordinator.grouping.current() != null ||
-                coordinator.cardSelect.current() != null ||
-                coordinator.staticChoices.current() != null ||
-                coordinator.revealChoices.current() != null ||
-                coordinator.modalChoices.current() != null ||
-                coordinator.manaSourcePayments.current() != null ||
-                coordinator.oneShotPayCosts.current() != null ||
-                coordinator.compatibilityCostSelection.current() != null
-        }
+    private fun hasCoordinatorPrompt(bridge: leyline.game.state.GameBridge): Boolean = bridge.cutCoordinator.prompts.hasPendingInteraction()
 
     /**
      * Handle CancelActionReq: player backed out of targeting (cancel spell cast).

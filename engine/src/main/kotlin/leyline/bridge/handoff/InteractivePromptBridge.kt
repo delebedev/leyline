@@ -60,60 +60,77 @@ class InteractivePromptBridge(
     @Volatile
     var timeoutListener: (() -> Unit)? = null
 
-    /** Match-scoped owner for the migrated Targeting route. Null keeps setup and synthetic bridges inert. */
+    /** Match-scoped prompt owners. One immutable value is installed and cleared at the match boundary. */
     @Volatile
-    var targetingRuntime: TargetingInteractionRuntime? = null
+    internal var runtimeBindings: PromptRuntimeBindings = PromptRuntimeBindings()
 
-    /** Match-scoped owner for the migrated Search route. Null keeps setup bridges inert. */
-    @Volatile
-    var searchRuntime: SearchInteractionRuntime? = null
-
-    /** Match-scoped owner for top/bottom ordered-card windows. */
-    @Volatile
-    var orderRuntime: OrderInteractionRuntime? = null
-
-    /** Match-scoped owner for Scry and Surveil grouping windows. */
-    @Volatile
-    var groupingRuntime: GroupingInteractionRuntime? = null
-
-    /** Match-scoped owner for card-backed SelectN semantics. */
-    @Volatile
-    var cardSelectRuntime: CardSelectInteractionRuntime? = null
-
-    /** Match-scoped owner for modal CastingTimeOptionsReq semantics. */
-    @Volatile
-    var modalChoiceRuntime: ModalChoiceInteractionRuntime? = null
+    // Test-facing compatibility accessors. Match setup installs [runtimeBindings] atomically.
+    internal var targetingRuntime: TargetingInteractionRuntime?
+        get() = runtimeBindings.targeting
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(targeting = value)
+        }
+    internal var compatibilityCostSelectionRuntime: CompatibilityCostSelectionRuntime?
+        get() = runtimeBindings.compatibilityCostSelection
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(compatibilityCostSelection = value)
+        }
+    internal var searchRuntime: SearchInteractionRuntime?
+        get() = runtimeBindings.search
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(search = value)
+        }
+    internal var orderRuntime: OrderInteractionRuntime?
+        get() = runtimeBindings.order
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(order = value)
+        }
+    internal var groupingRuntime: GroupingInteractionRuntime?
+        get() = runtimeBindings.grouping
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(grouping = value)
+        }
+    internal var cardSelectRuntime: CardSelectInteractionRuntime?
+        get() = runtimeBindings.cardSelect
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(cardSelect = value)
+        }
+    internal var staticChoiceRuntime: StaticChoiceInteractionRuntime?
+        get() = runtimeBindings.staticChoice
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(staticChoice = value)
+        }
+    internal var revealChoiceRuntime: RevealChoiceInteractionRuntime?
+        get() = runtimeBindings.revealChoice
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(revealChoice = value)
+        }
+    internal var modalChoiceRuntime: ModalChoiceInteractionRuntime?
+        get() = runtimeBindings.modalChoice
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(modalChoice = value)
+        }
+    internal var manaSourcePaymentRuntime: ManaSourcePaymentRuntime?
+        get() = runtimeBindings.manaSourcePayment
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(manaSourcePayment = value)
+        }
+    internal var oneShotPayCostsRuntime: OneShotPayCostsRuntime?
+        get() = runtimeBindings.oneShotPayCosts
+        set(value) {
+            runtimeBindings = runtimeBindings.copy(oneShotPayCosts = value)
+        }
 
     private val modalChoiceAdapter =
         ModalChoicePromptAdapter(
             timeoutMs = timeoutMs,
             strict = strict,
             isGameLoopThread = ::isGameLoopThread,
-            runtime = { modalChoiceRuntime },
+            runtime = { runtimeBindings.modalChoice },
             prioritySignal = prioritySignal,
             timeoutListener = { timeoutListener?.invoke() },
             record = ::record,
         )
-
-    /** Match-scoped owner for color, subtype, and parity SelectN semantics. */
-    @Volatile
-    var staticChoiceRuntime: StaticChoiceInteractionRuntime? = null
-
-    /** Match-scoped owner for reveal-backed SelectN choices. */
-    @Volatile
-    var revealChoiceRuntime: RevealChoiceInteractionRuntime? = null
-
-    /** Match-scoped owner for iterative Convoke, Improvise, and Waterbend payments. */
-    @Volatile
-    var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
-
-    /** Match-scoped owner for Select and the bounded GatherCounters PayCosts routes. */
-    @Volatile
-    var oneShotPayCostsRuntime: OneShotPayCostsRuntime? = null
-
-    /** Match-scoped SelectTargets compatibility owner for residual card choices. */
-    @Volatile
-    var compatibilityCostSelectionRuntime: CompatibilityCostSelectionRuntime? = null
 
     /**
      * Typed per-seat journal of prompt side-effects. Coordinators record
@@ -357,7 +374,7 @@ class InteractivePromptBridge(
         candidateHandles: List<Card>,
     ): ManaSourcePaymentResult {
         val route = request.route as? ResolvedPromptRoute.PayCosts
-        val runtime = manaSourcePaymentRuntime
+        val runtime = runtimeBindings.manaSourcePayment
         if (route?.descriptor?.manaSourcePayment == null || runtime == null) {
             return ManaSourcePaymentResult(requestChoice(request), emptyList())
         }
@@ -388,7 +405,7 @@ class InteractivePromptBridge(
         candidateHandles: List<Card>,
     ): OneShotPayCostsResult {
         val route = request.route as? ResolvedPromptRoute.PayCosts
-        val runtime = oneShotPayCostsRuntime
+        val runtime = runtimeBindings.oneShotPayCosts
         if (route?.descriptor?.manaSourcePayment != null || runtime == null) {
             val fallback = listOf(request.defaultIndex)
             record(request, PromptCallStatus.DEFAULTED_POLICY, fallback, 0)
@@ -428,7 +445,7 @@ class InteractivePromptBridge(
         window: GatherCountersWindowInput,
         candidateHandles: List<Card>,
     ): GatherCountersResult {
-        val runtime = oneShotPayCostsRuntime
+        val runtime = runtimeBindings.oneShotPayCosts
         if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             return window.firstFitResult(candidateHandles)
         }
@@ -454,7 +471,7 @@ class InteractivePromptBridge(
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             return fallbackOrder(requestChoice(request), candidateHandles)
         }
-        val runtime = checkNotNull(orderRuntime) { "Order runtime is not registered" }
+        val runtime = checkNotNull(runtimeBindings.order) { "Order runtime is not registered" }
         val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitOrder(request, candidateHandles, move, timeoutMs)
@@ -481,7 +498,7 @@ class InteractivePromptBridge(
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             return fallbackGrouping(request, requestChoice(request), candidateHandles)
         }
-        val runtime = checkNotNull(groupingRuntime) { "Grouping runtime is not registered" }
+        val runtime = checkNotNull(runtimeBindings.grouping) { "Grouping runtime is not registered" }
         val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitGrouping(request, candidateHandles, timeoutMs)
@@ -524,7 +541,7 @@ class InteractivePromptBridge(
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             return fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
         }
-        val runtime = checkNotNull(cardSelectRuntime) { "CardSelect runtime is not registered" }
+        val runtime = checkNotNull(runtimeBindings.cardSelect) { "CardSelect runtime is not registered" }
         val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, candidateHandles, timeoutMs)
@@ -550,7 +567,7 @@ class InteractivePromptBridge(
         check(request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
             "CompatibilityCostSelection route required"
         }
-        val runtime = compatibilityCostSelectionRuntime
+        val runtime = runtimeBindings.compatibilityCostSelection
         if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             val fallback = listOf(request.defaultIndex).filter { it in candidateHandles.indices }
             val outcome =
@@ -589,7 +606,7 @@ class InteractivePromptBridge(
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             return requestChoice(request)
         }
-        val runtime = checkNotNull(staticChoiceRuntime) { "StaticChoice runtime is not registered" }
+        val runtime = checkNotNull(runtimeBindings.staticChoice) { "StaticChoice runtime is not registered" }
         val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, timeoutMs)
@@ -632,7 +649,7 @@ class InteractivePromptBridge(
                 journal,
             )
         }
-        val runtime = checkNotNull(revealChoiceRuntime) { "RevealChoice runtime is not registered" }
+        val runtime = checkNotNull(runtimeBindings.revealChoice) { "RevealChoice runtime is not registered" }
         val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, candidateHandles, revealEntry, recordExiledUnderSource, timeoutMs)
@@ -652,7 +669,7 @@ class InteractivePromptBridge(
 
     /** Replace provisional payment facts with the exact map returned to Forge. */
     fun recordFinalManaSourcePayment(value: FinalManaSourcePaymentValue) {
-        manaSourcePaymentRuntime?.recordFinalPayment(value)
+        runtimeBindings.manaSourcePayment?.recordFinalPayment(value)
     }
 
     private fun requestTargetingChoice(
@@ -712,10 +729,10 @@ class InteractivePromptBridge(
         configuredTimeoutMs: Long?,
     ): List<Int>? {
         if (request.route is ResolvedPromptRoute.Targeting) {
-            return targetingRuntime?.let { requestTargetingChoice(request, targetingSa, it, configuredTimeoutMs) }
+            return runtimeBindings.targeting?.let { requestTargetingChoice(request, targetingSa, it, configuredTimeoutMs) }
         }
         if (request.route is ResolvedPromptRoute.Search) {
-            return searchRuntime?.let { requestSearchChoice(request, it, configuredTimeoutMs) }
+            return runtimeBindings.search?.let { requestSearchChoice(request, it, configuredTimeoutMs) }
         }
         if (request.route is ResolvedPromptRoute.ModalChoice) {
             error("ModalChoice requests must use requestModalChoice with exact Forge handles")

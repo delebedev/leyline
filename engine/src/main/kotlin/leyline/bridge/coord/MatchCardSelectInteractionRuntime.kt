@@ -13,9 +13,6 @@ import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.PendingCardSelectCut
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchCardSelectInteractionRuntime(
@@ -27,10 +24,13 @@ internal class MatchCardSelectInteractionRuntime(
         val cut: PendingCardSelectCut,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
-        val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
-    )
+        override val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
+    ) : SinglePromptWindow<CardSelectInteractionResult> {
+        override val interactionId: String get() = published.interactionId
+        override val gameStateId: Int get() = published.gameStateId
+    }
 
-    private var window: Window? = null
+    private val windows = SinglePromptWindowState<Window, PendingCardSelectCut, CardSelectInteractionResult>(owner, Window::cut)
 
     internal var beforeInstall: (() -> Unit)? = null
     internal var afterInstall: (() -> Unit)? = null
@@ -50,7 +50,7 @@ internal class MatchCardSelectInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedCardSelectInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
+    fun current(): PublishedCardSelectInteraction? = windows.current()?.published
 
     fun submitSelectN(
         interactionId: String,
@@ -59,7 +59,7 @@ internal class MatchCardSelectInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = matching(interactionId, gameStateId) ?: return false
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
             completeSelection(pending, selectedInstanceIds)
         }
 
@@ -70,7 +70,7 @@ internal class MatchCardSelectInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = matching(interactionId, gameStateId) ?: return false
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
             when (pending.value.kind) {
                 CardSelectKind.LegendRule,
                 CardSelectKind.LibraryPutback,
@@ -88,18 +88,11 @@ internal class MatchCardSelectInteractionRuntime(
             completeSelection(pending, selectedInstanceIds)
         }
 
-    fun terminate(cause: Throwable) {
-        synchronized(owner.feedLock) {
-            window?.future?.completeExceptionally(cause)
-            window = null
-        }
-    }
+    fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun reset() {
-        synchronized(owner.feedLock) { window = null }
-    }
+    fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingCardSelectCut? = window?.takeUnless { it.future.isDone }?.cut
+    internal fun pendingCutLocked(): PendingCardSelectCut? = windows.pendingCutLocked()
 
     private fun publish(initial: CardSelectWindowCapture.Initial): Window {
         owner.beforePublicationLock?.invoke()
@@ -108,7 +101,7 @@ internal class MatchCardSelectInteractionRuntime(
                 synchronized(owner.bridge.projectionBuildLock) {
                     synchronized(owner.feedLock) {
                         owner.ensureOpen()
-                        check(window == null) { "A CardSelect interaction is already pending" }
+                        windows.ensureEmptyLocked("A CardSelect interaction is already pending")
                         val feed = owner.feed(owner.humanSeat)
                         val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                         val interactionId = UUID.randomUUID().toString()
@@ -150,7 +143,7 @@ internal class MatchCardSelectInteractionRuntime(
                         }
                         val created = Window(published, initial.value, exact, initial.handlesByOption, optionByInstanceId)
                         publishPrepared(feed, prepared, exact)
-                        window = created
+                        windows.installLocked(created)
                         created
                     }
                 }
@@ -204,43 +197,11 @@ internal class MatchCardSelectInteractionRuntime(
         val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
         recordChoiceResults(pending, selectedInstanceIds)
         val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
-        window = null
-        return pending.future.complete(result)
+        return windows.completeLocked(pending, result)
     }
 
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): CardSelectInteractionResult =
-        try {
-            if (timeoutMs == null) pending.future.get() else pending.future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (_: TimeoutException) {
-            beforeTimeoutClaim?.invoke()
-            synchronized(owner.feedLock) {
-                if (window === pending && !pending.future.isDone) {
-                    window = null
-                    pending.future.completeExceptionally(CardSelectInteractionTimeoutException())
-                }
-            }
-            completedValue(pending)
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
-
-    private fun completedValue(pending: Window): CardSelectInteractionResult =
-        try {
-            pending.future.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
-
-    private fun matching(
-        interactionId: String,
-        gameStateId: Int,
-    ): Window? {
-        val pending = window ?: return null
-        if (pending.future.isDone) return null
-        if (pending.published.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
-        return pending
-    }
+    ): CardSelectInteractionResult = windows.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException, beforeTimeoutClaim)
 }

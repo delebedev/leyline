@@ -102,16 +102,7 @@ internal class MatchCutTerminalRuntime(
                 failure = terminal
                 owner.interactions.terminate(terminal)
                 owner.actions.terminate()
-                owner.targeting.terminate(terminal)
-                owner.search.terminate(terminal)
-                owner.order.terminate(terminal)
-                owner.grouping.terminate(terminal)
-                owner.cardSelect.terminate(terminal)
-                owner.staticChoices.terminate(terminal)
-                owner.revealChoices.terminate(terminal)
-                owner.modalChoices.terminate(terminal)
-                owner.manaSourcePayments.terminate(terminal)
-                owner.oneShotPayCosts.terminate(terminal)
+                owner.prompts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)
                 owner.bridge.prioritySignal.signal()
             }

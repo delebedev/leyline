@@ -13,7 +13,7 @@ import leyline.bridge.handoff.TargetingInteractionKind
 internal class MatchCompatibilityCostSelectionRuntime(
     private val owner: MatchCutCoordinator,
 ) : CompatibilityCostSelectionRuntime {
-    private val targeting: MatchTargetingInteractionRuntime get() = owner.targeting
+    private val targeting: MatchTargetingInteractionRuntime get() = owner.prompts.targeting
 
     override fun awaitSelection(
         request: PromptRequest,
