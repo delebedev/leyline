@@ -92,6 +92,21 @@ class MechanicAnnotationPipelineTest :
             }
         }
 
+        test("unknownCardCounterKeepsTransientButSkipsPersistentState") {
+            val events =
+                listOf(
+                    GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "ODOR", oldCount = 0, newCount = 1),
+                )
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
+
+            assertSoftly {
+                result.transient.size shouldBe 1
+                result.transient[0].typeList shouldContain AnnotationType.CounterAdded
+                result.transient[0].detailString("counter_type") shouldBe "ODOR"
+                result.persistent.shouldBeEmpty()
+            }
+        }
+
         test("counterUnchangedSkipped") {
             val events =
                 listOf(
