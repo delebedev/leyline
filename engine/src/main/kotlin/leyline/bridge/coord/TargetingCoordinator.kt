@@ -869,7 +869,7 @@ class TargetingCoordinator(
 
     private fun resolveSpellAffectorIid(spellCardId: Int): Int = bridge.forgeIidResolver?.invoke(ForgeCardId(spellCardId))?.value ?: 0
 
-    private fun effectiveTargetPromptId(
+    internal fun effectiveTargetPromptId(
         sa: SpellAbility,
         abilityIdentity: ResolvedAbilityIdentity? = bridge.resolveAbilityIdentity(sa),
     ): Int =
@@ -879,7 +879,7 @@ class TargetingCoordinator(
             else -> targetPromptId(sa) ?: PromptIds.SELECT_TARGETS
         }
 
-    private fun targetGroupIndex(sa: SpellAbility): Int {
+    internal fun targetGroupIndex(sa: SpellAbility): Int {
         var index = 0
         var current: SpellAbility? = sa.rootAbility
         while (current != null) {

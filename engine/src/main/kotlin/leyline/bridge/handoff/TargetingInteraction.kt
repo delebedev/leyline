@@ -19,6 +19,18 @@ sealed interface TargetingCandidateValue {
         override val optionIndex: Int,
         val seatId: SeatId,
     ) : TargetingCandidateValue
+
+    /** Exact stack object identity selected by Forge's stack-target callback. */
+    data class StackObject(
+        override val optionIndex: Int,
+        val stackInstanceId: Int,
+        val sourceForgeCardId: ForgeCardId,
+        val forgeAbilityId: Int,
+        val isSpell: Boolean,
+        val isAbility: Boolean,
+        val isTrigger: Boolean,
+        val abilityIdentity: ResolvedAbilityIdentity? = null,
+    ) : TargetingCandidateValue
 }
 
 /** Projection-ready value for one route-bound SelectTargets window. */
@@ -34,6 +46,8 @@ data class TargetingWindowValue(
     val maxTargets: Int,
     val chooserSeatId: SeatId,
     val candidates: List<TargetingCandidateValue>,
+    /** Original callback option index for an optional finish-targeting sentinel. */
+    val finishOptionIndex: Int? = null,
     val isTriggeredAbility: Boolean,
     val forgeAbilityId: Int,
 ) {

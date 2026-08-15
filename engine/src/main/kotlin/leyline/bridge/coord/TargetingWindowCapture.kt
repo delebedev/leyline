@@ -55,17 +55,22 @@ internal class TargetingWindowCapture(
             minTargets = request.min,
             maxTargets = request.max,
             chooserSeatId = owner.humanSeat,
+            finishOptionIndex = request.targetingFinishOptionIndex,
             candidates =
-                request.candidateRefs.mapNotNull { ref ->
-                    when (ref.kind) {
-                        PromptCandidateKind.Card ->
-                            TargetingCandidateValue.Card(
-                                ref.index,
-                                ForgeCardId(ref.entityId),
-                                zoneId(ref.zone, cardOwnerSeat(ForgeCardId(ref.entityId))),
-                            )
-                        PromptCandidateKind.Player ->
-                            playerSeat(ref.entityId)?.let { TargetingCandidateValue.Player(ref.index, it) }
+                if (request.targetingCandidates.isNotEmpty()) {
+                    request.targetingCandidates
+                } else {
+                    request.candidateRefs.mapNotNull { ref ->
+                        when (ref.kind) {
+                            PromptCandidateKind.Card ->
+                                TargetingCandidateValue.Card(
+                                    ref.index,
+                                    ForgeCardId(ref.entityId),
+                                    zoneId(ref.zone, cardOwnerSeat(ForgeCardId(ref.entityId))),
+                                )
+                            PromptCandidateKind.Player ->
+                                playerSeat(ref.entityId)?.let { TargetingCandidateValue.Player(ref.index, it) }
+                        }
                     }
                 },
             isTriggeredAbility = request.isTriggeredAbility,
@@ -80,8 +85,21 @@ internal class TargetingWindowCapture(
                     when (candidate) {
                         is TargetingCandidateValue.Card -> owner.bridge.findCard(candidate.forgeCardId)
                         is TargetingCandidateValue.Player -> owner.bridge.getPlayer(candidate.seatId)
+                        is TargetingCandidateValue.StackObject -> null
                     }
                 entity?.let { candidate.optionIndex to it }
+            }.toMap()
+
+    fun resolveStackAbilities(value: TargetingWindowValue): Map<Int, SpellAbility> =
+        value.candidates
+            .mapNotNull { candidate ->
+                if (candidate !is TargetingCandidateValue.StackObject) return@mapNotNull null
+                owner.bridge
+                    .getGame()
+                    ?.stack
+                    ?.firstOrNull { it.id == candidate.stackInstanceId }
+                    ?.spellAbility
+                    ?.let { candidate.optionIndex to it }
             }.toMap()
 
     fun resolveInstanceIds(
@@ -94,6 +112,15 @@ internal class TargetingWindowCapture(
                     when (candidate) {
                         is TargetingCandidateValue.Card -> projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
                         is TargetingCandidateValue.Player -> candidate.seatId.value
+                        is TargetingCandidateValue.StackObject ->
+                            projection.identities.forgeIdToInstanceId[
+                                if (candidate.isSpell) {
+                                    candidate.sourceForgeCardId
+                                } else {
+                                    leyline.game.mapping.FrameIdResolver
+                                        .triggerStackAbilityForgeId(candidate.forgeAbilityId)
+                                },
+                            ]?.value
                     }
                 instanceId?.let { candidate.optionIndex to it }
             }.toMap()
@@ -102,13 +129,22 @@ internal class TargetingWindowCapture(
         value: TargetingWindowValue,
         ability: SpellAbility?,
         entitiesByOptionIndex: Map<Int, GameEntity>,
+        stackAbilitiesByOptionIndex: Map<Int, SpellAbility>,
         selected: Set<Int>,
     ): Set<Int> {
         if (selected.size >= value.maxTargets) return emptySet()
-        if (ability == null) return value.candidates.mapTo(linkedSetOf()) { it.optionIndex } - selected
+        if (ability == null) {
+            return value.candidates
+                .filter { it !is TargetingCandidateValue.StackObject || it.optionIndex in stackAbilitiesByOptionIndex }
+                .mapTo(linkedSetOf()) { it.optionIndex } - selected
+        }
         val hypothetical = selected.mapNotNull(entitiesByOptionIndex::get)
         return value.candidates.mapNotNullTo(linkedSetOf()) { candidate ->
             if (candidate.optionIndex in selected) return@mapNotNullTo null
+            if (candidate is TargetingCandidateValue.StackObject) {
+                val stackAbility = stackAbilitiesByOptionIndex[candidate.optionIndex] ?: return@mapNotNullTo null
+                return@mapNotNullTo candidate.optionIndex.takeIf { ability.canTargetSpellAbility(stackAbility) }
+            }
             val entity = entitiesByOptionIndex[candidate.optionIndex] ?: return@mapNotNullTo candidate.optionIndex
             if (canTargetWithHypothetical(ability, entity, hypothetical)) candidate.optionIndex else null
         }
@@ -162,10 +198,14 @@ internal class TargetingWindowCapture(
     }
 
     private fun candidateSourceZoneId(request: PromptRequest): Int =
-        request.candidateRefs
-            .firstOrNull { it.kind == PromptCandidateKind.Card && it.zone != null }
-            ?.let { zoneId(it.zone, cardOwnerSeat(ForgeCardId(it.entityId))) }
-            ?: 0
+        if (request.targetingCandidates.isNotEmpty()) {
+            ZoneIds.STACK
+        } else {
+            request.candidateRefs
+                .firstOrNull { it.kind == PromptCandidateKind.Card && it.zone != null }
+                ?.let { zoneId(it.zone, cardOwnerSeat(ForgeCardId(it.entityId))) }
+                ?: 0
+        }
 
     private fun cardOwnerSeat(cardId: ForgeCardId): SeatId =
         owner.bridge.findCard(cardId)?.owner?.let { cardOwner ->

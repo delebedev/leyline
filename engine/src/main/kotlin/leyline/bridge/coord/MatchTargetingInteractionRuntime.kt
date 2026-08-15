@@ -70,6 +70,7 @@ internal class MatchTargetingInteractionRuntime(
         val value: TargetingWindowValue,
         val targetingAbility: SpellAbility?,
         val entitiesByOptionIndex: Map<Int, GameEntity>,
+        val stackAbilitiesByOptionIndex: Map<Int, SpellAbility>,
         val instanceIdByOptionIndex: Map<Int, Int>,
         val sourceInstanceId: InstanceId?,
         val deadlineNanos: Long?,
@@ -197,6 +198,7 @@ internal class MatchTargetingInteractionRuntime(
                                 value = value,
                                 targetingAbility = targetingAbility,
                                 entitiesByOptionIndex = capture.resolveEntities(value),
+                                stackAbilitiesByOptionIndex = capture.resolveStackAbilities(value),
                                 instanceIdByOptionIndex = capture.resolveInstanceIds(value, projection),
                                 sourceInstanceId =
                                     value.sourceForgeCardId?.let(projection.identities.forgeIdToInstanceId::get),
@@ -232,7 +234,11 @@ internal class MatchTargetingInteractionRuntime(
                 }
                 is Command.Submit -> {
                     publishSubmit(pending, command, duplicateDone = false)
-                    return pending.selectedOptionIndices.toList()
+                    return if (pending.selectedOptionIndices.isEmpty() && pending.value.finishOptionIndex != null) {
+                        listOf(checkNotNull(pending.value.finishOptionIndex))
+                    } else {
+                        pending.selectedOptionIndices.toList()
+                    }
                 }
                 is Command.Cancel -> {
                     completeWithoutPublication(pending, command)
@@ -269,6 +275,7 @@ internal class MatchTargetingInteractionRuntime(
                 pending.value,
                 pending.targetingAbility,
                 pending.entitiesByOptionIndex,
+                pending.stackAbilitiesByOptionIndex,
                 selected,
             )
         val prepared =

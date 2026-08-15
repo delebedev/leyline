@@ -20,6 +20,7 @@ import leyline.game.snapshot.StackSnapshot
 import leyline.game.snapshot.ZoneSnapshot
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
@@ -78,6 +79,45 @@ class StateZoneProjectionTest :
                 projected.gameObjects.map { it.instanceId } shouldContainExactly listOf(101)
                 projected.gameObjects.single().ownerSeatId shouldBe 2
                 projected.gameObjects.single().grpId shouldBe 101
+            }
+        }
+
+        test("copied spell projects as a copied card in the stack zone") {
+            val copiedId = ForgeCardId(12)
+            val snap =
+                GsmSnapshot.forTest(
+                    zones =
+                        mapOf(
+                            ZoneIds.STACK to
+                                ZoneSnapshot(
+                                    id = ZoneIds.STACK,
+                                    type = ZoneType.Stack,
+                                    owner = null,
+                                    visibility = Visibility.Public,
+                                    contents = listOf(copiedId),
+                                ),
+                        ),
+                    objects =
+                        mapOf(
+                            copiedId to
+                                CardSnapshot(
+                                    copiedId,
+                                    "Copied spell",
+                                    202,
+                                    SeatId(1),
+                                    SeatId(1),
+                                    isCopyToken = true,
+                                ),
+                        ),
+                )
+
+            val projected =
+                StateZoneProjection.projectSharedZone(snap, ZoneIds.STACK, environment(), { InstanceId(it.value + 100) })!!
+
+            assertSoftly {
+                projected.gameObjects.single().type shouldBe GameObjectType.Card
+                projected.gameObjects.single().isCopy shouldBe true
+                projected.zone.objectInstanceIdsList shouldContainExactly listOf(112)
             }
         }
 

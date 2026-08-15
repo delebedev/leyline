@@ -49,7 +49,7 @@ internal object UnclassifiedCandidateRequestBuilder {
         if (sourceInstanceId != 0) {
             selection.prompt = promptWithCardId(request.targetPromptId ?: PromptIds.SELECT_TARGETS, sourceInstanceId)
         }
-        val targetingAbilityGrpId = prompt.abilityIdentity?.abilityGrpId ?: firstAbilityGrpId(sourceGrpId, bridge)
+        val targetingAbilityGrpId = firstAbilityGrpId(sourceGrpId, bridge)
         if (targetingAbilityGrpId != 0) selection.targetingAbilityGrpId = targetingAbilityGrpId
         val sourceZoneId = targetSourceZoneId(request.candidateRefs, bridge, chooserSeatId)
         if (sourceZoneId != 0) selection.targetSourceZoneId = sourceZoneId

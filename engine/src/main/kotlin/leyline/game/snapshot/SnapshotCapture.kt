@@ -488,7 +488,10 @@ object SnapshotCapture {
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,
-            isProjectable = card.gamePieceType == forge.card.GamePieceType.CARD || card.isToken,
+            isProjectable =
+                card.gamePieceType == forge.card.GamePieceType.CARD ||
+                    card.gamePieceType == forge.card.GamePieceType.COPIED_SPELL ||
+                    card.isToken,
             basicLandManaAbilityGrpId = BasicLandAbilities.byForgeSubtypeNames(type.subtypes) ?: 0,
             effectSourceForgeCardId = card.effectSource?.let { ForgeCardId(it.id) },
             hasParadigmKeyword = card.hasKeyword("Paradigm"),
@@ -512,7 +515,7 @@ object SnapshotCapture {
             isOnAdventure = card.isOnAdventure,
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
             isToken = card.isToken,
-            isCopyToken = card.isToken && card.copiedPermanent != null,
+            isCopyToken = card.gamePieceType == forge.card.GamePieceType.COPIED_SPELL || (card.isToken && card.copiedPermanent != null),
             tokenSourceCardGrpId = tokenSourceCardGrpId,
             tokenParentAbilityInstanceId = tokenParentAbilityInstanceId,
             attachedToInstanceId = attachedToInstanceId,

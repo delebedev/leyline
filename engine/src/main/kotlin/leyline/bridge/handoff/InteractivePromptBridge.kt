@@ -201,14 +201,8 @@ class InteractivePromptBridge(
         val promptId: String,
         val request: PromptRequest,
         val future: CompletableFuture<List<Int>>,
-        /**
-         * Live Forge SpellAbility for targeting prompts — session-only, never serialized.
-         * Enables legality checks on remaining candidates during re-prompt building.
-         * Null for non-targeting prompts.
-         */
+        /** Live Forge ability retained for Forge-AI cost and target decisions. */
         val targetingSa: SpellAbility? = null,
-        /** Stable definition and client row fixed at prompt creation. */
-        val abilityIdentity: ResolvedAbilityIdentity? = null,
     )
 
     // ── Call history ────────────────────────────────────────────────────────
@@ -367,7 +361,7 @@ class InteractivePromptBridge(
 
         val promptId = UUID.randomUUID().toString()
         val future = CompletableFuture<List<Int>>()
-        val prompt = PendingPrompt(promptId, request, future, targetingSa, targetingSa?.let { resolveAbilityIdentity(it) })
+        val prompt = PendingPrompt(promptId, request, future, targetingSa)
 
         if (!pending.compareAndSet(null, prompt)) {
             if (strict) {
@@ -926,6 +920,10 @@ data class PromptRequest(
     val allowRepeat: Boolean = false,
     val defaultIndex: Int = 0,
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
+    /** Exact stack objects provided by Forge's stack-target callback. */
+    val targetingCandidates: List<TargetingCandidateValue.StackObject> = emptyList(),
+    /** Original callback option index for Forge's optional finish-targeting sentinel. */
+    val targetingFinishOptionIndex: Int? = null,
     /** Sole route authority; data-class copies used for re-prompts retain this value. */
     val route: ResolvedPromptRoute = PromptRouteResolver.resolve(PromptSemantic.Generic, candidateRefs.isNotEmpty()),
     /** Per-candidate selection weights for weighted cost-payment prompts. */
