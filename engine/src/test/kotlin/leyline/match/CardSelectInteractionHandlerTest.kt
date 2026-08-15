@@ -6,7 +6,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.coord.cardSelectRuntime
 import leyline.bridge.handoff.CardSelectInteractionResult
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
@@ -103,7 +102,7 @@ class CardSelectInteractionHandlerTest :
             val result = AtomicReference<CardSelectInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), handles, 3_000))
+                result.set(coordinator.cardSelect.awaitSelection(request(board), handles, 3_000))
                 finished.countDown()
             }.start()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
@@ -132,7 +131,9 @@ class CardSelectInteractionHandlerTest :
                 result.get().optionIndices shouldBe listOf(1)
                 (result.get().handles.single() === handles[1]) shouldBe true
                 autoPassed shouldBe true
-                coordinator.cardSelect.current().shouldBeNull()
+                coordinator.cardSelect
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -165,7 +166,7 @@ class CardSelectInteractionHandlerTest :
                 val finished = CountDownLatch(1)
                 Thread {
                     result.set(
-                        coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
+                        coordinator.cardSelect.awaitSelection(
                             request(board, semantic, handles),
                             handles,
                             3_000,
@@ -212,7 +213,9 @@ class CardSelectInteractionHandlerTest :
                     result.get().optionIndices shouldBe listOf(1)
                     (result.get().handles.single() === handles[1]) shouldBe true
                     autoPassed shouldBe true
-                    coordinator.cardSelect.current().shouldBeNull()
+                    coordinator.cardSelect
+                        .current()
+                        .shouldBeNull()
                 }
             }
         }

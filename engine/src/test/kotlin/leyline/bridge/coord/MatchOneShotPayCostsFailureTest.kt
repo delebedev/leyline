@@ -103,7 +103,7 @@ class MatchOneShotPayCostsFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(board), cards(board), 25) }
+                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), 25) }
                     .onSuccess(result::set)
                     .onFailure(failure::set)
                 finished.countDown()
@@ -125,7 +125,9 @@ class MatchOneShotPayCostsFailureTest :
                 result.get().optionIndices shouldContainExactly listOf(0)
                 failure.get().shouldBeNull()
                 coordinator.failure().shouldBeNull()
-                coordinator.oneShotPayCosts.current().shouldBeNull()
+                coordinator.oneShotPayCosts
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.oneShotPayCosts.beforeTimeoutClaim = null
         }
@@ -143,7 +145,7 @@ class MatchOneShotPayCostsFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(board), cards(board), 25) }
+                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), 25) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -161,7 +163,9 @@ class MatchOneShotPayCostsFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<OneShotPayCostsTimeoutException>()
-                coordinator.oneShotPayCosts.current().shouldBeNull()
+                coordinator.oneShotPayCosts
+                    .current()
+                    .shouldBeNull()
                 coordinator.oneShotPayCosts.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe false
                 coordinator.oneShotPayCosts.cancel(published.interactionId, published.gameStateId) shouldBe false
                 coordinator.failure().shouldBeNull()
@@ -175,7 +179,7 @@ class MatchOneShotPayCostsFailureTest :
             val capture =
                 shouldThrow<PlaybackTerminalFailure> {
                     captureBoard.bridge.cutCoordinator
-                        .oneShotPayCostsRuntime(SeatId(1))
+                        .oneShotPayCosts
                         .awaitPayment(request(captureBoard), cards(captureBoard) + cards(captureBoard).first(), 3_000)
                 }
             assertSoftly {
@@ -189,7 +193,7 @@ class MatchOneShotPayCostsFailureTest :
             materializeOwner.drain(SeatId(1))
             val materialize =
                 shouldThrow<PlaybackTerminalFailure> {
-                    materializeOwner.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(
+                    materializeOwner.oneShotPayCosts.awaitPayment(
                         request(materializeBoard, Int.MAX_VALUE),
                         cards(materializeBoard),
                         3_000,
@@ -213,7 +217,7 @@ class MatchOneShotPayCostsFailureTest :
             enqueueOwner.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("PayCosts feed unavailable") }
             val enqueue =
                 shouldThrow<PlaybackTerminalFailure> {
-                    enqueueOwner.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(enqueueBoard), cards(enqueueBoard), 3_000)
+                    enqueueOwner.oneShotPayCosts.awaitPayment(request(enqueueBoard), cards(enqueueBoard), 3_000)
                 }
             assertSoftly {
                 enqueue.pendingOneShotPayCostsCut.shouldNotBeNull()
@@ -231,7 +235,7 @@ class MatchOneShotPayCostsFailureTest :
             installOwner.oneShotPayCosts.beforeInstall = { installBoard.bridge.replaceProjectionStateForTest(competing) }
             val install =
                 shouldThrow<PlaybackTerminalFailure> {
-                    installOwner.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(installBoard), cards(installBoard), 3_000)
+                    installOwner.oneShotPayCosts.awaitPayment(request(installBoard), cards(installBoard), 3_000)
                 }
             assertSoftly {
                 install.pendingOneShotPayCostsCut.shouldNotBeNull()
@@ -247,7 +251,7 @@ class MatchOneShotPayCostsFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val engineFinished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(board), cards(board), null) }
+                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -261,7 +265,9 @@ class MatchOneShotPayCostsFailureTest :
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
                 terminal.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe attempted
-                coordinator.oneShotPayCosts.current().shouldBeNull()
+                coordinator.oneShotPayCosts
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -274,7 +280,7 @@ class MatchOneShotPayCostsFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(board), cards(board), 3_000)
+                    coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
@@ -292,7 +298,7 @@ class MatchOneShotPayCostsFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val engineFinished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(board), cards(board), null) }
+                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -347,7 +353,7 @@ class MatchOneShotPayCostsFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request(board), cards(board), null) }
+                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), null) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -358,7 +364,9 @@ class MatchOneShotPayCostsFailureTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get() shouldBe coordinator.failure()
                 coordinator.failure()?.cause shouldBe cause
-                coordinator.oneShotPayCosts.current().shouldBeNull()
+                coordinator.oneShotPayCosts
+                    .current()
+                    .shouldBeNull()
             }
         }
     })

@@ -58,18 +58,21 @@ class ClientGuiGameStackTargetTest :
         test("finish sentinel freezes its index and permits an empty Submit") {
             val bridge = InteractivePromptBridge(timeoutMs = 1_000)
             val observed = AtomicReference<PromptRequest>()
-            bridge.targetingRuntime =
-                object : TargetingInteractionRuntime {
-                    override fun awaitTargeting(
-                        request: PromptRequest,
-                        targetingAbility: SpellAbility?,
-                        abilityIdentity: ResolvedAbilityIdentity?,
-                        timeoutMs: Long?,
-                    ): List<Int> {
-                        observed.set(request)
-                        return listOf(checkNotNull(request.targetingFinishOptionIndex))
-                    }
-                }
+            bridge.runtimeBindings =
+                leyline.bridge.handoff.PromptRuntimeBindings(
+                    targeting =
+                        object : TargetingInteractionRuntime {
+                            override fun awaitTargeting(
+                                request: PromptRequest,
+                                targetingAbility: SpellAbility?,
+                                abilityIdentity: ResolvedAbilityIdentity?,
+                                timeoutMs: Long?,
+                            ): List<Int> {
+                                observed.set(request)
+                                return listOf(checkNotNull(request.targetingFinishOptionIndex))
+                            }
+                        },
+                )
             val gui =
                 ClientGuiGame(
                     bridge,

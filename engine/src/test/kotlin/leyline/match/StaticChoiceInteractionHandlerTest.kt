@@ -4,7 +4,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.coord.staticChoiceRuntime
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -55,7 +54,7 @@ class StaticChoiceInteractionHandlerTest :
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request, 3_000))
+                result.set(coordinator.staticChoices.awaitSelection(request, 3_000))
                 finished.countDown()
             }.start()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
@@ -78,7 +77,9 @@ class StaticChoiceInteractionHandlerTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldBe listOf(1)
                 autoPassed shouldBe true
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
     })

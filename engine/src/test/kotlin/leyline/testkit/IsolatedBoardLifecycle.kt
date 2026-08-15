@@ -2,6 +2,11 @@ package leyline.testkit
 
 import forge.game.Game
 import forge.game.player.Player
+import forge.game.zone.ZoneType
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+import leyline.game.awaitFreshPending
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 
@@ -38,6 +43,26 @@ class IsolatedBoardLifecycle {
     fun startPuzzleAtMain1(puzzleText: String): Board = trackResult(Board.startPuzzleAtMain1(puzzleText))
 
     fun startPuzzleAtMain1FromResource(resourcePath: String): Board = trackResult(Board.startPuzzleAtMain1FromResource(resourcePath))
+
+    fun playLand(bridge: GameBridge): PlayerAction.PlayLand? {
+        val player = bridge.getPlayer(SeatId(1)) ?: return null
+        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
+        val pending = awaitFreshPending(bridge, null) ?: return null
+        val action = PlayerAction.PlayLand(ForgeCardId(land.id))
+        bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, action)
+        awaitFreshPending(bridge, pending.actionId)
+        return action
+    }
+
+    fun castCreature(bridge: GameBridge): PlayerAction.CastSpell? {
+        val player = bridge.getPlayer(SeatId(1)) ?: return null
+        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
+        val pending = awaitFreshPending(bridge, null) ?: return null
+        val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
+        bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, action)
+        awaitFreshPending(bridge, pending.actionId)
+        return action
+    }
 
     private fun trackResult(result: Board): Board {
         bridge = result.bridge

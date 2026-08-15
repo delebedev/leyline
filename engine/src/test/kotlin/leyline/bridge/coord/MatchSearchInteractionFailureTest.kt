@@ -88,7 +88,7 @@ class MatchSearchInteractionFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 25) }
+                runCatching { coordinator.search.awaitSearch(request(board), 25) }
                     .onSuccess(result::set)
                     .onFailure(failure::set)
                 finished.countDown()
@@ -131,7 +131,7 @@ class MatchSearchInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board, listOf(Int.MAX_VALUE)), 3_000)
+                    coordinator.search.awaitSearch(request(board, listOf(Int.MAX_VALUE)), 3_000)
                 }
             assertSoftly {
                 terminal.searchDiagnostic
@@ -143,7 +143,9 @@ class MatchSearchInteractionFailureTest :
                 terminal.pendingSearchCut.shouldBeNull()
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 board.bridge.projectionStateSnapshot() shouldBe prior
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -158,7 +160,7 @@ class MatchSearchInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 3_000)
+                    coordinator.search.awaitSearch(request(board), 3_000)
                 }
             assertSoftly {
                 terminal.cause?.message shouldBe "search feed unavailable"
@@ -182,7 +184,7 @@ class MatchSearchInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 3_000)
+                    coordinator.search.awaitSearch(request(board), 3_000)
                 }
             assertSoftly {
                 terminal.pendingSearchCut.shouldNotBeNull()
@@ -201,14 +203,16 @@ class MatchSearchInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 3_000)
+                    coordinator.search.awaitSearch(request(board), 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
                 terminal.pendingSearchCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasSearchReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.search.afterInstall = null
         }
@@ -220,7 +224,7 @@ class MatchSearchInteractionFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), null) }
+                runCatching { coordinator.search.awaitSearch(request(board), null) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -269,7 +273,9 @@ class MatchSearchInteractionFailureTest :
                 attempted.get().any { it.hasSearchReq() } shouldBe true
                 terminal.pendingSearchCut.shouldNotBeNull().messages shouldBe attempted.get()
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -280,7 +286,7 @@ class MatchSearchInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val engineFinished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), null) }
+                runCatching { coordinator.search.awaitSearch(request(board), null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -329,7 +335,9 @@ class MatchSearchInteractionFailureTest :
                 terminal.pendingSearchCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.search.afterDeliveryCutLookup = null
         }

@@ -122,7 +122,7 @@ class MatchCardSelectInteractionTimeoutTest :
                 }
                 val prompt =
                     InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                        it.cardSelectRuntime = coordinator.cardSelectRuntime(SeatId(1))
+                        it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                         it.timeoutListener = { timedOut = true }
                     }
 
@@ -135,7 +135,9 @@ class MatchCardSelectInteractionTimeoutTest :
                     result.optionIndices shouldContainExactly listOf(0)
                     (result.handles.single() === handles[0]) shouldBe true
                     timedOut shouldBe true
-                    coordinator.cardSelect.current().shouldBeNull()
+                    coordinator.cardSelect
+                        .current()
+                        .shouldBeNull()
                     req.minSel shouldBe case.min
                     req.maxSel shouldBe case.max
                     if (case.semantic == PromptSemantic.ManifestDread) {

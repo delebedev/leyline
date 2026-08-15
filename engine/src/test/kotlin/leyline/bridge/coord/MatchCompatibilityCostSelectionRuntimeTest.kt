@@ -98,10 +98,18 @@ class MatchCompatibilityCostSelectionRuntimeTest :
                         listOf(TargetToggleValue(iid, selected = true)),
                     ).shouldNotBeNull()
             coordinator.drain(SeatId(1)).flatten().single { it.hasSelectTargetsReq() }
-            coordinator.compatibilityCostSelection.acknowledgeDelivery(toggle.interactionId, checkNotNull(toggle.deliveryToken)) shouldBe
+            coordinator.compatibilityCostSelection.acknowledgeDelivery(
+                toggle.interactionId,
+                checkNotNull(toggle.deliveryToken),
+            ) shouldBe
                 true
             val latest = checkNotNull(coordinator.compatibilityCostSelection.current())
-            val done = coordinator.compatibilityCostSelection.submitTargets(latest.interactionId, latest.gameStateId).shouldNotBeNull()
+            val done =
+                coordinator.compatibilityCostSelection
+                    .submitTargets(
+                        latest.interactionId,
+                        latest.gameStateId,
+                    ).shouldNotBeNull()
             coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
             assertSoftly {
                 coordinator.compatibilityCostSelection.acknowledgeDelivery(
@@ -120,7 +128,7 @@ class MatchCompatibilityCostSelectionRuntimeTest :
             val (card, request) = start(board)
             val bridge =
                 InteractivePromptBridge(timeoutMs = 25).also {
-                    it.compatibilityCostSelectionRuntime = coordinator.compatibilityCostSelection
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                 }
             val result = AtomicReference<CompatibilityCostSelectionResult>()
             val finished = CountDownLatch(1)
@@ -141,7 +149,9 @@ class MatchCompatibilityCostSelectionRuntimeTest :
                 result.get().optionIndices shouldContainExactly listOf(0)
                 result.get().handles.single() shouldBe card
                 result.get().timedOut shouldBe true
-                coordinator.compatibilityCostSelection.current().shouldBeNull()
+                coordinator.compatibilityCostSelection
+                    .current()
+                    .shouldBeNull()
                 coordinator.compatibilityCostSelection
                     .submitToggle(
                         published.interactionId,

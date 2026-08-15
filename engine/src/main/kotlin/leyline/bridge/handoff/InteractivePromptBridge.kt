@@ -64,63 +64,6 @@ class InteractivePromptBridge(
     @Volatile
     internal var runtimeBindings: PromptRuntimeBindings = PromptRuntimeBindings()
 
-    // Test-facing compatibility accessors. Match setup installs [runtimeBindings] atomically.
-    internal var targetingRuntime: TargetingInteractionRuntime?
-        get() = runtimeBindings.targeting
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(targeting = value)
-        }
-    internal var compatibilityCostSelectionRuntime: CompatibilityCostSelectionRuntime?
-        get() = runtimeBindings.compatibilityCostSelection
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(compatibilityCostSelection = value)
-        }
-    internal var searchRuntime: SearchInteractionRuntime?
-        get() = runtimeBindings.search
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(search = value)
-        }
-    internal var orderRuntime: OrderInteractionRuntime?
-        get() = runtimeBindings.order
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(order = value)
-        }
-    internal var groupingRuntime: GroupingInteractionRuntime?
-        get() = runtimeBindings.grouping
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(grouping = value)
-        }
-    internal var cardSelectRuntime: CardSelectInteractionRuntime?
-        get() = runtimeBindings.cardSelect
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(cardSelect = value)
-        }
-    internal var staticChoiceRuntime: StaticChoiceInteractionRuntime?
-        get() = runtimeBindings.staticChoice
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(staticChoice = value)
-        }
-    internal var revealChoiceRuntime: RevealChoiceInteractionRuntime?
-        get() = runtimeBindings.revealChoice
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(revealChoice = value)
-        }
-    internal var modalChoiceRuntime: ModalChoiceInteractionRuntime?
-        get() = runtimeBindings.modalChoice
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(modalChoice = value)
-        }
-    internal var manaSourcePaymentRuntime: ManaSourcePaymentRuntime?
-        get() = runtimeBindings.manaSourcePayment
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(manaSourcePayment = value)
-        }
-    internal var oneShotPayCostsRuntime: OneShotPayCostsRuntime?
-        get() = runtimeBindings.oneShotPayCosts
-        set(value) {
-            runtimeBindings = runtimeBindings.copy(oneShotPayCosts = value)
-        }
-
     private val modalChoiceAdapter =
         ModalChoicePromptAdapter(
             timeoutMs = timeoutMs,

@@ -103,7 +103,7 @@ class MatchGroupingInteractionRuntimeTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board, GroupingContext.Scry_a0f6), options, 3_000))
+                result.set(coordinator.grouping.awaitGrouping(request(board, GroupingContext.Scry_a0f6), options, 3_000))
                 finished.countDown()
             }.start()
 
@@ -141,10 +141,17 @@ class MatchGroupingInteractionRuntimeTest :
                 (result.get().topHandles[1] === options[0]) shouldBe true
             }
             coordinator.grouping.finalizeArrangement(result.get(), result.get().topHandles, emptyList())
-            coordinator.grouping.pollArrangement(SeatId(2), GroupingContext.Scry_a0f6).shouldBeNull()
-            val arranged = coordinator.grouping.pollArrangement(SeatId(1), GroupingContext.Scry_a0f6).shouldNotBeNull()
+            coordinator.grouping
+                .pollArrangement(SeatId(2), GroupingContext.Scry_a0f6)
+                .shouldBeNull()
+            val arranged =
+                coordinator.grouping
+                    .pollArrangement(SeatId(1), GroupingContext.Scry_a0f6)
+                    .shouldNotBeNull()
             arranged.topIds shouldContainExactly reversed
-            coordinator.grouping.current().shouldBeNull()
+            coordinator.grouping
+                .current()
+                .shouldBeNull()
         }
 
         test("Surveil maps the exact away handle and rejects stale or incomplete partitions") {
@@ -155,7 +162,7 @@ class MatchGroupingInteractionRuntimeTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board, GroupingContext.Surveil), options, 3_000))
+                result.set(coordinator.grouping.awaitGrouping(request(board, GroupingContext.Surveil), options, 3_000))
                 finished.countDown()
             }.start()
 
@@ -166,12 +173,24 @@ class MatchGroupingInteractionRuntimeTest :
                 group.prompt.promptId shouldBe PromptIds.GROUP_SURVEIL
                 group.groupReq.groupSpecsList[1].zoneType shouldBe wotc.mtgo.gre.external.messaging.Messages.ZoneType.Graveyard
                 coordinator.grouping.submit(published.interactionId, published.gameStateId + 1, ids, emptyList()) shouldBe false
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), emptyList()) shouldBe false
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0], ids[0]), emptyList()) shouldBe
+                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), emptyList()) shouldBe
                     false
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), listOf(Int.MAX_VALUE)) shouldBe
+                coordinator.grouping.submit(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(ids[0], ids[0]),
+                    emptyList(),
+                ) shouldBe
                     false
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), listOf(ids[1])) shouldBe true
+                coordinator.grouping.submit(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(ids[0]),
+                    listOf(Int.MAX_VALUE),
+                ) shouldBe
+                    false
+                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), listOf(ids[1])) shouldBe
+                    true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 (result.get().awayHandles.single() === options[1]) shouldBe true
                 coordinator.grouping.submit(published.interactionId, published.gameStateId, ids, emptyList()) shouldBe false
@@ -201,7 +220,7 @@ class MatchGroupingInteractionRuntimeTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(triggered, options, 3_000))
+                result.set(coordinator.grouping.awaitGrouping(triggered, options, 3_000))
                 finished.countDown()
             }.start()
 
@@ -246,27 +265,30 @@ class MatchGroupingInteractionRuntimeTest :
                 timedOut: Boolean,
             ): PromptRecord {
                 val promptBridge = InteractivePromptBridge(timeoutMs = 25)
-                promptBridge.groupingRuntime =
-                    object : GroupingInteractionRuntime {
-                        override fun awaitGrouping(
-                            request: PromptRequest,
-                            candidateHandles: List<Card>,
-                            timeoutMs: Long?,
-                        ): GroupingInteractionResult =
-                            GroupingInteractionResult(
-                                interactionId = "grouping-history",
-                                context = GroupingContext.Scry_a0f6,
-                                topHandles = if (away) emptyList() else listOf(card),
-                                awayHandles = if (away) listOf(card) else emptyList(),
-                                timedOut = timedOut,
-                            )
+                promptBridge.runtimeBindings =
+                    leyline.bridge.handoff.PromptRuntimeBindings(
+                        grouping =
+                            object : GroupingInteractionRuntime {
+                                override fun awaitGrouping(
+                                    request: PromptRequest,
+                                    candidateHandles: List<Card>,
+                                    timeoutMs: Long?,
+                                ): GroupingInteractionResult =
+                                    GroupingInteractionResult(
+                                        interactionId = "grouping-history",
+                                        context = GroupingContext.Scry_a0f6,
+                                        topHandles = if (away) emptyList() else listOf(card),
+                                        awayHandles = if (away) listOf(card) else emptyList(),
+                                        timedOut = timedOut,
+                                    )
 
-                        override fun finalizeArrangement(
-                            result: GroupingInteractionResult,
-                            finalTopHandles: List<Card>,
-                            awayHandles: List<Card>,
-                        ) = Unit
-                    }
+                                override fun finalizeArrangement(
+                                    result: GroupingInteractionResult,
+                                    finalTopHandles: List<Card>,
+                                    awayHandles: List<Card>,
+                                ) = Unit
+                            },
+                    )
                 promptBridge.requestGrouping(singleRequest, listOf(card))
                 return promptBridge.history.single()
             }

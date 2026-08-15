@@ -114,7 +114,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val entry = entry(board)
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(request(board, max = 2), options(board), entry, false, 3_000)
+                coordinator.revealChoices.awaitSelection(request(board, max = 2), options(board), entry, false, 3_000)
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -128,11 +128,14 @@ class MatchRevealChoiceInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.revealChoices.submit("${published.interactionId}-stale", published.gameStateId, listOf(ids[0])) shouldBe false
+                coordinator.revealChoices.submit("${published.interactionId}-stale", published.gameStateId, listOf(ids[0])) shouldBe
+                    false
                 coordinator.revealChoices.submit(published.interactionId, published.gameStateId + 1, listOf(ids[0])) shouldBe false
                 coordinator.revealChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[0], ids[0])) shouldBe false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
+                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[0], ids[0])) shouldBe
+                    false
+                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                    false
                 coordinator.revealChoices.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
@@ -157,7 +160,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val finished = CountDownLatch(1)
             Thread {
                 result.set(
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -194,7 +197,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val finished = CountDownLatch(1)
             Thread {
                 runCatching {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -231,7 +234,9 @@ class MatchRevealChoiceInteractionFailureTest :
                 engineFailure.get() shouldBe terminal
                 journal.activeRevealEntry() shouldBe replacement
                 journal.consumeExiledUnderSource(ForgeCardId(options(board)[0].id)).shouldBeNull()
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -243,7 +248,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val engineFinished = CountDownLatch(1)
             Thread {
                 runCatching {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -302,7 +307,9 @@ class MatchRevealChoiceInteractionFailureTest :
                     .journal
                     .consumeExiledUnderSource(ForgeCardId(options(board)[0].id))
                     .shouldBeNull()
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.revealChoices.afterDeliveryCutLookup = null
         }
@@ -315,7 +322,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val finished = CountDownLatch(1)
             Thread {
                 runCatching {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -344,7 +351,9 @@ class MatchRevealChoiceInteractionFailureTest :
                     .journal
                     .activeRevealEntry()
                     .shouldBeNull()
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
                     coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id))
                 } shouldBe coordinator.failure()

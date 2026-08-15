@@ -367,6 +367,11 @@ Rules and AI behavior still need Forge-backed tests. Protocol framing,
 visibility, identity allocation, retry, ordering, and lifecycle reduction
 should normally be tested below that altitude.
 
+Keep one end-to-end agreement scenario per output family by default. Put field,
+ordering, retry, and failure matrices at the lowest pure or runtime seam that
+owns them; add another Forge-backed scenario only for a distinct rule path or
+safe-point boundary.
+
 ## Migration rules
 
 Migration order is mandatory:

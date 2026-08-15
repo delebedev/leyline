@@ -138,10 +138,14 @@ class EffectLifecycleTest :
 
             // Engine prompts for target selection (mandatory=false for voluntary casts)
             val targetingDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-            var targeting = b.cutCoordinator.targeting.current()
+            var targeting =
+                b.cutCoordinator.targeting
+                    .current()
             while (targeting == null && System.nanoTime() < targetingDeadline) {
                 Thread.onSpinWait()
-                targeting = b.cutCoordinator.targeting.current()
+                targeting =
+                    b.cutCoordinator.targeting
+                        .current()
             }
             val initial = targeting.shouldNotBeNull()
             val targetInstanceId =
@@ -163,7 +167,8 @@ class EffectLifecycleTest :
                         listOf(leyline.bridge.handoff.TargetToggleValue(targetInstanceId, selected = true)),
                     ).shouldNotBeNull()
             b.cutCoordinator.drain(SeatId(1))
-            b.cutCoordinator.targeting.acknowledgeDelivery(tap.interactionId, checkNotNull(tap.deliveryToken)) shouldBe true
+            b.cutCoordinator.targeting
+                .acknowledgeDelivery(tap.interactionId, checkNotNull(tap.deliveryToken)) shouldBe true
             val latest =
                 b.cutCoordinator.targeting
                     .current()
@@ -173,7 +178,8 @@ class EffectLifecycleTest :
                     .submitTargets(latest.interactionId, latest.gameStateId)
                     .shouldNotBeNull()
             b.cutCoordinator.drain(SeatId(1))
-            b.cutCoordinator.targeting.acknowledgeDelivery(done.interactionId, checkNotNull(done.deliveryToken)) shouldBe true
+            b.cutCoordinator.targeting
+                .acknowledgeDelivery(done.interactionId, checkNotNull(done.deliveryToken)) shouldBe true
 
             // Pass priority until spell resolves — stop once stack is empty in MAIN1
             // (don't advance to combat or the +X/+X until end of turn effects expire)

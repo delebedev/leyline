@@ -89,7 +89,7 @@ class MatchSearchInteractionRuntimeTest :
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 3_000))
+                result.set(coordinator.search.awaitSearch(request(board), 3_000))
                 finished.countDown()
             }.start()
 
@@ -140,7 +140,9 @@ class MatchSearchInteractionRuntimeTest :
                 coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -157,7 +159,7 @@ class MatchSearchInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 result.set(
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(
+                    coordinator.search.awaitSearch(
                         request(
                             board,
                             min = 0,
@@ -196,7 +198,7 @@ class MatchSearchInteractionRuntimeTest :
             coordinator.drain(SeatId(1))
             val engineFinished = CountDownLatch(1)
             Thread {
-                coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 3_000)
+                coordinator.search.awaitSearch(request(board), 3_000)
                 engineFinished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -244,7 +246,7 @@ class MatchSearchInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 try {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board, min = 0), 25)
+                    coordinator.search.awaitSearch(request(board, min = 0), 25)
                 } catch (ex: Throwable) {
                     failure.set(ex)
                 } finally {
@@ -264,7 +266,9 @@ class MatchSearchInteractionRuntimeTest :
             val projection = board.bridge.projectionStateSnapshot()
             assertSoftly {
                 failure.get().shouldBeInstanceOf<SearchInteractionTimeoutException>()
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
                 coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe false
                 coordinator.search.submit(published.interactionId, published.gameStateId + 1, listOf(selected)) shouldBe false
                 board.bridge.projectionStateSnapshot() shouldBe projection
@@ -280,7 +284,7 @@ class MatchSearchInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             val bridge =
                 InteractivePromptBridge(timeoutMs = 25).also {
-                    it.searchRuntime = coordinator.searchRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                     it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
@@ -294,7 +298,9 @@ class MatchSearchInteractionRuntimeTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
                 autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
         }
@@ -309,7 +315,7 @@ class MatchSearchInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 try {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), 3_000)
+                    coordinator.search.awaitSearch(request(board), 3_000)
                 } catch (ex: Throwable) {
                     failure.set(ex)
                 } finally {
@@ -327,7 +333,9 @@ class MatchSearchInteractionRuntimeTest :
                 coordinator.failure() shouldBe terminal
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 board.bridge.projectionStateSnapshot() shouldBe prior
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.search.beforeInstall = null
         }
@@ -340,7 +348,7 @@ class MatchSearchInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 try {
-                    coordinator.searchRuntime(SeatId(1)).awaitSearch(request(board), null)
+                    coordinator.search.awaitSearch(request(board), null)
                 } catch (ex: Throwable) {
                     failure.set(ex)
                 } finally {
@@ -361,7 +369,9 @@ class MatchSearchInteractionRuntimeTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.search.current().shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
             }
             shouldThrow<PlaybackTerminalFailure> {
                 coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected))

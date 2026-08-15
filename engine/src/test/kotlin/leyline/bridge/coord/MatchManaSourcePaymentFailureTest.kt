@@ -90,7 +90,7 @@ class MatchManaSourcePaymentFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000)
+                    coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
                 }
             assertSoftly {
                 terminal.cause?.message shouldBe "mana-source feed unavailable"
@@ -99,7 +99,9 @@ class MatchManaSourcePaymentFailureTest :
                     .interaction.candidates.size shouldBe 2
                 coordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
                 board.bridge.projectionStateSnapshot() shouldBe prior
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -116,7 +118,7 @@ class MatchManaSourcePaymentFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000)
+                    coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
                 }
             assertSoftly {
                 terminal.pendingManaSourcePaymentCut.shouldNotBeNull()
@@ -134,7 +136,7 @@ class MatchManaSourcePaymentFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000)
+                    coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
@@ -151,7 +153,7 @@ class MatchManaSourcePaymentFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), null) }
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -175,7 +177,9 @@ class MatchManaSourcePaymentFailureTest :
                     listOf(0)
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 board.bridge.projectionStateSnapshot() shouldBe prior
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -192,7 +196,7 @@ class MatchManaSourcePaymentFailureTest :
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
             Thread {
-                runCatching { coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), null) }
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -233,7 +237,9 @@ class MatchManaSourcePaymentFailureTest :
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
                 terminal.pendingManaSourcePaymentCut.shouldNotBeNull().messages shouldBe attempted
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -253,7 +259,7 @@ class MatchManaSourcePaymentFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 25) }
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 25) }
                     .onSuccess(result::set)
                     .onFailure(failure::set)
                 finished.countDown()
@@ -264,7 +270,9 @@ class MatchManaSourcePaymentFailureTest :
             val selected = board.instanceId(candidates(board).first().id)
             val accepted = AtomicReference<Any?>()
             Thread {
-                accepted.set(coordinator.manaSourcePayments.complete(published.interactionId, published.gameStateId, listOf(selected)))
+                accepted.set(
+                    coordinator.manaSourcePayments.complete(published.interactionId, published.gameStateId, listOf(selected)),
+                )
             }.start()
             commandEnqueued.await(3, TimeUnit.SECONDS) shouldBe true
             releaseTimeout.countDown()
@@ -285,7 +293,7 @@ class MatchManaSourcePaymentFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 25) }
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 25) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -294,8 +302,12 @@ class MatchManaSourcePaymentFailureTest :
             finished.await(3, TimeUnit.SECONDS) shouldBe true
             assertSoftly {
                 failure.get().shouldBeInstanceOf<ManaSourcePaymentTimeoutException>()
-                coordinator.manaSourcePayments.complete(published.interactionId, published.gameStateId, emptyList()).shouldBeNull()
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .complete(published.interactionId, published.gameStateId, emptyList())
+                    .shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
         }
@@ -309,7 +321,7 @@ class MatchManaSourcePaymentFailureTest :
             val finished = CountDownLatch(1)
             val bridge =
                 InteractivePromptBridge(timeoutMs = 25).also {
-                    it.manaSourcePaymentRuntime = coordinator.manaSourcePaymentRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                     it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
@@ -323,7 +335,9 @@ class MatchManaSourcePaymentFailureTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
                 autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
         }
@@ -335,7 +349,7 @@ class MatchManaSourcePaymentFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), null) }
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), null) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -347,7 +361,9 @@ class MatchManaSourcePaymentFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
             }
             shouldThrow<PlaybackTerminalFailure> {
                 coordinator.manaSourcePayments.complete(published.interactionId, published.gameStateId, emptyList())

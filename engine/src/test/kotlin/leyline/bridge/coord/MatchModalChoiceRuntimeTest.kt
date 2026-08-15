@@ -77,7 +77,7 @@ class MatchModalChoiceRuntimeTest :
             val result = AtomicReference<ModalChoiceInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 3_000))
+                result.set(coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 3_000))
                 finished.countDown()
             }.start()
 
@@ -102,7 +102,8 @@ class MatchModalChoiceRuntimeTest :
                         ?.previousSnapshot
                         ?: projectionBefore.viewerCursors[1]?.previousSnapshot
                 committedBaseline?.stack?.entries?.none { it.forgeAbilityId == sa.id } ?: true shouldBe true
-                coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(optionGrpIds[1])) shouldBe true
+                coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(optionGrpIds[1])) shouldBe
+                    true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 board.bridge.hasPendingNonActionInteraction() shouldBe false
                 result.get().handles.single() shouldBe options[1]
@@ -127,7 +128,7 @@ class MatchModalChoiceRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 try {
-                    result.set(coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 25))
+                    result.set(coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 25))
                 } finally {
                     finished.countDown()
                 }
@@ -144,14 +145,28 @@ class MatchModalChoiceRuntimeTest :
                     .modalOptionsList
                     .map { it.grpId }
             assertSoftly {
-                coordinator.modalChoices.submit(published.interactionId, published.gameStateId + 1, listOf(grpIds[0])) shouldBe false
-                coordinator.modalChoices.submit("${published.interactionId}-stale", published.gameStateId, listOf(grpIds[0])) shouldBe false
-                coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
+                coordinator.modalChoices.submit(published.interactionId, published.gameStateId + 1, listOf(grpIds[0])) shouldBe
+                    false
+                coordinator.modalChoices.submit(
+                    "${published.interactionId}-stale",
+                    published.gameStateId,
+                    listOf(grpIds[0]),
+                ) shouldBe
+                    false
+                coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                    false
                 coordinator.modalChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(grpIds[0], grpIds[0])) shouldBe false
+                coordinator.modalChoices.submit(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(grpIds[0], grpIds[0]),
+                ) shouldBe
+                    false
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().timedOut shouldBe true
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
                 coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(grpIds[0])) shouldBe false
             }
         }
@@ -173,7 +188,7 @@ class MatchModalChoiceRuntimeTest :
             ): Pair<PublishedModalChoiceInteraction, List<Int>> {
                 Thread {
                     try {
-                        result.set(coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 3_000))
+                        result.set(coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 3_000))
                     } finally {
                         finished.countDown()
                     }
@@ -207,7 +222,9 @@ class MatchModalChoiceRuntimeTest :
             assertSoftly {
                 coordinator.modalChoices.releaseAfterEngineResume(first.interactionId) shouldBe true
                 coordinator.modalChoices.releaseAfterEngineResume(first.interactionId) shouldBe false
-                coordinator.modalChoices.current()?.interactionId shouldBe second.interactionId
+                coordinator.modalChoices
+                    .current()
+                    ?.interactionId shouldBe second.interactionId
                 coordinator.modalChoices.submit(second.interactionId, second.gameStateId, listOf(secondGrpIds[0])) shouldBe true
                 coordinator.modalChoices.releaseAfterEngineResume(second.interactionId) shouldBe true
                 secondFinished.await(3, TimeUnit.SECONDS) shouldBe true
@@ -231,7 +248,7 @@ class MatchModalChoiceRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 try {
-                    result.set(coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, null))
+                    result.set(coordinator.modalChoices.awaitSelection(request(options), options, card, sa, null))
                 } finally {
                     finished.countDown()
                 }
@@ -245,7 +262,9 @@ class MatchModalChoiceRuntimeTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().optionIndices shouldBe emptyList()
                 result.get().handles shouldBe emptyList()
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
                 coordinator.modalChoices.releaseAfterEngineResume(published.interactionId) shouldBe true
                 coordinator.modalChoices.cancel(published.interactionId, published.gameStateId) shouldBe false
                 board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { 0 } shouldBe 0
@@ -261,7 +280,7 @@ class MatchModalChoiceRuntimeTest :
             sa.activatingPlayer = board.human
             val request = request(possible(sa))
             shouldThrow<IllegalStateException> {
-                coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(
+                coordinator.modalChoices.awaitSelection(
                     request,
                     possible(sa),
                     Card(999999, null).also { it.name = card.name },
@@ -288,13 +307,15 @@ class MatchModalChoiceRuntimeTest :
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 3_000)
+                    coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 3_000)
                 }
 
             assertSoftly {
                 failure.pendingModalChoiceCut.shouldNotBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -315,14 +336,16 @@ class MatchModalChoiceRuntimeTest :
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 3_000)
+                    coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 3_000)
                 }
 
             assertSoftly {
                 failure.pendingModalChoiceCut.shouldNotBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 board.bridge.projectionStateSnapshot() shouldBe competing
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -339,14 +362,16 @@ class MatchModalChoiceRuntimeTest :
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 3_000)
+                    coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
 
             assertSoftly {
                 failure.pendingModalChoiceCut.shouldNotBeNull().messages shouldBe retained
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -367,7 +392,7 @@ class MatchModalChoiceRuntimeTest :
             val options = possible(sa)
             sa.activatingPlayer = board.human
             Thread {
-                result.set(coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, 25))
+                result.set(coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -406,7 +431,7 @@ class MatchModalChoiceRuntimeTest :
             sa.activatingPlayer = board.human
             Thread {
                 runCatching {
-                    coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, null)
+                    coordinator.modalChoices.awaitSelection(request(options), options, card, sa, null)
                 }.onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -418,7 +443,9 @@ class MatchModalChoiceRuntimeTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
                     coordinator.modalChoices.submit(published.interactionId, published.gameStateId, emptyList())
                 } shouldBe coordinator.failure()
@@ -437,7 +464,7 @@ class MatchModalChoiceRuntimeTest :
             val engineFinished = CountDownLatch(1)
             Thread {
                 runCatching {
-                    coordinator.modalChoiceRuntime(SeatId(1)).awaitSelection(request(options), options, card, sa, null)
+                    coordinator.modalChoices.awaitSelection(request(options), options, card, sa, null)
                 }.onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -476,7 +503,9 @@ class MatchModalChoiceRuntimeTest :
                 terminal.pendingModalChoiceCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
-                coordinator.modalChoices.current().shouldBeNull()
+                coordinator.modalChoices
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.modalChoices.afterDeliveryCutLookup = null
         }
