@@ -137,7 +137,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
                 val result = AtomicReference<List<Int>>()
                 val finished = CountDownLatch(1)
                 Thread {
-                    result.set(coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board, case), 3_000))
+                    result.set(coordinator.staticChoices.awaitSelection(request(board, case), 3_000))
                     finished.countDown()
                 }.start()
 
@@ -182,7 +182,9 @@ class MatchStaticChoiceInteractionRuntimeTest :
                     ) shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get() shouldContainExactly listOf(1)
-                    coordinator.staticChoices.current().shouldBeNull()
+                    coordinator.staticChoices
+                        .current()
+                        .shouldBeNull()
                 }
             }
         }
@@ -196,7 +198,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 result.set(
-                    coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.staticChoices.awaitSelection(
                         request(board, case, source = null, min = 1, max = 2),
                         3_000,
                     ),
@@ -244,7 +246,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
                 check(releaseResponse.await(3, TimeUnit.SECONDS))
             }
             Thread {
-                coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board, case), 3_000)
+                coordinator.staticChoices.awaitSelection(request(board, case), 3_000)
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -293,7 +295,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
             var timedOut = false
             val prompt =
                 InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                    it.staticChoiceRuntime = coordinator.staticChoiceRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                     it.timeoutListener = { timedOut = true }
                 }
             val result = prompt.requestStaticChoice(request(board, case, source = null, defaultIndex = 1))
@@ -301,7 +303,9 @@ class MatchStaticChoiceInteractionRuntimeTest :
             assertSoftly {
                 result shouldContainExactly listOf(1)
                 timedOut shouldBe true
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
                 coordinator.drain(SeatId(1)).single().any { it.hasSelectNReq() } shouldBe true
             }
         }

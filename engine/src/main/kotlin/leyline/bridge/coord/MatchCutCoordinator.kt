@@ -48,7 +48,7 @@ internal class MatchCutCoordinator(
     internal val interactions = MatchBlockingInteractionRuntime(this)
     internal val prompts = MatchPromptRuntimeSet(this)
 
-    // Test-facing compatibility accessors. Production composition uses [prompts].
+    // Read-only views; [prompts] remains the sole lifecycle owner.
     internal val targeting get() = prompts.targeting
     internal val compatibilityCostSelection get() = prompts.compatibilityCostSelection
     internal val search get() = prompts.search

@@ -102,7 +102,7 @@ class MatchGroupingInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), 3_000)
+                    coordinator.grouping.awaitGrouping(request(board), options(board), 3_000)
                 }
             assertSoftly {
                 terminal.cause?.message shouldBe "grouping materialization unavailable"
@@ -126,7 +126,7 @@ class MatchGroupingInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), 3_000)
+                    coordinator.grouping.awaitGrouping(request(board), options(board), 3_000)
                 }
             assertSoftly {
                 terminal.pendingGroupingCut.shouldNotBeNull()
@@ -148,7 +148,7 @@ class MatchGroupingInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), 3_000)
+                    coordinator.grouping.awaitGrouping(request(board), options(board), 3_000)
                 }
             assertSoftly {
                 terminal.pendingGroupingCut.shouldNotBeNull()
@@ -166,14 +166,16 @@ class MatchGroupingInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), 3_000)
+                    coordinator.grouping.awaitGrouping(request(board), options(board), 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
                 terminal.pendingGroupingCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasGroupReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                coordinator.grouping.current().shouldBeNull()
+                coordinator.grouping
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -190,7 +192,7 @@ class MatchGroupingInteractionFailureTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), 25))
+                result.set(coordinator.grouping.awaitGrouping(request(board), options(board), 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -220,7 +222,7 @@ class MatchGroupingInteractionFailureTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), 25))
+                result.set(coordinator.grouping.awaitGrouping(request(board), options(board), 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -238,7 +240,9 @@ class MatchGroupingInteractionFailureTest :
                 result.get().timedOut shouldBe true
                 result.get().awayHandles.single() shouldBe options(board).first()
                 coordinator.grouping.submit(published.interactionId, published.gameStateId, ids, emptyList()) shouldBe false
-                coordinator.grouping.current().shouldBeNull()
+                coordinator.grouping
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
@@ -254,7 +258,7 @@ class MatchGroupingInteractionFailureTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(singleRequest(board), listOf(card), 25))
+                result.set(coordinator.grouping.awaitGrouping(singleRequest(board), listOf(card), 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -272,7 +276,9 @@ class MatchGroupingInteractionFailureTest :
                 result.get().topHandles.single() shouldBe card
                 result.get().awayHandles shouldBe emptyList()
                 coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(id), emptyList()) shouldBe false
-                coordinator.grouping.current().shouldBeNull()
+                coordinator.grouping
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
             coordinator.grouping.finalizeArrangement(result.get(), result.get().topHandles, emptyList())
@@ -285,7 +291,7 @@ class MatchGroupingInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), null) }
+                runCatching { coordinator.grouping.awaitGrouping(request(board), options(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -343,7 +349,7 @@ class MatchGroupingInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val engineFinished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), null) }
+                runCatching { coordinator.grouping.awaitGrouping(request(board), options(board), null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -397,7 +403,7 @@ class MatchGroupingInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), null) }
+                runCatching { coordinator.grouping.awaitGrouping(request(board), options(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -409,7 +415,9 @@ class MatchGroupingInteractionFailureTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe coordinator.failure()
                 coordinator.failure().shouldNotBeNull().cause shouldBe cause
-                coordinator.grouping.current().shouldBeNull()
+                coordinator.grouping
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -420,7 +428,7 @@ class MatchGroupingInteractionFailureTest :
             val result = AtomicReference<GroupingInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.groupingRuntime(SeatId(1)).awaitGrouping(request(board), options(board), null))
+                result.set(coordinator.grouping.awaitGrouping(request(board), options(board), null))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -442,7 +450,9 @@ class MatchGroupingInteractionFailureTest :
 
             assertSoftly {
                 terminal shouldBe coordinator.failure()
-                coordinator.grouping.pollArrangement(SeatId(1), GroupingContext.Scry_a0f6).shouldBeNull()
+                coordinator.grouping
+                    .pollArrangement(SeatId(1), GroupingContext.Scry_a0f6)
+                    .shouldBeNull()
             }
         }
     })

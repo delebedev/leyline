@@ -92,7 +92,7 @@ class MatchStaticChoiceInteractionFailureTest :
             coordinator.drain(SeatId(1))
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board, max = 2), 3_000)
+                coordinator.staticChoices.awaitSelection(request(board, max = 2), 3_000)
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -101,13 +101,23 @@ class MatchStaticChoiceInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.staticChoices.submit("${published.interactionId}-stale", published.gameStateId, listOf(values[0])) shouldBe
+                coordinator.staticChoices.submit(
+                    "${published.interactionId}-stale",
+                    published.gameStateId,
+                    listOf(values[0]),
+                ) shouldBe
                     false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId + 1, listOf(values[0])) shouldBe false
+                coordinator.staticChoices.submit(published.interactionId, published.gameStateId + 1, listOf(values[0])) shouldBe
+                    false
                 coordinator.staticChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[0], values[0])) shouldBe
+                coordinator.staticChoices.submit(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(values[0], values[0]),
+                ) shouldBe
                     false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
+                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                    false
                 coordinator.staticChoices.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
@@ -125,7 +135,7 @@ class MatchStaticChoiceInteractionFailureTest :
             val prior = board.bridge.projectionStateSnapshot()
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board, Int.MAX_VALUE), 3_000)
+                    coordinator.staticChoices.awaitSelection(request(board, Int.MAX_VALUE), 3_000)
                 }
             assertSoftly {
                 failure.staticChoiceDiagnostic
@@ -147,7 +157,7 @@ class MatchStaticChoiceInteractionFailureTest :
             coordinator.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("static choice feed unavailable") }
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), 3_000)
+                    coordinator.staticChoices.awaitSelection(request(board), 3_000)
                 }
             assertSoftly {
                 failure.pendingStaticChoiceCut.shouldNotBeNull()
@@ -167,14 +177,16 @@ class MatchStaticChoiceInteractionFailureTest :
             coordinator.staticChoices.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), 3_000)
+                    coordinator.staticChoices.awaitSelection(request(board), 3_000)
                 }
 
             assertSoftly {
                 failure.pendingStaticChoiceCut.shouldNotBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 board.bridge.projectionStateSnapshot() shouldBe competing
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -186,14 +198,16 @@ class MatchStaticChoiceInteractionFailureTest :
             coordinator.staticChoices.afterInstall = { error("static choice acknowledgement unavailable") }
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), 3_000)
+                    coordinator.staticChoices.awaitSelection(request(board), 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
                 failure.pendingStaticChoiceCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasSelectNReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -210,7 +224,7 @@ class MatchStaticChoiceInteractionFailureTest :
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), 25))
+                result.set(coordinator.staticChoices.awaitSelection(request(board), 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -233,7 +247,7 @@ class MatchStaticChoiceInteractionFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), 25) }
+                runCatching { coordinator.staticChoices.awaitSelection(request(board), 25) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -244,7 +258,9 @@ class MatchStaticChoiceInteractionFailureTest :
             assertSoftly {
                 failure.get().shouldBeInstanceOf<StaticChoiceInteractionTimeoutException>()
                 coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[0])) shouldBe false
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
         }
@@ -256,7 +272,7 @@ class MatchStaticChoiceInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), null) }
+                runCatching { coordinator.staticChoices.awaitSelection(request(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -305,7 +321,9 @@ class MatchStaticChoiceInteractionFailureTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -316,7 +334,7 @@ class MatchStaticChoiceInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val engineFinished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), null) }
+                runCatching { coordinator.staticChoices.awaitSelection(request(board), null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -369,7 +387,9 @@ class MatchStaticChoiceInteractionFailureTest :
                     .promptBridge(SeatId(1))
                     .journal
                     .snapshotChoiceResults() shouldBe choiceResultsBefore
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.staticChoices.afterDeliveryCutLookup = null
         }
@@ -381,7 +401,7 @@ class MatchStaticChoiceInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.staticChoiceRuntime(SeatId(1)).awaitSelection(request(board), null) }
+                runCatching { coordinator.staticChoices.awaitSelection(request(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -393,7 +413,9 @@ class MatchStaticChoiceInteractionFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.staticChoices.current().shouldBeNull()
+                coordinator.staticChoices
+                    .current()
+                    .shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
                     coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[0]))
                 } shouldBe coordinator.failure()

@@ -87,7 +87,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
             val prior = board.bridge.projectionStateSnapshot()
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board, sourceId = Int.MAX_VALUE),
                         options(board),
                         claimed,
@@ -117,7 +117,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
             coordinator.drain(SeatId(1))
 
             shouldThrow<PlaybackTerminalFailure> {
-                coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                coordinator.revealChoices.awaitSelection(
                     request(board, max = options(board).size + 1),
                     options(board),
                     entry(board),
@@ -132,7 +132,9 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
                     .journal
                     .activeRevealEntry()
                     .shouldBeNull()
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
             }
         }
@@ -147,7 +149,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -175,7 +177,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -200,7 +202,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board),
                         options(board),
                         entry(board),
@@ -219,7 +221,9 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
                     .journal
                     .activeRevealEntry()
                     .shouldBeNull()
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
     })

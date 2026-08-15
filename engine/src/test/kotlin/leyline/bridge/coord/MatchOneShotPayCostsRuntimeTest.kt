@@ -125,7 +125,7 @@ class MatchOneShotPayCostsRuntimeTest :
                 Thread {
                     result.set(
                         coordinator
-                            .oneShotPayCostsRuntime(SeatId(1))
+                            .oneShotPayCosts
                             .awaitPayment(request(cards, kind, source.id, tapDescriptor), cards, 3_000),
                     )
                     finished.countDown()
@@ -250,7 +250,7 @@ class MatchOneShotPayCostsRuntimeTest :
                 Thread {
                     result.set(
                         coordinator
-                            .oneShotPayCostsRuntime(SeatId(1))
+                            .oneShotPayCosts
                             .awaitPayment(
                                 request(cards, PayCostsRouteKind.TapPayment, source.id, descriptor, weights),
                                 cards,
@@ -313,7 +313,7 @@ class MatchOneShotPayCostsRuntimeTest :
                 val result = AtomicReference<leyline.bridge.handoff.OneShotPayCostsResult>()
                 val finished = CountDownLatch(1)
                 Thread {
-                    result.set(coordinator.oneShotPayCostsRuntime(SeatId(1)).awaitPayment(request, cards, 3_000))
+                    result.set(coordinator.oneShotPayCosts.awaitPayment(request, cards, 3_000))
                     finished.countDown()
                 }.start()
                 return result to finished
@@ -329,7 +329,8 @@ class MatchOneShotPayCostsRuntimeTest :
                     .payCostsReq.effectCostReq.costSelection.idsList
             assertSoftly {
                 coordinator.oneShotPayCosts.submit("stale", exact.gameStateId, listOf(exactIds.first())) shouldBe false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId + 1, listOf(exactIds.first())) shouldBe false
+                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId + 1, listOf(exactIds.first())) shouldBe
+                    false
                 coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
                 coordinator.oneShotPayCosts.submit(
                     exact.interactionId,
@@ -355,9 +356,19 @@ class MatchOneShotPayCostsRuntimeTest :
                     .single { it.hasPayCostsReq() }
                     .payCostsReq.effectCostReq.costSelection.idsList
             assertSoftly {
-                coordinator.oneShotPayCosts.submit(weighted.interactionId, weighted.gameStateId, listOf(weightedIds.last())) shouldBe false
+                coordinator.oneShotPayCosts.submit(
+                    weighted.interactionId,
+                    weighted.gameStateId,
+                    listOf(weightedIds.last()),
+                ) shouldBe
+                    false
                 coordinator.oneShotPayCosts.current() shouldBe weighted
-                coordinator.oneShotPayCosts.submit(weighted.interactionId, weighted.gameStateId, listOf(weightedIds.first())) shouldBe true
+                coordinator.oneShotPayCosts.submit(
+                    weighted.interactionId,
+                    weighted.gameStateId,
+                    listOf(weightedIds.first()),
+                ) shouldBe
+                    true
                 weightedFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 weightedResult.get().optionIndices shouldContainExactly listOf(0)
             }
@@ -388,7 +399,7 @@ class MatchOneShotPayCostsRuntimeTest :
             val finished = CountDownLatch(1)
             val bridge =
                 InteractivePromptBridge(timeoutMs = 25).also {
-                    it.oneShotPayCostsRuntime = coordinator.oneShotPayCostsRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                     it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
@@ -408,7 +419,9 @@ class MatchOneShotPayCostsRuntimeTest :
                 result.get().optionIndices shouldContainExactly listOf(1)
                 (result.get().handles.single() === cards[1]) shouldBe true
                 autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.oneShotPayCosts.current().shouldBeNull()
+                coordinator.oneShotPayCosts
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
         }

@@ -112,7 +112,7 @@ class MatchManaSourcePaymentRuntimeTest :
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000))
+                result.set(coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000))
                 finished.countDown()
             }.start()
 
@@ -140,13 +140,24 @@ class MatchManaSourcePaymentRuntimeTest :
                 rePrompt.paymentActions.actionsList.none { it.instanceId == merfolkId } shouldBe true
                 finished.count shouldBe 1
             }
-            coordinator.manaSourcePayments.acknowledgeDelivery(initial.interactionId, receipt.deliveryToken.shouldNotBeNull()) shouldBe true
+            coordinator.manaSourcePayments.acknowledgeDelivery(
+                initial.interactionId,
+                receipt.deliveryToken.shouldNotBeNull(),
+            ) shouldBe
+                true
             val rePublished = awaitPublished(coordinator)
-            coordinator.manaSourcePayments.complete(rePublished.interactionId, rePublished.gameStateId, emptyList()).shouldNotBeNull()
+            coordinator.manaSourcePayments
+                .complete(
+                    rePublished.interactionId,
+                    rePublished.gameStateId,
+                    emptyList(),
+                ).shouldNotBeNull()
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
-                coordinator.manaSourcePayments.current().shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -161,7 +172,7 @@ class MatchManaSourcePaymentRuntimeTest :
                 .published = false
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000)
+                coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
                 finished.countDown()
             }.start()
 
@@ -173,12 +184,18 @@ class MatchManaSourcePaymentRuntimeTest :
                     .getPending()
                     .shouldBeNull()
                 coordinator.currentBlockingInteraction().shouldBeNull()
-                coordinator.targeting.current().shouldBeNull()
-                coordinator.search.current().shouldBeNull()
+                coordinator.targeting
+                    .current()
+                    .shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
                 board.bridge.awaitPriorityWithTimeout(25) shouldBe true
             }
             coordinator.drain(SeatId(1))
-            coordinator.manaSourcePayments.cancel(published.interactionId, published.gameStateId).shouldNotBeNull()
+            coordinator.manaSourcePayments
+                .cancel(published.interactionId, published.gameStateId)
+                .shouldNotBeNull()
             finished.await(3, TimeUnit.SECONDS) shouldBe true
         }
 
@@ -189,7 +206,7 @@ class MatchManaSourcePaymentRuntimeTest :
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000))
+                result.set(coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -241,7 +258,7 @@ class MatchManaSourcePaymentRuntimeTest :
                     waterbendCostString = "{W}",
                 )
             Thread {
-                result.set(coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(coloredRequest, candidates(board), 3_000))
+                result.set(coordinator.manaSourcePayments.awaitPayment(coloredRequest, candidates(board), 3_000))
                 finished.countDown()
             }.start()
 
@@ -288,7 +305,7 @@ class MatchManaSourcePaymentRuntimeTest :
                     max = 3,
                 )
             Thread {
-                result.set(coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(coloredRequest, candidates(board), 3_000))
+                result.set(coordinator.manaSourcePayments.awaitPayment(coloredRequest, candidates(board), 3_000))
                 finished.countDown()
             }.start()
 
@@ -331,7 +348,7 @@ class MatchManaSourcePaymentRuntimeTest :
                     max = 3,
                 )
             Thread {
-                result.set(coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(genericRequest, candidates(board), 3_000))
+                result.set(coordinator.manaSourcePayments.awaitPayment(genericRequest, candidates(board), 3_000))
                 finished.countDown()
             }.start()
 
@@ -368,7 +385,7 @@ class MatchManaSourcePaymentRuntimeTest :
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board), candidates(board), 3_000))
+                result.set(coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000))
                 finished.countDown()
             }.start()
             val initial = awaitPublished(coordinator)
@@ -382,9 +399,15 @@ class MatchManaSourcePaymentRuntimeTest :
                         listOf(firstId),
                     ).shouldNotBeNull()
             coordinator.drain(SeatId(1))
-            coordinator.manaSourcePayments.acknowledgeDelivery(initial.interactionId, receipt.deliveryToken.shouldNotBeNull()) shouldBe true
+            coordinator.manaSourcePayments.acknowledgeDelivery(
+                initial.interactionId,
+                receipt.deliveryToken.shouldNotBeNull(),
+            ) shouldBe
+                true
             val rePublished = awaitPublished(coordinator)
-            coordinator.manaSourcePayments.cancel(rePublished.interactionId, rePublished.gameStateId).shouldNotBeNull()
+            coordinator.manaSourcePayments
+                .cancel(rePublished.interactionId, rePublished.gameStateId)
+                .shouldNotBeNull()
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
@@ -400,7 +423,7 @@ class MatchManaSourcePaymentRuntimeTest :
             Thread {
                 result.set(
                     coordinator
-                        .manaSourcePaymentRuntime(SeatId(1))
+                        .manaSourcePayments
                         .awaitPayment(request(board).copy(max = 1), candidates(board), 3_000),
                 )
                 finished.countDown()
@@ -431,7 +454,7 @@ class MatchManaSourcePaymentRuntimeTest :
             fun initialAbility(semantic: PromptSemantic): Int {
                 val finished = CountDownLatch(1)
                 Thread {
-                    coordinator.manaSourcePaymentRuntime(SeatId(1)).awaitPayment(request(board, semantic), candidates(board), 3_000)
+                    coordinator.manaSourcePayments.awaitPayment(request(board, semantic), candidates(board), 3_000)
                     finished.countDown()
                 }.start()
                 val published = awaitPublished(coordinator)
@@ -443,7 +466,9 @@ class MatchManaSourcePaymentRuntimeTest :
                         .single { it.hasPayCostsReq() }
                         .payCostsReq.paymentActions.actionsList
                         .first()
-                coordinator.manaSourcePayments.cancel(published.interactionId, published.gameStateId).shouldNotBeNull()
+                coordinator.manaSourcePayments
+                    .cancel(published.interactionId, published.gameStateId)
+                    .shouldNotBeNull()
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 return action.abilityGrpId
             }

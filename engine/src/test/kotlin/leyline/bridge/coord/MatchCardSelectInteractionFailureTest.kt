@@ -93,7 +93,7 @@ class MatchCardSelectInteractionFailureTest :
             coordinator.drain(SeatId(1))
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), 3_000)
+                coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -158,7 +158,7 @@ class MatchCardSelectInteractionFailureTest :
             val prior = board.bridge.projectionStateSnapshot()
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
+                    coordinator.cardSelect.awaitSelection(
                         request(board, Int.MAX_VALUE),
                         options(board),
                         3_000,
@@ -184,7 +184,7 @@ class MatchCardSelectInteractionFailureTest :
             coordinator.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("card select feed unavailable") }
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
+                    coordinator.cardSelect.awaitSelection(
                         request(board),
                         options(board),
                         3_000,
@@ -208,7 +208,7 @@ class MatchCardSelectInteractionFailureTest :
             coordinator.cardSelect.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), 3_000)
+                    coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
                 }
             assertSoftly {
                 failure.pendingCardSelectCut.shouldNotBeNull()
@@ -225,14 +225,16 @@ class MatchCardSelectInteractionFailureTest :
             coordinator.cardSelect.afterInstall = { error("card select acknowledgement unavailable") }
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), 3_000)
+                    coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
                 failure.pendingCardSelectCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasSelectNReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                coordinator.cardSelect.current().shouldBeNull()
+                coordinator.cardSelect
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -249,7 +251,7 @@ class MatchCardSelectInteractionFailureTest :
             val result = AtomicReference<CardSelectInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), 25))
+                result.set(coordinator.cardSelect.awaitSelection(request(board), options(board), 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -282,7 +284,7 @@ class MatchCardSelectInteractionFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), 25) }
+                runCatching { coordinator.cardSelect.awaitSelection(request(board), options(board), 25) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -304,7 +306,9 @@ class MatchCardSelectInteractionFailureTest :
                     listOf(id),
                 ) shouldBe
                     false
-                coordinator.cardSelect.current().shouldBeNull()
+                coordinator.cardSelect
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
             }
         }
@@ -316,7 +320,7 @@ class MatchCardSelectInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), null) }
+                runCatching { coordinator.cardSelect.awaitSelection(request(board), options(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -330,7 +334,9 @@ class MatchCardSelectInteractionFailureTest :
                 terminal.pendingCardSelectCut.shouldNotBeNull().messages shouldBe attempted
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
-                coordinator.cardSelect.current().shouldBeNull()
+                coordinator.cardSelect
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -341,7 +347,7 @@ class MatchCardSelectInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board), options(board), null) }
+                runCatching { coordinator.cardSelect.awaitSelection(request(board), options(board), null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -359,7 +365,9 @@ class MatchCardSelectInteractionFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.cardSelect.current().shouldBeNull()
+                coordinator.cardSelect
+                    .current()
+                    .shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
                     coordinator.cardSelect.submitSelectN(
                         published.interactionId,

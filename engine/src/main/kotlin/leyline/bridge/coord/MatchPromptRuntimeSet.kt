@@ -1,18 +1,7 @@
 package leyline.bridge.coord
 
-import leyline.bridge.handoff.CardSelectInteractionRuntime
-import leyline.bridge.handoff.CompatibilityCostSelectionRuntime
-import leyline.bridge.handoff.GroupingInteractionRuntime
-import leyline.bridge.handoff.ManaSourcePaymentRuntime
-import leyline.bridge.handoff.ModalChoiceInteractionRuntime
-import leyline.bridge.handoff.OneShotPayCostsRuntime
-import leyline.bridge.handoff.OrderInteractionRuntime
 import leyline.bridge.handoff.PromptRuntimeBindings
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
-import leyline.bridge.handoff.RevealChoiceInteractionRuntime
-import leyline.bridge.handoff.SearchInteractionRuntime
-import leyline.bridge.handoff.StaticChoiceInteractionRuntime
-import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.types.SeatId
 import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.GroupingMaterializationDiagnostic
@@ -120,62 +109,6 @@ internal class MatchPromptRuntimeSet(
             modalChoices.pendingCutLocked()?.let { owner.failModalChoice(cause, it) }
             revealChoices.failDelivery(cause)
         }
-}
-
-/** Human-seat prompt runtimes registered with the engine-side prompt bridge. */
-internal fun MatchCutCoordinator.targetingRuntime(seatId: SeatId): TargetingInteractionRuntime {
-    check(seatId == humanSeat) { "Targeting interaction runtime is only registered for the human seat" }
-    return prompts.targeting
-}
-
-internal fun MatchCutCoordinator.compatibilityCostSelectionRuntime(seatId: SeatId): CompatibilityCostSelectionRuntime {
-    check(seatId == humanSeat) { "Compatibility cost selection runtime is only registered for the human seat" }
-    return prompts.compatibilityCostSelection
-}
-
-internal fun MatchCutCoordinator.searchRuntime(seatId: SeatId): SearchInteractionRuntime {
-    check(seatId == humanSeat) { "Search interaction runtime is only registered for the human seat" }
-    return prompts.search
-}
-
-internal fun MatchCutCoordinator.orderRuntime(seatId: SeatId): OrderInteractionRuntime {
-    check(seatId == humanSeat) { "Order interaction runtime is only registered for the human seat" }
-    return prompts.order
-}
-
-internal fun MatchCutCoordinator.groupingRuntime(seatId: SeatId): GroupingInteractionRuntime {
-    check(seatId == humanSeat) { "Grouping interaction runtime is only registered for the human seat" }
-    return prompts.grouping
-}
-
-internal fun MatchCutCoordinator.cardSelectRuntime(seatId: SeatId): CardSelectInteractionRuntime {
-    check(seatId == humanSeat) { "CardSelect interaction runtime is only registered for the human seat" }
-    return prompts.cardSelect
-}
-
-internal fun MatchCutCoordinator.staticChoiceRuntime(seatId: SeatId): StaticChoiceInteractionRuntime {
-    check(seatId == humanSeat) { "StaticChoice interaction runtime is only registered for the human seat" }
-    return prompts.staticChoices
-}
-
-internal fun MatchCutCoordinator.revealChoiceRuntime(seatId: SeatId): RevealChoiceInteractionRuntime {
-    check(seatId == humanSeat) { "RevealChoice interaction runtime is only registered for the human seat" }
-    return prompts.revealChoices
-}
-
-internal fun MatchCutCoordinator.modalChoiceRuntime(seatId: SeatId): ModalChoiceInteractionRuntime {
-    check(seatId == humanSeat) { "ModalChoice runtime is only registered for the human seat" }
-    return prompts.modalChoices
-}
-
-internal fun MatchCutCoordinator.manaSourcePaymentRuntime(seatId: SeatId): ManaSourcePaymentRuntime {
-    check(seatId == humanSeat) { "Mana-source payment runtime is only registered for the human seat" }
-    return prompts.manaSourcePayments
-}
-
-internal fun MatchCutCoordinator.oneShotPayCostsRuntime(seatId: SeatId): OneShotPayCostsRuntime {
-    check(seatId == humanSeat) { "One-shot PayCosts runtime is only registered for the human seat" }
-    return prompts.oneShotPayCosts
 }
 
 internal fun MatchCutCoordinator.failSearch(

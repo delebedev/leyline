@@ -123,7 +123,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 result.set(
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board, candidates),
                         candidates,
                         entry,
@@ -189,7 +189,9 @@ class MatchRevealChoiceInteractionRuntimeTest :
                     .journal
                     .consumeExiledUnderSource(ForgeCardId(candidates.single().id)) shouldBe
                     ForgeCardId(source(board).id)
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -202,7 +204,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 result.set(
-                    coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                    coordinator.revealChoices.awaitSelection(
                         request(board, emptyList(), min = 0, max = 0),
                         emptyList(),
                         entry,
@@ -249,7 +251,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             }
             val prompt =
                 InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                    it.revealChoiceRuntime = coordinator.revealChoiceRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                     it.timeoutListener = { timedOut = true }
                 }
 
@@ -268,7 +270,9 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 (result.handles.single() === candidates[1]) shouldBe true
                 result.timedOut shouldBe true
                 timedOut shouldBe true
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
                 board.bridge
                     .promptBridge(SeatId(1))
                     .journal
@@ -290,7 +294,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val claimed = revealEntry(board)
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(
+                coordinator.revealChoices.awaitSelection(
                     request(board, candidates),
                     candidates,
                     claimed,

@@ -109,7 +109,7 @@ class MatchOrderInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 result.set(
-                    coordinator.orderRuntime(SeatId(1)).awaitOrder(
+                    coordinator.order.awaitOrder(
                         request(board, OrderRouteKind.Top),
                         options,
                         OrderMoveIntent(SeatId(1), options.map { ForgeCardId(it.id) }, putOnTop = true),
@@ -150,7 +150,9 @@ class MatchOrderInteractionRuntimeTest :
                 result.get().optionIndices shouldContainExactly listOf(1, 0)
                 (result.get().handles[0] === options[1]) shouldBe true
                 (result.get().handles[1] === options[0]) shouldBe true
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -161,7 +163,7 @@ class MatchOrderInteractionRuntimeTest :
             val options = cards(board)
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board, OrderRouteKind.Bottom), options, null, 3_000)
+                coordinator.order.awaitOrder(request(board, OrderRouteKind.Bottom), options, null, 3_000)
                 finished.countDown()
             }.start()
 
@@ -173,7 +175,11 @@ class MatchOrderInteractionRuntimeTest :
                 order.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_BOTTOM
                 order.orderReq.orderingContext shouldBe OrderingContext.OrderingForBottom
                 order.allowUndo shouldBe false
-                coordinator.order.submit(published.interactionId, published.gameStateId, listOf(order.orderReq.idsList.first())) shouldBe
+                coordinator.order.submit(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(order.orderReq.idsList.first()),
+                ) shouldBe
                     false
                 coordinator.order.submit(published.interactionId, published.gameStateId, listOf(1, 1)) shouldBe false
                 coordinator.order.submit(
@@ -200,7 +206,7 @@ class MatchOrderInteractionRuntimeTest :
                 .published = false
             val finished = CountDownLatch(1)
             Thread {
-                coordinator.orderRuntime(SeatId(1)).awaitOrder(
+                coordinator.order.awaitOrder(
                     request(board, OrderRouteKind.Top),
                     cards(board),
                     null,
@@ -217,10 +223,18 @@ class MatchOrderInteractionRuntimeTest :
                     .getPending()
                     .shouldBeNull()
                 coordinator.currentBlockingInteraction().shouldBeNull()
-                coordinator.targeting.current().shouldBeNull()
-                coordinator.search.current().shouldBeNull()
-                coordinator.manaSourcePayments.current().shouldBeNull()
-                coordinator.oneShotPayCosts.current().shouldBeNull()
+                coordinator.targeting
+                    .current()
+                    .shouldBeNull()
+                coordinator.search
+                    .current()
+                    .shouldBeNull()
+                coordinator.manaSourcePayments
+                    .current()
+                    .shouldBeNull()
+                coordinator.oneShotPayCosts
+                    .current()
+                    .shouldBeNull()
                 board.bridge.awaitPriorityWithTimeout(25) shouldBe true
             }
             val ids =
@@ -241,7 +255,7 @@ class MatchOrderInteractionRuntimeTest :
             var timedOut = false
             val prompt =
                 InteractivePromptBridge(timeoutMs = 25, strict = false).also {
-                    it.orderRuntime = coordinator.orderRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                     it.timeoutListener = { timedOut = true }
                 }
             val result = prompt.requestOrder(request(board, OrderRouteKind.Top), options)
@@ -252,7 +266,9 @@ class MatchOrderInteractionRuntimeTest :
                 (result.handles[0] === options[0]) shouldBe true
                 publishedBatch.last().hasOrderReq() shouldBe true
                 timedOut shouldBe true
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
         }
     })

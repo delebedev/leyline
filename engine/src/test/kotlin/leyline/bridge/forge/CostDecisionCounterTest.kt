@@ -105,17 +105,20 @@ class CostDecisionCounterTest :
             val fx = fixture()
             addCounters(fx)
             val observed = AtomicReference<PromptRequest>()
-            fx.bridge.promptBridge(SeatId(1)).compatibilityCostSelectionRuntime =
-                object : CompatibilityCostSelectionRuntime {
-                    override fun awaitSelection(
-                        request: PromptRequest,
-                        candidateHandles: List<forge.game.card.Card>,
-                        timeoutMs: Long?,
-                    ): CompatibilityCostSelectionResult {
-                        observed.set(request)
-                        return CompatibilityCostSelectionResult(listOf(1), listOf(candidateHandles[1]))
-                    }
-                }
+            fx.bridge.promptBridge(SeatId(1)).runtimeBindings =
+                leyline.bridge.handoff.PromptRuntimeBindings(
+                    compatibilityCostSelection =
+                        object : CompatibilityCostSelectionRuntime {
+                            override fun awaitSelection(
+                                request: PromptRequest,
+                                candidateHandles: List<forge.game.card.Card>,
+                                timeoutMs: Long?,
+                            ): CompatibilityCostSelectionResult {
+                                observed.set(request)
+                                return CompatibilityCostSelectionResult(listOf(1), listOf(candidateHandles[1]))
+                            }
+                        },
+                )
             val result =
                 fx.decision.visit(
                     CostRemoveAnyCounter("1", CounterEnumType.P1P1, "Creature", "creature", false),

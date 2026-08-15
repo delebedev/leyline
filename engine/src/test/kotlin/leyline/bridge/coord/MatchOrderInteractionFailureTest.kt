@@ -97,7 +97,7 @@ class MatchOrderInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board, Int.MAX_VALUE), options(board), null, 3_000)
+                    coordinator.order.awaitOrder(request(board, Int.MAX_VALUE), options(board), null, 3_000)
                 }
             assertSoftly {
                 terminal.orderDiagnostic
@@ -107,7 +107,9 @@ class MatchOrderInteractionFailureTest :
                 terminal.pendingOrderCut.shouldBeNull()
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 board.bridge.projectionStateSnapshot() shouldBe prior
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -122,7 +124,7 @@ class MatchOrderInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, 3_000)
+                    coordinator.order.awaitOrder(request(board), options(board), null, 3_000)
                 }
             assertSoftly {
                 terminal.cause?.message shouldBe "order feed unavailable"
@@ -146,7 +148,7 @@ class MatchOrderInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, 3_000)
+                    coordinator.order.awaitOrder(request(board), options(board), null, 3_000)
                 }
             assertSoftly {
                 terminal.pendingOrderCut.shouldNotBeNull()
@@ -165,14 +167,16 @@ class MatchOrderInteractionFailureTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, 3_000)
+                    coordinator.order.awaitOrder(request(board), options(board), null, 3_000)
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
                 terminal.pendingOrderCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasOrderReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.order.afterInstall = null
         }
@@ -190,7 +194,7 @@ class MatchOrderInteractionFailureTest :
             val result = AtomicReference<OrderInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, 25))
+                result.set(coordinator.order.awaitOrder(request(board), options(board), null, 25))
                 finished.countDown()
             }.start()
             val published = awaitPublished(coordinator)
@@ -220,7 +224,7 @@ class MatchOrderInteractionFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, 25) }
+                runCatching { coordinator.order.awaitOrder(request(board), options(board), null, 25) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -238,7 +242,9 @@ class MatchOrderInteractionFailureTest :
             assertSoftly {
                 failure.get().shouldBeInstanceOf<OrderInteractionTimeoutException>()
                 coordinator.order.submit(published.interactionId, published.gameStateId, orderedIds) shouldBe false
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
@@ -253,7 +259,7 @@ class MatchOrderInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, null) }
+                runCatching { coordinator.order.awaitOrder(request(board), options(board), null, null) }
                     .onFailure(engineFailure::set)
                 finished.countDown()
             }.start()
@@ -301,7 +307,9 @@ class MatchOrderInteractionFailureTest :
                 terminal.cause shouldBe cause
                 terminal.pendingOrderCut.shouldNotBeNull().messages shouldBe attempted.get()
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
         }
 
@@ -312,7 +320,7 @@ class MatchOrderInteractionFailureTest :
             val engineFailure = AtomicReference<Throwable>()
             val engineFinished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, null) }
+                runCatching { coordinator.order.awaitOrder(request(board), options(board), null, null) }
                     .onFailure(engineFailure::set)
                 engineFinished.countDown()
             }.start()
@@ -353,7 +361,9 @@ class MatchOrderInteractionFailureTest :
                 terminal.pendingOrderCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.order.afterDeliveryCutLookup = null
         }
@@ -365,7 +375,7 @@ class MatchOrderInteractionFailureTest :
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
-                runCatching { coordinator.orderRuntime(SeatId(1)).awaitOrder(request(board), options(board), null, null) }
+                runCatching { coordinator.order.awaitOrder(request(board), options(board), null, null) }
                     .onFailure(failure::set)
                 finished.countDown()
             }.start()
@@ -376,7 +386,9 @@ class MatchOrderInteractionFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.order.current().shouldBeNull()
+                coordinator.order
+                    .current()
+                    .shouldBeNull()
             }
         }
     })

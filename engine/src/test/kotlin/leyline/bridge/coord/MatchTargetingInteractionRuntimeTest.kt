@@ -82,7 +82,7 @@ class MatchTargetingInteractionRuntimeTest :
                 try {
                     result.set(
                         coordinator
-                            .targetingRuntime(SeatId(1))
+                            .targeting
                             .awaitTargeting(request(board.ai.id), null, null, timeoutMs = 3_000),
                     )
                 } catch (ex: Throwable) {
@@ -122,14 +122,20 @@ class MatchTargetingInteractionRuntimeTest :
             }
             coordinator.targeting.acknowledgeDelivery(tap.interactionId, checkNotNull(tap.deliveryToken)) shouldBe true
 
-            val latest = coordinator.targeting.current().shouldNotBeNull()
+            val latest =
+                coordinator.targeting
+                    .current()
+                    .shouldNotBeNull()
             val completedDeliveryReleased = CountDownLatch(1)
             val allowForgeReturn = CountDownLatch(1)
             coordinator.targeting.afterCompletedDeliveryRelease = {
                 completedDeliveryReleased.countDown()
                 check(allowForgeReturn.await(3, TimeUnit.SECONDS))
             }
-            val done = coordinator.targeting.submitTargets(latest.interactionId, latest.gameStateId).shouldNotBeNull()
+            val done =
+                coordinator.targeting
+                    .submitTargets(latest.interactionId, latest.gameStateId)
+                    .shouldNotBeNull()
             coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
             val acknowledged = AtomicReference<Boolean>()
             val acknowledgementReturned = CountDownLatch(1)
@@ -144,8 +150,12 @@ class MatchTargetingInteractionRuntimeTest :
                     completedDeliveryReleased.await(3, TimeUnit.SECONDS) shouldBe true
                     acknowledgementReturned.await(3, TimeUnit.SECONDS) shouldBe true
                     acknowledged.get() shouldBe true
-                    coordinator.targeting.current().shouldBeNull()
-                    coordinator.targeting.cancel(latest.interactionId, latest.gameStateId).shouldBeNull()
+                    coordinator.targeting
+                        .current()
+                        .shouldBeNull()
+                    coordinator.targeting
+                        .cancel(latest.interactionId, latest.gameStateId)
+                        .shouldBeNull()
                     finished.count shouldBe 1
                 }
             } finally {
@@ -155,7 +165,9 @@ class MatchTargetingInteractionRuntimeTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeNull()
                 result.get() shouldContainExactly listOf(0)
-                coordinator.targeting.current().shouldBeNull()
+                coordinator.targeting
+                    .current()
+                    .shouldBeNull()
             }
             coordinator.targeting.afterCompletedDeliveryRelease = null
         }
@@ -177,7 +189,7 @@ class MatchTargetingInteractionRuntimeTest :
             Thread {
                 result.set(
                     coordinator
-                        .targetingRuntime(SeatId(1))
+                        .targeting
                         .awaitTargeting(request(board.ai.id), null, null, timeoutMs = 25),
                 )
                 finished.countDown()
@@ -217,7 +229,7 @@ class MatchTargetingInteractionRuntimeTest :
                 Thread {
                     result.set(
                         coordinator
-                            .targetingRuntime(SeatId(1))
+                            .targeting
                             .awaitTargeting(
                                 request(board.ai.id, minTargets = minTargets, finishOptionIndex = 2),
                                 null,
@@ -233,7 +245,10 @@ class MatchTargetingInteractionRuntimeTest :
             val (finishResult, finishFinished) = runChoice(minTargets = 1)
             val finishWindow = awaitPublished(coordinator)
             coordinator.drain(SeatId(1)).flatten().single { it.hasSelectTargetsReq() }
-            val finish = coordinator.targeting.submitTargets(finishWindow.interactionId, finishWindow.gameStateId).shouldNotBeNull()
+            val finish =
+                coordinator.targeting
+                    .submitTargets(finishWindow.interactionId, finishWindow.gameStateId)
+                    .shouldNotBeNull()
             coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
             assertSoftly {
                 coordinator.targeting.acknowledgeDelivery(finish.interactionId, checkNotNull(finish.deliveryToken)) shouldBe true
@@ -245,7 +260,9 @@ class MatchTargetingInteractionRuntimeTest :
             val cancelWindow = awaitPublished(coordinator)
             coordinator.drain(SeatId(1)).flatten().single { it.hasSelectTargetsReq() }
             assertSoftly {
-                coordinator.targeting.cancel(cancelWindow.interactionId, cancelWindow.gameStateId).shouldNotBeNull()
+                coordinator.targeting
+                    .cancel(cancelWindow.interactionId, cancelWindow.gameStateId)
+                    .shouldNotBeNull()
                 cancelFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 cancelResult.get() shouldBe emptyList()
             }
@@ -259,7 +276,7 @@ class MatchTargetingInteractionRuntimeTest :
             val finished = CountDownLatch(1)
             val bridge =
                 InteractivePromptBridge(timeoutMs = 25).also {
-                    it.targetingRuntime = coordinator.targetingRuntime(SeatId(1))
+                    it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
                 }
             Thread {
                 result.set(bridge.requestChoice(request(board.ai.id)))
@@ -272,7 +289,9 @@ class MatchTargetingInteractionRuntimeTest :
 
             assertSoftly {
                 result.get() shouldContainExactly listOf(0)
-                coordinator.targeting.current().shouldBeNull()
+                coordinator.targeting
+                    .current()
+                    .shouldBeNull()
                 coordinator.failure().shouldBeNull()
                 coordinator.targeting
                     .submitToggle(
@@ -295,7 +314,7 @@ class MatchTargetingInteractionRuntimeTest :
             Thread {
                 try {
                     coordinator
-                        .targetingRuntime(SeatId(1))
+                        .targeting
                         .awaitTargeting(request(board.ai.id), null, null, timeoutMs = 3_000)
                 } catch (ex: Throwable) {
                     failure.set(ex)
@@ -309,7 +328,9 @@ class MatchTargetingInteractionRuntimeTest :
             assertSoftly {
                 terminal.cause?.message shouldBe "targeting install unavailable"
                 coordinator.failure() shouldBe terminal
-                coordinator.targeting.current().shouldBeNull()
+                coordinator.targeting
+                    .current()
+                    .shouldBeNull()
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 board.bridge.projectionStateSnapshot() shouldBe prior
             }
@@ -325,7 +346,7 @@ class MatchTargetingInteractionRuntimeTest :
             Thread {
                 result.set(
                     coordinator
-                        .targetingRuntime(SeatId(1))
+                        .targeting
                         .awaitTargeting(request(board.ai.id, triggered = true), null, null, timeoutMs = 3_000),
                 )
                 finished.countDown()
@@ -353,11 +374,16 @@ class MatchTargetingInteractionRuntimeTest :
             val completion = coordinator.drain(SeatId(1)).flatten()
             assertSoftly {
                 completion.count { it.hasSubmitTargetsResp() } shouldBe 1
-                coordinator.targeting.acknowledgeDelivery(selected.interactionId, checkNotNull(selected.deliveryToken)) shouldBe true
+                coordinator.targeting.acknowledgeDelivery(selected.interactionId, checkNotNull(selected.deliveryToken)) shouldBe
+                    true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
-                coordinator.targeting.submitTargets(null, published.gameStateId).shouldNotBeNull()
-                coordinator.targeting.submitTargets(null, published.gameStateId).shouldBeNull()
+                coordinator.targeting
+                    .submitTargets(null, published.gameStateId)
+                    .shouldNotBeNull()
+                coordinator.targeting
+                    .submitTargets(null, published.gameStateId)
+                    .shouldBeNull()
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
             }
         }
@@ -371,7 +397,7 @@ class MatchTargetingInteractionRuntimeTest :
             Thread {
                 try {
                     coordinator
-                        .targetingRuntime(SeatId(1))
+                        .targeting
                         .awaitTargeting(request(board.ai.id), null, null, timeoutMs = null)
                 } catch (ex: Throwable) {
                     failure.set(ex)
@@ -388,7 +414,9 @@ class MatchTargetingInteractionRuntimeTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe teardownCause
-                coordinator.targeting.current().shouldBeNull()
+                coordinator.targeting
+                    .current()
+                    .shouldBeNull()
             }
             shouldThrow<PlaybackTerminalFailure> {
                 coordinator.targeting.submitToggle(

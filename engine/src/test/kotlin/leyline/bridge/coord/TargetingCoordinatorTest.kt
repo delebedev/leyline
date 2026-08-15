@@ -352,16 +352,19 @@ private val testSeating = Seating(humanSeat = SeatId(1), familiarSeat = SeatId(2
 
 private fun testPromptBridge(cardSelectRuntime: CardSelectInteractionRuntime? = null): InteractivePromptBridge =
     InteractivePromptBridge(timeoutMs = 1, strict = false).also { bridge ->
-        bridge.cardSelectRuntime = cardSelectRuntime
-        bridge.orderRuntime =
-            object : OrderInteractionRuntime {
-                override fun awaitOrder(
-                    request: PromptRequest,
-                    candidateHandles: List<Card>,
-                    move: OrderMoveIntent?,
-                    timeoutMs: Long?,
-                ): OrderInteractionResult = OrderInteractionResult(candidateHandles.indices.toList(), candidateHandles)
-            }
+        bridge.runtimeBindings =
+            leyline.bridge.handoff.PromptRuntimeBindings(
+                cardSelect = cardSelectRuntime,
+                order =
+                    object : OrderInteractionRuntime {
+                        override fun awaitOrder(
+                            request: PromptRequest,
+                            candidateHandles: List<Card>,
+                            move: OrderMoveIntent?,
+                            timeoutMs: Long?,
+                        ): OrderInteractionResult = OrderInteractionResult(candidateHandles.indices.toList(), candidateHandles)
+                    },
+            )
     }
 
 private fun orderCards(): CardCollection =

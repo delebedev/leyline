@@ -6,7 +6,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.coord.revealChoiceRuntime
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -73,7 +72,7 @@ class RevealChoiceInteractionHandlerTest :
             val result = AtomicReference<RevealChoiceInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.revealChoiceRuntime(SeatId(1)).awaitSelection(request, handles, entry, false, 3_000))
+                result.set(coordinator.revealChoices.awaitSelection(request, handles, entry, false, 3_000))
                 finished.countDown()
             }.start()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
@@ -102,7 +101,9 @@ class RevealChoiceInteractionHandlerTest :
                 result.get().optionIndices shouldBe listOf(1)
                 (result.get().handles.single() === handles[1]) shouldBe true
                 autoPassed shouldBe true
-                coordinator.revealChoices.current().shouldBeNull()
+                coordinator.revealChoices
+                    .current()
+                    .shouldBeNull()
             }
         }
     })

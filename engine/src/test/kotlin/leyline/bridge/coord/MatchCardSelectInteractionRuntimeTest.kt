@@ -281,7 +281,7 @@ class MatchCardSelectInteractionRuntimeTest :
                 val finished = CountDownLatch(1)
                 Thread {
                     result.set(
-                        coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(
+                        coordinator.cardSelect.awaitSelection(
                             request(
                                 board,
                                 case.semantic,
@@ -392,7 +392,9 @@ class MatchCardSelectInteractionRuntimeTest :
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get().optionIndices shouldContainExactly listOf(1)
                     (result.get().handles.single() === handles[1]) shouldBe true
-                    coordinator.cardSelect.current().shouldBeNull()
+                    coordinator.cardSelect
+                        .current()
+                        .shouldBeNull()
                 }
             }
         }
@@ -405,7 +407,7 @@ class MatchCardSelectInteractionRuntimeTest :
                 val handles = options(board)
                 val finished = CountDownLatch(1)
                 Thread {
-                    coordinator.cardSelectRuntime(SeatId(1)).awaitSelection(request(board, semantic), handles, 3_000)
+                    coordinator.cardSelect.awaitSelection(request(board, semantic), handles, 3_000)
                     finished.countDown()
                 }.start()
                 val published = awaitPublished(coordinator)
