@@ -4,6 +4,7 @@ import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 
 /** Value-only session adapter for coordinator-owned iterative and one-shot PayCosts windows. */
 internal class ManaSourcePaymentHandler(
@@ -81,6 +82,7 @@ internal class ManaSourcePaymentHandler(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ): Boolean {
+        if (greMsg.effectCostResp.effectCostType != EffectCostType.Select_a59c) return false
         val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
         val pending = runtime.current() ?: return false
         val accepted =
@@ -92,6 +94,29 @@ internal class ManaSourcePaymentHandler(
         if (!accepted) {
             log.warn("One-shot PayCosts response did not match the current interaction")
             DevCheck.failOnAutoPass { "One-shot PayCosts response did not match the current interaction" }
+            return true
+        }
+        ctx.bridge.awaitPriority()
+        autoPass()
+        return true
+    }
+
+    fun tryHandleGatherCounters(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ): Boolean {
+        if (greMsg.effectCostResp.effectCostType != EffectCostType.GatherCounters) return false
+        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
+        val pending = runtime.current() ?: return false
+        if (pending.windowKind != leyline.bridge.handoff.OneShotPayCostsWindowKind.GatherCounters) return false
+        val selections =
+            greMsg.effectCostResp.gatherResp.gatheringsList.map {
+                leyline.bridge.handoff.GatherCountersSelection(it.instanceId, it.amount)
+            }
+        val accepted = runtime.submitGatherCounters(pending.interactionId, greMsg.gameStateId, selections)
+        if (!accepted) {
+            log.warn("GatherCounters response did not match the current interaction")
+            DevCheck.failOnAutoPass { "GatherCounters response did not match the current interaction" }
             return true
         }
         ctx.bridge.awaitPriority()

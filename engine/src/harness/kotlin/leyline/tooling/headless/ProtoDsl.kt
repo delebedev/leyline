@@ -392,9 +392,26 @@ fun effectCostResp(selectedInstanceIds: List<Int>): ClientToGREMessage =
         setEffectCostResp(
             EffectCostResp
                 .newBuilder()
+                .setEffectCostType(EffectCostType.Select_a59c)
                 .setCostSelection(
                     SelectNResp.newBuilder().apply {
                         selectedInstanceIds.forEach { addIds(it) }
+                    },
+                ),
+        )
+    }
+
+fun gatherCountersResp(gatherings: List<Pair<Int, Int>>): ClientToGREMessage =
+    clientMessage(ClientMessageType.EffectCostResp_097b) {
+        setEffectCostResp(
+            EffectCostResp
+                .newBuilder()
+                .setEffectCostType(EffectCostType.GatherCounters)
+                .setGatherResp(
+                    GatherResp.newBuilder().apply {
+                        gatherings.forEach { (instanceId, amount) ->
+                            addGatherings(Gathering.newBuilder().setInstanceId(instanceId).setAmount(amount))
+                        }
                     },
                 ),
         )

@@ -122,6 +122,9 @@ object PromptIds {
     /** Collect Evidence cost picker — "Exile any number of cards with total mana value N or greater." */
     const val COLLECT_EVIDENCE_COST = 12727
 
+    /** Gather two +1/+1 counters from controlled creatures. */
+    const val GATHER_COUNTERS = 2479
+
     /** Enlist attack cost — "Tap a creature for {CardId} to enlist." */
     const val ENLIST_TAP_COST = 11225
 

@@ -97,6 +97,8 @@ fun optionalCostResp(ctoId: Int): ClientToGREMessage = leyline.tooling.headless.
 
 fun effectCostResp(selectedInstanceIds: List<Int>): ClientToGREMessage = leyline.tooling.headless.effectCostResp(selectedInstanceIds)
 
+fun gatherCountersResp(gatherings: List<Pair<Int, Int>>): ClientToGREMessage = leyline.tooling.headless.gatherCountersResp(gatherings)
+
 fun optionalActionResp(accept: Boolean): ClientToGREMessage = leyline.tooling.headless.optionalActionResp(accept)
 
 fun settingsMessage(block: SettingsMessage.Builder.() -> Unit): SettingsMessage = leyline.tooling.headless.settingsMessage(block)

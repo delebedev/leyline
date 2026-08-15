@@ -184,7 +184,7 @@ internal data class ManaSourcePaymentMaterializationDiagnostic(
 internal data class PendingOneShotPayCostsCut(
     val interactionId: String,
     val gameStateId: Int,
-    val interaction: leyline.bridge.handoff.OneShotPayCostsWindowValue,
+    val interaction: leyline.bridge.handoff.OneShotPayCostsWindow,
     val messages: List<GREToClientMessage>,
     val transition: ProjectionTransition,
 )
@@ -192,7 +192,7 @@ internal data class PendingOneShotPayCostsCut(
 /** Frozen one-shot PayCosts input retained when materialization itself fails. */
 internal data class OneShotPayCostsMaterializationDiagnostic(
     val interactionId: String,
-    val interaction: leyline.bridge.handoff.OneShotPayCostsWindowValue,
+    val interaction: leyline.bridge.handoff.OneShotPayCostsWindow,
 )
 
 internal data class PromptTerminalFailureContext(

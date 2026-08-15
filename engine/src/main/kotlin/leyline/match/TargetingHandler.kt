@@ -192,6 +192,7 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) {
         if (manaSourcePaymentHandler.tryHandleEffectCost(greMsg, autoPass)) return
+        if (manaSourcePaymentHandler.tryHandleGatherCounters(greMsg, autoPass)) return
         if (manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg, autoPass)) return
         if (cardSelectInteractionHandler.tryHandleEffectCost(greMsg, autoPass)) return
         promptResponseSubmitter.onEffectCost(greMsg, autoPass)
