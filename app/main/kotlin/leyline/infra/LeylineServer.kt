@@ -272,7 +272,7 @@ class LeylineServer(
                 debugSink = debugSink,
                 puzzlePath = { runtimePuzzle.get() },
                 runtimeMatchConfigs = runtimeMatchConfigs,
-                aiDeckOverride = { aiDeckOverride.getAndSet(null) },
+                aiDeckNameOverride = { aiDeckOverride.getAndSet(null) },
             )
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
         return ch

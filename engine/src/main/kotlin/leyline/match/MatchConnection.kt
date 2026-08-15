@@ -49,6 +49,8 @@ class MatchConnection(
     private val puzzlePath: () -> String? = { null },
     /** MatchId-keyed runtime config for web/native clients. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
+    /** One-shot opponent deck name consumed only while creating a new match. */
+    private val aiDeckNameOverride: () -> String? = { null },
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
 
@@ -568,10 +570,11 @@ class MatchConnection(
     private fun resolveSeatDecks(): SeatDecks {
         val randomDecks = spectatorRandomDecksIfEnabled()
         val runtimeMatchConfig = resolveRuntimeMatchConfig()
+        val opponentDeckName = aiDeckNameOverride()
         val seat1Deck = resolveSeat1Deck(randomDecks, runtimeMatchConfig)
         return SeatDecks(
             seat1 = seat1Deck,
-            seat2 = resolveSeat2Deck(randomDecks, runtimeMatchConfig, seat1Deck),
+            seat2 = resolveSeat2Deck(randomDecks, runtimeMatchConfig, opponentDeckName, seat1Deck),
         )
     }
 
@@ -621,6 +624,7 @@ class MatchConnection(
     private fun resolveSeat2Deck(
         randomDecks: Pair<String, String>?,
         runtimeMatchConfig: RuntimeMatchConfig?,
+        opponentDeckName: String?,
         seat1Deck: String,
     ): String {
         randomDecks?.second?.let {
@@ -630,6 +634,14 @@ class MatchConnection(
         runtimeMatchConfig?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
             log.info("Match Door: seat 2 deck from runtime override")
             return it
+        }
+        opponentDeckName?.takeIf { it.isNotBlank() }?.let { name ->
+            val cardsJson = coordinator?.resolveDeckJsonByName(name)
+            if (cardsJson != null) {
+                log.info("Match Door: seat 2 deck from one-shot override name={}", name)
+                return convertArenaCardsToDeckText(cardsJson)
+            }
+            log.warn("Match Door: one-shot AI deck '{}' not in DB, falling back", name)
         }
         val event = coordinator?.selectedEventName
         if (event != null) {

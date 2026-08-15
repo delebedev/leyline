@@ -9,11 +9,13 @@ import io.kotest.matchers.shouldNotBe
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.ServerConfig
+import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
@@ -29,6 +31,8 @@ import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class MatchDoorMulliganFlowTest :
     FunSpec({
@@ -156,6 +160,75 @@ class MatchDoorMulliganFlowTest :
             greOutbound(local)
             greOutbound(familiar)
             return local to familiar
+        }
+
+        test("one-shot AI deck override is consumed once per shared match") {
+            val registry = MatchRegistry()
+            val configs = RuntimeMatchConfigRegistry()
+            val override = AtomicReference<String?>("Green test")
+            val overrideReads = AtomicInteger()
+            val forestGrpId = TestCardRegistry.repo.findGrpIdByName("Forest")!!
+            val mountainGrpId = TestCardRegistry.repo.findGrpIdByName("Mountain")!!
+            val coordinator =
+                object : MatchCoordinator by MatchCoordinator.NOOP {
+                    override fun resolveDeckJsonByName(name: String): String? =
+                        if (name == "Green test") {
+                            """{"MainDeck":[{"cardId":$forestGrpId,"quantity":60}]}"""
+                        } else {
+                            null
+                        }
+                }
+
+            fun testHandler() =
+                MatchHandler(
+                    registry = registry,
+                    matchConfig = matchConfig(),
+                    coordinator = coordinator,
+                    cardRepository = TestCardRegistry.repo,
+                    runtimeMatchConfigs = configs,
+                    aiDeckNameOverride = {
+                        overrideReads.incrementAndGet()
+                        override.getAndSet(null)
+                    },
+                )
+
+            fun connectWithSeatOneDeck(matchId: String): Pair<EmbeddedChannel, EmbeddedChannel> {
+                configs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = "60 Mountain"))
+                val local = EmbeddedChannel(testHandler())
+                val familiar = EmbeddedChannel(testHandler())
+                local.writeInbound(auth("local-player", 1))
+                familiar.writeInbound(auth("local-player_Familiar", 2))
+                greOutbound(local)
+                greOutbound(familiar)
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
+                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
+                greOutbound(local)
+                greOutbound(familiar)
+                return local to familiar
+            }
+
+            val first = connectWithSeatOneDeck("ai-override-first")
+            try {
+                assertSoftly {
+                    override.get() shouldBe null
+                    overrideReads.get() shouldBe 1
+                    registry.getBridge("ai-override-first")!!.getDeckGrpIds(SeatId(2)).toSet() shouldBe setOf(forestGrpId)
+                }
+            } finally {
+                first.first.close()
+                first.second.close()
+            }
+
+            val second = connectWithSeatOneDeck("ai-override-second")
+            try {
+                assertSoftly {
+                    overrideReads.get() shouldBe 2
+                    registry.getBridge("ai-override-second")!!.getDeckGrpIds(SeatId(2)).toSet() shouldBe setOf(mountainGrpId)
+                }
+            } finally {
+                second.first.close()
+                second.second.close()
+            }
         }
 
         fun chooseStartingPlayer(
