@@ -166,12 +166,16 @@ Waterbend `PayCostsReq` loops:
 - Convoke and Improvise payment facts are staged by the replacement cut, corrected before engine progression, and retained until stack-exit consumption.
 
 `MatchOneShotPayCostsRuntime` owns Sacrifice, exile-from-grave, return-unblocked-attacker,
-Collect Evidence, Station, Enlist, and grounded tap payments. The tap-payment table
+Collect Evidence, Station, Enlist, grounded tap payments, and the bounded Hopeful
+Initiate `GatherCounters` row. The tap-payment table
 covers Crew, Saddle, and Teamwork total-power thresholds plus exact tap-two,
 tap-three, and untap-two costs. It freezes exact option handles, weights, and typed
 stack source values on the engine thread, commits one state-and-request cut before
-signalling, and accepts only correlated immutable instance-id selections. The thin
-PayCosts session adapter does not retain live cards or mutable payment maps.
+signalling, and accepts only correlated immutable instance-id selections. GatherCounters
+freezes the exact activated stack ability, per-source removable capacity, and original
+card handles, then validates positive unique source amounts and the exact required total
+before returning them. The thin PayCosts session adapter does not retain live cards or
+mutable payment maps; unsupported counter shapes remain residual.
 
 ## Non-Goals
 

@@ -139,7 +139,7 @@ internal class OneShotPayCostsWindowCapture(
             "Tap payment requires a route descriptor"
         }
 
-    private fun freezePromptSource(
+    internal fun freezePromptSource(
         input: PayCostsPromptSourceInput?,
         fallbackCardId: ForgeCardId?,
     ): PayCostsPromptSourceValue? =

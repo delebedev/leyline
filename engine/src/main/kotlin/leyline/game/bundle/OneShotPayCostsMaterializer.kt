@@ -14,12 +14,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 internal class OneShotPayCostsMaterializer(
     private val seatId: Int,
 ) {
-    data class Prepared(
-        val bundle: BundleBuilder.BundleResult,
-        val transition: ProjectionTransition,
-        val closesPlaybackFrame: Boolean,
-    )
-
     fun prepare(
         gameState: GameStateMessage,
         gameStateId: Int,
@@ -27,7 +21,7 @@ internal class OneShotPayCostsMaterializer(
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: OneShotPayCostsWindowValue,
-    ): Prepared {
+    ): PreparedPayCostsCut {
         val messages =
             listOf(
                 makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
@@ -40,7 +34,7 @@ internal class OneShotPayCostsMaterializer(
                     it.allowUndo = true
                 },
             )
-        return Prepared(
+        return PreparedPayCostsCut(
             BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId),
             transition,
             closesPlaybackFrame = true,

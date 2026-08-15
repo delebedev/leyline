@@ -960,6 +960,11 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    fun respondToGatherCounters(gatherings: List<Pair<Int, Int>>) {
+        session.onEffectCost(submitWithGsId(gatherCountersResp(gatherings)))
+        drainSink()
+    }
+
     // --- Modal helpers ---
 
     /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */

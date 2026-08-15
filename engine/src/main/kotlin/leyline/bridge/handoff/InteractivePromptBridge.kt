@@ -119,7 +119,7 @@ class InteractivePromptBridge(
     @Volatile
     var manaSourcePaymentRuntime: ManaSourcePaymentRuntime? = null
 
-    /** Match-scoped owner for the seven non-iterative PayCosts routes. */
+    /** Match-scoped owner for Select and the bounded GatherCounters PayCosts routes. */
     @Volatile
     var oneShotPayCostsRuntime: OneShotPayCostsRuntime? = null
 
@@ -489,6 +489,27 @@ class InteractivePromptBridge(
             fallback
         } catch (ex: Exception) {
             record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
+    /** Route the grounded GatherCounters payment through its match-scoped window and exact handles. */
+    fun requestGatherCounters(
+        window: GatherCountersWindowInput,
+        candidateHandles: List<Card>,
+    ): GatherCountersResult {
+        val runtime = oneShotPayCostsRuntime
+        if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            return window.firstFitResult(candidateHandles)
+        }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitGatherCounters(window, candidateHandles, timeoutMs)
+            if (result.timedOut) timeoutListener?.invoke() else prioritySignal?.markPromptResolved()
+            log.debug("GatherCounters payment resolved in {}ms", System.currentTimeMillis() - startMs)
+            result
+        } catch (ex: Exception) {
+            log.warn("GatherCounters payment failed after {}ms", System.currentTimeMillis() - startMs, ex)
             throw ex
         }
     }

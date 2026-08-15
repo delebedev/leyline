@@ -144,9 +144,18 @@ Convoke, Improvise, and Waterbend similarly freeze candidate, shard, source, and
 mana-cost facts. Their initial and replacement PayCosts cuts commit before
 signal or delivery acknowledgement; Pass and Cancel resolve only original
 option indices through the bounded handle table.
-The seven non-iterative PayCosts routes freeze source, cardinality, weights, and
-exact option handles. Their single state-and-request cut commits before signal,
-and the correlated immutable response returns those original handles.
+The seven Select PayCosts routes freeze source, cardinality, weights, and exact
+option handles. Their single state-and-request cut commits before signal, and
+the correlated immutable response returns those original handles. The grounded
+Hopeful Initiate `GatherCounters` row is a sibling one-shot window: it freezes
+the activated stack ability identity, controlled-creature counter capacities,
+and exact card handles, then commits its `GatherCounters` request before signal.
+Its response validates unique positive source amounts against those capacities
+and the exact total before returning the original handles. Timeout and
+non-interactive execution use bounded source-order first-fit only when the
+frozen capacities satisfy the total; cancel and insufficient capacity fail
+without counter removal. Unsupported counter costs remain the residual Forge
+chooser.
 Timeout and disconnect handling use the same two mechanisms; they do not run
 session logic concurrently.
 

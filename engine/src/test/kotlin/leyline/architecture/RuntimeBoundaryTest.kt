@@ -361,7 +361,7 @@ class RuntimeBoundaryTest :
         test("one-shot PayCosts windows are coordinator-owned and session responses stay value-only") {
             noClasses()
                 .that()
-                .haveNameMatching("leyline\\.game\\.bundle\\.OneShotPayCostsMaterializer(\\$.*)?")
+                .haveNameMatching("leyline\\.game\\.bundle\\.(OneShotPayCostsMaterializer|GatherCountersWindowMaterializer)(\\$.*)?")
                 .should()
                 .dependOnClassesThat()
                 .resideInAnyPackage("forge..")

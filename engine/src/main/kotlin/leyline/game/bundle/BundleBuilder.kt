@@ -99,6 +99,7 @@ class BundleBuilder(
     private val groupingWindows = GroupingWindowMaterializer(seatId)
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
     private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
+    private val gatherCounters = GatherCountersWindowMaterializer(seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -1579,7 +1580,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         window: leyline.bridge.handoff.OneShotPayCostsWindowValue,
-    ): OneShotPayCostsMaterializer.Prepared {
+    ): PreparedPayCostsCut {
         val input =
             frameInput(
                 game,
@@ -1607,6 +1608,43 @@ class BundleBuilder(
             }
         val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
         return oneShotPayCosts.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
+    /** Prepare, but do not install, the bounded GatherCounters payment window. */
+    internal fun prepareGatherCounters(
+        game: Game,
+        counter: MessageCounter,
+        window: leyline.bridge.handoff.GatherCountersWindowValue,
+    ): PreparedPayCostsCut {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { _, _ -> GameStateUpdate.Send }
+        val source = window.promptSource
+        val supplements =
+            listOf(
+                ProjectionSupplement.PreStackAbility(
+                    forgeAbilityId = source.forgeAbilityId,
+                    sourceForgeCardId = source.sourceForgeCardId,
+                    abilityGrpId = source.abilityGrpId,
+                    sourceCardGrpId = source.sourceCardGrpId,
+                    ownerSeatId = SeatId(source.ownerSeatId),
+                    controllerSeatId = SeatId(source.controllerSeatId),
+                    targetForgeCardIds = source.targetForgeCardIds,
+                ),
+            )
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
+        return gatherCounters.prepare(
             gameState = diff.result.gsm,
             gameStateId = diff.gameStateId,
             counter = counter,
