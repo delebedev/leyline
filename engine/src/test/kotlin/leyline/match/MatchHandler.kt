@@ -20,6 +20,7 @@ class MatchHandler(
     private val recorderFactory: (() -> MatchRecorder)? = null,
     private val puzzlePath: () -> String? = { null },
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
+    private val aiDeckNameOverride: () -> String? = { null },
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     lateinit var connection: MatchConnection
         private set
@@ -45,6 +46,7 @@ class MatchHandler(
                 recorderFactory = recorderFactory,
                 puzzlePath = puzzlePath,
                 runtimeMatchConfigs = runtimeMatchConfigs,
+                aiDeckNameOverride = aiDeckNameOverride,
             )
     }
 
