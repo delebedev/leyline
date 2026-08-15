@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -13,8 +14,11 @@ import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardProtoBuilder
 import leyline.game.event.FrameEventLog
+import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.StackEntry
+import leyline.game.snapshot.StackSnapshot
 import leyline.game.snapshot.ZoneSnapshot
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.EffectProjectionFacts
@@ -191,6 +195,55 @@ class StateProjectionCompilerTest :
                 prior shouldBe ProjectionState.initial()
             }
         }
+
+        test("admitted activation aliases its exact root while an older sibling stays untouched") {
+            val sourceId = ForgeCardId(10)
+            val olderAbilityId = 30
+            val newRootAbilityId = 14
+            val newAdmittedAbilityId = 40
+            val older = stackAbility(sourceId, olderAbilityId)
+            val newRoot = stackAbility(sourceId, newRootAbilityId)
+            val newAdmitted = stackAbility(sourceId, newAdmittedAbilityId)
+            val previous = stackAbilitySnapshot(1, sourceId, listOf(older, newRoot))
+            val current = stackAbilitySnapshot(2, sourceId, listOf(older, newAdmitted))
+            val priorEditor = ProjectionState.initial().editor()
+            val olderIid =
+                priorEditor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(olderAbilityId))
+            val newRootIid =
+                priorEditor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(newRootAbilityId))
+            val prior = priorEditor.freeze()
+            val input =
+                compilerInput(
+                    snapshot = current,
+                    previousSnapshot = previous,
+                    events =
+                        FrameEventLog(
+                            listOf(
+                                GameEvent.SpellCast(
+                                    cardId = sourceId,
+                                    seatId = SeatId(1),
+                                    isAbility = true,
+                                    abilityForgeId = newAdmittedAbilityId,
+                                    abilityGrpId = newAdmitted.grpId,
+                                    rootAbilityForgeId = newRootAbilityId,
+                                    stackAbilityForgeId = newAdmittedAbilityId,
+                                ),
+                            ),
+                        ),
+                )
+
+            val next = StateProjectionCompiler.compileOneViewer(compilerEnvironment(), input, prior).transition.nextState
+
+            assertSoftly {
+                next.identities.forgeIdToInstanceId.getValue(
+                    FrameIdResolver.triggerStackAbilityForgeId(olderAbilityId),
+                ) shouldBe olderIid
+                next.identities.forgeIdToInstanceId.getValue(
+                    FrameIdResolver.triggerStackAbilityForgeId(newAdmittedAbilityId),
+                ) shouldBe newRootIid
+                olderIid shouldNotBe newRootIid
+            }
+        }
     })
 
 private fun compilerEnvironment(): StateProjectionEnvironment {
@@ -202,12 +255,16 @@ private fun compilerEnvironment(): StateProjectionEnvironment {
     )
 }
 
-private fun compilerInput(snapshot: GsmSnapshot): StateFrameInput =
+private fun compilerInput(
+    snapshot: GsmSnapshot,
+    previousSnapshot: GsmSnapshot? = null,
+    events: FrameEventLog = FrameEventLog.EMPTY,
+): StateFrameInput =
     StateFrameInput(
         gameStateId = snapshot.gameStateId,
         snapshot = snapshot,
-        previousSnapshot = null,
-        events = FrameEventLog.EMPTY,
+        previousSnapshot = previousSnapshot,
+        events = events,
         promptFacts = PromptProjectionFacts(),
         updateType = GameStateUpdate.Send,
         viewingSeatId = 1,
@@ -216,6 +273,40 @@ private fun compilerInput(snapshot: GsmSnapshot): StateFrameInput =
         mechanicSourceFacts = MechanicSourceFacts(),
         abilityExhaustionFacts = AbilityExhaustionFacts(),
         persistentFeedFacts = PersistentFeedFacts(),
+    )
+
+private fun stackAbility(
+    sourceId: ForgeCardId,
+    abilityId: Int,
+) = StackEntry(
+    forgeCardId = sourceId,
+    controller = SeatId(1),
+    owner = SeatId(1),
+    grpId = 9002,
+    sourceCardGrpId = 9001,
+    isSpell = false,
+    isActivatedAbility = true,
+    targets = emptyList(),
+    forgeAbilityId = abilityId,
+)
+
+private fun stackAbilitySnapshot(
+    gameStateId: Int,
+    sourceId: ForgeCardId,
+    entries: List<StackEntry>,
+): GsmSnapshot =
+    GsmSnapshot.forTest(
+        matchId = "compiler",
+        gameStateId = gameStateId,
+        objects = mapOf(sourceId to CardSnapshot(sourceId, "Ability Source", 9001, SeatId(1), SeatId(1))),
+        zones =
+            linkedMapOf(
+                ZoneIds.BATTLEFIELD to
+                    ZoneSnapshot(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, null, Visibility.Public, listOf(sourceId)),
+                ZoneIds.STACK to ZoneSnapshot(ZoneIds.STACK, ZoneType.Stack, null, Visibility.Public, emptyList()),
+                ZoneIds.LIMBO to ZoneSnapshot(ZoneIds.LIMBO, ZoneType.Limbo, null, Visibility.Public, emptyList()),
+            ),
+        stack = StackSnapshot(entries),
     )
 
 private fun orderSnapshot(cardId: ForgeCardId): GsmSnapshot =

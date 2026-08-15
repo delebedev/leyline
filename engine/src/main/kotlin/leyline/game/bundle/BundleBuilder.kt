@@ -1562,7 +1562,25 @@ class BundleBuilder(
                 revealForSeat = null,
                 eventsOverride = null,
             ) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
+        val supplements =
+            when (val source = window.promptSource) {
+                is leyline.bridge.handoff.PayCostsPromptSourceValue.StackAbility ->
+                    listOf(
+                        ProjectionSupplement.PreStackAbility(
+                            forgeAbilityId = source.forgeAbilityId,
+                            sourceForgeCardId = source.sourceForgeCardId,
+                            abilityGrpId = source.abilityGrpId,
+                            sourceCardGrpId = source.sourceCardGrpId,
+                            ownerSeatId = SeatId(source.ownerSeatId),
+                            controllerSeatId = SeatId(source.controllerSeatId),
+                            targetForgeCardIds = source.targetForgeCardIds,
+                        ),
+                    )
+                is leyline.bridge.handoff.PayCostsPromptSourceValue.StackCard,
+                null,
+                -> emptyList()
+            }
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
         return oneShotPayCosts.prepare(
             gameState = diff.result.gsm,
             gameStateId = diff.gameStateId,

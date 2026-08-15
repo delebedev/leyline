@@ -1,9 +1,15 @@
 package leyline.behavior.cards
 
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.TapPaymentDescriptor
+import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
+import leyline.testkit.allGameObjects
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
  * Integration test for vehicle crew mechanic.
@@ -53,6 +59,72 @@ class VehicleCrewPuzzleTest :
 
                 isGameOver().shouldBeTrue()
                 human.hasWon().shouldBeTrue()
+            }
+        }
+
+        test("crew payment binds weighted helpers to the stack ability") {
+            startPuzzleRaw(
+                """
+                [metadata]
+                Name:Crew payment prompt
+                Goal:Crew Brute Suit.
+                Turns:2
+                Difficulty:Easy
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Brute Suit;Wall of Runes;Grizzly Bears
+                humanlibrary=Mountain;Mountain;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+                validating = true,
+            )
+
+            val wall = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Wall of Runes" }
+            wall.addStaticAbility(
+                "Mode\$ TapPowerValue | ValidSA\$ Activated.Crew+Vehicle | " +
+                    "ValidCard\$ Card.Self | Value\$ Toughness",
+            )
+            val wallIid = human.battlefield.iid(wall)
+            val bearsIid = human.battlefield.iid("Grizzly Bears")
+            val paymentSlice = after { activateAbility("Brute Suit").shouldBeTrue() }
+            val payment = paymentSlice.expectOnePayCostsReq()
+            val paymentMessage = paymentSlice.messages.single { it.hasPayCostsReq() }
+            val selection = payment.effectCostReq.costSelection
+            val sourceIid =
+                paymentMessage.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue
+            val sourceObject = paymentSlice.messages.allGameObjects().last { it.instanceId == sourceIid }
+            val weightsById = selection.idsList.zip(selection.weightsList).toMap()
+
+            assertSoftly {
+                paymentMessage.prompt.promptId shouldBe
+                    checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 1)).promptId
+                sourceObject.type shouldBe GameObjectType.Ability
+                selection.minSel shouldBe 1
+                selection.maxSel shouldBe Int.MAX_VALUE
+                selection.idsList shouldContain wallIid
+                selection.idsList shouldContain bearsIid
+                weightsById[wallIid] shouldBe 4
+                weightsById[bearsIid] shouldBe 2
+            }
+
+            respondToEffectCost(listOf(wallIid))
+            passUntilResolved(maxPasses = 4)
+
+            assertSoftly {
+                wall.isTapped.shouldBeTrue()
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Brute Suit" }
+                    .isCreature
+                    .shouldBeTrue()
             }
         }
     })

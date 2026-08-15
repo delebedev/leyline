@@ -579,7 +579,13 @@ object AnnotationPipeline {
             val sourceZone =
                 MechanicSourceProjection.sourceZoneId(cast, ctx.mechanicSourceFacts)
 
-            if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
+            if (
+                abilityIid in snapshotAppearanceIids ||
+                sourceCardIid in snapshotSourceIids ||
+                annotationJournal.ability(abilityIid) != null
+            ) {
+                continue
+            }
             annotationJournal.recordAbility(
                 AbilityWireIdentity(
                     abilityIid = abilityIid,

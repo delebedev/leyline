@@ -46,6 +46,8 @@ data class StackEntry(
      * path skips them. Triggered + activated SAs are `false`.
      */
     val isSpell: Boolean,
+    /** True for an activated ability; false for triggers and spells. */
+    val isActivatedAbility: Boolean = false,
     /** Card targets chosen for this stack item (may be empty). */
     val targets: List<ForgeCardId>,
     /**

@@ -4,8 +4,11 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationFrameFinalizer
+import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.StackEntry
+import leyline.game.snapshot.StackSnapshot
 import leyline.game.snapshot.ZoneSnapshot
 import leyline.game.state.InstanceIdRegistry
 import leyline.game.state.PendingSubmittedTargets
@@ -54,17 +57,27 @@ object StateProjectionCompiler {
         actions: ActionsAvailableReq?,
     ): Result {
         val editor = prior.editor()
-        val draft = StateMapper.buildDraft(input, environment, prior, editor, actions)
+        val stagedInput = stagePreStackAbilities(input, intent.supplements)
+        aliasAdmittedStackAbilities(stagedInput, editor)
+        val draft = StateMapper.buildDraft(stagedInput, environment, prior, editor, actions)
         val privatePromptGsm =
             projectPrivateCardPrompt(
                 draft.gsm,
-                input.snapshot,
+                stagedInput.snapshot,
                 input.viewingSeatId,
                 intent.privateCardPrompt,
                 environment,
                 editor,
             )
-        val orderResult = projectOrder(privatePromptGsm, input.snapshot, input.viewingSeatId, intent.orderPrompt, environment, editor)
+        val orderResult =
+            projectOrder(
+                privatePromptGsm,
+                stagedInput.snapshot,
+                input.viewingSeatId,
+                intent.orderPrompt,
+                environment,
+                editor,
+            )
         val supplementAnnotations = projectSupplements(input, prior, intent.supplements, draft, editor)
         val finalized =
             AnnotationFrameFinalizer.finalize(
@@ -144,6 +157,8 @@ object StateProjectionCompiler {
                 is ProjectionSupplement.ReserveTriggeredAbility ->
                     editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(supplement.forgeAbilityId))
 
+                is ProjectionSupplement.PreStackAbility -> Unit
+
                 is ProjectionSupplement.SubmitPendingTargets -> {
                     check(!submittedTargetsConsumed) { "Only one submitted-target fact may be consumed per viewer frame" }
                     val expected =
@@ -168,6 +183,78 @@ object StateProjectionCompiler {
         val snapshot: GsmSnapshot,
         val idReallocations: List<InstanceIdRegistry.IdReallocation> = emptyList(),
     )
+
+    private fun stagePreStackAbilities(
+        input: StateFrameInput,
+        supplements: List<ProjectionSupplement>,
+    ): StateFrameInput {
+        val abilities = supplements.filterIsInstance<ProjectionSupplement.PreStackAbility>()
+        if (abilities.isEmpty()) return input
+
+        var stack = input.snapshot.stack
+        for (ability in abilities) {
+            val existing = stack.entries.firstOrNull { it.forgeAbilityId == ability.forgeAbilityId }
+            if (existing != null) {
+                check(
+                    existing.forgeCardId == ability.sourceForgeCardId &&
+                        existing.grpId == ability.abilityGrpId &&
+                        existing.sourceCardGrpId == ability.sourceCardGrpId &&
+                        existing.owner == ability.ownerSeatId &&
+                        existing.controller == ability.controllerSeatId &&
+                        existing.targets == ability.targetForgeCardIds,
+                ) { "Pre-stack ability conflicts with the existing frame entry" }
+                continue
+            }
+            stack =
+                StackSnapshot(
+                    stack.entries +
+                        StackEntry(
+                            forgeCardId = ability.sourceForgeCardId,
+                            controller = ability.controllerSeatId,
+                            owner = ability.ownerSeatId,
+                            grpId = ability.abilityGrpId,
+                            sourceCardGrpId = ability.sourceCardGrpId,
+                            isSpell = false,
+                            isActivatedAbility = true,
+                            targets = ability.targetForgeCardIds,
+                            forgeAbilityId = ability.forgeAbilityId,
+                        ),
+                )
+        }
+        return input.copy(snapshot = copySnapshot(input.snapshot, stack = stack))
+    }
+
+    private fun aliasAdmittedStackAbilities(
+        input: StateFrameInput,
+        editor: ProjectionState.Editor,
+    ) {
+        val priorEntries =
+            input.previousSnapshot
+                ?.stack
+                ?.entries
+                .orEmpty()
+        if (priorEntries.isEmpty()) return
+        for (event in input.events.events.filterIsInstance<GameEvent.SpellCast>()) {
+            if (!event.isAbility || event.isTrigger || event.rootAbilityForgeId == 0) continue
+            val admittedForgeIds =
+                listOf(event.abilityForgeId, event.stackAbilityForgeId)
+                    .filter { it != 0 }
+                    .toSet()
+            if (admittedForgeIds.isEmpty()) continue
+            val admitted =
+                input.snapshot.stack.entries.singleOrNull {
+                    it.forgeCardId == event.cardId && it.forgeAbilityId in admittedForgeIds
+                } ?: continue
+            val prior =
+                priorEntries.singleOrNull { it.forgeAbilityId == event.rootAbilityForgeId } ?: continue
+            if (!prior.isActivatedAbility || prior.forgeCardId != admitted.forgeCardId) continue
+            if (prior.forgeAbilityId == admitted.forgeAbilityId) continue
+            editor.identities.alias(
+                FrameIdResolver.triggerStackAbilityForgeId(prior.forgeAbilityId),
+                FrameIdResolver.triggerStackAbilityForgeId(admitted.forgeAbilityId),
+            )
+        }
+    }
 
     private fun projectPrivateCardPrompt(
         gsm: GameStateMessage,
@@ -257,7 +344,8 @@ object StateProjectionCompiler {
 
     private fun copySnapshot(
         snapshot: GsmSnapshot,
-        zones: Map<Int, ZoneSnapshot>,
+        zones: Map<Int, ZoneSnapshot> = snapshot.zones,
+        stack: StackSnapshot = snapshot.stack,
     ): GsmSnapshot =
         GsmSnapshot(
             matchId = snapshot.matchId,
@@ -265,7 +353,7 @@ object StateProjectionCompiler {
             seats = snapshot.seats,
             zones = zones,
             boundCards = snapshot.boundCards,
-            stack = snapshot.stack,
+            stack = stack,
             phase = snapshot.phase,
             combat = snapshot.combat,
             abilityWordEntries = snapshot.abilityWordEntries,

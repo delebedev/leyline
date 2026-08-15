@@ -21,6 +21,7 @@ object ZoneTransferAdapter {
         editor: ProjectionState.Editor,
         snapshot: GsmSnapshot,
         events: List<GameEvent>,
+        previousSnapshot: GsmSnapshot? = null,
         mechanicSourceFacts: MechanicSourceFacts = MechanicSourceFacts(),
         zoneMoves: List<ZoneMove> = emptyList(),
     ): TransferResult {
@@ -75,6 +76,11 @@ object ZoneTransferAdapter {
                             annotationJournal.pendingSpellResolution(fid, cardFacts.card(fid)?.grpId)
                         },
                         forgeCardKnown = cardFacts::contains,
+                        stackAbilityLookup = { forgeAbilityId ->
+                            (snapshot.stack.entries + previousSnapshot?.stack?.entries.orEmpty())
+                                .firstOrNull { it.forgeAbilityId == forgeAbilityId }
+                                ?.let { StackAbilitySourceFacts(it.forgeCardId, it.isActivatedAbility) }
+                        },
                         paradigmSourceIidLookup = { fid ->
                             StateZoneProjection.paradigmSourceStackIid(
                                 cardFacts,

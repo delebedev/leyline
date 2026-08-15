@@ -71,6 +71,17 @@ sealed interface ProjectionSupplement {
         val forgeAbilityId: Int,
     ) : ProjectionSupplement
 
+    /** Ability visible during pre-stack cost payment and retained in the next diff baseline. */
+    data class PreStackAbility(
+        val forgeAbilityId: Int,
+        val sourceForgeCardId: ForgeCardId,
+        val abilityGrpId: Int,
+        val sourceCardGrpId: Int,
+        val ownerSeatId: SeatId,
+        val controllerSeatId: SeatId,
+        val targetForgeCardIds: List<ForgeCardId>,
+    ) : ProjectionSupplement
+
     data class SubmitPendingTargets(
         val spellInstanceId: InstanceId,
         val seatId: SeatId,

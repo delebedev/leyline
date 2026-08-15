@@ -33,6 +33,18 @@ object InstanceIdRegistry {
 
         fun reserve(): InstanceId = InstanceId(nextInstanceId++)
 
+        fun alias(
+            existingForgeId: ForgeCardId,
+            aliasForgeId: ForgeCardId,
+        ): InstanceId {
+            val instanceId = getOrAlloc(existingForgeId)
+            val occupied = forward[aliasForgeId]
+            check(occupied == null || occupied == instanceId) { "Forge identity alias already has a different instance id" }
+            forward[aliasForgeId] = instanceId
+            reverse[instanceId] = aliasForgeId
+            return instanceId
+        }
+
         fun realloc(forgeCardId: ForgeCardId): IdReallocation {
             val old = forward[forgeCardId]
             if (old == null) return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }

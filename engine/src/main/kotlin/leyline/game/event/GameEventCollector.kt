@@ -276,6 +276,13 @@ class GameEventCollector(
             }
         val cardId = ForgeCardId(card.id)
         val spellAbilityId = ev.cause()?.abilityId() ?: ev.sa()?.id ?: 0
+        val rootAbilityForgeId =
+            topSa
+                ?.rootAbility
+                ?.let { it.originalAbility ?: it }
+                ?.id
+                ?: ev.cause()?.rootAbilityId()
+                ?: 0
         val paradigmCopyStackIid = paradigmCopyStackIid(isParadigmCopyCast, spellAbilityId, ForgeCardId(card.id))
         // The SA's Forge id is needed for both triggered and activated abilities;
         // both surface through the AbilityInstance lifecycle path keyed on it.
@@ -387,7 +394,7 @@ class GameEventCollector(
                 kickerAbilityGrpId = castingTimeOptionState.kickerAbilityGrpId,
                 additionalCostGrpId = castingTimeOptionState.additionalCostGrpId,
                 chosenX = castingTimeOptionState.chosenX,
-                rootAbilityForgeId = ev.cause()?.rootAbilityId() ?: 0,
+                rootAbilityForgeId = rootAbilityForgeId,
                 stackAbilityForgeId = ev.cause()?.stackAbilityId() ?: 0,
             ),
         )

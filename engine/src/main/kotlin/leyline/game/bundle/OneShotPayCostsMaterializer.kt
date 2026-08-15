@@ -1,7 +1,10 @@
 package leyline.game.bundle
 
 import leyline.bridge.handoff.OneShotPayCostsWindowValue
+import leyline.bridge.handoff.PayCostsPromptSourceValue
 import leyline.bridge.handoff.PayCostsRouteKind
+import leyline.bridge.handoff.TapPaymentKind
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
@@ -51,8 +54,8 @@ internal class OneShotPayCostsMaterializer(
         val selection =
             SelectNReq
                 .newBuilder()
-                .setMinSel(if (window.kind == PayCostsRouteKind.TeamworkCost) checkNotNull(window.minimumWeight) else window.minSelections)
-                .setMaxSel(if (window.kind == PayCostsRouteKind.TeamworkCost) Int.MAX_VALUE else window.maxSelections)
+                .setMinSel(wireMinSelections(window))
+                .setMaxSel(wireMaxSelections(window))
                 .setContext(SelectionContext.NonManaPayment)
                 .setOptionContext(OptionContext.Payment)
                 .setListType(SelectionListType.Dynamic)
@@ -66,7 +69,7 @@ internal class OneShotPayCostsMaterializer(
                         PayCostsRouteKind.SelectCostReturnAttacker,
                         PayCostsRouteKind.StationTapCost,
                         PayCostsRouteKind.EnlistCost,
-                        PayCostsRouteKind.TeamworkCost,
+                        PayCostsRouteKind.TapPayment,
                         PayCostsRouteKind.ConvokeCost,
                         PayCostsRouteKind.ImproviseCost,
                         PayCostsRouteKind.WaterbendCost,
@@ -93,23 +96,43 @@ internal class OneShotPayCostsMaterializer(
         projection: ProjectionState,
     ): Prompt =
         promptWithCardId(
-            promptId(window.kind),
-            window.sourceInstanceId ?: window.sourceForgeCardId?.let { projection.requireInstanceId(it) } ?: 0,
+            promptId(window),
+            promptSourceId(window, projection),
         )
 
-    private fun promptId(kind: PayCostsRouteKind): Int =
-        when (kind) {
+    private fun promptId(window: OneShotPayCostsWindowValue): Int =
+        when (window.kind) {
             PayCostsRouteKind.Sacrifice -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
             PayCostsRouteKind.SelectCostExileFromGrave -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
             PayCostsRouteKind.SelectCostReturnAttacker -> PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST
             PayCostsRouteKind.CollectEvidence -> PromptIds.COLLECT_EVIDENCE_COST
             PayCostsRouteKind.StationTapCost -> PromptIds.STATION_TAP_COST
             PayCostsRouteKind.EnlistCost -> PromptIds.ENLIST_TAP_COST
-            PayCostsRouteKind.TeamworkCost -> PromptIds.TEAMWORK_TAP_COST
+            PayCostsRouteKind.TapPayment -> checkNotNull(window.tapPayment).promptId
             PayCostsRouteKind.ConvokeCost,
             PayCostsRouteKind.ImproviseCost,
             PayCostsRouteKind.WaterbendCost,
             -> error("Iterative payment cannot use one-shot materializer")
+        }
+
+    private fun wireMinSelections(window: OneShotPayCostsWindowValue): Int =
+        window.tapPayment
+            ?.takeIf { it.kind == TapPaymentKind.TotalPower }
+            ?.required
+            ?: window.minSelections
+
+    private fun wireMaxSelections(window: OneShotPayCostsWindowValue): Int =
+        if (window.tapPayment?.kind == TapPaymentKind.TotalPower) Int.MAX_VALUE else window.maxSelections
+
+    private fun promptSourceId(
+        window: OneShotPayCostsWindowValue,
+        projection: ProjectionState,
+    ): Int =
+        when (val source = window.promptSource) {
+            is PayCostsPromptSourceValue.StackAbility ->
+                projection.requireInstanceId(FrameIdResolver.triggerStackAbilityForgeId(source.forgeAbilityId))
+            is PayCostsPromptSourceValue.StackCard -> projection.requireInstanceId(source.forgeCardId)
+            null -> 0
         }
 
     private fun ProjectionState.requireInstanceId(cardId: leyline.bridge.types.ForgeCardId): Int =

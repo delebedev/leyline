@@ -206,9 +206,49 @@ class CostDecisionTest :
                 assertSoftly {
                     min shouldBe 1
                     max shouldBe 2
-                    semantic shouldBe PromptSemantic.TeamworkCost
+                    semantic shouldBe PromptSemantic.TapPaymentCost
                     costSelectionWeights shouldContainExactly listOf(0, 0)
                     minSelectionWeight shouldBe 4
+                }
+            }
+        }
+
+        test("total-power tap costs preserve the forced-list shortcut for supported and unsupported thresholds") {
+            val fx = fixture()
+            val cards = CardCollection(fx.source)
+
+            assertSoftly {
+                fx.controller
+                    .chooseCardsForTapCost(cards, fx.ability, CostTeamwork("1"), 0, 1, 1, "tap for one power")
+                    .map { it } shouldContainExactly listOf(fx.source)
+                fx.controller
+                    .chooseCardsForTapCost(cards, fx.ability, CostTeamwork("5"), 0, 1, 5, "tap for five power")
+                    .map { it } shouldContainExactly listOf(fx.source)
+                fx.bridge.promptBridge(SeatId(1)).history shouldBe emptyList()
+            }
+        }
+
+        test("unsupported total-power threshold remains a Generic residual without weights") {
+            val fx = fixture()
+            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
+            val cards =
+                CardCollection().apply {
+                    add(fx.source)
+                    add(mountain)
+                }
+
+            fx.controller.chooseCardsForTapCost(cards, fx.ability, CostTeamwork("5"), 0, cards.size, 5, "tap for five power")
+
+            with(
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single(),
+            ) {
+                assertSoftly {
+                    semantic shouldBe PromptSemantic.Generic
+                    costSelectionWeights shouldBe emptyList<Int>()
+                    minSelectionWeight.shouldBeNull()
                 }
             }
         }

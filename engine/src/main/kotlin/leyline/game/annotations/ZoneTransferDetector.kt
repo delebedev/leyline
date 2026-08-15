@@ -143,10 +143,16 @@ internal data class ZoneTransferContext(
     val pendingSpellResolutionLookup: (ForgeCardId) -> GameEvent.SpellResolved? = { null },
     /** True when a Forge card with this id exists. */
     val forgeCardKnown: (ForgeCardId) -> Boolean = { true },
+    val stackAbilityLookup: (Int) -> StackAbilitySourceFacts? = { null },
     val paradigmSourceIidLookup: (ForgeCardId) -> Int? = { null },
     /** Cut-scoped source zone for stack lifecycle events. */
     val sourceZoneLookup: (ForgeCardId) -> Int? = { null },
     val zoneMoves: List<ZoneMove> = emptyList(),
+)
+
+internal data class StackAbilitySourceFacts(
+    val sourceCardId: ForgeCardId,
+    val isActivatedAbility: Boolean,
 )
 
 /**
@@ -524,6 +530,7 @@ object ZoneTransferDetector {
                 idLookup,
                 events,
                 forgeCardKnown,
+                context.stackAbilityLookup,
                 paradigmSourceIidLookup,
                 context.sourceZoneLookup,
             )
@@ -537,6 +544,7 @@ object ZoneTransferDetector {
                 idLookup,
                 grpIdResolver,
                 forgeCardKnown,
+                context.stackAbilityLookup,
             )
         // Retire disappeared ability instanceIds to Limbo so annotation
         // references (affectedIds) remain resolvable by the validating sink.
@@ -1234,6 +1242,7 @@ object ZoneTransferDetector {
         idLookup: (ForgeCardId) -> InstanceId,
         events: List<GameEvent>,
         forgeCardKnown: (ForgeCardId) -> Boolean,
+        stackAbilityLookup: (Int) -> StackAbilitySourceFacts?,
         paradigmSourceIidLookup: (ForgeCardId) -> Int?,
         sourceZoneLookup: (ForgeCardId) -> Int?,
     ): List<StackAbilityAppearance> {
@@ -1245,13 +1254,15 @@ object ZoneTransferDetector {
             if (previousZones.containsKey(obj.instanceId)) continue
 
             val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId)) ?: continue
+            val stackFacts = stackAbilityLookup(FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId).value)
             val sourceCardForgeId =
-                resolveStackAbilitySourceCard(
-                    abilityForgeId,
-                    events,
-                    eventFilter = { ev -> ev is GameEvent.SpellCast },
-                    forgeCardKnown = forgeCardKnown,
-                ) ?: continue
+                stackFacts?.sourceCardId
+                    ?: resolveStackAbilitySourceCard(
+                        abilityForgeId,
+                        events,
+                        eventFilter = { ev -> ev is GameEvent.SpellCast },
+                        forgeCardKnown = forgeCardKnown,
+                    ) ?: continue
             // Discriminate trigger vs activated. The matching SpellCast event
             // (same source card, isAbility set by the collector) tells us
             // which lifecycle path applies. Activated abilities skip the
@@ -1263,7 +1274,7 @@ object ZoneTransferDetector {
                         it.cardId == sourceCardForgeId &&
                             it.abilityForgeId == FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId).value
                     }
-            val isActivated = matchingCast?.let { it.isAbility && !it.isTrigger } ?: false
+            val isActivated = matchingCast?.let { it.isAbility && !it.isTrigger } ?: stackFacts?.isActivatedAbility ?: false
             val isParadigmTrigger = matchingCast?.abilityGrpId == KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
             val sourceCardIid =
                 if (isParadigmTrigger) {
@@ -1278,7 +1289,7 @@ object ZoneTransferDetector {
                     ?: matchingCast?.let { sourceZoneLookup(it.cardId) }
                     ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
-                if (isActivated) matchingCast.activationZoneId else 0
+                if (isActivated) matchingCast?.activationZoneId ?: sourceZoneId else 0
             val triggeringObjectIid =
                 matchingCast?.triggeringObjectInstanceId?.value
                     ?: matchingCast?.triggeringObjectCardId?.let { idLookup(it).value }
@@ -1338,6 +1349,7 @@ object ZoneTransferDetector {
         idLookup: (ForgeCardId) -> InstanceId,
         grpIdResolver: (ForgeCardId) -> GrpId,
         forgeCardKnown: (ForgeCardId) -> Boolean,
+        stackAbilityLookup: (Int) -> StackAbilitySourceFacts?,
     ): Pair<List<StackAbilityDisappearance>, List<Int>> {
         val resolvedEvents = events.filterIsInstance<GameEvent.SpellResolved>()
         val disappearances = mutableListOf<StackAbilityDisappearance>()
@@ -1352,13 +1364,15 @@ object ZoneTransferDetector {
             val abilityForgeId = forgeIdLookup(InstanceId(instanceId)) ?: continue
             if (!FrameIdResolver.isStackAbilityForgeId(abilityForgeId)) continue
 
+            val stackFacts = stackAbilityLookup(FrameIdResolver.stackAbilitySourceForgeId(abilityForgeId).value)
             val sourceCardForgeId =
-                resolveStackAbilitySourceCard(
-                    abilityForgeId,
-                    events,
-                    eventFilter = { ev -> ev is GameEvent.SpellResolved },
-                    forgeCardKnown = forgeCardKnown,
-                ) ?: continue
+                stackFacts?.sourceCardId
+                    ?: resolveStackAbilitySourceCard(
+                        abilityForgeId,
+                        events,
+                        eventFilter = { ev -> ev is GameEvent.SpellResolved },
+                        forgeCardKnown = forgeCardKnown,
+                    ) ?: continue
             val sourceCardIid = idLookup(sourceCardForgeId).value
             val grpId = grpIdResolver(sourceCardForgeId).value
 

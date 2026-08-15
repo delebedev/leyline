@@ -223,6 +223,7 @@ object SnapshotCapture {
                     grpId = grpId,
                     sourceCardGrpId = sourceCardGrpId,
                     isSpell = entry.isSpell,
+                    isActivatedAbility = entry.spellAbility.isActivatedAbility,
                     targets = targets,
                     forgeAbilityId = entry.spellAbility?.id ?: 0,
                     runtimeTriggerId = runtimeTriggerId,

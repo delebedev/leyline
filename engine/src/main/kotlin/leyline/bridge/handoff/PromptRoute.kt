@@ -179,10 +179,49 @@ enum class PayCostsRouteKind {
     CollectEvidence,
     StationTapCost,
     EnlistCost,
-    TeamworkCost,
+    TapPayment,
     ConvokeCost,
     ImproviseCost,
     WaterbendCost,
+}
+
+enum class TapPaymentKind {
+    TotalPower,
+    TapExact,
+    UntapExact,
+}
+
+/** One protocol-grounded tap-payment row bound before the prompt is published. */
+data class TapPaymentDescriptor(
+    val kind: TapPaymentKind,
+    val required: Int,
+    val promptId: Int,
+) {
+    init {
+        require(promptId == promptId(kind, required)) { "Unsupported tap-payment row: $kind $required / $promptId" }
+    }
+
+    companion object {
+        fun grounded(
+            kind: TapPaymentKind,
+            required: Int,
+        ): TapPaymentDescriptor? = promptId(kind, required)?.let { TapPaymentDescriptor(kind, required, it) }
+
+        private fun promptId(
+            kind: TapPaymentKind,
+            required: Int,
+        ): Int? =
+            when (kind to required) {
+                TapPaymentKind.TotalPower to 1 -> 8929
+                TapPaymentKind.TotalPower to 2 -> 8924
+                TapPaymentKind.TotalPower to 3 -> 8925
+                TapPaymentKind.TotalPower to 4 -> 8922
+                TapPaymentKind.TapExact to 2 -> 2595
+                TapPaymentKind.TapExact to 3 -> 3579
+                TapPaymentKind.UntapExact to 2 -> 8840
+                else -> null
+            }
+    }
 }
 
 enum class ManaSourcePaymentKind {
@@ -196,6 +235,7 @@ data class PayCostsPromptRoute(
     val kind: PayCostsRouteKind,
     val templateLabel: String,
     val manaSourcePayment: ManaSourcePaymentKind? = null,
+    val tapPayment: TapPaymentDescriptor? = null,
 )
 
 object PromptRouteResolver {
@@ -206,11 +246,12 @@ object PromptRouteResolver {
             OptionContext.Resolution_a9d7,
         )
 
-    @Suppress("CyclomaticComplexMethod") // Exhaustive PromptSemantic catalog is the single route authority.
+    @Suppress("CyclomaticComplexMethod", "CanBeNonNullable")
     fun resolve(
         semantic: PromptSemantic,
         hasCandidateRefs: Boolean = false,
         resolutionInput: ResolutionRouteInput? = null,
+        tapPayment: TapPaymentDescriptor? = null,
     ): ResolvedPromptRoute =
         when (semantic) {
             PromptSemantic.Generic ->
@@ -256,7 +297,13 @@ object PromptRouteResolver {
             PromptSemantic.SelectNCostCollectEvidence ->
                 payCosts(semantic, PayCostsRouteKind.CollectEvidence, "collect-evidence")
             PromptSemantic.EnlistCost -> payCosts(semantic, PayCostsRouteKind.EnlistCost, "enlist")
-            PromptSemantic.TeamworkCost -> payCosts(semantic, PayCostsRouteKind.TeamworkCost, "teamwork")
+            PromptSemantic.TapPaymentCost ->
+                payCosts(
+                    semantic,
+                    PayCostsRouteKind.TapPayment,
+                    "tap-payment",
+                    tapPayment = checkNotNull(tapPayment) { "TapPaymentCost requires an exact descriptor" },
+                )
             PromptSemantic.StationTapCost -> payCosts(semantic, PayCostsRouteKind.StationTapCost, "station")
             PromptSemantic.ReturnUnblockedAttackerCost ->
                 payCosts(semantic, PayCostsRouteKind.SelectCostReturnAttacker, "return-unblocked-attacker")
@@ -293,5 +340,7 @@ object PromptRouteResolver {
         kind: PayCostsRouteKind,
         templateLabel: String,
         manaSourcePayment: ManaSourcePaymentKind? = null,
-    ): ResolvedPromptRoute.PayCosts = ResolvedPromptRoute.PayCosts(PayCostsPromptRoute(semantic, kind, templateLabel, manaSourcePayment))
+        tapPayment: TapPaymentDescriptor? = null,
+    ): ResolvedPromptRoute.PayCosts =
+        ResolvedPromptRoute.PayCosts(PayCostsPromptRoute(semantic, kind, templateLabel, manaSourcePayment, tapPayment))
 }
