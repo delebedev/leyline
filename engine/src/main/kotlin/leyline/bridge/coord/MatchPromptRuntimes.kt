@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.CardSelectInteractionRuntime
 import leyline.bridge.handoff.GroupingInteractionRuntime
 import leyline.bridge.handoff.ManaSourcePaymentRuntime
+import leyline.bridge.handoff.ModalChoiceInteractionRuntime
 import leyline.bridge.handoff.OneShotPayCostsRuntime
 import leyline.bridge.handoff.OrderInteractionRuntime
 import leyline.bridge.handoff.RevealChoiceInteractionRuntime
@@ -13,11 +14,13 @@ import leyline.bridge.types.SeatId
 import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.GroupingMaterializationDiagnostic
 import leyline.game.ManaSourcePaymentMaterializationDiagnostic
+import leyline.game.ModalChoiceMaterializationDiagnostic
 import leyline.game.OneShotPayCostsMaterializationDiagnostic
 import leyline.game.OrderMaterializationDiagnostic
 import leyline.game.PendingCardSelectCut
 import leyline.game.PendingGroupingCut
 import leyline.game.PendingManaSourcePaymentCut
+import leyline.game.PendingModalChoiceCut
 import leyline.game.PendingOneShotPayCostsCut
 import leyline.game.PendingOrderCut
 import leyline.game.PendingRevealChoiceCut
@@ -61,6 +64,11 @@ internal fun MatchCutCoordinator.staticChoiceRuntime(seatId: SeatId): StaticChoi
 internal fun MatchCutCoordinator.revealChoiceRuntime(seatId: SeatId): RevealChoiceInteractionRuntime {
     check(seatId == humanSeat) { "RevealChoice interaction runtime is only registered for the human seat" }
     return revealChoices
+}
+
+internal fun MatchCutCoordinator.modalChoiceRuntime(seatId: SeatId): ModalChoiceInteractionRuntime {
+    check(seatId == humanSeat) { "ModalChoice runtime is only registered for the human seat" }
+    return modalChoices
 }
 
 internal fun MatchCutCoordinator.manaSourcePaymentRuntime(seatId: SeatId): ManaSourcePaymentRuntime {
@@ -134,3 +142,9 @@ internal fun MatchCutCoordinator.failRevealChoice(
     pending: PendingRevealChoiceCut? = null,
     diagnostic: RevealChoiceMaterializationDiagnostic? = null,
 ): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingRevealChoice = pending, revealChoiceDiagnostic = diagnostic))
+
+internal fun MatchCutCoordinator.failModalChoice(
+    cause: Throwable,
+    pending: PendingModalChoiceCut? = null,
+    diagnostic: ModalChoiceMaterializationDiagnostic? = null,
+): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingModalChoice = pending, modalChoiceDiagnostic = diagnostic))

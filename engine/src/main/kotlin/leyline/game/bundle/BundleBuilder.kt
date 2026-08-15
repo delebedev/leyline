@@ -92,6 +92,7 @@ class BundleBuilder(
     private val cardSelectWindows = CardSelectWindowMaterializer(seatId)
     private val revealChoiceWindows = RevealChoiceWindowMaterializer(seatId)
     private val staticChoiceWindows = StaticChoiceWindowMaterializer(seatId)
+    private val modalChoiceWindows = ModalChoiceWindowMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val orderWindows = OrderWindowMaterializer(seatId)
@@ -1525,6 +1526,30 @@ class BundleBuilder(
         )
     }
 
+    /** Prepare, but do not install, one coordinator-owned modal choice window. */
+    internal fun prepareModalChoiceWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: leyline.bridge.handoff.ModalChoiceWindowValue,
+    ): ModalChoiceWindowMaterializer.Prepared {
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val supplements =
+            listOfNotNull(
+                window.sourceForgeAbilityId
+                    .takeIf { window.triggered && it != 0 }
+                    ?.let { ProjectionSupplement.ReserveTriggeredAbility(it) },
+            )
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements = supplements))
+        return modalChoiceWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
     /** Prepare, but do not install, one coordinator-owned mana-source payment presentation. */
     internal fun prepareManaSourcePayment(
         game: Game,
@@ -1781,27 +1806,11 @@ class BundleBuilder(
         return gsBuilder.build()
     }
 
-    /**
-     * CastingTimeOptions bundle: GameState + CastingTimeOptionsReq.
-     * Used for modal ETB/cast prompts (Charming Prince, Goblin Surprise, etc.).
-     *
-     * Sends a GSM diff first (state may have changed during trigger/resolution),
-     * followed by CastingTimeOptionsReq with the ModalReq payload. Sets
-     * allowCancel=Abort and allowUndo=true (client shows Cancel button).
-     */
-
-    /**
-     * @param sourceCardInstanceId instanceId of the source card (for ability parentId).
-     *   Null for spell-time modals where the card itself is on the stack.
-     * @param sourceCardGrpId grpId of the source card (for ability objectSourceGrpId).
-     *   Null for spell-time modals.
-     */
+    /** Build the deferred cast-cost CastingTimeOptionsReq bundle. */
     fun castingTimeOptionsBundle(
         game: Game,
         counter: MessageCounter,
         req: CastingTimeOptionsReq,
-        sourceCardInstanceId: Int? = null,
-        sourceCardGrpId: Int? = null,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
         val gsResult = diff.result
@@ -1809,64 +1818,6 @@ class BundleBuilder(
             gsResult.gsm
                 .toBuilder()
                 .setPendingMessageCount(1)
-
-        // Synthesize the ability game object on the stack for ETB modals.
-        // Forge adds the trigger to its stack AFTER mode choice (PlaySpellAbility line 733),
-        // but the client needs the ability visible in the GSM to render the modal dialog.
-        // Only inject when sourceCardInstanceId is set (triggered ability path).
-        // Spell-time modals (kicker, spell modals) don't need this.
-        if (sourceCardInstanceId != null && req.castingTimeOptionReqCount > 0) {
-            val cto = req.getCastingTimeOptionReq(0)
-            val abilityIid = cto.affectedId
-            val abilityGrpId = cto.grpId
-            if (abilityIid > 0 && abilityGrpId > 0) {
-                // Only inject if not already present (e.g. spell-time modals where card is on stack)
-                val alreadyPresent = gsBuilder.gameObjectsList.any { it.instanceId == abilityIid }
-                if (!alreadyPresent) {
-                    val abilityBuilder =
-                        GameObjectInfo
-                            .newBuilder()
-                            .setInstanceId(abilityIid)
-                            .setGrpId(abilityGrpId)
-                            .setType(GameObjectType.Ability)
-                            .setZoneId(ZoneIds.STACK)
-                            .setVisibility(Visibility.Public)
-                            .setOwnerSeatId(seatId)
-                            .setControllerSeatId(seatId)
-                    if (sourceCardGrpId != null) {
-                        abilityBuilder.setObjectSourceGrpId(sourceCardGrpId)
-                    } else {
-                        abilityBuilder.setObjectSourceGrpId(abilityGrpId)
-                    }
-                    // sourceCardInstanceId is non-null here — outer `if` on line 694 guarded it.
-                    abilityBuilder.setParentId(sourceCardInstanceId)
-                    val abilityObj = abilityBuilder.build()
-                    gsBuilder.addGameObjects(abilityObj)
-
-                    // Add to stack zone (create if absent in the diff)
-                    val stackIdx = gsBuilder.zonesList.indexOfFirst { it.type == ZoneType.Stack }
-                    if (stackIdx >= 0) {
-                        val updated =
-                            gsBuilder
-                                .getZones(stackIdx)
-                                .toBuilder()
-                                .addObjectInstanceIds(abilityIid)
-                                .build()
-                        gsBuilder.setZones(stackIdx, updated)
-                    } else {
-                        gsBuilder.addZones(
-                            ZoneInfo
-                                .newBuilder()
-                                .setZoneId(ZoneIds.STACK)
-                                .setType(ZoneType.Stack)
-                                .setVisibility(Visibility.Public)
-                                .addObjectInstanceIds(abilityIid)
-                                .build(),
-                        )
-                    }
-                }
-            }
-        }
 
         val gs = gsBuilder.build()
         return promptRequestBundle(diff, counter, gs, GREMessageType.CastingTimeOptionsReq_695e) {
@@ -2182,32 +2133,6 @@ class BundleBuilder(
                     .setPrevGameStateId(prev)
                     .setUpdate(updateType)
                     .build()
-        }
-    }
-
-    /** Explicitly remove a modal trigger ability synthesized for CastingTimeOptionsReq. */
-    fun modalStackCleanup(
-        counter: MessageCounter,
-        abilityInstanceId: Int,
-    ): GREToClientMessage {
-        val link = counter.nextGameStateLink()
-        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
-            it.gameStateMessage =
-                GameStateMessage
-                    .newBuilder()
-                    .setType(GameStateType.Diff)
-                    .setGameStateId(link.gsId)
-                    .setPrevGameStateId(link.prevGsId)
-                    .setUpdate(GameStateUpdate.Send)
-                    .addDiffDeletedInstanceIds(abilityInstanceId)
-                    .addZones(
-                        ZoneInfo
-                            .newBuilder()
-                            .setZoneId(ZoneIds.STACK)
-                            .setType(ZoneType.Stack)
-                            .setVisibility(Visibility.Public)
-                            .build(),
-                    ).build()
         }
     }
 

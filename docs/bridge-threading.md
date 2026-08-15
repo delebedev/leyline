@@ -221,13 +221,13 @@ frame—when phase transitions fire.
 message in response to a phase, it must call `bridge.awaitPriority()` (or
 `awaitPriorityWithTimeout` with a tighter budget).
 
-For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, Scry/Surveil Grouping, card-backed SelectN, static-enum SelectN, reveal-backed SelectN, PayCosts, and blocking interactions, the wait guarantees:
+For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, Scry/Surveil Grouping, card-backed SelectN, static-enum SelectN, reveal-backed SelectN, ModalChoice, PayCosts, and blocking interactions, the wait guarantees:
 
 1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
 2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
 3. The projection baseline for that batch has settled.
 
-Modal, unclassified entity/candidate choices, and mulligan retain their named handoff contracts until they migrate. Candidate-free Generic policy defaults and non-library ordering return synchronously without entering this wait contract.
+Unclassified entity/candidate choices and mulligan retain their named handoff contracts until they migrate. Candidate-free Generic policy defaults and non-library ordering return synchronously without entering this wait contract.
 
 Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
 
@@ -244,11 +244,11 @@ CharmEffect.makeChoices(ability)        ← blocks in chooseModeForAbility
 game.getStack().addAndUnfreeze(ability) ← runs only after mode choice returns
 ```
 
-When `PlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then install the synthesized snapshot as the viewer baseline so the next diff sees the ability as already-sent. The cursor advance is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
+When `PlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `MatchModalChoiceRuntime` cuts the GSM and `CastingTimeOptionsReq` atomically; `ModalChoiceWindowMaterializer` overlays the missing ability object in the outbound GSM only, while the ordinary projection transition commits before signalling the client. The runtime queues the matching cleanup diff after Forge resumes, so the next projection has a precise wire-only object to delete.
 
-Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthesis; `sourceCardInstanceId` is null on that path.
+Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthetic ability object and use the projected source-card instance directly.
 
-**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then advance the viewer baseline in the same transition — is the template to copy.
+**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The modal runtime approach — materialize a wire-only overlay, commit the ordinary projection transition, enqueue the request, and signal only after the cut commits — is the template to copy.
 
 ---
 

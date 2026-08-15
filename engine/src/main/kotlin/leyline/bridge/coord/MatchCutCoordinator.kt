@@ -53,6 +53,7 @@ internal class MatchCutCoordinator(
     internal val cardSelect = MatchCardSelectInteractionRuntime(this)
     internal val staticChoices = MatchStaticChoiceInteractionRuntime(this)
     internal val revealChoices = MatchRevealChoiceInteractionRuntime(this)
+    internal val modalChoices = MatchModalChoiceRuntime(this)
     internal val manaSourcePayments = MatchManaSourcePaymentRuntime(this)
     internal val oneShotPayCosts = MatchOneShotPayCostsRuntime(this)
 
@@ -193,6 +194,7 @@ internal class MatchCutCoordinator(
         cardSelect.terminate(failure)
         staticChoices.terminate(failure)
         revealChoices.terminate(failure)
+        modalChoices.terminate(failure)
         manaSourcePayments.terminate(failure)
         oneShotPayCosts.terminate(failure)
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
@@ -211,6 +213,7 @@ internal class MatchCutCoordinator(
             cardSelect.reset()
             staticChoices.reset()
             revealChoices.reset()
+            modalChoices.reset()
             manaSourcePayments.reset()
             oneShotPayCosts.reset()
         }
@@ -420,6 +423,7 @@ internal class MatchCutCoordinator(
             grouping.pendingCutLocked()?.let { failGrouping(cause, it) }
             cardSelect.pendingCutLocked()?.let { failCardSelect(cause, it) }
             staticChoices.pendingCutLocked()?.let { failStaticChoice(cause, it) }
+            modalChoices.pendingCutLocked()?.let { failModalChoice(cause, it) }
             revealChoices.failDelivery(cause)
         }
 
