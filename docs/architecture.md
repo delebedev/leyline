@@ -24,7 +24,7 @@ Gradle multi-project layout. All Kotlin.
 - **`domain`** — domain model, services, and repository ports.
 - **`engine`** — Forge bridge and GRE match-session engine.
   - `bridge/` — engine integration. Blocking-bridge classes and the `PlayerController` override surface.
-  - `game/` — state mapping, annotations, diffing, counters. Ordered Forge zone moves flow through `FrameEventLog` and `ZoneMoveLedger`; snapshots supply final projected state. `game/mapper/` holds per-slice mappers (objects, zones, players, actions).
+  - `game/` — state mapping, annotations, diffing, counters. Ordered Forge zone moves flow through `FrameEventLog` and `ZoneMoveLedger`; snapshots supply final projected state. `game/mapping/` holds per-slice mappers (objects, zones, players, actions).
   - `match/` — session state machine: `MatchSession` + per-concern handlers (combat, targeting, optional-actions, mulligan, auto-pass).
 - **`native`** — native-client head; packages account, frontdoor, and matchdoor transport.
 - **`web`** — browser-facing HTTP/WebSocket head.
@@ -49,6 +49,32 @@ graph LR
 ```
 
 `engine` is the only module that depends on `forge`; the bridge classes are the single narrow waist between Kotlin and the Java engine.
+
+### Engine package map
+
+The engine has one imperative shell around a value-oriented projection core.
+Package names describe where a responsibility lives, but three types cross that
+simple classification: `GameBridge` is the shell's composition root,
+`BundleBuilder` assembles cuts around the pure compiler, and
+`InteractivePromptBridge` adapts Forge callbacks to the runtime that owns each
+interaction.
+
+| Package | Responsibility | Boundary character |
+|---|---|---|
+| `bridge/forge` | Forge controller overrides and GUI callbacks | Live Forge, engine-thread-only |
+| `bridge/interaction` | Prompt classification, bounds, and candidate policy | Pure plans and values |
+| `bridge/handoff` | Immutable prompt routes and window values; narrow runtime interfaces | Value crossing |
+| `bridge/coord` | Match-scoped cuts, prompt/action lifetimes, exact handles, commit, and terminal failure | Imperative owner |
+| `game/snapshot` | Immutable view of relevant Forge state | Projection input |
+| `game/event` | Ordered facts that a resulting-state snapshot cannot reconstruct | Projection input |
+| `game/mapping` | Snapshot/facts to client state | Functional core |
+| `game/annotations` | Annotation derivation and final ordering | Functional core |
+| `game/state` | Committed `ProjectionState` plus the `GameBridge` shell | Value authority and composition |
+| `game/bundle` | GRE envelopes and interaction materializers around the compiler | Cut assembly |
+| `match` | Client-message dispatch, answer submission, and committed-batch delivery | Transport-facing shell |
+
+The two core flows are the [blocking-prompt pipeline](#4-bridge-pattern) and
+the [state-projection pipeline](#6-state-mapping).
 
 ---
 
@@ -92,6 +118,24 @@ The local-control server exposes puzzle control, best-play, and full-state injec
 ---
 
 ## 4. Bridge Pattern
+
+```mermaid
+flowchart LR
+    F[Forge callback] --> A[bridge/forge adapter]
+    A --> P[interaction planner<br/>ResolvedPromptRoute]
+    P --> H[freeze exact handles and facts]
+    H --> R[match-scoped prompt runtime]
+    R --> M[family materializer]
+    M --> C[state plus request commit]
+    C --> D[match delivery]
+    D --> X[correlated client answer]
+    X --> R
+    R -->|original retained handle| F
+```
+
+The session submits correlated values; it does not rediscover live Forge
+objects. Prompt families share lifecycle machinery only when their identity and
+completion contracts match.
 
 The gameplay path bridges an asynchronous, protobuf-driven client to a synchronous, single-threaded Java engine. `MatchCutCoordinator` is the match-scoped imperative owner for ordinary and combat playback cuts, priority/action windows, Targeting, Search, ordered-card and Scry/Surveil Grouping windows, card-backed, static-enum, and reveal-backed SelectN windows, all PayCosts windows, and the Optional, Numeric, and Damage blocking interactions. It closes the frame journal, retains the exact cut, compiles and commits projection state, publishes a monotonic viewer feed, and only then signals the waiting session domain.
 
@@ -155,23 +199,24 @@ Engine state becomes wire state through a two-stage pipeline in `engine.game`.
 cut-scoped typed facts, stable reference data, prior projection state, and a
 typed viewer intent, then returns one finalized tentative result:
 
+```mermaid
+flowchart LR
+    F[Forge safe point] --> I[GsmSnapshot<br/>FrameEventLog<br/>typed cut facts]
+    I --> S[StateFrameInput]
+    P[Prior ProjectionState] --> C[StateProjectionCompiler]
+    E[StateProjectionEnvironment] --> C
+    V[ViewerProjectionIntent] --> C
+    S --> C
+    C --> R[GameStateMessage<br/>ProjectionOutput<br/>ProjectionTransition]
+    R --> K[Revision-checked commit]
+    K --> B[Immutable viewer batch]
 ```
-StateFrameInput(snapshot, prev, events, typed facts)
-  + StateProjectionEnvironment + prior ProjectionState + ViewerProjectionIntent
-    └── StateProjectionCompiler.compileOneViewer
-        ├── StateMapper          → bridge-free base state draft
-        ├── ObjectMapper         → GameObjectInfo[]  (cards, permanents, abilities)
-        ├── ZoneMapper           → ZoneInfo[]        (hand, library, battlefield, stack, …)
-        ├── PlayerMapper         → PlayerInfo[]      (life, mana pool, counters)
-        ├── ZoneTransferDetector → TransferResult    (id reallocation plans, zone deltas)
-        ├── CombatAnnotations / MechanicAnnotations → AnnotationMsg[]
-        └── PersistentAnnotationStore.computeBatch  → retained-effect batch
-  →
-  StateProjectionCompiler.Result
-    ├── gsm:       GameStateMessage    (the proto to send)
-    ├── output: ProjectionOutput       (assembly metadata)
-    └── transition: ProjectionTransition (complete next projection state)
-```
+
+The compiler receives values and returns one tentative next value. A failed or
+discarded attempt cannot partially advance instance identities, annotations,
+effects, reveal state, or viewer cursors. `StateMapper`, `ObjectMapper`,
+`ZoneMapper`, `PlayerMapper`, annotation builders, and persistent-feed
+projection run inside this boundary.
 
 **Transactional isolation of state projection.** `compileOneViewer` creates one
 private projection editor, maps the base state, applies typed supplements and

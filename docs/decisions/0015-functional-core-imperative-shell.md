@@ -10,7 +10,24 @@ read_when:
 
 ## Status
 
-Accepted direction; implementation is incremental.
+Accepted. The functional projection core and match-scoped blocking-prompt
+ownership are implemented. Broader runtime convergence remains incremental.
+
+The implemented milestone provides:
+
+- bridge-free state projection over immutable snapshots, ordered facts,
+  cut-scoped inputs, and prior `ProjectionState`;
+- one revision-checked projection transition for client identity and lifecycle
+  history;
+- mutation-complete ordinary and combat cuts owned by `MatchCutCoordinator`;
+- typed match-scoped owners for blocking prompt families, with exact Forge
+  handles retained behind immutable client-facing values.
+
+Explicit remaining work includes `GameBridge` orchestration, the secondary
+live-state action-construction path, mulligan and lifecycle/terminal output,
+`MatchSession` convergence, and atomic multi-view compilation. These are not
+requirements for treating the functional projection and prompt-ownership
+milestone as implemented.
 
 This ADR is the durable decision record: it owns the rationale, fixed boundary,
 and rejected alternatives. The evolving normative runtime contract, migration
@@ -110,7 +127,7 @@ not disprove the value-only functional core.
 
 ## Current seams
 
-The first implementation work is already visible in current types:
+The implemented milestone is visible in current types:
 
 - `StateMapper.buildDraft` and `StateProjectionCompiler.compileOneViewer` now
   form a bridge-free boundary over immutable snapshots, ordered facts, scoped
@@ -150,11 +167,11 @@ The first implementation work is already visible in current types:
   a coordinator-owned runtime; mulligan, lifecycle output, and multi-view
   compilation remain outside the coordinator boundary.
 
-The current milestone completes blocking prompt-response ownership for the
-migrated interaction families, including the residual card compatibility path.
-It does not claim whole-runtime convergence: `GameBridge` orchestration,
-combat/action seams, `MatchSession`, and remaining event-to-fact work still
-require incremental migration.
+The current milestone completes blocking prompt-response ownership, including
+the residual card compatibility path. It does not claim whole-runtime
+convergence: `GameBridge` orchestration, secondary action construction,
+lifecycle and terminal output, `MatchSession`, and multi-view compilation remain
+separate incremental work.
 
 ## Decision
 
