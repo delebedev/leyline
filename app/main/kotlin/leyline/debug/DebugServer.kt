@@ -162,7 +162,7 @@ class DebugServer(
                 return
             }
 
-            val picker = SpellAbilityPicker(game, player)
+            val picker = SpellAbilityPicker(player)
             val bestSa = picker.chooseSpellAbilityToPlay(null)
             val score = picker.getScoreForChosenAbility()
 
