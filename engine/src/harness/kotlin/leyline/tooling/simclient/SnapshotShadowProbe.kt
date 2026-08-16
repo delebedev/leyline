@@ -5,7 +5,7 @@ import leyline.copilot.CopilotProposal
 import leyline.copilot.CopilotProposalService
 import leyline.copilot.SnapshotConsult
 import leyline.game.event.FrameEventLog
-import leyline.game.mapping.StateMapper
+import leyline.game.projectSnapshotForTest
 import leyline.game.snapshot.GsmSnapshot
 import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
@@ -161,16 +161,20 @@ internal class SnapshotShadowProbe(
     /** Builds an isolated state for the comparison consult. */
     private fun snapshotProposal(prompt: GREToClientMessage): CopilotProposal {
         val game = harness.bridge.getGame() ?: error("no live game")
-        val snap = GsmSnapshot.capture(game, harness.bridge, "shadow", 0)
+        val bridge = harness.bridge
+        val prior = bridge.projectionStateSnapshot()
+        val (snap, capturedProjection) =
+            bridge.editProjection(prior) {
+                GsmSnapshot.capture(game, bridge, "shadow", 0)
+            }
+        val events = FrameEventLog.EMPTY
         val gsm =
-            StateMapper
-                .buildFromSnapshot(
+            bridge
+                .projectSnapshotForTest(
                     snap = snap,
-                    gameStateId = 0,
-                    matchId = "shadow",
-                    bridge = harness.bridge,
                     viewingSeatId = seat,
-                    events = FrameEventLog(emptyList()),
+                    events = events,
+                    projectionState = capturedProjection.copy(revision = prior.revision),
                 ).gsm
         return SnapshotConsult.consult(gsm, prompt, seat, harness.bridge.cardRepository).proposal
     }

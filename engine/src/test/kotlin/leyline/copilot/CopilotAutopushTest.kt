@@ -57,7 +57,7 @@ class CopilotAutopushTest :
                 val pending = actionBridge.getPending() ?: error("expected a pending priority action")
                 onSubmit.set {
                     harness.bridge.messageCounter.markResponseAccepted()
-                    actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    actionBridge.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
                 }
 
                 val autopush =
@@ -248,7 +248,7 @@ class CopilotAutopushTest :
                 autopush.landed(baseline, pending.actionId) shouldBe false
                 autopush.landed(baseline, null) shouldBe true
 
-                seatAction.submitAction(pending.actionId, PlayerAction.PassPriority)
+                seatAction.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
                 autopush.landed(baseline, pending.actionId) shouldBe true
             } finally {
                 autopush.shutdown()

@@ -6,7 +6,6 @@ import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
@@ -264,7 +263,7 @@ class SnapshotHydrationTest :
                         .instanceId,
                 )
                 for (obj in sourceVisible) {
-                    val forgeId = hydrated.ids.getForgeCardId(InstanceId(obj.instanceId)).shouldNotBeNull()
+                    val forgeId = hydrated.getForgeCardId(InstanceId(obj.instanceId)).shouldNotBeNull()
                     hydratedCardsByForgeId shouldContainKey forgeId.value
                     hydratedCardsByForgeId
                         .getValue(forgeId.value)

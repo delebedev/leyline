@@ -5,7 +5,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.event.FrameEventLog
-import leyline.game.mapping.StateMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
