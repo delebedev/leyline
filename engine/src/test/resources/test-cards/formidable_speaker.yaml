@@ -1,0 +1,12 @@
+name: "Formidable Speaker"
+grpId: 98497
+titleId: 1079096
+abilities:
+  - id: 194004
+    textId: 1079099
+    category: 2
+  - id: 194005
+    textId: 1079100
+    category: 1
+    mana: "o1"
+expansionCode: "ECL"
