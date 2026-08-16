@@ -79,7 +79,7 @@ distribute card art, sounds, or other game assets.
 GPL-3.0, inherited from Forge. See [LICENSE](LICENSE), [LEGAL](LEGAL.md), and
 [NOTICE](NOTICE).
 
-[Architecture](docs/architecture.md) ·
+[Architecture](docs/architecture.md) · [Security](SECURITY.md) ·
 [Contributing](CONTRIBUTING.md)
 
 ---
