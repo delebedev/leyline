@@ -42,9 +42,9 @@ __pycache__
 # Forge submodule install stamp (written by `just install-forge`)
 .forge-commit-installed
 
-# Claude Code local settings & agent memory
+# Agent-local settings and worktrees
 **/settings.local.json
-.claude/agent-memory/
+.claude/
 
 # Generated proto (from submodule + rename-map.sed)
 matchdoor/src/main/proto/messages.proto
@@ -53,9 +53,6 @@ matchdoor/src/main/proto/messages.proto
 # Forge submodule build artifacts handled by its own .gitignore
 # Local-only dev notes
 .local/
-
-!.claude/
-.claude/worktrees/
 
 # Wrangler local statedeck
 .wrangler/

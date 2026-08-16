@@ -20,6 +20,7 @@ Local playtesting server built around a client protocol bridge, a web head, and 
 - **Ship the feature, not just the code.** Before PRing, ask: "Does this work end-to-end from the user's perspective?" Tests green ≠ feature complete. "Pre-existing" is not an excuse when YOU created the context where it matters. "Follow-up" is not appropriate for gaps that make the feature non-functional. Trivial blockers (< 5 min) ship with the feature, not after.
 - **Elegance balance.** Non-trivial changes: pause and ask "is there a more elegant way?" Skip for simple obvious fixes.
 - **Learn from corrections.** Fold durable corrections into the relevant doc or local workflow note. Don't keep a public catch-all lessons log.
+- **Comments describe the present.** State current behavior and intent; leave refactor history and dated context to Git.
 - **Ralph PRs get labeled.** Add `--label ralph` to `gh pr create` in ralph-loop sessions.
 
 ## Modules
@@ -71,7 +72,7 @@ Kotest FunSpec (JUnit Platform). Engine test guidance lives in
 
 - **Architecture:** `docs/architecture.md`, `docs/forge-api-concepts.md`, `engine/AGENTS.md` (engine adapter internals).
 - **Local setup notes:** `docs/local-client-setup.md`
-- **Agent rules:** Read matching subtree `AGENTS.md` files. Also read `.claude/rules/code-style.md`; before Forge-facing engine work read `.claude/rules/forge-seams.md`; before build/bootstrap/infra work read the matching `.claude/rules/build-*.md` files.
+- **Agent rules:** Read matching subtree `AGENTS.md` files. Before Forge-facing engine work, read `docs/forge-api-concepts.md` and the nearest bridge guidance. For build/bootstrap work, inspect the owning `justfile` recipe and `gradle/scripts/` helper before changing behavior.
 
 ## Documentation
 
@@ -95,7 +96,7 @@ For player-visible gameplay work, completion requires focused production tests, 
 
 ## Proto
 
-Don't edit `messages.proto` directly — edit `proto/rename-map.sed` and run `just sync-proto`. See `.claude/rules/build-infra.md` for full workflow.
+Don't edit `messages.proto` directly — edit `proto/rename-map.sed` and run `just sync-proto`.
 
 ## Public Repo — Content Rules
 
