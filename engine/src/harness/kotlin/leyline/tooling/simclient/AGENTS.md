@@ -32,17 +32,6 @@ Keep policy, telemetry, and row orchestration here. Put generic session response
 Simclient evaluates the client-facing execution path. It does not own direct
 Forge runs, AI-strength comparisons, or experiment evidence.
 
-## Iteration loop
-
-1. Reproduce one deck pair and seed.
-2. Read `.stats.json` before long logs; classify completion reason, stalled prompt/fingerprint, validation failure, and warning/error buckets.
-3. Patch one generic prompt, action, event, or projection seam.
-4. Add or tighten the focused Board/Session test that pins the root cause.
-5. Rerun the exact seed, then widen the matrix.
-6. Promote stable gameplay findings to deterministic puzzle acceptance; do not turn deck scouts into acceptance contracts directly.
-
-Do not debug broad matrices by eyeballing many logs. Collapse first. A `gameOver=true` cleanup concede is not a natural game completion; read `completionReason`.
-
 ## Policy priorities
 
 Improve policy for coverage and valid progress, not abstract playing strength:
@@ -74,31 +63,6 @@ When a prompt stalls:
 5. Test one successful response and one retirement/stale-prompt case.
 
 Do not add a driver branch that bypasses the ledger or submits directly.
-
-## Output contract
-
-Each row writes:
-
-```text
-<row>.log         GRE trace
-<row>.meta.json   source/tags/identity for ingestion
-<row>.stats.json  completion, prompt, policy, validation, timing, warning/error telemetry
-```
-
-`summary.json` aggregates the run. Output identity is `(deck, opponent, seed, policy)`. Preserve that identity across retries, resume, and sharding.
-
-The writer must emit the GRE message names expected by downstream parsers and a synthetic `ConnectResp` game boundary because simclient skips lobby/handshake.
-
-## Failure interpretation
-
-- `natural`: usable outcome signal.
-- `max-turns`, `turn-stall`, `no-progress`, `iter-cap`, `cleanup`, `wall-timeout`: unresolved; useful for triage, never win/loss evidence.
-- `exception`: row failed but scout mode continued.
-- high `noPendingByDecision`: stale submission or retirement regression.
-- `ZoneMapper` / annotation-order / validating-sink findings: likely implementation defects; reproduce narrowly.
-- missing grpId errors: verify card availability/database age before changing policy.
-
-Cancellation during teardown can produce one residual interruption error. Do not generalize that allowance to repeated engine or bridge errors.
 
 ## Verification
 

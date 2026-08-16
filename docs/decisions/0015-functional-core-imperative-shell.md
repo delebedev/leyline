@@ -30,11 +30,9 @@ requirements for treating the functional projection and prompt-ownership
 milestone as implemented.
 
 This ADR is the durable decision record: it owns the rationale, fixed boundary,
-and rejected alternatives. The evolving normative runtime contract, migration
-steps, and proof checklist live in
-[`architecture-direction.md`](../architecture-direction.md). When operational
-details change within this decision's constraints, update that document rather
-than restating them here.
+and rejected alternatives. [`architecture.md`](../architecture.md) describes
+the current implementation; [`bridge-threading.md`](../bridge-threading.md)
+owns transitional cross-thread constraints.
 
 This decision partially supersedes
 [`ADR 0014`](0014-command-yield-engine-boundary.md). It keeps Forge confinement,
@@ -408,13 +406,24 @@ introduce typed cut inputs, then establish safe points, then move logical
 ownership, and only then delete superseded coordination. Information and
 purity must precede topology.
 
-The maintained slice definitions, pending-cut rules, test altitudes,
-performance checks, and convergence checklist live in
-[`architecture-direction.md`](../architecture-direction.md). At minimum they
-must prove that equal immutable inputs produce equal complete multi-view
-transitions, a failed cut retains its exact input and does not resume Forge,
-subscribers cannot expose a still-open fact sequence, and all viewer batches
+Each migration slice must prove that equal immutable inputs produce equal
+complete transitions, a failed cut retains its exact input and does not resume
+Forge, subscribers cannot expose a still-open fact sequence, and viewer batches
 receive order from one atomic logical commit.
+
+Before deleting an existing synchronization or observation seam, verification
+must also include:
+
+- pure-core checks that equal inputs return equal output, leave the prior value
+  unchanged, and publish no partial viewer result when one viewer fails;
+- adapter checks that each safe point closes its fact journal once and hands no
+  collection across the boundary while it can still mutate;
+- repeated strict games that vary fact production and reply timing, with focused
+  regressions for combat bursts and collection iteration;
+- concurrent-match checks for ownership and thread safety, without treating
+  them as deterministic replay proof while Forge randomness is process-global;
+- performance guards against eager full snapshots or candidate enumeration at
+  cuts that do not need them.
 
 ## Consequences
 

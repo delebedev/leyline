@@ -1,302 +1,151 @@
 ---
-summary: "Current Forge bridge invariants: execution domains, critical sections, projection timing, counter monotonicity, and callback-ordering workarounds."
+summary: "Current cross-thread bridge contract: execution domains, lock order, publication, projection commit, and safe points."
 read_when:
-  - "modifying GameBridge, StateMapper, BundleBuilder, or any class in engine/bridge/"
-  - "debugging thread-safety, snapshot timing, or counter-desync behaviour"
-  - "adding a new engine callback, prompt type, or EventBus subscriber"
+  - "modifying GameBridge, MatchSession, MatchCutCoordinator, BundleBuilder, or engine callbacks"
+  - "debugging state-id ordering, snapshot timing, delivery ordering, or stale interactions"
+  - "adding a producer that closes, commits, or delivers a gameplay cut"
 ---
-
 # Bridge Threading
 
-The contract side of the current Forge bridge: which thread owns which state,
-what must be true at each boundary, and the structural rules that keep the
-engine and the wire coherent. These rules remain mandatory until a seam has
-actually migrated. For the current system shape, read
-[`architecture.md`](architecture.md); for the accepted runtime destination,
-read [`architecture-direction.md`](architecture-direction.md).
+This document owns cross-class constraints that the type system does not yet
+express. It describes the current implementation, including transitional
+session and delivery ownership. System shape lives in
+[`architecture.md`](architecture.md); durable direction and rationale live in
+[ADR 0015](decisions/0015-functional-core-imperative-shell.md).
 
----
+## Execution domains
 
-## 1. Execution domains and critical sections
-
-The current runtime has several physical threads. Correctness comes from a mix
-of engine confinement, one interactive-session critical section, a separate
-playback queue critical section, and atomic publication—not from a literal
-two-thread model.
-
-| Execution domain | Runs | Coordination |
+| Domain | Runs | Coordination |
 |---|---|---|
-| **Engine** — `game-loop-<gameId>` | Forge's `mainGameLoop`, trigger resolution, EventBus dispatch, coordinator cut commits | Owns the live Forge graph; blocks in controller futures |
-| **Interactive session entrants** — Netty I/O, web relay dispatcher, test caller, `match-autoadvance-*` executor, debug-server pool | `MatchSession`, handlers, `AutoPassEngine`, ordinary sends | `MatchSession` game-logic entry points enter `ConnectionState.sessionLock`; may wait on `PrioritySignal` |
-| **Spectator pump** — `spectator-pump-*` executor | Drains its committed coordinator feed every 50 ms and sends terminal output | Separate non-interactive mode; coordinates with engine publication through `feedLock` |
-| **Sink caller** | Marks outbound IDs and invokes `MessageSink.send` | Runs on whichever session or pump domain initiated delivery |
+| Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
+| Interactive entrants | Native/web input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
+| Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
-**Engine-owned.** The `Game` object graph—zones, stack, life totals, counters,
-phase and priority—plus Forge EventBus dispatch and engine-internal state.
+Engine confinement makes a live read physically stable only on the engine
+thread. It does not make an event callback a safe projection boundary: callbacks
+can run inside a larger mutation burst.
 
-**Interactive-session critical-section-owned.** Command dispatch, auto-pass,
-handler state, puzzle replacement, and ordinary interactive delivery. Netty and
-the auto-advance executor are different threads, but `sessionLock` makes them
-one logical writer.
+The coordinator owns committed feeds and the focused interaction runtimes under
+that boundary. `ProjectionState` installs through a revision-checked transition;
+pending windows use correlated values and bounded retained-handle tables.
 
-**Known exceptions to the critical section.** The mulligan flow
-(`MatchConnection` dispatching `MulliganHandler`) drives the engine on the
-transport thread without entering `sessionLock`, relying on pre-game phase
-exclusivity. Puzzle replacement installs a fresh `ProjectionState` from its own
-executor outside the lock. Both are debt for the serial-owner migration, not
-license for new lock-free entry points.
+### Lock order
 
-**Shared projection and handoff state.** `MessageCounter` uses atomics;
-`ProjectionState` installs through a revision-checked transition; pending
-actions and prompts use atomic references; `PrioritySignal` is a semaphore. The
-match-scoped `MatchCutCoordinator` owns viewer-keyed committed feeds, and
-`feedLock` covers the whole close-events/build/advance-cursor/enqueue window and
-every drain. The queue type alone is not the transaction.
-`MatchPromptRuntimeSet` owns the prompt-runtime inventory; match setup swaps one
-immutable binding value into `InteractivePromptBridge`, and teardown clears
-that value once. Single-window prompt families arbitrate response versus
-timeout and retire their waiter under `feedLock` through the same primitive.
-Frame producers that need all three monitors use one order:
-`MessageCounter` → `projectionBuildLock` → `feedLock`. Drainers take only
-`feedLock`; event subscribers that request a future cut also take only
-`feedLock`.
+Frame producers that need all three monitors acquire them in this order:
 
-```mermaid
-flowchart LR
-    N[Netty input] --> SL[sessionLock]
-    A[Auto-advance executor] --> SL
-    SL --> MS[MatchSession and handlers]
-    MS --> WAIT[PrioritySignal wait]
-
-    E[Forge engine thread] --> EVT[EventBus and completion hooks]
-    EVT --> QL[MatchCutCoordinator feedLock]
-    MS --> QL
-    SP[Spectator pump] --> QL
-    QL --> Q[Viewer committed feed]
-    Q --> SEND[MessageSink.send]
+```text
+MessageCounter -> GameBridge.projectionBuildLock -> MatchCutCoordinator.feedLock
 ```
 
-`sessionLock` can disappear only when Netty input, auto-advance, timeouts, and
-other entrants merely submit immutable signals or complete a pending reply;
-the Forge runtime thread must be the only logical match owner. The shared feed
-lock can disappear only after all residual producers commit through that
-runtime thread's one ordered output path.
+Drainers take only `feedLock`. Event subscribers requesting a future cut take
+only `feedLock`. No drainer waits for the engine while holding `feedLock`.
 
-A read of shared state on one execution domain is a snapshot of a moving
-system. Decisions whose correctness depends on a value remaining stable must
-run under its owning critical section or use the documented publication
-primitive.
+A queue type is not a transaction. The close/build/install/enqueue operation
+must remain protected as one publication boundary.
 
----
+### Current exceptions
 
-## 2. Signaling at priority
+Mulligan still drives a pre-game engine interaction outside `sessionLock`.
+Puzzle replacement can install fresh projection state from its own executor.
+Named lifecycle and residual output builders still share counters and sequencing
+with coordinator-backed output. These are explicit migration seams, not patterns
+for new entry points.
 
-An interactive-session entrant needs to know when the engine has reached a
-priority stop, posted an interactive prompt, or ended the game. The mechanism
-is a semaphore—`PrioritySignal`—not polling.
+## Publication before signalling
 
-Semaphore over other primitives because permits accumulate: a signal that arrives before the observer starts waiting is not lost, so there is no race between posting a pending item and observing it.
+When the engine blocks for a visible decision, the observer signal means the
+complete interaction batch is already committed and drainable.
 
 ```mermaid
 sequenceDiagram
-    participant ENG as Engine thread
-    participant AB as GameActionBridge
-    participant CUT as MatchCutCoordinator
-    participant SIG as PrioritySignal
-    participant GB as GameBridge.awaitPriorityWithTimeout
-    participant SESS as Session critical section
+    participant E as Engine thread
+    participant C as MatchCutCoordinator
+    participant P as Projection core
+    participant S as PrioritySignal
+    participant M as MatchSession
 
-    SESS->>GB: awaitPriorityWithTimeout(timeout)
-    GB->>SIG: tryAcquire(timeout)
-    Note over GB: parks
-    ENG->>AB: awaitAction(state, frozen candidates)
-    AB->>AB: pending.set(PendingAction)
-    AB->>CUT: publish Visible window or SyncOnly state cut
-    CUT->>CUT: compile, commit, enqueue complete batch
-    CUT->>SIG: signal()
-    Note over AB: future.get() blocks engine
-    SIG-->>GB: permit
-    GB->>GB: drainPermits
-    GB-->>SESS: true
-    SESS->>CUT: drain committed batch
+    E->>C: publish immutable interaction window
+    C->>P: compile tentative transition
+    P-->>C: messages + next projection state
+    C->>C: install and enqueue under feedLock
+    C->>S: signal
+    E->>E: block on exact window
+    S-->>M: observer wakes
+    M->>C: drain committed batch
 ```
 
-For migrated interactions the signal means that the coordinator has committed and enqueued the complete batch while holding its feed lock. Releasing that lock makes the batch drainable; the subsequent signal wakes the session. A Visible priority window includes the immutable action catalog. A SyncOnly stop includes a state-only cut with no action request or client timer and freezes one engine continuation: reevaluate, require Visible, or allow SyncOnly. One drain snapshots the exact SyncOnly action id, delivers committed batches, completes only that stop, awaits once, and delivers the resulting horizon without releasing it. Completion itself cannot arm the continuation; only the engine thread does so after the exact wait returns successfully. Manual flow requires a Visible next stop. Explicit auto-resolve may allow another pass-only SyncOnly stop, while meaningful actions still select Visible. A stale id is not retried. Auto-pass repeats this operation through its explicit outer policy loop; an action response stops after one completed synchronization horizon. Delivery failure or SyncOnly timeout is terminal and cannot resume Forge or alter the next priority decision past an undelivered barrier. A safe priority Skip emits no signal because it closes no journal, allocates no IDs, and blocks on no future. A session submits immutable answers and never infers readiness from a guessed game-state id or settle delay.
+Every coordinator-backed interaction must preserve these rules:
 
-An explicitly bound `TargetSelection` callback freezes exact stack-object candidates (original option index, stack instance id, source card id, and ability identity), publishes its initial state and request before signalling, then blocks on the coordinator mailbox. Route identity selects this owner; a nullable live targeting ability is retained only in the Forge shell for legality and final resolution. Each correlated tap is consumed on the Forge thread, where legality is recomputed against the retained exact ability; the replacement request is committed before the session delivery acknowledgement releases the mailbox. Finish and cancel release only their exact window. A Targeting choice deadline differs from a delivery barrier: timeout atomically retires the unpublished answer state, clears retained handles, returns the configured default, and rejects late commands without failing the match. Materialization, projection install, delivery, and teardown failures remain exceptional and wake the blocked callback.
+1. Freeze projection values and exact executable handles on the engine thread.
+2. Commit the complete state-and-request batch before signalling.
+3. Correlate answers to the exact interaction and game-state identifiers.
+4. Resolve original handles only within the owning runtime.
+5. Retire response, timeout, supersession, and teardown through one winner.
+6. Treat materialization, install, or delivery failure as terminal when Forge
+   cannot safely continue past the unpublished boundary.
 
-An explicitly bound Search callback freezes library, candidate, source, and picker-shape values on the engine thread. The coordinator compiles the reveal state and `SearchReq` as one batch under `MessageCounter` → `projectionBuildLock` → `feedLock`, installs it, acknowledges its journal frame, and only then signals. A correlated instance-id response is mapped through the frozen option table and resets the reveal baseline under `projectionBuildLock` → `feedLock` before completing the engine future. Timeout uses the same retirement lock and returns the configured default through the prompt bridge; a concurrent accepted response wins without rollback.
+Some interactions accept an ordinary default on choice timeout. That is a
+prompt policy, not permission to continue after failed publication.
 
-Top- and bottom-library ordering callbacks freeze the route, source, candidates, exact card handles, and any pending hand-to-library move on the engine thread. The coordinator compiles the move state and `OrderReq` in one cut, commits it before signalling, and resolves a correlated full instance-id permutation through the retained option table. Timeout retires the window and returns the original default-first order; late, duplicate, incomplete, and stale responses cannot mutate it.
+A synchronous default path publishes no window and therefore emits no signal.
+Priority `Skip` likewise closes no journal and allocates no protocol state.
 
-Scry and Surveil callbacks freeze their route, source, private candidates, and exact card handles on the engine thread. The coordinator compiles the private reveal state and `GroupReq` in one cut, commits it before signalling, and resolves a correlated complete partition through the retained option table. If kept cards require ordering, the Grouping result remains awaiting finalization until the ordered-card window returns; only then does the runtime stage the arrangement fact with the final top order. Timeout retires the window and returns the existing default partition; late or invalid responses cannot mutate it.
+## Projection commit and delivery
 
-Legend Rule, library putback, Manifest Dread, hidden-library Dig resolution, complete chooser-visible card resolution, Learn, discard, resolution sacrifice, Suspect, and Mutate top/bottom callbacks freeze their route kind, source, cardinality, default, candidates, origin zones, and exact card handles on the engine thread. Manifest Dread, hidden-library resolution, and Learn project the candidates privately from their actual zones in the same committed state-and-`SelectNReq` cut. Complete chooser-visible resolution reuses the committed viewer projection and adds no private overlay. Correlated `SelectNResp` values resolve through the retained instance-id table; Legend Rule, library putback, Manifest Dread, both resolution kinds, and Learn accept only that response family, while the other card-select routes retain their compatible `EffectCostResp` shape. Learn records a selected sideboard reveal before returning the exact handle. Choice-result facts are staged before the exact engine wait is released, while Legend Rule records each unchosen exact handle after the wait returns and before state-based actions continue. Timeout retires the window and returns the configured default handle, while stale or invalid responses have no side effects.
+Projection and delivery have separate timelines:
 
-Color, subtype, and parity callbacks freeze their route kind, source, cardinality, default, and exact protocol enum values on the engine thread. The coordinator commits one state-and-static-`SelectNReq` cut before signalling. A correlated `SelectNResp` maps through the frozen value table to the original option index; its ChoiceResult fact is staged before the exact engine wait is released. Timeout retires the window and returns the configured default index, while stale or invalid responses have no side effects.
+| Timeline | Advances when | Meaning |
+|---|---|---|
+| Projection state and viewer cursor | A complete transition installs | Baseline for the next compile |
+| Committed feed | The fixed batch is enqueued | Batch may be drained |
+| Sink handoff | `MessageSink.send` is invoked successfully | Server delivery attempt, not client acknowledgement |
 
-Reveal-backed card choices freeze the exact reveal journal version and owner, full revealed ID set, selectable exact card handles, source, cardinality, and default on the engine thread. The coordinator marks that exact reveal pending in the frozen projection facts and commits the state and `SelectNReq` together before signalling. A correlated `SelectNResp` resolves through the retained instance-id table; completion stages any source-linked exile and compare-clears only the claimed reveal before releasing the engine. Zero-selectable and timeout paths use the same finalization, while publication or delivery failure clears the claimed version without an exile side effect.
+Never use a viewer cursor as client-awareness state. If behavior depends on
+delivery, represent delivery explicitly.
 
-Convoke, Improvise, and Waterbend callbacks freeze their candidate, shard, source, and mana-cost values on the engine thread. The coordinator commits the initial state and `PayCostsReq` before signalling. Each correlated MakePayment command updates the immutable selection plan and commits its replacement request before delivery acknowledgement releases the engine mailbox. Pass and Cancel return exact original option indices; timeout atomically retires the window and returns the configured default. Convoke and Improvise payment facts are staged by the replacement cut, corrected to the final engine payment before progression, and retained until stack-exit consumption.
+One bridge owns one `ProjectionState` and one shared `MessageCounter` across its
+builders. Failed publication may leave identifier gaps, but no producer rewinds
+the sequence. Producers must still enter the same ordered publication/delivery
+path; atomic allocation does not order independently delivered batches.
 
-Sacrifice, exile-from-grave, return-unblocked-attacker, Collect Evidence, Station, Enlist, and grounded tap-payment callbacks freeze source, cardinality, weight, and exact option handles on the engine thread. Grounded tap payments cover Crew, Saddle, and Teamwork total-power thresholds plus exact tap-two, tap-three, and untap-two costs. Spell sources resolve from the prepared projection, while activated sources stage their exact stack-ability facts before standard mapping. The coordinator commits one state-and-`PayCostsReq` batch before signalling. A correlated immutable instance-id response resolves through the retained option table and returns the exact original handles. The grounded Hopeful Initiate `GatherCounters` row uses the same lifecycle with a typed source-capacity table, exact stack-ability destination, and validated positive amounts summing to two. Its timeout and non-interactive defaults use source-order first-fit only when capacities suffice; cancel returns no payment. Unsupported counter shapes remain on the residual chooser. Timeout retires the window; materialization, install, delivery, and teardown failures are terminal.
+Interactive sends drain older committed playback before delivering a caller's
+newer batch. A producer that bypasses that funnel can expose output out of order.
 
-Candidate-backed `Generic` card choices bind the SelectTargets-compatible compatibility runtime, preserving toggle/echo/submit behavior and exact original card handles without asserting protocol conformance. Unsupported entity domains bind `UnclassifiedEntityChoice`; a pure policy refuses strictly before applying an optional-empty or required stable-prefix synchronous default. Candidate-free `Generic` callbacks take the explicit synchronous default policy: no pending interaction is published, the history records `DEFAULTED_POLICY`, and the next priority decision observes the prompt-resolved marker. Non-library ordering returns the original sequence before allocating a prompt. Mulligan retains its named handoff contract.
+## Safe points and event subscribers
 
----
+Forge EventBus subscribers execute synchronously on the engine thread, often in
+the middle of the operation that raised the event. Ordinary subscribers append
+immutable facts and request a cut. They must not:
 
-## 3. Projection baseline vs sink handoff
+- inspect Forge for projection after handing work to another thread;
+- close the journal or compile a frame;
+- allocate protocol identities;
+- install, enqueue, deliver, sleep, or wait on external work.
 
-Two independent timelines exist. The viewer cursor in `ProjectionState` is the
-latest projection baseline committed during bundle construction, not an
-acknowledgement from the sink.
+`PhaseHandler` invokes the ordinary completion hook after a successful
+`mainLoopStep` mutation burst. Narrow completion hooks own attacker declaration,
+blocker declaration, and combat teardown cuts. A combat journal may yield
+several ordered frames, but the pending cut compiles them as one private fold
+and installs only the final combined transition.
 
-| Timeline | Location | Advances on | Purpose |
-|---|---|---|---|
-| Projection baseline | `ProjectionState.viewerCursors` | The coordinator installs the completed transition while publishing a migrated batch under `feedLock`; residual shell paths install before returning messages | Input to the next `StateProjectionCompiler.compileOneViewer` call |
-| Sink handoff | Implicit in the sink | `sink.send(messages)` is invoked successfully | Server-side delivery attempt; this is not client acknowledgement |
+A failed or stale install is not rebuilt from a newer live snapshot. It retains
+the immutable cut and terminates the path because rebasing would change the
+facts that were originally closed.
 
-The interactive state-diff order is:
+## Pre-mutation prompts
 
-```text
-snapshot Forge state and materialize typed viewer intent
-  -> compile the finalized state frame
-  -> invoke the pre-commit diff observer
-  -> commit projection:
-       install complete ProjectionState
-       advance the viewer baseline
-       acknowledge exact pending shell entries
-  -> assemble path-specific messages
-  -> return the batch
-  -> later call sink.send
-```
+Forge can ask for input before performing a mutation that the client must
+already present. Such prompts use explicit projection supplements: materialize the
+intended state, commit it with the request, then reconcile it after Forge
+resumes. The supplement is a value owned by the prompt runtime; it is not a
+reason to mutate projection state outside compilation.
 
-The transition already contains the resulting identity, zone, annotation, and
-cursor values; the shell does not replay per-family mutation batches. The
-interactive path binds offers and sends after `BundleBuilder` returns. Ordinary
-playback first retains an immutable `PendingCut` with its closed frame input,
-prior projection, viewer intent, action values, and logical ids. It compiles
-that exact cut, enqueues the fixed batch, and installs its transition under
-`feedLock`; a session or spectator domain cannot drain the batch until the
-install attempt completes. A stale install cannot succeed against the cut's
-exact prior revision and therefore becomes terminal without rebasing or
-recapturing.
+## Deletion condition
 
-Projection history and cursor advancement share one commit function. Ordinary
-playback assembly and enqueue failures therefore install nothing. A successful
-install followed by acknowledgement failure retains the already-enqueued output;
-the terminal state prevents replay. Stale, commit, and enqueue failures retain
-the exact cut or materialization diagnostic. Sink delivery remains outside that transaction: a
-later transport failure can still leave the committed projection ahead of
-delivered output.
-
-**R1. Never use the projection baseline as client-awareness state.** If a
-decision depends on whether delivery occurred, track delivery explicitly.
-
-**R2. One cursor per bridge, shared across builders.** Per-viewer builders use
-the viewer cursor inside the bridge's `ProjectionState`. Separate cursors would
-produce diffs against different histories. Transition installation publishes
-the viewer cursor, while `sessionLock`, `feedLock`, priority waits, and feed
-ordering provide the larger sequencing contract.
-
-**R3. Preserve playback-before-session delivery.** `sendBundledGRE` drains
-queued playback batches with lower message or game-state IDs before sending the
-caller's batch. Do not bypass that funnel while engine callbacks can still
-construct and enqueue frames.
-
----
-
-## 4. One shared counter, not two
-
-`gsId` is protocol-critical: the client-visible `GameStateMessage` stream must use monotonically increasing, unique IDs with no self-referential predecessor. `msgId` is still allocated from the same counter object for local ordering and response bookkeeping, but validator hard failures are intentionally limited to the stable gsId facts plus AIC/AID affector consistency. Both IDs live on one `MessageCounter` owned by `GameBridge`. The match coordinator and its `BundleBuilder`s allocate migrated batches from it; named lifecycle, routed-prompt, and spectator builders share the same atomic-backed counter until those residual paths migrate. Failed publication may leave gaps, but no producer rewinds the global sequence.
-
-A partitioned design (a range of IDs per thread) cannot guarantee client-visible ordering without coordination on every send, which is the problem the shared atomic already solves. A predecessor design with two counters and a `max()`-merge at every bridge callback existed; the current shape removes the problem rather than patching it.
-
----
-
-## 5. awaitPriority before sending
-
-Detecting a phase from an interactive-session entrant means the engine *entered*
-the phase, not that it is *blocked and waiting*. Engine state can still be
-mid-mutation—triggers firing, SBAs resolving, or the match coordinator materializing a
-frame—when phase transitions fire.
-
-**Invariant.** Before an interactive-session handler builds an outbound GRE
-message in response to a phase, it must call `bridge.awaitPriority()` (or
-`awaitPriorityWithTimeout` with a tighter budget).
-
-For coordinator-backed Visible priority, SyncOnly, Targeting, Search, Top/Bottom Order, Scry/Surveil Grouping, card-backed SelectN, static-enum SelectN, reveal-backed SelectN, ModalChoice, PayCosts, and blocking interactions, the wait guarantees:
-
-1. The engine has blocked in a bridge callback — a priority stop, an interactive prompt, or game over.
-2. The interaction batch is committed and drainable under the coordinator feed lock. SyncOnly batches are state-only; delivery precedes exact-id completion, and a resulting horizon remains owned by the next caller invocation.
-3. The projection baseline for that batch has settled.
-
-Unclassified entity/candidate choices and mulligan retain their named handoff contracts. Candidate-free Generic policy defaults and non-library ordering return synchronously without entering this wait contract.
-
-Direct priority Skip does not enter this wait contract: it is allocation-free and returns an engine pass without publication.
-
-A send that skips `awaitPriority` is a send built from a half-mutated engine state. The resulting GSM diff will be inconsistent with what the client should observe.
-
----
-
-## 6. Mode choice before stack add
-
-Forge's `PlaySpellAbility.playAbility` resolves charm / modal mode choice **before** the triggered ability is added to the stack:
-
-```
-CharmEffect.makeChoices(ability)        ← blocks in chooseModeForAbility
-game.getStack().addAndUnfreeze(ability) ← runs only after mode choice returns
-```
-
-When `PlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `MatchModalChoiceRuntime` cuts the GSM and `CastingTimeOptionsReq` atomically; `ModalChoiceWindowMaterializer` overlays the missing ability object in the outbound GSM only, while the ordinary projection transition commits before signalling the client. The runtime queues the matching cleanup diff after Forge resumes, so the next projection has a precise wire-only object to delete.
-
-Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthetic ability object and use the projected source-card instance directly.
-
-**Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The modal runtime approach — materialize a wire-only overlay, commit the ordinary projection transition, enqueue the request, and signal only after the cut commits — is the template to copy.
-
----
-
-## 7. Engine-thread event subscribers
-
-`GamePlayback` subscribes to Forge's Guava EventBus. EventBus dispatch is
-synchronous on the engine thread: the `@Subscribe` method runs mid-way through
-the operation that fired the event. Ordinary subscribers therefore request a
-cut only. `PhaseHandler` invokes the playback hook once after a successful
-`mainLoopStep` mutation burst, including normal early returns.
-
-**Playback subscribers journal intent only.** They must not close the event
-journal, inspect Forge for projection, allocate message or object ids, compile,
-install, enqueue, sleep, perform I/O, or wait on an external resource. The
-coordinator owns those operations under the frame-production lock order; its
-drainer never waits for the engine while holding `feedLock`.
-
-**The completion hook is the ordinary projection safe point.** It runs after the
-step's mutation burst and before Forge starts another step. It materializes the
-closed frame once, then pacing sleeps only after successful install and enqueue.
-The unit is one completed Forge step rather than one EventBus event or chosen
-action: eligible events within that step keep their causal order in one frame,
-with no intermediate bundle.
-Hook exceptions propagate through `GameLoopController`, which stops the loop,
-wakes bridge waiters, and exposes the terminal cause.
-
-**Combat cuts use narrow completion hooks.** Attacker, blocker, and combat-end
-events request typed cuts. Forge invokes the matching hook only after the whole
-declaration or teardown has finished, including declaration triggers, combat
-view updates, event dispatch, and stack unfreezing where applicable. Attacker
-declarations request a frame on both seats so local auto-pass cannot skip the
-in-combat state. A pending ordinary request for the same open journal is
-subsumed by that combat boundary.
-
-One closed combat journal can legitimately produce first-strike, regular-damage,
-and end-combat frames. The pending cut owns that complete immutable frame plan.
-Projection folds the frames over private state, publishes their batches in
-order, and installs only the final combined transition. A failure in any frame
-publishes none of them and retains the whole cut.
-
----
-
-## See also
-
-[`architecture.md`](architecture.md) — system shape (modules, ports, wire frame, match lifecycle).
-
-[`architecture-direction.md`](architecture-direction.md) — accepted destination for runtime ownership, safe-point inputs, pure projection, and ordered delivery.
+This document can disappear when all match entrants submit immutable signals to
+one logical runtime owner, every gameplay and lifecycle producer commits through
+one ordered path, and the session/projection/feed locks no longer form a
+cross-class correctness contract. Until then, changes to any named lock,
+publication boundary, or residual producer must update this document in the
+same change.

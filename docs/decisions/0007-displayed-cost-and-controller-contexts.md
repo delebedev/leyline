@@ -10,7 +10,9 @@ read_when:
 
 ## Status
 
-Proposed.
+Accepted and implemented. Action emission uses `CastDisplayCost`; affordability
+and other non-interactive evaluation enter explicit `NonInteractiveScope`
+policies.
 
 ## Context
 
