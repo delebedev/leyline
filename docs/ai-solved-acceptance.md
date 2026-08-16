@@ -143,23 +143,11 @@ When reviewing a new Forge-AI policy adapter, check that it narrows a Forge deci
 - **Winner-based verification:** for lethal probes, success means the expected `winnerSeat` / `loserSeat`, not merely `gameOver=true` or `failure=natural`.
 - **Control coverage:** run the fixed red probe plus at least one nearby green control so the adapter does not regress an already-working prompt shape.
 
-## Training Probes
+## Probe Design
 
-Use a small set of distinct failure classes to train and verify adapter fixes. A single puzzle can be solved accidentally by a local heuristic; repeated puzzles for the same prompt gap are useful regression coverage only after the root adapter is fixed.
-
-Policy realization probes:
-
-| Puzzle | Direct expectation | GRE status |
-|---|---|---|
-| `combat-bypass-unsummon.pzl` | cast `Unsummon` on `Runeclaw Bear`, then attack with `Grizzly Bears` for lethal | Forge-AI cast decision is realized, then GRE passes through `DeclareAttackersReq`; seat 1 loses |
-| `overload-mizzium-mortars.pzl` | choose the overload branch so `Mizzium Mortars` damages both opposing creatures | GRE realizes the overload branch, but the probe still reaches the turn cap; seat 1 loses |
-| `crew-brute-suit-lethal.pzl` | crew `Brute Suit` with `Centaur Courser`, then attack with `Brute Suit` for lethal | GRE passes through main phase without realizing the crew activation, attacks with `Centaur Courser` for nonlethal damage, then seat 1 loses |
-| `heraldic-banner-lethal.pzl` | cast `Heraldic Banner`, choose Red, then attack with a 2/1 `Raging Goblin` for lethal | GRE asks Forge AI for the static color choice and wins |
-| `bite-down-lethal.pzl` | choose our `Grizzly Bears`, choose opposing `Grizzly Bears`, destroy the blocker, then attack for lethal | GRE realizes the ordered target choice, then passes through the attack; seat 1 loses |
-| `eaten-alive-sacrifice-lethal.pzl` | sacrifice `Ornithopter`, exile `Centaur Courser`, attack with `Grizzly Bears` | GRE consults the Forge-AI cost decision for `PayCostsReq`, sacrifices `Ornithopter`, and wins |
-| `jump-start-radical-idea-bolt-lethal.pzl` | jump-start `Radical Idea` by discarding `Coral Merfolk`, draw `Lightning Bolt`, then cast it for lethal | GRE jump-starts the spell and draws `Lightning Bolt`, then advances phases instead of realizing the newly available cast; seat 1 loses |
-
-Probe design rules:
+A single puzzle can be solved accidentally by a local heuristic. Add repeated
+fixtures only after the root adapter is fixed and the new case represents a
+distinct decision boundary.
 
 - Prefer one clear puzzle per failure class before adding same-class variants.
 - Keep class probes discriminating: a wrong local fallback should flip `winnerSeat` / `loserSeat`.
@@ -167,7 +155,3 @@ Probe design rules:
 - Prefer `Goal:Win` and `Turns:1`; use `--max-turns 2` for one-turn direct/GRE runs.
 - Allow longer fixtures only when the mechanic needs them, such as overload probes that need combat damage after the spell turn.
 - Evaluate success by `winnerSeat=1` / `loserSeat`, not by `gameOver=true`.
-
-## Native-Client Caveat
-
-Terminal win fixtures can end the match session. That is fine for headless TDD, but repeated native-client iteration may need a puzzle-lab mode that keeps the scene ready for the next fixture. Do not add that mode just to prove a headless contract.

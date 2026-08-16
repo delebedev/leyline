@@ -9,7 +9,9 @@ read_when:
 
 ## Status
 
-Accepted for incremental implementation.
+Accepted and implemented for every `StateMapper`-backed frame. Direct lifecycle
+and synthetic builders remain separate single-authority paths as allowed by
+this decision.
 
 ## Context
 

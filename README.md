@@ -1,88 +1,89 @@
 # Leyline
 
-Open-source local playtesting server.
-Protocol bridge + open rules engine.
+Open-source local playtesting server built around a client protocol bridge and
+the [Forge](https://github.com/Card-Forge/forge) rules engine.
 
-## ⚙️ How it works
-
-Leyline speaks the client protocol and translates game actions into
-[Forge](https://github.com/Card-Forge/forge)'s open-source rules engine.
+Leyline exposes two heads over one match engine: a native-client-compatible
+head and a browser-facing web head.
 
 ```mermaid
-graph LR
-    CLIENT["Client"] -- "TLS + protobuf" --> LEYLINE["Leyline"]
-    LEYLINE -- "game actions" --> FORGE["Forge Engine"]
-    FORGE -- "game state" --> LEYLINE
+flowchart LR
+    NC["Native client"] --> N["Native head"]
+    B["Browser"] --> W["Web head"]
+    N --> E["Leyline engine"]
+    W --> E
+    E --> F["Forge rules engine"]
 ```
 
-The key pattern: Forge's engine blocks at each decision point.
-Leyline's async handler completes the future when the client responds.
+Forge owns game rules and legality. Leyline translates between synchronous
+engine decisions and asynchronous protocol interactions, then projects engine
+state into client-facing updates.
 
+[Architecture deep dive →](docs/architecture.md)
+
+## Repository shape
+
+```text
+app/         Composition root, local control, and management
+domain/      Shared domain model, services, and repository ports
+engine/      Forge adapter, match runtime, and state projection
+native/      Native account, lobby, and match transports
+web/         Browser HTTP and WebSocket head
+forge/       Forge submodule
 ```
-app/         Server startup, Netty pipeline, debug tools
-domain/      Domain model and services
-engine/      Forge bridge + GRE match-session engine
-native/      Native-client head: account, lobby, match TCP transport
-web/         Browser-facing HTTP/WebSocket head
-```
 
-[Architecture deep-dive →](docs/architecture.md)
-
-## Forge
-
-The heavy lifting lives in [Forge](https://github.com/Card-Forge/forge),
-the open-source MTG rules engine.
-
-Leyline uses a [minimal fork](https://github.com/delebedev/forge) that adds
-event hooks and controller seams for the client protocol bridge.
-The rules engine itself is untouched.
-
-## 🛠 Build from source
+## Build and run
 
 ```bash
 git clone --recursive https://github.com/delebedev/leyline.git
 cd leyline
-just bootstrap   # submodules + forge + build + seed DB
-just serve        # server on :30003 + :30010
+just bootstrap
+just serve
 ```
 
-**Requires:** JDK 21+, [just](https://github.com/casey/just), macOS or Linux.
-Client installed locally for card data lookup at runtime; not distributed.
-End-to-end client runs need local client setup. See [docs/local-client-setup.md](docs/local-client-setup.md).
+Requires JDK 21+, [just](https://github.com/casey/just), and macOS or Linux.
+End-to-end native-client play needs a compatible client installed separately
+and the local setup described in
+[`docs/local-client-setup.md`](docs/local-client-setup.md).
 
-### Testing
+## Test
 
 ```bash
-just test-gate         # lint + typecheck + all tests
-just test-one MyTest   # single engine test class; add module name for others
-just puzzle file.pzl   # run a puzzle scenario
+just test-gate                 # formatting and repository test gate
+just test-one MyTest engine   # one focused test class
+just puzzle-check file.pzl    # validate a puzzle fixture
 ```
 
-## 🧭 Design philosophy
+Puzzle-backed scripted suites exercise complete gameplay paths. See
+[`docs/puzzle-harness.md`](docs/puzzle-harness.md) for fixture boundaries.
 
-**Architecture-first.** Keep the bridge small, explicit, and observable.
+## Design stance
 
-**Minimal engine changes.** Leyline plugs into Forge's existing bridge interfaces. The fork adds event hooks and controller seams — the rules engine stays untouched.
+- **Playable behavior first.** A change is complete when its user-facing path
+  works, not merely when a lower layer compiles.
+- **Forge owns rules.** Leyline adds narrow integration seams instead of
+  duplicating game logic.
+- **Explicit boundaries.** Live Forge handles stay in the imperative shell;
+  projection consumes immutable values.
+- **Local interoperability.** The project implements client-compatible
+  protocols without distributing client assets.
 
-**Puzzles as acceptance tests.** `.pzl` files define exact board states with a focused success path. Agents and scripted suites play through them to verify the server; terminal win fixtures are used when they provide the sharpest oracle.
+## Scope
 
-**Protocol implementation.** Protobuf responses built from protocol documentation and project-owned tooling. No distributed client assets.
-
-## 📋 What this is
-
-A local server for personal playtesting and protocol/runtime experimentation.
-
-**What it is not:**
-
-- Not a public or online service
-- Does not distribute card art, sounds, or game assets
+Leyline is a local server for personal playtesting and protocol/runtime
+experimentation. It is not a public or hosted game service and does not
+distribute card art, sounds, or other game assets.
 
 ## License
 
-GPL-3.0 — inherited from [Forge](https://github.com/Card-Forge/forge). See [LICENSE](LICENSE), [LEGAL](LEGAL.md), and [NOTICE](NOTICE).
+GPL-3.0, inherited from Forge. See [LICENSE](LICENSE), [LEGAL](LEGAL.md), and
+[NOTICE](NOTICE).
 
-[Architecture](docs/architecture.md) · [Issues](https://github.com/delebedev/leyline/issues)
+[Architecture](docs/architecture.md) ·
+[Contributing](CONTRIBUTING.md)
 
 ---
 
-This project is not affiliated with, endorsed by, or connected to Wizards of the Coast, Hasbro, or any of their affiliates. "Magic: The Gathering" is a trademark of Wizards of the Coast LLC.
+This project is not affiliated with, endorsed by, or connected to Wizards of
+the Coast, Hasbro, or any of their affiliates. "Magic: The Gathering" is a
+trademark of Wizards of the Coast LLC.

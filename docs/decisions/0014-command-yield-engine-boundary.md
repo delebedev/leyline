@@ -43,8 +43,9 @@ boundary.
 
 ## Decision
 
-Converge the match runtime on the normative shape in
-[`architecture-direction.md`](../architecture-direction.md):
+This ADR originally required the following runtime shape. ADR 0015 supersedes
+the mandatory owner/worker topology while retaining the value-boundary and
+single-commit constraints:
 
 - a supervisor owns execution-domain lifecycle and worker cleanup after a
   terminal match decision;
