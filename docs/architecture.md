@@ -102,6 +102,15 @@ migrated paths. `MatchPromptRuntimeSet` owns the match's prompt-runtime
 inventory. Exact Forge objects remain behind bounded runtime tables; client
 responses carry correlation values that resolve those retained handles.
 
+Three owners sit beneath that boundary and are each the only implementation of
+their contract. `CoordinatorCutInstaller` performs the single-batch cut
+transaction — enqueue, projection commit, rollback of an uninstalled batch, and
+playback acknowledgement — for every runtime family.
+`MatchActionWindowRuntime` is the sole authority on action-window lifecycle;
+`GameActionBridge` is the engine-thread wait adapter and keeps no competing
+lifecycle state. `InteractiveCommandExchange` owns the cross-thread command
+handshake that iterative targeting and mana-source payment windows share.
+
 Not every lifecycle path has converged on that owner. Mulligan, some lifecycle
 messages, and residual session-owned output retain explicit handoff contracts.
 [`bridge-threading.md`](bridge-threading.md) is authoritative for those current
