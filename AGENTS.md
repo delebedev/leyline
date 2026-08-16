@@ -52,7 +52,8 @@ just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt
 
 ## Testing
 
-Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
+Kotest FunSpec (JUnit Platform). Engine test guidance lives in
+`engine/src/test/kotlin/leyline/AGENTS.md`.
 
 - `just test-one <ClassName> [module]` — single class; defaults to `engine`, e.g. `just test-one WebRoutesTest web`
 - `just test-many "<ClassA> <ClassB>" [module]` — several classes in one run (space-separated, one string)
@@ -70,7 +71,7 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
 - **Architecture:** `docs/architecture.md`, `docs/forge-api-concepts.md`, `engine/AGENTS.md` (engine adapter internals).
 - **Local setup notes:** `docs/local-client-setup.md`
-- **Agent rules:** Claude loads matching files under `.claude/rules/` directly. Codex: always read `.claude/rules/code-style.md`; before Forge-facing engine work read `.claude/rules/forge-seams.md`; before test work read `.claude/rules/leyline-tests.md`; before build/bootstrap/infra work read the matching `.claude/rules/build-*.md` files.
+- **Agent rules:** Read matching subtree `AGENTS.md` files. Also read `.claude/rules/code-style.md`; before Forge-facing engine work read `.claude/rules/forge-seams.md`; before build/bootstrap/infra work read the matching `.claude/rules/build-*.md` files.
 
 ## Documentation
 

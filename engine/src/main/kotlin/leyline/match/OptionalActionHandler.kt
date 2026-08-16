@@ -67,7 +67,7 @@ class OptionalActionHandler(
 
         if (!bridge.cutCoordinator.submitOptionalAnswer(pending.interactionId, greMsg.gameStateId, accepted)) return
         bridge.prioritySignal.markPromptResolved()
-        bridge.awaitActionPriority(counters.seatId)
+        bridge.awaitPriority()
         autoPass()
     }
 
