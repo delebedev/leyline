@@ -222,6 +222,8 @@ class CombatInteractionTest :
         test("human declares multiple attackers") {
             val attackerIids = setupMultipleAttackers()
 
+            passPriority() // advance to combat
+
             val pending =
                 harness.bridge
                     .actionBridge(SeatId(1))
