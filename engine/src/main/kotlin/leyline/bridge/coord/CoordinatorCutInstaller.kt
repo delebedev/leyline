@@ -7,8 +7,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * Prepared output and projection transition for one single-batch coordinator cut.
  *
  * A null [transition] means the cut publishes output without advancing projection
- * state; the batch is then owned from enqueue onwards and never rolled back for a
- * failed install.
+ * state. Such a cut counts as installed the moment its batch is enqueued, so only
+ * a failure before that point withdraws the batch.
  */
 internal data class PreparedCut(
     val messages: List<GREToClientMessage>,

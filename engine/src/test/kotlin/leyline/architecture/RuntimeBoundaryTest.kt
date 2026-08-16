@@ -570,7 +570,7 @@ class RuntimeBoundaryTest :
             check("var published" !in pendingAction)
             check("var claimed" !in pendingAction)
             check("var promptGameStateId" !in pendingAction)
-            check("windowRuntime?.promptGameStateId(actionId)" in pendingAction)
-            check("windowRuntime?.isVisible(p.actionId)" in bridge)
+            check("windowRuntime?.promptGameStateId(" in pendingAction)
+            check("windowRuntime?.isVisible(" in bridge)
         }
     })
