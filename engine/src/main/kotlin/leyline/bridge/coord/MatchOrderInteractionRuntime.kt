@@ -10,7 +10,6 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedOrderInteraction
 import leyline.game.OrderMaterializationDiagnostic
 import leyline.game.PendingOrderCut
-import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
@@ -20,19 +19,33 @@ internal class MatchOrderInteractionRuntime(
     private data class Window(
         val published: PublishedOrderInteraction,
         val value: OrderWindowValue,
-        val cut: PendingOrderCut,
+        override val cut: PendingOrderCut,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<OrderInteractionResult> {
+    ) : SinglePromptWindow<OrderInteractionResult, PendingOrderCut> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingOrderCut, OrderInteractionResult>(owner, Window::cut)
+    private val windows = SinglePromptWindowState<Window, PendingOrderCut, OrderInteractionResult>(owner)
+    private val kernel =
+        SinglePromptRuntimeKernel<Window, PendingOrderCut, OrderInteractionResult>(
+            owner,
+            windows,
+            publicationFailure = { cause, failed -> owner.failOrder(cause, failed.cut) },
+        )
 
-    internal var beforeInstall: (() -> Unit)? = null
-    internal var afterInstall: (() -> Unit)? = null
+    internal var beforeInstall: (() -> Unit)?
+        get() = kernel.beforeInstall
+        set(value) {
+            kernel.beforeInstall = value
+        }
+    internal var afterInstall: (() -> Unit)?
+        get() = kernel.afterInstall
+        set(value) {
+            kernel.afterInstall = value
+        }
     internal var beforeTimeoutClaim: (() -> Unit)? = null
     internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
@@ -75,77 +88,59 @@ internal class MatchOrderInteractionRuntime(
 
     internal fun pendingCutLocked(): PendingOrderCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
-    private fun publish(initial: OrderWindowCapture.Initial): Window {
-        owner.beforePublicationLock?.invoke()
-        val created =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        windows.ensureEmptyLocked("An Order interaction is already pending")
-                        val feed = owner.feed(owner.humanSeat)
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val interactionId = UUID.randomUUID().toString()
-                        val diagnostic = OrderMaterializationDiagnostic(interactionId, initial.value)
-                        val prepared =
-                            try {
-                                feed.builder.prepareOrderWindow(game, owner.counter, initial.value)
-                            } catch (ex: Exception) {
-                                owner.failOrder(ex, diagnostic = diagnostic)
-                            }
-                        val published =
-                            PublishedOrderInteraction(
-                                interactionId,
-                                checkNotNull(prepared.bundle.actionGameStateId),
-                                initial.value.kind,
-                            )
-                        val exact =
-                            PendingOrderCut(
-                                interactionId,
-                                published.gameStateId,
-                                initial.value,
-                                prepared.bundle.messages,
-                                prepared.transition,
-                            )
-                        val projection = prepared.transition.nextState
-                        val entries =
-                            initial.value.candidates.map { candidate ->
-                                val instanceId =
-                                    projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                        ?: owner.failOrder(IllegalStateException("Order candidate was not projected"), exact)
-                                instanceId to candidate.originalOptionIndex
-                            }
-                        val optionsByInstanceId = entries.toMap()
-                        if (optionsByInstanceId.size != entries.size) {
-                            owner.failOrder(IllegalStateException("Order candidates have ambiguous identities"), exact)
-                        }
-                        val created = Window(published, initial.value, exact, initial.handlesByOption, optionsByInstanceId)
-                        val batch = prepared.bundle.messages
-                        var enqueued = false
-                        var installed = false
-                        try {
-                            feed.beforeBatchEnqueue?.invoke(0, batch)
-                            feed.queue.add(batch)
-                            enqueued = true
-                            beforeInstall?.invoke()
-                            owner.bridge.commitProjection(prepared.transition) { installed = true }
-                            afterInstall?.invoke()
-                            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-                        } catch (ex: Exception) {
-                            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-                            owner.failOrder(ex, exact)
-                        }
-                        windows.installLocked(created)
-                        created
+    private fun publish(initial: OrderWindowCapture.Initial): Window =
+        kernel.publish(
+            duplicateMessage = "An Order interaction is already pending",
+            prepare = { interactionId, feed, game ->
+                val diagnostic = OrderMaterializationDiagnostic(interactionId, initial.value)
+                val prepared =
+                    try {
+                        feed.builder.prepareOrderWindow(
+                            game ?: owner.fail(IllegalStateException("Game unavailable")),
+                            owner.counter,
+                            initial.value,
+                        )
+                    } catch (ex: Exception) {
+                        owner.failOrder(ex, diagnostic = diagnostic)
                     }
+                val published =
+                    PublishedOrderInteraction(
+                        interactionId,
+                        checkNotNull(prepared.bundle.actionGameStateId),
+                        initial.value.kind,
+                    )
+                val exact =
+                    PendingOrderCut(
+                        interactionId,
+                        published.gameStateId,
+                        initial.value,
+                        prepared.bundle.messages,
+                        prepared.transition,
+                    )
+                val projection = prepared.transition.nextState
+                val entries =
+                    initial.value.candidates.map { candidate ->
+                        val instanceId =
+                            projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
+                                ?: owner.failOrder(IllegalStateException("Order candidate was not projected"), exact)
+                        instanceId to candidate.originalOptionIndex
+                    }
+                val optionsByInstanceId = entries.toMap()
+                if (optionsByInstanceId.size != entries.size) {
+                    owner.failOrder(IllegalStateException("Order candidates have ambiguous identities"), exact)
                 }
-            }
-        owner.bridge.prioritySignal.signal()
-        return created
-    }
+                val created = Window(published, initial.value, exact, initial.handlesByOption, optionsByInstanceId)
+                SinglePromptPublication(
+                    created,
+                    prepared.bundle.messages,
+                    prepared.transition,
+                    prepared.closesPlaybackFrame,
+                )
+            },
+        )
 
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): OrderInteractionResult = windows.await(pending, timeoutMs, ::OrderInteractionTimeoutException, beforeTimeoutClaim)
+    ): OrderInteractionResult = kernel.await(pending, timeoutMs, ::OrderInteractionTimeoutException, beforeTimeoutClaim)
 }

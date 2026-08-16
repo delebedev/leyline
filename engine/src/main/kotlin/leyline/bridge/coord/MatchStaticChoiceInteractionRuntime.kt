@@ -10,7 +10,6 @@ import leyline.bridge.handoff.StaticChoiceWindowValue
 import leyline.game.PendingStaticChoiceCut
 import leyline.game.StaticChoiceMaterializationDiagnostic
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
-import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 /** Exact static enum SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -20,18 +19,32 @@ internal class MatchStaticChoiceInteractionRuntime(
     private data class Window(
         val published: PublishedStaticChoiceInteraction,
         val value: StaticChoiceWindowValue,
-        val cut: PendingStaticChoiceCut,
+        override val cut: PendingStaticChoiceCut,
         val optionByValue: Map<Int, Int>,
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SinglePromptWindow<List<Int>> {
+    ) : SinglePromptWindow<List<Int>, PendingStaticChoiceCut> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingStaticChoiceCut, List<Int>>(owner, Window::cut)
+    private val windows = SinglePromptWindowState<Window, PendingStaticChoiceCut, List<Int>>(owner)
+    private val kernel =
+        SinglePromptRuntimeKernel<Window, PendingStaticChoiceCut, List<Int>>(
+            owner,
+            windows,
+            publicationFailure = { cause, failed -> owner.failStaticChoice(cause, failed.cut) },
+        )
 
-    internal var beforeInstall: (() -> Unit)? = null
-    internal var afterInstall: (() -> Unit)? = null
+    internal var beforeInstall: (() -> Unit)?
+        get() = kernel.beforeInstall
+        set(value) {
+            kernel.beforeInstall = value
+        }
+    internal var afterInstall: (() -> Unit)?
+        get() = kernel.afterInstall
+        set(value) {
+            kernel.afterInstall = value
+        }
     internal var beforeResponseComplete: (() -> Unit)? = null
     internal var beforeTimeoutClaim: (() -> Unit)? = null
     internal var afterDeliveryCutLookup: (() -> Unit)? = null
@@ -73,71 +86,45 @@ internal class MatchStaticChoiceInteractionRuntime(
 
     internal fun pendingCutLocked(): PendingStaticChoiceCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
-    private fun publish(initial: StaticChoiceWindowValue): Window {
-        owner.beforePublicationLock?.invoke()
-        val created =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        windows.ensureEmptyLocked("A StaticChoice interaction is already pending")
-                        val feed = owner.feed(owner.humanSeat)
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val interactionId = UUID.randomUUID().toString()
-                        val diagnostic = StaticChoiceMaterializationDiagnostic(interactionId, initial)
-                        val prepared =
-                            try {
-                                feed.builder.prepareStaticChoiceWindow(game, owner.counter, initial)
-                            } catch (ex: Exception) {
-                                owner.failStaticChoice(ex, diagnostic = diagnostic)
-                            }
-                        val published =
-                            PublishedStaticChoiceInteraction(
-                                interactionId,
-                                checkNotNull(prepared.bundle.actionGameStateId),
-                                initial.kind,
-                            )
-                        val exact =
-                            PendingStaticChoiceCut(
-                                interactionId,
-                                published.gameStateId,
-                                initial,
-                                prepared.bundle.messages,
-                                prepared.transition,
-                            )
-                        val optionByValue = initial.options.associate { it.protocolValue to it.originalOptionIndex }
-                        val created = Window(published, initial, exact, optionByValue)
-                        publishPrepared(feed, prepared, exact)
-                        windows.installLocked(created)
-                        created
+    private fun publish(initial: StaticChoiceWindowValue): Window =
+        kernel.publish(
+            duplicateMessage = "A StaticChoice interaction is already pending",
+            prepare = { interactionId, feed, game ->
+                val diagnostic = StaticChoiceMaterializationDiagnostic(interactionId, initial)
+                val prepared =
+                    try {
+                        feed.builder.prepareStaticChoiceWindow(
+                            game ?: owner.fail(IllegalStateException("Game unavailable")),
+                            owner.counter,
+                            initial,
+                        )
+                    } catch (ex: Exception) {
+                        owner.failStaticChoice(ex, diagnostic = diagnostic)
                     }
-                }
-            }
-        owner.bridge.prioritySignal.signal()
-        return created
-    }
-
-    private fun publishPrepared(
-        feed: MatchCutCoordinator.ViewerFeed,
-        prepared: leyline.game.bundle.StaticChoiceWindowMaterializer.Prepared,
-        exact: PendingStaticChoiceCut,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.beforeBatchEnqueue?.invoke(0, batch)
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            owner.bridge.commitProjection(prepared.transition) { installed = true }
-            afterInstall?.invoke()
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            owner.failStaticChoice(ex, exact)
-        }
-    }
+                val published =
+                    PublishedStaticChoiceInteraction(
+                        interactionId,
+                        checkNotNull(prepared.bundle.actionGameStateId),
+                        initial.kind,
+                    )
+                val exact =
+                    PendingStaticChoiceCut(
+                        interactionId,
+                        published.gameStateId,
+                        initial,
+                        prepared.bundle.messages,
+                        prepared.transition,
+                    )
+                val optionByValue = initial.options.associate { it.protocolValue to it.originalOptionIndex }
+                val created = Window(published, initial, exact, optionByValue)
+                SinglePromptPublication(
+                    created,
+                    prepared.bundle.messages,
+                    prepared.transition,
+                    prepared.closesPlaybackFrame,
+                )
+            },
+        )
 
     private fun recordChoiceResults(
         pending: Window,
@@ -163,7 +150,7 @@ internal class MatchStaticChoiceInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): List<Int> = windows.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException, beforeTimeoutClaim)
+    ): List<Int> = kernel.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException, beforeTimeoutClaim)
 
     private fun StaticChoiceKind.choiceDomain(): Int =
         when (this) {
