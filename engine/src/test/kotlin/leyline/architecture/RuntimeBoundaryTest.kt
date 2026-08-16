@@ -534,6 +534,32 @@ class RuntimeBoundaryTest :
             }
         }
 
+        test("one exchange owns iterative command arbitration") {
+            // Targeting and mana-source payment have different domains but one
+            // cross-thread handshake. A second command queue in this package means
+            // the deadline/delivery race has to be fixed twice again.
+            val owners = setOf("InteractiveCommandExchange.kt")
+            val coordRoot = sourceRoot.resolve("leyline/bridge/coord")
+            val violators = mutableSetOf<String>()
+            val stream = Files.walk(coordRoot)
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        if ("LinkedBlockingQueue" in Files.readString(file)) {
+                            violators += coordRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+
+            check(violators == owners) {
+                "Iterative command arbitration must stay centralized. Unexpected: " +
+                    (violators - owners).sorted().joinToString()
+            }
+        }
+
         test("action window lifecycle has one authority") {
             // GameActionBridge is the engine-thread wait adapter. Window visibility,
             // claim, completion, and prompt correlation belong to the runtime record;
