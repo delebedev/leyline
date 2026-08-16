@@ -160,6 +160,8 @@ bootstrap:
                 [ "$wt" = "$PWD" ] && continue
                 candidate="$wt/forge"
                 if [ -f "$candidate/pom.xml" ]; then
+                    # Reference clones need a complete object store; shallow
+                    # submodules cannot seed another worktree reliably.
                     if git -C "$candidate" rev-parse --is-shallow-repository | grep -qx true; then
                         continue
                     fi
@@ -193,7 +195,8 @@ bootstrap:
         exit 1
     fi
 
-    # Install forge (skip if already up to date)
+    # The stamp binds locally installed Forge jars to the checked-out submodule.
+    # Shared caches are commit-addressed; dirty Forge checkouts use an isolated repo.
     {{_forge_m2_setup}}
     installed_forge=""
     if [ -f .forge-commit-installed ]; then

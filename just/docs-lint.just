@@ -9,7 +9,7 @@ docs-lint:
     cd "$repo_root"
 
     # rg glob excludes
-    rg_exclude="--glob=!forge/ --glob=!.gradle/ --glob=!build/ --glob=!proto/upstream/ --glob=!.github/ --glob=!.beads/ --glob=!node_modules/ --glob=!.agent/ --glob=!.claude/worktrees/ --glob=!.claude/skills/"
+    rg_exclude="--glob=!forge/ --glob=!.gradle/ --glob=!build/ --glob=!proto/upstream/ --glob=!.github/ --glob=!.beads/ --glob=!node_modules/ --glob=!.agent/"
 
     # Track already-reported to avoid duplicates (phase 1 links + phase 2 path refs)
     seen_file=$(mktemp)
@@ -42,7 +42,7 @@ docs-lint:
         local target
         if [[ "$ref" = /* ]]; then
             target="$repo_root$ref"
-        elif [[ "$ref" = docs/* || "$ref" = engine/* || "$ref" = native/* || "$ref" = web/* || "$ref" = app/* || "$ref" = .claude/* || "$ref" = forge/* ]]; then
+        elif [[ "$ref" = docs/* || "$ref" = engine/* || "$ref" = native/* || "$ref" = web/* || "$ref" = app/* || "$ref" = forge/* ]]; then
             target="$repo_root/$ref"
         else
             target="$(dirname "$src")/$ref"
@@ -107,7 +107,7 @@ docs-orphans:
     repo_root="$(git rev-parse --show-toplevel)"
     cd "$repo_root"
 
-    rg_exclude="--glob=!forge/ --glob=!.gradle/ --glob=!build/ --glob=!proto/upstream/ --glob=!.github/ --glob=!.beads/ --glob=!node_modules/ --glob=!.agent/ --glob=!.claude/worktrees/ --glob=!.claude/skills/ --glob=!.claude/plugins/"
+    rg_exclude="--glob=!forge/ --glob=!.gradle/ --glob=!build/ --glob=!proto/upstream/ --glob=!.github/ --glob=!.beads/ --glob=!node_modules/ --glob=!.agent/"
 
     # Collect all referenced .md filenames (basename only — cheap but catches most links)
     refs_file=$(mktemp)
@@ -128,8 +128,6 @@ docs-orphans:
 
         # Skip exempt directories
         case "$f" in
-            .claude/rules/*) continue ;;        # loaded by agent framework
-            .claude/agent-memory/*) continue ;;  # agent working memory
             docs/superpowers/*) continue ;;     # superpowers skill output
             docs/decisions/*) continue ;;       # decision records — standalone by convention
         esac
