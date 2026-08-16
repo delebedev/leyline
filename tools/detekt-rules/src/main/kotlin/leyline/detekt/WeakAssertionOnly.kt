@@ -33,7 +33,7 @@ class WeakAssertionOnly(config: Config) : Rule(
 
     override fun visitCallExpression(expression: KtCallExpression) {
         super.visitCallExpression(expression)
-        if (expression.calleeExpression?.text != "test") return
+        if (expression.calleeExpression?.text !in KOTEST_TEST_CALLEES) return
         val lambda = expression.lambdaArguments.firstOrNull()?.getLambdaExpression() ?: return
         val body = lambda.bodyExpression ?: return
 

@@ -9,6 +9,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.InvariantSelection
+import leyline.tooling.headless.dumpDiagnostics
+import leyline.tooling.headless.iidVia
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
@@ -20,21 +22,21 @@ import wotc.mtgo.gre.external.messaging.Messages.OrderReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
- * Base class for session-tier interaction tests (MatchFlowHarness).
+ * Base class for session-tier interaction tests.
  *
  * Parallel to [BoardTest] (board/bridge tier). Never mix in one file.
- * Auto-wires IntegrationTag and harness lifecycle (shutdown after each test).
+ * Auto-wires IntegrationTag; each [session] owns one [MatchFlowHarness] for
+ * the length of one test and dumps diagnostics if that test fails.
  *
  * ```
  * class FooSessionTest : SessionTest({
- *     test("ability resolves and deals damage") {
- *         startPuzzle("""
- *             [metadata]
+ *     session(
+ *         "ability resolves and deals damage",
+ *         puzzle = """
+ *             humanbattlefield=Card Name
  *             ...
- *             [state]
- *             ...
- *         """.trimIndent())
- *
+ *         """,
+ *     ) {
  *         activateAbility("Card Name")
  *         selectTargets(listOf(OPPONENT_SEAT))
  *         passUntilResolved()
@@ -42,6 +44,10 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
  *     }
  * })
  * ```
+ *
+ * The block's receiver is the harness, so every game action, prompt response
+ * and state query resolves directly against it — this base owns lifecycle and
+ * naming, not behavior.
  */
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
 // class directly (no zero-arg constructor — only the `body` lambda variant).
@@ -55,7 +61,86 @@ abstract class SessionTest(
 
         /** Seat ID for the AI / opponent. */
         const val OPPONENT_SEAT = 2
+
+        /** A full `.pzl` text carries its own metadata section; a `[state]` body does not. */
+        private val METADATA_SECTION = Regex("""(?m)^\s*\[metadata]""")
     }
+
+    init {
+        tags(IntegrationTag)
+        afterEach {
+            _harness?.shutdown()
+            _harness = null
+        }
+        body()
+    }
+
+    /**
+     * Declare one session-tier test backed by a fresh [MatchFlowHarness].
+     *
+     * Give at most one game source:
+     * - [puzzle] — puzzle text. A `[state]` body gets `[metadata]` synthesized
+     *   from [name] and [turns]; text that already has a `[metadata]` section
+     *   is used verbatim (and then [turns] does not apply).
+     * - [puzzleFile] — classpath resource, e.g. `puzzles/bolt-face.pzl`.
+     * - neither — a normal game (mulligan + keep) using [deckList].
+     *
+     * When the block throws, harness diagnostics are printed before the
+     * failure propagates; the harness is shut down either way.
+     */
+    // EmptyAssertion/WeakAssertionOnly inspect `session(...)` at spec call
+    // sites; this is the wrapper that produces those blocks, so its own
+    // `test(name)` carries no assertion by construction.
+    @Suppress("LongParameterList", "EmptyAssertion")
+    fun session(
+        name: String,
+        puzzle: String? = null,
+        puzzleFile: String? = null,
+        deckList: String? = null,
+        turns: Int = 1,
+        seed: Long = 42L,
+        validating: Boolean = false,
+        validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
+        aiScript: List<leyline.tooling.headless.ScriptedAction>? = null,
+        block: suspend MatchFlowHarness.() -> Unit,
+    ) {
+        require(puzzle == null || puzzleFile == null) {
+            "session('$name'): give at most one of puzzle or puzzleFile"
+        }
+        require(deckList == null || (puzzle == null && puzzleFile == null)) {
+            "session('$name'): deckList applies to a normal game, not a puzzle"
+        }
+        val puzzleText = puzzle?.let { puzzleTextFor(it, name, turns) }
+        test(name) {
+            val harness =
+                MatchFlowHarness(
+                    seed = seed,
+                    deckList = deckList,
+                    validating = validating,
+                    validation = validation,
+                )
+            try {
+                harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)
+                harness.block()
+            } catch (failure: Throwable) {
+                harness.dumpDiagnostics(name)
+                throw failure
+            } finally {
+                harness.shutdown()
+            }
+        }
+    }
+
+    private fun puzzleTextFor(
+        puzzle: String,
+        name: String,
+        turns: Int,
+    ): String =
+        if (METADATA_SECTION.containsMatchIn(puzzle)) {
+            puzzle
+        } else {
+            buildPuzzleText(puzzle, name.substringBefore('\n').replace(':', ' '), goal = "Win", turns = turns)
+        }
 
     private var _harness: MatchFlowHarness? = null
 
@@ -69,15 +154,6 @@ abstract class SessionTest(
     /** AI player — cached at setup time, safe to use after game actions. */
     lateinit var ai: Player
         private set
-
-    init {
-        tags(IntegrationTag)
-        afterEach {
-            _harness?.shutdown()
-            _harness = null
-        }
-        body()
-    }
 
     private fun cachePlayerRefs() {
         human = harness.bridge.getPlayer(SeatId(1))!!

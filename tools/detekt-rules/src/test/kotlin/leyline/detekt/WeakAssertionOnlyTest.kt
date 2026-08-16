@@ -18,6 +18,15 @@ class WeakAssertionOnlyTest : FunSpec({
         rule.lint(code) shouldHaveSize 1
     }
 
+    test("flags session with only shouldNotBeNull") {
+        val code = """
+            fun <T> T.shouldNotBeNull(): T = this!!
+            fun session(name: String, body: () -> Unit) = body()
+            val t = session("only shape") { "x".shouldNotBeNull() }
+        """.trimIndent()
+        rule.lint(code) shouldHaveSize 1
+    }
+
     test("flags test with shouldNotBeEmpty only") {
         val code = """
             fun <T> List<T>.shouldNotBeEmpty() = this

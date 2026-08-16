@@ -24,6 +24,21 @@ class EmptyAssertionTest : FunSpec({
         )
     }
 
+    test("flags session block with zero assertions") {
+        val code = """
+            fun session(name: String, body: () -> Unit) {}
+            fun main() {
+                session("empty") {
+                    val x = 1 + 1
+                    val y = x * 2
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldHaveSingleFinding(
+            messageContains = "body has no should*/assert*/fail call",
+        )
+    }
+
     test("flags test block with only setup calls") {
         val code = """
             fun test(name: String, body: () -> Unit) {}
