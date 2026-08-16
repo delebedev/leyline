@@ -80,4 +80,5 @@ object DetailKeys {
     const val REMOVES_FROM_ZONE = "removesFromZone"
     const val IS_TOP = "isTop"
     const val COIN_FLIP_RESULT = "CoinFlipResult"
+    const val AFFECTED_OBJECTS = "affected_objects"
 }

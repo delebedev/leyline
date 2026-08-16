@@ -196,27 +196,30 @@ object HandshakeMessages {
         // Full initial GameState
         val shouldSendStartingPlayerPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
         val pendingCount = if (shouldSendStartingPlayerPrompt) 1 else 0 // ChooseStartingPlayerReq follows
-        val priorProjection = bridge.projectionStateSnapshot()
-        val (snapshotAndGsm, nextProjection) =
-            bridge.editProjection(priorProjection) { editor ->
-                val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
-                val gsm =
-                    GsmBuilder.buildInitialGameState(
-                        matchId,
-                        gameStateId,
-                        bridge,
-                        initSnap,
-                        pendingCount,
-                        seatId.value,
-                        includeStartingPlayerDecision = includeStartingPlayerPrompt,
-                    )
-                if (seedProjectionCursor) {
-                    editor.viewerCursors[0] = ViewerProjectionCursor(previousSnapshot = initSnap)
-                }
-                initSnap to gsm
+        val gsm =
+            synchronized(bridge.projectionBuildLock) {
+                val priorProjection = bridge.projectionStateSnapshot()
+                val (snapshotAndGsm, nextProjection) =
+                    bridge.editProjection(priorProjection) { editor ->
+                        val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
+                        val initialGsm =
+                            GsmBuilder.buildInitialGameState(
+                                matchId,
+                                gameStateId,
+                                bridge,
+                                initSnap,
+                                pendingCount,
+                                seatId.value,
+                                includeStartingPlayerDecision = includeStartingPlayerPrompt,
+                            )
+                        if (seedProjectionCursor) {
+                            editor.viewerCursors[0] = ViewerProjectionCursor(previousSnapshot = initSnap)
+                        }
+                        initSnap to initialGsm
+                    }
+                bridge.commitProjection(ProjectionTransition(priorProjection.revision, nextProjection))
+                snapshotAndGsm.second
             }
-        val (_, gsm) = snapshotAndGsm
-        bridge.commitProjection(ProjectionTransition(priorProjection.revision, nextProjection))
         messages.add(
             GREToClientMessage
                 .newBuilder()

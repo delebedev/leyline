@@ -161,7 +161,7 @@ scenarios:
       - pass_until:
           prompt: { type: SelectNReq, prompt_id: 23 }
           max_passes: 8
-      - static_choice: { id: 1 }
+      - static_choice: { id: 0 }
       - resolve_stack: {}
       - expect:
           all:

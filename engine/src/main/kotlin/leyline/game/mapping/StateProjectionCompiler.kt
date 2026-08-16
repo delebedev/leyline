@@ -157,7 +157,9 @@ object StateProjectionCompiler {
                 is ProjectionSupplement.ReserveTriggeredAbility ->
                     editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(supplement.forgeAbilityId))
 
-                is ProjectionSupplement.PreStackAbility -> Unit
+                is ProjectionSupplement.PreStackAbility,
+                is ProjectionSupplement.PreStackSpell,
+                -> Unit
 
                 is ProjectionSupplement.SubmitPendingTargets -> {
                     check(!submittedTargetsConsumed) { "Only one submitted-target fact may be consumed per viewer frame" }
@@ -172,6 +174,27 @@ object StateProjectionCompiler {
                     }
                     annotations += AnnotationBuilder.playerSubmittedTargets(supplement.spellInstanceId, supplement.seatId)
                     submittedTargetsConsumed = true
+                }
+
+                is ProjectionSupplement.StaticParityChoice -> {
+                    val sourceId = frameIds.cardIid(supplement.sourceForgeId)
+                    val sourceGrpId =
+                        input.snapshot.boundCards
+                            .getValue(supplement.sourceForgeId)
+                            .snapshot.grpId
+                    annotations += AnnotationBuilder.resolutionStart(sourceId, leyline.bridge.types.GrpId(sourceGrpId))
+                    annotations +=
+                        AnnotationBuilder.selectNDecoration(
+                            sourceId,
+                            optionIndex = 0,
+                            affectedObjectIds = supplement.evenForgeIds.map(frameIds::cardIid),
+                        )
+                    annotations +=
+                        AnnotationBuilder.selectNDecoration(
+                            sourceId,
+                            optionIndex = 1,
+                            affectedObjectIds = supplement.oddForgeIds.map(frameIds::cardIid),
+                        )
                 }
             }
         }
@@ -189,9 +212,42 @@ object StateProjectionCompiler {
         supplements: List<ProjectionSupplement>,
     ): StateFrameInput {
         val abilities = supplements.filterIsInstance<ProjectionSupplement.PreStackAbility>()
-        if (abilities.isEmpty()) return input
+        val spells = supplements.filterIsInstance<ProjectionSupplement.PreStackSpell>()
+        if (abilities.isEmpty() && spells.isEmpty()) return input
 
         var stack = input.snapshot.stack
+        var zones = input.snapshot.zones
+        var boundCards = input.snapshot.boundCards
+        for (spell in spells) {
+            val bound = spell.card
+            val card = bound.snapshot
+            val currentZone = zones.values.firstOrNull { card.forgeCardId in it.contents }
+            if (currentZone != null && currentZone.id != leyline.game.mapping.ZoneIds.LIMBO) continue
+            if (stack.entries.none { it.forgeCardId == card.forgeCardId && it.isSpell }) {
+                stack =
+                    StackSnapshot(
+                        stack.entries +
+                            StackEntry(
+                                forgeCardId = card.forgeCardId,
+                                controller = card.controller,
+                                owner = card.owner,
+                                grpId = card.grpId,
+                                sourceCardGrpId = card.grpId,
+                                isSpell = true,
+                                targets = emptyList(),
+                            ),
+                    )
+            }
+            boundCards = boundCards + (card.forgeCardId to bound)
+            zones =
+                zones.mapValues { (_, zone) ->
+                    if (card.forgeCardId in zone.contents) zone.copy(contents = zone.contents - card.forgeCardId) else zone
+                }
+            val stackZone = checkNotNull(zones[leyline.game.mapping.ZoneIds.STACK])
+            if (card.forgeCardId !in stackZone.contents) {
+                zones = zones + (stackZone.id to stackZone.copy(contents = stackZone.contents + card.forgeCardId))
+            }
+        }
         for (ability in abilities) {
             val existing = stack.entries.firstOrNull { it.forgeAbilityId == ability.forgeAbilityId }
             if (existing != null) {
@@ -221,7 +277,7 @@ object StateProjectionCompiler {
                         ),
                 )
         }
-        return input.copy(snapshot = copySnapshot(input.snapshot, stack = stack))
+        return input.copy(snapshot = copySnapshot(input.snapshot, zones = zones, boundCards = boundCards, stack = stack))
     }
 
     private fun aliasAdmittedStackAbilities(
@@ -345,6 +401,7 @@ object StateProjectionCompiler {
     private fun copySnapshot(
         snapshot: GsmSnapshot,
         zones: Map<Int, ZoneSnapshot> = snapshot.zones,
+        boundCards: Map<leyline.bridge.types.ForgeCardId, leyline.game.snapshot.BoundCard> = snapshot.boundCards,
         stack: StackSnapshot = snapshot.stack,
     ): GsmSnapshot =
         GsmSnapshot(
@@ -352,7 +409,7 @@ object StateProjectionCompiler {
             gameStateId = snapshot.gameStateId,
             seats = snapshot.seats,
             zones = zones,
-            boundCards = snapshot.boundCards,
+            boundCards = boundCards,
             stack = stack,
             phase = snapshot.phase,
             combat = snapshot.combat,

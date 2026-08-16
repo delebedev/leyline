@@ -106,7 +106,7 @@ class WaterbendLifecycleTest :
                 AILife=20
 
                 humanhand=Ruinous Waterbending
-                humanbattlefield=Swamp;Swamp;Swamp;Coral Merfolk;Grizzly Bears;Sol Ring;Manalith
+                humanbattlefield=Swamp;Swamp;Swamp;Coral Merfolk;Grizzly Bears;Monastery Swiftspear;Sol Ring;Manalith
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),

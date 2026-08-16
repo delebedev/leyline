@@ -1,0 +1,11 @@
+name: "Regrowth"
+grpId: 104083
+titleId: 2898
+abilities:
+  - id: 6082
+    textId: 2899
+    category: 4
+expansionCode: "SOS"
+linkedFaces:
+  - 102604
+isPrimaryCard: false

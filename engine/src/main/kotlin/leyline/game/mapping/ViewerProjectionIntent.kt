@@ -3,6 +3,7 @@ package leyline.game.mapping
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.snapshot.BoundCard
 import java.util.Collections
 
 /** Immutable, viewer-specific projection work appended to one state frame. */
@@ -82,10 +83,21 @@ sealed interface ProjectionSupplement {
         val targetForgeCardIds: List<ForgeCardId>,
     ) : ProjectionSupplement
 
+    /** Copied spell visible on the client stack while Forge is choosing its new targets. */
+    data class PreStackSpell(
+        val card: BoundCard,
+    ) : ProjectionSupplement
+
     data class SubmitPendingTargets(
         val spellInstanceId: InstanceId,
         val seatId: SeatId,
         val version: Long,
+    ) : ProjectionSupplement
+
+    data class StaticParityChoice(
+        val sourceForgeId: ForgeCardId,
+        val evenForgeIds: List<ForgeCardId>,
+        val oddForgeIds: List<ForgeCardId>,
     ) : ProjectionSupplement
 }
 

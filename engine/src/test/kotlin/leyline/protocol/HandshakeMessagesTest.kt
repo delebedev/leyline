@@ -16,7 +16,11 @@ import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.Random
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** Integration tests for [HandshakeMessages] — die roll determinism and range. */
 class HandshakeMessagesTest :
@@ -110,6 +114,36 @@ class HandshakeMessagesTest :
                     .gameStateMessage
                     .pendingMessageCount shouldBe 0
                 b.projectionStateSnapshot().viewerCursors[0]?.previousSnapshot shouldNotBe null
+            }
+        }
+
+        test("concurrent seat initial bundles serialize projection commits") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(seed = 1L)
+            val beforeRevision = b.projectionStateSnapshot().revision
+            val start = CountDownLatch(1)
+            val pool = Executors.newFixedThreadPool(2)
+            try {
+                val bundles =
+                    listOf(SeatId(1), SeatId(2)).map { seat ->
+                        pool.submit<Pair<MatchServiceToClientMessage, Int>> {
+                            start.await(5, TimeUnit.SECONDS)
+                            HandshakeMessages.initialBundle(
+                                seatId = seat,
+                                matchId = "concurrent-initial",
+                                msgIdStart = 1,
+                                gameStateId = 1,
+                                deckMessage = DeckMessage.getDefaultInstance(),
+                                bridge = b,
+                            )
+                        }
+                    }
+                start.countDown()
+                bundles.map { it.get(10, TimeUnit.SECONDS) }.size shouldBe 2
+                b.projectionStateSnapshot().revision shouldBe beforeRevision + 2
+            } finally {
+                pool.shutdownNow()
             }
         }
 

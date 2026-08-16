@@ -22,8 +22,8 @@ object StaticChoiceIds {
 
     fun parityIdForName(name: String): Int? =
         when (normalize(name)) {
-            "even", "evens" -> 1
-            "odd", "odds" -> 2
+            "even", "evens" -> 0
+            "odd", "odds" -> 1
             else -> null
         }
 

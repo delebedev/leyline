@@ -13,6 +13,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.ProjectionState
 
 /** Engine-thread capture and legality for one immutable targeting window. */
@@ -25,7 +26,10 @@ internal class TargetingWindowCapture(
         abilityIdentity: ResolvedAbilityIdentity?,
     ): TargetingWindowValue {
         val sourceId = request.sourceEntityId?.let(::ForgeCardId)
-        val sourceCard = sourceId?.let(owner.bridge::findCard)
+        val sourceCard =
+            sourceId?.let { id ->
+                owner.bridge.findCard(id) ?: targetingAbility?.hostCard?.takeIf { it.id == id.value }
+            }
         val sourceGrpId = sourceCard?.let(owner.bridge::resolveGrpId) ?: 0
         val defaultTargetingGrpId =
             abilityIdentity?.abilityGrpId?.takeIf { it != 0 }
@@ -77,6 +81,13 @@ internal class TargetingWindowCapture(
             forgeAbilityId = request.forgeAbilityId,
         )
     }
+
+    fun captureTransientSourceCard(
+        value: TargetingWindowValue,
+        targetingAbility: SpellAbility?,
+    ) = value.sourceForgeCardId
+        ?.let { id -> owner.bridge.findCard(id) ?: targetingAbility?.hostCard?.takeIf { it.id == id.value } }
+        ?.let { SnapshotCapture.captureBoundCard(it, checkNotNull(owner.bridge.getGame()), owner.bridge) }
 
     fun resolveEntities(value: TargetingWindowValue): Map<Int, GameEntity> =
         value.candidates

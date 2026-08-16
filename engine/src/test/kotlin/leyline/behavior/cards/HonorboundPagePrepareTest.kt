@@ -12,6 +12,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.firstGameObjectByIid
 import leyline.testkit.persistentAnnotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -92,6 +93,26 @@ class HonorboundPagePrepareTest :
                 // Prepared copies do NOT carry objectSourceGrpId — that field is
                 // reserved for engine-spawned tokens (e.g. Krenko goblins).
                 copyObj.objectSourceGrpId shouldBe 0
+            }
+        }
+
+        test("Prepared spell with no legal mandatory target is inactive") {
+            startPuzzleFile("puzzles/emeritus-prepared-empty-graveyard.pzl", validating = true)
+
+            castSpellByName("Emeritus of Abundance")
+            passUntilResolved()
+
+            val copyIid = human.exile.iid("Regrowth")
+            val actions =
+                allMessages
+                    .last { message ->
+                        message.hasActionsAvailableReq() &&
+                            message.actionsAvailableReq.inactiveActionsList.any { it.instanceId == copyIid }
+                    }.actionsAvailableReq
+
+            assertSoftly {
+                actions.actionsList.count { it.actionType == ActionType.Cast && it.instanceId == copyIid } shouldBe 0
+                actions.inactiveActionsList.count { it.actionType == ActionType.Cast && it.instanceId == copyIid } shouldBe 1
             }
         }
 

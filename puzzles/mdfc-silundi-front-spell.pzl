@@ -11,7 +11,7 @@ ActivePhase=Main1
 HumanLife=20
 AILife=20
 
-humanhand=Silundi Vision
+humanhand=Silundi Vision;Island
 humanbattlefield=Island;Island;Island
 humanlibrary=Island;Island;Island
 ailibrary=Forest;Forest;Forest

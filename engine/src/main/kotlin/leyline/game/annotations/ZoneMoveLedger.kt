@@ -63,7 +63,7 @@ object ZoneMoveLedger {
             events.any { it is GameEvent.LandPlayed && it.cardId == cardId } &&
                 move.from == Zone.Hand &&
                 move.to == Zone.Battlefield -> TransferCategory.PlayLand
-            move.to == Zone.Stack && cast != null && !cast.isAbility -> TransferCategory.CastSpell
+            move.to == Zone.Stack && cast?.isAbility != true -> TransferCategory.CastSpell
             move.from == Zone.Stack && resolved?.hasFizzled == true -> TransferCategory.Countered
             move.to == Zone.Exile -> TransferCategory.Exile
             move.from == Zone.Stack && resolved != null -> TransferCategory.Resolve

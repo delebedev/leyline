@@ -13,6 +13,7 @@ internal sealed interface PendingClientInteraction {
     data class OptionalCost(
         val actionClaim: MatchActionWindowRuntime.ActionClaim,
         val costCtoIds: List<Int>,
+        val additionalCostGrpIdsByCtoId: Map<Int, Int> = emptyMap(),
         /**
          * Subset of [costCtoIds] that correspond to keyword-cost keywords
          * (Offspring, Casualty, Conspire — see

@@ -12,6 +12,7 @@ import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
+import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -37,6 +38,7 @@ import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
@@ -1293,6 +1295,7 @@ class BundleBuilder(
         game: Game,
         counter: MessageCounter,
         window: TargetingWindowValue,
+        transientSourceCard: BoundCard? = null,
     ): TargetingWindowMaterializer.Prepared {
         val input =
             frameInput(
@@ -1301,7 +1304,7 @@ class BundleBuilder(
                 revealForSeat = null,
                 eventsOverride = null,
             ) { _, _ -> GameStateUpdate.Send }
-        val intent = ViewerProjectionIntent.of(targetingSupplements(window))
+        val intent = ViewerProjectionIntent.of(targetingSupplements(window, transientSourceCard))
         val diff = prepareFrameInputLocked(input, intent)
         return targetingWindows.initial(
             gameState = diff.result.gsm,
@@ -1508,9 +1511,26 @@ class BundleBuilder(
         window: leyline.bridge.handoff.StaticChoiceWindowValue,
     ): StaticChoiceWindowMaterializer.Prepared {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
+        val supplements =
+            if (window.kind == StaticChoiceKind.Parity && window.sourceForgeCardId != null) {
+                val creatures = game.getCardsIn(ForgeZoneType.Battlefield).filter { it.isCreature }
+                listOf(
+                    ProjectionSupplement.StaticParityChoice(
+                        sourceForgeId = window.sourceForgeCardId,
+                        evenForgeIds = creatures.filter { it.getCMC() % 2 == 0 }.map { ForgeCardId(it.id) },
+                        oddForgeIds = creatures.filter { it.getCMC() % 2 != 0 }.map { ForgeCardId(it.id) },
+                    ),
+                )
+            } else {
+                emptyList()
+            }
+        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements = supplements))
         return staticChoiceWindows.prepare(
-            gameState = diff.result.gsm,
+            gameState =
+                diff.result.gsm
+                    .toBuilder()
+                    .setTurnInfo(GsmFrame.from(diff.snap).turnInfo())
+                    .build(),
             gameStateId = diff.gameStateId,
             counter = counter,
             projection = diff.result.transition.nextState,
@@ -1646,20 +1666,25 @@ class BundleBuilder(
         )
     }
 
-    private fun targetingSupplements(window: TargetingWindowValue): List<ProjectionSupplement> {
+    private fun targetingSupplements(
+        window: TargetingWindowValue,
+        transientSourceCard: BoundCard?,
+    ): List<ProjectionSupplement> {
         val abilityId = window.forgeAbilityId.takeIf { window.isTriggeredAbility && it != 0 }
         val sourceId = window.sourceForgeCardId
-        return when {
-            sourceId != null ->
-                listOf(
-                    ProjectionSupplement.PlayerSelectingTargets(
-                        sourceId,
-                        SeatId(seatId),
-                        abilityId,
-                    ),
-                )
-            abilityId != null -> listOf(ProjectionSupplement.ReserveTriggeredAbility(abilityId))
-            else -> emptyList()
+        return buildList {
+            transientSourceCard?.let { add(ProjectionSupplement.PreStackSpell(it)) }
+            when {
+                sourceId != null ->
+                    add(
+                        ProjectionSupplement.PlayerSelectingTargets(
+                            sourceId,
+                            SeatId(seatId),
+                            abilityId,
+                        ),
+                    )
+                abilityId != null -> add(ProjectionSupplement.ReserveTriggeredAbility(abilityId))
+            }
         }
     }
 

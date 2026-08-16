@@ -362,7 +362,13 @@ class GameEventCollector(
                 isAbility && !isTrigger -> resolveActivationZoneId(topSa, card.id, seat, evSaId = ev.sa()?.id ?: 0)
                 else -> 0
             }
-        val castingTimeOptionState = readCastingTimeOptionState(topSa, card)
+        val castingTimeOptionState =
+            readCastingTimeOptionState(
+                topSa,
+                ev.si()?.optionalCostString,
+                bridge.consumeSelectedAdditionalCostGrpId(ForgeCardId(card.id)),
+                card,
+            )
         if (!isTrigger && !isAbility) {
             pendingSpellFaceGrpIds[ForgeCardId(card.id)] = grpId
         }
@@ -637,12 +643,14 @@ class GameEventCollector(
     /** CastingTimeOption state read from the live SA on top of the stack. */
     private fun readCastingTimeOptionState(
         topSa: forge.game.spellability.SpellAbility?,
+        stackOptionalCosts: String?,
+        selectedAdditionalCostGrpId: Int?,
         card: forge.game.card.CardView,
     ): CastingTimeOptionState {
-        if (topSa == null || topSa.hostCard?.id != card.id) return CastingTimeOptionState()
+        val sourceSa = topSa?.takeIf { it.hostCard?.id == card.id }
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val kicker =
-            if (topSa.isKicked) {
+            if (sourceSa?.isKicked == true) {
                 if (grpId != 0) {
                     bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.KICKER) ?: 0
                 } else {
@@ -651,16 +659,22 @@ class GameEventCollector(
             } else {
                 0
             }
+        val paidGenericCost =
+            sourceSa?.isOptionalCostPaid(OptionalCost.Generic) == true ||
+                stackOptionalCosts.orEmpty().split(',').any { it.trim() == "Additional" }
         val additionalCost =
             when {
                 grpId == 0 -> 0
-                topSa.isOptionalCostPaid(OptionalCost.Teamwork) ->
+                selectedAdditionalCostGrpId != null -> selectedAdditionalCostGrpId
+                sourceSa?.isOptionalCostPaid(OptionalCost.Teamwork) == true ->
                     bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TEAMWORK) ?: 0
-                topSa.isOptionalCostPaid(OptionalCost.Generic) ->
-                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND) ?: 0
+                paidGenericCost ->
+                    bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.WATERBEND)
+                        ?: bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.TEAMWORK)
+                        ?: 0
                 else -> 0
             }
-        val x = topSa.xManaCostPaid ?: 0
+        val x = sourceSa?.xManaCostPaid ?: 0
         return CastingTimeOptionState(kickerAbilityGrpId = kicker, additionalCostGrpId = additionalCost, chosenX = x)
     }
 
