@@ -1,9 +1,9 @@
 package leyline.architecture
 
-import com.tngtech.archunit.core.importer.ClassFileImporter
-import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -16,7 +16,6 @@ import leyline.game.annotations.RevealStateContributor
 import leyline.game.annotations.TargetSpecContributor
 import leyline.game.annotations.VehicleAttachContributor
 import java.nio.file.Files
-import java.nio.file.Path
 
 /**
  * Pins the AnnotationPipeline extraction boundary so the accretion it undid
@@ -37,26 +36,8 @@ class AnnotationBoundaryTest :
 
         tags(UnitTag)
 
-        val cwd = Path.of("").toAbsolutePath()
-        val buildDir =
-            sequenceOf(
-                cwd.resolve("build/classes"),
-                cwd.resolve("engine/build/classes"),
-            ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
-
-        val classes =
-            ClassFileImporter()
-                .withImportOption(ImportOption.DoNotIncludeTests())
-                .importPaths(
-                    buildDir.resolve("kotlin/main"),
-                    buildDir.resolve("java/main"),
-                )
-
-        val sourceRoot =
-            sequenceOf(
-                cwd.resolve("src/main/kotlin"),
-                cwd.resolve("engine/src/main/kotlin"),
-            ).first { it.resolve("leyline").toFile().isDirectory }
+        val classes = EngineArchitecture.mainClasses
+        val sourceRoot = EngineArchitecture.sourceRoot
 
         test("StateMapper constructs no annotations (no per-mechanic emitter functions)") {
             noClasses()
@@ -96,8 +77,8 @@ class AnnotationBoundaryTest :
 
             // If this fails, declare ordering via a contributor rank, not a
             // manual insertion index.
-            check(violations.isEmpty()) {
-                "Index-based annotation insertion reintroduced in StateMapper:\n" + violations.joinToString("\n")
+            withClue("index-based annotation insertion reintroduced in StateMapper") {
+                violations.shouldBeEmpty()
             }
         }
 
