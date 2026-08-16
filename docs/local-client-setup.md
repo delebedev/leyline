@@ -24,13 +24,17 @@ Needed for end-to-end local playtesting only.
 
 2. Create and trust a localhost TLS cert.
 
-   Provide your own trusted cert/key for `localhost`.
+   Provide your own trusted cert/key for `localhost`. By default, Leyline reads
+   `server-chain.pem` and `server.key` from
+   `~/Library/Application Support/dev.leyline/tls/`. Set `LEYLINE_CERTS` to use
+   another directory.
 
 3. Start Leyline.
 
    Run `just serve`.
 
-   Pass `--cert` / `--key` or set `LEYLINE_CERT_PATH` / `LEYLINE_KEY_PATH`.
+   Pass `--cert` / `--key` or set `LEYLINE_CERT_PATH` / `LEYLINE_KEY_PATH` to
+   override the default pair.
 
 ## Notes
 
