@@ -13,7 +13,51 @@ import leyline.bridge.handoff.GameActionBridge.PendingAction
 import leyline.bridge.handoff.GameActionBridge.WindowCloseReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
+
+/**
+ * Stands in for the coordinator-owned window record: it becomes the visibility
+ * and correlation authority once [publish] returns, exactly as the real runtime
+ * does. The bridge under test keeps no lifecycle state of its own.
+ */
+private class FakeActionWindowRuntime(
+    private val boundPromptGameStateId: Int? = null,
+    private val onPublish: (PendingAction) -> Unit = {},
+    private val onResolve: (PendingAction) -> PlayerAction = { error("unused") },
+    private val onClaimTimeout: ((PendingAction, TimeoutException) -> Boolean)? = null,
+) : GameActionBridge.ActionWindowRuntime {
+    val closes = mutableListOf<WindowCloseReason>()
+
+    @Volatile private var visibleActionId: String? = null
+
+    override fun publish(pending: PendingAction) {
+        onPublish(pending)
+        visibleActionId = pending.actionId
+    }
+
+    override fun isVisible(actionId: String): Boolean = visibleActionId == actionId
+
+    override fun promptGameStateId(actionId: String): Int? = boundPromptGameStateId
+
+    override fun resolve(
+        pending: PendingAction,
+        submission: ActionSubmission.RuntimeToken,
+    ): PlayerAction = onResolve(pending)
+
+    override fun close(
+        pending: PendingAction,
+        reason: WindowCloseReason,
+    ) {
+        visibleActionId = null
+        closes += reason
+    }
+
+    override fun claimTimeout(
+        pending: PendingAction,
+        cause: TimeoutException,
+    ): Boolean = onClaimTimeout?.invoke(pending, cause) ?: super.claimTimeout(pending, cause)
+}
 
 private fun pollForPending(bridge: GameActionBridge): PendingAction {
     val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
@@ -34,23 +78,13 @@ class GameActionBridgeTest :
             val entered = CountDownLatch(1)
             val release = CountDownLatch(1)
             val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
+                FakeActionWindowRuntime(
+                    onPublish = {
                         entered.countDown()
                         check(release.await(2, TimeUnit.SECONDS))
-                        pending.published = true
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = PlayerAction.PassPriority
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) = Unit
-                }
+                    },
+                    onResolve = { PlayerAction.PassPriority },
+                )
             val bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
             val engine = Thread { bridge.awaitAction(state) }.also { it.start() }
 
@@ -62,29 +96,14 @@ class GameActionBridgeTest :
             engine.join(2_000)
         }
 
-        test("publishes before exposing pending window and resolves runtime token on engine thread") {
+        test("prompt correlation reads through to the window runtime") {
             val published = CountDownLatch(1)
-            val closes = mutableListOf<WindowCloseReason>()
             val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
-                        pending.promptGameStateId = 12
-                        pending.published = true
-                        published.countDown()
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = PlayerAction.PassPriority
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) {
-                        closes += reason
-                    }
-                }
+                FakeActionWindowRuntime(
+                    boundPromptGameStateId = 12,
+                    onPublish = { published.countDown() },
+                    onResolve = { PlayerAction.PassPriority },
+                )
             val bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
             val result = AtomicReference<PlayerAction?>()
             val engine = Thread { result.set(bridge.awaitAction(state)) }.also { it.start() }
@@ -97,60 +116,29 @@ class GameActionBridgeTest :
 
             assertSoftly {
                 result.get() shouldBe PlayerAction.PassPriority
-                closes.shouldContainExactly(WindowCloseReason.Answered)
+                runtime.closes.shouldContainExactly(WindowCloseReason.Answered)
                 bridge.getPending().shouldBeNull()
             }
         }
 
         test("publish failure escapes without signalling or leaving a pending window") {
-            val closed = AtomicReference<WindowCloseReason?>()
-            val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction): Nothing = error("compile failed")
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = error("unused")
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) {
-                        closed.set(reason)
-                    }
-                }
+            val runtime = FakeActionWindowRuntime(onPublish = { error("compile failed") })
             val bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
 
             assertSoftly {
                 shouldThrow<IllegalStateException> { bridge.awaitAction(state) }.message shouldBe "compile failed"
                 bridge.getPending().shouldBeNull()
-                closed.get() shouldBe WindowCloseReason.Failed
+                runtime.closes.shouldContainExactly(WindowCloseReason.Failed)
             }
         }
 
         test("runtime resolution failure escapes and clears exact window") {
-            val closes = mutableListOf<WindowCloseReason>()
             val published = CountDownLatch(1)
             val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
-                        pending.published = true
-                        published.countDown()
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = error("resolve failed")
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) {
-                        closes += reason
-                    }
-                }
+                FakeActionWindowRuntime(
+                    onPublish = { published.countDown() },
+                    onResolve = { error("resolve failed") },
+                )
             val bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
             val failure = AtomicReference<Throwable?>()
             val engine =
@@ -169,31 +157,13 @@ class GameActionBridgeTest :
 
             assertSoftly {
                 failure.get()?.message shouldBe "resolve failed"
-                closes.shouldContainExactly(WindowCloseReason.Failed)
+                runtime.closes.shouldContainExactly(WindowCloseReason.Failed)
                 bridge.getPending().shouldBeNull()
             }
         }
 
         test("cancelled wait escapes instead of degrading to pass") {
-            val closes = mutableListOf<WindowCloseReason>()
-            val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
-                        pending.published = true
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = error("unused")
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) {
-                        closes += reason
-                    }
-                }
+            val runtime = FakeActionWindowRuntime()
             val bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
             val failure = AtomicReference<Throwable?>()
             val engine =
@@ -211,7 +181,7 @@ class GameActionBridgeTest :
 
             assertSoftly {
                 failure.get().shouldNotBeNull()
-                closes.shouldContainExactly(WindowCloseReason.Failed)
+                runtime.closes.shouldContainExactly(WindowCloseReason.Failed)
                 bridge.getPending().shouldBeNull()
             }
         }
@@ -220,30 +190,14 @@ class GameActionBridgeTest :
             val timeoutEntered = CountDownLatch(1)
             val timeoutRelease = CountDownLatch(1)
             val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
-                        pending.published = true
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = PlayerAction.EndTurn
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) = Unit
-
-                    override fun claimTimeout(
-                        pending: PendingAction,
-                        cause: java.util.concurrent.TimeoutException,
-                    ): Boolean {
+                FakeActionWindowRuntime(
+                    onResolve = { PlayerAction.EndTurn },
+                    onClaimTimeout = { pending, cause ->
                         timeoutEntered.countDown()
                         check(timeoutRelease.await(2, TimeUnit.SECONDS))
-                        return pending.future.completeExceptionally(cause)
-                    }
-                }
+                        pending.future.completeExceptionally(cause)
+                    },
+                )
             val bridge = GameActionBridge(timeoutMs = 20, windowRuntime = runtime)
             val result = AtomicReference<PlayerAction>()
             val engine = Thread { result.set(bridge.awaitAction(state)) }.also { it.start() }
@@ -258,22 +212,7 @@ class GameActionBridgeTest :
         }
 
         test("timeout claim rejects a late action response") {
-            val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
-                        pending.published = true
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = error("unused")
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) = Unit
-                }
+            val runtime = FakeActionWindowRuntime()
             val bridge = GameActionBridge(timeoutMs = 20, windowRuntime = runtime)
             val result = AtomicReference<PlayerAction>()
             val actionThread = Thread { result.set(bridge.awaitAction(state)) }.also { it.start() }
@@ -287,34 +226,14 @@ class GameActionBridgeTest :
         test("terminal failure wins against a paused timeout claim") {
             val timeoutEntered = CountDownLatch(1)
             val timeoutRelease = CountDownLatch(1)
-            val closes = mutableListOf<WindowCloseReason>()
             val runtime =
-                object : GameActionBridge.ActionWindowRuntime {
-                    override fun publish(pending: PendingAction) {
-                        pending.published = true
-                    }
-
-                    override fun resolve(
-                        pending: PendingAction,
-                        submission: ActionSubmission.RuntimeToken,
-                    ): PlayerAction = error("unused")
-
-                    override fun close(
-                        pending: PendingAction,
-                        reason: WindowCloseReason,
-                    ) {
-                        closes += reason
-                    }
-
-                    override fun claimTimeout(
-                        pending: PendingAction,
-                        cause: java.util.concurrent.TimeoutException,
-                    ): Boolean {
+                FakeActionWindowRuntime(
+                    onClaimTimeout = { pending, cause ->
                         timeoutEntered.countDown()
                         check(timeoutRelease.await(2, TimeUnit.SECONDS))
-                        return pending.future.completeExceptionally(cause)
-                    }
-                }
+                        pending.future.completeExceptionally(cause)
+                    },
+                )
             val bridge = GameActionBridge(timeoutMs = 20, windowRuntime = runtime)
             val terminal = IllegalStateException("terminal")
             val failure = AtomicReference<Throwable?>()
@@ -328,7 +247,25 @@ class GameActionBridgeTest :
 
             assertSoftly {
                 failure.get() shouldBe terminal
-                closes shouldContainExactly listOf(WindowCloseReason.Failed)
+                runtime.closes shouldContainExactly listOf(WindowCloseReason.Failed)
+                bridge.getPending().shouldBeNull()
+            }
+        }
+
+        test("a bridge without a window runtime exposes its own pending window") {
+            val bridge = GameActionBridge(timeoutMs = 5_000)
+            val result = AtomicReference<PlayerAction>()
+            val engine = Thread { result.set(bridge.awaitAction(state)) }.also { it.start() }
+
+            val pending = pollForPending(bridge)
+            assertSoftly {
+                pending.promptGameStateId.shouldBeNull()
+                bridge.submitTestRuntimeAction(pending.actionId, PlayerAction.EndTurn) shouldBe true
+            }
+            engine.join(2_000)
+
+            assertSoftly {
+                result.get() shouldBe PlayerAction.EndTurn
                 bridge.getPending().shouldBeNull()
             }
         }

@@ -6,6 +6,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.longs.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -164,7 +165,6 @@ class MatchCutCoordinatorTest :
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val priorProjection = board.bridge.projectionStateSnapshot()
             val priorCounter = board.counter.snapshot()
-            val priorPromptGsId = pending.promptGameStateId
             val residualMsgId = AtomicReference<Int>()
             board.bridge.cutCoordinator.beforeActionEnqueue = {
                 Thread {
@@ -192,7 +192,7 @@ class MatchCutCoordinatorTest :
                 board.counter.lastPromptMsgId() shouldBe residualMsgId.get()
                 board.bridge.cutCoordinator.failure() shouldBe failure
                 board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
-                pending.promptGameStateId shouldBe priorPromptGsId
+                pending.promptGameStateId.shouldBeNull()
                 board.bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe true
             }
         }
@@ -265,6 +265,9 @@ class MatchCutCoordinatorTest :
                     .actionsAvailableReq.actionsList
                     .first { it.actionType == ActionType.Pass }
             check(timeoutEntered.await(3, TimeUnit.SECONDS))
+            // The client learns the correlation while the window is open; the timeout
+            // then retires the window before this stale answer arrives.
+            val promptGsId = checkNotNull(exact.promptGameStateId)
 
             timeoutRelease.countDown()
             engine.join(3_000)
@@ -273,9 +276,10 @@ class MatchCutCoordinatorTest :
 
             assertSoftly {
                 result.get() shouldBe PlayerAction.PassPriority
+                exact.promptGameStateId.shouldBeNull()
                 board.bridge.cutCoordinator.claimPriorityResponse(
                     exact.actionId,
-                    checkNotNull(exact.promptGameStateId),
+                    promptGsId,
                     pass,
                     defer = false,
                 ) shouldBe null

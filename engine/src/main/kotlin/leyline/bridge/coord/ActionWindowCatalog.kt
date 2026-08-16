@@ -20,7 +20,7 @@ internal data class RuntimeActionSelection(
 internal data class RuntimeActionWindow(
     val seatId: SeatId,
     val actionId: String,
-    val promptGameStateId: Int,
+    val promptGameStateId: Int?,
     val offers: Map<ActionResponseKey, List<Pair<Long, GameActionBridge.ActionOffer>>>,
     val actions: ActionsAvailableReq = ActionsAvailableReq.getDefaultInstance(),
     val presentationActions: ActionsAvailableReq = ActionsAvailableReq.getDefaultInstance(),
@@ -30,10 +30,19 @@ internal data class RuntimeActionWindow(
     val selections: MutableMap<Long, RuntimeActionSelection> = mutableMapOf(),
     val deferredCostPlans: Map<Long, DeferredCastCostPlan> = emptyMap(),
     val deferredChildSelections: Map<Long, RuntimeActionSelection> = emptyMap(),
-    var status: ActionWindowStatus = ActionWindowStatus.Published,
+    // Mutations happen under the coordinator feed lock; engine and session threads
+    // read it without one, so the field stays volatile.
+    @Volatile var status: ActionWindowStatus = ActionWindowStatus.Published,
 )
 
+/**
+ * Lifecycle of one action window. The engine sees the window only while it is
+ * [Published]; every other status hides it from `GameActionBridge.getPending`.
+ */
 internal sealed interface ActionWindowStatus {
+    /** Materialized and installed, but not yet handed to the engine and client. */
+    data object Publishing : ActionWindowStatus
+
     data object Published : ActionWindowStatus
 
     data class Claimed(
@@ -107,8 +116,21 @@ internal fun createRuntimeActionWindow(
         blockerCount,
         deferredCostPlans = deferred.mapValues { it.value.plan },
         deferredChildSelections = deferred.values.flatMap { it.childSelections.entries }.associate { it.toPair() },
+        status = ActionWindowStatus.Publishing,
     )
 }
+
+/** Bare record for a state-only synchronization stop; it offers the client no actions. */
+internal fun synchronizationActionWindow(
+    seatId: SeatId,
+    actionId: String,
+): RuntimeActionWindow =
+    RuntimeActionWindow(
+        seatId = seatId,
+        actionId = actionId,
+        promptGameStateId = null,
+        offers = emptyMap(),
+    )
 
 internal fun resolveActionOffer(
     offers: Map<ActionResponseKey, List<Pair<Long, GameActionBridge.ActionOffer>>>,

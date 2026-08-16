@@ -165,11 +165,13 @@ class MatchManaSourcePaymentRuntimeTest :
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            board.bridge
-                .actionBridge(SeatId(1))
-                .getPending()
-                .shouldNotBeNull()
-                .published = false
+            coordinator.hidePublishedActionWindow(
+                board.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    .shouldNotBeNull()
+                    .actionId,
+            )
             val finished = CountDownLatch(1)
             Thread {
                 coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)

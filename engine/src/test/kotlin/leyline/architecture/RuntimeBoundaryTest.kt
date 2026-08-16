@@ -500,4 +500,77 @@ class RuntimeBoundaryTest :
             check("buildActions(" !in targeting)
             check("hasMeaningfulPriorityAction(actionWindow.actionId)" in targeting)
         }
+
+        test("one installer owns the coordinator cut transaction") {
+            // Enqueueing a batch and committing its projection is one transaction with
+            // one rollback rule. CoordinatorCutInstaller owns the single-batch shape and
+            // MatchCutCoordinator owns ordinary multi-batch playback; no runtime family
+            // may reimplement either. Names are removed once their copies are gone.
+            val owners =
+                setOf(
+                    "CoordinatorCutInstaller.kt",
+                    "MatchCutCoordinator.kt",
+                )
+            val coordRoot = sourceRoot.resolve("leyline/bridge/coord")
+            val violators = mutableSetOf<String>()
+            val stream = Files.walk(coordRoot)
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        val source = Files.readString(file)
+                        if ("commitProjection(" in source && "queue.add(" in source) {
+                            violators += coordRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+
+            check(violators == owners) {
+                "Coordinator cut installation must stay centralized. Unexpected: " +
+                    (violators - owners).sorted().joinToString() +
+                    "; stale allowlist entries: " + (owners - violators).sorted().joinToString()
+            }
+        }
+
+        test("one exchange owns iterative command arbitration") {
+            // Targeting and mana-source payment have different domains but one
+            // cross-thread handshake. A second command queue in this package means
+            // the deadline/delivery race has to be fixed twice again.
+            val owners = setOf("InteractiveCommandExchange.kt")
+            val coordRoot = sourceRoot.resolve("leyline/bridge/coord")
+            val violators = mutableSetOf<String>()
+            val stream = Files.walk(coordRoot)
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        if ("LinkedBlockingQueue" in Files.readString(file)) {
+                            violators += coordRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+
+            check(violators == owners) {
+                "Iterative command arbitration must stay centralized. Unexpected: " +
+                    (violators - owners).sorted().joinToString()
+            }
+        }
+
+        test("action window lifecycle has one authority") {
+            // GameActionBridge is the engine-thread wait adapter. Window visibility,
+            // claim, completion, and prompt correlation belong to the runtime record;
+            // reintroducing mirror flags here restores two authorities for one lifecycle.
+            val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/GameActionBridge.kt"))
+            val pendingAction = bridge.substringAfter("data class PendingAction(").substringBefore("sealed interface ActionSubmission")
+
+            check("var published" !in pendingAction)
+            check("var claimed" !in pendingAction)
+            check("var promptGameStateId" !in pendingAction)
+            check("windowRuntime?.promptGameStateId(" in pendingAction)
+            check("windowRuntime?.isVisible(" in bridge)
+        }
     })

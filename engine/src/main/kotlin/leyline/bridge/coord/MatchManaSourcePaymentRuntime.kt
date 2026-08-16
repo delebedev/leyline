@@ -18,8 +18,6 @@ import leyline.game.PlaybackTerminalFailure
 import leyline.game.data.KeywordAbilityIds
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
@@ -56,23 +54,14 @@ internal class MatchManaSourcePaymentRuntime(
         ) : Command
     }
 
-    private data class Delivery(
-        val token: Long,
-        val acknowledged: CompletableFuture<Unit> = CompletableFuture(),
-        val released: CompletableFuture<Unit> = CompletableFuture(),
-    )
-
     private data class Window(
         val interactionId: String,
         val handlesByOption: Map<Int, Card>,
-        val deadlineNanos: Long?,
-        val commands: LinkedBlockingQueue<Command> = LinkedBlockingQueue(),
+        val exchange: InteractiveCommandExchange<Command, ManaSourcePaymentCommandReceipt>,
         var value: ManaSourcePaymentWindowValue,
         var published: PublishedManaSourcePaymentInteraction,
         var cut: PendingManaSourcePaymentCut,
         var optionByInstanceId: Map<Int, Int>,
-        var commandInFlight: Command? = null,
-        var delivery: Delivery? = null,
     )
 
     private data class Publication(
@@ -111,7 +100,12 @@ internal class MatchManaSourcePaymentRuntime(
                 Window(
                     interactionId = interactionId,
                     handlesByOption = initial.handlesByOption,
-                    deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },
+                    exchange =
+                        InteractiveCommandExchange(
+                            deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },
+                            nextDeliveryToken = nextDeliveryToken::incrementAndGet,
+                            replyOf = Command::reply,
+                        ),
                     value = initial.value,
                     published = publication.published,
                     cut = publication.cut,
@@ -147,7 +141,9 @@ internal class MatchManaSourcePaymentRuntime(
     }
 
     fun current(): PublishedManaSourcePaymentInteraction? =
-        synchronized(owner.feedLock) { window?.takeUnless { it.commandInFlight != null || it.delivery != null }?.published }
+        synchronized(owner.feedLock) {
+            window?.takeUnless { it.exchange.inFlight != null || it.exchange.delivery != null }?.published
+        }
 
     fun select(
         interactionId: String,
@@ -172,16 +168,11 @@ internal class MatchManaSourcePaymentRuntime(
     ): Boolean {
         val delivery =
             synchronized(owner.feedLock) {
-                val pending = window ?: return@synchronized null
-                if (pending.interactionId != interactionId || pending.delivery?.token != token) return@synchronized null
-                pending.delivery?.also { it.acknowledged.complete(Unit) }
+                val pending = window?.takeIf { it.interactionId == interactionId } ?: return@synchronized null
+                pending.exchange.acknowledgeLocked(token)
             } ?: return false
-        return try {
-            delivery.released.get()
-            true
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
+        delivery.awaitRelease()
+        return true
     }
 
     fun pendingCutLocked(): PendingManaSourcePaymentCut? = window?.cut.also { afterDeliveryCutLookup?.invoke() }
@@ -189,11 +180,7 @@ internal class MatchManaSourcePaymentRuntime(
     fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             val pending = window ?: return
-            pending.delivery?.acknowledged?.completeExceptionally(cause)
-            pending.delivery?.released?.completeExceptionally(cause)
-            pending.commandInFlight?.reply?.completeExceptionally(cause)
-            pending.commands.forEach { it.reply.completeExceptionally(cause) }
-            pending.commands.offer(Command.Terminal(cause))
+            pending.exchange.terminateLocked(cause, Command.Terminal(cause))
             window = null
         }
     }
@@ -222,18 +209,15 @@ internal class MatchManaSourcePaymentRuntime(
     }
 
     private fun submit(command: Command): ManaSourcePaymentCommandReceipt? {
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = matching(command) ?: return null
-            pending.commandInFlight = command
-            pending.commands.offer(command)
-            afterCommandEnqueue?.invoke()
-        }
-        return try {
-            command.reply.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
+        val pending =
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val current = matching(command) ?: return null
+                current.exchange.admitLocked(command)
+                afterCommandEnqueue?.invoke()
+                current
+            }
+        return pending.exchange.awaitReply(command)
     }
 
     private fun awaitCommands(pending: Window): ManaSourcePaymentResult {
@@ -262,32 +246,25 @@ internal class MatchManaSourcePaymentRuntime(
         command: Command.Select,
     ) {
         val next = capture.select(pending.value, pending.handlesByOption, command.optionIndices)
-        val delivery = Delivery(nextDeliveryToken.incrementAndGet())
+        lateinit var delivery: CommandDelivery
         publish(
             interactionId = pending.interactionId,
             value = next,
             beforePrepare = { recordPaymentFacts(next) },
         ) { publication ->
-            check(window === pending && pending.commandInFlight === command)
+            check(window === pending && pending.exchange.inFlight === command)
             pending.value = next
             pending.published = publication.published
             pending.cut = publication.cut
             pending.optionByInstanceId = publication.optionByInstanceId
-            pending.delivery = delivery
+            delivery = pending.exchange.beginDeliveryLocked()
             command.reply.complete(ManaSourcePaymentCommandReceipt(pending.interactionId, completed = false, delivery.token))
         }
-        try {
-            delivery.acknowledged.get()
-            beforeDeliveryRelease?.invoke()
-            synchronized(owner.feedLock) {
-                if (window === pending) {
-                    pending.delivery = null
-                    pending.commandInFlight = null
-                }
-                delivery.released.complete(Unit)
-            }
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
+        delivery.awaitAcknowledgement()
+        beforeDeliveryRelease?.invoke()
+        synchronized(owner.feedLock) {
+            if (window === pending) pending.exchange.clearDeliveryLocked()
+            delivery.released.complete(Unit)
         }
     }
 
@@ -299,7 +276,7 @@ internal class MatchManaSourcePaymentRuntime(
     ): ManaSourcePaymentResult {
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            check(window === pending && pending.commandInFlight === command)
+            check(window === pending && pending.exchange.inFlight === command)
             recordPaymentFacts(finalValue)
             window = null
             command.reply.complete(ManaSourcePaymentCommandReceipt(pending.interactionId, completed = true))
@@ -359,52 +336,36 @@ internal class MatchManaSourcePaymentRuntime(
                     if (optionByInstanceId.size != optionEntries.size) {
                         owner.failManaSourcePayment(IllegalStateException("Mana-source candidates have ambiguous client identities"), exact)
                     }
-                    val batch = prepared.bundle.messages
-                    var enqueued = false
-                    var installed = false
-                    try {
-                        feed.beforeBatchEnqueue?.invoke(0, batch)
-                        feed.queue.add(batch)
-                        enqueued = true
-                        beforeInstall?.invoke()
-                        owner.bridge.commitProjection(prepared.transition) { installed = true }
-                        afterInstall?.invoke()
-                        if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-                        Publication(published, exact, optionByInstanceId).also(onPublished)
-                    } catch (ex: Exception) {
-                        if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-                        owner.failManaSourcePayment(ex, exact)
-                    }
+                    val publication = Publication(published, exact, optionByInstanceId)
+                    owner.cutInstaller.install(
+                        feed,
+                        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                        CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+                        onInstalled = { onPublished(publication) },
+                    ) { ex -> owner.failManaSourcePayment(ex, exact) }
+                    publication
                 }
             }
         }
 
-    private fun nextCommand(pending: Window): Command {
-        val command =
-            if (pending.deadlineNanos == null) {
-                pending.commands.take()
-            } else {
-                val deadline = pending.deadlineNanos
-                val remaining = deadline - System.nanoTime()
-                if (remaining <= 0) null else pending.commands.poll(remaining, TimeUnit.NANOSECONDS)
+    private fun nextCommand(pending: Window): Command =
+        pending.exchange.next {
+            beforeTimeoutClaim?.invoke()
+            synchronized(owner.feedLock) {
+                if (window === pending && !pending.exchange.queuedLocked()) {
+                    window = null
+                    throw ManaSourcePaymentTimeoutException()
+                }
             }
-        if (command != null) return command
-        beforeTimeoutClaim?.invoke()
-        synchronized(owner.feedLock) {
-            if (window === pending && pending.commands.isEmpty()) {
-                window = null
-                throw ManaSourcePaymentTimeoutException()
-            }
+            pending.exchange.takeQueued()
         }
-        return pending.commands.take()
-    }
 
     private fun matching(
         interactionId: String,
         gameStateId: Int,
     ): Window? {
         val pending = window ?: return null
-        if (pending.commandInFlight != null || pending.delivery != null) return null
+        if (pending.exchange.inFlight != null || pending.exchange.delivery != null) return null
         if (pending.published.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
         return pending
     }

@@ -48,6 +48,11 @@ internal var MatchCutCoordinator.beforeActionTimeoutClaim: (() -> Unit)?
         actions.beforeTimeoutClaim = value
     }
 
+/** Hide a published action window so a test can prove a fresh priority horizon is created. */
+internal fun MatchCutCoordinator.hidePublishedActionWindow(actionId: String) {
+    actions.hideForTest(actionId)
+}
+
 internal var MatchCutCoordinator.beforeSynchronizationTimeoutClaim: (() -> Unit)?
     get() = actions.beforeSynchronizationTimeoutClaim
     set(value) {

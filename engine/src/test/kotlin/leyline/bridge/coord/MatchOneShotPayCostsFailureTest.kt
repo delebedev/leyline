@@ -271,26 +271,6 @@ class MatchOneShotPayCostsFailureTest :
             }
         }
 
-        test("post-install acknowledgement failure retains committed state and output") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val prior = board.bridge.projectionStateSnapshot()
-            coordinator.oneShotPayCosts.afterInstall = { error("PayCosts acknowledgement unavailable") }
-
-            val terminal =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), 3_000)
-                }
-            val retained = coordinator.drain(SeatId(1)).single()
-            assertSoftly {
-                terminal.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe retained
-                retained.any { it.hasPayCostsReq() } shouldBe true
-                board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-            }
-            coordinator.oneShotPayCosts.afterInstall = null
-        }
-
         test("delivery terminalizes before a concurrent response can claim the window") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator

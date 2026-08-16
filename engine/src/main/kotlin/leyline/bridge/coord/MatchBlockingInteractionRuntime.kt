@@ -157,11 +157,11 @@ internal class MatchBlockingInteractionRuntime(
                             } catch (ex: Exception) {
                                 owner.fail(ex)
                             }
-                        owner.publishPrepared(
+                        owner.cutInstaller.install(
                             owner.feed(owner.humanSeat),
-                            prepared,
-                            owner.beforeCommanderCleanupInstall,
-                        )
+                            PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                            CutInstallHooks(beforeInstall = owner.beforeCommanderCleanupInstall),
+                        ) { ex -> owner.fail(ex) }
                     }
                     pending.future.complete(Answer.Optional(accepted))
                 }
@@ -233,25 +233,11 @@ internal class MatchBlockingInteractionRuntime(
                                 prepared.transition,
                             )
                         val created = Window(published, CompletableFuture(), damageCards)
-                        val batch = prepared.bundle.messages
-                        var enqueued = false
-                        var installed = false
-                        try {
-                            feed.queue.add(batch)
-                            enqueued = true
-                            beforeInstall?.invoke()
-                            if (prepared.transition == null) {
-                                installed = true
-                            } else {
-                                owner.bridge.commitProjection(prepared.transition) { installed = true }
-                            }
-                            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-                        } catch (ex: Exception) {
-                            if (!installed) {
-                                if (enqueued) owner.removeOwnedBatch(feed, batch)
-                            }
-                            owner.fail(ex, exact)
-                        }
+                        owner.cutInstaller.install(
+                            feed,
+                            PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                            CutInstallHooks(beforeInstall = beforeInstall),
+                        ) { ex -> owner.fail(ex, exact) }
                         window = created
                         created
                     }

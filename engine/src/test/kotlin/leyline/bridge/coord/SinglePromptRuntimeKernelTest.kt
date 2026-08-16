@@ -4,8 +4,6 @@ import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -21,12 +19,15 @@ import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-/** Shared publication transaction proofs for all [SinglePromptRuntimeKernel] users. */
+/**
+ * Shared correlation, timeout arbitration, and retirement proofs for all
+ * [SinglePromptRuntimeKernel] users. The publication transaction itself belongs
+ * to [CoordinatorCutInstallerTest].
+ */
 class SinglePromptRuntimeKernelTest :
     BoardTest({
         val puzzle =
@@ -112,75 +113,6 @@ class SinglePromptRuntimeKernelTest :
                 }
             }.start()
             return Triple(result, finished, cards)
-        }
-
-        test("materialization, enqueue, commit, and rollback retain the exact transaction boundary") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val prior = board.bridge.projectionStateSnapshot()
-            val materialization =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelect.awaitSelection(request(board, Int.MAX_VALUE), options(board), 3_000)
-                }
-            assertSoftly {
-                materialization.cardSelectDiagnostic.shouldNotBeNull()
-                materialization.pendingCardSelectCut.shouldBeNull()
-                coordinator.drain(SeatId(1)).shouldBeEmpty()
-                board.bridge.projectionStateSnapshot() shouldBe prior
-            }
-
-            val enqueueBoard = startPuzzleAtMain1(puzzle)
-            val enqueueCoordinator = enqueueBoard.bridge.cutCoordinator
-            enqueueCoordinator.drain(SeatId(1))
-            val existing = listOf(GREToClientMessage.getDefaultInstance())
-            enqueueCoordinator.enqueueCommittedBatchForTest(SeatId(1), existing)
-            enqueueCoordinator.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("feed unavailable") }
-            val enqueue =
-                shouldThrow<PlaybackTerminalFailure> {
-                    enqueueCoordinator.cardSelect.awaitSelection(request(enqueueBoard), options(enqueueBoard), 3_000)
-                }
-            assertSoftly {
-                enqueue.pendingCardSelectCut.shouldNotBeNull()
-                enqueueCoordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
-            }
-        }
-
-        test("stale install and post-install failures preserve owned output versus committed output") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val competing =
-                board.bridge
-                    .projectionStateSnapshot()
-                    .editor()
-                    .freeze()
-            coordinator.cardSelect.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
-            val stale =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
-                }
-            assertSoftly {
-                stale.pendingCardSelectCut.shouldNotBeNull()
-                coordinator.drain(SeatId(1)).shouldBeEmpty()
-                board.bridge.projectionStateSnapshot() shouldBe competing
-            }
-
-            val next = startPuzzleAtMain1(puzzle)
-            val nextCoordinator = next.bridge.cutCoordinator
-            nextCoordinator.drain(SeatId(1))
-            val prior = next.bridge.projectionStateSnapshot()
-            nextCoordinator.cardSelect.afterInstall = { error("ack unavailable") }
-            val committed =
-                shouldThrow<PlaybackTerminalFailure> {
-                    nextCoordinator.cardSelect.awaitSelection(request(next), options(next), 3_000)
-                }
-            val retained = nextCoordinator.drain(SeatId(1)).single()
-            assertSoftly {
-                committed.pendingCardSelectCut.shouldNotBeNull().messages shouldBe retained
-                next.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-                nextCoordinator.cardSelect.current().shouldBeNull()
-            }
         }
 
         test("response wins timeout claim and stale or duplicate completion cannot re-enter") {
@@ -271,11 +203,13 @@ class SinglePromptRuntimeKernelTest :
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            board.bridge
-                .actionBridge(SeatId(1))
-                .getPending()
-                .shouldNotBeNull()
-                .published = false
+            coordinator.hidePublishedActionWindow(
+                board.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    .shouldNotBeNull()
+                    .actionId,
+            )
             val (_, finished, _) = startAwait(coordinator, board, 3_000)
             awaitPublished(coordinator)
             assertSoftly {

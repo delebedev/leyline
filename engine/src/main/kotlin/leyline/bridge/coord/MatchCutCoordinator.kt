@@ -11,7 +11,6 @@ import leyline.game.PendingInteractionCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
-import leyline.game.bundle.BlockingInteractionMaterializer
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
@@ -43,6 +42,7 @@ internal class MatchCutCoordinator(
 
     internal val feedLock = Any()
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
+    internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
     internal val interactions = MatchBlockingInteractionRuntime(this)
@@ -355,32 +355,6 @@ internal class MatchCutCoordinator(
 
     internal fun ensureOpen() {
         terminal.ensureOpen()
-    }
-
-    internal fun publishPrepared(
-        feed: ViewerFeed,
-        prepared: BlockingInteractionMaterializer.Prepared,
-        beforeInstall: (() -> Unit)? = null,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            prepared.transition?.let { transition ->
-                bridge.commitProjection(transition) { installed = true }
-            } ?: run {
-                installed = true
-            }
-            if (prepared.closesPlaybackFrame) bridge.acknowledgePlaybackFrame(feed.seatId)
-        } catch (ex: Exception) {
-            if (!installed) {
-                if (enqueued) removeOwnedBatch(feed, batch)
-            }
-            fail(ex)
-        }
     }
 
     internal fun removeOwnedBatch(

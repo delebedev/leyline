@@ -8,7 +8,6 @@ import leyline.bridge.handoff.TargetingCommandReceipt
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.InstanceId
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.LinkedBlockingQueue
 
 internal sealed interface TargetingCommand {
     val reply: CompletableFuture<TargetingCommandReceipt>
@@ -39,12 +38,6 @@ internal sealed interface TargetingCommand {
     ) : TargetingCommand
 }
 
-internal data class TargetingDelivery(
-    val token: Long,
-    val acknowledged: CompletableFuture<Unit>,
-    val released: CompletableFuture<Unit>,
-)
-
 internal data class TargetingWindow(
     val interactionId: String,
     val value: TargetingWindowValue,
@@ -53,10 +46,7 @@ internal data class TargetingWindow(
     val stackAbilitiesByOptionIndex: Map<Int, SpellAbility>,
     val instanceIdByOptionIndex: Map<Int, Int>,
     val sourceInstanceId: InstanceId?,
-    val deadlineNanos: Long?,
-    val commands: LinkedBlockingQueue<TargetingCommand> = LinkedBlockingQueue(),
+    val exchange: InteractiveCommandExchange<TargetingCommand, TargetingCommandReceipt>,
     val selectedOptionIndices: MutableList<Int> = mutableListOf(),
     var published: PublishedTargetingInteraction,
-    var commandInFlight: Boolean = false,
-    var delivery: TargetingDelivery? = null,
 )

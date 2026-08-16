@@ -14,8 +14,6 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.bundle.TargetingWindowMaterializer
 import leyline.game.snapshot.BoundCard
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
@@ -122,25 +120,17 @@ internal class MatchTargetingInteractionRuntime(
     ): Boolean {
         val delivery =
             synchronized(owner.feedLock) {
-                val pending = window ?: return@synchronized null
-                if (pending.interactionId != interactionId || pending.delivery?.token != token) return@synchronized null
-                pending.delivery?.also { it.acknowledged.complete(Unit) }
+                val pending = window?.takeIf { it.interactionId == interactionId } ?: return@synchronized null
+                pending.exchange.acknowledgeLocked(token)
             } ?: return false
-        return try {
-            delivery.released.get()
-            true
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
+        delivery.awaitRelease()
+        return true
     }
 
     fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             val pending = window ?: return
-            pending.delivery?.acknowledged?.completeExceptionally(cause)
-            pending.delivery?.released?.completeExceptionally(cause)
-            pending.commands.forEach { it.reply.completeExceptionally(cause) }
-            pending.commands.offer(TargetingCommand.Terminal(cause))
+            pending.exchange.terminateLocked(cause, TargetingCommand.Terminal(cause))
             window = null
         }
     }
@@ -193,7 +183,12 @@ internal class MatchTargetingInteractionRuntime(
                                 instanceIdByOptionIndex = capture.resolveInstanceIds(value, projection),
                                 sourceInstanceId =
                                     value.sourceForgeCardId?.let(projection.identities.forgeIdToInstanceId::get),
-                                deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },
+                                exchange =
+                                    InteractiveCommandExchange(
+                                        deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },
+                                        nextDeliveryToken = nextDeliveryToken::incrementAndGet,
+                                        replyOf = TargetingCommand::reply,
+                                    ),
                                 published = published,
                             )
                         window = created
@@ -358,8 +353,7 @@ internal class MatchTargetingInteractionRuntime(
         command: TargetingCommand,
         completed: Boolean,
     ) {
-        val delivery = TargetingDelivery(nextDeliveryToken.incrementAndGet(), CompletableFuture(), CompletableFuture())
-        pending.delivery = delivery
+        val delivery = pending.exchange.beginDeliveryLocked()
         command.reply.complete(
             TargetingCommandReceipt(
                 pending.interactionId,
@@ -374,15 +368,12 @@ internal class MatchTargetingInteractionRuntime(
         pending: TargetingWindow,
         completed: Boolean,
     ) {
-        val delivery = checkNotNull(pending.delivery)
+        val delivery = checkNotNull(pending.exchange.delivery)
         try {
-            delivery.acknowledged.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
+            delivery.awaitAcknowledgement()
         } finally {
             synchronized(owner.feedLock) {
-                pending.delivery = null
-                pending.commandInFlight = false
+                pending.exchange.clearDeliveryLocked()
                 if (completed && window === pending) window = null
                 delivery.released.complete(Unit)
             }
@@ -390,19 +381,13 @@ internal class MatchTargetingInteractionRuntime(
         }
     }
 
-    private fun poll(pending: TargetingWindow): TargetingCommand {
-        val deadline = pending.deadlineNanos ?: return pending.commands.take()
-        val remaining = deadline - System.nanoTime()
-        if (remaining <= 0) return claimTimedOutWindowOrCommand(pending)
-        return pending.commands.poll(remaining, TimeUnit.NANOSECONDS)
-            ?: claimTimedOutWindowOrCommand(pending)
-    }
+    private fun poll(pending: TargetingWindow): TargetingCommand = pending.exchange.next { claimTimedOutWindowOrCommand(pending) }
 
     private fun claimTimedOutWindowOrCommand(pending: TargetingWindow): TargetingCommand {
         beforeTimeoutClaim?.invoke()
         return synchronized(owner.feedLock) {
-            if (window === pending && pending.commandInFlight) {
-                return@synchronized checkNotNull(pending.commands.poll())
+            if (window === pending && pending.exchange.inFlight != null) {
+                return@synchronized checkNotNull(pending.exchange.pollQueuedLocked())
             }
             if (window === pending) window = null
             throw TargetingInteractionTimeoutException()
@@ -410,18 +395,15 @@ internal class MatchTargetingInteractionRuntime(
     }
 
     private fun submit(command: TargetingCommand): TargetingCommandReceipt? {
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = matching(commandInteractionId(command), commandGameStateId(command)) ?: return null
-            pending.commandInFlight = true
-            pending.commands.add(command)
-            afterCommandClaim?.invoke()
-        }
-        return try {
-            command.reply.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
+        val pending =
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val current = matching(commandInteractionId(command), commandGameStateId(command)) ?: return null
+                current.exchange.admitLocked(command)
+                afterCommandClaim?.invoke()
+                current
+            }
+        return pending.exchange.awaitReply(command)
     }
 
     private fun matching(
@@ -431,30 +413,18 @@ internal class MatchTargetingInteractionRuntime(
     ): TargetingWindow? {
         val pending = window ?: return null
         if (pending.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
-        if (requireIdle && pending.commandInFlight) return null
+        if (requireIdle && pending.exchange.inFlight != null) return null
         return pending
     }
 
     private fun publishPrepared(
         feed: MatchCutCoordinator.ViewerFeed,
         prepared: TargetingWindowMaterializer.Prepared,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            prepared.transition?.let { transition ->
-                owner.bridge.commitProjection(transition) { installed = true }
-            } ?: run { installed = true }
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            owner.fail(ex)
-        }
-    }
+    ) = owner.cutInstaller.install(
+        feed,
+        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+        CutInstallHooks(beforeInstall = beforeInstall),
+    ) { ex -> owner.fail(ex) }
 
     private fun commandInteractionId(command: TargetingCommand): String =
         when (command) {

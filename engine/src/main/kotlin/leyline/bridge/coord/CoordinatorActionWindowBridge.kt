@@ -12,6 +12,10 @@ internal class CoordinatorActionWindowBridge(
 ) : GameActionBridge.ActionWindowRuntime {
     override fun publish(pending: GameActionBridge.PendingAction) = runtime.publish(seatId, pending)
 
+    override fun isVisible(actionId: String): Boolean = runtime.isVisible(actionId)
+
+    override fun promptGameStateId(actionId: String): Int? = runtime.promptGameStateId(actionId)
+
     override fun resolve(
         pending: GameActionBridge.PendingAction,
         submission: GameActionBridge.ActionSubmission.RuntimeToken,
