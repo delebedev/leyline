@@ -32,6 +32,19 @@ import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.ConcurrentHashMap
 import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
 
+/** Immutable per-frame snapshot of game events in firing order. */
+class FrameEventLog(
+    events: List<GameEvent>,
+    zoneMoves: List<ZoneMove> = emptyList(),
+) {
+    val events: List<GameEvent> = java.util.Collections.unmodifiableList(events.toList())
+    val zoneMoves: List<ZoneMove> = java.util.Collections.unmodifiableList(zoneMoves.toList())
+
+    companion object {
+        val EMPTY = FrameEventLog(emptyList())
+    }
+}
+
 /**
  * Subscribes to the Forge engine's Guava EventBus and converts rich Java
  * [GameEvent][forge.game.event.GameEvent] objects into protocol-oriented
@@ -45,9 +58,9 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  * call [FrameEventLog.events]`.filterIsInstance<…>()` independently — the
  * frozen list is shared safely.
  *
- * The projection shell closes the frame before calling StateMapper. A
- * double-close returns an empty log; calling code does not need to defend
- * against it because the type forbids appending past close.
+ * The projection shell closes the frame before calling StateMapper. A second
+ * close with no intervening engine event returns an empty log. The returned log
+ * is immutable; subsequent events append to the replacement frame.
  *
  * ## Event ordering
  *
@@ -65,10 +78,13 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  * - [isLegendRuleVictim]: drains `LegendVictim` effects from the prompt journal → emits
  *   [GameEvent.LegendRuleDeath] instead of generic ZoneChanged for
  *   BF→GY legend rule deaths. Written by `TargetingCoordinator.recordLegendVictim`.
+ * - [consumeEnlistTapAffector]: drains `EnlistTapAffector` when its paid tap
+ *   event arrives → associates the tapped creature with the attacker for the
+ *   linked Enlist trigger. Written while `PlayerController` pays the Enlist cost.
  *
- * Both flags are written and consumed on the engine thread (events fire
+ * Both effects are written and consumed on the engine thread (events fire
  * synchronously during the engine operation that triggered the zone change).
- * Consumption removes the flag so it doesn't leak to subsequent zone events.
+ * Consumption removes the entry so it doesn't leak to subsequent events.
  *
  * ## Threading
  *
@@ -87,20 +103,6 @@ import forge.game.event.DamageSourceKind as ForgeDamageSourceKind
  * @param bridge used to resolve Player → seatId, access prompt bridge flags, and
  *   allocate stack iids for copy-cast events that can resolve before a snapshot
  */
-
-/** Immutable per-frame snapshot of game events in firing order. */
-class FrameEventLog(
-    events: List<GameEvent>,
-    zoneMoves: List<ZoneMove> = emptyList(),
-) {
-    val events: List<GameEvent> = java.util.Collections.unmodifiableList(events.toList())
-    val zoneMoves: List<ZoneMove> = java.util.Collections.unmodifiableList(zoneMoves.toList())
-
-    companion object {
-        val EMPTY = FrameEventLog(emptyList())
-    }
-}
-
 @Suppress("LargeClass")
 class GameEventCollector(
     private val bridge: GameBridge,
@@ -152,8 +154,9 @@ class GameEventCollector(
      * Close the current frame: returns events accumulated since the last
      * close in engine firing order, and starts a fresh empty frame.
      *
-     * Called once per GSM build by the projection shell before StateMapper.
-     * A second call returns an empty log.
+     * Called by the projection shell at journal boundaries and engine safe
+     * points. An immediate second call with no intervening event returns an
+     * empty log.
      */
     fun closeFrame(): FrameEventLog {
         val outEvents = frame

@@ -36,14 +36,30 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Maps Forge playable actions to Arena [Action] / [ActionsAvailableReq] protos.
+ * Projects Forge priority choices into client [Action] / [ActionsAvailableReq]
+ * values and pairs each executable action with its engine-side [ActionOffer].
  *
- * Depends on [IdMapping] (instanceId allocation) and [PlayerLookup] (seat → player).
+ * [buildProjectionFromSnapshot] is the production boundary. Zone membership,
+ * object identity, and bound card metadata come from one immutable
+ * [GsmSnapshot]. The matching window's live player, abilities, and
+ * [PriorityActionCandidates] supply legality, costs, and executable commands.
+ * The returned [ActionProjection.actions] and [ActionProjection.offers]
+ * preserve the same order, allowing a client response to resolve back to the
+ * exact window-scoped command.
+ *
+ * [buildNaiveActions] and [buildActionList] are presentation/test helpers. They
+ * read live Forge state and do not create executable offers, so priority-window
+ * publication must use the snapshot projection path.
+ *
+ * Action emission order is protocol-significant: the client associates display
+ * text with the first compatible action shape. Keep Cast before Activate for a
+ * hand card and preserve each zone rail's declared order.
  */
 @Suppress("LargeClass") // action emission spans multiple zones and wire shapes.
 object ActionMapper {
     private val log = LoggerFactory.getLogger(ActionMapper::class.java)
 
+    /** Protocol actions and their positionally aligned, window-scoped executable commands. */
     data class ActionProjection(
         val actions: ActionsAvailableReq,
         val offers: List<ActionOffer>,

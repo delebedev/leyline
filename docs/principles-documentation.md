@@ -15,7 +15,7 @@ The hardest thing to re-derive is *why* a design split exists. Put that in the K
 
 A class header explaining why `ClientAutoPassState` is separate from `PhaseStopProfile` is a decision record that lives exactly where a reader needs it. A standalone ADR in `docs/decisions/` saying the same thing is a copy that rots.
 
-**Good:** `"Extracted from MatchSession for independent testability."` on `CombatHandler`. Read the class, understand the boundary.
+**Good:** `"Owns combat independently so MatchSession remains a protocol dispatcher."` on `CombatHandler`. Read the class, understand the boundary.
 
 **Bad:** a design doc titled "Combat Handler Extraction" that explains the same thing but lives three directories away and references line numbers that moved.
 
@@ -44,6 +44,12 @@ Signs you are looking at an invisible constraint:
 - A `synchronized` block or lock whose scope is not self-evident from the caller.
 - A field that must be set before another field is read.
 - An annotation that must appear before another annotation in a list.
+
+Choose KDoc targets by re-derivation risk, not file size. Large declarative
+tables may need only a short purpose statement; a small coordinator can require
+a precise lifecycle or threading contract. Prioritize seams where misuse can
+corrupt shared state, reorder output, cross threads, or silently violate a
+cross-class ownership rule.
 
 ## 4. Standalone docs for cross-cutting; KDoc for per-class
 
