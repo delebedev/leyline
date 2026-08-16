@@ -26,7 +26,7 @@ class CopilotProposalService(
     private val resolver = EntityResolver(::resolveEntity)
 
     /** Forge-AI heuristic position score for the seat; null when eval fails. */
-    fun evaluate(): EvalScore? = policy.evaluateGameState()?.let { EvalScore(it.value, it.summonSickValue) }
+    fun evaluate(): EvalScore? = policy.evaluateGameState()?.let { EvalScore(it.value, it.availableValue) }
 
     /** Propose a response for [prompt]; null / uncovered / failed consults yield `unrealizable`. */
     fun propose(prompt: GREToClientMessage?): CopilotProposal {

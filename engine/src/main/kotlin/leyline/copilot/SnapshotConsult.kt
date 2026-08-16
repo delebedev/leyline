@@ -77,6 +77,6 @@ data class ConsultResponse(
 @Serializable
 data class EvalScore(
     val value: Int,
-    /** Score variant discounting creatures that cannot act yet. */
+    /** Score variant for resources currently available to act. */
     val summonSick: Int,
 )
