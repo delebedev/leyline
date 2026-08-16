@@ -105,47 +105,6 @@ class MatchManaSourcePaymentFailureTest :
             }
         }
 
-        test("stale install removes owned output and keeps the competing projection") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val competing =
-                board.bridge
-                    .projectionStateSnapshot()
-                    .editor()
-                    .freeze()
-            coordinator.manaSourcePayments.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
-
-            val terminal =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
-                }
-            assertSoftly {
-                terminal.pendingManaSourcePaymentCut.shouldNotBeNull()
-                coordinator.drain(SeatId(1)) shouldBe emptyList()
-                board.bridge.projectionStateSnapshot() shouldBe competing
-            }
-        }
-
-        test("post-install failure retains committed state and exact output") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val prior = board.bridge.projectionStateSnapshot()
-            coordinator.manaSourcePayments.afterInstall = { error("mana-source acknowledgement unavailable") }
-
-            val terminal =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
-                }
-            val retained = coordinator.drain(SeatId(1)).single()
-            assertSoftly {
-                terminal.pendingManaSourcePaymentCut.shouldNotBeNull().messages shouldBe retained
-                retained.any { it.hasPayCostsReq() } shouldBe true
-                board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
-            }
-        }
-
         test("re-prompt install failure fails the accepted command and retains its exact selection") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator

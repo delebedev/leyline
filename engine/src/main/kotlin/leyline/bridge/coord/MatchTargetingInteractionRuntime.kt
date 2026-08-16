@@ -438,23 +438,11 @@ internal class MatchTargetingInteractionRuntime(
     private fun publishPrepared(
         feed: MatchCutCoordinator.ViewerFeed,
         prepared: TargetingWindowMaterializer.Prepared,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            prepared.transition?.let { transition ->
-                owner.bridge.commitProjection(transition) { installed = true }
-            } ?: run { installed = true }
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            owner.fail(ex)
-        }
-    }
+    ) = owner.cutInstaller.install(
+        feed,
+        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+        CutInstallHooks(beforeInstall = beforeInstall),
+    ) { ex -> owner.fail(ex) }
 
     private fun commandInteractionId(command: TargetingCommand): String =
         when (command) {

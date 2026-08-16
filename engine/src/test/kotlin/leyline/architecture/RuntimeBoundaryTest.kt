@@ -500,4 +500,38 @@ class RuntimeBoundaryTest :
             check("buildActions(" !in targeting)
             check("hasMeaningfulPriorityAction(actionWindow.actionId)" in targeting)
         }
+
+        test("one installer owns the coordinator cut transaction") {
+            // Enqueueing a batch and committing its projection is one transaction with
+            // one rollback rule. CoordinatorCutInstaller owns the single-batch shape and
+            // MatchCutCoordinator owns ordinary multi-batch playback; no runtime family
+            // may reimplement either. Names are removed once their copies are gone.
+            val owners =
+                setOf(
+                    "CoordinatorCutInstaller.kt",
+                    "MatchCutCoordinator.kt",
+                    "MatchActionWindowRuntime.kt",
+                )
+            val coordRoot = sourceRoot.resolve("leyline/bridge/coord")
+            val violators = mutableSetOf<String>()
+            val stream = Files.walk(coordRoot)
+            try {
+                stream
+                    .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                    .forEach { file ->
+                        val source = Files.readString(file)
+                        if ("commitProjection(" in source && "queue.add(" in source) {
+                            violators += coordRoot.relativize(file).toString()
+                        }
+                    }
+            } finally {
+                stream.close()
+            }
+
+            check(violators == owners) {
+                "Coordinator cut installation must stay centralized. Unexpected: " +
+                    (violators - owners).sorted().joinToString() +
+                    "; stale allowlist entries: " + (owners - violators).sorted().joinToString()
+            }
+        }
     })

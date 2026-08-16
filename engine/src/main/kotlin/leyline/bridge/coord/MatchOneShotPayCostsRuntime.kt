@@ -318,23 +318,11 @@ internal class MatchOneShotPayCostsRuntime(
         feed: MatchCutCoordinator.ViewerFeed,
         prepared: leyline.game.bundle.PreparedPayCostsCut,
         exact: PendingOneShotPayCostsCut,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.beforeBatchEnqueue?.invoke(0, batch)
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            owner.bridge.commitProjection(prepared.transition) { installed = true }
-            afterInstall?.invoke()
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            owner.failOneShotPayCosts(ex, exact)
-        }
-    }
+    ) = owner.cutInstaller.install(
+        feed,
+        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+        CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+    ) { ex -> owner.failOneShotPayCosts(ex, exact) }
 
     private fun ensureNoWindow() {
         check(selectWindow == null && gatherWindow == null) { "A one-shot PayCosts interaction is already pending" }

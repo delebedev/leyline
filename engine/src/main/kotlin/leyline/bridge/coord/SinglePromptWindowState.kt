@@ -160,21 +160,9 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
     private fun publishPrepared(
         feed: MatchCutCoordinator.ViewerFeed,
         publication: SinglePromptPublication<W>,
-    ) {
-        val batch = publication.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.beforeBatchEnqueue?.invoke(0, batch)
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            owner.bridge.commitProjection(publication.transition) { installed = true }
-            afterInstall?.invoke()
-            if (publication.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            publicationFailure(ex, publication.window)
-        }
-    }
+    ) = owner.cutInstaller.install(
+        feed,
+        PreparedCut(publication.messages, publication.transition, publication.closesPlaybackFrame),
+        CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+    ) { ex -> publicationFailure(ex, publication.window) }
 }

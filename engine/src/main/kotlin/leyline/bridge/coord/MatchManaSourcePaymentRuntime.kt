@@ -359,22 +359,14 @@ internal class MatchManaSourcePaymentRuntime(
                     if (optionByInstanceId.size != optionEntries.size) {
                         owner.failManaSourcePayment(IllegalStateException("Mana-source candidates have ambiguous client identities"), exact)
                     }
-                    val batch = prepared.bundle.messages
-                    var enqueued = false
-                    var installed = false
-                    try {
-                        feed.beforeBatchEnqueue?.invoke(0, batch)
-                        feed.queue.add(batch)
-                        enqueued = true
-                        beforeInstall?.invoke()
-                        owner.bridge.commitProjection(prepared.transition) { installed = true }
-                        afterInstall?.invoke()
-                        if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-                        Publication(published, exact, optionByInstanceId).also(onPublished)
-                    } catch (ex: Exception) {
-                        if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-                        owner.failManaSourcePayment(ex, exact)
-                    }
+                    val publication = Publication(published, exact, optionByInstanceId)
+                    owner.cutInstaller.install(
+                        feed,
+                        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                        CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+                        onInstalled = { onPublished(publication) },
+                    ) { ex -> owner.failManaSourcePayment(ex, exact) }
+                    publication
                 }
             }
         }
