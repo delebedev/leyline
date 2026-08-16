@@ -118,7 +118,7 @@ scenarios:
   - id: eaten-alive-sacrifice-lethal
     puzzle: eaten-alive-sacrifice-lethal
     native:
-      xfail: Sacrifice additional-cost prompt sequencing is not driven by the native runner yet.
+      skip: Terminal ratchet scenario is headless-only until native puzzle outcomes can preserve the client match.
     run: cast Eaten Alive by sacrificing Ornithopter, exile Centaur Courser, then attack for lethal
     expect: Ornithopter is sacrificed, Grizzly Bears survives to attack, and the opponent loses
     steps:

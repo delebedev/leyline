@@ -25,6 +25,8 @@ scenarios:
           max_passes: 8
   - id: airbend-eot-blocker-lethal
     puzzle: airbend-eot-blocker-lethal
+    native:
+      skip: Terminal ratchet scenario is headless-only until native puzzle outcomes can preserve the client match.
     run: cast Airbending Lesson on the opponent end step, remove the blocker, and win in combat
     expect: the end-step instant path resolves before our lethal attack
     steps:
