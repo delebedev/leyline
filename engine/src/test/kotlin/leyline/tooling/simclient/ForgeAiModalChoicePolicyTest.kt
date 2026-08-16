@@ -6,6 +6,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
+import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.SimDecision
 import leyline.testkit.MatchFlowHarness
 import leyline.tooling.headless.HeadlessResponseMode
 
@@ -18,7 +20,7 @@ class ForgeAiModalChoicePolicyTest :
             harness.connectAndKeepPuzzle("puzzles/modal-etb.pzl")
             harness.castSpellUntilCastingTimeOptionsReq("Trufflesnout", advanceAfterCast = {})
             val msg = harness.allMessages.last { it.hasCastingTimeOptionsReq() }
-            val policy = ForgeAiPolicy(harness, SeatId(1))
+            val policy = ForgeAiPolicy({ harness.bridge }, SeatId(1))
             val modalGrpIds =
                 msg
                     .castingTimeOptionsReq

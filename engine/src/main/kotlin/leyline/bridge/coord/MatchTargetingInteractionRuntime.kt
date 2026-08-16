@@ -84,6 +84,9 @@ internal class MatchTargetingInteractionRuntime(
 
     fun current(): PublishedTargetingInteraction? = synchronized(owner.feedLock) { window?.published }
 
+    /** Read-only Forge context for the in-process decision policy. */
+    internal fun aiContext(): SpellAbility? = synchronized(owner.feedLock) { window?.targetingAbility }
+
     fun submitToggle(
         interactionId: String,
         gameStateId: Int,

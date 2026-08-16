@@ -253,35 +253,6 @@ class AutoPassEngineTest :
             }
         }
 
-        test("checkHumanActions — copilot autopush ignores full control on a pass-only window") {
-            // With leyline driving this seat in-process, the client's full-control
-            // flag must not force a priority grant on a no-action window — that is
-            // the storm the pull path tolerates but autopush cannot afford.
-            val (bridge, game, counter) = startWithBoard { _, _, _ -> }
-            val autoPassState = ClientAutoPassState()
-            autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
-            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
-            val engine =
-                AutoPassEngine(
-                    sink = ops,
-                    counters = ops,
-                    bundles = ops,
-                    pacing = ops,
-                    combatHandler = CombatHandler(sink = ops, counters = ops, bundles = ops, pacing = ops, ctx = ops.ctx),
-                    targetingHandler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx),
-                    optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
-                    numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
-                    ctx = ops.ctx,
-                    autoPassState = autoPassState,
-                    copilotAutopushDriven = true,
-                )
-
-            val decision = engine.checkHumanActions(game, isAiTurn = false)
-
-            decision.shouldBeInstanceOf<PriorityDecision.Skip>()
-            (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
-        }
-
         // --- checkHumanActions: client autoPass ---
 
         test("checkHumanActions — client autoPass + pass-only → Skip(ClientAutoPass)") {

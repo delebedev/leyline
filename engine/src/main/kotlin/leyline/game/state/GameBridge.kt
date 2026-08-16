@@ -790,6 +790,14 @@ class GameBridge(
         activeProjectionEditor.get()?.identities?.reserve()
             ?: updateProjection { it.identities.reserve() }
 
+    fun bindInstanceId(
+        forgeCardId: ForgeCardId,
+        instanceId: InstanceId,
+    ) {
+        activeProjectionEditor.get()?.identities?.bind(forgeCardId, instanceId)
+            ?: updateProjection { it.identities.bind(forgeCardId, instanceId) }
+    }
+
     fun peekInstanceId(forgeCardId: ForgeCardId): InstanceId? =
         activeProjectionEditor.get()?.identities?.peek(forgeCardId)
             ?: synchronized(projectionLock) { projectionState.identities.forgeIdToInstanceId[forgeCardId] }
@@ -1020,7 +1028,7 @@ class GameBridge(
         // Wire the interactive seat and retain native AI decisions with reveal observation.
         registerHumanController(g)
 
-        registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
+        registerPlaybackPipeline(g, seating.humanSeat, captureLocalActions = false)
         log.info("GameBridge: registered playback pipeline for seat 1")
 
         val loop =
@@ -1317,6 +1325,9 @@ class GameBridge(
     /** Current typed one-shot PayCosts window for harness policy inspection. */
     fun currentOneShotPayCostsInteraction(): PublishedOneShotPayCostsInteraction? = cutCoordinator.prompts.currentOneShotPayCosts()
 
+    /** Exact targeting ability retained by the active coordinator window. */
+    internal fun currentTargetingAbility(): SpellAbility? = cutCoordinator.targeting.aiContext()
+
     /** Submit keep decision for seat. Only the human seat's decision is wired today. */
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
     fun submitKeep(seatId: SeatId): Boolean {
@@ -1501,7 +1512,7 @@ class GameBridge(
             human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
         }
 
-        registerPlaybackPipeline(g, SeatId(1), captureLocalActions = false)
+        registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =

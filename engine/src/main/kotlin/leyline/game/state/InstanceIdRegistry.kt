@@ -33,6 +33,24 @@ object InstanceIdRegistry {
 
         fun reserve(): InstanceId = InstanceId(nextInstanceId++)
 
+        fun bind(
+            forgeCardId: ForgeCardId,
+            instanceId: InstanceId,
+        ) {
+            nextInstanceId = maxOf(nextInstanceId, instanceId.value + 1)
+            val displaced = reverse[instanceId]
+            if (displaced != null && displaced != forgeCardId) {
+                val fresh = reserve()
+                forward[displaced] = fresh
+                reverse[fresh] = displaced
+            }
+            forward[forgeCardId]?.let { old ->
+                if (old != instanceId) reverse.remove(old)
+            }
+            forward[forgeCardId] = instanceId
+            reverse[instanceId] = forgeCardId
+        }
+
         fun alias(
             existingForgeId: ForgeCardId,
             aliasForgeId: ForgeCardId,

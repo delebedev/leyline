@@ -499,7 +499,7 @@ object SnapshotHydration {
     ) {
         val idToCard = idToCardOf(puzzle)
         for ((sourceIid, card) in idToCard) {
-            bridge.ids.bind(ForgeCardId(card.id), InstanceId(sourceIid))
+            bridge.bindInstanceId(ForgeCardId(card.id), InstanceId(sourceIid))
         }
         log.info("SnapshotHydration: rebound {} instanceIds to source ids", idToCard.size)
     }

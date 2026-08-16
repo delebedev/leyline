@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.game.mapping.StateMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest

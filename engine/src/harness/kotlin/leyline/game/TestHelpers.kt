@@ -6,10 +6,12 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.MechanicSourceFactsCapture
 import leyline.game.bundle.PersistentFeedFactsCapture
+import leyline.game.event.FrameEventLog
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionState
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -61,6 +63,36 @@ fun GameBridge.seedDiffBaseline(
         commitProjection(result.transition)
         snap
     }
+
+/** Compile one observational projection from an explicit snapshot without installing it. */
+fun GameBridge.projectSnapshotForTest(
+    snap: GsmSnapshot,
+    gameStateId: Int = 0,
+    viewingSeatId: Int = 0,
+    events: FrameEventLog = FrameEventLog.EMPTY,
+    projectionState: ProjectionState = projectionStateSnapshot(),
+): StateProjectionCompiler.Result {
+    val promptFacts = materializePromptProjectionFacts()
+    return StateProjectionCompiler.compileOneViewer(
+        environment = stateProjectionEnvironment,
+        input =
+            StateFrameInput(
+                gameStateId = gameStateId,
+                snapshot = snap,
+                previousSnapshot = null,
+                events = events,
+                promptFacts = promptFacts,
+                persistentFeedFacts = PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
+                effectFacts = materializeEffectProjectionFacts(),
+                mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
+                abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
+                updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
+                viewingSeatId = viewingSeatId,
+                revealForSeat = null,
+            ),
+        prior = projectionState,
+    )
+}
 
 /**
  * Wait for a pending action whose actionId differs from [previousId].

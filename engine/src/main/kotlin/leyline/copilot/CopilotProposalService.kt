@@ -147,12 +147,7 @@ class CopilotProposalService(
                 }
 
             GREMessageType.OptionalActionMessage_695e ->
-                // "You may" trigger/cost decision: answer with the accept/decline
-                // the engine treats as safe for this call site (its defaultOnTimeout).
-                mapDecision(prompt) {
-                    bridge.humanController?.pendingOptionalAction?.let { SimDecision.OptionalAction(it.defaultAccept) }
-                        ?: DefaultDecisions.optionalAction()
-                }
+                proposalFor(DefaultDecisions.optionalAction(), prompt)
 
             else -> ProposalTranslator.unrealizable(prompt.type, seatId.value, "prompt type ${prompt.type} has no copilot decoder")
         }

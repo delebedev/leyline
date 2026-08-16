@@ -405,41 +405,6 @@ class CostDecisionTest :
             }
         }
 
-        test("sacrifice cost hook projects semantic and attaches the paying SA") {
-            // The copilot proposal path (ForgeAiPolicy.chooseSacrificeCostPayment)
-            // resolves the cost part off the pending prompt's targetingSa; if the
-            // cost hook drops the SA the proposal fails closed and the client
-            // modal never dismisses. Guard the SA reaches the prompt record.
-            val fx = fixture()
-            val mountain = fx.player.getCardsIn(ZoneType.Battlefield).first()
-            val cards =
-                CardCollection().apply {
-                    add(fx.source)
-                    add(mountain)
-                }
-
-            fx.controller.chooseCardsForCost(
-                cards,
-                fx.ability,
-                CostSacrifice("1", "Creature", "a creature"),
-                1,
-                false,
-                "sacrifice a creature",
-            )
-
-            with(
-                fx.bridge
-                    .promptBridge(SeatId(1))
-                    .history
-                    .single(),
-            ) {
-                assertSoftly {
-                    semantic shouldBe PromptSemantic.SelectNCostSacrifice
-                    hasTargetingSa shouldBe true
-                }
-            }
-        }
-
         test("cost hook accepts non-list cost parts after seam widening") {
             val fx = fixture()
             val cards = CardCollection(fx.source)

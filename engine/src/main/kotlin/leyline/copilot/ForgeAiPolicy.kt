@@ -26,8 +26,8 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.handoff.OneShotPayCostsWindowKind
 import leyline.bridge.handoff.PayCostsRouteKind
-import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -51,17 +51,22 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 @Suppress("ReturnCount")
 private fun effectCostContexts(
     bridge: GameBridge,
-    seatId: SeatId,
     seatPlayer: Player,
     msg: GREToClientMessage,
 ): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> {
     if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return emptyList()
     if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return emptyList()
 
-    val pending = bridge.promptBridge(seatId).getPendingPrompt()
-    val route = pending?.request?.route as? ResolvedPromptRoute.PayCosts
-    val pendingSa = pending?.targetingSa
-    if (route != null && pendingSa != null) return costPartsForRoute(pendingSa, route.descriptor.kind)
+    val published = bridge.currentOneShotPayCostsInteraction()
+    if (published?.windowKind == OneShotPayCostsWindowKind.Select) {
+        val pendingSa =
+            bridge
+                .getGame()
+                ?.stack
+                ?.firstOrNull()
+                ?.spellAbility
+        if (pendingSa != null) return costPartsForRoute(pendingSa, published.kind)
+    }
 
     val sourceId =
         msg.prompt.parametersList
@@ -98,7 +103,7 @@ private fun costPartsForRoute(
             PayCostsRouteKind.SelectCostReturnAttacker,
             PayCostsRouteKind.CollectEvidence,
             PayCostsRouteKind.EnlistCost,
-            PayCostsRouteKind.TeamworkCost,
+            PayCostsRouteKind.TapPayment,
             PayCostsRouteKind.ConvokeCost,
             PayCostsRouteKind.ImproviseCost,
             PayCostsRouteKind.WaterbendCost,
@@ -488,20 +493,18 @@ class ForgeAiPolicy(
     fun chooseStaticColorSelectN(msg: GREToClientMessage): List<Int>? {
         if (!canChooseStaticColorSelectN(msg)) return null
         val req = msg.selectNReq
-        val pending = bridge.promptBridge(seatId).getPendingPrompt()
         val sa =
-            pending?.targetingSa
-                ?: game()
-                    .stack
-                    .firstOrNull()
-                    ?.spellAbility
-        val allowedIds = allowedStaticColorIds(req, pending?.request?.staticOptionIds.orEmpty())
+            game()
+                .stack
+                .firstOrNull()
+                ?.spellAbility
+        val allowedIds = allowedStaticColorIds(req, emptyList())
         val allowedColors = colorSetFromStaticIds(allowedIds)
         if (allowedColors.isColorless) return null
         val colors =
             askAi("chooseColors") {
                 aiController.chooseColors(
-                    pending?.request?.message.orEmpty(),
+                    "Choose a color",
                     sa,
                     req.minSel.coerceAtLeast(1),
                     (if (req.maxSel > 0) req.maxSel else req.minSel).coerceAtLeast(1),
@@ -558,7 +561,7 @@ class ForgeAiPolicy(
     }
 
     private fun effectCostContexts(msg: GREToClientMessage): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> =
-        runCatching { effectCostContexts(bridge, seatId, seatPlayer, msg) }.getOrElse { emptyList() }
+        runCatching { effectCostContexts(bridge, seatPlayer, msg) }.getOrElse { emptyList() }
 
     fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
         if (!msg.hasSelectTargetsReq()) return false
@@ -586,7 +589,8 @@ class ForgeAiPolicy(
         // prompt's source card — the same card-not-stack pattern optional-cost
         // decisions use — so the AI's considered pick survives hydration.
         val sa =
-            bridge.promptBridge(seatId).getPendingPrompt()?.targetingSa
+            bridge.currentTargetingAbility()
+                ?: game().stack.firstOrNull()?.spellAbility
                 ?: rebuiltTargetingSa(msg.selectTargetsReq.sourceId)
         val preferredIds =
             costTargets
@@ -725,14 +729,13 @@ class ForgeAiPolicy(
                 .single()
         val modal = option.modalReq
         val modalGrpIds = modal.modalOptionsList.map { it.grpId }
-        val pending = bridge.promptBridge(seatId).getPendingPrompt() ?: return null
-        val sa = pending.targetingSa ?: return null
+        val context = bridge.cutCoordinator.modalChoices.aiContext() ?: return null
+        if (context.possibleFullIndices.size != modalGrpIds.size) return null
+        val sa = context.sourceAbility
         val possible =
             modalPossibleAbilities(
                 sa,
-                pending.request.modalChoice
-                    ?.possible
-                    ?.map { it.fullIndex },
+                context.possibleFullIndices,
                 modalGrpIds.size,
             ) ?: return null
         modalChoiceGrpIds(sa.chosenList, possible, modalGrpIds)?.let {
