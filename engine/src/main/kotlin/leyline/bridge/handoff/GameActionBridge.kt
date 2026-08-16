@@ -89,15 +89,22 @@ class GameActionBridge(
         internal val castCandidates: List<SpellAbility> = emptyList(),
     )
 
+    /**
+     * One engine wait for a client answer.
+     *
+     * Window lifecycle — visibility, claim, completion, prompt correlation — is
+     * owned by the [ActionWindowRuntime], not mirrored here. [promptGameStateId]
+     * reads through to that owner.
+     */
     data class PendingAction(
         val actionId: String,
         val state: PendingActionState,
         val future: CompletableFuture<ActionSubmission>,
-        @Volatile var promptGameStateId: Int? = null,
-        @Volatile var published: Boolean = false,
-        @Volatile var claimed: Boolean = false,
         internal val priorityCandidates: PriorityActionCandidates? = null,
-    )
+        internal val windowRuntime: ActionWindowRuntime? = null,
+    ) {
+        val promptGameStateId: Int? get() = windowRuntime?.promptGameStateId(actionId)
+    }
 
     private data class AwaitedSubmission(
         val submission: ActionSubmission,
@@ -114,9 +121,20 @@ class GameActionBridge(
         ) : ActionSubmission
     }
 
-    /** Imperative-shell runtime for publishing and resolving one priority window. */
+    /**
+     * Imperative-shell runtime for publishing and resolving one priority window.
+     *
+     * It is the sole authority on window lifecycle: [isVisible] and
+     * [promptGameStateId] answer for the record it owns.
+     */
     interface ActionWindowRuntime {
         fun publish(pending: PendingAction)
+
+        /** True while the window is published and neither claimed nor completed. */
+        fun isVisible(actionId: String): Boolean
+
+        /** Game-state id the client must answer against, or null before one is bound. */
+        fun promptGameStateId(actionId: String): Int?
 
         fun resolve(
             pending: PendingAction,
@@ -148,6 +166,9 @@ class GameActionBridge(
     enum class WindowCloseReason { Answered, TimedOut, Cancelled, Failed }
 
     private val pending = AtomicReference<PendingAction?>(null)
+
+    /** Visibility latch for the no-runtime path; the runtime owns it otherwise. */
+    @Volatile private var detachedVisibleActionId: String? = null
 
     // -- Diagnostic context (set by GameLoopController after thread launch) --
 
@@ -217,19 +238,20 @@ class GameActionBridge(
 
         val actionId = UUID.randomUUID().toString()
         val future = CompletableFuture<ActionSubmission>()
-        val action = PendingAction(actionId, state, future, priorityCandidates = priorityCandidates)
+        val action = PendingAction(actionId, state, future, priorityCandidates, windowRuntime)
 
         if (!pending.compareAndSet(null, action)) {
             log.warn("Action bridge already has a pending action; auto-passing")
             DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
             return PlayerAction.PassPriority
         }
+        detachedVisibleActionId = null
         try {
             if (windowRuntime == null) {
-                action.published = true
+                detachedVisibleActionId = actionId
             } else {
                 windowRuntime.publish(action)
-                check(action.published) { "Action window runtime returned before publication completed" }
+                check(windowRuntime.isVisible(actionId)) { "Action window runtime returned before publication completed" }
             }
         } catch (ex: Exception) {
             pending.compareAndSet(action, null)
@@ -380,7 +402,9 @@ class GameActionBridge(
      */
     fun getPending(): PendingAction? {
         val p = pending.get() ?: return null
-        return if (!p.published || p.claimed || p.future.isDone) null else p
+        if (p.future.isDone) return null
+        val visible = windowRuntime?.isVisible(p.actionId) ?: (detachedVisibleActionId == p.actionId)
+        return if (visible) p else null
     }
 
     internal fun exactPending(actionId: String): PendingAction? = pending.get()?.takeIf { it.actionId == actionId && !it.future.isDone }

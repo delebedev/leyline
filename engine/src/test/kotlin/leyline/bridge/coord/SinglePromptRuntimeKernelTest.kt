@@ -203,11 +203,13 @@ class SinglePromptRuntimeKernelTest :
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            board.bridge
-                .actionBridge(SeatId(1))
-                .getPending()
-                .shouldNotBeNull()
-                .published = false
+            coordinator.hidePublishedActionWindow(
+                board.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    .shouldNotBeNull()
+                    .actionId,
+            )
             val (_, finished, _) = startAwait(coordinator, board, 3_000)
             awaitPublished(coordinator)
             assertSoftly {

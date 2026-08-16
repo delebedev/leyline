@@ -42,14 +42,17 @@ internal class CoordinatorCutInstaller(
      * transaction once the cut is fully published.
      *
      * A failure before the projection transition installs removes only this
-     * batch; competing state and unrelated queued output are untouched. Any
-     * failure is handed to [onFailure] so the family can attach its exact cut.
+     * batch; competing state and unrelated queued output are untouched. When the
+     * transition did not install, [onRollback] runs after the batch is withdrawn
+     * so the caller can undo side effects it owns alongside the cut. Any failure
+     * is handed to [onFailure] so the family can attach its exact cut.
      */
     fun install(
         feed: MatchCutCoordinator.ViewerFeed,
         cut: PreparedCut,
         hooks: CutInstallHooks = CutInstallHooks(),
         onInstalled: (() -> Unit)? = null,
+        onRollback: (() -> Unit)? = null,
         onFailure: (Throwable) -> Nothing,
     ) {
         val batch = cut.messages
@@ -68,7 +71,10 @@ internal class CoordinatorCutInstaller(
             if (cut.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
             onInstalled?.invoke()
         } catch (ex: Exception) {
-            if (enqueued && !installed) owner.removeOwnedBatch(feed, batch)
+            if (!installed) {
+                if (enqueued) owner.removeOwnedBatch(feed, batch)
+                onRollback?.invoke()
+            }
             onFailure(ex)
         }
     }

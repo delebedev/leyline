@@ -510,7 +510,6 @@ class RuntimeBoundaryTest :
                 setOf(
                     "CoordinatorCutInstaller.kt",
                     "MatchCutCoordinator.kt",
-                    "MatchActionWindowRuntime.kt",
                 )
             val coordRoot = sourceRoot.resolve("leyline/bridge/coord")
             val violators = mutableSetOf<String>()
@@ -533,5 +532,19 @@ class RuntimeBoundaryTest :
                     (violators - owners).sorted().joinToString() +
                     "; stale allowlist entries: " + (owners - violators).sorted().joinToString()
             }
+        }
+
+        test("action window lifecycle has one authority") {
+            // GameActionBridge is the engine-thread wait adapter. Window visibility,
+            // claim, completion, and prompt correlation belong to the runtime record;
+            // reintroducing mirror flags here restores two authorities for one lifecycle.
+            val bridge = Files.readString(sourceRoot.resolve("leyline/bridge/handoff/GameActionBridge.kt"))
+            val pendingAction = bridge.substringAfter("data class PendingAction(").substringBefore("sealed interface ActionSubmission")
+
+            check("var published" !in pendingAction)
+            check("var claimed" !in pendingAction)
+            check("var promptGameStateId" !in pendingAction)
+            check("windowRuntime?.promptGameStateId(actionId)" in pendingAction)
+            check("windowRuntime?.isVisible(p.actionId)" in bridge)
         }
     })

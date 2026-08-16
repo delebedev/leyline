@@ -36,7 +36,7 @@ internal class MatchSyncOnlyRuntime(
                         CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
                     ) { ex -> owner.fail(ex) }
                     feed.requestedCut = null
-                    pending.published = true
+                    owner.actions.markSynchronizationPublished(seatId, pending.actionId)
                     requestAutoAdvance = owner.bridge.consumePromptTimeoutNeedsAutoAdvance()
                 }
             }

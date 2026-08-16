@@ -17,7 +17,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 internal class MatchActionWindowRuntime(
     private val owner: MatchCutCoordinator,
 ) {
-    private val actionWindows = mutableMapOf<String, RuntimeActionWindow>()
+    // Written under the coordinator feed lock; read lock-free by the engine wait
+    // adapter and session threads asking whether a window is still open.
+    private val actionWindows = java.util.concurrent.ConcurrentHashMap<String, RuntimeActionWindow>()
     private val declaredActions = mutableMapOf<String, PlayerAction>()
     private var nextActionToken = 1L
 
@@ -44,6 +46,28 @@ internal class MatchActionWindowRuntime(
     )
 
     fun bridge(seatId: SeatId): GameActionBridge.ActionWindowRuntime = CoordinatorActionWindowBridge(this, seatId)
+
+    /**
+     * The engine and client see a window only while it is
+     * [ActionWindowStatus.Published]. Read without the feed lock: the engine wait
+     * adapter polls it from threads that must not block behind a publication.
+     */
+    internal fun isVisible(actionId: String): Boolean = actionWindows[actionId]?.status == ActionWindowStatus.Published
+
+    internal fun promptGameStateId(actionId: String): Int? = actionWindows[actionId]?.promptGameStateId
+
+    @org.jetbrains.annotations.VisibleForTesting
+    internal fun hideForTest(actionId: String) {
+        synchronized(owner.feedLock) { actionWindows[actionId]?.status = ActionWindowStatus.Publishing }
+    }
+
+    /** Record a published state-only synchronization stop; it has no action catalog. */
+    internal fun markSynchronizationPublished(
+        seatId: SeatId,
+        actionId: String,
+    ) {
+        actionWindows[actionId] = synchronizationActionWindow(seatId, actionId)
+    }
 
     internal fun claimTimeout(
         pending: GameActionBridge.PendingAction,
@@ -123,7 +147,7 @@ internal class MatchActionWindowRuntime(
                     owner.ensureOpen()
                     val window = actionWindows[claim.actionId] ?: return false
                     if (window.status != ActionWindowStatus.Claimed(claim.kind, claim.token)) return false
-                    val pending = owner.bridge.actionBridge(window.seatId).exactPending(claim.actionId) ?: return false
+                    owner.bridge.actionBridge(window.seatId).exactPending(claim.actionId) ?: return false
                     val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                     val feed = owner.feed(window.seatId)
                     val prepared =
@@ -136,7 +160,6 @@ internal class MatchActionWindowRuntime(
                     val reopened = checkNotNull(actionWindows[claim.actionId])
                     reopened.selections.clear()
                     reopened.status = ActionWindowStatus.Published
-                    pending.claimed = false
                     true
                 }
             }
@@ -184,11 +207,6 @@ internal class MatchActionWindowRuntime(
                 }
             }
             actionWindows[actionId] = window.copy(promptGameStateId = gameStateId, publishedBatch = emptyList())
-            owner.bridge
-                .actionBridge(window.seatId)
-                .getPending()
-                ?.takeIf { it.actionId == actionId }
-                ?.promptGameStateId = gameStateId
             window.actions
         }
 
@@ -267,7 +285,6 @@ internal class MatchActionWindowRuntime(
                     window.selections[token] = RuntimeActionSelection(offer, response)
                     val kind = if (defer) ActionClaimKind.Deferred else ActionClaimKind.Immediate
                     window.status = ActionWindowStatus.Claimed(kind, token)
-                    pending.claimed = true
                     if (owner.bridge.matchConfig.game.timer) {
                         val timer = owner.feed(window.seatId).builder.timerStop(owner.counter)
                         owner.feed(window.seatId).queue.add(timer.messages)
@@ -320,7 +337,7 @@ internal class MatchActionWindowRuntime(
                             owner.fail(ex)
                         }
                     val token = nextActionToken++
-                    pending.claimed = true
+                    window.status = ActionWindowStatus.Claimed(ActionClaimKind.Immediate, token)
                     declaredActions[actionId] = action
                     window.selections[token] =
                         RuntimeActionSelection(
@@ -441,33 +458,17 @@ internal class MatchActionWindowRuntime(
                         nextActionToken = tokenBefore
                         owner.fail(ex)
                     }
-                    try {
-                        beforeEnqueue?.invoke()
-                        feed.queue.add(messages)
-                    } catch (ex: Exception) {
-                        nextActionToken = tokenBefore
-                        owner.fail(ex)
-                    }
-                    var installed = false
-                    try {
-                        beforeInstall?.invoke()
-                        prepared.transition?.let { transition -> owner.bridge.commitProjection(transition) { installed = true } }
-                            ?: run { installed = true }
-                        afterInstall?.invoke()
-                        if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(seatId)
-                    } catch (ex: Exception) {
-                        if (!installed) {
-                            owner.removeOwnedBatch(feed, messages)
-                            nextActionToken = tokenBefore
-                        }
-                        owner.fail(ex)
-                    }
+                    owner.cutInstaller.install(
+                        feed,
+                        PreparedCut(messages, prepared.transition, prepared.closesPlaybackFrame),
+                        CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall, afterInstall = afterInstall),
+                        onRollback = { nextActionToken = tokenBefore },
+                    ) { ex -> owner.fail(ex) }
                     actionWindows.remove(pending.actionId)?.selections?.clear()
                     actionWindows[pending.actionId] = created
-                    pending.promptGameStateId = promptGsId
                     feed.requestedCut = null
                     beforePublished?.invoke()
-                    pending.published = true
+                    created.status = ActionWindowStatus.Published
                 }
             }
         }
@@ -481,32 +482,21 @@ internal class MatchActionWindowRuntime(
     ): List<GREToClientMessage> {
         val messages = prepared.bundle.messages
         val promptGsId = checkNotNull(prepared.bundle.actionGameStateId)
-        var enqueued = false
-        var installed = false
-        try {
-            beforeEnqueue?.invoke()
-            feed.queue.add(messages)
-            enqueued = true
-            beforeInstall?.invoke()
-            prepared.transition?.let { transition -> owner.bridge.commitProjection(transition) { installed = true } }
-                ?: run { installed = true }
-            if (removePrevious) {
-                check(owner.removeOwnedBatch(feed, window.publishedBatch)) { "Action window ${window.actionId} became visible" }
-            }
-            afterInstall?.invoke()
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
-        } catch (ex: Exception) {
-            if (enqueued && !installed) {
-                owner.removeOwnedBatch(feed, messages)
-            }
-            owner.fail(ex)
-        }
+        owner.cutInstaller.install(
+            feed,
+            PreparedCut(messages, prepared.transition, prepared.closesPlaybackFrame),
+            CutInstallHooks(
+                beforeEnqueue = beforeEnqueue,
+                beforeInstall = beforeInstall,
+                afterInstall = {
+                    if (removePrevious) {
+                        check(owner.removeOwnedBatch(feed, window.publishedBatch)) { "Action window ${window.actionId} became visible" }
+                    }
+                    afterInstall?.invoke()
+                },
+            ),
+        ) { ex -> owner.fail(ex) }
         actionWindows[window.actionId] = window.copy(promptGameStateId = promptGsId, publishedBatch = messages)
-        owner.bridge
-            .actionBridge(window.seatId)
-            .exactPending(window.actionId)
-            ?.takeIf { it.actionId == window.actionId }
-            ?.promptGameStateId = promptGsId
         return messages
     }
 
