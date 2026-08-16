@@ -149,24 +149,6 @@ The implemented milestone is visible in current types:
   The closest single-window families share correlation, timeout arbitration,
   and retirement while retaining family-specific value freezing and
   materialization.
-- `CoordinatorCutInstaller` is the single implementation of the single-batch
-  cut transaction. It enqueues an owned batch, commits an optional
-  `ProjectionTransition`, withdraws only an uninstalled owned batch, and
-  acknowledges a closed playback frame; the family supplies the failure route
-  that attaches its exact pending cut. It allocates no protocol messages,
-  signals no priority, awaits no response, and knows no prompt kinds.
-  `MatchCutCoordinator` retains the ordinary multi-batch playback form.
-- `MatchActionWindowRuntime` is the single authority on action-window
-  lifecycle: publication status, response claim, completion, catalog,
-  selections, deferred plans, and prompt correlation. `GameActionBridge` is
-  the engine-thread wait adapter over that record — it owns timeout
-  configuration, pause and deadline display, and a no-runtime fallback, but no
-  parallel lifecycle state.
-- `InteractiveCommandExchange` owns the cross-thread command handshake for
-  iterative windows: queue admission, one command in flight, absolute deadline
-  polling, delivery token with acknowledgement and release, terminal wake-up,
-  and reply unwrapping. Targeting and mana-source payment keep their distinct
-  legality, payment, and completion semantics above it.
 - Forge's target-selection producer binds `TargetSelection` and freezes exact
   stack-object candidates before publication; candidate-backed `Generic` card
   choices bind the SelectTargets-compatible runtime, preserving existing

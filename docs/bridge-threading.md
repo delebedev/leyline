@@ -46,9 +46,7 @@ volatile state the runtime writes while holding it. Threads polling for a
 pending window must not block behind a publication in progress.
 
 A queue type is not a transaction. The close/build/install/enqueue operation
-must remain protected as one publication boundary, and
-`CoordinatorCutInstaller` is its single implementation for single-batch cuts;
-`MatchCutCoordinator` keeps the multi-batch playback form.
+must remain protected as one publication boundary.
 
 ### Current exceptions
 
