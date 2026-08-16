@@ -40,6 +40,7 @@ class GameLoopController(
 
     private var gameThread: Thread? = null
     private val running = AtomicBoolean(false)
+    private val stopping = AtomicBoolean(false)
     private val started = CountDownLatch(1)
     private val terminalFailure = AtomicReference<Throwable?>(null)
 
@@ -95,7 +96,7 @@ class GameLoopController(
                     block()
                     log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
                 } catch (ex: Exception) {
-                    if (running.get()) {
+                    if (!stopping.get()) {
                         terminalFailure.compareAndSet(null, ex)
                         log.error("Game loop crashed for game ${game.id}", ex)
                         actionBridges.forEach { it.cancelPending() }
@@ -127,6 +128,7 @@ class GameLoopController(
      * Shut down the game loop. Cancels any pending bridge action and interrupts the thread.
      */
     fun shutdown() {
+        beginShutdown()
         if (!running.compareAndSet(true, false)) return
 
         log.info("Shutting down game loop for game ${game.id}")
@@ -150,6 +152,11 @@ class GameLoopController(
             Thread.currentThread().interrupt()
         }
         gameThread = null
+    }
+
+    /** Mark teardown before another runtime component wakes the engine thread. */
+    internal fun beginShutdown() {
+        stopping.set(true)
     }
 
     /**

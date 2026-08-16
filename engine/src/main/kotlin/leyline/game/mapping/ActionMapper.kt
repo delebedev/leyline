@@ -567,7 +567,10 @@ object ActionMapper {
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
                 val bound = snap.boundCards[fid]
                 val rail = rails.firstOrNull { it.saPredicate(sa) }
-                val canPay = canPayManaCost(sa, player)
+                val executable =
+                    canPayManaCost(sa, player) &&
+                        !hasUnmetTargeting(sa) &&
+                        !hasNoLegalCharmModes(sa)
                 val omit = rail?.omitGrpIdAndFacetId == true
                 val actionGrpId =
                     when (rail?.grpIdMode) {
@@ -586,7 +589,7 @@ object ActionMapper {
                         .newBuilder()
                         .setActionType(ActionType.Cast)
                         .setInstanceId(instanceId)
-                if (canPay) {
+                if (executable) {
                     actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
                 }
                 if (!omit) {
@@ -602,7 +605,7 @@ object ActionMapper {
                 } else {
                     configureZoneCastFallback(actionBuilder, sa, bound, player)
                 }
-                if (canPay) {
+                if (executable) {
                     val abilityIndex = castable.indexOfFirst { it === sa }
                     check(abilityIndex >= 0) { "Zone cast ability is absent from its candidate set" }
                     addOffer(

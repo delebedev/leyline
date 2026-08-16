@@ -25,7 +25,7 @@ internal class OneShotPayCostsMaterializer(
         val messages =
             listOf(
                 makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = gameState
+                    it.gameStateMessage = gameState.toBuilder().setPendingMessageCount(1).build()
                 },
                 makeGRE(GREMessageType.PayCostsReq_695e, gameStateId, counter.nextMsgId()) {
                     it.payCostsReq = payCostsRequest(window, projection)

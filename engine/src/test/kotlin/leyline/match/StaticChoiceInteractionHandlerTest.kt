@@ -69,7 +69,7 @@ class StaticChoiceInteractionHandlerTest :
 
             StaticChoiceInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
                 .tryHandleSelectN(
-                    selectNResp(listOf(values[1])).toBuilder().setGameStateId(exact.gameStateId).build(),
+                    selectNResp(listOf(0)).toBuilder().setGameStateId(exact.gameStateId).build(),
                 ) { autoPassed = true }
                 .shouldBeTrue()
 

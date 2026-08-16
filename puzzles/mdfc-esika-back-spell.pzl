@@ -11,7 +11,7 @@ ActivePhase=Main1
 HumanLife=20
 AILife=20
 
-humanhand=Esika, God of the Tree
+humanhand=Esika, God of the Tree;Island
 humanbattlefield=Plains;Island;Swamp;Mountain;Forest
 humanlibrary=Forest;Forest;Forest
 ailibrary=Forest;Forest;Forest

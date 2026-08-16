@@ -1,0 +1,16 @@
+name: "Emeritus of Abundance"
+grpId: 102604
+titleId: 1111278
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 204300
+    textId: 1110865
+    category: 3
+  - id: 204425
+    textId: 1111280
+    category: 2
+expansionCode: "SOS"
+linkedFaces:
+  - 104083

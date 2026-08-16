@@ -28,4 +28,11 @@ class StaticChoiceIdsTest :
                 StaticChoiceIds.subtypeIdFor("Kithkin") shouldBe 176
             }
         }
+
+        test("maps parity labels to the zero-based static-list ids") {
+            assertSoftly {
+                StaticChoiceIds.parityIdForName("Even") shouldBe 0
+                StaticChoiceIds.parityIdForName("Odds") shouldBe 1
+            }
+        }
     })

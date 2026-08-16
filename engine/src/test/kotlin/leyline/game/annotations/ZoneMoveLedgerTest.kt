@@ -39,6 +39,7 @@ class ZoneMoveLedgerTest :
         val cases =
             listOf(
                 Case("cast", Zone.Hand, Zone.Stack, TransferCategory.CastSpell, events = listOf(GameEvent.SpellCast(cardId, seat))),
+                Case("cast before announcement", Zone.Graveyard, Zone.Stack, TransferCategory.CastSpell, api = "Draw"),
                 Case(
                     "resolve",
                     Zone.Stack,

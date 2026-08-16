@@ -4,6 +4,7 @@ import leyline.bridge.coord.MatchActionWindowRuntime
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.game.bundle.CastingTimeOptionsBuilder
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
@@ -99,11 +100,19 @@ internal class DeferredCastCostInteractionHandler(
             optional.entries
                 .mapIndexedNotNull { index, entry -> entry.keywordName?.let { costCtoIds[index] to it } }
                 .toMap()
+        val additionalCostGrpIdMap =
+            optional.entries
+                .mapIndexedNotNull { index, entry ->
+                    entry.abilityGrpId
+                        .takeIf { entry.type == CastingTimeOptionType.AdditionalCost }
+                        ?.let { costCtoIds[index] to it }
+                }.toMap()
 
         setPendingInteraction(
             PendingClientInteraction.OptionalCost(
                 actionClaim = actionClaim,
                 costCtoIds = costCtoIds,
+                additionalCostGrpIdsByCtoId = additionalCostGrpIdMap,
                 keywordCostsByCtoId = keywordCtoIdMap,
             ),
         )
@@ -172,6 +181,11 @@ internal class DeferredCastCostInteractionHandler(
 
         val seatBridge = bridge.seat(counters.seatId)
         TargetingHandler.stashOptionalCostIndices(seatBridge.prompt, acceptedIndices)
+        pending.additionalCostGrpIdsByCtoId[chosenCtoId]?.let { grpId ->
+            pending.actionClaim.deferredCostPlan?.sourceCardId?.let { cardId ->
+                bridge.setSelectedAdditionalCostGrpId(cardId, grpId)
+            }
+        }
 
         if (pending.keywordCostsByCtoId.isNotEmpty()) {
             val decisions = pending.keywordCostsByCtoId.entries.associate { (ctoId, kwName) -> kwName to (chosenCtoId == ctoId) }

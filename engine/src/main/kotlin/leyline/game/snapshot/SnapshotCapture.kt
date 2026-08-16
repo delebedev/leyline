@@ -80,6 +80,17 @@ object SnapshotCapture {
         )
     }
 
+    /** Capture one transient card that is not yet reachable from a Forge zone. */
+    internal fun captureBoundCard(
+        card: Card,
+        game: Game,
+        bridge: GameBridge,
+    ): BoundCard {
+        val forgeId = ForgeCardId(card.id)
+        val snapshot = captureCard(card, game.phaseHandler?.combat, bridge, PreparedLinkage.from(game))
+        return bindCards(mapOf(forgeId to snapshot), bridge).getValue(forgeId)
+    }
+
     /**
      * Pair every [CardSnapshot] with its static [leyline.game.data.CardData]
      * plus pre-resolved consumer queries (alt-cost rows, Mobilize/Decayed cleanup,

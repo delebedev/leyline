@@ -234,6 +234,7 @@ class GameBridge(
 
     /** Committed cross-frame annotation correlation. Projection writes only through a tentative planner. */
     private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
+    private val selectedAdditionalCostGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
     fun recordStackAbilityIdentity(
@@ -262,6 +263,15 @@ class GameBridge(
     }
 
     fun consumeSelectedSpellGrpId(cardId: ForgeCardId): Int? = selectedSpellGrpIds.remove(cardId)
+
+    fun setSelectedAdditionalCostGrpId(
+        cardId: ForgeCardId,
+        grpId: Int,
+    ) {
+        selectedAdditionalCostGrpIds[cardId] = grpId
+    }
+
+    fun consumeSelectedAdditionalCostGrpId(cardId: ForgeCardId): Int? = selectedAdditionalCostGrpIds.remove(cardId)
 
     /** Read-only committed correlation for event collection and snapshot capture. */
     fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
@@ -464,6 +474,9 @@ class GameBridge(
         loopController?.throwIfFailed()
         playbackRegistry.values().firstNotNullOfOrNull(GamePlayback::failure)?.let { throw it }
     }
+
+    @VisibleForTesting
+    internal fun gameLoopControllerForTest(): GameLoopController? = loopController
 
     internal fun acknowledgePlaybackFrame(seatId: SeatId) {
         playbackFor(seatId)?.onFrameCommitted()
@@ -1525,6 +1538,8 @@ class GameBridge(
         pendingTriggerAbilityGrpIds.clear()
         pendingTriggerCleanupGrpIds.clear()
         stackAbilityIdentitiesByRuntimeId.clear()
+        selectedSpellGrpIds.clear()
+        selectedAdditionalCostGrpIds.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
             projectionState = ProjectionState.initial(projectionState.identities.nextInstanceId)
@@ -1545,6 +1560,8 @@ class GameBridge(
      * Idempotent — safe to call before [shutdown].
      */
     fun teardownResources() {
+        val loop = loopController
+        loop?.beginShutdown()
         cutCoordinator.shutdown()
         promptBridges.values.forEach { it.runtimeBindings = leyline.bridge.handoff.PromptRuntimeBindings() }
         val g = game
@@ -1559,7 +1576,7 @@ class GameBridge(
                 g.unsubscribeFromEvents(pb)
             }
         }
-        loopController?.shutdown()
+        loop?.shutdown()
         loopController = null
         playbackRegistry.clear()
         cutCoordinator.unregisterViewers()

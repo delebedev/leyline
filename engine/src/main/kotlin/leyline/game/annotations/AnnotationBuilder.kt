@@ -108,6 +108,20 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
             .build()
 
+    /** Labels one static SelectN option with the objects affected by that choice. */
+    fun selectNDecoration(
+        sourceId: InstanceId,
+        optionIndex: Int,
+        affectedObjectIds: List<InstanceId>,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.SelectNdecoration)
+            .setAffectorId(sourceId.value)
+            .addAffectedIds(optionIndex)
+            .addDetails(int32ListDetail(DetailKeys.AFFECTED_OBJECTS, affectedObjectIds.map { it.value }))
+            .build()
+
     /** A new turn started. Client uses this to reset turn-scoped state.
      *  [activeSeat] = the active player's seat for the new turn. */
     fun newTurnStarted(activeSeat: SeatId): AnnotationInfo =

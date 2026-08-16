@@ -37,7 +37,14 @@ internal class StaticChoiceWindowMaterializer(
         window: StaticChoiceWindowValue,
     ): Prepared {
         val request = buildRequest(window, projection)
-        val state = gameState.toBuilder().setPendingMessageCount(1).build()
+        val predecessor = counter.lastGameStateGsId()
+        val state =
+            gameState
+                .toBuilder()
+                .apply {
+                    if (predecessor in 1 until gameStateId) prevGameStateId = predecessor
+                }.setPendingMessageCount(1)
+                .build()
         val messages =
             listOf(
                 makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {

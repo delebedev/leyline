@@ -15,10 +15,14 @@ import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
+import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import leyline.testkit.annotations
+import leyline.testkit.detailIntList
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
@@ -45,7 +49,8 @@ class MatchStaticChoiceInteractionRuntimeTest :
             ActivePhase=Main1
             HumanLife=20
             AILife=20
-            humanbattlefield=Island
+            humanbattlefield=Island;Grizzly Bears
+            aibattlefield=Hurloon Minotaur
             humanlibrary=Forest
             ailibrary=Forest
             """.trimIndent()
@@ -95,7 +100,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
             board.human
                 .getZone(ZoneType.Battlefield)
                 .cards
-                .single()
+                .single { it.name == "Island" }
                 .id
 
         fun request(
@@ -152,10 +157,28 @@ class MatchStaticChoiceInteractionRuntimeTest :
                         .getValue(ForgeCardId(sourceId(board)))
                         .value
                 val sourceParameter = message.prompt.parametersList.single()
+                val state = batch.first().gameStateMessage
+                val evenCreatureId =
+                    board.instanceId(
+                        board.human
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .single { it.name == "Grizzly Bears" }
+                            .id,
+                    )
+                val oddCreatureId =
+                    board.instanceId(
+                        board.ai
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .single { it.name == "Hurloon Minotaur" }
+                            .id,
+                    )
 
                 assertSoftly {
                     batch.map { it.type } shouldContainExactly listOf(GREMessageType.GameStateMessage_695e, GREMessageType.SelectNreq)
                     batch.first().gameStateMessage.pendingMessageCount shouldBe 1
+                    state.turnInfo.decisionPlayer shouldBe 1
                     published.kind shouldBe case.kind
                     req.context shouldBe SelectionContext.Resolution_a163
                     req.listType shouldBe case.listType
@@ -175,6 +198,15 @@ class MatchStaticChoiceInteractionRuntimeTest :
                     sourceParameter.type shouldBe ParameterType.Number
                     sourceParameter.numberValue shouldBe sourceInstanceId
                     message.allowCancel shouldBe AllowCancel.No_a526
+                    if (case.kind == StaticChoiceKind.Parity) {
+                        val decorations = state.annotations(AnnotationType.SelectNdecoration)
+                        decorations.map { it.affectedIdsList.single() } shouldContainExactly listOf(0, 1)
+                        decorations[0].detailIntList(DetailKeys.AFFECTED_OBJECTS) shouldContainExactly
+                            listOf(evenCreatureId)
+                        decorations[1].detailIntList(DetailKeys.AFFECTED_OBJECTS) shouldContainExactly
+                            listOf(oddCreatureId)
+                        state.annotations(AnnotationType.ResolutionStart).single().affectorId shouldBe sourceInstanceId
+                    }
                     coordinator.staticChoices.submit(
                         published.interactionId,
                         published.gameStateId,

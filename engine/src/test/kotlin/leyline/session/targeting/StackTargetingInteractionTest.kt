@@ -5,8 +5,12 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.SeatId
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.gameStateMessages
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 class StackTargetingInteractionTest :
@@ -148,15 +152,61 @@ class StackTargetingInteractionTest :
             castSpellByName("Make Disappear").shouldBeTrue()
             respondToOptionalCost(1)
             latestTargetSourceName() shouldBe "Make Disappear"
+            val originalPrompt = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq
             val boltTarget = latestTargetIidByCardName("Lightning Bolt")
             selectTargets(listOf(boltTarget))
             respondToEffectCost(listOf(bearIid))
             latestTargetSourceName() shouldBe "Make Disappear"
+            val copyPrompt = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq
+            assertSoftly {
+                copyPrompt.abilityGrpId shouldBe originalPrompt.abilityGrpId
+                copyPrompt.abilityGrpId shouldNotBe 0
+                copyPrompt.targetsList.single().targetingAbilityGrpId shouldBe
+                    originalPrompt.targetsList.single().targetingAbilityGrpId
+            }
             val shockTarget = latestTargetIidByCardName("Shock")
             selectTargets(listOf(shockTarget))
             passUntilResolved(maxPasses = 20)
 
             ai.life shouldBe 20
+        }
+
+        test("Casualty copy is visible on the stack while choosing its new target") {
+            startPuzzle(
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Cut Your Losses
+                humanbattlefield=Grizzly Bears;Island;Island;Island;Island;Island;Island
+                humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+                ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+                """,
+                name = "Casualty Copy Targeting",
+            )
+            val bearIid = human.battlefield.iid("Grizzly Bears")
+
+            castSpellByName("Cut Your Losses").shouldBeTrue()
+            respondToOptionalCost(1)
+            val originalPrompt = allMessages.last { it.hasSelectTargetsReq() }
+            selectTargets(listOf(OPPONENT_SEAT))
+            respondToEffectCost(listOf(bearIid))
+            val copyPrompt = allMessages.last { it.hasSelectTargetsReq() }
+            val copyObject =
+                allMessages
+                    .gameStateMessages()
+                    .filter { it.gameStateId == copyPrompt.gameStateId }
+                    .flatMap { it.gameObjectsList }
+                    .single { it.instanceId == copyPrompt.selectTargetsReq.sourceId }
+
+            assertSoftly {
+                copyPrompt.selectTargetsReq.sourceId shouldNotBe originalPrompt.selectTargetsReq.sourceId
+                copyObject.type shouldBe GameObjectType.Card
+                copyObject.zoneId shouldBe ZoneIds.STACK
+                copyObject.isCopy.shouldBeTrue()
+            }
         }
     })
 

@@ -67,6 +67,9 @@ class CollectEvidenceLifecycleTest :
             val weightsById = selection.idsList.zip(selection.weightsList).toMap()
 
             assertSoftly {
+                payCostSlice.messages
+                    .last { it.hasGameStateMessage() }
+                    .gameStateMessage.pendingMessageCount shouldBe 1
                 payCostMessage.prompt.promptId shouldBe PromptIds.COLLECT_EVIDENCE_COST
                 selection.minSel shouldBe 0
                 selection.maxSel shouldBe 3

@@ -12,6 +12,7 @@ import leyline.bridge.handoff.TargetingInteractionTimeoutException
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.bundle.TargetingWindowMaterializer
+import leyline.game.snapshot.BoundCard
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -40,7 +41,13 @@ internal class MatchTargetingInteractionRuntime(
     ): List<Int> {
         check(request.route is ResolvedPromptRoute.Targeting)
         val value = capture.capture(request, targetingAbility, abilityIdentity)
-        return awaitCaptured(value, targetingAbility, timeoutMs, TargetingInteractionKind.Targeting)
+        return awaitCaptured(
+            value,
+            targetingAbility,
+            capture.captureTransientSourceCard(value, targetingAbility),
+            timeoutMs,
+            TargetingInteractionKind.Targeting,
+        )
     }
 
     /** Shared SelectTargets lifecycle for residual card choices. */
@@ -55,16 +62,23 @@ internal class MatchTargetingInteractionRuntime(
             "Compatibility candidate handles no longer match the frozen prompt"
         }
         val value = capture.capture(request, targetingAbility = null, abilityIdentity = null)
-        return awaitCaptured(value, targetingAbility = null, timeoutMs, TargetingInteractionKind.CompatibilityCostSelection)
+        return awaitCaptured(
+            value,
+            targetingAbility = null,
+            transientSourceCard = capture.captureTransientSourceCard(value, targetingAbility = null),
+            timeoutMs,
+            TargetingInteractionKind.CompatibilityCostSelection,
+        )
     }
 
     private fun awaitCaptured(
         value: TargetingWindowValue,
         targetingAbility: SpellAbility?,
+        transientSourceCard: BoundCard?,
         timeoutMs: Long?,
         kind: TargetingInteractionKind,
     ): List<Int> {
-        val pending = publishInitial(value, targetingAbility, timeoutMs, kind)
+        val pending = publishInitial(value, targetingAbility, transientSourceCard, timeoutMs, kind)
         return awaitCommands(pending)
     }
 
@@ -138,6 +152,7 @@ internal class MatchTargetingInteractionRuntime(
     private fun publishInitial(
         value: TargetingWindowValue,
         targetingAbility: SpellAbility?,
+        transientSourceCard: BoundCard?,
         timeoutMs: Long?,
         kind: TargetingInteractionKind = TargetingInteractionKind.Targeting,
     ): TargetingWindow {
@@ -152,7 +167,7 @@ internal class MatchTargetingInteractionRuntime(
                         val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                         val prepared =
                             try {
-                                feed.builder.prepareTargetingWindow(game, owner.counter, value)
+                                feed.builder.prepareTargetingWindow(game, owner.counter, value, transientSourceCard)
                             } catch (ex: Exception) {
                                 owner.fail(ex)
                             }
