@@ -306,7 +306,7 @@ internal fun parseArgs(args: Array<String>): Map<String, String> {
     val map = mutableMapOf<String, String>()
     var i = 0
     while (i < args.size) {
-        if (args[i].startsWith("--") && i + 1 < args.size) {
+        if (args[i].startsWith("--") && i + 1 < args.size && !args[i + 1].startsWith("--")) {
             map[args[i]] = args[i + 1]
             i += 2
         } else {
