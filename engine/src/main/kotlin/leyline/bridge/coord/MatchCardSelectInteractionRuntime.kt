@@ -11,7 +11,6 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedCardSelectInteraction
 import leyline.game.CardSelectMaterializationDiagnostic
 import leyline.game.PendingCardSelectCut
-import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -21,19 +20,33 @@ internal class MatchCardSelectInteractionRuntime(
     private data class Window(
         val published: PublishedCardSelectInteraction,
         val value: CardSelectWindowValue,
-        val cut: PendingCardSelectCut,
+        override val cut: PendingCardSelectCut,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<CardSelectInteractionResult> {
+    ) : SinglePromptWindow<CardSelectInteractionResult, PendingCardSelectCut> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingCardSelectCut, CardSelectInteractionResult>(owner, Window::cut)
+    private val windows = SinglePromptWindowState<Window, PendingCardSelectCut, CardSelectInteractionResult>(owner)
+    private val kernel =
+        SinglePromptRuntimeKernel<Window, PendingCardSelectCut, CardSelectInteractionResult>(
+            owner,
+            windows,
+            publicationFailure = { cause, failed -> owner.failCardSelect(cause, failed.cut) },
+        )
 
-    internal var beforeInstall: (() -> Unit)? = null
-    internal var afterInstall: (() -> Unit)? = null
+    internal var beforeInstall: (() -> Unit)?
+        get() = kernel.beforeInstall
+        set(value) {
+            kernel.beforeInstall = value
+        }
+    internal var afterInstall: (() -> Unit)?
+        get() = kernel.afterInstall
+        set(value) {
+            kernel.afterInstall = value
+        }
     internal var beforeTimeoutClaim: (() -> Unit)? = null
 
     override fun awaitSelection(
@@ -94,85 +107,56 @@ internal class MatchCardSelectInteractionRuntime(
 
     internal fun pendingCutLocked(): PendingCardSelectCut? = windows.pendingCutLocked()
 
-    private fun publish(initial: CardSelectWindowCapture.Initial): Window {
-        owner.beforePublicationLock?.invoke()
-        val created =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        windows.ensureEmptyLocked("A CardSelect interaction is already pending")
-                        val feed = owner.feed(owner.humanSeat)
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val interactionId = UUID.randomUUID().toString()
-                        val diagnostic = CardSelectMaterializationDiagnostic(interactionId, initial.value)
-                        val prepared =
-                            try {
-                                feed.builder.prepareCardSelectWindow(game, owner.counter, initial.value)
-                            } catch (ex: Exception) {
-                                owner.failCardSelect(ex, diagnostic = diagnostic)
-                            }
-                        val published =
-                            PublishedCardSelectInteraction(
-                                interactionId,
-                                checkNotNull(prepared.bundle.actionGameStateId),
-                                initial.value.kind,
-                            )
-                        val exact =
-                            PendingCardSelectCut(
-                                interactionId,
-                                published.gameStateId,
-                                initial.value,
-                                prepared.bundle.messages,
-                                prepared.transition,
-                            )
-                        val projection = prepared.transition.nextState
-                        val entries =
-                            initial.value.candidates.map { candidate ->
-                                val instanceId =
-                                    projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                        ?: owner.failCardSelect(
-                                            IllegalStateException("CardSelect candidate was not projected"),
-                                            exact,
-                                        )
-                                instanceId to candidate.originalOptionIndex
-                            }
-                        val optionByInstanceId = entries.toMap()
-                        if (optionByInstanceId.size != entries.size) {
-                            owner.failCardSelect(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
-                        }
-                        val created = Window(published, initial.value, exact, initial.handlesByOption, optionByInstanceId)
-                        publishPrepared(feed, prepared, exact)
-                        windows.installLocked(created)
-                        created
+    private fun publish(initial: CardSelectWindowCapture.Initial): Window =
+        kernel.publish(
+            duplicateMessage = "A CardSelect interaction is already pending",
+            prepare = { interactionId, feed, game ->
+                val diagnostic = CardSelectMaterializationDiagnostic(interactionId, initial.value)
+                val prepared =
+                    try {
+                        feed.builder.prepareCardSelectWindow(
+                            game ?: owner.fail(IllegalStateException("Game unavailable")),
+                            owner.counter,
+                            initial.value,
+                        )
+                    } catch (ex: Exception) {
+                        owner.failCardSelect(ex, diagnostic = diagnostic)
                     }
+                val published =
+                    PublishedCardSelectInteraction(
+                        interactionId,
+                        checkNotNull(prepared.bundle.actionGameStateId),
+                        initial.value.kind,
+                    )
+                val exact =
+                    PendingCardSelectCut(
+                        interactionId,
+                        published.gameStateId,
+                        initial.value,
+                        prepared.bundle.messages,
+                        prepared.transition,
+                    )
+                val projection = prepared.transition.nextState
+                val entries =
+                    initial.value.candidates.map { candidate ->
+                        val instanceId =
+                            projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
+                                ?: owner.failCardSelect(IllegalStateException("CardSelect candidate was not projected"), exact)
+                        instanceId to candidate.originalOptionIndex
+                    }
+                val optionByInstanceId = entries.toMap()
+                if (optionByInstanceId.size != entries.size) {
+                    owner.failCardSelect(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
                 }
-            }
-        owner.bridge.prioritySignal.signal()
-        return created
-    }
-
-    private fun publishPrepared(
-        feed: MatchCutCoordinator.ViewerFeed,
-        prepared: leyline.game.bundle.CardSelectWindowMaterializer.Prepared,
-        exact: PendingCardSelectCut,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.beforeBatchEnqueue?.invoke(0, batch)
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            owner.bridge.commitProjection(prepared.transition) { installed = true }
-            afterInstall?.invoke()
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(owner.humanSeat)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            owner.failCardSelect(ex, exact)
-        }
-    }
+                val created = Window(published, initial.value, exact, initial.handlesByOption, optionByInstanceId)
+                SinglePromptPublication(
+                    created,
+                    prepared.bundle.messages,
+                    prepared.transition,
+                    prepared.closesPlaybackFrame,
+                )
+            },
+        )
 
     private fun recordChoiceResults(
         pending: Window,
@@ -203,5 +187,5 @@ internal class MatchCardSelectInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): CardSelectInteractionResult = windows.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException, beforeTimeoutClaim)
+    ): CardSelectInteractionResult = kernel.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException, beforeTimeoutClaim)
 }

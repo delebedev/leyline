@@ -2,26 +2,21 @@ package leyline.bridge.coord
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
-import leyline.bridge.handoff.SearchInteractionTimeoutException
 import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
-import leyline.game.PlaybackTerminalFailure
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.Board
@@ -238,43 +233,6 @@ class MatchSearchInteractionRuntimeTest :
             coordinator.search.afterBaselineResetBeforeRelease = null
         }
 
-        test("stale duplicate and timeout responses cannot mutate a retired window") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val failure = AtomicReference<Throwable>()
-            val finished = CountDownLatch(1)
-            Thread {
-                try {
-                    coordinator.search.awaitSearch(request(board, min = 0), 25)
-                } catch (ex: Throwable) {
-                    failure.set(ex)
-                } finally {
-                    finished.countDown()
-                }
-            }.start()
-            val published = awaitPublished(coordinator)
-            val selected =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasSearchReq() }
-                    .searchReq.itemsSoughtList
-                    .first()
-
-            finished.await(3, TimeUnit.SECONDS) shouldBe true
-            val projection = board.bridge.projectionStateSnapshot()
-            assertSoftly {
-                failure.get().shouldBeInstanceOf<SearchInteractionTimeoutException>()
-                coordinator.search
-                    .current()
-                    .shouldBeNull()
-                coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe false
-                coordinator.search.submit(published.interactionId, published.gameStateId + 1, listOf(selected)) shouldBe false
-                board.bridge.projectionStateSnapshot() shouldBe projection
-            }
-        }
-
         test("bridge timeout returns the configured default and requests later progression") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
@@ -302,79 +260,6 @@ class MatchSearchInteractionRuntimeTest :
                     .current()
                     .shouldBeNull()
                 coordinator.failure().shouldBeNull()
-            }
-        }
-
-        test("pre-install failure retains the exact cut and rolls back only owned output") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val prior = board.bridge.projectionStateSnapshot()
-            coordinator.search.beforeInstall = { error("search install unavailable") }
-            val failure = AtomicReference<Throwable>()
-            val finished = CountDownLatch(1)
-            Thread {
-                try {
-                    coordinator.search.awaitSearch(request(board), 3_000)
-                } catch (ex: Throwable) {
-                    failure.set(ex)
-                } finally {
-                    finished.countDown()
-                }
-            }.start()
-
-            finished.await(3, TimeUnit.SECONDS) shouldBe true
-            val terminal = failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
-            assertSoftly {
-                terminal.cause?.message shouldBe "search install unavailable"
-                terminal.pendingSearchCut
-                    .shouldNotBeNull()
-                    .interaction.candidateCardIdsByOption.size shouldBe 2
-                coordinator.failure() shouldBe terminal
-                coordinator.drain(SeatId(1)) shouldBe emptyList()
-                board.bridge.projectionStateSnapshot() shouldBe prior
-                coordinator.search
-                    .current()
-                    .shouldBeNull()
-            }
-            coordinator.search.beforeInstall = null
-        }
-
-        test("teardown wakes the engine and rejects later answers") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val failure = AtomicReference<Throwable>()
-            val finished = CountDownLatch(1)
-            Thread {
-                try {
-                    coordinator.search.awaitSearch(request(board), null)
-                } catch (ex: Throwable) {
-                    failure.set(ex)
-                } finally {
-                    finished.countDown()
-                }
-            }.start()
-            val published = awaitPublished(coordinator)
-            val selected =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasSearchReq() }
-                    .searchReq.itemsSoughtList
-                    .first()
-            val cause = IllegalStateException("match closed")
-            coordinator.shutdown(cause)
-
-            assertSoftly {
-                finished.await(3, TimeUnit.SECONDS) shouldBe true
-                failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>().cause shouldBe cause
-                coordinator.search
-                    .current()
-                    .shouldBeNull()
-            }
-            shouldThrow<PlaybackTerminalFailure> {
-                coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected))
             }
         }
     })

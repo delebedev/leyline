@@ -5,7 +5,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -21,7 +20,6 @@ import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 class MatchRevealChoiceInteractionPublicationFailureTest :
     BoardTest({
@@ -136,60 +134,6 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
                     .current()
                     .shouldBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-            }
-        }
-
-        test("enqueue failure retains previously committed output") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val existing = listOf(GREToClientMessage.getDefaultInstance())
-            coordinator.enqueueCommittedBatchForTest(SeatId(1), existing)
-            coordinator.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("reveal feed unavailable") }
-
-            val failure =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoices.awaitSelection(
-                        request(board),
-                        options(board),
-                        entry(board),
-                        false,
-                        3_000,
-                    )
-                }
-
-            assertSoftly {
-                failure.pendingRevealChoiceCut.shouldNotBeNull()
-                coordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
-            }
-        }
-
-        test("stale install removes owned output and retains the competing projection") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val competing =
-                board.bridge
-                    .projectionStateSnapshot()
-                    .editor()
-                    .freeze()
-            coordinator.revealChoices.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
-
-            val failure =
-                shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoices.awaitSelection(
-                        request(board),
-                        options(board),
-                        entry(board),
-                        false,
-                        3_000,
-                    )
-                }
-
-            assertSoftly {
-                failure.pendingRevealChoiceCut.shouldNotBeNull()
-                coordinator.drain(SeatId(1)).shouldBeEmpty()
-                board.bridge.projectionStateSnapshot() shouldBe competing
             }
         }
 

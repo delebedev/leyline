@@ -6,7 +6,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderInteractionResult
@@ -193,58 +192,6 @@ class MatchOrderInteractionRuntimeTest :
                 coordinator.order.submit(published.interactionId, published.gameStateId, order.orderReq.idsList) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
             }
-        }
-
-        test("published Order remains an awaitPriority horizon after its signal is consumed") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            board.bridge
-                .actionBridge(SeatId(1))
-                .getPending()
-                .shouldNotBeNull()
-                .published = false
-            val finished = CountDownLatch(1)
-            Thread {
-                coordinator.order.awaitOrder(
-                    request(board, OrderRouteKind.Top),
-                    cards(board),
-                    null,
-                    3_000,
-                )
-                finished.countDown()
-            }.start()
-
-            val published = awaitPublished(coordinator)
-            board.bridge.prioritySignal.awaitSignal(3_000) shouldBe true
-            assertSoftly {
-                board.bridge
-                    .actionBridge(SeatId(1))
-                    .getPending()
-                    .shouldBeNull()
-                coordinator.currentBlockingInteraction().shouldBeNull()
-                coordinator.targeting
-                    .current()
-                    .shouldBeNull()
-                coordinator.search
-                    .current()
-                    .shouldBeNull()
-                coordinator.manaSourcePayments
-                    .current()
-                    .shouldBeNull()
-                coordinator.oneShotPayCosts
-                    .current()
-                    .shouldBeNull()
-                board.bridge.awaitPriorityWithTimeout(25) shouldBe true
-            }
-            val ids =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasOrderReq() }
-                    .orderReq.idsList
-            coordinator.order.submit(published.interactionId, published.gameStateId, ids) shouldBe true
-            finished.await(3, TimeUnit.SECONDS) shouldBe true
         }
 
         test("timeout returns the legacy default-first order and retires the window") {

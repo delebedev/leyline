@@ -12,11 +12,7 @@ import leyline.bridge.handoff.PublishedModalChoiceInteraction
 import leyline.game.ModalChoiceMaterializationDiagnostic
 import leyline.game.PendingModalChoiceCut
 import leyline.game.bundle.ModalChoiceWindowMaterializer
-import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /** Exact Forge-handle modal lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchModalChoiceRuntime(
@@ -25,12 +21,15 @@ internal class MatchModalChoiceRuntime(
     private data class Window(
         val published: PublishedModalChoiceInteraction,
         val value: ModalChoiceWindowValue,
-        val cut: PendingModalChoiceCut,
+        override val cut: PendingModalChoiceCut,
         val handlesByOptionIndex: Map<Int, AbilitySub>,
         val optionIndexByGrpId: Map<Int, Int>,
         val aiContext: ModalChoiceAiContext,
-        val future: CompletableFuture<ModalChoiceInteractionResult> = CompletableFuture(),
-    )
+        override val future: CompletableFuture<ModalChoiceInteractionResult> = CompletableFuture(),
+    ) : SinglePromptWindow<ModalChoiceInteractionResult, PendingModalChoiceCut> {
+        override val interactionId: String get() = published.interactionId
+        override val gameStateId: Int get() = published.gameStateId
+    }
 
     private data class CleanupReceipt(
         val interactionId: String,
@@ -39,11 +38,25 @@ internal class MatchModalChoiceRuntime(
         val cut: PendingModalChoiceCut,
     )
 
-    private var window: Window? = null
+    private val windows = SinglePromptWindowState<Window, PendingModalChoiceCut, ModalChoiceInteractionResult>(owner)
+    private val kernel =
+        SinglePromptRuntimeKernel<Window, PendingModalChoiceCut, ModalChoiceInteractionResult>(
+            owner,
+            windows,
+            publicationFailure = { cause, failed -> owner.failModalChoice(cause, failed.cut) },
+        )
     private val cleanupReceipts = mutableMapOf<String, CleanupReceipt>()
 
-    internal var beforeInstall: (() -> Unit)? = null
-    internal var afterInstall: (() -> Unit)? = null
+    internal var beforeInstall: (() -> Unit)?
+        get() = kernel.beforeInstall
+        set(value) {
+            kernel.beforeInstall = value
+        }
+    internal var afterInstall: (() -> Unit)?
+        get() = kernel.afterInstall
+        set(value) {
+            kernel.afterInstall = value
+        }
     internal var beforeTimeoutClaim: (() -> Unit)? = null
     internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
@@ -63,18 +76,12 @@ internal class MatchModalChoiceRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedModalChoiceInteraction? {
-        val current =
-            synchronized(owner.feedLock) {
-                window?.takeUnless { it.future.isDone }?.published
-            }
-        return current
-    }
+    fun current(): PublishedModalChoiceInteraction? = windows.current()?.published
 
     /** Read-only Forge context for the harness policy; no prompt/session lookup. */
     internal fun aiContext(): ModalChoiceAiContext? =
         synchronized(owner.feedLock) {
-            window?.takeUnless { it.future.isDone }?.aiContext
+            windows.current()?.aiContext
         }
 
     fun submit(
@@ -84,7 +91,7 @@ internal class MatchModalChoiceRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = matching(interactionId, gameStateId) ?: return false
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
             if (selectedGrpIds.size !in pending.value.min..pending.value.max) return false
             if (!pending.value.allowRepeat && selectedGrpIds.size != selectedGrpIds.distinct().size) return false
             val optionIndices = selectedGrpIds.map { pending.optionIndexByGrpId[it] ?: return false }
@@ -99,7 +106,7 @@ internal class MatchModalChoiceRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = matching(interactionId, gameStateId) ?: return false
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
             detachAndCompleteLocked(pending, emptyList(), emptyList(), timedOut = false)
             true
         }
@@ -116,123 +123,94 @@ internal class MatchModalChoiceRuntime(
 
     fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
-            window?.future?.completeExceptionally(cause)
-            window = null
+            windows.terminate(cause)
             cleanupReceipts.clear()
         }
     }
 
     fun reset() {
         synchronized(owner.feedLock) {
-            window = null
+            windows.reset()
             cleanupReceipts.clear()
         }
     }
 
     internal fun pendingCutLocked(): PendingModalChoiceCut? =
-        window
-            ?.takeUnless { it.future.isDone }
-            ?.cut
+        windows
+            .pendingCutLocked()
             .also { afterDeliveryCutLookup?.invoke() }
 
-    private fun publish(initial: ModalChoiceWindowCapture.Initial): Window {
-        owner.beforePublicationLock?.invoke()
-        val created =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        check(window == null) { "A ModalChoice interaction is already pending" }
-                        val feed = owner.feed(owner.humanSeat)
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val interactionId = UUID.randomUUID().toString()
-                        val diagnostic = ModalChoiceMaterializationDiagnostic(interactionId, initial.value)
-                        val prepared =
-                            try {
-                                feed.builder.prepareModalChoiceWindow(game, owner.counter, initial.value)
-                            } catch (ex: Exception) {
-                                owner.failModalChoice(ex, diagnostic = diagnostic)
-                            }
-                        val published =
-                            PublishedModalChoiceInteraction(
-                                interactionId,
-                                checkNotNull(prepared.bundle.actionGameStateId),
-                                prepared.sourceInstanceId,
-                            )
-                        val exact =
-                            PendingModalChoiceCut(
-                                interactionId,
-                                published.gameStateId,
-                                initial.value,
-                                prepared.bundle.messages,
-                                prepared.transition,
-                            )
-                        val created =
-                            Window(
-                                published,
-                                initial.value,
-                                exact,
-                                initial.handlesByOptionIndex,
-                                initial.value.possible
-                                    .mapIndexed { index, option -> option.grpId to index }
-                                    .toMap(),
-                                initial.aiContext,
-                            )
-                        publishPrepared(feed, prepared, exact)
-                        window = created
-                        created
+    private fun publish(initial: ModalChoiceWindowCapture.Initial): Window =
+        kernel.publish(
+            duplicateMessage = "A ModalChoice interaction is already pending",
+            prepare = { interactionId, feed, game ->
+                val diagnostic = ModalChoiceMaterializationDiagnostic(interactionId, initial.value)
+                val prepared =
+                    try {
+                        feed.builder.prepareModalChoiceWindow(
+                            game ?: owner.fail(IllegalStateException("Game unavailable")),
+                            owner.counter,
+                            initial.value,
+                        )
+                    } catch (ex: Exception) {
+                        owner.failModalChoice(ex, diagnostic = diagnostic)
                     }
-                }
-            }
-        owner.bridge.prioritySignal.signal()
-        return created
-    }
-
-    private fun publishPrepared(
-        feed: MatchCutCoordinator.ViewerFeed,
-        prepared: ModalChoiceWindowMaterializer.Prepared,
-        exact: PendingModalChoiceCut,
-    ) {
-        val batch = prepared.bundle.messages
-        var enqueued = false
-        var installed = false
-        try {
-            feed.beforeBatchEnqueue?.invoke(0, batch)
-            feed.queue.add(batch)
-            enqueued = true
-            beforeInstall?.invoke()
-            owner.bridge.commitProjection(prepared.transition) { installed = true }
-            afterInstall?.invoke()
-            if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
-        } catch (ex: Exception) {
-            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
-            owner.failModalChoice(ex, exact)
-        }
-    }
+                val published =
+                    PublishedModalChoiceInteraction(
+                        interactionId,
+                        checkNotNull(prepared.bundle.actionGameStateId),
+                        prepared.sourceInstanceId,
+                    )
+                val exact =
+                    PendingModalChoiceCut(
+                        interactionId,
+                        published.gameStateId,
+                        initial.value,
+                        prepared.bundle.messages,
+                        prepared.transition,
+                    )
+                val created =
+                    Window(
+                        published,
+                        initial.value,
+                        exact,
+                        initial.handlesByOptionIndex,
+                        initial.value.possible
+                            .mapIndexed { index, option -> option.grpId to index }
+                            .toMap(),
+                        initial.aiContext,
+                    )
+                SinglePromptPublication(
+                    created,
+                    prepared.bundle.messages,
+                    prepared.transition,
+                    prepared.closesPlaybackFrame,
+                )
+            },
+        )
 
     private fun await(
         pending: Window,
         timeoutMs: Long?,
     ): ModalChoiceInteractionResult =
-        try {
-            if (timeoutMs == null) pending.future.get() else pending.future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (_: TimeoutException) {
-            beforeTimeoutClaim?.invoke()
-            synchronized(owner.counter) {
-                synchronized(owner.feedLock) {
-                    if (window === pending && !pending.future.isDone) {
-                        val fallback = listOf(pending.value.defaultOptionIndex)
-                        val grpIds = fallback.map { pending.value.possible[it].grpId }
-                        val receipt = detachAndCompleteLocked(pending, fallback, grpIds, timedOut = true)
-                        queueCleanupLocked(receipt)
-                        cleanupReceipts.remove(pending.published.interactionId)
-                    }
+        kernel.await(
+            pending = pending,
+            timeoutMs = timeoutMs,
+            timeoutException = { error("ModalChoice timeout should complete with a default") },
+            beforeTimeoutClaim = beforeTimeoutClaim,
+            timeoutClaim = { claim ->
+                synchronized(owner.counter) {
+                    synchronized(owner.feedLock) { claim() }
                 }
-            }
-            completedValue(pending)
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
+            },
+            beforeTimeoutCompleteLocked = {
+                val fallback = listOf(pending.value.defaultOptionIndex)
+                val grpIds = fallback.map { pending.value.possible[it].grpId }
+                val receipt = detachAndCompleteLocked(pending, fallback, grpIds, timedOut = true)
+                queueCleanupLocked(receipt)
+                cleanupReceipts.remove(pending.published.interactionId)
+            },
+        )
 
     private fun detachAndCompleteLocked(
         pending: Window,
@@ -240,7 +218,9 @@ internal class MatchModalChoiceRuntime(
         selectedGrpIds: List<Int>,
         timedOut: Boolean,
     ): CleanupReceipt {
-        check(window === pending) { "ModalChoice window changed during completion" }
+        check(windows.matchingLocked(pending.interactionId, pending.gameStateId) === pending) {
+            "ModalChoice window changed during completion"
+        }
         if (selectedGrpIds.singleOrNull() != null) {
             owner.bridge.recordSelectedModalAbilityGrpId(
                 pending.value.sourceForgeCardId,
@@ -255,8 +235,8 @@ internal class MatchModalChoiceRuntime(
                 pending.cut,
             )
         cleanupReceipts[pending.published.interactionId] = receipt
-        window = null
-        pending.future.complete(
+        windows.completeLocked(
+            pending,
             ModalChoiceInteractionResult(
                 optionIndices = optionIndices,
                 handles = optionIndices.map(pending.handlesByOptionIndex::getValue),
@@ -276,22 +256,5 @@ internal class MatchModalChoiceRuntime(
         } catch (ex: Exception) {
             owner.failModalChoice(ex, pending = receipt.cut)
         }
-    }
-
-    private fun completedValue(pending: Window): ModalChoiceInteractionResult =
-        try {
-            pending.future.get()
-        } catch (ex: ExecutionException) {
-            throw ex.cause ?: ex
-        }
-
-    private fun matching(
-        interactionId: String,
-        gameStateId: Int,
-    ): Window? {
-        val pending = window ?: return null
-        if (pending.future.isDone) return null
-        if (pending.published.interactionId != interactionId || pending.published.gameStateId != gameStateId) return null
-        return pending
     }
 }

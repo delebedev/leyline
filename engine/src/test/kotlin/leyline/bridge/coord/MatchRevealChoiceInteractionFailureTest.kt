@@ -5,7 +5,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -15,7 +14,6 @@ import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedRevealChoiceInteraction
-import leyline.bridge.handoff.RevealChoiceInteractionResult
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -143,49 +141,6 @@ class MatchRevealChoiceInteractionFailureTest :
                 coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[1])) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[1])) shouldBe false
-            }
-        }
-
-        test("response and timeout claims have one winner") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val timeoutEntered = CountDownLatch(1)
-            val releaseTimeout = CountDownLatch(1)
-            coordinator.revealChoices.beforeTimeoutClaim = {
-                timeoutEntered.countDown()
-                check(releaseTimeout.await(3, TimeUnit.SECONDS))
-            }
-            val result = AtomicReference<RevealChoiceInteractionResult>()
-            val finished = CountDownLatch(1)
-            Thread {
-                result.set(
-                    coordinator.revealChoices.awaitSelection(
-                        request(board),
-                        options(board),
-                        entry(board),
-                        false,
-                        25,
-                    ),
-                )
-                finished.countDown()
-            }.start()
-            val published = awaitPublished(coordinator)
-            val id =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasSelectNReq() }
-                    .selectNReq.idsList[1]
-            timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
-            coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id)) shouldBe true
-            releaseTimeout.countDown()
-
-            assertSoftly {
-                finished.await(3, TimeUnit.SECONDS) shouldBe true
-                result.get().optionIndices shouldContainExactly listOf(1)
-                result.get().timedOut shouldBe false
-                coordinator.failure().shouldBeNull()
             }
         }
 

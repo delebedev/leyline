@@ -1,20 +1,24 @@
 package leyline.bridge.coord
 
+import forge.game.Game
+import leyline.game.state.ProjectionTransition
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 /** Shared single-window correlation, timeout arbitration, and waiter retirement. */
-internal interface SinglePromptWindow<R> {
+internal interface SinglePromptWindow<R, C> {
     val interactionId: String
     val gameStateId: Int
+    val cut: C
     val future: CompletableFuture<R>
 }
 
-internal class SinglePromptWindowState<W : SinglePromptWindow<R>, C, R>(
+internal class SinglePromptWindowState<W : SinglePromptWindow<R, C>, C, R>(
     private val owner: MatchCutCoordinator,
-    private val cut: (W) -> C,
 ) {
     private var window: W? = null
 
@@ -46,7 +50,7 @@ internal class SinglePromptWindowState<W : SinglePromptWindow<R>, C, R>(
         return pending.future.complete(result)
     }
 
-    fun pendingCutLocked(): C? = window?.takeUnless { it.future.isDone }?.let(cut)
+    fun pendingCutLocked(): C? = window?.takeUnless { it.future.isDone }?.cut
 
     fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
@@ -74,8 +78,10 @@ internal class SinglePromptWindowState<W : SinglePromptWindow<R>, C, R>(
             timeoutClaim {
                 if (window === pending && !pending.future.isDone) {
                     beforeTimeoutCompleteLocked?.invoke()
-                    window = null
-                    pending.future.completeExceptionally(timeoutException())
+                    if (window === pending && !pending.future.isDone) {
+                        window = null
+                        pending.future.completeExceptionally(timeoutException())
+                    }
                 }
             }
             completedValue(pending)
@@ -89,4 +95,86 @@ internal class SinglePromptWindowState<W : SinglePromptWindow<R>, C, R>(
         } catch (ex: ExecutionException) {
             throw ex.cause ?: ex
         }
+}
+
+/** Prepared output and exact pending cut for one single-window publication. */
+internal data class SinglePromptPublication<W>(
+    val window: W,
+    val messages: List<GREToClientMessage>,
+    val transition: ProjectionTransition,
+    val closesPlaybackFrame: Boolean,
+)
+
+/** Owns the shared publication transaction for settled single-window prompts. */
+internal class SinglePromptRuntimeKernel<W, C, R>(
+    private val owner: MatchCutCoordinator,
+    private val windows: SinglePromptWindowState<W, C, R>,
+    private val publicationFailure: (Throwable, W) -> Nothing,
+) where W : SinglePromptWindow<R, C> {
+    internal var beforeInstall: (() -> Unit)? = null
+    internal var afterInstall: (() -> Unit)? = null
+
+    fun publish(
+        duplicateMessage: String,
+        prepare: (String, MatchCutCoordinator.ViewerFeed, Game?) -> SinglePromptPublication<W>,
+        ensureEmptyLocked: () -> Unit = {},
+    ): W {
+        owner.beforePublicationLock?.invoke()
+        val created =
+            synchronized(owner.counter) {
+                synchronized(owner.bridge.projectionBuildLock) {
+                    synchronized(owner.feedLock) {
+                        owner.ensureOpen()
+                        windows.ensureEmptyLocked(duplicateMessage)
+                        ensureEmptyLocked()
+                        val feed = owner.feed(owner.humanSeat)
+                        val interactionId = UUID.randomUUID().toString()
+                        val publication = prepare(interactionId, feed, owner.bridge.getGame())
+                        publishPrepared(feed, publication)
+                        windows.installLocked(publication.window)
+                        publication.window
+                    }
+                }
+            }
+        owner.bridge.prioritySignal.signal()
+        return created
+    }
+
+    fun await(
+        pending: W,
+        timeoutMs: Long?,
+        timeoutException: () -> Throwable,
+        beforeTimeoutClaim: (() -> Unit)? = null,
+        timeoutClaim: ((() -> Unit) -> Unit) = { claim -> synchronized(owner.feedLock) { claim() } },
+        beforeTimeoutCompleteLocked: (() -> Unit)? = null,
+    ): R =
+        windows.await(
+            pending,
+            timeoutMs,
+            timeoutException,
+            beforeTimeoutClaim,
+            timeoutClaim,
+            beforeTimeoutCompleteLocked,
+        )
+
+    private fun publishPrepared(
+        feed: MatchCutCoordinator.ViewerFeed,
+        publication: SinglePromptPublication<W>,
+    ) {
+        val batch = publication.messages
+        var enqueued = false
+        var installed = false
+        try {
+            feed.beforeBatchEnqueue?.invoke(0, batch)
+            feed.queue.add(batch)
+            enqueued = true
+            beforeInstall?.invoke()
+            owner.bridge.commitProjection(publication.transition) { installed = true }
+            afterInstall?.invoke()
+            if (publication.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
+        } catch (ex: Exception) {
+            if (!installed && enqueued) owner.removeOwnedBatch(feed, batch)
+            publicationFailure(ex, publication.window)
+        }
+    }
 }
