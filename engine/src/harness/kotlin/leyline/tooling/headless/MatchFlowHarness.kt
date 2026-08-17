@@ -476,16 +476,45 @@ class MatchFlowHarness(
 
     /**
      * Advance through whichever default client response is appropriate for
-     * the current stop. Priority uses Pass; combat declaration prompts need
-     * their own submit messages.
+     * the current stop. Priority uses Pass; combat declaration prompts and
+     * selection prompts need their own submit messages.
+     *
+     * The cleanup discard is the case worth naming: holding more than seven
+     * cards at end of turn produces a [SelectNReq] and no priority window, so
+     * passing priority answers nothing and the turn never ends. A pass loop
+     * that ignores it spins to its budget with the game frozen in CLEANUP.
      */
     private fun advanceDefaultStop() {
-        when (phase()) {
-            "COMBAT_DECLARE_ATTACKERS" -> declareNoAttackers()
-            "COMBAT_DECLARE_BLOCKERS" -> declareNoBlockers()
+        val unanswered = unansweredSelectN()
+        when {
+            unanswered != null -> respondToSelectN(unanswered.ids.take(unanswered.count))
+            phase() == "COMBAT_DECLARE_ATTACKERS" -> declareNoAttackers()
+            phase() == "COMBAT_DECLARE_BLOCKERS" -> declareNoBlockers()
             else -> passPriority()
         }
     }
+
+    /**
+     * The trailing [SelectNReq] when it is still open — nothing the engine sent
+     * afterwards implies it was consumed. Returns the minimum legal selection,
+     * which for a discard is "exactly as many as the rules demand".
+     */
+    private fun unansweredSelectN(): PendingSelectN? {
+        val index = allMessages.indexOfLast { it.hasSelectNReq() }
+        if (index < 0) return null
+        val laterPrompts =
+            allMessages.drop(index + 1).any {
+                it.hasActionsAvailableReq() || it.hasSelectNReq() || it.hasDeclareAttackersReq() || it.hasDeclareBlockersReq()
+            }
+        if (laterPrompts) return null
+        val req = allMessages[index].selectNReq
+        return PendingSelectN(ids = req.idsList.map { it.toInt() }, count = req.minSel.coerceAtLeast(0))
+    }
+
+    private data class PendingSelectN(
+        val ids: List<Int>,
+        val count: Int,
+    )
 
     /**
      * Keep passing until [stopWhen] becomes true, the game ends, or [maxPasses] is hit.

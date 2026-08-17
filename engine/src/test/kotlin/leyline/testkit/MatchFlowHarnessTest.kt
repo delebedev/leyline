@@ -2,6 +2,7 @@ package leyline.testkit
 
 import forge.ai.LobbyPlayerAi
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -10,6 +11,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -326,34 +328,27 @@ class MatchFlowHarnessTest :
             diffs.size shouldBeGreaterThanOrEqualTo 2
         }
 
-        // DISABLED: passUntilTurn(3) hits AI_TURN_WAIT_MS (30s) timeout repeatedly because
-        // AI-turn playback stalls — engine never delivers priority for turn 3. Burns ~128s
-        // polling. Re-enable after AI multi-turn playback regression is fixed.
-        xtest("AI turn NewTurnStarted annotation has content") {
+        test("passUntilTurn advances through a cleanup discard") {
+            // Holding more than seven cards at end of turn produces a SelectNReq
+            // and no priority window. A pass loop that only knows how to Pass
+            // answers nothing, and the game sits in CLEANUP until the budget
+            // runs out — silently, since nothing throws.
             val h = MatchFlowHarness(seed = AI_FIRST_SEED)
             harness = h
             h.connectAndKeep()
+            h.human.getZone(forge.game.zone.ZoneType.Hand).size() shouldBeGreaterThan 7
 
-            val prePassCount = h.allMessages.size
             h.passUntilTurn(3)
-            h.isGameOver().shouldBeFalse()
 
-            val aiMessages = h.allMessages.subList(prePassCount, h.allMessages.size)
-            val newTurnAnno =
-                checkNotNull(
-                    aiMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.annotationsList }
-                        .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) },
-                ) { "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
-
-            newTurnAnno.affectedIdsList.shouldNotBeEmpty()
-            newTurnAnno.affectorId shouldBeGreaterThan 0
+            // Hand size is not asserted afterwards: the discard happens at the
+            // end of turn 2 and the draws for turns 3 and 4 refill past seven.
+            assertSoftly {
+                h.isGameOver().shouldBeFalse()
+                h.turn() shouldBeGreaterThanOrEqual 3
+            }
         }
 
-        // DISABLED: same as above — passUntilTurn(3) timeout loop.
-        // Re-enable after AI multi-turn playback regression is fixed.
-        xtest("AI turn phase annotation has details") {
+        test("AI turn phase annotation has details") {
             val h = MatchFlowHarness(seed = AI_FIRST_SEED)
             harness = h
             h.connectAndKeep()
@@ -371,10 +366,12 @@ class MatchFlowHarnessTest :
                         .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) },
                 ) { "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
-            phaseAnno.affectedIdsList.shouldNotBeEmpty()
-
             val detailKeys = phaseAnno.detailsList.map { it.key }.toSet()
-            ("phase" in detailKeys).shouldBeTrue()
-            ("step" in detailKeys).shouldBeTrue()
+            assertSoftly {
+                phaseAnno.affectedIdsList.shouldNotBeEmpty()
+                withClue("phase annotation carried detail keys $detailKeys") {
+                    setOf("phase", "step") - detailKeys shouldBe emptySet()
+                }
+            }
         }
     })

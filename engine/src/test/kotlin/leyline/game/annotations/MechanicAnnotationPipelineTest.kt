@@ -148,18 +148,17 @@ class MechanicAnnotationPipelineTest :
 
         // -- LibraryShuffled --
 
-        xtest("shuffleAnnotation") {
-            // Shuffle annotations are suppressed in production (crash client). See commit 76d61d2973.
-            val events =
-                listOf(
-                    GameEvent.LibraryShuffled(seatId = SeatId(1)),
-                )
-            val annotations = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver).transient
+        test("LibraryShuffled emits no annotation") {
+            // Deliberate: the client's ShuffleAnnotationParser requires OldIds/NewIds
+            // detail keys the event does not carry, and shuffle is animation-only.
+            // Emitting it crashes the client, so the pipeline drops the event.
+            val events = listOf(GameEvent.LibraryShuffled(seatId = SeatId(1)))
+
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
 
             assertSoftly {
-                annotations.size shouldBe 1
-                annotations[0].typeList shouldContain AnnotationType.Shuffle
-                annotations[0].affectedIdsList shouldContain 1
+                result.transient.shouldBeEmpty()
+                result.persistent.shouldBeEmpty()
             }
         }
 

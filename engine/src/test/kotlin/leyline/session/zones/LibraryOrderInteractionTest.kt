@@ -95,7 +95,6 @@ class LibraryOrderInteractionTest :
                 .name shouldBe "Grizzly Bears"
         }
 
-        // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
         session("surveil 1 — put in graveyard moves card and produces Surveil annotation", puzzle = surveil1State) {
             val snap = messageSnapshot()
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
