@@ -2,13 +2,12 @@ package leyline.architecture
 
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage
-import com.tngtech.archunit.core.importer.ClassFileImporter
-import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.UnitTag
 import java.nio.file.Files
-import java.nio.file.Path
 
 /**
  * Enforces internal package layering within the :engine module.
@@ -50,27 +49,8 @@ class PackageLayeringTest :
 
         tags(UnitTag)
 
-        // Locate engine build output — try submodule-relative first, then project-root-relative
-        val cwd = Path.of("").toAbsolutePath()
-        val buildDir =
-            sequenceOf(
-                cwd.resolve("build/classes"),
-                cwd.resolve("engine/build/classes"),
-            ).first { it.resolve("kotlin/main/leyline").toFile().isDirectory }
-
-        val classes =
-            ClassFileImporter()
-                .withImportOption(ImportOption.DoNotIncludeTests())
-                .importPaths(
-                    buildDir.resolve("kotlin/main"),
-                    buildDir.resolve("java/main"),
-                )
-
-        val sourceRoot =
-            sequenceOf(
-                cwd.resolve("src/main/kotlin"),
-                cwd.resolve("engine/src/main/kotlin"),
-            ).first { it.resolve("leyline").toFile().isDirectory }
+        val classes = EngineArchitecture.mainClasses
+        val sourceRoot = EngineArchitecture.sourceRoot
 
         // ── Tier 0: bridge is a pure leaf ───────────────────────────
 
@@ -164,6 +144,29 @@ class PackageLayeringTest :
                 ).check(classes)
         }
 
+        // ── Tier 3: transport identity stays in the protocol heads ──
+
+        test("match and game do not depend on transport implementations") {
+            noClasses()
+                .that()
+                .resideInAnyPackage(
+                    "leyline.match..",
+                    "leyline.game..",
+                ).should()
+                .dependOnClassesThat()
+                .resideInAnyPackage(
+                    "io.netty..",
+                    "io.ktor..",
+                    "java.nio.channels..",
+                    "kotlinx.coroutines.channels..",
+                    "..transport..",
+                    "leyline.native..",
+                    "leyline.web..",
+                ).because(
+                    "ADR 0014 keeps transport channels in protocol heads outside the match runtime",
+                ).check(classes)
+        }
+
         // ── Sub-package invariants ─────────────────────────────────
         //
         // Rules below lock in the sub-package boundaries agreed in the
@@ -219,6 +222,9 @@ class PackageLayeringTest :
                 ).check(classes)
         }
 
+        // Source-level, deliberately: the allowlisted names are compile-time
+        // constants that inline away, so no bytecode dependency survives for
+        // "bridge adapters do not depend on game" above to catch.
         test("bridge adapter imports from game stay explicitly allowlisted") {
             val allowed =
                 setOf(
@@ -250,8 +256,6 @@ class PackageLayeringTest :
             // If this fails, don't reflexively add an exception. First decide
             // whether the source file is genuinely a bridge boundary exception
             // or whether the package structure should change.
-            check(violations.isEmpty()) {
-                "Unexpected bridge -> game imports:\n" + violations.joinToString("\n")
-            }
+            withClue("unexpected bridge -> game imports") { violations.shouldBeEmpty() }
         }
     })

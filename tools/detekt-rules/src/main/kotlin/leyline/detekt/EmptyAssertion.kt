@@ -7,6 +7,7 @@ import dev.detekt.api.Rule
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 
 /**
@@ -41,7 +42,7 @@ class EmptyAssertion(config: Config) : Rule(
             override fun visitCallExpression(expression: KtCallExpression) {
                 if (!found) {
                     val name = expression.calleeExpression?.text
-                    if (name != null && isAssertionName(name)) found = true
+                    if (name != null && isAssertionName(name) && !expression.isBareCheck(name)) found = true
                 }
                 super.visitCallExpression(expression)
             }
@@ -61,10 +62,26 @@ class EmptyAssertion(config: Config) : Rule(
 
     private companion object {
         // Stdlib throw-on-failure calls count as assertions in test code.
-        // `error(...)` throws ISE; `check`/`require` throw when the condition is
-        // false; `checkNotNull`/`requireNotNull` throw when the value is null.
+        // `error(...)` throws ISE; `require` throws when the condition is false;
+        // `checkNotNull`/`requireNotNull` throw when the value is null.
+        //
+        // `check` is here for ArchUnit's `.check(rules)`, the evaluation step
+        // that turns a fluent rule into a real assertion. Kotlin's bare
+        // `check(Boolean)` is a different call that happens to share the name:
+        // it reports `Check failed.` and prints neither value, so it must not
+        // stand in for a test's only assertion — see [isBareCheck].
         private val IMPLICIT_ASSERTIONS = setOf(
             "fail", "error", "check", "checkNotNull", "require", "requireNotNull",
         )
     }
+}
+
+/**
+ * True for Kotlin's stdlib `check(Boolean)` — a call named `check` with no
+ * receiver. ArchUnit's evaluation step always reads `<rule>.check(classes)`.
+ */
+internal fun KtCallExpression.isBareCheck(name: String): Boolean {
+    if (name != "check") return false
+    val qualifier = parent as? KtQualifiedExpression ?: return true
+    return qualifier.selectorExpression !== this
 }

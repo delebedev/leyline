@@ -121,7 +121,26 @@ class EmptyAssertionTest : FunSpec({
         rule.lint(code).shouldBeEmpty()
     }
 
-    test("passes when body uses check() for assertion") {
+    test("passes when body evaluates an ArchUnit rule with .check()") {
+        val code = """
+            class RuleBuilder {
+                fun that(): RuleBuilder = this
+                fun check(classes: String) = Unit
+            }
+            fun noClasses(): RuleBuilder = RuleBuilder()
+            fun test(name: String, body: () -> Unit) {}
+            fun main() {
+                test("archunit") {
+                    noClasses().that().check("classes")
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("flags bare check() as the only assertion") {
+        // Kotlin's `check(Boolean)` reports "Check failed." and prints neither
+        // side, so it must not stand in for the test's assertion.
         val code = """
             fun test(name: String, body: () -> Unit) {}
             fun main() {
@@ -131,7 +150,9 @@ class EmptyAssertionTest : FunSpec({
                 }
             }
         """.trimIndent()
-        rule.lint(code).shouldBeEmpty()
+        rule.lint(code).shouldHaveSingleFinding(
+            messageContains = "body has no should*/assert*/fail call",
+        )
     }
 
     test("passes when assertion is inside a nested block") {

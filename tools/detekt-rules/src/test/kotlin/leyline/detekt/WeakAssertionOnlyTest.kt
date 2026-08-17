@@ -174,6 +174,34 @@ class WeakAssertionOnlyTest : FunSpec({
         rule.lint(code).shouldBeEmpty()
     }
 
+    test("flags bare check() alongside a weak matcher") {
+        // Kotlin's `check(Boolean)` reports "Check failed." and prints neither
+        // side, so it does not make a weak-matcher test strong.
+        val code = """
+            fun <T> T.shouldNotBeNull(): T = this
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("bare check") {
+                val actual = listOf(1)
+                actual.shouldNotBeNull()
+                check(actual.size > 0)
+            }
+        """.trimIndent()
+        rule.lint(code).shouldHaveSingleFinding(
+            messageContains = "only weak matchers",
+        )
+    }
+
+    test("leaves a body whose only call is a bare check to EmptyAssertion") {
+        val code = """
+            fun test(name: String, body: () -> Unit) = body()
+            val t = test("bare check") {
+                val actual = 1
+                check(actual > 0)
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
     test("passes on ArchUnit fluent builder with check") {
         val code = """
             class RuleBuilder {
