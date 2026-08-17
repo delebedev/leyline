@@ -9,8 +9,8 @@ import leyline.bridge.forge.PlayerController
  * Pins the [leyline.bridge.forge.PlayerController] override surface.
  *
  * Forge dispatches through single inheritance — the class must keep hosting every
- * override. Any addition or removal is a spec change that must update this test and
- * the override table in `engine/AGENTS.md` in the same commit.
+ * override. Any addition or removal is a spec change that must update the expected
+ * set and count below in the same commit.
  *
  * See [leyline.bridge.forge.PlayerController]'s KDoc for the pattern this guardrail supports.
  */
