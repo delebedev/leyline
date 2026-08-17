@@ -13,7 +13,6 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
@@ -25,7 +24,7 @@ import leyline.testkit.allAnnotations
 import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInHandOf
-import leyline.testkit.beOnBattlefieldOf
+import leyline.testkit.beMissingFrom
 import leyline.testkit.clientMessage
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
@@ -624,8 +623,8 @@ class TargetingInteractionTest :
             assertSoftly {
                 "Grizzly Bears" should beInHandOf(human)
                 "Coral Merfolk" should beInHandOf(ai)
-                "Grizzly Bears" shouldNot beOnBattlefieldOf(human)
-                "Coral Merfolk" shouldNot beOnBattlefieldOf(ai)
+                "Grizzly Bears" should beMissingFrom(ForgeZoneType.Battlefield, human)
+                "Coral Merfolk" should beMissingFrom(ForgeZoneType.Battlefield, ai)
             }
         }
 

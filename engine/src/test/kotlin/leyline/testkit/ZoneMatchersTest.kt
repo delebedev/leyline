@@ -42,21 +42,41 @@ class ZoneMatchersTest :
             val human = board.human
 
             "Forest" should beOnBattlefieldOf(human, count = 2)
-            "Forest" should beOnBattlefieldOf(human) // unbounded ≥1 still passes
 
             val tooFew =
                 shouldFail {
                     "Forest" should beOnBattlefieldOf(human, count = 3)
                 }
-            tooFew.message shouldContain "3 copies of 'Forest'"
+            tooFew.message shouldContain "exactly 3"
+            tooFew.message shouldContain "'Forest'"
             tooFew.message shouldContain "found 2"
 
-            val tooMany =
+            val exactOne =
                 shouldFail {
-                    "Forest" should beOnBattlefieldOf(human, count = 1)
+                    "Forest" should beOnBattlefieldOf(human) // default is exactly 1
                 }
-            tooMany.message shouldContain "1 copies of 'Forest'"
-            tooMany.message shouldContain "found 2"
+            exactOne.message shouldContain "exactly 1 copy"
+            exactOne.message shouldContain "found 2"
+        }
+
+        test("beMissingFrom distinguishes absent from present-in-any-quantity") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Mountain", human, ZoneType.Hand)
+                }
+            val human = board.human
+
+            // Two copies. `shouldNot beInHandOf` would pass here, because the
+            // count matcher is exact and 2 != 1 — which is why absence has its
+            // own matcher rather than relying on negation.
+            "Mountain" should beInHandOf(human, count = 2)
+            "Plains" should beMissingFrom(ZoneType.Hand, human)
+
+            val failure = shouldFail { "Mountain" should beMissingFrom(ZoneType.Hand, human) }
+            failure.message shouldContain "should not contain"
+            failure.message shouldContain "'Mountain'"
+            failure.message shouldContain "found 2"
         }
 
         test("shouldNot inversion fires the negation message") {
@@ -72,8 +92,9 @@ class ZoneMatchersTest :
                 shouldFail {
                     "Mountain" shouldNot beInHandOf(human)
                 }
-            failure.message shouldContain "'Mountain' should not be in"
+            failure.message shouldContain "should not contain"
             failure.message shouldContain "Hand"
+            failure.message shouldContain "'Mountain'"
         }
 
         test("beInZoneOf works for less common zones (Library, Exile, Command)") {

@@ -25,6 +25,7 @@ import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
+import leyline.testkit.*
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.gsm
 import leyline.testkit.StateMapperShell as StateMapper
@@ -107,7 +108,7 @@ class PuzzleBridgeTest :
             val b = startPuzzle("puzzles/simple-attack.pzl")
             val game = b.getGame()!!
             val human = b.getPlayer(SeatId(1))!!
-            val bears = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val bears = human.battlefield.card("Grizzly Bears")
             val instanceId = b.getOrAllocInstanceId(ForgeCardId(bears.id))
             instanceId.value shouldBeGreaterThan 0
             // Verify reverse lookup
