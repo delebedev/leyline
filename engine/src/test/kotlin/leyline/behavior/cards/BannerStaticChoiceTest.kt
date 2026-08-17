@@ -16,9 +16,11 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 class BannerStaticChoiceTest :
     SessionTest({
-        test("Patchwork Banner exposes the full creature subtype static subset") {
-            startPuzzleFile("puzzles/patchwork-banner-static-choice.pzl", validating = true)
-
+        session(
+            "Patchwork Banner exposes the full creature subtype static subset",
+            puzzleFile = "puzzles/patchwork-banner-static-choice.pzl",
+            validating = true,
+        ) {
             val req = castSpellUntilSelectNReq("Patchwork Banner")
             val ids = req.idsList
 
@@ -33,9 +35,11 @@ class BannerStaticChoiceTest :
             }
         }
 
-        test("Patchwork Banner static subtype choice emits ChoiceResult and LinkInfo") {
-            startPuzzleFile("puzzles/patchwork-banner-static-choice.pzl", validating = true)
-
+        session(
+            "Patchwork Banner static subtype choice emits ChoiceResult and LinkInfo",
+            puzzleFile = "puzzles/patchwork-banner-static-choice.pzl",
+            validating = true,
+        ) {
             castSpellUntilSelectNReq("Patchwork Banner")
             val goblinId = StaticChoiceIds.subtypeIdFor("Goblin")!!
             respondToSelectN(listOf(goblinId))
@@ -67,9 +71,11 @@ class BannerStaticChoiceTest :
             }
         }
 
-        test("Heraldic Banner static color choice emits ChoiceResult and LinkInfo") {
-            startPuzzleFile("puzzles/heraldic-banner-static-choice.pzl", validating = true)
-
+        session(
+            "Heraldic Banner static color choice emits ChoiceResult and LinkInfo",
+            puzzleFile = "puzzles/heraldic-banner-static-choice.pzl",
+            validating = true,
+        ) {
             castSpellUntilSelectNReq("Heraldic Banner")
             val redId = StaticChoiceIds.colorIdForName("Red")!!
             respondToSelectN(listOf(redId))

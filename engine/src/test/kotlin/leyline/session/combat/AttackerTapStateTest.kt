@@ -27,9 +27,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class AttackerTapStateTest :
     SessionTest({
 
-        test("attacker creature is tapped with attackState in post-submit GSM diff") {
-            startGame(deckList = COMBAT_DECK, validating = true)
-
+        session("attacker creature is tapped with attackState in post-submit GSM diff", deckList = COMBAT_DECK, validating = true) {
             installScriptedAi(
                 listOf(
                     ScriptedAction.PlayLand("Mountain"),
@@ -40,7 +38,7 @@ class AttackerTapStateTest :
 
             assertSoftly {
                 playLand("Mountain").shouldBeTrue()
-                harness.resolveSpell("Raging Goblin").shouldBeTrue()
+                resolveSpell("Raging Goblin").shouldBeTrue()
             }
 
             assertSoftly {
@@ -57,8 +55,8 @@ class AttackerTapStateTest :
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Toggle creature ON, then submit — collect the post-submit messages
-            harness.toggleAttackers(listOf(attackerIid))
-            val postSubmit = after { harness.submitAttackers() }.messages
+            toggleAttackers(listOf(attackerIid))
+            val postSubmit = after { submitAttackers() }.messages
 
             postSubmit.gameStateMessages().shouldNotBeEmpty()
 
@@ -74,9 +72,7 @@ class AttackerTapStateTest :
             }
         }
 
-        test("TappedUntappedPermanent annotation emitted for attacker") {
-            startGame(deckList = COMBAT_DECK, validating = true)
-
+        session("TappedUntappedPermanent annotation emitted for attacker", deckList = COMBAT_DECK, validating = true) {
             installScriptedAi(
                 listOf(
                     ScriptedAction.PlayLand("Mountain"),
@@ -87,7 +83,7 @@ class AttackerTapStateTest :
 
             assertSoftly {
                 playLand("Mountain").shouldBeTrue()
-                harness.resolveSpell("Raging Goblin").shouldBeTrue()
+                resolveSpell("Raging Goblin").shouldBeTrue()
             }
 
             val creatures = humanBattlefieldCreatures()

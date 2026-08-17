@@ -20,9 +20,11 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class KeywordGrantOverrunTest :
     SessionTest({
 
-        test("Overrun: creatures get AddAbility pAnn with Trample grpId") {
-            startPuzzleFile("puzzles/keyword-grant-overrun.pzl", validating = true)
-
+        session(
+            "Overrun: creatures get AddAbility pAnn with Trample grpId",
+            puzzleFile = "puzzles/keyword-grant-overrun.pzl",
+            validating = true,
+        ) {
             castSpellByName("Overrun").shouldBeTrue()
             // Pass priority to let Overrun resolve
             passPriority()
@@ -42,9 +44,11 @@ class KeywordGrantOverrunTest :
             }
         }
 
-        test("Overrun: creature gameObjects have Trample in uniqueAbilities") {
-            startPuzzleFile("puzzles/keyword-grant-overrun.pzl", validating = true)
-
+        session(
+            "Overrun: creature gameObjects have Trample in uniqueAbilities",
+            puzzleFile = "puzzles/keyword-grant-overrun.pzl",
+            validating = true,
+        ) {
             val bears =
                 human
                     .getZone(ForgeZoneType.Battlefield)
@@ -57,7 +61,7 @@ class KeywordGrantOverrunTest :
             passPriority()
 
             val bearIids = bears.map { human.battlefield.iid(it) }.toSet()
-            val bearObjects = bearIids.mapNotNull { harness.accumulator.objects[it] }
+            val bearObjects = bearIids.mapNotNull { accumulator.objects[it] }
             bearObjects.shouldNotBeEmpty()
 
             for (obj in bearObjects) {

@@ -18,9 +18,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
 
 class ReconfigureLifecycleTest :
     SessionTest({
-        test("Rabbit Battery attaches and unattaches through Reconfigure") {
-            startPuzzle(
-                """
+        session(
+            "Rabbit Battery attaches and unattaches through Reconfigure",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -30,10 +30,8 @@ class ReconfigureLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Reconfigure Rabbit Battery",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val rabbitIid = human.battlefield.iid("Rabbit Battery")
             val bearIid = human.battlefield.iid("Grizzly Bears")
 
@@ -43,7 +41,7 @@ class ReconfigureLifecycleTest :
                     selectTargets(listOf(bearIid))
                 }.messages
 
-            val attachedObject = harness.accumulator.objects[rabbitIid].shouldNotBeNull()
+            val attachedObject = accumulator.objects[rabbitIid].shouldNotBeNull()
             val attachedPersistent = attachSlice.allPersistentAnnotations()
             val attachTypes = attachSlice.gameStateMessages().flatMap { it.annotationsList }.flatMap { it.typeList }
 
@@ -74,7 +72,7 @@ class ReconfigureLifecycleTest :
                     passUntilResolved()
                 }.messages
 
-            val unattachedObject = harness.accumulator.objects[rabbitIid].shouldNotBeNull()
+            val unattachedObject = accumulator.objects[rabbitIid].shouldNotBeNull()
             val removeAttachment = allMessages.annotationsOfType(AnnotationType.RemoveAttachment).lastOrNull()
             val allActivePersistent =
                 harness

@@ -118,9 +118,11 @@ class MobilizeKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        test("Mobilize 1 trigger emits the full annotation lifecycle during attack + resolution") {
-            startPuzzleRaw(mobilize1Puzzle, validating = true)
-
+        session(
+            "Mobilize 1 trigger emits the full annotation lifecycle during attack + resolution",
+            puzzle = mobilize1Puzzle,
+            validating = true,
+        ) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             sources shouldHaveSize 1
             val sourceIid = sources.first().first
@@ -205,9 +207,7 @@ class MobilizeKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        test("Mobilize 3 produces three Warrior tokens") {
-            startPuzzleRaw(mobilize3Puzzle, validating = true)
-
+        session("Mobilize 3 produces three Warrior tokens", puzzle = mobilize3Puzzle, validating = true) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Dalkovan Packbeasts" }
             sources shouldHaveSize 1
             val sourceIid = sources.first().first
@@ -221,9 +221,11 @@ class MobilizeKeywordTest :
             post.annotationsOfType(AnnotationType.TokenCreated).size shouldBeGreaterThanOrEqual 3
         }
 
-        test("two Mobilize sources both surface AbilityInstanceCreated + TriggeringObject") {
-            startPuzzleRaw(twoSourcePuzzle, validating = true)
-
+        session(
+            "two Mobilize sources both surface AbilityInstanceCreated + TriggeringObject",
+            puzzle = twoSourcePuzzle,
+            validating = true,
+        ) {
             val creatures = humanBattlefieldCreatures()
             val attackerIids =
                 creatures
@@ -267,9 +269,7 @@ class MobilizeKeywordTest :
             distinctParents.size shouldBeGreaterThanOrEqual 2
         }
 
-        test("Mobilize 1 cleanup at next end step sacrifices the token") {
-            startPuzzleRaw(mobilize1Puzzle, validating = true)
-
+        session("Mobilize 1 cleanup at next end step sacrifices the token", puzzle = mobilize1Puzzle, validating = true) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
@@ -298,9 +298,7 @@ class MobilizeKeywordTest :
 
         // ------- TriggerHolder gameObject shape + lifecycle -------
 
-        test("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields") {
-            startPuzzleRaw(mobilize1Puzzle, validating = true)
-
+        session("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields", puzzle = mobilize1Puzzle, validating = true) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
@@ -357,9 +355,11 @@ class MobilizeKeywordTest :
             }
         }
 
-        test("Mobilize holder is emitted once, not re-emitted, then deleted via diffDeletedInstanceIds") {
-            startPuzzleRaw(mobilize1Puzzle, validating = true)
-
+        session(
+            "Mobilize holder is emitted once, not re-emitted, then deleted via diffDeletedInstanceIds",
+            puzzle = mobilize1Puzzle,
+            validating = true,
+        ) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 

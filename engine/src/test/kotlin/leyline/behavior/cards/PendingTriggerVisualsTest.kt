@@ -78,9 +78,9 @@ class PendingTriggerVisualsTest :
             }
         }
 
-        test("Ennis exile-and-return emits holder and visual triplet") {
-            startPuzzleRaw(
-                """
+        session(
+            "Ennis exile-and-return emits holder and visual triplet",
+            puzzle = """
                 [metadata]
                 Name:Ennis pending trigger
                 Goal:Win
@@ -97,8 +97,8 @@ class PendingTriggerVisualsTest :
                 humanlibrary=Plains
                 ailibrary=Mountain
                 """.trimIndent(),
-                validating = true,
-            )
+            validating = true,
+        ) {
             val targetIid = human.battlefield.iid("Grizzly Bears")
             castSpellByName(ennis.name).shouldBeTrue()
             passUntil(maxPasses = 10) {
@@ -121,9 +121,9 @@ class PendingTriggerVisualsTest :
             assertVisuals(ennis, affectedIid, displaysAffectedCard = true)
         }
 
-        test("Wiccan exile-and-return emits holder and visual triplet") {
-            startPuzzleRaw(
-                """
+        session(
+            "Wiccan exile-and-return emits holder and visual triplet",
+            puzzle = """
                 [metadata]
                 Name:Wiccan pending trigger
                 Goal:Win
@@ -140,8 +140,8 @@ class PendingTriggerVisualsTest :
                 humanlibrary=Island
                 ailibrary=Mountain
                 """.trimIndent(),
-                validating = true,
-            )
+            validating = true,
+        ) {
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
             passUntil(maxPasses = 10) {
@@ -160,9 +160,9 @@ class PendingTriggerVisualsTest :
             assertVisuals(wiccan, affectedIid, displaysAffectedCard = true)
         }
 
-        test("Nine-Lives Familiar delayed return omits exile display relation") {
-            startPuzzleRaw(
-                """
+        session(
+            "Nine-Lives Familiar delayed return omits exile display relation",
+            puzzle = """
                 [metadata]
                 Name:Nine-Lives pending trigger
                 Goal:Win
@@ -179,8 +179,8 @@ class PendingTriggerVisualsTest :
                 humanlibrary=Swamp
                 ailibrary=Mountain
                 """.trimIndent(),
-                validating = true,
-            )
+            validating = true,
+        ) {
             val familiarIid = human.battlefield.iid(familiar.name)
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(familiarIid))

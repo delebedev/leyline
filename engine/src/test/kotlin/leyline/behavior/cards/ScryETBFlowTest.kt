@@ -39,11 +39,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class ScryETBFlowTest :
     SessionTest({
 
-        fun startScryEtb() = startPuzzleFile("puzzles/scry-etb.pzl", validating = true)
-
-        test("play land produces PlayLand zone transfer") {
-            startScryEtb()
-
+        session("play land produces PlayLand zone transfer", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
             val msgs = after { playLand().shouldBeTrue() }.messages
             val allAnnotations =
                 msgs.flatMap { msg ->
@@ -83,9 +79,11 @@ class ScryETBFlowTest :
             }
         }
 
-        test("cast Wall of Runes produces CastSpell annotations with mana payment") {
-            startScryEtb()
-
+        session(
+            "cast Wall of Runes produces CastSpell annotations with mana payment",
+            puzzleFile = "puzzles/scry-etb.pzl",
+            validating = true,
+        ) {
             // Play land first (need mana to cast)
             playLand().shouldBeTrue()
 
@@ -122,18 +120,21 @@ class ScryETBFlowTest :
             }
         }
 
-        test("Wall of Runes resolution produces Resolve transfer and ETB trigger") {
-            startScryEtb()
+        session(
+            "Wall of Runes resolution produces Resolve transfer and ETB trigger",
+            puzzleFile = "puzzles/scry-etb.pzl",
+            validating = true,
+        ) {
             playLand().shouldBeTrue()
 
             val snap = messageSnapshot()
-            val groupReq = harness.castSpellUntilGroupReq("Wall of Runes")
+            val groupReq = castSpellUntilGroupReq("Wall of Runes")
 
             // Resolution annotations are deferred until after the GroupReq interaction:
             // auto-pass detects the pending scry prompt and sends GroupReq directly,
             // deferring the resolution state diff. Resolve to release them.
             val cardIds = groupReq.instanceIdsList
-            harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
+            respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             val allAnnotations = annotationsSince(snap)
 
@@ -166,10 +167,9 @@ class ScryETBFlowTest :
             }
         }
 
-        test("scry ETB emits GroupReq with Scry context and correct specs") {
-            startScryEtb()
+        session("scry ETB emits GroupReq with Scry context and correct specs", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
             playLand().shouldBeTrue()
-            val req = harness.castSpellUntilGroupReq("Wall of Runes")
+            val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
                 req.context shouldBe GroupingContext.Scry_a0f6
                 req.instanceIdsList.shouldNotBeEmpty()
@@ -186,15 +186,14 @@ class ScryETBFlowTest :
             }
         }
 
-        test("scry put on bottom produces Scry annotation with card ids") {
-            startScryEtb()
+        session("scry put on bottom produces Scry annotation with card ids", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
             playLand().shouldBeTrue()
-            val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
+            val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             val allAnnotations =
                 after {
                     // Put card on bottom (reference: player chose bottom)
-                    harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
+                    respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
                 }.messages.flatMap { msg ->
                     if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
                 }
@@ -225,13 +224,12 @@ class ScryETBFlowTest :
             resComplete.shouldNotBeEmpty()
         }
 
-        test("scry keep on top does not move card") {
-            startScryEtb()
+        session("scry keep on top does not move card", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
             playLand().shouldBeTrue()
-            val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
+            val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             // Keep on top (empty bottom list)
-            harness.respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
+            respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Card should still be on top of library, not bottom
             val libCards = human.getZone(ForgeZoneType.Library).cards
@@ -241,19 +239,22 @@ class ScryETBFlowTest :
             }
         }
 
-        test("ETB trigger emits TriggeringObject persistent annotation, deleted on resolve") {
-            startScryEtb()
+        session(
+            "ETB trigger emits TriggeringObject persistent annotation, deleted on resolve",
+            puzzleFile = "puzzles/scry-etb.pzl",
+            validating = true,
+        ) {
             playLand().shouldBeTrue()
 
             val snap = messageSnapshot()
-            val req = harness.castSpellUntilGroupReq("Wall of Runes")
+            val req = castSpellUntilGroupReq("Wall of Runes")
             val triggerMessages = messagesSince(snap)
 
             // The ETB trigger enters the stack before GroupReq, then the scry
             // response resolves and deletes that same persistent annotation.
             val resolveMessages =
                 after {
-                    harness.respondToScry(bottomInstanceIds = req.instanceIdsList, allInstanceIds = req.instanceIdsList)
+                    respondToScry(bottomInstanceIds = req.instanceIdsList, allInstanceIds = req.instanceIdsList)
                 }.messages
 
             val triggering =
@@ -276,19 +277,18 @@ class ScryETBFlowTest :
             (triggering.id in deletedIds).shouldBeTrue()
         }
 
-        test("full scry flow state validity") {
-            startScryEtb()
+        session("full scry flow state validity", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
             playLand().shouldBeTrue()
-            val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
+            val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
-            harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
+            respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Wall of Runes should be on battlefield
             val bf = human.getZone(ForgeZoneType.Battlefield).cards
             assertSoftly {
                 bf.any { it.name == "Wall of Runes" }.shouldBeTrue()
                 bf.any { it.isLand }.shouldBeTrue()
-                harness.accumulator.assertConsistent("after scry ETB flow")
+                accumulator.assertConsistent("after scry ETB flow")
                 assertGsIdChain(allMessages, context = "scry ETB flow")
                 isGameOver().shouldBeFalse()
             }

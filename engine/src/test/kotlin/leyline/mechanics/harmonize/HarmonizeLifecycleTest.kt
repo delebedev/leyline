@@ -33,10 +33,9 @@ private val PUZZLE =
 
 class HarmonizeLifecycleTest :
     SessionTest({
-        test("Winternight Stories casts from graveyard with Harmonize") {
-            startPuzzleRaw(PUZZLE)
-            val cardGrpId = harness.bridge.cardRepository.findGrpIdByName("Winternight Stories")!!
-            val harmonizeAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.HARMONIZE)!!
+        session("Winternight Stories casts from graveyard with Harmonize", puzzle = PUZZLE) {
+            val cardGrpId = bridge.cardRepository.findGrpIdByName("Winternight Stories")!!
+            val harmonizeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.HARMONIZE)!!
 
             val snap = messageSnapshot()
             castSpellByName(

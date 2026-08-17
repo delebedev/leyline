@@ -40,9 +40,7 @@ class ShockLandEtbTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("accept — pay 2 life, land enters untapped") {
-            startPuzzleRaw(puzzleText(), validating = true)
-
+        session("accept — pay 2 life, land enters untapped", puzzle = puzzleText(), validating = true) {
             human.life shouldBe 20
             phase() shouldBe "MAIN1"
 
@@ -52,15 +50,15 @@ class ShockLandEtbTest :
                 performAction {
                     actionType = ActionType.Play_add3
                     instanceId = human.hand.iid(land)
-                    grpId = harness.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+                    grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            harness.session.onPerformAction(harness.submitWithGsId(msg))
+            session.onPerformAction(submitWithGsId(msg))
 
             // Drain sink to keep OAM (without auto-responding)
-            harness.allMessages.addAll(harness.sink.messages)
-            harness.allRawMessages.addAll(harness.sink.rawMessages)
-            harness.accumulator.processAll(harness.sink.messages)
-            harness.sink.clear()
+            allMessages.addAll(sink.messages)
+            allRawMessages.addAll(sink.rawMessages)
+            accumulator.processAll(sink.messages)
+            sink.clear()
 
             // Verify OAM was sent
             val oam = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
@@ -68,7 +66,7 @@ class ShockLandEtbTest :
             checkNotNull(oam) { "Expected OptionalActionMessage for shock land" }
 
             // Accept — pay 2 life
-            harness.respondToOptionalAction(true)
+            respondToOptionalAction(true)
 
             // Verify: life=18, Temple Garden on battlefield untapped
             human.life shouldBe 18
@@ -78,9 +76,7 @@ class ShockLandEtbTest :
             templeGarden.isTapped shouldBe false
         }
 
-        test("decline — land enters tapped, life unchanged") {
-            startPuzzleRaw(puzzleText(), validating = true)
-
+        session("decline — land enters tapped, life unchanged", puzzle = puzzleText(), validating = true) {
             human.life shouldBe 20
 
             // Play the shock land manually
@@ -89,15 +85,15 @@ class ShockLandEtbTest :
                 performAction {
                     actionType = ActionType.Play_add3
                     instanceId = human.hand.iid(land)
-                    grpId = harness.bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+                    grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            harness.session.onPerformAction(harness.submitWithGsId(msg))
+            session.onPerformAction(submitWithGsId(msg))
 
             // Drain sink to keep OAM
-            harness.allMessages.addAll(harness.sink.messages)
-            harness.allRawMessages.addAll(harness.sink.rawMessages)
-            harness.accumulator.processAll(harness.sink.messages)
-            harness.sink.clear()
+            allMessages.addAll(sink.messages)
+            allRawMessages.addAll(sink.rawMessages)
+            accumulator.processAll(sink.messages)
+            sink.clear()
 
             // Verify OAM was sent
             checkNotNull(allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }) {
@@ -105,7 +101,7 @@ class ShockLandEtbTest :
             }
 
             // Decline — don't pay life
-            harness.respondToOptionalAction(false)
+            respondToOptionalAction(false)
 
             // Verify: life=20, Temple Garden on battlefield tapped
             human.life shouldBe 20

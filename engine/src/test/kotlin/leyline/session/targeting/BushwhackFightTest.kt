@@ -33,9 +33,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 class BushwhackFightTest :
     SessionTest({
 
-        test("Charm spell with zero legal modes is not offered as castable") {
-            startPuzzle(
-                """
+        session(
+            "Charm spell with zero legal modes is not offered as castable",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -47,18 +47,14 @@ class BushwhackFightTest :
                 aibattlefield=Trufflesnout
                 ailibrary=Mountain
                 """,
-                name = "Destroy Evil no legal modes",
-                validating = true,
-            )
-
-            val actions = harness.accumulator.actions.shouldNotBeNull()
+            validating = true,
+        ) {
+            val actions = accumulator.actions.shouldNotBeNull()
             val destroyEvilIid = human.hand.iid("Destroy Evil")
             actions.actionsList.filter { it.actionType == ActionType.Cast && it.instanceId == destroyEvilIid } shouldBe emptyList()
         }
 
-        test("Bushwhack Fight mode shares exact target metadata with TargetSpec") {
-            startPuzzleFile("puzzles/bushwhack-fight.pzl")
-
+        session("Bushwhack Fight mode shares exact target metadata with TargetSpec", puzzleFile = "puzzles/bushwhack-fight.pzl") {
             val ownIid = human.battlefield.iid("Centaur Courser")
             val oppIid = ai.battlefield.iid("Grizzly Bears")
 
@@ -74,7 +70,7 @@ class BushwhackFightTest :
             // Pre-fix: zero SelectTargetsReq emitted, cast silently drops.
             // Post-fix: first SelectTargetsReq for "creature you control".
             val firstSt =
-                after { harness.respondModalChoice(listOf(fightOption.grpId)) }
+                after { respondModalChoice(listOf(fightOption.grpId)) }
                     .messages
                     .firstOrNull { it.hasSelectTargetsReq() }
             firstSt.shouldNotBeNull()
@@ -144,15 +140,13 @@ class BushwhackFightTest :
             }
         }
 
-        test("Bushwhack Fight resolves: mutual damage, both creatures take damage") {
-            startPuzzleFile("puzzles/bushwhack-fight.pzl")
-
+        session("Bushwhack Fight resolves: mutual damage, both creatures take damage", puzzleFile = "puzzles/bushwhack-fight.pzl") {
             val ownIid = human.battlefield.iid("Centaur Courser")
             val oppIid = ai.battlefield.iid("Grizzly Bears")
 
             val cto = castSpellUntilCastingTimeOptionsReq("Bushwhack")
             val fightOption = cto.getCastingTimeOptionReq(0).modalReq.getModalOptions(1)
-            harness.respondModalChoice(listOf(fightOption.grpId))
+            respondModalChoice(listOf(fightOption.grpId))
 
             selectTargets(listOf(ownIid))
             selectTargets(listOf(oppIid))

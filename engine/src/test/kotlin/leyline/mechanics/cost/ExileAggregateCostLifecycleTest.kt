@@ -37,9 +37,7 @@ class ExileAggregateCostLifecycleTest :
             ailibrary=Mountain;Mountain
             """.trimIndent()
 
-        test("mana-symbol threshold rejection leaves the graveyard untouched") {
-            startPuzzle(puzzle, name = "Aggregate exile reject", turns = 3, validating = true)
-
+        session("mana-symbol threshold rejection leaves the graveyard untouched", puzzle = puzzle, turns = 3, validating = true) {
             val zemoIid = human.battlefield.iid("Baron Helmut Zemo")
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             declareAttackers(listOf(zemoIid))
@@ -54,7 +52,7 @@ class ExileAggregateCostLifecycleTest :
                     .take(14)
                     .map { human.graveyard.iid(it) }
             selectTargets(fourteen)
-            harness.bridge.awaitPriority()
+            bridge.awaitPriority()
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards shouldHaveSize 16
@@ -62,9 +60,7 @@ class ExileAggregateCostLifecycleTest :
             }
         }
 
-        test("mana-symbol threshold met exiles the selection and pays the cost") {
-            startPuzzle(puzzle, name = "Aggregate exile accept", turns = 3, validating = true)
-
+        session("mana-symbol threshold met exiles the selection and pays the cost", puzzle = puzzle, turns = 3, validating = true) {
             val zemoIid = human.battlefield.iid("Baron Helmut Zemo")
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             declareAttackers(listOf(zemoIid))
@@ -79,7 +75,7 @@ class ExileAggregateCostLifecycleTest :
                     .take(15)
                     .map { human.graveyard.iid(it) }
             selectTargets(fifteen)
-            harness.bridge.awaitPriority()
+            bridge.awaitPriority()
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards shouldHaveSize 1

@@ -18,8 +18,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 class BrawlCommanderPromptSessionTest :
     SessionTest({
-        test("commander return prompt uses zone-transfer optional action and cleans up accepted prompt object") {
-            startPuzzleFile("puzzles/commander-return-self-bolt.pzl")
+        session(
+            "commander return prompt uses zone-transfer optional action and cleans up accepted prompt object",
+            puzzleFile = "puzzles/commander-return-self-bolt.pzl",
+        ) {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
 
@@ -46,19 +48,21 @@ class BrawlCommanderPromptSessionTest :
                 transfer.zoneSrc shouldBe ZoneIds.BATTLEFIELD
                 transfer.zoneDest shouldBe ZoneIds.P1_GRAVEYARD
                 human.getZone(ZoneType.Command).cards.count { it.name == commanderName } shouldBe 1
-                harness.accumulator.objects
+                accumulator.objects
                     .containsKey(recipientId)
                     .shouldBeFalse()
                 assertAccumulatorConsistent("after accepted commander return prompt")
             }
         }
 
-        test("commander return prompt retires the temporary prompt object after a declined response") {
-            startPuzzleFile("puzzles/commander-return-self-bolt.pzl")
+        session(
+            "commander return prompt retires the temporary prompt object after a declined response",
+            puzzleFile = "puzzles/commander-return-self-bolt.pzl",
+        ) {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
 
-            harness.holdNextOptionalAction()
+            holdNextOptionalAction()
             castSpellByName("Lightning Bolt").shouldBeTrue()
             val beforeResolve = messageSnapshot()
             selectTargets(listOf(oldIid))
@@ -66,24 +70,23 @@ class BrawlCommanderPromptSessionTest :
             val optionalGre = messagesSince(beforeResolve).firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
             optionalGre.shouldNotBeNull()
             val recipientId = optionalGre.optionalActionMessage.recipientIdsList.single()
-            harness.respondToOptionalAction(accept = false)
+            respondToOptionalAction(accept = false)
 
             assertSoftly {
                 optionalGre.prompt.promptId shouldBe PromptIds.COMMANDER_RETURN_TO_COMMAND
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain commanderName
-                harness.accumulator.objects
+                accumulator.objects
                     .containsKey(recipientId)
                     .shouldBeFalse()
                 assertAccumulatorConsistent("after declined commander return prompt")
             }
         }
 
-        test("commander moving to hand keeps the replacement prompt") {
-            startPuzzleFile("puzzles/commander-return-unsummon.pzl")
+        session("commander moving to hand keeps the replacement prompt", puzzleFile = "puzzles/commander-return-unsummon.pzl") {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
 
-            harness.holdNextOptionalAction()
+            holdNextOptionalAction()
             castSpellByName("Unsummon").shouldBeTrue()
             val beforeResolve = messageSnapshot()
             selectTargets(listOf(oldIid))
@@ -91,7 +94,7 @@ class BrawlCommanderPromptSessionTest :
             val promptMessages = messagesSince(beforeResolve)
             val optionalGre = promptMessages.firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
             optionalGre.shouldNotBeNull()
-            harness.respondToOptionalAction(accept = false)
+            respondToOptionalAction(accept = false)
             val recipientId = optionalGre.optionalActionMessage.recipientIdsList.single()
             val transfer = promptMessages.lastGsmMatching { it.findZoneTransfer(recipientId) != null }?.findZoneTransfer(recipientId)
             transfer.shouldNotBeNull()
@@ -106,12 +109,11 @@ class BrawlCommanderPromptSessionTest :
             }
         }
 
-        test("commander reaching exile uses the state-based return prompt") {
-            startPuzzleFile("puzzles/commander-return-swords.pzl")
+        session("commander reaching exile uses the state-based return prompt", puzzleFile = "puzzles/commander-return-swords.pzl") {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
 
-            harness.holdNextOptionalAction()
+            holdNextOptionalAction()
             castSpellByName("Swords to Plowshares").shouldBeTrue()
             val beforeResolve = messageSnapshot()
             selectTargets(listOf(oldIid))
@@ -122,7 +124,7 @@ class BrawlCommanderPromptSessionTest :
             val recipientId = optionalGre.optionalActionMessage.recipientIdsList.single()
             val transfer = promptMessages.lastGsmMatching { it.findZoneTransfer(recipientId) != null }?.findZoneTransfer(recipientId)
             transfer.shouldNotBeNull()
-            harness.respondToOptionalAction(accept = true)
+            respondToOptionalAction(accept = true)
 
             assertSoftly {
                 optionalGre.prompt.promptId shouldBe PromptIds.COMMANDER_RETURN_TO_COMMAND

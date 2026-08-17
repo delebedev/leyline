@@ -236,15 +236,14 @@ class CopilotAutopushTest :
             }
         }
 
-        test("landed requires the priority window to advance") {
-            startPuzzleRaw(CAST_PUZZLE)
-            val autopush = CopilotAutopush(harness.bridge, SeatId(1), "http://127.0.0.1:1")
+        session("landed requires the priority window to advance", puzzle = CAST_PUZZLE) {
+            val autopush = CopilotAutopush(bridge, SeatId(1), "http://127.0.0.1:1")
             try {
-                val seatAction = harness.bridge.seat(SeatId(1)).action
+                val seatAction = bridge.seat(SeatId(1)).action
                 val pending = seatAction.getPending() ?: error("expected a pending priority window")
-                val baseline = harness.bridge.messageCounter.responsesAccepted()
+                val baseline = bridge.messageCounter.responsesAccepted()
 
-                harness.bridge.messageCounter.markResponseAccepted()
+                bridge.messageCounter.markResponseAccepted()
                 autopush.landed(baseline, pending.actionId) shouldBe false
                 autopush.landed(baseline, null) shouldBe true
 

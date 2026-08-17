@@ -27,9 +27,9 @@ import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
 class WaterbendLifecycleTest :
     SessionTest({
-        test("Giant Koi pays activated Waterbend through PayCostsReq") {
-            startPuzzle(
-                """
+        session(
+            "Giant Koi pays activated Waterbend through PayCostsReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -39,9 +39,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend Giant Koi",
-                validating = true,
-            )
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -90,16 +89,16 @@ class WaterbendLifecycleTest :
                 tappedIds shouldContain merfolkIid
                 tappedIds shouldContain bearIid
                 tappedIds shouldContain solRingIid
-                harness.bridge
+                bridge
                     .promptBridge(SeatId(1))
                     .journal
                     .activeConvokePayments() shouldBe emptyMap()
             }
         }
 
-        test("Ruinous Waterbending emits AdditionalCost CastingTimeOption when Waterbend is paid") {
-            startPuzzle(
-                """
+        session(
+            "Ruinous Waterbending emits AdditionalCost CastingTimeOption when Waterbend is paid",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -110,10 +109,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend Ruinous Waterbending",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -167,9 +164,9 @@ class WaterbendLifecycleTest :
             }
         }
 
-        test("Ruinous Waterbending accepts live Waterbend MakePayment responses") {
-            startPuzzle(
-                """
+        session(
+            "Ruinous Waterbending accepts live Waterbend MakePayment responses",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -180,10 +177,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend live payment response",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -220,9 +215,9 @@ class WaterbendLifecycleTest :
             }
         }
 
-        test("Giant Koi completes native Waterbend when empty payment UI sends Cancel") {
-            startPuzzle(
-                """
+        session(
+            "Giant Koi completes native Waterbend when empty payment UI sends Cancel",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -232,10 +227,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend Giant Koi cancel completion",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val koiIid = human.battlefield.iid("Giant Koi")
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val solRingIid = human.battlefield.iid("Sol Ring")

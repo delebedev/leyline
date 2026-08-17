@@ -1095,15 +1095,30 @@ class MatchFlowHarness(
 
     // --- Seat handles ---
     //
-    // Computed, not cached: Forge `Player` identity is stable for the whole
-    // game (zones and state mutate in place), so re-reading the bridge every
-    // call is equivalent to holding a reference and survives `connect()`.
+    // Resolved once and held. Forge `Player` identity is stable for the whole
+    // game, but the bridge clears its seat map when the match closes — and a
+    // game that reaches its end during a test still has a readable final board
+    // that specs assert on. Caching keeps those assertions working.
+
+    private var humanRef: Player? = null
+    private var aiRef: Player? = null
 
     /** Human player — seat 1. */
-    val human: Player get() = bridge.getPlayer(seatId) ?: error("No player at seat ${seatId.value} — call connect() first")
+    val human: Player get() = humanRef ?: resolveSeat(seatId).also { humanRef = it }
 
     /** AI / opponent player — seat 2. */
-    val ai: Player get() = bridge.getPlayer(opponentSeatId) ?: error("No player at seat ${opponentSeatId.value} — call connect() first")
+    val ai: Player get() = aiRef ?: resolveSeat(opponentSeatId).also { aiRef = it }
+
+    /** Seat handle if one has been resolved or is still reachable, else null. */
+    internal fun seatPlayerOrNull(seat: SeatId): Player? =
+        when (seat) {
+            seatId -> humanRef
+            opponentSeatId -> aiRef
+            else -> null
+        } ?: if (::bridge.isInitialized) bridge.getPlayer(seat) else null
+
+    private fun resolveSeat(seat: SeatId): Player =
+        bridge.getPlayer(seat) ?: error("No player at seat ${seat.value} — call connect() first")
 
     // --- Instance probe DSL ---
 

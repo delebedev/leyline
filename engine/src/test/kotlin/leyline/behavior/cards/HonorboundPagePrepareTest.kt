@@ -57,9 +57,11 @@ private fun List<GREToClientMessage>.preparedDesignations(): List<AnnotationInfo
 class HonorboundPagePrepareTest :
     SessionTest({
 
-        test("Prepared state: persistent Designation + exile copy projection") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
-
+        session(
+            "Prepared state: persistent Designation + exile copy projection",
+            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
@@ -96,9 +98,11 @@ class HonorboundPagePrepareTest :
             }
         }
 
-        test("Prepared spell with no legal mandatory target is inactive") {
-            startPuzzleFile("puzzles/emeritus-prepared-empty-graveyard.pzl", validating = true)
-
+        session(
+            "Prepared spell with no legal mandatory target is inactive",
+            puzzleFile = "puzzles/emeritus-prepared-empty-graveyard.pzl",
+            validating = true,
+        ) {
             castSpellByName("Emeritus of Abundance")
             passUntilResolved()
 
@@ -116,9 +120,11 @@ class HonorboundPagePrepareTest :
             }
         }
 
-        test("GrpIdResolver.resolve on prepared copy returns by-name grpId, not 0") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
-
+        session(
+            "GrpIdResolver.resolve on prepared copy returns by-name grpId, not 0",
+            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
@@ -128,18 +134,17 @@ class HonorboundPagePrepareTest :
                     .cards
                     .first { it.name == "Forum's Favor" }
             val copyIid = human.exile.iid("Forum's Favor")
-            val grpId = harness.bridge.resolveGrpId(copy, copyIid)
+            val grpId = bridge.resolveGrpId(copy, copyIid)
             grpId shouldNotBe 0
             // Same value the cardRepository would resolve via name lookup.
-            grpId shouldBe harness.bridge.cardRepository.findGrpIdByName("Forum's Favor")
+            grpId shouldBe bridge.cardRepository.findGrpIdByName("Forum's Favor")
         }
 
-        test("Cast-from-exile: action accepted + resolveGrpId by name (no strict-mode crash)") {
-            // Validating disabled: a downstream LayeredEffect emission for the +1/+0
-            // flying buff carries a stale affectorId post-resolve, which is a separate
-            // latent issue unrelated to the cast-from-exile rail this test exercises.
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
-
+        session(
+            "Cast-from-exile: action accepted + resolveGrpId by name (no strict-mode crash)",
+            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
@@ -154,9 +159,11 @@ class HonorboundPagePrepareTest :
             // stack-form Card.id — the previously crashing path is now exercised.
         }
 
-        test("GainDesignation transient + Stack→Battlefield Resolve land in the same GSM") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
-
+        session(
+            "GainDesignation transient + Stack→Battlefield Resolve land in the same GSM",
+            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
@@ -199,9 +206,11 @@ class HonorboundPagePrepareTest :
             gainDesignation shouldNotBe null
         }
 
-        test("LoseDesignation transient fires when the prepared copy is cast") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
-
+        session(
+            "LoseDesignation transient fires when the prepared copy is cast",
+            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
@@ -254,9 +263,11 @@ class HonorboundPagePrepareTest :
             deletedIds shouldContain designationIdBeforeCast
         }
 
-        test("Two prepared creatures: each Designation anchored on its own source iid") {
-            startPuzzleFile("puzzles/two-prepared.pzl", validating = true)
-
+        session(
+            "Two prepared creatures: each Designation anchored on its own source iid",
+            puzzleFile = "puzzles/two-prepared.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
             castSpellByName("Elite Interceptor")
@@ -319,9 +330,11 @@ class HonorboundPagePrepareTest :
             }
         }
 
-        test("Exile copy uniqueAbilities reflect the spell face, not the source creature") {
-            startPuzzleFile("puzzles/honorbound-page-prepare.pzl", validating = true)
-
+        session(
+            "Exile copy uniqueAbilities reflect the spell face, not the source creature",
+            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            validating = true,
+        ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
 
@@ -339,7 +352,7 @@ class HonorboundPagePrepareTest :
             // Resolve expected ids from the bridge's CardRepository (synthetic in
             // tests, client-DB-backed in prod). Either way, the copy must project
             // Forum's Favor's grpId + abilities, NOT Honorbound Page's.
-            val repo = harness.bridge.cardRepository
+            val repo = bridge.cardRepository
             val forumGrpId =
                 repo.findGrpIdByName("Forum's Favor") ?: error("Forum's Favor not in repo")
             val honorboundGrpId =

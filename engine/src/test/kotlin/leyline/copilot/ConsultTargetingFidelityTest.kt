@@ -26,12 +26,10 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class ConsultTargetingFidelityTest :
     SessionTest({
 
-        test("consult-driven Giant Growth resolves via select-then-submit under fidelity mode") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
-
+        session("consult-driven Giant Growth resolves via select-then-submit under fidelity mode", puzzleFile = "puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
-            harness.drainSink()
+            drainSink()
             allMessages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
 
             fun decodeSingle(hex: String): ClientToGREMessage {
@@ -42,19 +40,19 @@ class ConsultTargetingFidelityTest :
             // Each round reads the latest SelectTargetsReq, injects the proposed
             // bytes verbatim, and stops once the proposal is the Submit. The
             // proposal's respId must equal the prompt msgId or fidelity rejects it.
-            val service = CopilotProposalService(harness.bridge, SeatId(1))
+            val service = CopilotProposalService(bridge, SeatId(1))
             var rounds = 0
             while (rounds++ < 6) {
-                harness.drainSink()
+                drainSink()
                 val prompt = allMessages.last { it.hasSelectTargetsReq() }
                 val hex = service.propose(prompt).responses.single()
                 val msg = decodeSingle(hex)
                 msg.respId shouldBe prompt.msgId
                 if (msg.type == ClientMessageType.SubmitTargetsReq) {
-                    harness.session.onSubmitTargets(msg)
+                    session.onSubmitTargets(msg)
                     break
                 }
-                harness.session.onSelectTargets(msg)
+                session.onSelectTargets(msg)
             }
 
             passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }.shouldBeTrue()

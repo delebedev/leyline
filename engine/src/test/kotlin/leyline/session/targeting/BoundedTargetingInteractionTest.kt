@@ -9,9 +9,9 @@ import leyline.testkit.SessionTest
 class BoundedTargetingInteractionTest :
     SessionTest({
 
-        test("up-to-two targeting preserves the zero minimum") {
-            startPuzzle(
-                """
+        session(
+            "up-to-two targeting preserves the zero minimum",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -23,9 +23,7 @@ class BoundedTargetingInteractionTest :
                 aibattlefield=Coral Merfolk
                 ailibrary=Mountain
                 """.trimIndent(),
-                name = "Bounded Optional Targets",
-            )
-
+        ) {
             val castMessages = after { castSpellByName("Eddymurk Crab").shouldBeTrue() }.messages
             val targetPrompt = castMessages.firstOrNull { it.hasSelectTargetsReq() }
             targetPrompt.shouldNotBeNull()

@@ -40,12 +40,10 @@ class ExileTypeCountCostLifecycleTest :
                 )
             }
 
-        test("four-type selection pays the escape exile cost") {
-            startPuzzle(puzzle, name = "TypesGE exile accept", validating = true)
-
+        session("four-type selection pays the escape exile cost", puzzle = puzzle, validating = true) {
             castFromGraveyard("Nethergoyf").shouldBeTrue()
             selectTargets(graveyardIds("Duress", "Shock", "Grizzly Bears", "Portable Hole"))
-            harness.bridge.awaitPriority()
+            bridge.awaitPriority()
             passUntilResolved(maxPasses = 8)
 
             assertSoftly {
@@ -54,12 +52,10 @@ class ExileTypeCountCostLifecycleTest :
             }
         }
 
-        test("two-type selection is rejected even when the candidate list spans four types") {
-            startPuzzle(puzzle, name = "TypesGE exile reject", validating = true)
-
+        session("two-type selection is rejected even when the candidate list spans four types", puzzle = puzzle, validating = true) {
             castFromGraveyard("Nethergoyf").shouldBeTrue()
             selectTargets(graveyardIds("Duress", "Shock"))
-            harness.bridge.awaitPriority()
+            bridge.awaitPriority()
             passUntilResolved(maxPasses = 8)
 
             assertSoftly {

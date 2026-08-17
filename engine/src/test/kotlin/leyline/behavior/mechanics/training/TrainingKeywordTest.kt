@@ -30,9 +30,9 @@ class TrainingKeywordTest :
             TestCardRegistry.ensureCardRegistered("Grizzly Bears")
         }
 
-        test("Hopeful Initiate training emits marker, keyword lifecycle, and counter affector") {
-            startPuzzle(
-                """
+        session(
+            "Hopeful Initiate training emits marker, keyword lifecycle, and counter affector",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -42,11 +42,9 @@ class TrainingKeywordTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Training Hopeful Initiate",
-                turns = 5,
-                validating = true,
-            )
-
+            turns = 5,
+            validating = true,
+        ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val hopefulIid = humanBattlefieldCreatures().first { it.second == "Hopeful Initiate" }.first
             val bearIid = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
@@ -110,9 +108,9 @@ class TrainingKeywordTest :
             }
         }
 
-        test("Savior of Ollenbock trains trigger fires after the Training counter") {
-            startPuzzle(
-                """
+        session(
+            "Savior of Ollenbock trains trigger fires after the Training counter",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -122,11 +120,9 @@ class TrainingKeywordTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Training Savior of Ollenbock",
-                turns = 5,
-                validating = true,
-            )
-
+            turns = 5,
+            validating = true,
+        ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val saviorIid = humanBattlefieldCreatures().first { it.second == "Savior of Ollenbock" }.first
             val bearIid = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
@@ -161,9 +157,9 @@ class TrainingKeywordTest :
             }
         }
 
-        test("Training markers stay distinct when two trainers share one greater attacker") {
-            startPuzzle(
-                """
+        session(
+            "Training markers stay distinct when two trainers share one greater attacker",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -173,11 +169,9 @@ class TrainingKeywordTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Training Shared Larger Attacker",
-                turns = 5,
-                validating = true,
-            )
-
+            turns = 5,
+            validating = true,
+        ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val hopefulIids = humanBattlefieldCreatures().filter { it.second == "Hopeful Initiate" }.map { it.first }
             val bearIid = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
@@ -205,9 +199,9 @@ class TrainingKeywordTest :
             }
         }
 
-        test("Training does not trigger with only equal-power co-attackers") {
-            startPuzzle(
-                """
+        session(
+            "Training does not trigger with only equal-power co-attackers",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -217,11 +211,9 @@ class TrainingKeywordTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Training Equal Power Attackers",
-                turns = 5,
-                validating = true,
-            )
-
+            turns = 5,
+            validating = true,
+        ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val hopefulIids = humanBattlefieldCreatures().filter { it.second == "Hopeful Initiate" }.map { it.first }
             hopefulIids shouldHaveSize 2

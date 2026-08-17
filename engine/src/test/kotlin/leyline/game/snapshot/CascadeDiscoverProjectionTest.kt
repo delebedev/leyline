@@ -38,14 +38,15 @@ class CascadeDiscoverProjectionTest :
 
         tags(BoardTag)
 
-        test("Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently") {
-            startPuzzleFile("puzzles/cascade-bloodbraid.pzl")
-
+        session(
+            "Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently",
+            puzzleFile = "puzzles/cascade-bloodbraid.pzl",
+        ) {
             val before = messageSnapshot()
-            val cast = harness.castSpellByName("Bloodbraid Elf")
+            val cast = castSpellByName("Bloodbraid Elf")
             cast shouldBe true
 
-            val bbeGrpId = harness.bridge.cardRepository.findGrpIdByName("Bloodbraid Elf")!!
+            val bbeGrpId = bridge.cardRepository.findGrpIdByName("Bloodbraid Elf")!!
             val projectedStates = messagesSince(before).gameStateMessages()
             val cascadeEntry =
                 projectedStates

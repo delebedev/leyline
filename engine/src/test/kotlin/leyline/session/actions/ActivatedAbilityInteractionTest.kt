@@ -18,9 +18,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 class ActivatedAbilityInteractionTest :
     SessionTest({
 
-        test("Goblin Fireslinger tap-to-ping deals damage to opponent") {
-            startPuzzle(
-                """
+        session(
+            "Goblin Fireslinger tap-to-ping deals damage to opponent",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -31,9 +31,7 @@ class ActivatedAbilityInteractionTest :
                 aibattlefield=Centaur Courser
                 ailibrary=Mountain
                 """,
-                name = "Tap to Ping",
-            )
-
+        ) {
             assertSoftly {
                 phase() shouldBe "MAIN1"
                 ai.life shouldBe 5
@@ -63,9 +61,9 @@ class ActivatedAbilityInteractionTest :
             }
         }
 
-        test("modal activated sacrifice ability asks mode before target and costs") {
-            startPuzzle(
-                """
+        session(
+            "modal activated sacrifice ability asks mode before target and costs",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -76,9 +74,7 @@ class ActivatedAbilityInteractionTest :
                 aibattlefield=Centaur Courser
                 ailibrary=Mountain
                 """,
-                name = "Cratermaker Modal Activate",
-            )
-
+        ) {
             val slice = after { activateAbility("Goblin Cratermaker").shouldBeTrue() }
 
             slice.expectNoPayCostsReq()

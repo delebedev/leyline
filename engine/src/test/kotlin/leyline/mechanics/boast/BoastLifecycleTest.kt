@@ -24,9 +24,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class BoastLifecycleTest :
     SessionTest({
-        test("Usher of the Fallen Boast gates on attack, exhausts once, and creates a linked token") {
-            startPuzzle(
-                """
+        session(
+            "Usher of the Fallen Boast gates on attack, exhausts once, and creates a linked token",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -36,11 +36,9 @@ class BoastLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Boast Usher of the Fallen",
-                turns = 5,
-                validating = true,
-            )
-
+            turns = 5,
+            validating = true,
+        ) {
             val usherIid = human.battlefield.iid("Usher of the Fallen")
             latestBoastOffer(usherIid).shouldBeFalse()
 
@@ -106,7 +104,7 @@ class BoastLifecycleTest :
             passUntil(maxPasses = 30) {
                 turn() >= 3 &&
                     messagesSince(nextTurnAttackStart).any { it.hasDeclareAttackersReq() } &&
-                    harness.bridge
+                    bridge
                         .actionBridge(SeatId(1))
                         .getPending()
                         ?.state

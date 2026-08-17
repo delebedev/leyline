@@ -12,9 +12,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class TargetSpecConformanceTest :
     SessionTest({
-        test("multiple targets in one group share one TargetSpec with aligned distributions") {
-            startPuzzle(
-                """
+        session(
+            "multiple targets in one group share one TargetSpec with aligned distributions",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -26,10 +26,8 @@ class TargetSpecConformanceTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Mountain
                 """,
-                name = "Twin Bolt target distribution",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val opponentIid = ai.battlefield.iid("Grizzly Bears")
             castSpellByName("Twin Bolt") shouldBe true
 
@@ -57,9 +55,9 @@ class TargetSpecConformanceTest :
             }
         }
 
-        test("partial divided target set uses Forge's final allocation") {
-            startPuzzle(
-                """
+        session(
+            "partial divided target set uses Forge's final allocation",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -71,10 +69,8 @@ class TargetSpecConformanceTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Mountain
                 """,
-                name = "Twin Bolt single target distribution",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             castSpellByName("Twin Bolt") shouldBe true
             selectTargets(listOf(OPPONENT_SEAT))
 
@@ -85,9 +81,9 @@ class TargetSpecConformanceTest :
             }
         }
 
-        test("generic target prompt id is shared by request and TargetSpec") {
-            startPuzzle(
-                """
+        session(
+            "generic target prompt id is shared by request and TargetSpec",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -99,10 +95,8 @@ class TargetSpecConformanceTest :
                 aibattlefield=Forest
                 ailibrary=Mountain
                 """,
-                name = "Stone Rain target prompt",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val targetIid = ai.battlefield.iid("Forest")
             castSpellByName("Stone Rain") shouldBe true
             val requestPromptId =
@@ -118,9 +112,9 @@ class TargetSpecConformanceTest :
             targetSpec.detailInt("promptId") shouldBe requestPromptId
         }
 
-        test("Forge-selected opponent still emits TargetSpec") {
-            startPuzzle(
-                """
+        session(
+            "Forge-selected opponent still emits TargetSpec",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -133,10 +127,8 @@ class TargetSpecConformanceTest :
                 aibattlefield=Mountain
                 ailibrary=Mountain
                 """,
-                name = "Pilfer automatic opponent target",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             castSpellByName("Pilfer") shouldBe true
 
             val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()

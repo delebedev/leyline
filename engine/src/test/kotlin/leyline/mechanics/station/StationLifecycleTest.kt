@@ -14,9 +14,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class StationLifecycleTest :
     SessionTest({
-        test("Lumen-Class Frigate station resolves with shared Station ability grpId") {
-            startPuzzle(
-                """
+        session(
+            "Lumen-Class Frigate station resolves with shared Station ability grpId",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -26,10 +26,8 @@ class StationLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Station Lumen-Class Frigate",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             activateAbility("Lumen-Class Frigate").shouldBeTrue()
             val bearIid = human.battlefield.iid("Grizzly Bears")
 

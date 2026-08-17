@@ -61,9 +61,9 @@ class VehicleCrewPuzzleTest :
             }
         }
 
-        test("crew payment binds weighted helpers to the stack ability") {
-            startPuzzleRaw(
-                """
+        session(
+            "crew payment binds weighted helpers to the stack ability",
+            puzzle = """
                 [metadata]
                 Name:Crew payment prompt
                 Goal:Crew Brute Suit.
@@ -80,9 +80,8 @@ class VehicleCrewPuzzleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val wall = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Wall of Runes" }
             wall.addStaticAbility(
                 "Mode\$ TapPowerValue | ValidSA\$ Activated.Crew+Vehicle | " +

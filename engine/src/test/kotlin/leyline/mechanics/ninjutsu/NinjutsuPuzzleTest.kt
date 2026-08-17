@@ -42,9 +42,9 @@ class NinjutsuPuzzleTest :
                 "graveyard=${human.getZone(ZoneType.Graveyard).cards.map { it.name }} " +
                 "gameOver=${isGameOver()} phase=${phase()}"
 
-        test("Ninjutsu returns an unblocked attacker and enters tapped attacking") {
-            startPuzzleRaw(
-                """
+        session(
+            "Ninjutsu returns an unblocked attacker and enters tapped attacking",
+            puzzle = """
                 [metadata]
                 Name:Ninjutsu Deep Hours
                 Goal:Win
@@ -64,9 +64,8 @@ class NinjutsuPuzzleTest :
                 aibattlefield=
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
             val attackerIid = human.battlefield.iid("Raging Goblin")
@@ -100,9 +99,9 @@ class NinjutsuPuzzleTest :
                     .numberValue shouldNotBe 0
                 returnCostReq.idsList.shouldContain(attackerIid)
             }
-            val postCostSnap = harness.messageSnapshot()
+            val postCostSnap = messageSnapshot()
             respondToEffectCost(listOf(attackerIid))
-            val postCostMessages = harness.messagesSince(postCostSnap)
+            val postCostMessages = messagesSince(postCostSnap)
 
             passUntil(maxPasses = 10) {
                 human.getZone(ZoneType.Battlefield).cards.any { it.name == "Ninja of the Deep Hours" }

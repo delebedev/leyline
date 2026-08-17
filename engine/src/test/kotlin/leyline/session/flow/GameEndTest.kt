@@ -26,14 +26,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class GameEndTest :
     SessionTest({
 
-        test("concede produces MatchCompleted") {
-            startGame(validating = true)
-
+        session("concede produces MatchCompleted", validating = true) {
             // Concede triggers sendGameOver()
             val concede =
                 after {
-                    harness.session.onConcede()
-                    harness.drainSink()
+                    session.onConcede()
+                    drainSink()
                 }
 
             // Verify GRE messages: 3x GSM + IntermissionReq
@@ -79,7 +77,7 @@ class GameEndTest :
             }
 
             // MatchCompleted room state should be in allRawMessages
-            val rawMsgs = harness.allRawMessages
+            val rawMsgs = allRawMessages
             val matchCompleted =
                 rawMsgs.firstOrNull {
                     it.hasMatchGameRoomStateChangedEvent() &&
@@ -98,8 +96,8 @@ class GameEndTest :
             }
 
             assertSoftly {
-                harness.registry.getMatch("test-match").shouldBeNull()
-                harness.registry.getPeer("test-match", SeatId(1)).shouldBeNull()
+                registry.getMatch("test-match").shouldBeNull()
+                registry.getPeer("test-match", SeatId(1)).shouldBeNull()
             }
         }
 

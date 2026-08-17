@@ -21,9 +21,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 
 class ImproviseLifecycleTest :
     SessionTest({
-        test("Ironheart pays Improvise through PayCostsReq") {
-            startPuzzle(
-                """
+        session(
+            "Ironheart pays Improvise through PayCostsReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -34,10 +34,8 @@ class ImproviseLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Improvise Ironheart",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val artifactIids =
                 listOf(
                     human.battlefield.iid("Ornithopter"),

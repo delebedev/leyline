@@ -38,11 +38,10 @@ private val PUZZLE =
 
 class JumpStartLifecycleTest :
     SessionTest({
-        test("Jump-start prompts for discard, resolves, and exiles the spell") {
-            startPuzzleRaw(PUZZLE)
-            val radicalIdeaGrpId = harness.bridge.cardRepository.findGrpIdByName("Radical Idea")!!
+        session("Jump-start prompts for discard, resolves, and exiles the spell", puzzle = PUZZLE) {
+            val radicalIdeaGrpId = bridge.cardRepository.findGrpIdByName("Radical Idea")!!
             val jumpStartAbilityGrpId =
-                harness.bridge.cardRepository.findKeywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
+                bridge.cardRepository.findKeywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
 
             val snap = messageSnapshot()
             castSpellByName("Radical Idea", zone = ZoneType.Graveyard, alternativeGrpId = jumpStartAbilityGrpId).shouldBeTrue()
@@ -91,9 +90,9 @@ class JumpStartLifecycleTest :
             }
         }
 
-        test("Jump-start pays the client-selected discard among multiple cards") {
-            startPuzzleRaw(
-                """
+        session(
+            "Jump-start pays the client-selected discard among multiple cards",
+            puzzle = """
                 [metadata]
                 Name:Jump-start Radical Idea Multiple Discards
                 Goal:Choose which card pays the Jump-start discard cost.
@@ -112,10 +111,10 @@ class JumpStartLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            )
-            val radicalIdeaGrpId = harness.bridge.cardRepository.findGrpIdByName("Radical Idea")!!
+        ) {
+            val radicalIdeaGrpId = bridge.cardRepository.findGrpIdByName("Radical Idea")!!
             val jumpStartAbilityGrpId =
-                harness.bridge.cardRepository.findKeywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
+                bridge.cardRepository.findKeywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
 
             castSpellByName("Radical Idea", zone = ZoneType.Graveyard, alternativeGrpId = jumpStartAbilityGrpId).shouldBeTrue()
 

@@ -35,11 +35,10 @@ private val PUZZLE =
 
 class SpectacleLifecycleTest :
     SessionTest({
-        test("Spawn of Mayhem casts with Spectacle after opponent lost life") {
-            startPuzzleRaw(PUZZLE)
-            val spawnGrpId = harness.bridge.cardRepository.findGrpIdByName("Spawn of Mayhem")!!
+        session("Spawn of Mayhem casts with Spectacle after opponent lost life", puzzle = PUZZLE) {
+            val spawnGrpId = bridge.cardRepository.findGrpIdByName("Spawn of Mayhem")!!
             val spectacleAbilityGrpId =
-                harness.bridge.cardRepository.findKeywordAbilityGrpId(spawnGrpId, KeywordAbilityIds.SPECTACLE)!!
+                bridge.cardRepository.findKeywordAbilityGrpId(spawnGrpId, KeywordAbilityIds.SPECTACLE)!!
 
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))

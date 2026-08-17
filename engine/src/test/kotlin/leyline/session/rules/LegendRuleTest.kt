@@ -72,10 +72,8 @@ class LegendRuleTest :
             return keepId
         }
 
-        test("SelectNReq carries the documented context/listType/idType fields") {
-            startPuzzleRaw(puzzleText)
-
-            val req = harness.castSpellUntilSelectNReq("Isamaru, Hound of Konda")
+        session("SelectNReq carries the documented context/listType/idType fields", puzzle = puzzleText) {
+            val req = castSpellUntilSelectNReq("Isamaru, Hound of Konda")
 
             assertSoftly {
                 req.idsList.size shouldBe 2
@@ -89,9 +87,7 @@ class LegendRuleTest :
             }
         }
 
-        test("SBA_LegendRule transfer category") {
-            startPuzzleRaw(puzzleText)
-
+        session("SBA_LegendRule transfer category", puzzle = puzzleText) {
             val resolution = after { castAndResolveLegendRule() }
 
             val allAnnotations =
@@ -103,9 +99,7 @@ class LegendRuleTest :
                 .count { it.detailString("category") == "SBA_LegendRule" } shouldBe 1
         }
 
-        test("keeps chosen legendary on battlefield") {
-            startPuzzleRaw(puzzleText)
-
+        session("keeps chosen legendary on battlefield", puzzle = puzzleText) {
             castAndResolveLegendRule()
 
             val bfIsamarus =
@@ -119,9 +113,7 @@ class LegendRuleTest :
             gyCards.any { it.name == "Isamaru, Hound of Konda" } shouldBe true
         }
 
-        test("ObjectIdChanged annotation present") {
-            startPuzzleRaw(puzzleText)
-
+        session("ObjectIdChanged annotation present", puzzle = puzzleText) {
             val resolution = after { castAndResolveLegendRule() }
 
             val allAnnotations =
@@ -131,13 +123,11 @@ class LegendRuleTest :
             allAnnotations.count { AnnotationType.ObjectIdChanged in it.typeList } shouldBeGreaterThan 0
         }
 
-        test("state validity after legend rule") {
-            startPuzzleRaw(puzzleText)
-
+        session("state validity after legend rule", puzzle = puzzleText) {
             castAndResolveLegendRule()
 
             assertSoftly {
-                harness.accumulator.assertConsistent("after legend rule")
+                accumulator.assertConsistent("after legend rule")
                 assertGsIdChain(allMessages, context = "legend rule flow")
                 isGameOver().shouldBeFalse()
             }

@@ -47,15 +47,13 @@ private val PUZZLE =
 
 class TeamworkLifecycleTest :
     SessionTest({
-        test("Timeline Inquiry pays Teamwork through CTO plus weighted PayCostsReq") {
-            startPuzzleRaw(PUZZLE, validating = true)
-
+        session("Timeline Inquiry pays Teamwork through CTO plus weighted PayCostsReq", puzzle = PUZZLE, validating = true) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearsIid = human.battlefield.iid("Grizzly Bears")
             val striderIid = human.battlefield.iid("Goldfury Strider")
-            val timelineGrpId = harness.bridge.cardRepository.findGrpIdByName("Timeline Inquiry")!!
+            val timelineGrpId = bridge.cardRepository.findGrpIdByName("Timeline Inquiry")!!
             val teamworkAbilityGrpId =
-                harness.bridge.cardRepository.findKeywordAbilityGrpId(timelineGrpId, KeywordAbilityIds.TEAMWORK)!!
+                bridge.cardRepository.findKeywordAbilityGrpId(timelineGrpId, KeywordAbilityIds.TEAMWORK)!!
 
             val cto =
                 after { castSpellByName("Timeline Inquiry").shouldBeTrue() }

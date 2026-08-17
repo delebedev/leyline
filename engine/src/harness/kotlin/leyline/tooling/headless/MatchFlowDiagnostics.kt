@@ -79,7 +79,7 @@ private inline fun StringBuilder.section(
 }
 
 private fun MatchFlowHarness.describeGame(out: StringBuilder) {
-    val game = bridge.getGame()
+    val game = currentGame()
     if (game == null) {
         out.append("game not initialised")
         return
@@ -99,17 +99,21 @@ private fun MatchFlowHarness.describeGame(out: StringBuilder) {
     }
 }
 
+/**
+ * The game the harness is driving. The bridge drops its reference once the
+ * match closes, so fall back to a seat handle — a spec that fails right after
+ * the game ends still needs its final board printed.
+ */
+private fun MatchFlowHarness.currentGame(): forge.game.Game? =
+    runCatching { bridge.getGame() }.getOrNull()
+        ?: runCatching { seatPlayerOrNull(SeatId(1))?.game }.getOrNull()
+
 /** Puzzle-seeded players often have a blank name; fall back to the Forge id. */
 private fun label(player: Player?): String = player?.name?.ifBlank { null } ?: player?.id?.let { "player#$it" } ?: "?"
 
 private fun MatchFlowHarness.describeSeats(out: StringBuilder) {
-    val game = bridge.getGame()
-    if (game == null) {
-        out.append("game not initialised")
-        return
-    }
     for (seat in listOf(SeatId(1), SeatId(2))) {
-        val player = bridge.getPlayer(seat) ?: continue
+        val player = seatPlayerOrNull(seat) ?: continue
         val library = runCatching { player.getZone(ZoneType.Library)?.size() ?: 0 }.getOrDefault(0)
         out.appendLine("seat ${seat.value} ${label(player)}: ${player.life} life, $library in library")
         for (zone in DIAGNOSTIC_ZONES) {

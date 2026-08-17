@@ -15,9 +15,9 @@ import java.io.File
 
 class ManaPoolSessionTest :
     SessionTest({
-        test("tapping land and mana creature projects floating mana pool") {
-            startPuzzle(
-                """
+        session(
+            "tapping land and mana creature projects floating mana pool",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -28,10 +28,8 @@ class ManaPoolSessionTest :
                 humanlibrary=Mountain
                 ailibrary=Mountain
                 """,
-                name = "Floating Mana Pool",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val forestIid = instanceIdOf("Forest")
             val elfIid = instanceIdOf("Llanowar Elves")
             human

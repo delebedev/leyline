@@ -14,9 +14,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class DashLifecycleTest :
     SessionTest({
-        test("Zurgo Bellstriker casts for Dash and returns at end step") {
-            startPuzzle(
-                """
+        session(
+            "Zurgo Bellstriker casts for Dash and returns at end step",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -27,12 +27,10 @@ class DashLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-                name = "Dash Zurgo Bellstriker",
-                validating = true,
-            )
-
-            val zurgoGrpId = harness.bridge.cardRepository.findGrpIdByName("Zurgo Bellstriker")!!
-            val dashAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(zurgoGrpId, KeywordAbilityIds.DASH)!!
+            validating = true,
+        ) {
+            val zurgoGrpId = bridge.cardRepository.findGrpIdByName("Zurgo Bellstriker")!!
+            val dashAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(zurgoGrpId, KeywordAbilityIds.DASH)!!
 
             val snap = messageSnapshot()
             castSpellByName("Zurgo Bellstriker", alternativeGrpId = dashAbilityGrpId).shouldBeTrue()

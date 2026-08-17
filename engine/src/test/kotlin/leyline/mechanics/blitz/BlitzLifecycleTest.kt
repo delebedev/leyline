@@ -15,9 +15,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class BlitzLifecycleTest :
     SessionTest({
-        test("Mayhem Patrol casts for Blitz, sacrifices itself, and draws") {
-            startPuzzle(
-                """
+        session(
+            "Mayhem Patrol casts for Blitz, sacrifices itself, and draws",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -28,12 +28,10 @@ class BlitzLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-                name = "Blitz Mayhem Patrol",
-                validating = true,
-            )
-
-            val patrolGrpId = harness.bridge.cardRepository.findGrpIdByName("Mayhem Patrol")!!
-            val blitzAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(patrolGrpId, KeywordAbilityIds.BLITZ)!!
+            validating = true,
+        ) {
+            val patrolGrpId = bridge.cardRepository.findGrpIdByName("Mayhem Patrol")!!
+            val blitzAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(patrolGrpId, KeywordAbilityIds.BLITZ)!!
 
             val snap = messageSnapshot()
             castSpellByName("Mayhem Patrol", alternativeGrpId = blitzAbilityGrpId).shouldBeTrue()

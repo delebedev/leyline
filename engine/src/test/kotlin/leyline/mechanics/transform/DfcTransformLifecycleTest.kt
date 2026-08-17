@@ -10,9 +10,9 @@ import leyline.testkit.SessionTest
 class DfcTransformLifecycleTest :
     SessionTest({
 
-        test("activated transform resolves through MatchSession") {
-            startPuzzle(
-                """
+        session(
+            "activated transform resolves through MatchSession",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -21,10 +21,8 @@ class DfcTransformLifecycleTest :
                 humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
                 aibattlefield=Runeclaw Bear
                 """.trimIndent(),
-                name = "DFC Transform MatchSession Test",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val curtains =
                 human
                     .getZone(ZoneType.Battlefield)

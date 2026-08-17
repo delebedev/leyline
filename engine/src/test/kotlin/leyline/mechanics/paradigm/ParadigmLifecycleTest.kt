@@ -62,10 +62,12 @@ private val DECORUM_PUZZLE =
 
 class ParadigmLifecycleTest :
     SessionTest({
-        test("untargeted Paradigm original self-exiles, creates Main1 trigger, and casts copy for free") {
-            startPuzzleRaw(GERMINATION_PUZZLE, validating = true)
-
-            harness.resolveSpell("Germination Practicum").shouldBeTrue()
+        session(
+            "untargeted Paradigm original self-exiles, creates Main1 trigger, and casts copy for free",
+            puzzle = GERMINATION_PUZZLE,
+            validating = true,
+        ) {
+            resolveSpell("Germination Practicum").shouldBeTrue()
             human
                 .getZone(ZoneType.Exile)
                 .cards
@@ -82,12 +84,12 @@ class ParadigmLifecycleTest :
             pendingHolder shouldNotBe null
 
             val sawFreeCopyCast =
-                harness.passUntil(maxPasses = 30) {
+                passUntil(maxPasses = 30) {
                     gsms().flatMap { it.annotationsList }.any { it.isParadigmCopyCastAction() }
                 }
             sawFreeCopyCast.shouldBeTrue()
             val sawCopySelfExile =
-                harness.passUntil(maxPasses = 30) {
+                passUntil(maxPasses = 30) {
                     gsms()
                         .flatMap { it.annotationsList }
                         .count { it.isStackToExileParadigmTransfer() }
@@ -155,10 +157,12 @@ class ParadigmLifecycleTest :
             }
         }
 
-        test("targeted Paradigm copy prompt uses copied card source and targeting metadata") {
-            startPuzzleRaw(DECORUM_PUZZLE, validating = true)
-
-            harness.castSpellByName("Decorum Dissertation").shouldBeTrue()
+        session(
+            "targeted Paradigm copy prompt uses copied card source and targeting metadata",
+            puzzle = DECORUM_PUZZLE,
+            validating = true,
+        ) {
+            castSpellByName("Decorum Dissertation").shouldBeTrue()
             val originalTargetSourceId = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq.sourceId
             selectTargets(listOf(OPPONENT_SEAT))
             passUntilResolved()
@@ -169,7 +173,7 @@ class ParadigmLifecycleTest :
                 .shouldBeTrue()
 
             val sawCopyTargetPrompt =
-                harness.passUntil(maxPasses = 30) {
+                passUntil(maxPasses = 30) {
                     allMessages.any { it.hasSelectTargetsReq() && it.selectTargetsReq.sourceId != originalTargetSourceId }
                 }
             sawCopyTargetPrompt.shouldBeTrue()
@@ -232,7 +236,7 @@ class ParadigmLifecycleTest :
             selectTargets(listOf(OPPONENT_SEAT))
             passUntilResolved()
             val sawCopySelfExile =
-                harness.passUntil(maxPasses = 30) {
+                passUntil(maxPasses = 30) {
                     gsms()
                         .flatMap { it.annotationsList }
                         .count { it.isStackToExileParadigmTransfer() }

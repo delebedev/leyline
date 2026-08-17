@@ -333,9 +333,9 @@ class CombatInteractionTest :
             assertAccumulatorConsistent("after combat damage")
         }
 
-        test("human can destroy opposing planeswalker in combat") {
-            startPuzzle(
-                """
+        session(
+            "human can destroy opposing planeswalker in combat",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -345,14 +345,13 @@ class CombatInteractionTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Planeswalker Combat Target",
-                turns = 5,
-                validating = true,
-                validation = combatValidation,
-            )
+            turns = 5,
+            validating = true,
+            validation = combatValidation,
+        ) {
             val attacker =
                 TestCardInjector.inject(
-                    harness.bridge,
+                    bridge,
                     HUMAN_SEAT,
                     "Raging Goblin",
                     ZoneType.Battlefield,
@@ -360,7 +359,7 @@ class CombatInteractionTest :
                 )
             val planeswalker =
                 TestCardInjector.inject(
-                    harness.bridge,
+                    bridge,
                     OPPONENT_SEAT,
                     "Liliana of the Veil",
                     ZoneType.Battlefield,
@@ -586,14 +585,12 @@ class CombatInteractionTest :
             }
         }
 
-        test("combat death produces zone transfer") {
-            // AI: play Mountain, cast Raging Goblin (blocker), skip attacking, decline blocking
-            startGame(
-                deckList = COMBAT_DECK,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
+        session(
+            "combat death produces zone transfer",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = listOf(
                         ScriptedAction.PlayLand("Mountain"),
                         ScriptedAction.CastSpell("Raging Goblin"),
                         ScriptedAction.DeclareNoAttackers,
@@ -603,8 +600,7 @@ class CombatInteractionTest :
                         ScriptedAction.DeclareNoAttackers,
                         ScriptedAction.PassPriority,
                     ),
-            )
-
+        ) {
             // Human turn 1: play Mountain, cast Raging Goblin
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
@@ -963,9 +959,9 @@ class CombatInteractionTest :
             if (!isGameOver()) passThroughCombat()
         }
 
-        test("single blocker does not trigger AssignDamageReq") {
-            startPuzzle(
-                """
+        session(
+            "single blocker does not trigger AssignDamageReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -976,18 +972,15 @@ class CombatInteractionTest :
                 aibattlefield=Forest;Grizzly Bears
                 ailibrary=Forest;Forest;Forest;Forest;Forest
                 """,
-                name = "Single Blocker No Prompt",
-                turns = 10,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
+            turns = 10,
+            validating = true,
+            validation = combatValidation,
+            aiScript = listOf(
                         ScriptedAction.DeclareNoAttackers,
                         ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
                         ScriptedAction.PassPriority,
                     ),
-            )
-
+        ) {
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 3 // 3× Raging Goblin from the puzzle state
             val attackerIid = creatures.first().first
@@ -1007,11 +1000,9 @@ class CombatInteractionTest :
 
         // ─── Zero-blocker auto-advance ────────────────────────────────────────
 
-        test("zero blockers auto-advances without DeclareBlockersReq") {
-            // Human has only lands, AI has haste attackers — server should
-            // auto-advance through declare-blockers instead of prompting.
-            startPuzzle(
-                """
+        session(
+            "zero blockers auto-advances without DeclareBlockersReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -1022,17 +1013,14 @@ class CombatInteractionTest :
                 aibattlefield=Mountain;Mountain;Raging Goblin;Raging Goblin
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
-                name = "Zero Blockers AI Attack",
-                turns = 10,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
+            turns = 10,
+            validating = true,
+            validation = combatValidation,
+            aiScript = listOf(
                         ScriptedAction.Attack(listOf("Raging Goblin")),
                         ScriptedAction.PassPriority,
                     ),
-            )
-
+        ) {
             after {
                 // Pass through human turn into AI combat → combat auto-advances
                 passPriority()

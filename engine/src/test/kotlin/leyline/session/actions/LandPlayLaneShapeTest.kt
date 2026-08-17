@@ -16,9 +16,12 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class LandPlayLaneShapeTest :
     SessionTest({
 
-        test("post-LAND_PLAY SendAndRecord GSM is immediately followed by ActionsAvailableReq") {
-            startGame(deckList = COMBAT_DECK, validating = true)
-            harness.advanceToMain1()
+        session(
+            "post-LAND_PLAY SendAndRecord GSM is immediately followed by ActionsAvailableReq",
+            deckList = COMBAT_DECK,
+            validating = true,
+        ) {
+            advanceToMain1()
 
             val produced = after { playLand().shouldBeTrue() }.messages
 

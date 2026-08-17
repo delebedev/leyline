@@ -18,9 +18,9 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 class CombatQualificationSessionTest :
     SessionTest({
-        test("cast Pacifism emits can't attack and can't block Qualifications") {
-            startPuzzle(
-                """
+        session(
+            "cast Pacifism emits can't attack and can't block Qualifications",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -32,12 +32,11 @@ class CombatQualificationSessionTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Island
                 """.trimIndent(),
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val targetIid = ai.battlefield.iid("Grizzly Bears")
             val aura = human.getZone(ZoneType.Hand).cards.first { it.name == "Pacifism" }
-            harness.bridge.abilityRegistryFor(
+            bridge.abilityRegistryFor(
                 aura,
                 CardDataDeriver.fromForgeCard(aura, "Pacifism").copy(
                     abilityIds = emptyList(),

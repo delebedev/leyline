@@ -16,9 +16,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class SurgeLifecycleTest :
     SessionTest({
-        test("Crush of Tentacles casts with Surge after another spell this turn") {
-            startPuzzle(
-                """
+        session(
+            "Crush of Tentacles casts with Surge after another spell this turn",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -29,12 +29,10 @@ class SurgeLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-                name = "Surge Crush of Tentacles",
-                validating = true,
-            )
-
-            val crushGrpId = harness.bridge.cardRepository.findGrpIdByName("Crush of Tentacles")!!
-            val surgeAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(crushGrpId, KeywordAbilityIds.SURGE)!!
+            validating = true,
+        ) {
+            val crushGrpId = bridge.cardRepository.findGrpIdByName("Crush of Tentacles")!!
+            val surgeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(crushGrpId, KeywordAbilityIds.SURGE)!!
             val crush = human.getZone(ZoneType.Hand).cards.first { it.name == "Crush of Tentacles" }
 
             getAllCastableAbilities(crush, human)

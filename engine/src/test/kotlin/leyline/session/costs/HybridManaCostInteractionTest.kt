@@ -26,11 +26,7 @@ class HybridManaCostInteractionTest :
             ailibrary=Forest
             """.trimIndent()
 
-        fun startTawnyback() = startPuzzle(tawnybackState, name = "Temur Tawnyback")
-
-        test("hybrid two-or-color pips emit ManaType CTOs and honor printed-order choices") {
-            startTawnyback()
-
+        session("hybrid two-or-color pips emit ManaType CTOs and honor printed-order choices", puzzle = tawnybackState) {
             val cto =
                 after { castSpellByName("Temur Tawnyback").shouldBeTrue() }
                     .expectOneCastingTimeOptionsReq()

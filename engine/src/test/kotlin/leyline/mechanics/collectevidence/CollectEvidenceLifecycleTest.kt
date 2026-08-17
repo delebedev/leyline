@@ -39,9 +39,7 @@ private val PUZZLE =
 
 class CollectEvidenceLifecycleTest :
     SessionTest({
-        test("Behind the Mask pays Collect Evidence through weighted PayCostsReq") {
-            startPuzzleRaw(PUZZLE, validating = true)
-
+        session("Behind the Mask pays Collect Evidence through weighted PayCostsReq", puzzle = PUZZLE, validating = true) {
             val targetIid = ai.battlefield.iid("Runeclaw Bear")
             val murderIid = human.graveyard.iid("Murder")
             val courserIid = human.graveyard.iid("Centaur Courser")

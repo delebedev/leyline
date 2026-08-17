@@ -22,9 +22,9 @@ import leyline.testkit.SessionTest
 class DeclareBlockersDedupeTest :
     SessionTest({
 
-        test("no duplicate blockers req") {
-            startPuzzle(
-                """
+        session(
+            "no duplicate blockers req",
+            puzzle = """
             ActivePlayer=AI
             ActivePhase=COMBAT_DECLARE_ATTACKERS
             HumanLife=20
@@ -35,15 +35,13 @@ class DeclareBlockersDedupeTest :
             aibattlefield=Mountain;Raging Goblin|Attacking|Tapped
             ailibrary=Mountain;Mountain;Mountain
             """,
-                name = "DeclareBlockers Dedup",
-                turns = 1,
-            )
-
+            turns = 1,
+        ) {
             // declareNoBlockers drives autoPassAndAdvance internally; any re-entry
             // DeclareBlockersReq would fire inside that synchronous call.
-            harness.declareNoBlockers()
+            declareNoBlockers()
 
-            val totalBlockerReqs = harness.allMessages.count { it.hasDeclareBlockersReq() }
+            val totalBlockerReqs = allMessages.count { it.hasDeclareBlockersReq() }
             totalBlockerReqs shouldBeLessThanOrEqual 1
         }
     })

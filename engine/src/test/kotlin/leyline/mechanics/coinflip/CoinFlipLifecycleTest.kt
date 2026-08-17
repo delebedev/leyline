@@ -21,9 +21,9 @@ class CoinFlipLifecycleTest :
     SessionTest({
         fun GameStateMessage.annotationTypes(): List<AnnotationType> = annotationsList.flatMap { it.typeList }
 
-        test("Tavern Swindler emits coin flip annotation and prompt during resolution") {
-            startPuzzle(
-                """
+        session(
+            "Tavern Swindler emits coin flip annotation and prompt during resolution",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -33,9 +33,7 @@ class CoinFlipLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Tavern Swindler coin flip",
-            )
-
+        ) {
             val before = messageSnapshot()
             activateAbility("Tavern Swindler").shouldBe(true)
             passUntil(maxPasses = 10) {

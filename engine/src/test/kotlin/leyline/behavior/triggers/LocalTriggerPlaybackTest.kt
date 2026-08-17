@@ -143,9 +143,7 @@ class LocalTriggerPlaybackTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("mandatory non-interactive local trigger enters before resolving") {
-            startPuzzleRaw(ajaniPuzzle, validating = true)
-
+        session("mandatory non-interactive local trigger enters before resolving", puzzle = ajaniPuzzle, validating = true) {
             val post =
                 after {
                     castSpellByName("Revitalize").shouldBeTrue()
@@ -166,9 +164,7 @@ class LocalTriggerPlaybackTest :
                 .getCounters(CounterEnumType.P1P1) shouldBe 1
         }
 
-        test("mandatory non-interactive token trigger enters before resolving") {
-            startPuzzleRaw(dwynenPuzzle, validating = true)
-
+        session("mandatory non-interactive token trigger enters before resolving", puzzle = dwynenPuzzle, validating = true) {
             val post =
                 after {
                     castSpellByName("Dwynen's Elite").shouldBeTrue()
@@ -188,16 +184,14 @@ class LocalTriggerPlaybackTest :
                 .shouldNotBeEmpty()
         }
 
-        test("mandatory non-interactive investigate trigger enters before resolving") {
-            startPuzzleRaw(
-                noviceInspectorPuzzle,
-                validation =
-                    InvariantSelection.except(
+        session(
+            "mandatory non-interactive investigate trigger enters before resolving",
+            puzzle = noviceInspectorPuzzle,
+            validation = InvariantSelection.except(
                         "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
                         InvariantCheck.AnnotationReferences,
                     ),
-            )
-
+        ) {
             val post =
                 after {
                     castSpellByName("Novice Inspector").shouldBeTrue()

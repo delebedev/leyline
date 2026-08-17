@@ -14,10 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class StackResolutionGameOverTest :
     SessionTest({
 
-        test("spell resolving for lethal sends MatchCompleted") {
-            // Bolt-face puzzle: AI at 3 life, human has Lightning Bolt + Mountain
-            startPuzzleFile("puzzles/bolt-face.pzl", validating = true)
-
+        session("spell resolving for lethal sends MatchCompleted", puzzleFile = "puzzles/bolt-face.pzl", validating = true) {
             // Cast Lightning Bolt — triggers SelectTargetsReq
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
@@ -31,7 +28,7 @@ class StackResolutionGameOverTest :
 
             // Verify MatchCompleted was sent
             val matchCompleted =
-                harness.allRawMessages.firstOrNull {
+                allRawMessages.firstOrNull {
                     it.hasMatchGameRoomStateChangedEvent() &&
                         it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
                         MatchGameRoomStateType.MatchCompleted

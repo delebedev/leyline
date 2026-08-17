@@ -31,9 +31,11 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 class StockUpTest :
     SessionTest({
 
-        test("Stock Up wire shape matches look-and-pick spec (Resolution semantic)") {
-            startPuzzleFile("puzzles/stock-up.pzl", validating = true)
-
+        session(
+            "Stock Up wire shape matches look-and-pick spec (Resolution semantic)",
+            puzzleFile = "puzzles/stock-up.pzl",
+            validating = true,
+        ) {
             val req = castSpellUntilSelectNReq("Stock Up")
             // sourceId on the SelectNReq is Stock Up's stack iid (post-ObjectIdChanged).
             // Stack isn't a player-specific PlayerZone, so we can't use instanceIdOf;
@@ -112,9 +114,11 @@ class StockUpTest :
             }
         }
 
-        test("Stock Up resolves: 2 chosen cards move Library → Hand, no prompt loop") {
-            startPuzzleFile("puzzles/stock-up.pzl", validating = true)
-
+        session(
+            "Stock Up resolves: 2 chosen cards move Library → Hand, no prompt loop",
+            puzzleFile = "puzzles/stock-up.pzl",
+            validating = true,
+        ) {
             val req = castSpellUntilSelectNReq("Stock Up")
             val pickedIids = req.idsList.take(2)
             val tailIids = req.idsList.filter { it !in pickedIids }

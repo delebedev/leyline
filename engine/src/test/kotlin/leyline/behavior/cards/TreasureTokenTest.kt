@@ -69,9 +69,7 @@ class TreasureTokenTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal") {
-            startPuzzleRaw(puzzleText, validating = true)
-
+        session("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal", puzzle = puzzleText, validating = true) {
             // --- Preconditions ---
             assertSoftly {
                 "Prosperous Innkeeper" should beInHandOf(human)
@@ -103,20 +101,20 @@ class TreasureTokenTest :
             treasure.isToken.shouldBeTrue()
 
             // --- Regression: Treasure grpId must resolve to non-zero ---
-            val treasureGrpId = GrpIdResolver.resolve(treasure, harness.bridge.cardRepository)
+            val treasureGrpId = GrpIdResolver.resolve(treasure, bridge.cardRepository)
             treasureGrpId shouldBeGreaterThan 0
 
             // --- Regression: buildFromSnapshot must not crash (was NPE) ---
-            val snapTreasure = GsmSnapshot.capture(harness.game(), harness.bridge, "test-treasure", 1)
+            val snapTreasure = GsmSnapshot.capture(game(), bridge, "test-treasure", 1)
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
                         snapTreasure,
                         1,
                         "test-treasure",
-                        harness.bridge,
+                        bridge,
                         viewingSeatId = 1,
-                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             gsm.shouldNotBeNull()
@@ -124,7 +122,7 @@ class TreasureTokenTest :
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(harness.game(), harness.bridge, "test", 0), harness.bridge)
+            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game(), bridge, "test", 0), bridge)
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 

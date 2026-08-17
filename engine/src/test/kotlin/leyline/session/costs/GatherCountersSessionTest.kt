@@ -14,9 +14,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 /** Session proof for the grounded Hopeful Initiate GatherCounters payment row. */
 class GatherCountersSessionTest :
     SessionTest({
-        test("Hopeful Initiate gathers counters across creatures before destroying target") {
-            startPuzzle(
-                """
+        session(
+            "Hopeful Initiate gathers counters across creatures before destroying target",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -28,11 +28,9 @@ class GatherCountersSessionTest :
                 aibattlefield=Sol Ring
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Hopeful Initiate GatherCounters",
-                turns = 3,
-                validating = true,
-            )
-
+            turns = 3,
+            validating = true,
+        ) {
             val sources = human.getZone(ZoneType.Battlefield).cards.filter { it.name == "Hopeful Initiate" }
             sources.size shouldBe 2
             val sourceIids = sources.map { human.battlefield.iid(it) }
@@ -89,7 +87,7 @@ class GatherCountersSessionTest :
                 sources.forEach { it.getCounters(forge.game.card.CounterEnumType.P1P1) shouldBe 0 }
                 ai.getZone(ZoneType.Battlefield).cards.none { it.name == "Sol Ring" } shouldBe true
                 ai.getZone(ZoneType.Graveyard).cards.any { it.name == "Sol Ring" } shouldBe true
-                harness.bridge.cutCoordinator.oneShotPayCosts
+                bridge.cutCoordinator.oneShotPayCosts
                     .current() shouldBe null
                 allMessages.none { it.hasSelectNReq() && it.selectNReq.idsList.any { id -> id in sourceIids } } shouldBe true
             }

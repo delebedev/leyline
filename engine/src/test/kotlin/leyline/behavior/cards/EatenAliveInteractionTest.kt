@@ -64,17 +64,13 @@ class EatenAliveInteractionTest :
             harness.drainSink()
         }
 
-        test("Eaten Alive exposes a single cast action with base mana cost") {
-            startPuzzle(eatenAliveState, name = "Eaten Alive")
-
+        session("Eaten Alive exposes a single cast action with base mana cost", puzzle = eatenAliveState) {
             val casts = latestCastActionsFor("Eaten Alive")
             casts shouldHaveSize 1
             casts.single() should haveManaCost(black = 1)
         }
 
-        test("sacrifice-mode cast resolves fully after target and sacrifice selection") {
-            startPuzzle(eatenAliveState, name = "Eaten Alive")
-
+        session("sacrifice-mode cast resolves fully after target and sacrifice selection", puzzle = eatenAliveState) {
             submitAction(latestCastActionsFor("Eaten Alive").single())
             respondToOptionalCost(1)
 
@@ -90,9 +86,7 @@ class EatenAliveInteractionTest :
             "Walking Corpse" should beInGraveyardOf(human)
         }
 
-        test("Deadly Precision prompts for alternate additional cost before targeting") {
-            startPuzzle(deadlyPrecisionState, name = "Deadly Precision")
-
+        session("Deadly Precision prompts for alternate additional cost before targeting", puzzle = deadlyPrecisionState) {
             val action = latestCastActionsFor("Deadly Precision").single()
             val req = after { submitAction(action) }.expectOneCastingTimeOptionsReq()
 

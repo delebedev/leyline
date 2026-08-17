@@ -59,9 +59,7 @@ class AiTurnInteractionTest :
 
         // ─── Boot wire conformance (seed-based, real game start) ────────────────
 
-        test("AI-first boot — ≤1 Full post-handshake + phaseTransitionDiff pattern") {
-            startGame(seed = AI_FIRST_SEED)
-
+        session("AI-first boot — ≤1 Full post-handshake + phaseTransitionDiff pattern", seed = AI_FIRST_SEED, validating = true) {
             val gsms =
                 allMessages
                     .filter { it.hasGameStateMessage() }
@@ -118,18 +116,9 @@ class AiTurnInteractionTest :
 
         // ─── AI-turn message properties (puzzle-based, deterministic) ───────────
 
-        test("AI turn — every phase transition annotated with PhaseOrStepModified") {
-            // Dropped facet from the original AiFirstTurnShape test:
-            // "AI-turn GSMs embed human actions (seat=1), not AI's (seat=2)".
-            // This puzzle has no legal instant-speed human actions, so AI-turn
-            // GSMs remain state-only; action ownership belongs in action-emission
-            // tests. Keep only the phase-transition annotation check.
-            //
-            // Puzzle: AI turn with Raging Goblin (haste) → walks through
-            // Main1 → Combat → Main2 → End deterministically. No castable in
-            // human hand — avoids deep Forge AI threat evaluation that hangs.
-            startPuzzle(
-                """
+        session(
+            "AI turn — every phase transition annotated with PhaseOrStepModified",
+            puzzle = """
                 ActivePlayer=AI
                 ActivePhase=MAIN1
                 HumanLife=20
@@ -140,10 +129,8 @@ class AiTurnInteractionTest :
                 aibattlefield=Raging Goblin;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "AI Turn Phase Transitions",
-                turns = 3,
-            )
-
+            turns = 3,
+        ) {
             val startTurn = turn()
             passUntil(maxPasses = 40) { isGameOver() || turn() > startTurn }
 
@@ -187,9 +174,9 @@ class AiTurnInteractionTest :
             }
         }
 
-        test("AI turn with no legal instant-speed actions emits no ActionsAvailableReq") {
-            startPuzzle(
-                """
+        session(
+            "AI turn with no legal instant-speed actions emits no ActionsAvailableReq",
+            puzzle = """
                 ActivePlayer=AI
                 ActivePhase=MAIN1
                 HumanLife=20
@@ -200,19 +187,17 @@ class AiTurnInteractionTest :
                 aibattlefield=Raging Goblin;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "AI Turn No AAR",
-                turns = 3,
-            )
-
+            turns = 3,
+        ) {
             val startTurn = turn()
             val turnSlice = after { passUntil(maxPasses = 30) { isGameOver() || turn() > startTurn } }
 
             aiTurnActionsAvailableReqs(turnSlice.messages).shouldBeEmpty()
         }
 
-        test("AI turn with legal instant-speed cast emits ActionsAvailableReq") {
-            startPuzzle(
-                """
+        session(
+            "AI turn with legal instant-speed cast emits ActionsAvailableReq",
+            puzzle = """
                 ActivePlayer=AI
                 ActivePhase=MAIN1
                 HumanLife=20
@@ -224,20 +209,16 @@ class AiTurnInteractionTest :
                 aibattlefield=Raging Goblin;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "AI Turn Instant Stop",
-                turns = 3,
-            )
-
+            turns = 3,
+        ) {
             val aiTurnAars = aiTurnActionsAvailableReqs(allMessages)
             aiTurnAars shouldHaveSize 1
             aiTurnAars.single().actionsList.map { it.actionType } shouldContain ActionType.Cast
         }
 
-        test("turnInfo phase never stale during AI combat") {
-            // AI attacks with Raging Goblin, human has no creatures.
-            // Zero-blocker auto-skip resolves combat during onPuzzleStart.
-            startPuzzle(
-                """
+        session(
+            "turnInfo phase never stale during AI combat",
+            puzzle = """
                 ActivePlayer=AI
                 ActivePhase=COMBAT_DECLARE_ATTACKERS
                 HumanLife=20
@@ -248,10 +229,8 @@ class AiTurnInteractionTest :
                 aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "AI Combat Phase Check",
-                turns = 3,
-            )
-
+            turns = 3,
+        ) {
             // Use full message history — combat resolved during onPuzzleStart
             val gsms =
                 allMessages
@@ -282,8 +261,7 @@ class AiTurnInteractionTest :
                 ScriptedAction.PassPriority,
             )
 
-        test("AI land play precedes CastSpell in one completed-step frame") {
-            startGame(seed = 42L, deckList = COMBAT_DECK, validating = true)
+        session("AI land play precedes CastSpell in one completed-step frame", deckList = COMBAT_DECK, seed = 42L, validating = true) {
             installScriptedAi(scriptedLandThenGoblin)
             passUntilTurn(3)
 
@@ -342,8 +320,7 @@ class AiTurnInteractionTest :
             }
         }
 
-        test("AI-first land play not discarded (default AI, no script)") {
-            startGame(seed = 2L, deckList = COMBAT_DECK, validating = true)
+        session("AI-first land play not discarded (default AI, no script)", deckList = COMBAT_DECK, seed = 2L, validating = true) {
             passUntilTurn(2)
 
             val playLandMessages =

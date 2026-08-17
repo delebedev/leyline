@@ -21,9 +21,9 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 
 class RetraceLifecycleTest :
     SessionTest({
-        test("Waves of Aggression casts from graveyard by discarding a land") {
-            startPuzzle(
-                """
+        session(
+            "Waves of Aggression casts from graveyard by discarding a land",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -35,12 +35,10 @@ class RetraceLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-                name = "Retrace Waves of Aggression",
-                validating = true,
-            )
-
-            val wavesGrpId = harness.bridge.cardRepository.findGrpIdByName("Waves of Aggression")!!
-            val retraceAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(wavesGrpId, KeywordAbilityIds.RETRACE)!!
+            validating = true,
+        ) {
+            val wavesGrpId = bridge.cardRepository.findGrpIdByName("Waves of Aggression")!!
+            val retraceAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(wavesGrpId, KeywordAbilityIds.RETRACE)!!
             val waves = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Waves of Aggression" }
 
             getAllCastableAbilities(waves, human)
