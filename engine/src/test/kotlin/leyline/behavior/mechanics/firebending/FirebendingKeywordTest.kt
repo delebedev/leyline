@@ -9,6 +9,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
@@ -27,14 +28,9 @@ class FirebendingKeywordTest :
             TestCardRegistry.ensureCardRegistered("Jeong Jeong, the Deserter")
         }
 
-        test("Firebending attack trigger resolves to combat-persistent red mana") {
-            val sourceGrpId = TestCardRegistry.ensureCardRegistered("Jeong Jeong, the Deserter")
-            val firebendingGrpId =
-                TestCardRegistry.repo.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.FIREBENDING)
-                    ?: error("Jeong Jeong Firebending ability row missing")
-
-            startPuzzle(
-                """
+        session(
+            "Firebending attack trigger resolves to combat-persistent red mana",
+            """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -44,10 +40,13 @@ class FirebendingKeywordTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Firebending Jeong Jeong",
-                turns = 5,
-                validating = true,
-            )
+            turns = 5,
+            validating = true,
+        ) {
+            val sourceGrpId = TestCardRegistry.ensureCardRegistered("Jeong Jeong, the Deserter")
+            val firebendingGrpId =
+                TestCardRegistry.repo.findKeywordAbilityGrpId(sourceGrpId, KeywordAbilityIds.FIREBENDING)
+                    ?: error("Jeong Jeong Firebending ability row missing")
 
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val sourceIid = humanBattlefieldCreatures().first { it.second == "Jeong Jeong, the Deserter" }.first

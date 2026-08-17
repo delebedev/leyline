@@ -4,6 +4,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.after
 
 class SearchPromptSessionTest :
     SessionTest({

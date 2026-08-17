@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
@@ -14,11 +15,12 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+import leyline.testkit.after
 
 class RecommissionEffectStackTest :
     SessionTest({
-        fun enableStackAutoResolve() {
-            harness.session.autoPassState.update(
+        fun MatchFlowHarness.enableStackAutoResolve() {
+            session.autoPassState.update(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)

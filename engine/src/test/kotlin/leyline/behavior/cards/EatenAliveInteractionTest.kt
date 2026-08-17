@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.haveManaCost
@@ -12,6 +13,7 @@ import leyline.testkit.ofType
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
+import leyline.testkit.after
 
 class EatenAliveInteractionTest :
     SessionTest({
@@ -43,7 +45,7 @@ class EatenAliveInteractionTest :
             ailibrary=Swamp
             """.trimIndent()
 
-        fun latestCastActionsFor(cardName: String): List<Action> {
+        fun MatchFlowHarness.latestCastActionsFor(cardName: String): List<Action> {
             val iid = human.hand.iid(cardName)
             return allMessages
                 .asReversed()
@@ -53,15 +55,15 @@ class EatenAliveInteractionTest :
                 .filter { it.instanceId == iid }
         }
 
-        fun submitAction(action: Action) {
-            harness.session.onPerformAction(
-                harness.submitWithGsId(
+        fun MatchFlowHarness.submitAction(action: Action) {
+            session.onPerformAction(
+                submitWithGsId(
                     performAction {
                         mergeFrom(action)
                     },
                 ),
             )
-            harness.drainSink()
+            drainSink()
         }
 
         session("Eaten Alive exposes a single cast action with base mana cost", puzzle = eatenAliveState) {

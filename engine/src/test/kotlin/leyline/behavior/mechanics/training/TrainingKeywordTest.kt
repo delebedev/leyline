@@ -19,6 +19,7 @@ import leyline.testkit.detailUint
 import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import leyline.testkit.after
 
 class TrainingKeywordTest :
     SessionTest({

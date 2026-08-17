@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -18,10 +19,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class ExileUnderCardPuzzleTest :
     SessionTest({
-
-        test("Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it") {
-            val pzl =
-                """
+        session(
+            "Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it",
+            """
                 [metadata]
                 Name:Exile Under Card
                 Goal:Win
@@ -40,9 +40,9 @@ class ExileUnderCardPuzzleTest :
                 humanlibrary=Plains
                 aibattlefield=Grizzly Bears
                 ailibrary=Forest
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
+                """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
 
             val bearsIid = ai.battlefield.iid("Grizzly Bears")

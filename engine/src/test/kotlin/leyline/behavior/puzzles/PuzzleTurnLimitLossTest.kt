@@ -46,14 +46,15 @@ class PuzzleTurnLimitLossTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("turn limit expiry ends the game instead of spinning on the turn order")
-            .config(timeout = 120.seconds) {
-                startPuzzleRaw(puzzleText)
+        session(
+            "turn limit expiry ends the game instead of spinning on the turn order",
+            puzzle = puzzleText,
+            timeout = 120.seconds,
+        ) {
+            // Terminates only if the loss is processed; otherwise next-player
+            // selection spins inside the engine and this never returns.
+            runCatching { passUntilTurn(targetTurn = 5, maxPasses = 40) }
 
-                // Terminates only if the loss is processed; otherwise next-player
-                // selection spins inside the engine and this never returns.
-                runCatching { passUntilTurn(targetTurn = 5, maxPasses = 40) }
-
-                runCatching { harness.isGameOver() }.getOrDefault(true).shouldBeTrue()
-            }
+            runCatching { isGameOver() }.getOrDefault(true).shouldBeTrue()
+        }
     })

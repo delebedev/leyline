@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -15,7 +16,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 
 class StackTargetingInteractionTest :
     SessionTest({
-        fun latestTargetCandidateIds(): List<Int> =
+        fun MatchFlowHarness.latestTargetCandidateIds(): List<Int> =
             allMessages
                 .last { it.hasSelectTargetsReq() }
                 .selectTargetsReq
@@ -24,7 +25,7 @@ class StackTargetingInteractionTest :
                 .map { it.targetInstanceId }
                 .filter { it > OPPONENT_SEAT }
 
-        fun targetPromptDebug(cardName: String): String {
+        fun MatchFlowHarness.targetPromptDebug(cardName: String): String {
             val prompts =
                 allMessages
                     .filter { it.hasSelectTargetsReq() }
@@ -38,7 +39,7 @@ class StackTargetingInteractionTest :
                         "gs=${msg.gameStateId} source=${msg.selectTargetsReq.sourceId} ids=$names"
                     }
             val history =
-                harness.bridge
+                bridge
                     .promptBridge(SeatId(HUMAN_SEAT))
                     .history
                     .takeLast(5)
@@ -46,10 +47,10 @@ class StackTargetingInteractionTest :
             return "Expected target '$cardName'. prompts=$prompts history=$history"
         }
 
-        fun latestTargetIidByCardName(cardName: String): Int {
+        fun MatchFlowHarness.latestTargetIidByCardName(cardName: String): Int {
             val found =
                 waitFor(timeoutMs = 2_000L) {
-                    harness.drainSink()
+                    drainSink()
                     latestTargetCandidateIds().any { iid -> cardByIid(iid)?.name == cardName }
                 }
             withClue(targetPromptDebug(cardName)) { found.shouldBeTrue() }
@@ -57,7 +58,7 @@ class StackTargetingInteractionTest :
             return findInstanceId(candidateIds, cardName)
         }
 
-        fun latestTargetSourceName(): String? {
+        fun MatchFlowHarness.latestTargetSourceName(): String? {
             val sourceId =
                 allMessages
                     .last { it.hasSelectTargetsReq() }

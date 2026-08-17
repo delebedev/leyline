@@ -11,6 +11,7 @@ import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import leyline.testkit.after
 
 class UntapCostLifecycleTest :
     SessionTest({

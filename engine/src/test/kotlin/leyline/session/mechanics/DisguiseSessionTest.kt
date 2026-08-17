@@ -13,11 +13,26 @@ import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+private val DISGUISE_FORUM_FAMILIAR_PUZZLE =
+    """
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=4
+
+    humanhand=Forum Familiar
+    humanbattlefield=Plains;Plains;Plains;Plains;Plains;Forest
+    humanlibrary=Plains;Plains;Plains;Plains
+    ailibrary=Forest;Forest;Forest;Forest
+    """.trimIndent()
+
 class DisguiseSessionTest :
     SessionTest({
-        test("disguise cast emits FaceDown on the battlefield iid immediately") {
-            startDisguisePuzzle()
-
+        session(
+            "disguise cast emits FaceDown on the battlefield iid immediately",
+            puzzle = DISGUISE_FORUM_FAMILIAR_PUZZLE,
+            turns = 6,
+        ) {
             val before = messageSnapshot()
             castSpellByName("Forum Familiar", alternativeGrpId = KeywordAbilityIds.DISGUISE) shouldBe true
             passPriority()
@@ -33,7 +48,7 @@ class DisguiseSessionTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isFaceDown }
-            val battlefieldIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(faceDownPermanent.id)).value
+            val battlefieldIid = bridge.getOrAllocInstanceId(ForgeCardId(faceDownPermanent.id)).value
             val faceDown =
                 firstFaceDownGsm!!.persistentAnnotationsList.first { AnnotationType.FaceDown in it.typeList }
             val faceDownIid = faceDown.affectedIdsList.single()
@@ -44,9 +59,11 @@ class DisguiseSessionTest :
             }
         }
 
-        test("face-down disguise permanent exposes turn-face-up in activation index space") {
-            startDisguisePuzzle()
-
+        session(
+            "face-down disguise permanent exposes turn-face-up in activation index space",
+            puzzle = DISGUISE_FORUM_FAMILIAR_PUZZLE,
+            turns = 6,
+        ) {
             castSpellByName("Forum Familiar", alternativeGrpId = KeywordAbilityIds.DISGUISE) shouldBe true
             passPriority()
 
@@ -63,9 +80,11 @@ class DisguiseSessionTest :
             turnFaceUpAbilities shouldHaveSize 1
         }
 
-        test("printed cast of a disguise card does not use the face-down cast SA") {
-            startDisguisePuzzle()
-
+        session(
+            "printed cast of a disguise card does not use the face-down cast SA",
+            puzzle = DISGUISE_FORUM_FAMILIAR_PUZZLE,
+            turns = 6,
+        ) {
             castSpellByName("Forum Familiar") shouldBe true
             passPriority()
 
@@ -82,9 +101,11 @@ class DisguiseSessionTest :
             }
         }
 
-        test("Special_TurnFaceUp action flips a face-down disguise permanent") {
-            startDisguisePuzzle()
-
+        session(
+            "Special_TurnFaceUp action flips a face-down disguise permanent",
+            puzzle = DISGUISE_FORUM_FAMILIAR_PUZZLE,
+            turns = 6,
+        ) {
             castSpellByName("Forum Familiar", alternativeGrpId = KeywordAbilityIds.DISGUISE) shouldBe true
             passPriority()
             val faceDown =
@@ -92,17 +113,17 @@ class DisguiseSessionTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isFaceDown }
-            val faceDownIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(faceDown.id)).value
+            val faceDownIid = bridge.getOrAllocInstanceId(ForgeCardId(faceDown.id)).value
 
-            harness.session.onPerformAction(
-                harness.submitWithGsId(
+            session.onPerformAction(
+                submitWithGsId(
                     performAction {
                         actionType = ActionType.SpecialTurnFaceUp_add3
                         instanceId = faceDownIid
                     },
                 ),
             )
-            harness.drainSink()
+            drainSink()
 
             val familiar =
                 human
@@ -118,22 +139,3 @@ class DisguiseSessionTest :
             }
         }
     })
-
-private fun SessionTest.startDisguisePuzzle() {
-    startPuzzle(
-        """
-        ActivePlayer=Human
-        ActivePhase=Main1
-        HumanLife=20
-        AILife=4
-
-        humanhand=Forum Familiar
-        humanbattlefield=Plains;Plains;Plains;Plains;Plains;Forest
-        humanlibrary=Plains;Plains;Plains;Plains
-        ailibrary=Forest;Forest;Forest;Forest
-        """.trimIndent(),
-        name = "Disguise Forum Familiar",
-        turns = 6,
-        validating = false,
-    )
-}

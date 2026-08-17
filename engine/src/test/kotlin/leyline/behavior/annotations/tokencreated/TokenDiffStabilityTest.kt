@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.event.FrameEventLog
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -55,7 +56,7 @@ class TokenDiffStabilityTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        fun castInspectorAndWaitForClue(): Int {
+        fun MatchFlowHarness.castInspectorAndWaitForClue(): Int {
             human
                 .getZone(ZoneType.Hand)
                 .cards

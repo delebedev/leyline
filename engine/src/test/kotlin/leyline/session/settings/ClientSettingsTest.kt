@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.clientMessage
 import leyline.testkit.stop
+import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -20,7 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ClientSettingsTest :
     SessionTest({
 
-        fun sendSettings(vararg stops: Stop) {
+        fun MatchFlowHarness.sendSettings(vararg stops: Stop) {
             val msg =
                 clientMessage(ClientMessageType.SetSettingsReq_097b) {
                     setSetSettingsReq(
@@ -29,7 +30,7 @@ class ClientSettingsTest :
                         ),
                     )
                 }
-            harness.session.onSettings(msg)
+            session.onSettings(msg)
         }
 
         fun stop(

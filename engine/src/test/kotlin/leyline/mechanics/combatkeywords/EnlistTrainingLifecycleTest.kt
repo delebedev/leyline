@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.annotation
 import leyline.testkit.detailInt
@@ -147,15 +148,15 @@ class EnlistTrainingLifecycleTest :
         }
     }) {
     companion object {
-        private fun SessionTest.advanceToAttackersReq() {
+        private fun MatchFlowHarness.advanceToAttackersReq() {
             fun isDeclareAttackersPending(): Boolean =
-                harness.bridge
+                bridge
                     .actionBridge(SeatId(HUMAN_SEAT))
                     .getPending()
                     ?.state
                     ?.kind == PendingActionKind.DECLARE_ATTACKERS
 
-            if (harness.phase() == "COMBAT_DECLARE_ATTACKERS" && isDeclareAttackersPending()) return
+            if (phase() == "COMBAT_DECLARE_ATTACKERS" && isDeclareAttackersPending()) return
             val snap = messageSnapshot()
             passUntil(maxPasses = 10) {
                 messagesSince(snap).any { it.hasDeclareAttackersReq() } && isDeclareAttackersPending()

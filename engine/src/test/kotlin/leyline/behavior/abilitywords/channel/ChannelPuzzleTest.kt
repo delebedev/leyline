@@ -13,10 +13,9 @@ import leyline.testkit.SessionTest
  */
 class ChannelPuzzleTest :
     SessionTest({
-
-        test("Twinshot Sniper channel from hand kills opponent") {
-            val pzl =
-                """
+        session(
+            "Twinshot Sniper channel from hand kills opponent",
+            """
                 [metadata]
                 Name:Channel for Lethal
                 Goal:Win
@@ -35,10 +34,9 @@ class ChannelPuzzleTest :
                 humanlibrary=Mountain
                 aibattlefield=Centaur Courser
                 ailibrary=Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+                """.trimIndent(),
+            validating = true,
+        ) {
             assertSoftly {
                 phase() shouldBe "MAIN1"
                 ai.life shouldBe 2

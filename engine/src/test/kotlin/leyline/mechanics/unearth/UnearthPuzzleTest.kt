@@ -9,6 +9,28 @@ import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
+private val UNEARTH_GIXIAN_RECYCLER_PUZZLE =
+    """
+    [metadata]
+    Name:Unearth Gixian Recycler
+    Goal:Return + attack
+    Turns:1
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Plains
+    humangraveyard=Gixian Recycler
+    humanbattlefield=Swamp;Swamp;Plains
+    humanlibrary=Plains;Plains;Plains
+    aibattlefield=
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
 /**
  * Integration test for Unearth (graveyard-zone activated ability).
  *
@@ -19,32 +41,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 @Suppress("MissingAssertSoftly") // intentional fail-fast — offer-shape and passUntil depend on prior steps
 class UnearthPuzzleTest :
     SessionTest({
-
-        test("Gixian Recycler unearth from graveyard returns with haste") {
-            val pzl =
-                """
-                [metadata]
-                Name:Unearth Gixian Recycler
-                Goal:Return + attack
-                Turns:1
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Plains
-                humangraveyard=Gixian Recycler
-                humanbattlefield=Swamp;Swamp;Plains
-                humanlibrary=Plains;Plains;Plains
-                aibattlefield=
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+        session(
+            "Gixian Recycler unearth from graveyard returns with haste",
+            puzzle = UNEARTH_GIXIAN_RECYCLER_PUZZLE,
+            validating = true,
+        ) {
             // Pre-unearth invariants
             human
                 .getZone(ZoneType.Graveyard)

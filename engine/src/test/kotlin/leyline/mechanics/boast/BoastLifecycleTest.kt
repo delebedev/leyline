@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
@@ -116,7 +117,7 @@ class BoastLifecycleTest :
         }
     })
 
-private fun SessionTest.latestBoastOffer(usherIid: Int): Boolean {
+private fun MatchFlowHarness.latestBoastOffer(usherIid: Int): Boolean {
     val actions = allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList ?: return false
     return withClue(actions.map { "${it.actionType}:${it.instanceId}:${it.abilityGrpId}" }) {
         actions.any {

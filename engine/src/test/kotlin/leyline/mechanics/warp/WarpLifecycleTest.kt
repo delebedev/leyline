@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
+import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 private val WARP_PUZZLE =
@@ -135,8 +136,8 @@ class WarpLifecycleTest :
         }
     })
 
-private fun SessionTest.warpAbilityGrpId(): Int {
-    val repo = harness.bridge.cardRepository
+private fun MatchFlowHarness.warpAbilityGrpId(): Int {
+    val repo = bridge.cardRepository
     val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
     return repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 }

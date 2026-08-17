@@ -13,7 +13,9 @@ import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.ClientAccumulator
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
@@ -280,26 +282,26 @@ private fun assertWaterbendPaymentActions(
 
 private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
 
-private fun SessionTest.respondToWaterbendMakePayment(instanceId: Int) {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToWaterbendMakePayment(instanceId: Int) {
+    session.onPerformAction(
+        submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
-            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
 
-private fun SessionTest.respondToWaterbendPaymentDone() {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToWaterbendPaymentDone() {
+    session.onPerformAction(
+        submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()
-                .setGameStateId(harness.latestPromptGsId())
+                .setGameStateId(latestPromptGsId())
                 .build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }

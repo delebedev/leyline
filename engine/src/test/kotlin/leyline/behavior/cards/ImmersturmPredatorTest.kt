@@ -19,10 +19,9 @@ import leyline.testkit.beInExileOf
  */
 class ImmersturmPredatorTest :
     SessionTest({
-
-        test("sacrifice-as-cost: sac creature -> Predator tapped -> trigger fires -> counter") {
-            val pzl =
-                """
+        session(
+            "sacrifice-as-cost: sac creature -> Predator tapped -> trigger fires -> counter",
+            """
                 [metadata]
                 Name:Immersturm Predator Sacrifice
                 Goal:Win
@@ -42,9 +41,9 @@ class ImmersturmPredatorTest :
                 aigraveyard=Centaur Courser
                 aibattlefield=Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
+                """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
 
             val predatorBefore =
@@ -59,10 +58,10 @@ class ImmersturmPredatorTest :
 
             // Sacrifice cost prompt should appear — verify structural properties
             val sacWindow =
-                harness.bridge.cutCoordinator.oneShotPayCosts
+                bridge.cutCoordinator.oneShotPayCosts
                     .current()
                     .shouldNotBeNull()
-            val sacPrompt = harness.allMessages.last { it.hasPayCostsReq() }.payCostsReq
+            val sacPrompt = allMessages.last { it.hasPayCostsReq() }.payCostsReq
             val selection = sacPrompt.effectCostReq.costSelection
             assertSoftly {
                 selection.idsCount shouldBeGreaterThan 0
@@ -75,8 +74,8 @@ class ImmersturmPredatorTest :
             respondToEffectCost(listOf(selection.idsList.first()))
 
             // Drain messages produced by the sacrifice
-            harness.session.triggerAutoPass()
-            harness.drainSink()
+            session.triggerAutoPass()
+            drainSink()
 
             // Bears should be sacrificed now
             human
@@ -94,18 +93,18 @@ class ImmersturmPredatorTest :
                 .shouldBeTrue()
 
             // --- Step 3: Tap trigger fires → targeting prompt for GY exile ---
-            if (harness.bridge.cutCoordinator.targeting
+            if (bridge.cutCoordinator.targeting
                     .current() != null
             ) {
                 val targetInstanceId =
-                    harness.allMessages
+                    allMessages
                         .last { it.hasSelectTargetsReq() }
                         .selectTargetsReq.targetsList
                         .single()
                         .targetsList
                         .first()
                         .targetInstanceId
-                harness.selectTargets(listOf(targetInstanceId))
+                selectTargets(listOf(targetInstanceId))
             }
 
             // --- Step 4: Pass until trigger resolves ---

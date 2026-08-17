@@ -17,10 +17,9 @@ import leyline.testkit.SessionTest
  */
 class PlaneswalkerSacrificeTest :
     SessionTest({
-
-        test("Liliana -2 forces sacrifice, attack for lethal") {
-            val pzl =
-                """
+        session(
+            "Liliana -2 forces sacrifice, attack for lethal",
+            """
                 [metadata]
                 Name:Liliana Sacrifice
                 Goal:Win
@@ -39,10 +38,9 @@ class PlaneswalkerSacrificeTest :
                 humanlibrary=Swamp
                 aibattlefield=Centaur Courser
                 ailibrary=Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+                """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
 
             // Cast Liliana of the Veil (1BB)

@@ -47,11 +47,9 @@ class BlitzLifecycleTest :
             }
 
             human.hasCard("Mayhem Patrol", ZoneType.Battlefield).shouldBeTrue()
-            val returnedAndDrew = { human.hasCard("Mayhem Patrol", ZoneType.Graveyard) && human.hasCard("Mountain", ZoneType.Hand) }
-            passUntil(
-                maxPasses = 30,
-                stopWhen = returnedAndDrew,
-            ).shouldBeTrue()
+            passUntil(maxPasses = 30) {
+                human.hasCard("Mayhem Patrol", ZoneType.Graveyard) && human.hasCard("Mountain", ZoneType.Hand)
+            }.shouldBeTrue()
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Mayhem Patrol"

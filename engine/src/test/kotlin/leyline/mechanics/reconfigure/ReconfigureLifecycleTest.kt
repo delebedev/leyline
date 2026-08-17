@@ -15,6 +15,7 @@ import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import leyline.testkit.after
 
 class ReconfigureLifecycleTest :
     SessionTest({
@@ -75,8 +76,7 @@ class ReconfigureLifecycleTest :
             val unattachedObject = accumulator.objects[rabbitIid].shouldNotBeNull()
             val removeAttachment = allMessages.annotationsOfType(AnnotationType.RemoveAttachment).lastOrNull()
             val allActivePersistent =
-                harness
-                    .bridge
+                bridge
                     .projectionStateSnapshot()
                     .persistentAnnotations
                     .activeAnnotations

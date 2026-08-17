@@ -3,6 +3,7 @@ package leyline.session.stack
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import kotlin.time.Duration.Companion.seconds
+import leyline.testkit.after
 
 /**
  * Repro for leyline-6vtg.

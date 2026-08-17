@@ -55,9 +55,9 @@ private fun decodeSingle(hex: String): ClientToGREMessage {
 class SnapshotConsultTest :
     SessionTest({
 
-        test("consult proposes the lethal bolt in source-game ids with eval") {
-            val pzl =
-                """
+        session(
+            "consult proposes the lethal bolt in source-game ids with eval",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult
                 Goal:Win
@@ -74,12 +74,11 @@ class SnapshotConsultTest :
                 humanbattlefield=Mountain
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+                """.trimIndent(),
+        ) {
             // The harness seeds its initial Full GSM into the accumulator rather
             // than the message log; rebuild the same wire Full GSM here.
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -122,9 +121,9 @@ class SnapshotConsultTest :
                 .status shouldBe "carried"
         }
 
-        test("consult proposes a cast after the source game's land drop is spent") {
-            val pzl =
-                """
+        session(
+            "consult proposes a cast after the source game's land drop is spent",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult Land Drop
                 Goal:Win
@@ -141,21 +140,20 @@ class SnapshotConsultTest :
                 humanbattlefield=Mountain
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+                """.trimIndent(),
+        ) {
             // Spend the land drop in the source game; the follow-up prompt
             // offers casts only. Hydration resets the drop, so the consult
             // must re-derive "drop spent" from the prompt — otherwise the AI
             // holds every spell waiting to play a land it can no longer play.
-            harness.playLand()
+            playLand()
             val aar = allMessages.last { it.hasActionsAvailableReq() }
             aar.actionsAvailableReq.actionsList.none {
                 it.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Play_add3
             } shouldBe
                 true
 
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -342,9 +340,9 @@ class SnapshotConsultTest :
             decodeSingle(result.proposal.responses.single()).type shouldBe ClientMessageType.SubmitBlockersReq
         }
 
-        test("consult targets the OPPONENT player for a player-burn spell") {
-            val pzl =
-                """
+        session(
+            "consult targets the OPPONENT player for a player-burn spell",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult Player Target
                 Goal:Win
@@ -361,9 +359,8 @@ class SnapshotConsultTest :
                 humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
                 humanlibrary=Mountain
                 ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+                """.trimIndent(),
+        ) {
             // Cast in the source game up to the targeting prompt, then consult
             // the snapshot about that prompt. The hydrated game has no bound
             // targeting ability, so this exercises the required-target path
@@ -372,7 +369,7 @@ class SnapshotConsultTest :
             castSpellByName("Lava Axe").shouldBeTrue()
             val targetsReq = allMessages.last { it.hasSelectTargetsReq() }
 
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -391,9 +388,9 @@ class SnapshotConsultTest :
             result.proposal.responseIds shouldBe listOf(2)
         }
 
-        test("target consult reproduces the live decision byte-for-byte (rebuilt ability)") {
-            val pzl =
-                """
+        session(
+            "target consult reproduces the live decision byte-for-byte (rebuilt ability)",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult Target Fidelity
                 Goal:Win
@@ -411,9 +408,8 @@ class SnapshotConsultTest :
                 humanlibrary=Mountain
                 aibattlefield=Raging Goblin;Centaur Courser
                 ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+                """.trimIndent(),
+        ) {
             // Multiple legal targets (two enemy creatures + both faces): the
             // pre-rebuild fallback picked by list order, not by the AI's
             // judgement. The contract under test: the hydrated consult routes
@@ -422,7 +418,7 @@ class SnapshotConsultTest :
             castSpellByName("Shock").shouldBeTrue()
             val targetsReq = allMessages.last { it.hasSelectTargetsReq() }
 
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val live = CopilotProposalService(sourceBridge, leyline.bridge.types.SeatId(1)).propose(targetsReq)
             live.responses.shouldNotBeEmpty()
 
@@ -442,9 +438,9 @@ class SnapshotConsultTest :
             result.proposal.responses shouldBe live.responses
         }
 
-        test("bounded target consult realizes zero-to-two and one-to-two groups") {
-            val pzl =
-                """
+        session(
+            "bounded target consult realizes zero-to-two and one-to-two groups",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult Bounded Targets
                 Goal:Win
@@ -461,10 +457,9 @@ class SnapshotConsultTest :
                 humanlibrary=Forest
                 aibattlefield=Raging Goblin
                 ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
-            val sourceBridge = harness.bridge
+                """.trimIndent(),
+        ) {
+            val sourceBridge = bridge
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
@@ -524,9 +519,9 @@ class SnapshotConsultTest :
             required.selectTargetsResp.target.targetIdx shouldBe 1
         }
 
-        test("multi-group target consult advances one group per echoed prompt") {
-            val pzl =
-                """
+        session(
+            "multi-group target consult advances one group per echoed prompt",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult Grouped Targets
                 Goal:Win
@@ -543,12 +538,11 @@ class SnapshotConsultTest :
                 humanlibrary=Forest
                 aibattlefield=Raging Goblin;Centaur Courser
                 ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+                """.trimIndent(),
+        ) {
             val ownIds = listOf(human.battlefield.iid("Grizzly Bears"), human.battlefield.iid("Walking Corpse"))
             val opponentIds = listOf(ai.battlefield.iid("Raging Goblin"), ai.battlefield.iid("Centaur Courser"))
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
@@ -645,9 +639,9 @@ class SnapshotConsultTest :
                 .legalAction shouldBe SelectAction.Unselect
         }
 
-        test("modal consult retains the prompt ctoId in proposal and response") {
-            val pzl =
-                """
+        session(
+            "modal consult retains the prompt ctoId in proposal and response",
+            puzzle = """
                 [metadata]
                 Name:Snapshot Consult Modal Identity
                 Goal:Win
@@ -663,10 +657,9 @@ class SnapshotConsultTest :
                 humanbattlefield=Mountain
                 humanlibrary=Mountain
                 ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
-            val sourceBridge = harness.bridge
+                """.trimIndent(),
+        ) {
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper

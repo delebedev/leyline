@@ -19,6 +19,7 @@ import leyline.testkit.detailUint
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import leyline.testkit.after
 
 private val PUZZLE =
     """

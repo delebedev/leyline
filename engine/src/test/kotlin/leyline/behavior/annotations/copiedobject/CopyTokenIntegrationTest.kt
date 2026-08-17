@@ -17,6 +17,7 @@ import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import leyline.testkit.StateMapperShell as StateMapper
+import leyline.testkit.MatchFlowHarness
 
 /**
  * Integration tests for the token identity subsystem:
@@ -70,7 +71,7 @@ class CopyTokenIntegrationTest :
          * Cast Electroduplicate, resolve, and return the copy token's Forge Card
          * plus its instanceId.
          */
-        fun castAndResolveCopy(): Pair<forge.game.card.Card, Int> {
+        fun MatchFlowHarness.castAndResolveCopy(): Pair<forge.game.card.Card, Int> {
             // Preconditions
             human
                 .getZone(ZoneType.Hand)
@@ -273,7 +274,7 @@ class CopyTokenIntegrationTest :
             ailibrary=Island;Island;Island;Island;Island
             """.trimIndent()
 
-        fun castQuickStudyAndWaitForCopy(): Pair<forge.game.card.Card, Int> {
+        fun MatchFlowHarness.castQuickStudyAndWaitForCopy(): Pair<forge.game.card.Card, Int> {
             assertSoftly {
                 human
                     .getZone(ZoneType.Hand)

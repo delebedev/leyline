@@ -9,6 +9,7 @@ import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import leyline.testkit.after
 
 /**
  * Session-tier activated ability tests — full MatchSession round-trip.

@@ -8,7 +8,9 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.hasDetail
 import leyline.testkit.haveManaCost
@@ -91,26 +93,26 @@ class ImproviseLifecycleTest :
         }
     })
 
-private fun SessionTest.respondToMakePayment(instanceId: Int) {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToMakePayment(instanceId: Int) {
+    session.onPerformAction(
+        submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
-            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
 
-private fun SessionTest.respondToPaymentDone() {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToPaymentDone() {
+    session.onPerformAction(
+        submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()
-                .setGameStateId(harness.latestPromptGsId())
+                .setGameStateId(latestPromptGsId())
                 .build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }

@@ -13,6 +13,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.*
+import leyline.testkit.after
 
 /**
  * Modal ETB flow tests using [SessionTest] + puzzle files.
@@ -287,13 +288,12 @@ class ModalETBFlowTest :
             }
 
             bridge.phaseStopProfile?.setEnabled(human.id, forge.game.phase.PhaseType.END_OF_TURN, true)
-            harness
-                .passUntil(maxPasses = 30) {
-                    allMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.gameObjectsList }
-                        .any { it.type == GameObjectType.Ability && it.grpId == princeReturnGrpId }
-                }.shouldBeTrue()
+            passUntil(maxPasses = 30) {
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .any { it.type == GameObjectType.Ability && it.grpId == princeReturnGrpId }
+            }.shouldBeTrue()
             val firingState =
                 allMessages
                     .filter { it.hasGameStateMessage() }
@@ -318,10 +318,9 @@ class ModalETBFlowTest :
             }
 
             assertSoftly {
-                harness
-                    .passUntil(maxPasses = 30) {
-                        human.getZone(forge.game.zone.ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
-                    }.shouldBeTrue()
+                passUntil(maxPasses = 30) {
+                    human.getZone(forge.game.zone.ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
+                }.shouldBeTrue()
                 val resolutionState =
                     allMessages
                         .filter { it.hasGameStateMessage() }

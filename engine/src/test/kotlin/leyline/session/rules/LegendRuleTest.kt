@@ -6,11 +6,13 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
+import leyline.testkit.after
 
 /**
  * Legend rule SBA conformance: when two legendary permanents with the same
@@ -46,9 +48,9 @@ class LegendRuleTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
-        fun findUntappedIsamaru(instanceIds: List<Int>): Int? {
+        fun MatchFlowHarness.findUntappedIsamaru(instanceIds: List<Int>): Int? {
             for (iid in instanceIds) {
-                val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: continue
+                val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: continue
                 val card =
                     human
                         .getZone(ForgeZoneType.Battlefield)
@@ -60,7 +62,7 @@ class LegendRuleTest :
         }
 
         /** Cast Isamaru, resolve, trigger legend rule, respond to SelectNReq. */
-        fun castAndResolveLegendRule(): Int {
+        fun MatchFlowHarness.castAndResolveLegendRule(): Int {
             castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
             passPriority()
 
@@ -68,7 +70,7 @@ class LegendRuleTest :
             val legendaryIds = selectNReq.selectNReq.idsList
             val keepId = findUntappedIsamaru(legendaryIds) ?: legendaryIds.last()
 
-            harness.respondToSelectN(listOf(keepId))
+            respondToSelectN(listOf(keepId))
             return keepId
         }
 

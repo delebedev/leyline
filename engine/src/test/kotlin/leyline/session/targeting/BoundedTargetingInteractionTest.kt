@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 
 class BoundedTargetingInteractionTest :
     SessionTest({

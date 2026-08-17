@@ -7,6 +7,8 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -15,6 +17,15 @@ import java.io.File
 
 class ManaPoolSessionTest :
     SessionTest({
+        // Racers' Ring isn't in the default deck registry — register it before
+        // any puzzle parses its name, not inside a test body (too late: the
+        // puzzle parser needs the card registered by the time it loads).
+        beforeSpec {
+            TestCardRegistry.ensureCardRegistered("Racers' Ring")
+        }
+
+        val racersRingPuzzle = File("../puzzles/racers-ring-draw.pzl").readText()
+
         session(
             "tapping land and mana creature projects floating mana pool",
             puzzle = """
@@ -58,10 +69,11 @@ class ManaPoolSessionTest :
             }
         }
 
-        test("tapping dual land projects selected floating mana") {
-            leyline.testkit.TestCardRegistry.ensureCardRegistered("Racers' Ring")
-            startPuzzleRaw(File("../puzzles/racers-ring-draw.pzl").readText(), validating = true)
-
+        session(
+            "tapping dual land projects selected floating mana",
+            puzzle = racersRingPuzzle,
+            validating = true,
+        ) {
             val landIid = instanceIdOf("Racers' Ring")
             val messages =
                 after { activateMana("Racers' Ring", selectedColor = ManaColor.Green_afc9).shouldBeTrue() }
@@ -74,14 +86,16 @@ class ManaPoolSessionTest :
             }
         }
 
-        test("unsupported mana color leaves projection state unchanged") {
-            leyline.testkit.TestCardRegistry.ensureCardRegistered("Racers' Ring")
-            startPuzzleRaw(File("../puzzles/racers-ring-draw.pzl").readText(), validating = true)
-            val before = harness.bridge.projectionStateSnapshot()
+        session(
+            "unsupported mana color leaves projection state unchanged",
+            puzzle = racersRingPuzzle,
+            validating = true,
+        ) {
+            val before = bridge.projectionStateSnapshot()
 
             activateMana("Racers' Ring", selectedColor = ManaColor.Blue_afc9).shouldBeFalse()
 
-            harness.bridge.projectionStateSnapshot() shouldBe before
+            bridge.projectionStateSnapshot() shouldBe before
         }
     })
 

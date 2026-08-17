@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 
 /**
@@ -30,7 +31,7 @@ class ExileTypeCountCostLifecycleTest :
             ailibrary=Mountain;Mountain
             """.trimIndent()
 
-        fun SessionTest.graveyardIds(vararg names: String): List<Int> =
+        fun MatchFlowHarness.graveyardIds(vararg names: String): List<Int> =
             names.map { name ->
                 human.graveyard.iid(
                     human

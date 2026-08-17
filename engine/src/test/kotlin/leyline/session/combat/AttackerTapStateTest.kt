@@ -13,6 +13,7 @@ import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.*
+import leyline.testkit.after
 
 /**
  * Verifies that attacking creatures appear with tapped state in the post-submit

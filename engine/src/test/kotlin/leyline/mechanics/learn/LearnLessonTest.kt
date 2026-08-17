@@ -29,6 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
+import leyline.testkit.after
 
 class LearnLessonTest :
     SessionTest({

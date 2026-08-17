@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
@@ -101,10 +102,10 @@ class GameEndTest :
             }
         }
 
-        test("lethal damage produces MatchCompleted room state") {
+        session(
+            "lethal damage produces MatchCompleted room state",
             // Puzzle: 3 haste creatures vs AI at 3 life — attack all = lethal
-            val pzl =
-                """
+            puzzle = """
                 [metadata]
                 Name:Lethal Attack
                 Goal:Win
@@ -122,25 +123,24 @@ class GameEndTest :
                 humanhand=Mountain
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+                """.trimIndent(),
+            validating = true,
+        ) {
             // Advance to combat
             val startTurn = turn()
             passPriority()
 
             // Attack all
-            harness.declareAllAttackers()
-            harness.submitAttackers()
+            declareAllAttackers()
+            submitAttackers()
 
             // Pass through remaining combat phases
-            harness.passThroughCombat(startTurn)
+            passThroughCombat(startTurn)
 
             isGameOver().shouldBeTrue()
 
             // Verify MatchCompleted was sent
-            val rawMsgs = harness.allRawMessages
+            val rawMsgs = allRawMessages
             val matchCompleted =
                 rawMsgs.firstOrNull {
                     it.hasMatchGameRoomStateChangedEvent() &&
@@ -185,9 +185,9 @@ class GameEndTest :
             }
         }
 
-        test("lethal poison produces poison loss annotation") {
-            val pzl =
-                """
+        session(
+            "lethal poison produces poison loss annotation",
+            puzzle = """
                 [metadata]
                 Name:Poison Lethal Swing
                 Goal:Win
@@ -205,15 +205,14 @@ class GameEndTest :
                 humanbattlefield=Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus;Crawling Chorus
                 humanlibrary=Forest
                 ailibrary=Forest
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+                """.trimIndent(),
+            validating = true,
+        ) {
             val startTurn = turn()
             passPriority()
-            harness.declareAllAttackers()
-            harness.submitAttackers()
-            harness.passThroughCombat(startTurn)
+            declareAllAttackers()
+            submitAttackers()
+            passThroughCombat(startTurn)
 
             assertSoftly {
                 isGameOver().shouldBeTrue()

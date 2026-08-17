@@ -15,6 +15,7 @@ import leyline.testkit.findZoneTransfer
 import leyline.testkit.lastGsmMatching
 import wotc.mtgo.gre.external.messaging.Messages.CardMechanicType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import leyline.testkit.assertAccumulatorConsistent
 
 class BrawlCommanderPromptSessionTest :
     SessionTest({

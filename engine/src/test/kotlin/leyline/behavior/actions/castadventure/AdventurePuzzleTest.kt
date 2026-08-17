@@ -10,6 +10,7 @@ import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -31,9 +32,14 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 class AdventurePuzzleTest :
     SessionTest({
 
-        test("adventure lifecycle: cast adventure → tokens → exile → cast creature → battlefield") {
-            val pzl =
-                """
+        fun MatchFlowHarness.adventureCompanionIn(zoneId: Int): GameObjectInfo =
+            accumulator.objects.values.single { obj ->
+                obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == zoneId
+            }
+
+        session(
+            "adventure lifecycle: cast adventure → tokens → exile → cast creature → battlefield",
+            """
                 [metadata]
                 Name:Adventure Lifecycle
                 Goal:Win
@@ -52,23 +58,18 @@ class AdventurePuzzleTest :
                 humanlibrary=Mountain
                 aibattlefield=Forest
                 ailibrary=Forest
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
+                """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
-
-            fun adventureCompanionIn(zoneId: Int): GameObjectInfo =
-                harness.accumulator.objects.values.single { obj ->
-                    obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == zoneId
-                }
 
             // --- Step 1: Verify CastAdventure action is available ---
             val traineeIid = human.hand.iid("Ratcatcher Trainee")
             val handCompanion = adventureCompanionIn(ZoneIds.P1_HAND)
-            harness.accumulator.zones
+            accumulator.zones
                 .getValue(ZoneIds.P1_HAND)
                 .objectInstanceIdsList shouldContain traineeIid
-            harness.accumulator.zones
+            accumulator.zones
                 .getValue(ZoneIds.P1_HAND)
                 .objectInstanceIdsList shouldNotContain handCompanion.instanceId
 
@@ -96,8 +97,8 @@ class AdventurePuzzleTest :
                     grpId = adventureAction.grpId
                 }
             val beforeCast = messageSnapshot()
-            harness.session.onPerformAction(harness.submitWithGsId(castMsg))
-            harness.drainSink()
+            session.onPerformAction(submitWithGsId(castMsg))
+            drainSink()
             val castFlow = messagesSince(beforeCast)
             val stackMessageIndex =
                 castFlow.indexOfFirst { message ->
@@ -136,7 +137,7 @@ class AdventurePuzzleTest :
                 stackGsm.gameStateId shouldBeLessThan exileGsm.gameStateId
                 exileGsm.gameStateId shouldBeLessThan castFlow[visibleActionIndex].gameStateId
                 adventureStackCompanion.instanceId shouldNotBe handCompanion.instanceId
-                harness.accumulator.zones
+                accumulator.zones
                     .getValue(ZoneIds.STACK)
                     .objectInstanceIdsList shouldNotContain adventureStackCompanion.instanceId
             }
@@ -167,14 +168,14 @@ class AdventurePuzzleTest :
             assertSoftly {
                 inExile.shouldBeTrue()
                 exileCompanion.instanceId shouldNotBe adventureStackCompanion.instanceId
-                harness.accumulator.zones
+                accumulator.zones
                     .getValue(ZoneIds.EXILE)
                     .objectInstanceIdsList shouldNotContain exileCompanion.instanceId
             }
 
             // --- Step 5: Cast creature from exile ---
             val beforeCreatureCast = messageSnapshot()
-            val castCreature = harness.castFromExile("Ratcatcher Trainee")
+            val castCreature = castFromExile("Ratcatcher Trainee")
             val creatureCastMessages = messagesSince(beforeCreatureCast)
             val creatureStackCompanion =
                 creatureCastMessages
@@ -199,7 +200,7 @@ class AdventurePuzzleTest :
             assertSoftly {
                 creatureOnBattlefield.shouldBeTrue()
                 battlefieldCompanion.instanceId shouldBe creatureStackCompanion.instanceId
-                harness.accumulator.zones
+                accumulator.zones
                     .getValue(ZoneIds.BATTLEFIELD)
                     .objectInstanceIdsList shouldNotContain battlefieldCompanion.instanceId
             }

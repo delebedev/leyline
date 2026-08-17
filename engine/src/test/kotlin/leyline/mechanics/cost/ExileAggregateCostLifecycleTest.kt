@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -84,7 +85,7 @@ class ExileAggregateCostLifecycleTest :
         }
     })
 
-private fun SessionTest.boastOfferAvailable(iid: Int): Boolean {
+private fun MatchFlowHarness.boastOfferAvailable(iid: Int): Boolean {
     val actions =
         allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList ?: return false
     return actions.any { it.actionType == ActionType.Activate_add3 && it.instanceId == iid }

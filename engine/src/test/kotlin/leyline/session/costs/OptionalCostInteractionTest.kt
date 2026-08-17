@@ -6,7 +6,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -38,7 +40,7 @@ class OptionalCostInteractionTest :
             """.trimIndent()
 
         /** Accept kicker — send the Kicker option's ctoId. */
-        fun acceptKicker() {
+        fun MatchFlowHarness.acceptKicker() {
             val kickerOption =
                 lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                     it.castingTimeOptionType == CastingTimeOptionType.Kicker
@@ -47,7 +49,7 @@ class OptionalCostInteractionTest :
         }
 
         /** Decline kicker — send the Done option's ctoId (0). */
-        fun declineKicker() {
+        fun MatchFlowHarness.declineKicker() {
             val doneOption =
                 lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                     it.castingTimeOptionType == CastingTimeOptionType.Done

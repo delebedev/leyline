@@ -6,6 +6,26 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 
+private val CYCLE_MISCALCULATION_PUZZLE =
+    """
+    [metadata]
+    Name:Cycle Miscalculation
+    Goal:Cycle and draw
+    Turns:1
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Miscalculation
+    humanbattlefield=Island;Island
+    humanlibrary=Lightning Bolt;Island
+    ailibrary=Mountain
+    """.trimIndent()
+
 /**
  * Integration test for Cycling (hand-zone activated ability with discard-as-cost).
  *
@@ -18,30 +38,7 @@ import leyline.testkit.SessionTest
 @Suppress("MissingAssertSoftly") // intentional fail-fast — passUntil depends on activation succeeding first
 class CyclingPuzzleTest :
     SessionTest({
-
-        test("Miscalculation cycle from hand draws + discards") {
-            val pzl =
-                """
-                [metadata]
-                Name:Cycle Miscalculation
-                Goal:Cycle and draw
-                Turns:1
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Miscalculation
-                humanbattlefield=Island;Island
-                humanlibrary=Lightning Bolt;Island
-                ailibrary=Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+        session("Miscalculation cycle from hand draws + discards", puzzle = CYCLE_MISCALCULATION_PUZZLE, validating = true) {
             // Pre-cycle invariants
             human
                 .getZone(ZoneType.Hand)

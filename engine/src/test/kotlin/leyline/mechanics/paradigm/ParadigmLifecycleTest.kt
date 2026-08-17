@@ -9,6 +9,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
+import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -261,7 +262,7 @@ class ParadigmLifecycleTest :
 private fun List<GREToClientMessage>.gsms(): List<GameStateMessage> =
     mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 
-private fun SessionTest.gsms(): List<GameStateMessage> = allMessages.gsms()
+private fun MatchFlowHarness.gsms(): List<GameStateMessage> = allMessages.gsms()
 
 private fun AnnotationInfo.isStackToExileParadigmTransfer(): Boolean =
     typeList.contains(AnnotationType.ZoneTransfer_af5a) &&

@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.detail
@@ -123,13 +124,13 @@ class SneakLifecycleTest :
         }
     })
 
-private fun SessionTest.sneakAbilityGrpId(): Int {
-    val repo = harness.bridge.cardRepository
+private fun MatchFlowHarness.sneakAbilityGrpId(): Int {
+    val repo = bridge.cardRepository
     val cardGrpId = repo.findGrpIdByName("Splinter, Hamato Yoshi")!!
     return repo.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.SNEAK)!!
 }
 
-private fun SessionTest.latestSneakOffer(sneakAbilityGrpId: Int) =
+private fun MatchFlowHarness.latestSneakOffer(sneakAbilityGrpId: Int) =
     allMessages
         .asReversed()
         .firstOrNull { it.hasActionsAvailableReq() }

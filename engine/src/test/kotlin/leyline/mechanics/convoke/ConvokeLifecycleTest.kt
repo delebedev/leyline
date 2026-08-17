@@ -12,7 +12,9 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasDetail
@@ -293,32 +295,32 @@ private fun assertConvokePaymentActions(
     }
 }
 
-private fun SessionTest.respondToConvokeMakePayment(
+private fun MatchFlowHarness.respondToConvokeMakePayment(
     instanceId: Int,
     repeatInManaSelection: Boolean = false,
 ) {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+    session.onPerformAction(
+        submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
                 if (repeatInManaSelection) {
                     addManaSelections(ManaSelection.newBuilder().setInstanceId(instanceId))
                 }
-            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
 
-private fun SessionTest.respondToConvokePaymentDone() {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToConvokePaymentDone() {
+    session.onPerformAction(
+        submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()
-                .setGameStateId(harness.latestPromptGsId())
+                .setGameStateId(latestPromptGsId())
                 .build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }

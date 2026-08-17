@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.lastWithPersistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -21,10 +22,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class ControllerChangedPuzzleTest :
     SessionTest({
-
-        test("Act of Treason steals creature, annotations emitted, attack wins") {
-            val pzl =
-                """
+        session(
+            "Act of Treason steals creature, annotations emitted, attack wins",
+            """
                 [metadata]
                 Name:Steal Creature
                 Goal:Win
@@ -43,9 +43,9 @@ class ControllerChangedPuzzleTest :
                 humanlibrary=Mountain
                 aibattlefield=Grizzly Bears
                 ailibrary=Forest
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
+                """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
 
             val bearsIid = ai.battlefield.iid("Grizzly Bears")
@@ -100,7 +100,7 @@ class ControllerChangedPuzzleTest :
             }
 
             // Now attack with the stolen creature and win
-            harness.advanceToCombat()
+            advanceToCombat()
             val bearsNewIid = human.battlefield.iid("Grizzly Bears")
             declareAttackers(listOf(bearsNewIid))
 
