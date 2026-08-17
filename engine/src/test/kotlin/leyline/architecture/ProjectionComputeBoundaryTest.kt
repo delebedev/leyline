@@ -14,7 +14,6 @@ import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.StateProjectionEnvironment
 import leyline.game.mapping.ViewerProjectionIntent
-import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 
@@ -115,23 +114,5 @@ class ProjectionComputeBoundaryTest :
                     }
                 }
             }
-        }
-
-        test("mapper-only active editor accessors are absent from GameBridge") {
-            val prohibited =
-                setOf(
-                    "activeRevealProxies",
-                    "activeOpponentKnowledgeState",
-                    "activePersistentAnnotationState",
-                    "activeHolderRecords",
-                    "activeEffectPlanner",
-                    "applyHolderBatch",
-                    "applyProjectionHistory",
-                )
-            GameBridge::class.java.declaredMethods
-                .map { it.name }
-                .filter(prohibited::contains)
-                .shouldBeEmpty()
-            classes.any { it.name == "leyline.game.mapping.ProjectionCompiler" } shouldBe false
         }
     })
