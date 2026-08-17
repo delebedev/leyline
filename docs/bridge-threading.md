@@ -41,6 +41,10 @@ MessageCounter -> GameBridge.projectionBuildLock -> MatchCutCoordinator.feedLock
 Drainers take only `feedLock`. Event subscribers requesting a future cut take
 only `feedLock`. No drainer waits for the engine while holding `feedLock`.
 
+Action-window visibility and prompt correlation are read without `feedLock`, off
+volatile state the runtime writes while holding it. Threads polling for a
+pending window must not block behind a publication in progress.
+
 A queue type is not a transaction. The close/build/install/enqueue operation
 must remain protected as one publication boundary.
 

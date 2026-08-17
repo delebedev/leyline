@@ -30,26 +30,13 @@ internal class MatchSyncOnlyRuntime(
                         } catch (ex: Exception) {
                             owner.fail(ex)
                         }
-                    val messages = prepared.bundle.messages
-                    var enqueued = false
-                    var installed = false
-                    try {
-                        beforeEnqueue?.invoke()
-                        feed.queue.add(messages)
-                        enqueued = true
-                        beforeInstall?.invoke()
-                        prepared.transition?.let { transition ->
-                            owner.bridge.commitProjection(transition) { installed = true }
-                        } ?: run {
-                            installed = true
-                        }
-                        if (prepared.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(seatId)
-                    } catch (ex: Exception) {
-                        if (enqueued && !installed) owner.removeOwnedBatch(feed, messages)
-                        owner.fail(ex)
-                    }
+                    owner.cutInstaller.install(
+                        feed,
+                        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                        CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
+                    ) { ex -> owner.fail(ex) }
                     feed.requestedCut = null
-                    pending.published = true
+                    owner.actions.markSynchronizationPublished(seatId, pending.actionId)
                     requestAutoAdvance = owner.bridge.consumePromptTimeoutNeedsAutoAdvance()
                 }
             }

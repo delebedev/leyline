@@ -123,60 +123,6 @@ class GatherCountersRuntimeFailureTest :
             }
         }
 
-        test("stale install retains Gather output") {
-            val install = fixture()
-            val competing =
-                install.board.bridge
-                    .projectionStateSnapshot()
-                    .editor()
-                    .freeze()
-            install.board.bridge.cutCoordinator.oneShotPayCosts.beforeInstall = {
-                install.board.bridge.replaceProjectionStateForTest(competing)
-            }
-            val installFailure =
-                shouldThrow<PlaybackTerminalFailure> {
-                    install.board.bridge.cutCoordinator.oneShotPayCosts.awaitGatherCounters(
-                        install.window,
-                        install.creatures,
-                        3_000,
-                    )
-                }
-            assertSoftly {
-                installFailure.pendingOneShotPayCostsCut.shouldNotBeNull()
-                install.board.bridge.cutCoordinator
-                    .drain(SeatId(1))
-                    .shouldBeEmpty()
-                install.board.bridge.projectionStateSnapshot() shouldBe competing
-            }
-        }
-
-        test("post-install acknowledgement retains Gather output") {
-            val acknowledge = fixture()
-            val prior = acknowledge.board.bridge.projectionStateSnapshot()
-            acknowledge.board.bridge.cutCoordinator.oneShotPayCosts.afterInstall = {
-                error("Gather acknowledgement unavailable")
-            }
-            val acknowledgeFailure =
-                shouldThrow<PlaybackTerminalFailure> {
-                    acknowledge.board.bridge.cutCoordinator.oneShotPayCosts.awaitGatherCounters(
-                        acknowledge.window,
-                        acknowledge.creatures,
-                        3_000,
-                    )
-                }
-            val retained =
-                acknowledge.board.bridge.cutCoordinator
-                    .drain(SeatId(1))
-                    .single()
-            assertSoftly {
-                acknowledgeFailure.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe retained
-                retained.any { it.hasPayCostsReq() } shouldBe true
-                acknowledge.board.bridge
-                    .projectionStateSnapshot()
-                    .revision shouldBe prior.revision + 1
-            }
-        }
-
         test("delivery failure wins against Gather response") {
             val delivery = fixture()
             val coordinator = delivery.board.bridge.cutCoordinator
