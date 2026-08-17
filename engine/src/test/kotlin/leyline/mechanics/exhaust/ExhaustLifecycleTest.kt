@@ -20,7 +20,8 @@ class ExhaustLifecycleTest :
     SessionTest({
         session(
             "Exhaust activation emits spent ability marker and suppresses repeat offer",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -76,7 +77,8 @@ class ExhaustLifecycleTest :
 
         session(
             "Exhaust mana ability emits spent ability marker",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

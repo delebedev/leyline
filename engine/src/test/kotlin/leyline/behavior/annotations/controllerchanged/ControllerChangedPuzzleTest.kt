@@ -25,25 +25,25 @@ class ControllerChangedPuzzleTest :
         session(
             "Act of Treason steals creature, annotations emitted, attack wins",
             """
-                [metadata]
-                Name:Steal Creature
-                Goal:Win
-                Turns:1
-                Difficulty:Tutorial
-                Description:Cast Act of Treason, steal Grizzly Bears, attack for lethal.
+            [metadata]
+            Name:Steal Creature
+            Goal:Win
+            Turns:1
+            Difficulty:Tutorial
+            Description:Cast Act of Treason, steal Grizzly Bears, attack for lethal.
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=2
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=2
 
-                humanhand=Act of Treason
-                humanbattlefield=Mountain;Mountain;Mountain
-                humanlibrary=Mountain
-                aibattlefield=Grizzly Bears
-                ailibrary=Forest
-                """.trimIndent(),
+            humanhand=Act of Treason
+            humanbattlefield=Mountain;Mountain;Mountain
+            humanlibrary=Mountain
+            aibattlefield=Grizzly Bears
+            ailibrary=Forest
+            """.trimIndent(),
             validating = true,
         ) {
             phase() shouldBe "MAIN1"

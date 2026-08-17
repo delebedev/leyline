@@ -45,7 +45,8 @@ class NinjutsuPuzzleTest :
 
         session(
             "Ninjutsu returns an unblocked attacker and enters tapped attacking",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Ninjutsu Deep Hours
                 Goal:Win

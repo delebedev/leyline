@@ -25,23 +25,23 @@ class ElectroduplicateTest :
         session(
             "flashback from GY: targets creature, resolves, spell exiled",
             """
-                [metadata]
-                Name:Electroduplicate Flashback
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
+            [metadata]
+            Name:Electroduplicate Flashback
+            Goal:Win
+            Turns:5
+            Difficulty:Easy
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=4
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=4
 
-                humangraveyard=Electroduplicate
-                humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
-                humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent(),
+            humangraveyard=Electroduplicate
+            humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
+            humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            """.trimIndent(),
         ) {
             // 1. Verify Cast action offered with alternativeGrpId for flashback
             val actions =

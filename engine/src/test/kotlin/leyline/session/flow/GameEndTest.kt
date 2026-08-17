@@ -105,7 +105,8 @@ class GameEndTest :
         session(
             "lethal damage produces MatchCompleted room state",
             // Puzzle: 3 haste creatures vs AI at 3 life — attack all = lethal
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Lethal Attack
                 Goal:Win
@@ -187,7 +188,8 @@ class GameEndTest :
 
         session(
             "lethal poison produces poison loss annotation",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Poison Lethal Swing
                 Goal:Win

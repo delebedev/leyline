@@ -5,9 +5,9 @@ import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import leyline.testkit.after
 
 class StaticKeywordGrantTest :
     SessionTest({

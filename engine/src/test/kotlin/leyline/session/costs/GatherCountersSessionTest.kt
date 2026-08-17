@@ -16,7 +16,8 @@ class GatherCountersSessionTest :
     SessionTest({
         session(
             "Hopeful Initiate gathers counters across creatures before destroying target",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

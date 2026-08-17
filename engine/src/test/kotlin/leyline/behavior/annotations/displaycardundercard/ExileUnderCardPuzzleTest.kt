@@ -22,25 +22,25 @@ class ExileUnderCardPuzzleTest :
         session(
             "Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it",
             """
-                [metadata]
-                Name:Exile Under Card
-                Goal:Win
-                Turns:3
-                Difficulty:Easy
-                Description:DisplayCardUnderCard lifecycle test.
+            [metadata]
+            Name:Exile Under Card
+            Goal:Win
+            Turns:3
+            Difficulty:Easy
+            Description:DisplayCardUnderCard lifecycle test.
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=1
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=1
 
-                humanhand=Banishing Light;Disenchant
-                humanbattlefield=Plains;Plains;Plains;Plains;Plains
-                humanlibrary=Plains
-                aibattlefield=Grizzly Bears
-                ailibrary=Forest
-                """.trimIndent(),
+            humanhand=Banishing Light;Disenchant
+            humanbattlefield=Plains;Plains;Plains;Plains;Plains
+            humanlibrary=Plains
+            aibattlefield=Grizzly Bears
+            ailibrary=Forest
+            """.trimIndent(),
             validating = true,
         ) {
             phase() shouldBe "MAIN1"

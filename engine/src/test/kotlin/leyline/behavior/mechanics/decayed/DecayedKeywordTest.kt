@@ -14,6 +14,7 @@ import leyline.game.data.AbilityInfo
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
 import leyline.testkit.annotationsOfType
@@ -23,7 +24,6 @@ import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
-import leyline.testkit.after
 
 private const val DECAYED_CLEANUP_GRP_ID = 147665
 

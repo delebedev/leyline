@@ -6,10 +6,10 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import forge.game.zone.ZoneType as ForgeZoneType
-import leyline.testkit.after
 
 class HybridManaCostInteractionTest :
     SessionTest({

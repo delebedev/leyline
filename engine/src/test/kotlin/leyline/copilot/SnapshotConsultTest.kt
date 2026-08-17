@@ -57,24 +57,7 @@ class SnapshotConsultTest :
 
         session(
             "consult proposes the lethal bolt in source-game ids with eval",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=3
-
-                humanhand=Lightning Bolt
-                humanbattlefield=Mountain
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent(),
+            puzzle = CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE,
         ) {
             // The harness seeds its initial Full GSM into the accumulator rather
             // than the message log; rebuild the same wire Full GSM here.
@@ -123,24 +106,7 @@ class SnapshotConsultTest :
 
         session(
             "consult proposes a cast after the source game's land drop is spent",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult Land Drop
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Raging Goblin;Mountain
-                humanbattlefield=Mountain
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent(),
+            puzzle = CONSULT_PROPOSES_CAST_AFTER_PUZZLE,
         ) {
             // Spend the land drop in the source game; the follow-up prompt
             // offers casts only. Hydration resets the drop, so the consult
@@ -342,24 +308,7 @@ class SnapshotConsultTest :
 
         session(
             "consult targets the OPPONENT player for a player-burn spell",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult Player Target
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Lava Axe
-                humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
-                humanlibrary=Mountain
-                ailibrary=Mountain
-                """.trimIndent(),
+            puzzle = CONSULT_TARGETS_OPPONENT_PLAYER_PUZZLE,
         ) {
             // Cast in the source game up to the targeting prompt, then consult
             // the snapshot about that prompt. The hydrated game has no bound
@@ -390,25 +339,7 @@ class SnapshotConsultTest :
 
         session(
             "target consult reproduces the live decision byte-for-byte (rebuilt ability)",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult Target Fidelity
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Shock
-                humanbattlefield=Mountain;Mountain
-                humanlibrary=Mountain
-                aibattlefield=Raging Goblin;Centaur Courser
-                ailibrary=Mountain
-                """.trimIndent(),
+            puzzle = TARGET_CONSULT_REPRODUCES_LIVE_PUZZLE,
         ) {
             // Multiple legal targets (two enemy creatures + both faces): the
             // pre-rebuild fallback picked by list order, not by the AI's
@@ -440,24 +371,7 @@ class SnapshotConsultTest :
 
         session(
             "bounded target consult realizes zero-to-two and one-to-two groups",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult Bounded Targets
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Grizzly Bears
-                humanlibrary=Forest
-                aibattlefield=Raging Goblin
-                ailibrary=Mountain
-                """.trimIndent(),
+            puzzle = BOUNDED_TARGET_CONSULT_REALIZES_PUZZLE,
         ) {
             val sourceBridge = bridge
             val gsm =
@@ -521,24 +435,7 @@ class SnapshotConsultTest :
 
         session(
             "multi-group target consult advances one group per echoed prompt",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult Grouped Targets
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Grizzly Bears;Walking Corpse
-                humanlibrary=Forest
-                aibattlefield=Raging Goblin;Centaur Courser
-                ailibrary=Mountain
-                """.trimIndent(),
+            puzzle = MULTI_GROUP_TARGET_CONSULT_PUZZLE,
         ) {
             val ownIds = listOf(human.battlefield.iid("Grizzly Bears"), human.battlefield.iid("Walking Corpse"))
             val opponentIds = listOf(ai.battlefield.iid("Raging Goblin"), ai.battlefield.iid("Centaur Courser"))
@@ -641,23 +538,7 @@ class SnapshotConsultTest :
 
         session(
             "modal consult retains the prompt ctoId in proposal and response",
-            puzzle = """
-                [metadata]
-                Name:Snapshot Consult Modal Identity
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Mountain
-                humanlibrary=Mountain
-                ailibrary=Mountain
-                """.trimIndent(),
+            puzzle = MODAL_CONSULT_RETAINS_PROMPT_PUZZLE,
         ) {
             val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
@@ -707,3 +588,143 @@ class SnapshotConsultTest :
             response.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList shouldBe listOf(42_001)
         }
     })
+
+private val CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=3
+
+    humanhand=Lightning Bolt
+    humanbattlefield=Mountain
+    humanlibrary=Mountain;Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val CONSULT_PROPOSES_CAST_AFTER_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Land Drop
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Raging Goblin;Mountain
+    humanbattlefield=Mountain
+    humanlibrary=Mountain;Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val CONSULT_TARGETS_OPPONENT_PLAYER_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Player Target
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Lava Axe
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+    humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val TARGET_CONSULT_REPRODUCES_LIVE_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Target Fidelity
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Shock
+    humanbattlefield=Mountain;Mountain
+    humanlibrary=Mountain
+    aibattlefield=Raging Goblin;Centaur Courser
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val BOUNDED_TARGET_CONSULT_REALIZES_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Bounded Targets
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Grizzly Bears
+    humanlibrary=Forest
+    aibattlefield=Raging Goblin
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val MULTI_GROUP_TARGET_CONSULT_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Grouped Targets
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Grizzly Bears;Walking Corpse
+    humanlibrary=Forest
+    aibattlefield=Raging Goblin;Centaur Courser
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val MODAL_CONSULT_RETAINS_PROMPT_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Modal Identity
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Mountain
+    humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()

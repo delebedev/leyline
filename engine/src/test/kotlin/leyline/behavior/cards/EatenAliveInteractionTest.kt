@@ -7,13 +7,13 @@ import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.haveManaCost
 import leyline.testkit.ofType
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
-import leyline.testkit.after
 
 class EatenAliveInteractionTest :
     SessionTest({

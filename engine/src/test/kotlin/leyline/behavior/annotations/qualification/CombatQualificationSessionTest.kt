@@ -10,18 +10,19 @@ import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.testkit.CardDataDeriver
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
-import leyline.testkit.after
 
 class CombatQualificationSessionTest :
     SessionTest({
         session(
             "cast Pacifism emits can't attack and can't block Qualifications",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

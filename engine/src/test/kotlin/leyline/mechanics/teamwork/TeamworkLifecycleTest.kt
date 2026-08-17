@@ -12,6 +12,7 @@ import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -24,7 +25,6 @@ import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
-import leyline.testkit.after
 
 private val PUZZLE =
     """

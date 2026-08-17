@@ -22,26 +22,26 @@ class ImmersturmPredatorTest :
         session(
             "sacrifice-as-cost: sac creature -> Predator tapped -> trigger fires -> counter",
             """
-                [metadata]
-                Name:Immersturm Predator Sacrifice
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-                Description:Activate sacrifice ability, verify tap trigger and counter.
+            [metadata]
+            Name:Immersturm Predator Sacrifice
+            Goal:Win
+            Turns:5
+            Difficulty:Easy
+            Description:Activate sacrifice ability, verify tap trigger and counter.
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=4
-                removesummoningsickness=true
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=4
+            removesummoningsickness=true
 
-                humanbattlefield=Immersturm Predator;Grizzly Bears;Swamp;Mountain
-                humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
-                aigraveyard=Centaur Courser
-                aibattlefield=Mountain
-                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent(),
+            humanbattlefield=Immersturm Predator;Grizzly Bears;Swamp;Mountain
+            humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+            aigraveyard=Centaur Courser
+            aibattlefield=Mountain
+            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            """.trimIndent(),
             validating = true,
         ) {
             phase() shouldBe "MAIN1"

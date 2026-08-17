@@ -127,7 +127,8 @@ class SnapshotHydrationTest :
 
         session(
             "hydrated game matches source on zones, flags, counters, damage, attachments, life, ids",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Snapshot Round Trip
                 Goal:Win

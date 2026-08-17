@@ -1,6 +1,6 @@
 package leyline.behavior.puzzles
 
-import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
@@ -55,6 +55,6 @@ class PuzzleTurnLimitLossTest :
             // selection spins inside the engine and this never returns.
             runCatching { passUntilTurn(targetTurn = 5, maxPasses = 40) }
 
-            runCatching { isGameOver() }.getOrDefault(true).shouldBeTrue()
+            runCatching { isGameOver() }.getOrDefault(true) shouldBe true
         }
     })

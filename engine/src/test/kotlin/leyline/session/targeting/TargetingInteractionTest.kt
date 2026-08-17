@@ -20,7 +20,9 @@ import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
+import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
@@ -45,8 +47,6 @@ import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
 import forge.game.zone.ZoneType as ForgeZoneType
 import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
-import leyline.testkit.assertAccumulatorConsistent
-import leyline.testkit.after
 
 /**
  * Session-tier targeting tests — SelectTargetsReq/Resp flow through MatchSession.
@@ -470,7 +470,8 @@ class TargetingInteractionTest :
 
         session(
             "triggered mandatory single-target selection auto-submits",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

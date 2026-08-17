@@ -23,7 +23,8 @@ class BlockerConsultRebuildTest :
 
         session(
             "consult proposes the free block when no live combat exists",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

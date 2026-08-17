@@ -26,7 +26,8 @@ class VehicleCrewPuzzleTest :
 
         session(
             "crew vehicle and attack for lethal",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Crew and Attack
                 Goal:Win
@@ -63,7 +64,8 @@ class VehicleCrewPuzzleTest :
 
         session(
             "crew payment binds weighted helpers to the stack ability",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Crew payment prompt
                 Goal:Crew Brute Suit.

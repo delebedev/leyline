@@ -25,7 +25,8 @@ class ImproviseLifecycleTest :
     SessionTest({
         session(
             "Ironheart pays Improvise through PayCostsReq",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

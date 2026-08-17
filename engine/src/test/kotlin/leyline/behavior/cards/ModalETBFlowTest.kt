@@ -12,8 +12,8 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
-import wotc.mtgo.gre.external.messaging.Messages.*
 import leyline.testkit.after
+import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Modal ETB flow tests using [SessionTest] + puzzle files.

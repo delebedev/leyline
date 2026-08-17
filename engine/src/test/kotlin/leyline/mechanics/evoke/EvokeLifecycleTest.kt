@@ -16,7 +16,8 @@ class EvokeLifecycleTest :
     SessionTest({
         session(
             "Mulldrifter casts for Evoke and sacrifices itself after entering",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

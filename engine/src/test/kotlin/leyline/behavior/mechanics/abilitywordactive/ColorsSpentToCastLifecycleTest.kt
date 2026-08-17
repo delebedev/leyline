@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailIntList
@@ -14,7 +15,6 @@ import leyline.testkit.firstGameObjectByIid
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
-import leyline.testkit.after
 
 class ColorsSpentToCastLifecycleTest :
     SessionTest({

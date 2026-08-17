@@ -15,6 +15,7 @@ import leyline.session.combat.COMBAT_DECK
 import leyline.testkit.AI_FIRST_SEED
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.firstWithTransferCategory
@@ -28,7 +29,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Phase
-import leyline.testkit.after
 
 /**
  * Session-tier AI-turn tests — MatchSession behavior during opponent turns.

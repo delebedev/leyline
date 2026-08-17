@@ -81,7 +81,8 @@ class PendingTriggerVisualsTest :
 
         session(
             "Ennis exile-and-return emits holder and visual triplet",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Ennis pending trigger
                 Goal:Win
@@ -124,7 +125,8 @@ class PendingTriggerVisualsTest :
 
         session(
             "Wiccan exile-and-return emits holder and visual triplet",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Wiccan pending trigger
                 Goal:Win
@@ -163,7 +165,8 @@ class PendingTriggerVisualsTest :
 
         session(
             "Nine-Lives Familiar delayed return omits exile display relation",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Nine-Lives pending trigger
                 Goal:Win

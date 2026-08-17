@@ -14,6 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.detailInt
@@ -29,7 +30,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
-import leyline.testkit.after
 
 class LearnLessonTest :
     SessionTest({
@@ -91,7 +91,8 @@ class LearnLessonTest :
 
         session(
             "Learn with no discard candidate emits the lesson-only envelope",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

@@ -16,7 +16,8 @@ class DashLifecycleTest :
     SessionTest({
         session(
             "Zurgo Bellstriker casts for Dash and returns at end step",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

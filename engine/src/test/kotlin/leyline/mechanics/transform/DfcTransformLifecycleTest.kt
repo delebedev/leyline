@@ -12,7 +12,8 @@ class DfcTransformLifecycleTest :
 
         session(
             "activated transform resolves through MatchSession",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

@@ -92,7 +92,8 @@ class JumpStartLifecycleTest :
 
         session(
             "Jump-start pays the client-selected discard among multiple cards",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:Jump-start Radical Idea Multiple Discards
                 Goal:Choose which card pays the Jump-start discard cost.

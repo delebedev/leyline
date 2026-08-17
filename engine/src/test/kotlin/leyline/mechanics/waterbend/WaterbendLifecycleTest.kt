@@ -31,7 +31,8 @@ class WaterbendLifecycleTest :
     SessionTest({
         session(
             "Giant Koi pays activated Waterbend through PayCostsReq",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -100,7 +101,8 @@ class WaterbendLifecycleTest :
 
         session(
             "Ruinous Waterbending emits AdditionalCost CastingTimeOption when Waterbend is paid",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -168,7 +170,8 @@ class WaterbendLifecycleTest :
 
         session(
             "Ruinous Waterbending accepts live Waterbend MakePayment responses",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -219,7 +222,8 @@ class WaterbendLifecycleTest :
 
         session(
             "Giant Koi completes native Waterbend when empty payment UI sends Cancel",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

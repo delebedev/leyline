@@ -22,7 +22,8 @@ class CtoHydrationProbeTest :
 
         session(
             "kicker CTO decision hydrates faithfully (snapshot bytes == live bytes)",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

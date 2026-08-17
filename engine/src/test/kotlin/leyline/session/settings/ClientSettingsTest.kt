@@ -5,10 +5,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.clientMessage
 import leyline.testkit.stop
-import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

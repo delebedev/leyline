@@ -9,6 +9,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.detailInt
@@ -16,7 +17,6 @@ import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import leyline.testkit.after
 
 /**
  * Regression for fix/bushwhack-fight-mode (bd leyline-xny).

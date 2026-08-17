@@ -2,8 +2,8 @@ package leyline.session.stack
 
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
-import kotlin.time.Duration.Companion.seconds
 import leyline.testkit.after
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Repro for leyline-6vtg.
@@ -35,7 +35,8 @@ class SimultaneousTriggerOrderTest :
 
         session(
             "simultaneous triggers auto-resolve — no choose_one wire prompt",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

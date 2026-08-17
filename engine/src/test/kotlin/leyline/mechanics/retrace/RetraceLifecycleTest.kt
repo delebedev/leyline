@@ -23,7 +23,8 @@ class RetraceLifecycleTest :
     SessionTest({
         session(
             "Waves of Aggression casts from graveyard by discarding a land",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

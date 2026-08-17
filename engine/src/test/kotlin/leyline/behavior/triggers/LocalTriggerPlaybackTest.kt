@@ -12,13 +12,13 @@ import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailUint
 import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import leyline.testkit.after
 
 class LocalTriggerPlaybackTest :
     SessionTest({
@@ -188,10 +188,11 @@ class LocalTriggerPlaybackTest :
         session(
             "mandatory non-interactive investigate trigger enters before resolving",
             puzzle = noviceInspectorPuzzle,
-            validation = InvariantSelection.except(
-                        "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
-                        InvariantCheck.AnnotationReferences,
-                    ),
+            validation =
+                InvariantSelection.except(
+                    "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
+                    InvariantCheck.AnnotationReferences,
+                ),
         ) {
             val post =
                 after {

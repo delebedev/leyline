@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.annotationsOfType
 import leyline.testkit.deletedPersistentAnnotationIds
@@ -19,7 +20,6 @@ import leyline.testkit.firstGameObjectByIid
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import leyline.testkit.after
 
 class OpusAbilityWordLifecycleTest :
     SessionTest({

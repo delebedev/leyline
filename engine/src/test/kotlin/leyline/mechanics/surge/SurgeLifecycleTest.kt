@@ -18,7 +18,8 @@ class SurgeLifecycleTest :
     SessionTest({
         session(
             "Crush of Tentacles casts with Surge after another spell this turn",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

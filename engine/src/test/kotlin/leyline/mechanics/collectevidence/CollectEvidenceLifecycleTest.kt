@@ -9,12 +9,12 @@ import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
-import leyline.testkit.after
 
 private val PUZZLE =
     """

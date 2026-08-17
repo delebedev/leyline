@@ -11,6 +11,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
@@ -19,7 +20,6 @@ import leyline.testkit.detailUint
 import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import leyline.testkit.after
 
 class TrainingKeywordTest :
     SessionTest({
@@ -33,7 +33,8 @@ class TrainingKeywordTest :
 
         session(
             "Hopeful Initiate training emits marker, keyword lifecycle, and counter affector",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -111,7 +112,8 @@ class TrainingKeywordTest :
 
         session(
             "Savior of Ollenbock trains trigger fires after the Training counter",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -160,7 +162,8 @@ class TrainingKeywordTest :
 
         session(
             "Training markers stay distinct when two trainers share one greater attacker",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -202,7 +205,8 @@ class TrainingKeywordTest :
 
         session(
             "Training does not trigger with only equal-power co-attackers",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

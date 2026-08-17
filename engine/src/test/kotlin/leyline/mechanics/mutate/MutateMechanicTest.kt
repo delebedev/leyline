@@ -228,8 +228,8 @@ private fun MatchFlowHarness.assertMutateMerge(
                     it.detailInt("zone_dest") == ZoneIds.SUPPRESSED
             }
     val targetObject = accumulator.objects[prompt.targetIid]
-    val finalSuppressedZone = accumulator.zones[ZoneIds.SUPPRESSED]!!
-    val finalBattlefieldZone = accumulator.zones[ZoneIds.BATTLEFIELD]!!
+    val finalSuppressedZone = accumulator.zones.getValue(ZoneIds.SUPPRESSED)
+    val finalBattlefieldZone = accumulator.zones.getValue(ZoneIds.BATTLEFIELD)
 
     assertSoftly {
         withClue("Mutate LayeredEffect pAnn") { mergeEffect shouldNotBe null }

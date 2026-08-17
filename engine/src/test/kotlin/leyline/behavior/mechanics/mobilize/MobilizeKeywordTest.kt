@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
@@ -17,7 +18,6 @@ import leyline.testkit.annotationsOfType
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
-import leyline.testkit.after
 
 /**
  * Mobilize keyword conformance.

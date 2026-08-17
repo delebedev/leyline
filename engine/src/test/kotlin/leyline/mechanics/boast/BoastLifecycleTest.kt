@@ -27,7 +27,8 @@ class BoastLifecycleTest :
     SessionTest({
         session(
             "Usher of the Fallen Boast gates on attack, exhausts once, and creates a linked token",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

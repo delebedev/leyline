@@ -11,11 +11,11 @@ import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.findZoneTransfer
 import leyline.testkit.lastGsmMatching
 import wotc.mtgo.gre.external.messaging.Messages.CardMechanicType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import leyline.testkit.assertAccumulatorConsistent
 
 class BrawlCommanderPromptSessionTest :
     SessionTest({

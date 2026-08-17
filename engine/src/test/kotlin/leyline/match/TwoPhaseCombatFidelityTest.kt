@@ -35,7 +35,8 @@ class TwoPhaseCombatFidelityTest :
 
         session(
             "attack confirms under fidelity mode — opponent takes damage, no IllegalRequest",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -65,7 +66,8 @@ class TwoPhaseCombatFidelityTest :
 
         session(
             "consult-driven attack walks the two-round-trip to completion under fidelity mode",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -108,7 +110,8 @@ class TwoPhaseCombatFidelityTest :
 
         session(
             "submit with a stale respId is rejected (ReqRespMismatch)",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

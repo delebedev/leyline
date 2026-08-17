@@ -8,8 +8,6 @@
     <ID>MapGetWithNotNullAssertionOperator:DiffDiagnosticTest.kt:DiffDiagnosticTest$acc.zones[ZoneIds.BATTLEFIELD]!!</ID>
     <ID>MapGetWithNotNullAssertionOperator:LandManaTest.kt:LandManaTest$acc.zones[ZoneIds.BATTLEFIELD]!!</ID>
     <ID>MapGetWithNotNullAssertionOperator:LandManaTest.kt:LandManaTest$acc.zones[ZoneIds.LIMBO]!!</ID>
-    <ID>MapGetWithNotNullAssertionOperator:MutateMechanicTest.kt:harness.accumulator.zones[ZoneIds.BATTLEFIELD]!!</ID>
-    <ID>MapGetWithNotNullAssertionOperator:MutateMechanicTest.kt:harness.accumulator.zones[ZoneIds.SUPPRESSED]!!</ID>
     <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.P1_SIDEBOARD]!!</ID>
     <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.P2_SIDEBOARD]!!</ID>
     <ID>MapGetWithNotNullAssertionOperator:StateMapperShapeTest.kt:StateMapperShapeTest$byId[ZoneIds.PENDING]!!</ID>

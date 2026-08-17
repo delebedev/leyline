@@ -4,9 +4,9 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import leyline.testkit.after
 
 /**
  * Regression: a spell exiled by its own resolution (Flashback / Harmonize "then

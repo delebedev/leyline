@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detail
@@ -16,7 +17,6 @@ import leyline.testkit.detailString
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
-import leyline.testkit.after
 
 /**
  * Scry ETB flow tests — derived from a reference run.

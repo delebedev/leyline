@@ -8,11 +8,11 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
-import leyline.testkit.after
 
 /**
  * Legend rule SBA conformance: when two legendary permanents with the same

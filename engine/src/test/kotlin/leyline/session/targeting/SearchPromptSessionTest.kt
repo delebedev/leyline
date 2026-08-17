@@ -3,8 +3,8 @@ package leyline.session.targeting
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
-import leyline.testkit.assertGsIdChain
 import leyline.testkit.after
+import leyline.testkit.assertGsIdChain
 
 class SearchPromptSessionTest :
     SessionTest({

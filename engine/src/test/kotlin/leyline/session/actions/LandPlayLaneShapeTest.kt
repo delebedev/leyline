@@ -6,8 +6,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.session.combat.COMBAT_DECK
 import leyline.testkit.SessionTest
-import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import leyline.testkit.after
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
  * Land play keeps the acting player at priority. The state delta and the next

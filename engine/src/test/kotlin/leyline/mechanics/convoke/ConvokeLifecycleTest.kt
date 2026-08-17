@@ -32,7 +32,8 @@ class ConvokeLifecycleTest :
     SessionTest({
         session(
             "Convoke creature can satisfy colored mana for action affordability",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -59,7 +60,8 @@ class ConvokeLifecycleTest :
 
         session(
             "Conclave Tribunal accepts duplicate native Convoke source fields once",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -154,7 +156,8 @@ class ConvokeLifecycleTest :
 
         session(
             "white creature pays white Convoke pip through native MakePayment",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -205,7 +208,8 @@ class ConvokeLifecycleTest :
 
         session(
             "selected white source keeps its frozen generic shard when its white peer is omitted",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -246,7 +250,8 @@ class ConvokeLifecycleTest :
 
         session(
             "declining all reducers does not mark the spell as convoked",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

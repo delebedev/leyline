@@ -40,25 +40,25 @@ class AdventurePuzzleTest :
         session(
             "adventure lifecycle: cast adventure → tokens → exile → cast creature → battlefield",
             """
-                [metadata]
-                Name:Adventure Lifecycle
-                Goal:Win
-                Turns:3
-                Difficulty:Easy
-                Description:Full adventure card lifecycle.
+            [metadata]
+            Name:Adventure Lifecycle
+            Goal:Win
+            Turns:3
+            Difficulty:Easy
+            Description:Full adventure card lifecycle.
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=1
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=1
 
-                humanhand=Ratcatcher Trainee
-                humanbattlefield=Mountain;Mountain;Mountain;Mountain;Swamp;Swamp;Swamp
-                humanlibrary=Mountain
-                aibattlefield=Forest
-                ailibrary=Forest
-                """.trimIndent(),
+            humanhand=Ratcatcher Trainee
+            humanbattlefield=Mountain;Mountain;Mountain;Mountain;Swamp;Swamp;Swamp
+            humanlibrary=Mountain
+            aibattlefield=Forest
+            ailibrary=Forest
+            """.trimIndent(),
             validating = true,
         ) {
             phase() shouldBe "MAIN1"

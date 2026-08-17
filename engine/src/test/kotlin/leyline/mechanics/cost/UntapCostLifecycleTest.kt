@@ -9,15 +9,16 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
-import leyline.testkit.after
 
 class UntapCostLifecycleTest :
     SessionTest({
         session(
             "exact untap cost delegates through Forge with stun-aware candidates",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -49,7 +50,8 @@ class UntapCostLifecycleTest :
 
         session(
             "grounded untap-two payment binds exact candidates to the stack ability",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

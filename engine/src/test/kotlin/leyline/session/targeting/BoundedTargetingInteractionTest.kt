@@ -12,7 +12,8 @@ class BoundedTargetingInteractionTest :
 
         session(
             "up-to-two targeting preserves the zero minimum",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

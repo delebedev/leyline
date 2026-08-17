@@ -5,9 +5,9 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
-import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 private val WARP_PUZZLE =

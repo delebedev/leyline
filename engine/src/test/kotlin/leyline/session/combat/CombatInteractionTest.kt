@@ -1076,11 +1076,12 @@ class CombatInteractionTest :
             turns = 10,
             validating = true,
             validation = combatValidation,
-            aiScript = listOf(
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
-                        ScriptedAction.PassPriority,
-                    ),
+            aiScript =
+                listOf(
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
+                    ScriptedAction.PassPriority,
+                ),
         ) {
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 3 // 3× Raging Goblin from the puzzle state
@@ -1117,10 +1118,11 @@ class CombatInteractionTest :
             turns = 10,
             validating = true,
             validation = combatValidation,
-            aiScript = listOf(
-                        ScriptedAction.Attack(listOf("Raging Goblin")),
-                        ScriptedAction.PassPriority,
-                    ),
+            aiScript =
+                listOf(
+                    ScriptedAction.Attack(listOf("Raging Goblin")),
+                    ScriptedAction.PassPriority,
+                ),
         ) {
             after {
                 // Pass through human turn into AI combat → combat auto-advances
@@ -1141,7 +1143,8 @@ class CombatInteractionTest :
         // of silently auto-passing through combat damage.
         session(
             "AI combat grants priority when human has castable instant",
-            puzzle = """
+            puzzle =
+                """
                 [metadata]
                 Name:AI Combat AutoPass
                 Goal:Win

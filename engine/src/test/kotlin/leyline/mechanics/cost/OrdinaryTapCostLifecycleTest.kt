@@ -11,18 +11,19 @@ import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
-import leyline.testkit.after
 
 class OrdinaryTapCostLifecycleTest :
     SessionTest({
         session(
             "spell tap-cost prompt uses the same-cut stack card identity",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -59,7 +60,8 @@ class OrdinaryTapCostLifecycleTest :
 
         session(
             "ordinary exact-count tap cost delegates through the shared Forge visitor",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -135,7 +137,8 @@ class OrdinaryTapCostLifecycleTest :
 
         session(
             "cancelling exact-count tap cost deletes the pre-stack ability",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20

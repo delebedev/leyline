@@ -154,6 +154,21 @@ class MatchFlowHarness(
             puzzleResource != null -> connectAndKeepPuzzle(puzzleResource, aiScript)
             else -> connectAndKeep(aiScript)
         }
+        cacheSeatPlayers()
+    }
+
+    /**
+     * Resolve both seat handles while the game is still standing.
+     *
+     * [human] and [ai] memoize on first read, and `GameBridge.shutdown` clears
+     * the seat map, so a spec that first touches a seat after the game has ended
+     * — a lethal-damage assertion, a turn-limit loss — would resolve against an
+     * empty map. Binding both at connect keeps the handles valid for the whole
+     * test regardless of when it reads them.
+     */
+    private fun cacheSeatPlayers() {
+        humanRef = bridge.getPlayer(seatId)
+        aiRef = bridge.getPlayer(opponentSeatId)
     }
 
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */

@@ -31,15 +31,15 @@ class FirebendingKeywordTest :
         session(
             "Firebending attack trigger resolves to combat-persistent red mana",
             """
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
 
-                humanbattlefield=Jeong Jeong, the Deserter
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent(),
+            humanbattlefield=Jeong Jeong, the Deserter
+            humanlibrary=Mountain;Mountain;Mountain
+            ailibrary=Mountain;Mountain;Mountain
+            """.trimIndent(),
             turns = 5,
             validating = true,
         ) {

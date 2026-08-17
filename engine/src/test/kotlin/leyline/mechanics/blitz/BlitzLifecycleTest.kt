@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -17,7 +18,8 @@ class BlitzLifecycleTest :
     SessionTest({
         session(
             "Mayhem Patrol casts for Blitz, sacrifices itself, and draws",
-            puzzle = """
+            puzzle =
+                """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -46,10 +48,13 @@ class BlitzLifecycleTest :
                 cto.detailInt("castAbilityGrpId") shouldBe blitzAbilityGrpId
             }
 
-            human.hasCard("Mayhem Patrol", ZoneType.Battlefield).shouldBeTrue()
-            passUntil(maxPasses = 30) {
+            val returnedAndDrew: MatchFlowHarness.() -> Boolean = {
                 human.hasCard("Mayhem Patrol", ZoneType.Graveyard) && human.hasCard("Mountain", ZoneType.Hand)
-            }.shouldBeTrue()
+            }
+            assertSoftly {
+                human.hasCard("Mayhem Patrol", ZoneType.Battlefield).shouldBeTrue()
+                passUntil(maxPasses = 30, stopWhen = returnedAndDrew).shouldBeTrue()
+            }
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Mayhem Patrol"
