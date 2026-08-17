@@ -54,8 +54,16 @@ internal object EngineArchitecture {
 
     /**
      * Regex matching a Kotlin member name as it appears in bytecode, including
-     * the `$module` suffix the compiler appends to `internal` members and the
-     * `$default` and `$lambda$n` companions it generates alongside them.
+     * the `$module` suffix the compiler appends to `internal` members, the
+     * `$default` and `$lambda$n` companions it generates alongside them, and the
+     * `-<hash>` suffix it appends when a signature mentions a value class.
      */
-    fun member(name: String): String = Regex.escape(name) + "(\\\$.*)?"
+    fun member(name: String): String = Regex.escape(name) + "([\\\$-].*)?"
+
+    /**
+     * The Kotlin spelling of a member whose bytecode name carries a compiler
+     * suffix. Both suffix forms are introduced by the compiler and neither can
+     * appear in a name written by hand, so cutting at the first one is safe.
+     */
+    fun kotlinName(bytecodeName: String): String = bytecodeName.substringBefore('$').substringBefore('-')
 }

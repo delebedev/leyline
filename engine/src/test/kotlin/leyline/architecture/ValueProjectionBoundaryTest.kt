@@ -4,7 +4,6 @@ import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
-import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -128,13 +127,6 @@ class ValueProjectionBoundaryTest :
                 .haveNameMatching(named("leyline.game.data.CardRepository"))
                 .because("fact materializers read projected card references, not the repository")
                 .check(classes)
-        }
-
-        test("retired live-projection resolvers stay retired") {
-            val retired = setOf("SourceAbilityResolverFactory", "TeamworkCost")
-            withClue("live-projection types that were replaced by materialized facts must not reappear") {
-                classes.map { it.simpleName }.filter(retired::contains) shouldBe emptyList()
-            }
         }
     })
 

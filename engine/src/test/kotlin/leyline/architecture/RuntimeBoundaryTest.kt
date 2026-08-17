@@ -5,6 +5,7 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.UnitTag
+import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
 
 /**
@@ -51,6 +52,16 @@ class RuntimeBoundaryTest :
 
             withClue("members retired by the coordinator migration were reintroduced") {
                 survivors.sorted().shouldBeEmpty()
+            }
+        }
+
+        test("retired session and live-projection types stay retired") {
+            withClue("types replaced by coordinator runtimes or materialized facts must not reappear") {
+                classes
+                    .map { it.simpleName }
+                    .filter(retiredTypes::contains)
+                    .sorted()
+                    .shouldBeEmpty()
             }
         }
     })
@@ -102,17 +113,41 @@ private val retiredMembers =
                 "buildEnlistCostPayCostsReq",
                 "buildTeamworkCostPayCostsReq",
             ),
+        "leyline.game.bundle.BundleBuilder" to
+            setOf(
+                "finalizeAnnotations",
+                "finalizeStateFrame",
+                "annotationRiders",
+                "buildOrderFrameLocked",
+                "stagePendingOrderZoneMove",
+            ),
         "leyline.game.state.GameBridge" to
             setOf(
                 "recordLibraryArrangement",
                 "pollLibraryArrangement",
                 "pendingLibraryArrangements",
+                "captureLegacyCombatCheckpoint",
+                "captureAndPause",
             ),
+        "leyline.game.GamePlayback" to setOf("pendingResolutionFrame"),
+        "leyline.game.GamePlaybackKt" to setOf("shouldAwaitResolutionBoundary"),
+        "leyline.match.MatchSession" to setOf("sendLegacyPromptState"),
         "leyline.match.StaticChoiceInteractionHandler" to setOf("staticOptionIds"),
         "leyline.match.RevealChoiceInteractionHandler" to setOf("activeReveal"),
         "leyline.match.ManaSourcePaymentHandler" to setOf("waterbendManaCost"),
         "leyline.bridge.coord.CostPaymentCoordinator" to setOf("recordConvokePayments"),
         "leyline.bridge.forge.TapPaymentPolicy" to setOf("currentPayCostsPromptSource"),
+    )
+
+/**
+ * Types the coordinator migration and the functional-core split deleted.
+ * A reappearance means live state was reopened behind a familiar name.
+ */
+private val retiredTypes =
+    setOf(
+        "SearchPromptInteractionHandler",
+        "SourceAbilityResolverFactory",
+        "TeamworkCost",
     )
 
 /**
@@ -122,7 +157,7 @@ private val retiredMembers =
  */
 private fun declaredMemberNames(javaClass: com.tngtech.archunit.core.domain.JavaClass): Set<String> =
     (javaClass.fields.map { it.name } + javaClass.methods.map { it.name })
-        .map { it.substringBefore('$') }
+        .map { kotlinName(it) }
         .flatMap { name ->
             val stripped = name.removePrefix("get").removePrefix("set")
             if (stripped != name && stripped.isNotEmpty()) {

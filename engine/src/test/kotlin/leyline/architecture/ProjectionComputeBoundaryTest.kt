@@ -2,10 +2,12 @@ package leyline.architecture
 
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
@@ -15,7 +17,6 @@ import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
-import java.nio.file.Files
 
 class ProjectionComputeBoundaryTest :
     FunSpec({
@@ -96,21 +97,23 @@ class ProjectionComputeBoundaryTest :
             }
         }
 
-        test("compiler owns one editor and freeze while shell finalization paths are absent") {
-            val sourceRoot = EngineArchitecture.sourceRoot
-            val compiler = Files.readString(sourceRoot.resolve("leyline/game/mapping/StateProjectionCompiler.kt"))
-            val bundleBuilder = Files.readString(sourceRoot.resolve("leyline/game/bundle/BundleBuilder.kt"))
+        test("the compiler opens one editor and freezes it once") {
+            // The editor is the compiler's only mutable step. A second open or a
+            // second freeze means a caller can observe a half-built projection.
+            val compilerName = "leyline.game.mapping.StateProjectionCompiler"
+            val calls =
+                classes
+                    .filter { it.name == compilerName || it.name.startsWith("$compilerName$") }
+                    .flatMap { it.methodCallsFromSelf }
+                    .filter { kotlinName(it.target.name) in setOf("editor", "freeze") }
 
             assertSoftly {
-                Regex("prior\\.editor\\(\\)").findAll(compiler).count() shouldBe 1
-                Regex("editor\\.freeze\\(\\)").findAll(compiler).count() shouldBe 1
-                listOf(
-                    "finalizeAnnotations(",
-                    "finalizeStateFrame(",
-                    "annotationRiders",
-                    "buildOrderFrameLocked(",
-                    "stagePendingOrderZoneMove(",
-                ).filter(bundleBuilder::contains) shouldBe emptyList()
+                listOf("editor", "freeze").forEach { name ->
+                    val sites = calls.filter { kotlinName(it.target.name) == name }
+                    withClue("$name() call sites in the compiler: ${sites.map { "${it.origin.name}:${it.lineNumber}" }}") {
+                        sites.size shouldBe 1
+                    }
+                }
             }
         }
 
