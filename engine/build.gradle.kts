@@ -1,25 +1,18 @@
 import leyline.build.SyncProtoTask
 import leyline.build.configureTestDefaults
 import org.gradle.api.tasks.JavaExec
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     `java-library`
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.protobuf)
     id("leyline.test-conventions")
+    id("leyline.kotlin-conventions")
 }
 
 repositories {
     mavenCentral()
-    maven {
-        url = uri("${rootProject.projectDir}/forge/.m2-local")
-        content {
-            includeGroup("forge")
-        }
-    }
 }
 
 // Test-support code (headless match harness, simclient tooling) that must not
@@ -188,15 +181,3 @@ val simclient =
         outputs.upToDateWhen { false }
         outputs.cacheIf { false }
     }
-
-@OptIn(ExperimentalKotlinGradlePluginApi::class)
-powerAssert {
-    functions =
-        listOf(
-            "kotlin.assert",
-            "kotlin.test.assertTrue",
-            "kotlin.test.assertFalse",
-            "kotlin.test.assertNull",
-            "kotlin.test.assertEquals",
-        )
-}

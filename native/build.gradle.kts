@@ -1,20 +1,12 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.power.assert)
     id("leyline.test-conventions")
+    id("leyline.kotlin-conventions")
 }
 
 repositories {
     mavenCentral()
-    maven {
-        url = uri("${rootProject.projectDir}/forge/.m2-local")
-        content {
-            includeGroup("forge")
-        }
-    }
 }
 
 dependencies {
@@ -43,18 +35,6 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.archunit)
     testImplementation(testFixtures(project(":domain")))
-}
-
-@OptIn(ExperimentalKotlinGradlePluginApi::class)
-powerAssert {
-    functions =
-        listOf(
-            "kotlin.assert",
-            "kotlin.test.assertTrue",
-            "kotlin.test.assertFalse",
-            "kotlin.test.assertNull",
-            "kotlin.test.assertEquals",
-        )
 }
 
 tasks.test {
