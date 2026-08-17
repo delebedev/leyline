@@ -9,18 +9,17 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.detekt)
     alias(libs.plugins.versions)
     id("leyline.test-conventions")
+    id("leyline.kotlin-conventions")
     application
 }
 
@@ -104,12 +103,6 @@ subprojects {
 
 repositories {
     mavenCentral()
-    maven {
-        url = uri("${rootProject.projectDir}/forge/.m2-local")
-        content {
-            includeGroup("forge")
-        }
-    }
 }
 
 kotlin.compilerOptions {
@@ -204,18 +197,6 @@ tasks.named("compileKotlin") {
 
 // Ktlint: the plugin is applied to root + all subprojects above.
 // All rule config lives in `.editorconfig` — no Kotlin-side overrides.
-
-@OptIn(ExperimentalKotlinGradlePluginApi::class)
-powerAssert {
-    functions =
-        listOf(
-            "kotlin.assert",
-            "kotlin.test.assertTrue",
-            "kotlin.test.assertFalse",
-            "kotlin.test.assertNull",
-            "kotlin.test.assertEquals",
-        )
-}
 
 detekt {
     buildUponDefaultConfig = true
