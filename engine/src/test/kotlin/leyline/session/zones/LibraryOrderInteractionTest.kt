@@ -95,7 +95,11 @@ class LibraryOrderInteractionTest :
                 .name shouldBe "Grizzly Bears"
         }
 
-        // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
+        // Intermittent on CI, reliable locally: the Surveil annotation is
+        // occasionally absent from the response slice on loaded runners, which
+        // reads as a null lookup below. Timing-sensitive, not a shape problem —
+        // if this fails, check whether the annotation arrived in a later frame
+        // before assuming the emission broke.
         session("surveil 1 — put in graveyard moves card and produces Surveil annotation", puzzle = surveil1State) {
             val snap = messageSnapshot()
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList

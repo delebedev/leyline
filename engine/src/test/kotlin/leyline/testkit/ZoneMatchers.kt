@@ -83,3 +83,15 @@ fun beInCommandOf(
     player: Player,
     count: Int? = null,
 ): Matcher<String> = beInZoneOf(ZoneType.Command, player, count)
+
+/**
+ * Zone membership as a plain predicate, for wait conditions such as
+ * `passUntil { human.hasCard("Zurgo Bellstriker", ZoneType.Hand) }`.
+ *
+ * Assertions should use the matchers above instead — they name the card,
+ * player and zone on failure, where a bare boolean reports only `false`.
+ */
+fun Player.hasCard(
+    name: String,
+    zone: ZoneType,
+): Boolean = getZone(zone).cards.any { it.name == name }

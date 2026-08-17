@@ -383,11 +383,9 @@ class ValidatingMessageSinkTest :
             sink.violations.shouldBeEmpty()
         }
 
-        // --- pendingMessageCount contract ---
-
-        // TODO: pendingMessageCount check is commented out in InvariantChecker (too strict).
-        // Re-enable this test when the diff pipeline guarantees correct pending counts.
-        // xtest("Detects SendAndRecord arriving before pending countdown completes") { ... }
+        // No pendingMessageCount coverage here on purpose: the corresponding
+        // InvariantChecker rule is disabled, so a test would assert against a
+        // check that never runs. Add both together, not a test alone.
 
         // --- Delegation ---
 

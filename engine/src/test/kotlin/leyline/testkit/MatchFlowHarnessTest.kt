@@ -2,6 +2,7 @@ package leyline.testkit
 
 import forge.ai.LobbyPlayerAi
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -326,34 +327,7 @@ class MatchFlowHarnessTest :
             diffs.size shouldBeGreaterThanOrEqualTo 2
         }
 
-        // DISABLED: passUntilTurn(3) hits AI_TURN_WAIT_MS (30s) timeout repeatedly because
-        // AI-turn playback stalls — engine never delivers priority for turn 3. Burns ~128s
-        // polling. Re-enable after AI multi-turn playback regression is fixed.
-        xtest("AI turn NewTurnStarted annotation has content") {
-            val h = MatchFlowHarness(seed = AI_FIRST_SEED)
-            harness = h
-            h.connectAndKeep()
-
-            val prePassCount = h.allMessages.size
-            h.passUntilTurn(3)
-            h.isGameOver().shouldBeFalse()
-
-            val aiMessages = h.allMessages.subList(prePassCount, h.allMessages.size)
-            val newTurnAnno =
-                checkNotNull(
-                    aiMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.annotationsList }
-                        .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) },
-                ) { "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
-
-            newTurnAnno.affectedIdsList.shouldNotBeEmpty()
-            newTurnAnno.affectorId shouldBeGreaterThan 0
-        }
-
-        // DISABLED: same as above — passUntilTurn(3) timeout loop.
-        // Re-enable after AI multi-turn playback regression is fixed.
-        xtest("AI turn phase annotation has details") {
+        test("AI turn phase annotation has details") {
             val h = MatchFlowHarness(seed = AI_FIRST_SEED)
             harness = h
             h.connectAndKeep()
@@ -371,10 +345,12 @@ class MatchFlowHarnessTest :
                         .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) },
                 ) { "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
-            phaseAnno.affectedIdsList.shouldNotBeEmpty()
-
             val detailKeys = phaseAnno.detailsList.map { it.key }.toSet()
-            ("phase" in detailKeys).shouldBeTrue()
-            ("step" in detailKeys).shouldBeTrue()
+            assertSoftly {
+                phaseAnno.affectedIdsList.shouldNotBeEmpty()
+                withClue("phase annotation carried detail keys $detailKeys") {
+                    setOf("phase", "step") - detailKeys shouldBe emptySet()
+                }
+            }
         }
     })

@@ -2,14 +2,18 @@ package leyline.mechanics.blitz
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.beInHandOf
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
+import leyline.testkit.hasCard
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -52,19 +56,14 @@ class BlitzLifecycleTest :
                 human.hasCard("Mayhem Patrol", ZoneType.Graveyard) && human.hasCard("Mountain", ZoneType.Hand)
             }
             assertSoftly {
-                human.hasCard("Mayhem Patrol", ZoneType.Battlefield).shouldBeTrue()
+                "Mayhem Patrol" should beOnBattlefieldOf(human)
                 passUntil(maxPasses = 30, stopWhen = returnedAndDrew).shouldBeTrue()
             }
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Mayhem Patrol"
-                human.hasCard("Mayhem Patrol", ZoneType.Battlefield).shouldBeFalse()
-                human.hasCard("Mountain", ZoneType.Hand).shouldBeTrue()
+                "Mayhem Patrol" shouldNot beOnBattlefieldOf(human)
+                "Mountain" should beInHandOf(human)
             }
         }
     })
-
-private fun forge.game.player.Player.hasCard(
-    name: String,
-    zone: ZoneType,
-): Boolean = getZone(zone).cards.any { it.name == name }

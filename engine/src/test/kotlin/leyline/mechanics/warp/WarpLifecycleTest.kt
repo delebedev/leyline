@@ -2,12 +2,19 @@ package leyline.mechanics.warp
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.beInExileOf
+import leyline.testkit.beInGraveyardOf
+import leyline.testkit.beInHandOf
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
+import leyline.testkit.hasCard
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 private val WARP_PUZZLE =
@@ -80,7 +87,7 @@ class WarpLifecycleTest :
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
 
             assertSoftly {
-                human.hasCard("Germinating Wurm", ZoneType.Hand) shouldBe false
+                "Germinating Wurm" shouldNot beInHandOf(human)
                 human.hasCardAnywhereExceptHand("Germinating Wurm") shouldBe true
             }
         }
@@ -108,15 +115,15 @@ class WarpLifecycleTest :
         session("regular-cost cast keeps Germinating Wurm on the battlefield", puzzle = REGULAR_COST_PUZZLE, validating = true) {
             check(castSpellByName("Germinating Wurm"))
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
-            human.hasCard("Germinating Wurm", ZoneType.Battlefield) shouldBe true
+            "Germinating Wurm" should beOnBattlefieldOf(human)
 
             passUntilTurn(2, maxPasses = 30)
 
             assertSoftly {
-                human.hasCard("Germinating Wurm", ZoneType.Battlefield) shouldBe true
-                human.hasCard("Germinating Wurm", ZoneType.Exile) shouldBe false
-                human.hasCard("Germinating Wurm", ZoneType.Graveyard) shouldBe false
-                human.hasCard("Germinating Wurm", ZoneType.Hand) shouldBe false
+                "Germinating Wurm" should beOnBattlefieldOf(human)
+                "Germinating Wurm" shouldNot beInExileOf(human)
+                "Germinating Wurm" shouldNot beInGraveyardOf(human)
+                "Germinating Wurm" shouldNot beInHandOf(human)
             }
         }
 
@@ -128,10 +135,10 @@ class WarpLifecycleTest :
             passUntilTurn(2, maxPasses = 30)
 
             assertSoftly {
-                human.hasCard("Germinating Wurm", ZoneType.Exile) shouldBe true
-                human.hasCard("Germinating Wurm", ZoneType.Battlefield) shouldBe false
-                human.hasCard("Germinating Wurm", ZoneType.Graveyard) shouldBe false
-                human.hasCard("Germinating Wurm", ZoneType.Hand) shouldBe false
+                "Germinating Wurm" should beInExileOf(human)
+                "Germinating Wurm" shouldNot beOnBattlefieldOf(human)
+                "Germinating Wurm" shouldNot beInGraveyardOf(human)
+                "Germinating Wurm" shouldNot beInHandOf(human)
             }
         }
     })
@@ -141,11 +148,6 @@ private fun MatchFlowHarness.warpAbilityGrpId(): Int {
     val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
     return repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 }
-
-private fun forge.game.player.Player.hasCard(
-    name: String,
-    zone: ZoneType,
-): Boolean = getZone(zone).cards.any { it.name == name }
 
 private fun forge.game.player.Player.hasCardAnywhereExceptHand(name: String): Boolean =
     hasCard(name, ZoneType.Battlefield) ||

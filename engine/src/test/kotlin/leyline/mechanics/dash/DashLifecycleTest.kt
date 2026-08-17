@@ -2,12 +2,17 @@ package leyline.mechanics.dash
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.beInGraveyardOf
+import leyline.testkit.beInHandOf
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
+import leyline.testkit.hasCard
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -44,19 +49,14 @@ class DashLifecycleTest :
             assertSoftly {
                 cto.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
                 cto.detailInt("castAbilityGrpId") shouldBe dashAbilityGrpId
-                human.hasCard("Zurgo Bellstriker", ZoneType.Battlefield).shouldBeTrue()
+                "Zurgo Bellstriker" should beOnBattlefieldOf(human)
                 passUntil(maxPasses = 30) { human.hasCard("Zurgo Bellstriker", ZoneType.Hand) }.shouldBeTrue()
             }
 
             assertSoftly {
-                human.hasCard("Zurgo Bellstriker", ZoneType.Hand).shouldBeTrue()
-                human.hasCard("Zurgo Bellstriker", ZoneType.Battlefield).shouldBeFalse()
-                human.hasCard("Zurgo Bellstriker", ZoneType.Graveyard).shouldBeFalse()
+                "Zurgo Bellstriker" should beInHandOf(human)
+                "Zurgo Bellstriker" shouldNot beOnBattlefieldOf(human)
+                "Zurgo Bellstriker" shouldNot beInGraveyardOf(human)
             }
         }
     })
-
-private fun forge.game.player.Player.hasCard(
-    name: String,
-    zone: ZoneType,
-): Boolean = getZone(zone).cards.any { it.name == name }

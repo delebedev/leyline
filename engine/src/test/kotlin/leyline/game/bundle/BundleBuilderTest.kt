@@ -728,6 +728,7 @@ class BundleBuilderTest :
 
             assertSoftly {
                 rider.affectedIdsList shouldBe listOf(1)
+                rider.affectorId shouldBeGreaterThan 0
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
                 b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
             }
