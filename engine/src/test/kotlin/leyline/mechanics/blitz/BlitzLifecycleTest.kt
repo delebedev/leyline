@@ -3,14 +3,13 @@ package leyline.mechanics.blitz
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
-import leyline.testkit.beMissingFrom
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.testkit.hasCard
@@ -61,8 +60,7 @@ class BlitzLifecycleTest :
             }
 
             assertSoftly {
-                human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Mayhem Patrol"
-                "Mayhem Patrol" should beMissingFrom(ZoneType.Battlefield, human)
+                "Mayhem Patrol" should beInGraveyardOf(human)
                 "Mountain" should beInHandOf(human)
             }
         }

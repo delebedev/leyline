@@ -1,6 +1,5 @@
 package leyline.mechanics.saddle
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -74,8 +73,8 @@ class SaddleLifecycleTest :
             respondToEffectCost(listOf(helperIid))
             passUntilResolved(maxPasses = 4)
 
-            val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
-            val helper = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val grizzly = human.battlefield.card("Drover Grizzly")
+            val helper = human.battlefield.card("Grizzly Bears")
             val saddledAnn =
                 allMessages
                     .persistentAnnotationsOfType(AnnotationType.SaddledThisTurn)
@@ -116,7 +115,7 @@ class SaddleLifecycleTest :
             respondToEffectCost(listOf(helperIid))
             passUntilResolved(maxPasses = 4)
 
-            val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
+            val grizzly = human.battlefield.card("Drover Grizzly")
             advanceToCombat(turn = 1)
             declareAttackers(listOf(human.battlefield.iid(grizzly)))
             passUntilResolved(maxPasses = 4)
@@ -144,7 +143,7 @@ class SaddleLifecycleTest :
             passUntilResolved(maxPasses = 4)
             passUntilTurn(2, maxPasses = 20)
 
-            val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
+            val grizzly = human.battlefield.card("Drover Grizzly")
             withClue("turn=${turn()} phase=${phase()} stack=${game().stack.map { it.sourceCard.name }}") {
                 grizzly.isSaddled shouldBe false
             }

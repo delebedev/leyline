@@ -1199,9 +1199,7 @@ class MatchFlowHarness(
     fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
 
     /** Find a card in the zone by name. */
-    fun PlayerZone.card(name: String): Card =
-        player.getZone(zone).cards.firstOrNull { it.name == name }
-            ?: error("No '$name' on ${player.name}'s ${zone.name}. Present: ${player.getZone(zone).cards.map { it.name }}")
+    fun PlayerZone.card(name: String): Card = cardIn(player, zone, name)
 
     /**
      * Resolve a card by name in [player]'s [zone]. Prefer the probe DSL; use

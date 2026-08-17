@@ -36,7 +36,7 @@ class AbilityWordValueRecognizersTest :
                 devotion().abilityGrpId shouldBe 100654
             }
 
-            val lion = human.getZone(ZoneType.Hand).cards.first { it.name == "Savannah Lions" }
+            val lion = human.hand.card("Savannah Lions")
             board.game.action.moveToPlay(lion, null, AbilityKey.newMap())
             devotion().value shouldBe 5
             board.game.action.moveToGraveyard(lion, null)
@@ -88,7 +88,7 @@ class AbilityWordValueRecognizersTest :
                 descend().abilityGrpId shouldBe 169501
             }
 
-            val plains = human.getZone(ZoneType.Hand).cards.first { it.name == "Plains" }
+            val plains = human.hand.card("Plains")
             board.game.action.moveToGraveyard(plains, null)
             descend().value shouldBe 8
         }
@@ -118,7 +118,7 @@ class AbilityWordValueRecognizersTest :
                     addCard("Reverberating Summons", human, ZoneType.Battlefield)
                 }
             val human = board.game.humanPlayer
-            val source = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Reverberating Summons" }
+            val source = human.battlefield.card("Reverberating Summons")
             val castAbility = source.firstSpellAbility.also { it.activatingPlayer = human }
 
             fun spellCount(): AbilityWordScanner.AbilityWordEntry =
@@ -227,7 +227,7 @@ class AbilityWordValueRecognizersTest :
                 enchantmentCount().threshold shouldBe 7
                 enchantmentCount().abilityGrpId shouldBe 146545
             }
-            val enchantment = human.getZone(ZoneType.Hand).cards.first { it.name == "Hallowed Haunting" }
+            val enchantment = human.hand.card("Hallowed Haunting")
             board.game.action.moveToPlay(enchantment, null, AbilityKey.newMap())
             enchantmentCount().value shouldBe 7
             board.game.action.moveToGraveyard(enchantment, null)

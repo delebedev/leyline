@@ -23,7 +23,7 @@ class AbilityWordScannerTest :
                     addCard("Lumen-Class Frigate", human, ZoneType.Battlefield)
                 }
             val human = game.humanPlayer
-            val frigate = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Lumen-Class Frigate" }
+            val frigate = human.battlefield.card("Lumen-Class Frigate")
             frigate.addCounterInternal(CounterEnumType.CHARGE, 3, human, true, null, AbilityKey.newMap())
             val iid = b.getOrAllocInstanceId(ForgeCardId(frigate.id)).value
 
@@ -55,10 +55,7 @@ class AbilityWordScannerTest :
                 }
             val human = game.humanPlayer
             val scavenger =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Dreadwing Scavenger" }
+                human.battlefield.card("Dreadwing Scavenger")
             val iid = b.getOrAllocInstanceId(ForgeCardId(scavenger.id)).value
 
             val results =
@@ -90,10 +87,7 @@ class AbilityWordScannerTest :
                 }
             val human = game.humanPlayer
             val prowler =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Cackling Prowler" }
+                human.battlefield.card("Cackling Prowler")
             val prowlerIid = b.getOrAllocInstanceId(ForgeCardId(prowler.id)).value
 
             // Kill the AI creature to trigger morbid condition
@@ -206,10 +200,7 @@ class AbilityWordScannerTest :
                 }
             val human = game.humanPlayer
             val devotee =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Jeskai Devotee" }
+                human.battlefield.card("Jeskai Devotee")
             val devoteeIid = b.getOrAllocInstanceId(ForgeCardId(devotee.id)).value
 
             val results =
@@ -236,7 +227,7 @@ class AbilityWordScannerTest :
                 }
             val human = board.game.humanPlayer
             human.expentThisTurn = 3
-            val duo = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Roughshod Duo" }
+            val duo = human.battlefield.card("Roughshod Duo")
             val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
 
             val results =
@@ -297,10 +288,8 @@ class AbilityWordScannerTest :
                 }
             val human = game.humanPlayer
             val castAbility =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Jeskai Devotee" }
+                human.battlefield
+                    .card("Jeskai Devotee")
                     .firstSpellAbility
                     .also { it.activatingPlayer = human }
             game.stack.spellsCastThisTurn.addAll(listOf(castAbility, castAbility))
@@ -330,10 +319,7 @@ class AbilityWordScannerTest :
                 }
             val human = game.humanPlayer
             val sentinel =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Sungold Sentinel" }
+                human.battlefield.card("Sungold Sentinel")
             val sentinelIid = b.getOrAllocInstanceId(ForgeCardId(sentinel.id)).value
 
             val results =
@@ -377,14 +363,11 @@ class AbilityWordScannerTest :
                 }
             val human = game.humanPlayer
             val rat =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Rat King, Verminister" }
+                human.battlefield.card("Rat King, Verminister")
             val ratIid = b.getOrAllocInstanceId(ForgeCardId(rat.id)).value
 
             // Move Bears to graveyard to satisfy Revolt (permanent left battlefield this turn).
-            val bears = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val bears = human.battlefield.card("Grizzly Bears")
             game.action.moveToGraveyard(bears, null)
 
             val results =
@@ -425,10 +408,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             human.lifeGainedThisTurn = 3
             val pois =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Poisoner's Apprentice" }
+                human.battlefield.card("Poisoner's Apprentice")
             val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
 
             val results =
@@ -480,17 +460,11 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val ai = game.registeredPlayers.first { it != human }
             val attacker =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                human.battlefield.card("Grizzly Bears")
             human.addCreaturesAttackedThisTurn(attacker, ai)
 
             val runner =
-                human
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Rigging Runner" }
+                human.hand.card("Rigging Runner")
             val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
 
             val results =
@@ -517,10 +491,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             human.lifeGainedThisTurn = 4
             val pois =
-                human
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Poisoner's Apprentice" }
+                human.hand.card("Poisoner's Apprentice")
             val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
 
             val results =
@@ -554,17 +525,11 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val ai = game.registeredPlayers.first { it != human }
             val attacker =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                human.battlefield.card("Grizzly Bears")
             human.addCreaturesAttackedThisTurn(attacker, ai)
 
             val runner =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Rigging Runner" }
+                human.battlefield.card("Rigging Runner")
             val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
 
             val results =

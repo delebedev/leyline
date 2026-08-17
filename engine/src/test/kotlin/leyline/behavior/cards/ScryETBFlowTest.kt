@@ -3,17 +3,22 @@ package leyline.behavior.cards
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.annotation
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.detailString
+import leyline.testkit.haveOnTop
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -52,12 +57,8 @@ class ScryETBFlowTest :
                 }
 
             // ObjectIdChanged: hand ID → battlefield ID (reference: 161 → 282)
-            val oic =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.ObjectIdChanged }
-                }
+            val oic = allAnnotations.annotation(AnnotationType.ObjectIdChanged)
             assertSoftly {
-                oic.shouldNotBeNull()
                 oic.detail("orig_id").shouldNotBeNull()
                 oic.detail("new_id").shouldNotBeNull()
             }
@@ -68,15 +69,11 @@ class ScryETBFlowTest :
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "PlayLand" }
                 }
-            val uat =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.UserActionTaken }
-                }
             assertSoftly {
                 allAnnotations.count { ann -> ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } } shouldBe 1
                 zt.shouldNotBeNull()
                 zt.affectedIdsList.shouldNotBeEmpty()
-                uat.shouldNotBeNull()
+                allAnnotations.flatMap { it.typeList } shouldContain AnnotationType.UserActionTaken
             }
         }
 
@@ -104,19 +101,11 @@ class ScryETBFlowTest :
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "CastSpell" }
                 }
-            val tap =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.TappedUntappedPermanent }
-                }
-            val manaPaid =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.ManaPaid }
-                }
+            val tap = allAnnotations.annotation(AnnotationType.TappedUntappedPermanent)
+            val manaPaid = allAnnotations.annotation(AnnotationType.ManaPaid)
             assertSoftly {
                 castZt.shouldNotBeNull()
-                tap.shouldNotBeNull()
                 tap.detail("tapped").shouldNotBeNull()
-                manaPaid.shouldNotBeNull()
                 manaPaid.detailInt("color") shouldBe ManaColor.Blue_afc9.number
             }
         }
@@ -141,29 +130,18 @@ class ScryETBFlowTest :
 
             // ResolutionStart + ResolutionComplete for the creature spell
             // Expected: affectorId=283 (Wall on stack), details grpid=75478
-            val resStart =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.ResolutionStart }
-                }
-            val resComplete =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.ResolutionComplete }
-                }
             val resolveZt =
                 allAnnotations.firstOrNull { ann ->
                     ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
                         ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "Resolve" }
                 }
-            val triggerCreated =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.AbilityInstanceCreated }
-                }
+            val triggerCreated = allAnnotations.annotation(AnnotationType.AbilityInstanceCreated)
             assertSoftly {
-                resStart.shouldNotBeNull()
-                resComplete.shouldNotBeNull()
+                val types = allAnnotations.flatMap { it.typeList }
+                types shouldContain AnnotationType.ResolutionStart
+                types shouldContain AnnotationType.ResolutionComplete
                 resolveZt.shouldNotBeNull()
                 resolveZt.detailString("category") shouldBe "Resolve"
-                triggerCreated.shouldNotBeNull()
                 triggerCreated.detail("source_zone").shouldNotBeNull()
             }
         }
@@ -200,29 +178,19 @@ class ScryETBFlowTest :
                 }
 
             // Scry annotation records the card ids chosen for top/bottom groups.
-            val scryAnn =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.Scry_af5a }
-                }
+            val scryAnn = allAnnotations.annotation(AnnotationType.Scry_af5a)
             assertSoftly {
-                scryAnn.shouldNotBeNull()
                 scryAnn.affectedIdsList shouldBe cardIds
                 scryAnn.detailIntList("topIds") shouldBe emptyList()
                 scryAnn.detailIntList("bottomIds") shouldBe cardIds
             }
 
             // ResolutionStart + ResolutionComplete for the creature spell
-            val resStart =
-                allAnnotations.firstOrNull { ann ->
-                    ann.typeList.any { it == AnnotationType.ResolutionStart }
-                }
-            resStart.shouldNotBeNull()
-
-            val resComplete =
-                allAnnotations.filter { ann ->
-                    ann.typeList.any { it == AnnotationType.ResolutionComplete }
-                }
-            resComplete.shouldNotBeEmpty()
+            assertSoftly {
+                val types = allAnnotations.flatMap { it.typeList }
+                types shouldContain AnnotationType.ResolutionStart
+                types shouldContain AnnotationType.ResolutionComplete
+            }
         }
 
         session("scry keep on top does not move card", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
@@ -233,11 +201,7 @@ class ScryETBFlowTest :
             respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Card should still be on top of library, not bottom
-            val libCards = human.getZone(ForgeZoneType.Library).cards
-            assertSoftly {
-                libCards.shouldNotBeEmpty()
-                libCards.first().name shouldBe "Island"
-            }
+            human.library should haveOnTop("Island")
         }
 
         session(
@@ -285,10 +249,13 @@ class ScryETBFlowTest :
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Wall of Runes should be on battlefield
-            val bf = human.getZone(ForgeZoneType.Battlefield).cards
             assertSoftly {
-                bf.any { it.name == "Wall of Runes" }.shouldBeTrue()
-                bf.any { it.isLand }.shouldBeTrue()
+                "Wall of Runes" should beOnBattlefieldOf(human)
+                human
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .any { it.isLand }
+                    .shouldBeTrue()
                 accumulator.assertConsistent("after scry ETB flow")
                 assertGsIdChain(allMessages, context = "scry ETB flow")
                 isGameOver().shouldBeFalse()

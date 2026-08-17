@@ -63,7 +63,7 @@ class DisturbActionTest :
             val disturbAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(galedrifterGrpId, KeywordAbilityIds.DISTURB)!!
 
-            val card = human.getZone(ZoneType.Hand).cards.first { it.name == "Galedrifter" }
+            val card = human.hand.card("Galedrifter")
             val handDisturbSa =
                 getAllCastableAbilities(card, human)
                     .firstOrNull { it.alternativeCost == AlternativeCost.Disturb }
@@ -85,10 +85,8 @@ class DisturbActionTest :
             val waildrifterGrpId = b.cardRepository.findGrpIdByNameAnyFace("Waildrifter")!!
             val galedrifterFid =
                 ForgeCardId(
-                    game.humanPlayer
-                        .getZone(ZoneType.Graveyard)
-                        .cards
-                        .first { it.name == "Galedrifter" }
+                    game.humanPlayer.graveyard
+                        .card("Galedrifter")
                         .id,
                 )
             val galedrifterIid = b.getOrAllocInstanceId(galedrifterFid).value
@@ -130,10 +128,7 @@ class DisturbActionTest :
                     addCard("Galedrifter", human, ZoneType.Graveyard)
                 }
             val galedrifter =
-                game.humanPlayer
-                    .getZone(ZoneType.Graveyard)
-                    .cards
-                    .first { it.name == "Galedrifter" }
+                game.humanPlayer.graveyard.card("Galedrifter")
             val galedrifterFid = ForgeCardId(galedrifter.id)
             val disturbBackIid = b.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(galedrifterFid)).value
 
@@ -181,10 +176,7 @@ class DisturbActionTest :
                     addCard("Galedrifter", human, ZoneType.Graveyard)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Graveyard)
-                    .cards
-                    .first { it.name == "Galedrifter" }
+                game.humanPlayer.graveyard.card("Galedrifter")
             val waildrifterGrpId =
                 b.cardRepository.findGrpIdByName("Waildrifter")
                     ?: TestCardRegistry.ensureCardRegistered("Waildrifter")
@@ -199,10 +191,7 @@ class DisturbActionTest :
                     addCard("Lunarch Veteran", human, ZoneType.Battlefield)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Lunarch Veteran" }
+                game.humanPlayer.battlefield.card("Lunarch Veteran")
             val luminousPhantomGrpId =
                 b.cardRepository.findGrpIdByNameAnyFace("Luminous Phantom")
                     ?: TestCardRegistry.ensureCardRegistered("Luminous Phantom")

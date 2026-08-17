@@ -24,15 +24,11 @@ class CombatQualificationTest :
                     aura.attachToEntity(target, null, true)
                 }
             val aura =
-                board.game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Pacifism" }
+                board.game.humanPlayer.battlefield
+                    .card("Pacifism")
             val target =
-                board.game.aiPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                board.game.aiPlayer.battlefield
+                    .card("Grizzly Bears")
 
             val gsm = handshakeFull(board.game, board.bridge, board.counter.nextGsId())
 
@@ -65,10 +61,8 @@ class CombatQualificationTest :
                     addCard("Silent Hallcreeper", human, ZoneType.Hand)
                 }
             val hallcreeper =
-                board.game.humanPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Silent Hallcreeper" }
+                board.game.humanPlayer.hand
+                    .card("Silent Hallcreeper")
 
             val gsm = board.snapshotDiff { board.game.action.moveToPlay(hallcreeper, null, AbilityKey.newMap()) }
 
@@ -90,15 +84,11 @@ class CombatQualificationTest :
                     addCard("Serra Angel", ai, ZoneType.Battlefield)
                 }
             val spirit =
-                board.game.humanPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Wanderlight Spirit" }
+                board.game.humanPlayer.hand
+                    .card("Wanderlight Spirit")
             val merfolk =
-                board.game.aiPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Coral Merfolk" }
+                board.game.aiPlayer.battlefield
+                    .card("Coral Merfolk")
 
             val gsm = board.snapshotDiff { board.game.action.moveToPlay(spirit, null, AbilityKey.newMap()) }
 
@@ -118,15 +108,11 @@ class CombatQualificationTest :
                     addCard("Coral Merfolk", ai, ZoneType.Battlefield)
                 }
             val juggernaut =
-                board.game.humanPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Juggernaut" }
+                board.game.humanPlayer.hand
+                    .card("Juggernaut")
             val wall =
-                board.game.aiPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Gleaming Barrier" }
+                board.game.aiPlayer.battlefield
+                    .card("Gleaming Barrier")
 
             val gsm = board.snapshotDiff { board.game.action.moveToPlay(juggernaut, null, AbilityKey.newMap()) }
 
@@ -145,10 +131,8 @@ class CombatQualificationTest :
                     addCard("Coral Merfolk", ai, ZoneType.Battlefield)
                 }
             val serra =
-                board.game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Serra Angel" }
+                board.game.humanPlayer.battlefield
+                    .card("Serra Angel")
 
             val gsm = handshakeFull(board.game, board.bridge, board.counter.nextGsId())
 

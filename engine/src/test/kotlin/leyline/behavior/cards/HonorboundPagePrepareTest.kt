@@ -129,10 +129,7 @@ class HonorboundPagePrepareTest :
             passUntilResolved()
 
             val copy =
-                human
-                    .getZone(ZoneType.Exile)
-                    .cards
-                    .first { it.name == "Forum's Favor" }
+                human.exile.card("Forum's Favor")
             val copyIid = human.exile.iid("Forum's Favor")
             val grpId = bridge.resolveGrpId(copy, copyIid)
             grpId shouldNotBe 0

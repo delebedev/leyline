@@ -26,10 +26,7 @@ class AbilityWordTriggerRecognizersTest :
                 }
             if (includeDeparture) {
                 val departing =
-                    board.ai
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .first { it.name == "Grizzly Bears" }
+                    board.ai.battlefield.card("Grizzly Bears")
                 exile(departing, board.game)
             }
             return board
@@ -61,27 +58,18 @@ class AbilityWordTriggerRecognizersTest :
                     addCard("Grizzly Bears", ai)
                 }
             val departing =
-                board.ai
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                board.ai.battlefield.card("Grizzly Bears")
             exile(departing, board.game)
 
             val entries = board.voidEntries().sortedBy { it.affectorId }
             val humanSources =
                 listOf("Insatiable Skittermaw", "Hylderblade").map { name ->
                     val card =
-                        board.human
-                            .getZone(ZoneType.Battlefield)
-                            .cards
-                            .first { it.name == name }
+                        board.human.battlefield.card(name)
                     board.instanceId(card.id)
                 }
             val aiSource =
-                board.ai
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Insatiable Skittermaw" }
+                board.ai.battlefield.card("Insatiable Skittermaw")
 
             entries shouldHaveSize 2
             assertSoftly {
@@ -96,10 +84,7 @@ class AbilityWordTriggerRecognizersTest :
         test("Void ignores land-only departures") {
             val board = voidBoard(includeLand = true)
             val land =
-                board.ai
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Forest" }
+                board.ai.battlefield.card("Forest")
 
             exile(land, board.game)
 
@@ -109,10 +94,7 @@ class AbilityWordTriggerRecognizersTest :
         test("Void activates after a warped spell was cast") {
             val board = voidBoard(includeWarpCard = true)
             val warpCard =
-                board.human
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Anticausal Vestige" }
+                board.human.hand.card("Anticausal Vestige")
             val warpAbility = warpCard.spells.first()
             warpAbility.setAlternativeCost(AlternativeCost.Warp)
             warpAbility.activatingPlayer = board.human
