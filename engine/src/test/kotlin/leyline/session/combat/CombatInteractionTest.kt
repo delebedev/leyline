@@ -20,13 +20,16 @@ import leyline.copilot.CopilotProposalService
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardInjector
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
+import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.declareAttackersResp
 import leyline.testkit.detailInt
-import leyline.testkit.gsm
 import leyline.tooling.headless.planeswalkerDamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -65,6 +68,43 @@ class CombatInteractionTest :
                 InvariantCheck.GsIdMonotonicity,
             )
 
+        // aiScript for tests built on a single haste attacker (setupSingleAttacker).
+        val singleAttackerAiScript =
+            listOf(
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+            )
+
+        // aiScript for tests built on two haste attackers (setupMultipleAttackers).
+        val multipleAttackersAiScript =
+            listOf(
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+            )
+
+        // aiScript for tests where the AI fields its own blocker (setupWithAiBlocker).
+        val aiBlockerAiScript =
+            listOf(
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.CastSpell("Raging Goblin"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+                ScriptedAction.PlayLand("Mountain"),
+                ScriptedAction.DeclareNoAttackers,
+                ScriptedAction.PassPriority,
+            )
+
         // ─── Setup helpers ────────────────────────────────────────────────────
 
         fun aiTurnActionsAvailableReqs(messages: List<GREToClientMessage>): List<GREToClientMessage> {
@@ -81,7 +121,7 @@ class CombatInteractionTest :
             return aars
         }
 
-        fun passBackToHumanMain1() {
+        fun MatchFlowHarness.passBackToHumanMain1() {
             repeat(80) {
                 if (!isAiTurn() && phase() == "MAIN1" && turn() > 1) return
                 if (!isAiTurn() && phase() == "COMBAT_DECLARE_ATTACKERS") {
@@ -95,21 +135,9 @@ class CombatInteractionTest :
             }
         }
 
-        fun setupSingleAttacker(): Int {
-            startGame(
-                deckList = COMBAT_DECK,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                    ),
-            )
+        // Post-connect half of the old setupSingleAttacker: the deckList/aiScript
+        // that used to start the game now lives on each caller's session(...).
+        fun MatchFlowHarness.setupSingleAttacker(): Int {
             // Turn 1: play Mountain, cast Raging Goblin (R)
             assertSoftly {
                 playLand("Mountain").shouldBeTrue()
@@ -125,25 +153,7 @@ class CombatInteractionTest :
             return creatures.first().first
         }
 
-        fun setupMultipleAttackers(): List<Int> {
-            startGame(
-                deckList = COMBAT_DECK,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
+        fun MatchFlowHarness.setupMultipleAttackers(): List<Int> {
             // Turn 1: play Mountain, cast Raging Goblin #1
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
@@ -162,23 +172,7 @@ class CombatInteractionTest :
             return creatures.map { it.first }
         }
 
-        fun setupWithAiBlocker(): Int {
-            startGame(
-                deckList = COMBAT_DECK,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.CastSpell("Raging Goblin"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
+        fun MatchFlowHarness.setupWithAiBlocker(): Int {
             // Human turn 1: play Mountain, cast Raging Goblin
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
@@ -191,12 +185,18 @@ class CombatInteractionTest :
 
         // ─── Declare attackers ────────────────────────────────────────────────
 
-        test("human declares single attacker") {
+        session(
+            "human declares single attacker",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             // Pass-only phase stops are skipped before the declaration window.
             val pending =
-                harness.bridge
+                bridge
                     .actionBridge(SeatId(1))
                     .getPending()
                     .shouldNotBeNull()
@@ -220,13 +220,19 @@ class CombatInteractionTest :
             }
         }
 
-        test("human declares multiple attackers") {
+        session(
+            "human declares multiple attackers",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = multipleAttackersAiScript,
+        ) {
             val attackerIids = setupMultipleAttackers()
 
             passPriority() // advance to combat
 
             val pending =
-                harness.bridge
+                bridge
                     .actionBridge(SeatId(1))
                     .getPending()
                     .shouldNotBeNull()
@@ -247,7 +253,13 @@ class CombatInteractionTest :
             assertAccumulatorConsistent("after multiple attackers declared")
         }
 
-        test("AI declares blockers") {
+        session(
+            "AI declares blockers",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = aiBlockerAiScript,
+        ) {
             val attackerIid = setupWithAiBlocker()
 
             // End human turn → AI turn (AI casts Raging Goblin via script) → back to human
@@ -280,7 +292,13 @@ class CombatInteractionTest :
             }
         }
 
-        test("combat damage frame carries persistent DamagedThisTurn badge") {
+        session(
+            "combat damage frame carries persistent DamagedThisTurn badge",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = aiBlockerAiScript,
+        ) {
             val attackerIid = setupWithAiBlocker()
 
             passBackToHumanMain1()
@@ -312,7 +330,13 @@ class CombatInteractionTest :
             }
         }
 
-        test("combat damage resolves correctly") {
+        session(
+            "combat damage resolves correctly",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             // Record AI life before combat
@@ -333,9 +357,9 @@ class CombatInteractionTest :
             assertAccumulatorConsistent("after combat damage")
         }
 
-        test("human can destroy opposing planeswalker in combat") {
-            startPuzzle(
-                """
+        session(
+            "human can destroy opposing planeswalker in combat",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -345,14 +369,13 @@ class CombatInteractionTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Planeswalker Combat Target",
-                turns = 5,
-                validating = true,
-                validation = combatValidation,
-            )
+            turns = 5,
+            validating = true,
+            validation = combatValidation,
+        ) {
             val attacker =
                 TestCardInjector.inject(
-                    harness.bridge,
+                    bridge,
                     HUMAN_SEAT,
                     "Raging Goblin",
                     ZoneType.Battlefield,
@@ -360,7 +383,7 @@ class CombatInteractionTest :
                 )
             val planeswalker =
                 TestCardInjector.inject(
-                    harness.bridge,
+                    bridge,
                     OPPONENT_SEAT,
                     "Liliana of the Veil",
                     ZoneType.Battlefield,
@@ -423,7 +446,13 @@ class CombatInteractionTest :
             }
         }
 
-        test("combat damage GSM has correct phase and annotation shape") {
+        session(
+            "combat damage GSM has correct phase and annotation shape",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             // Advance to combat
@@ -517,7 +546,13 @@ class CombatInteractionTest :
             }
         }
 
-        test("first strike combat damage uses first-strike damage step") {
+        session(
+            "first strike combat damage uses first-strike damage step",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
             human
                 .getZone(ZoneType.Battlefield)
@@ -550,7 +585,13 @@ class CombatInteractionTest :
             }
         }
 
-        test("double strike combat damage uses first-strike and regular damage steps") {
+        session(
+            "double strike combat damage uses first-strike and regular damage steps",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
             human
                 .getZone(ZoneType.Battlefield)
@@ -586,25 +627,23 @@ class CombatInteractionTest :
             }
         }
 
-        test("combat death produces zone transfer") {
-            // AI: play Mountain, cast Raging Goblin (blocker), skip attacking, decline blocking
-            startGame(
-                deckList = COMBAT_DECK,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.CastSpell("Raging Goblin"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.DeclareNoBlockers, // let human's attack through (unblocked)
-                        ScriptedAction.PassPriority,
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
+        session(
+            "combat death produces zone transfer",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript =
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.CastSpell("Raging Goblin"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.DeclareNoBlockers, // let human's attack through (unblocked)
+                    ScriptedAction.PassPriority,
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+        ) {
             // Human turn 1: play Mountain, cast Raging Goblin
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
@@ -641,7 +680,13 @@ class CombatInteractionTest :
             }
         }
 
-        test("full combat turn cycle") {
+        session(
+            "full combat turn cycle",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
             val startTurn = turn()
 
@@ -661,7 +706,13 @@ class CombatInteractionTest :
 
         // ─── Iterative attacker toggle (echo back) ────────────────────────────
 
-        test("echo back contains creature object without combat state") {
+        session(
+            "echo back contains creature object without combat state",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             // Advance to combat — DeclareAttackersReq emitted
@@ -714,7 +765,13 @@ class CombatInteractionTest :
             echoReq.declareAttackersReq.manaCostCount shouldBeGreaterThan 0
         }
 
-        test("re-drive preserves iterative attacker selection") {
+        session(
+            "re-drive preserves iterative attacker selection",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
             passPriority()
             toggleAttackers(listOf(attackerIid))
@@ -726,18 +783,24 @@ class CombatInteractionTest :
                 .single { it.attackerInstanceId == attackerIid }
                 .hasSelectedDamageRecipient()
                 .shouldBeTrue()
-            CopilotProposalService(harness.bridge, SeatId(1)).propose(prompt).intent shouldBe "submit_attackers"
+            CopilotProposalService(bridge, SeatId(1)).propose(prompt).intent shouldBe "submit_attackers"
         }
 
-        test("unselected attacker without a damage recipient is rejected") {
+        session(
+            "unselected attacker without a damage recipient is rejected",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
             passPriority()
             val before = messageSnapshot()
 
-            harness.session.onDeclareAttackers(
-                harness.submitWithGsId(leyline.testkit.declareAttackersResp(attackers = listOf(attackerIid))),
+            session.onDeclareAttackers(
+                submitWithGsId(declareAttackersResp(attackers = listOf(attackerIid))),
             )
-            harness.drainSink()
+            drainSink()
 
             val messages = messagesSince(before)
             val rejection = messages.single { it.type == GREMessageType.IllegalRequest }
@@ -749,7 +812,13 @@ class CombatInteractionTest :
                 .shouldBeFalse()
         }
 
-        test("echo back deselect clears selectedDamageRecipient") {
+        session(
+            "echo back deselect clears selectedDamageRecipient",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             passPriority() // advance to combat
@@ -766,7 +835,13 @@ class CombatInteractionTest :
             offReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(false)
         }
 
-        test("echo back deselect restores state") {
+        session(
+            "echo back deselect restores state",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             passPriority() // advance to combat
@@ -789,7 +864,13 @@ class CombatInteractionTest :
             attackerObj.attackState shouldBe AttackState.None_a3a9
         }
 
-        test("multi toggle before submit") {
+        session(
+            "multi toggle before submit",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = multipleAttackersAiScript,
+        ) {
             val attackerIids = setupMultipleAttackers()
             attackerIids.size shouldBeGreaterThanOrEqualTo 2
             val (iidA, iidB) = attackerIids
@@ -816,7 +897,13 @@ class CombatInteractionTest :
             ai.life shouldBe lifeBefore - 1
         }
 
-        test("toggle then submit deals damage") {
+        session(
+            "toggle then submit deals damage",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             val attackerIid = setupSingleAttacker()
 
             val lifeBefore = ai.life
@@ -842,7 +929,13 @@ class CombatInteractionTest :
             ai.life shouldBeLessThan lifeBefore
         }
 
-        test("attack all then submit deals damage") {
+        session(
+            "attack all then submit deals damage",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             setupSingleAttacker()
 
             val lifeBefore = ai.life
@@ -866,7 +959,13 @@ class CombatInteractionTest :
             ai.life shouldBeLessThan lifeBefore
         }
 
-        test("declare no attackers skips combat") {
+        session(
+            "declare no attackers skips combat",
+            deckList = COMBAT_DECK,
+            validating = true,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
             setupSingleAttacker()
 
             // Advance to combat
@@ -886,25 +985,23 @@ class CombatInteractionTest :
 
         // ─── Assign damage (multi-blocker / trample) ──────────────────────────
 
-        test("trample damage assignment sends AssignDamageReq and completes combat") {
-            val puzzleText = javaClass.getResource("/puzzles/trample-damage-assign.pzl")!!.readText()
-            startPuzzleRaw(
-                puzzleText,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.Block(
-                            mapOf(
-                                "Grizzly Bears" to "Charging Monstrosaur",
-                                "Runeclaw Bear" to "Charging Monstrosaur",
-                            ),
+        session(
+            "trample damage assignment sends AssignDamageReq and completes combat",
+            puzzleFile = "puzzles/trample-damage-assign.pzl",
+            validating = true,
+            validation = combatValidation,
+            aiScript =
+                listOf(
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.Block(
+                        mapOf(
+                            "Grizzly Bears" to "Charging Monstrosaur",
+                            "Runeclaw Bear" to "Charging Monstrosaur",
                         ),
-                        ScriptedAction.PassPriority,
                     ),
-            )
-
+                    ScriptedAction.PassPriority,
+                ),
+        ) {
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 1 // Charging Monstrosaur — the trample attacker
             val dreadmawIid = creatures.first().first
@@ -963,9 +1060,9 @@ class CombatInteractionTest :
             if (!isGameOver()) passThroughCombat()
         }
 
-        test("single blocker does not trigger AssignDamageReq") {
-            startPuzzle(
-                """
+        session(
+            "single blocker does not trigger AssignDamageReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -976,18 +1073,16 @@ class CombatInteractionTest :
                 aibattlefield=Forest;Grizzly Bears
                 ailibrary=Forest;Forest;Forest;Forest;Forest
                 """,
-                name = "Single Blocker No Prompt",
-                turns = 10,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
+            turns = 10,
+            validating = true,
+            validation = combatValidation,
+            aiScript =
+                listOf(
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
+                    ScriptedAction.PassPriority,
+                ),
+        ) {
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 3 // 3× Raging Goblin from the puzzle state
             val attackerIid = creatures.first().first
@@ -1007,11 +1102,9 @@ class CombatInteractionTest :
 
         // ─── Zero-blocker auto-advance ────────────────────────────────────────
 
-        test("zero blockers auto-advances without DeclareBlockersReq") {
-            // Human has only lands, AI has haste attackers — server should
-            // auto-advance through declare-blockers instead of prompting.
-            startPuzzle(
-                """
+        session(
+            "zero blockers auto-advances without DeclareBlockersReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -1022,17 +1115,15 @@ class CombatInteractionTest :
                 aibattlefield=Mountain;Mountain;Raging Goblin;Raging Goblin
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
-                name = "Zero Blockers AI Attack",
-                turns = 10,
-                validating = true,
-                validation = combatValidation,
-                aiScript =
-                    listOf(
-                        ScriptedAction.Attack(listOf("Raging Goblin")),
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
+            turns = 10,
+            validating = true,
+            validation = combatValidation,
+            aiScript =
+                listOf(
+                    ScriptedAction.Attack(listOf("Raging Goblin")),
+                    ScriptedAction.PassPriority,
+                ),
+        ) {
             after {
                 // Pass through human turn into AI combat → combat auto-advances
                 passPriority()
@@ -1046,12 +1137,13 @@ class CombatInteractionTest :
 
         // ─── AI combat opponent-turn priority ─────────────────────────────────
 
-        test("AI combat grants priority when human has castable instant").config(timeout = 30.seconds) {
-            // Puzzle: AI's turn at COMBAT_DECLARE_ATTACKERS. AI has a Raging Goblin
-            // marked |Attacking|Tapped. Human has Burst Lightning + untapped Mountain.
-            // The client should get an ActionsAvailableReq for the instant instead
-            // of silently auto-passing through combat damage.
-            startPuzzleRaw(
+        // Puzzle: AI's turn at COMBAT_DECLARE_ATTACKERS. AI has a Raging Goblin
+        // marked |Attacking|Tapped. Human has Burst Lightning + untapped Mountain.
+        // The client should get an ActionsAvailableReq for the instant instead
+        // of silently auto-passing through combat damage.
+        session(
+            "AI combat grants priority when human has castable instant",
+            puzzle =
                 """
                 [metadata]
                 Name:AI Combat AutoPass
@@ -1072,10 +1164,10 @@ class CombatInteractionTest :
                 aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                validating = true,
-                validation = combatValidation,
-            )
-
+            validating = true,
+            validation = combatValidation,
+            timeout = 30.seconds,
+        ) {
             val aiTurnAars = aiTurnActionsAvailableReqs(allMessages)
 
             assertSoftly {

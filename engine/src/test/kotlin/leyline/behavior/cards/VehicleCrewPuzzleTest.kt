@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
@@ -23,8 +24,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 class VehicleCrewPuzzleTest :
     SessionTest({
 
-        test("crew vehicle and attack for lethal") {
-            val pzl =
+        session(
+            "crew vehicle and attack for lethal",
+            puzzle =
                 """
                 [metadata]
                 Name:Crew and Attack
@@ -43,10 +45,9 @@ class VehicleCrewPuzzleTest :
                 humanlibrary=Mountain|Mountain|Mountain|Mountain
                 aibattlefield=Coral Merfolk
                 ailibrary=Mountain|Mountain|Mountain|Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
-
+                """.trimIndent(),
+            validating = true,
+        ) {
             assertSoftly {
                 // Auto-pass should stop at Main1 when crew ability is available
                 phase() shouldBe "MAIN1"
@@ -61,8 +62,9 @@ class VehicleCrewPuzzleTest :
             }
         }
 
-        test("crew payment binds weighted helpers to the stack ability") {
-            startPuzzleRaw(
+        session(
+            "crew payment binds weighted helpers to the stack ability",
+            puzzle =
                 """
                 [metadata]
                 Name:Crew payment prompt
@@ -80,9 +82,8 @@ class VehicleCrewPuzzleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val wall = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Wall of Runes" }
             wall.addStaticAbility(
                 "Mode\$ TapPowerValue | ValidSA\$ Activated.Crew+Vehicle | " +

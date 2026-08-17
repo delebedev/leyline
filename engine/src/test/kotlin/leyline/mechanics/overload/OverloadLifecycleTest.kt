@@ -34,11 +34,10 @@ private val PUZZLE =
 
 class OverloadLifecycleTest :
     SessionTest({
-        test("overloaded Mizzium Mortars is targetless and hits each opposing creature") {
-            startPuzzleRaw(PUZZLE)
-            val mortarsGrpId = harness.bridge.cardRepository.findGrpIdByName("Mizzium Mortars")!!
+        session("overloaded Mizzium Mortars is targetless and hits each opposing creature", puzzle = PUZZLE) {
+            val mortarsGrpId = bridge.cardRepository.findGrpIdByName("Mizzium Mortars")!!
             val overloadAbilityGrpId =
-                harness.bridge.cardRepository.findKeywordAbilityGrpId(mortarsGrpId, KeywordAbilityIds.OVERLOAD)!!
+                bridge.cardRepository.findKeywordAbilityGrpId(mortarsGrpId, KeywordAbilityIds.OVERLOAD)!!
 
             val snap = messageSnapshot()
             castSpellByName("Mizzium Mortars", alternativeGrpId = overloadAbilityGrpId).shouldBeTrue()

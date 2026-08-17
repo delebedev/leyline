@@ -7,7 +7,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.annotations
+import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.detailIntList
 import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -41,11 +43,7 @@ class LibraryOrderInteractionTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
-        fun startSurveil1() = startPuzzle(surveil1State, name = "Surveil 1")
-
-        test("surveil 1 — GroupReq shape and revealed card") {
-            startSurveil1()
-
+        session("surveil 1 — GroupReq shape and revealed card", puzzle = surveil1State) {
             val req = castSpellUntilGroupReq("Wary Thespian")
             assertSoftly {
                 req.context shouldBe GroupingContext.Surveil
@@ -61,9 +59,7 @@ class LibraryOrderInteractionTest :
             cardName(req.instanceIdsList.first()) shouldBe "Grizzly Bears"
         }
 
-        test("surveil 1 — keep on top leaves card on library top") {
-            startSurveil1()
-
+        session("surveil 1 — keep on top leaves card on library top", puzzle = surveil1State) {
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
@@ -75,11 +71,10 @@ class LibraryOrderInteractionTest :
                 .name shouldBe "Grizzly Bears"
         }
 
-        test("grouping prompt rejects SelectTargetsResp without consuming the pending route") {
-            startSurveil1()
+        session("grouping prompt rejects SelectTargetsResp without consuming the pending route", puzzle = surveil1State) {
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
             val promptBefore =
-                harness.bridge
+                bridge
                     .cutCoordinator
                     .grouping
                     .current()
@@ -87,7 +82,7 @@ class LibraryOrderInteractionTest :
 
             selectTargetsIterative(emptyList())
 
-            harness.bridge
+            bridge
                 .cutCoordinator
                 .grouping
                 .current()
@@ -101,9 +96,7 @@ class LibraryOrderInteractionTest :
         }
 
         // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
-        test("surveil 1 — put in graveyard moves card and produces Surveil annotation") {
-            startSurveil1()
-
+        session("surveil 1 — put in graveyard moves card and produces Surveil annotation", puzzle = surveil1State) {
             val snap = messageSnapshot()
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
@@ -142,9 +135,9 @@ class LibraryOrderInteractionTest :
 
         // --- Surveil 2 (Sterling Hound: ETB surveil 2) ---
 
-        test("surveil 2 — multi-card to graveyard") {
-            startPuzzle(
-                """
+        session(
+            "surveil 2 — multi-card to graveyard",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -155,9 +148,7 @@ class LibraryOrderInteractionTest :
                 humanlibrary=Mountain;Forest;Island;Swamp;Plains
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
-                name = "Surveil 2",
-            )
-
+        ) {
             val groupReq = castSpellUntilGroupReq("Sterling Hound")
             groupReq.context shouldBe GroupingContext.Surveil
             groupReq.instanceIdsList shouldHaveSize 2
@@ -169,9 +160,9 @@ class LibraryOrderInteractionTest :
             human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
         }
 
-        test("surveil 2 — keep both on top emits OrderReq and applies order") {
-            startPuzzle(
-                """
+        session(
+            "surveil 2 — keep both on top emits OrderReq and applies order",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -182,9 +173,7 @@ class LibraryOrderInteractionTest :
                 humanlibrary=Mountain;Forest;Island;Swamp;Plains
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
-                name = "Surveil 2 top order",
-            )
-
+        ) {
             val groupReq = castSpellUntilGroupReq("Sterling Hound")
             val groupIds = groupReq.instanceIdsList
             groupIds shouldHaveSize 2
@@ -237,11 +226,7 @@ class LibraryOrderInteractionTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        fun startScry1() = startPuzzle(scryState, name = "Scry 1")
-
-        test("scry 1 — GroupReq shape") {
-            startScry1()
-
+        session("scry 1 — GroupReq shape", puzzle = scryState) {
             val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
                 req.context shouldBe GroupingContext.Scry_a0f6
@@ -254,9 +239,7 @@ class LibraryOrderInteractionTest :
             }
         }
 
-        test("scry 1 — put on bottom") {
-            startScry1()
-
+        session("scry 1 — put on bottom", puzzle = scryState) {
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
@@ -287,9 +270,7 @@ class LibraryOrderInteractionTest :
                 .name shouldBe "Forest"
         }
 
-        test("scry 1 — keep on top") {
-            startScry1()
-
+        session("scry 1 — keep on top", puzzle = scryState) {
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
@@ -302,9 +283,9 @@ class LibraryOrderInteractionTest :
                 .name shouldBe "Grizzly Bears"
         }
 
-        test("scry 2 — keep both on top emits OrderReq and applies order") {
-            startPuzzle(
-                """
+        session(
+            "scry 2 — keep both on top emits OrderReq and applies order",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -315,9 +296,7 @@ class LibraryOrderInteractionTest :
                 humanlibrary=Mountain;Forest;Island;Swamp;Plains
                 ailibrary=Plains;Plains;Plains;Plains;Plains
                 """,
-                name = "Scry 2 top order",
-            )
-
+        ) {
             val groupReq = castSpellUntilGroupReq("Witching Well")
             val groupIds = groupReq.instanceIdsList
             groupIds shouldHaveSize 2

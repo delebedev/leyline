@@ -9,9 +9,91 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
+
+private val GOBLIN_ATTACK_AI_SCRIPT =
+    listOf(
+        ScriptedAction.PlayLand("Mountain"),
+        ScriptedAction.CastSpell("Raging Goblin"),
+        ScriptedAction.Attack(listOf("Raging Goblin")),
+        ScriptedAction.PassPriority,
+        ScriptedAction.PlayLand("Mountain"),
+        ScriptedAction.DeclareNoAttackers,
+        ScriptedAction.PassPriority,
+    )
+
+private val MULTI_BLOCKER_AI_SCRIPT =
+    listOf(
+        ScriptedAction.Attack(listOf("Centaur Courser")),
+        ScriptedAction.PassPriority,
+    )
+
+/**
+ * Returns (humanBlockerIid, aiAttackerIid) at COMBAT_DECLARE_BLOCKERS,
+ * ready for the human to respond to DeclareBlockersReq.
+ *
+ * DO NOT call passPriority() after declareNoAttackers() to "advance" —
+ * it submits Pass to the COMBAT_DECLARE_BLOCKERS pending (= no blockers)
+ * and skips the entire DeclareBlockersReq flow. Use advanceToPhase +
+ * triggerAutoPass instead, as below.
+ */
+private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
+    // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
+    playLand("Mountain").shouldBeTrue()
+    castSpellByName("Raging Goblin").shouldBeTrue()
+    passPriority() // resolve
+
+    // Human combat: decline if prompted. The autoPassAndAdvance inside
+    // declareNoAttackers processes the AI turn (land, cast, attack)
+    // and may send DeclareBlockersReq in the same call.
+    if (allMessages.any { it.hasDeclareAttackersReq() }) declareNoAttackers()
+
+    // If DeclareBlockersReq isn't in messages yet, the AI turn hasn't
+    // completed. Use bridge-level advanceTo to reach COMBAT_DECLARE_BLOCKERS
+    // without intercepting the pending (passPriority would submit Pass
+    // to the blocker pending = "no blockers"). Then trigger autoPassAndAdvance
+    // directly — CombatHandler detects the combat phase and sends
+    // DeclareBlockersReq before any action is submitted.
+    if (allMessages.none { it.hasDeclareBlockersReq() }) {
+        advanceToPhase("COMBAT_DECLARE_BLOCKERS")
+        triggerAutoPass()
+        drainSink()
+    }
+
+    allMessages.any { it.hasDeclareBlockersReq() }.shouldBeTrue()
+
+    val humanCreatures = humanBattlefieldCreatures()
+    humanCreatures.shouldNotBeEmpty()
+    val blockerIid = humanCreatures.first().first
+
+    // Find the AI attacker instanceId from the DeclareBlockersReq
+    val blockReq = allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
+    blockReq.blockersCount shouldBeGreaterThan 0
+
+    // The blocker should reference attacker instanceIds
+    val blocker = blockReq.blockersList.first { it.blockerInstanceId == blockerIid }
+    blocker.attackerInstanceIdsCount shouldBeGreaterThan 0
+    val attackerIid = blocker.attackerInstanceIdsList.first()
+
+    return blockerIid to attackerIid
+}
+
+private fun MatchFlowHarness.advanceToMultiBlockerPrompt(): Triple<Int, Int, Int> {
+    passUntil(maxPasses = 6) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
+
+    val req = allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
+    req.blockersCount shouldBe 2
+    val blockerIids = req.blockersList.map { it.blockerInstanceId }
+    val attackerIid =
+        req.blockersList
+            .first()
+            .attackerInstanceIdsList
+            .first()
+    return Triple(blockerIids[0], blockerIids[1], attackerIid)
+}
 
 /**
  * Non-validating harness: combat zone transfers can produce transient
@@ -23,99 +105,14 @@ import leyline.testkit.beInGraveyardOf
 class BlockerDeclarationInteractionTest :
     SessionTest({
 
-        /**
-         * Returns (humanBlockerIid, aiAttackerIid) at COMBAT_DECLARE_BLOCKERS,
-         * ready for the human to respond to DeclareBlockersReq.
-         *
-         * DO NOT call passPriority() after declareNoAttackers() to "advance" —
-         * it submits Pass to the COMBAT_DECLARE_BLOCKERS pending (= no blockers)
-         * and skips the entire DeclareBlockersReq flow. Use harness.advanceToPhase
-         * + triggerAutoPass instead, as below.
-         */
-        fun setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
-            startGame(
-                deckList = COMBAT_DECK,
-                validating = true,
-                aiScript =
-                    listOf(
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.CastSpell("Raging Goblin"),
-                        ScriptedAction.Attack(listOf("Raging Goblin")),
-                        ScriptedAction.PassPriority,
-                        ScriptedAction.PlayLand("Mountain"),
-                        ScriptedAction.DeclareNoAttackers,
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
-            // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
-            playLand("Mountain").shouldBeTrue()
-            castSpellByName("Raging Goblin").shouldBeTrue()
-            passPriority() // resolve
-
-            // Human combat: decline if prompted. The autoPassAndAdvance inside
-            // declareNoAttackers processes the AI turn (land, cast, attack)
-            // and may send DeclareBlockersReq in the same call.
-            if (allMessages.any { it.hasDeclareAttackersReq() }) declareNoAttackers()
-
-            // If DeclareBlockersReq isn't in messages yet, the AI turn hasn't
-            // completed. Use bridge-level advanceTo to reach COMBAT_DECLARE_BLOCKERS
-            // without intercepting the pending (passPriority would submit Pass
-            // to the blocker pending = "no blockers"). Then trigger autoPassAndAdvance
-            // directly — CombatHandler detects the combat phase and sends
-            // DeclareBlockersReq before any action is submitted.
-            if (allMessages.none { it.hasDeclareBlockersReq() }) {
-                harness.advanceToPhase("COMBAT_DECLARE_BLOCKERS")
-                triggerAutoPass()
-                harness.drainSink()
-            }
-
-            allMessages.any { it.hasDeclareBlockersReq() }.shouldBeTrue()
-
-            val humanCreatures = humanBattlefieldCreatures()
-            humanCreatures.shouldNotBeEmpty()
-            val blockerIid = humanCreatures.first().first
-
-            // Find the AI attacker instanceId from the DeclareBlockersReq
-            val blockReq = allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
-            blockReq.blockersCount shouldBeGreaterThan 0
-
-            // The blocker should reference attacker instanceIds
-            val blocker = blockReq.blockersList.first { it.blockerInstanceId == blockerIid }
-            blocker.attackerInstanceIdsCount shouldBeGreaterThan 0
-            val attackerIid = blocker.attackerInstanceIdsList.first()
-
-            return blockerIid to attackerIid
-        }
-
-        fun advanceToMultiBlockerPrompt(): Triple<Int, Int, Int> {
-            val puzzleText = javaClass.getResource("/puzzles/multi-blocker.pzl")!!.readText()
-            startPuzzleRaw(
-                puzzleText,
-                validating = true,
-                aiScript =
-                    listOf(
-                        ScriptedAction.Attack(listOf("Centaur Courser")),
-                        ScriptedAction.PassPriority,
-                    ),
-            )
-
-            passUntil(maxPasses = 6) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
-
-            val req = allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
-            req.blockersCount shouldBe 2
-            val blockerIids = req.blockersList.map { it.blockerInstanceId }
-            val attackerIid =
-                req.blockersList
-                    .first()
-                    .attackerInstanceIdsList
-                    .first()
-            return Triple(blockerIids[0], blockerIids[1], attackerIid)
-        }
-
         // ─── Single-blocker block / decline / trade ──────────────────────────
 
-        test("human blocks AI attacker") {
+        session(
+            "human blocks AI attacker",
+            deckList = COMBAT_DECK,
+            validating = true,
+            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
+        ) {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 
             // Human life before blocking
@@ -137,7 +134,12 @@ class BlockerDeclarationInteractionTest :
             }
         }
 
-        test("human declines blocking takes damage") {
+        session(
+            "human declines blocking takes damage",
+            deckList = COMBAT_DECK,
+            validating = true,
+            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
+        ) {
             setupAiAttacksHumanCanBlock() // advances to DeclareBlockersReq
 
             val lifeBefore = human.life
@@ -158,7 +160,12 @@ class BlockerDeclarationInteractionTest :
             }
         }
 
-        test("trade produces creature deaths") {
+        session(
+            "trade produces creature deaths",
+            deckList = COMBAT_DECK,
+            validating = true,
+            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
+        ) {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 
             // Declare block
@@ -177,7 +184,12 @@ class BlockerDeclarationInteractionTest :
 
         // ─── Iterative multi-blocker toggle ──────────────────────────────────
 
-        test("second iterative blocker toggle does not wipe first assignment") {
+        session(
+            "second iterative blocker toggle does not wipe first assignment",
+            puzzleFile = "puzzles/multi-blocker.pzl",
+            validating = true,
+            aiScript = MULTI_BLOCKER_AI_SCRIPT,
+        ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()
 
             val echo1 = toggleBlockers(mapOf(b1 to attackerIid))
@@ -203,7 +215,12 @@ class BlockerDeclarationInteractionTest :
             }
         }
 
-        test("deselect blocker removes only that assignment") {
+        session(
+            "deselect blocker removes only that assignment",
+            puzzleFile = "puzzles/multi-blocker.pzl",
+            validating = true,
+            aiScript = MULTI_BLOCKER_AI_SCRIPT,
+        ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()
 
             toggleBlockers(mapOf(b1 to attackerIid))

@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -46,9 +47,7 @@ private val PUZZLE =
 
 class SelfExileNoUnderCardTest :
     SessionTest({
-        test("flashback self-exile does not emit self-referential DisplayCardUnderCard") {
-            startPuzzleRaw(PUZZLE, validating = true)
-
+        session("flashback self-exile does not emit self-referential DisplayCardUnderCard", puzzle = PUZZLE, validating = true) {
             // Cast from hand → resolves into graveyard.
             castSpellByName("Think Twice").shouldBeTrue()
             passPriority()

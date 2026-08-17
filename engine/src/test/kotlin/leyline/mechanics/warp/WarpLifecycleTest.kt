@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -72,8 +73,7 @@ private val WARP_END_STEP_PUZZLE =
 @Suppress("UnnecessaryNotNullOperator")
 class WarpLifecycleTest :
     SessionTest({
-        test("alternativeGrpId cast chooses the warp spell ability") {
-            startPuzzleRaw(WARP_PUZZLE, validating = true)
+        session("alternativeGrpId cast chooses the warp spell ability", puzzle = WARP_PUZZLE, validating = true) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -85,8 +85,7 @@ class WarpLifecycleTest :
             }
         }
 
-        test("warp cast emits CastThroughAbility annotation for the selected rail") {
-            startPuzzleRaw(WARP_PUZZLE, validating = true)
+        session("warp cast emits CastThroughAbility annotation for the selected rail", puzzle = WARP_PUZZLE, validating = true) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -106,9 +105,7 @@ class WarpLifecycleTest :
             }
         }
 
-        test("regular-cost cast keeps Germinating Wurm on the battlefield") {
-            startPuzzleRaw(REGULAR_COST_PUZZLE, validating = true)
-
+        session("regular-cost cast keeps Germinating Wurm on the battlefield", puzzle = REGULAR_COST_PUZZLE, validating = true) {
             check(castSpellByName("Germinating Wurm"))
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
             human.hasCard("Germinating Wurm", ZoneType.Battlefield) shouldBe true
@@ -123,8 +120,7 @@ class WarpLifecycleTest :
             }
         }
 
-        test("warp-cost cast exiles Germinating Wurm at end of turn") {
-            startPuzzleRaw(WARP_END_STEP_PUZZLE, validating = true)
+        session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE, validating = true) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -140,8 +136,8 @@ class WarpLifecycleTest :
         }
     })
 
-private fun SessionTest.warpAbilityGrpId(): Int {
-    val repo = harness.bridge.cardRepository
+private fun MatchFlowHarness.warpAbilityGrpId(): Int {
+    val repo = bridge.cardRepository
     val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
     return repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 }

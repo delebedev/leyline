@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailIntList
@@ -17,8 +18,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class ColorsSpentToCastLifecycleTest :
     SessionTest({
-        test("one paid color follows the cast spell through the triggered ability lifecycle") {
-            startPuzzle(colorsPuzzle("Plains;Plains;Plains;Plains;Plains;Plains"), name = "One paid color")
+        session(
+            "one paid color follows the cast spell through the triggered ability lifecycle",
+            puzzle = colorsPuzzle("Plains;Plains;Plains;Plains;Plains;Plains"),
+        ) {
             val target = instanceIdOf("Soul Warden", ai)
 
             castSpellByName("Sundering Archaic").shouldBeTrue()
@@ -79,9 +82,10 @@ class ColorsSpentToCastLifecycleTest :
             }
         }
 
-        test("multiple actually paid colors are preserved exactly") {
-            startPuzzle(colorsPuzzle("Plains;Mountain;Mountain;Mountain;Mountain;Mountain"), name = "Multiple paid colors")
-
+        session(
+            "multiple actually paid colors are preserved exactly",
+            puzzle = colorsPuzzle("Plains;Mountain;Mountain;Mountain;Mountain;Mountain"),
+        ) {
             val castMessages = after { castSpellByName("Sundering Archaic").shouldBeTrue() }.messages
             val marker = castMessages.colorsMarkers().last()
 
@@ -94,9 +98,9 @@ class ColorsSpentToCastLifecycleTest :
             }
         }
 
-        test("generic spell paid with multiple colors emits no ColorsSpentToCast marker") {
-            startPuzzle(
-                """
+        session(
+            "generic spell paid with multiple colors emits no ColorsSpentToCast marker",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -108,8 +112,7 @@ class ColorsSpentToCastLifecycleTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Forest;Forest;Forest
                 """,
-                name = "Generic multicolor payment control",
-            )
+        ) {
             val target = instanceIdOf("Grizzly Bears", ai)
 
             val messages =

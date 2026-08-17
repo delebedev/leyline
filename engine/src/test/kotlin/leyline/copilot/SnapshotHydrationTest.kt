@@ -125,8 +125,9 @@ class SnapshotHydrationTest :
             }
         }
 
-        test("hydrated game matches source on zones, flags, counters, damage, attachments, life, ids") {
-            val pzl =
+        session(
+            "hydrated game matches source on zones, flags, counters, damage, attachments, life, ids",
+            puzzle =
                 """
                 [metadata]
                 Name:Snapshot Round Trip
@@ -146,10 +147,9 @@ class SnapshotHydrationTest :
                 aibattlefield=Grizzly Bears|Id:201|Damage:1
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
-            val sourceBridge = harness.bridge
+                """.trimIndent(),
+        ) {
+            val sourceBridge = bridge
             val sourceGame = sourceBridge.getGame().shouldNotBeNull()
             val snap = GsmSnapshot.capture(sourceGame, sourceBridge, "roundtrip", 0)
             val wireGsm =

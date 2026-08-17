@@ -9,13 +9,15 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class UntapCostLifecycleTest :
     SessionTest({
-        test("exact untap cost delegates through Forge with stun-aware candidates") {
-            startPuzzle(
+        session(
+            "exact untap cost delegates through Forge with stun-aware candidates",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -26,10 +28,8 @@ class UntapCostLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Untap cost with stun",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             activateAbility("Halo Fountain", abilityIndex = 0).shouldBeTrue()
             val battlefield = human.getZone(ZoneType.Battlefield).cards
             val bear = battlefield.single { it.name == "Grizzly Bears" }
@@ -48,8 +48,9 @@ class UntapCostLifecycleTest :
             }
         }
 
-        test("grounded untap-two payment binds exact candidates to the stack ability") {
-            startPuzzle(
+        session(
+            "grounded untap-two payment binds exact candidates to the stack ability",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -60,10 +61,8 @@ class UntapCostLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Untap two cost",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val corpseIid = human.battlefield.iid("Walking Corpse")
             val paymentSlice = after { activateAbility("Halo Fountain", abilityIndex = 1).shouldBeTrue() }

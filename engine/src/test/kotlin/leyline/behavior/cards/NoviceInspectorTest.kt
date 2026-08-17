@@ -51,8 +51,7 @@ class NoviceInspectorTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("cast → ETB creates Clue token → sac Clue draws card") {
-            startPuzzleRaw(puzzleText, validating = true)
+        session("cast → ETB creates Clue token → sac Clue draws card", puzzle = puzzleText, validating = true) {
             // 1. Cast Novice Inspector
             castSpellByName("Novice Inspector").shouldBeTrue()
 
@@ -71,9 +70,9 @@ class NoviceInspectorTest :
             clueCard.isToken.shouldBeTrue()
 
             // Verify Clue has the sac-for-draw ability registered
-            val clueGrpId = harness.bridge.cardRepository.findGrpIdByName("Clue")
+            val clueGrpId = bridge.cardRepository.findGrpIdByName("Clue")
             clueGrpId shouldNotBe null
-            val clueData = harness.bridge.cardRepository.findByGrpId(clueGrpId!!)
+            val clueData = bridge.cardRepository.findByGrpId(clueGrpId!!)
             clueData shouldNotBe null
             clueData!!.abilityIds.any { it.first == 152 }.shouldBeTrue()
 
@@ -84,7 +83,7 @@ class NoviceInspectorTest :
                     .cards
                     .toList()
                     .size
-            val beforeActivation = harness.messageSnapshot()
+            val beforeActivation = messageSnapshot()
             assertSoftly {
                 activateAbility(clueCard.name).shouldBeTrue()
             }
@@ -93,17 +92,17 @@ class NoviceInspectorTest :
             // horizon must be delivered and re-evaluated instead of leaving a
             // hidden synchronization stop behind.
             assertSoftly {
-                harness.messagesSince(beforeActivation).any { it.hasGameStateMessage() }.shouldBeTrue()
-                harness.bridge.cutCoordinator
+                messagesSince(beforeActivation).any { it.hasGameStateMessage() }.shouldBeTrue()
+                bridge.cutCoordinator
                     .hasCommittedBatches(SeatId(1))
                     .shouldBeFalse()
-                harness.bridge
+                bridge
                     .actionBridge(SeatId(1))
                     .getPending()
                     ?.state
                     ?.kind shouldNotBe PendingActionKind.SYNC_ONLY
             }
-            harness.bridge.throwIfGameLoopFailed()
+            bridge.throwIfGameLoopFailed()
 
             assertSoftly {
                 passUntil(maxPasses = 15) {

@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.lastWithPersistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -21,31 +22,30 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class ControllerChangedPuzzleTest :
     SessionTest({
+        session(
+            "Act of Treason steals creature, annotations emitted, attack wins",
+            """
+            [metadata]
+            Name:Steal Creature
+            Goal:Win
+            Turns:1
+            Difficulty:Tutorial
+            Description:Cast Act of Treason, steal Grizzly Bears, attack for lethal.
 
-        test("Act of Treason steals creature, annotations emitted, attack wins") {
-            val pzl =
-                """
-                [metadata]
-                Name:Steal Creature
-                Goal:Win
-                Turns:1
-                Difficulty:Tutorial
-                Description:Cast Act of Treason, steal Grizzly Bears, attack for lethal.
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=2
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=2
-
-                humanhand=Act of Treason
-                humanbattlefield=Mountain;Mountain;Mountain
-                humanlibrary=Mountain
-                aibattlefield=Grizzly Bears
-                ailibrary=Forest
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
+            humanhand=Act of Treason
+            humanbattlefield=Mountain;Mountain;Mountain
+            humanlibrary=Mountain
+            aibattlefield=Grizzly Bears
+            ailibrary=Forest
+            """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
 
             val bearsIid = ai.battlefield.iid("Grizzly Bears")
@@ -100,7 +100,7 @@ class ControllerChangedPuzzleTest :
             }
 
             // Now attack with the stolen creature and win
-            harness.advanceToCombat()
+            advanceToCombat()
             val bearsNewIid = human.battlefield.iid("Grizzly Bears")
             declareAttackers(listOf(bearsNewIid))
 

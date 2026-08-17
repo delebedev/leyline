@@ -35,9 +35,7 @@ import leyline.testkit.SessionTest
 class WardTaxTest :
     SessionTest({
 
-        test("accept — auto-tap consumes the Ward {2} on top of Bolt's {R}") {
-            startPuzzleFile("puzzles/ward-tax.pzl")
-
+        session("accept — auto-tap consumes the Ward {2} on top of Bolt's {R}", puzzleFile = "puzzles/ward-tax.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             val targetIid = ai.battlefield.iid("Sovereign Okinec Ahau")
             // selectTargets drains the sink, which auto-accepts the Ward OAM
@@ -64,16 +62,14 @@ class WardTaxTest :
             }
         }
 
-        test("decline — Counter SA proceeds, Forests stay untapped") {
-            startPuzzleFile("puzzles/ward-tax.pzl")
-
+        session("decline — Counter SA proceeds, Forests stay untapped", puzzleFile = "puzzles/ward-tax.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             val targetIid = ai.battlefield.iid("Sovereign Okinec Ahau")
 
             // Pre-seed decline: drainSink auto-responds CancelNo on the Ward
             // OAM. payWardManaTax returns false; the Counter SA proceeds and
             // counters Bolt before any mana is drained for the {2}.
-            harness.declineNextOptionalAction()
+            declineNextOptionalAction()
             selectTargets(listOf(targetIid))
 
             val sovereign = ai.getZone(ZoneType.Battlefield).cards.firstOrNull { it.name == "Sovereign Okinec Ahau" }

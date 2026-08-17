@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
@@ -24,8 +25,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class BoastLifecycleTest :
     SessionTest({
-        test("Usher of the Fallen Boast gates on attack, exhausts once, and creates a linked token") {
-            startPuzzle(
+        session(
+            "Usher of the Fallen Boast gates on attack, exhausts once, and creates a linked token",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -36,11 +38,9 @@ class BoastLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Boast Usher of the Fallen",
-                turns = 5,
-                validating = true,
-            )
-
+            turns = 5,
+            validating = true,
+        ) {
             val usherIid = human.battlefield.iid("Usher of the Fallen")
             latestBoastOffer(usherIid).shouldBeFalse()
 
@@ -106,7 +106,7 @@ class BoastLifecycleTest :
             passUntil(maxPasses = 30) {
                 turn() >= 3 &&
                     messagesSince(nextTurnAttackStart).any { it.hasDeclareAttackersReq() } &&
-                    harness.bridge
+                    bridge
                         .actionBridge(SeatId(1))
                         .getPending()
                         ?.state
@@ -118,7 +118,7 @@ class BoastLifecycleTest :
         }
     })
 
-private fun SessionTest.latestBoastOffer(usherIid: Int): Boolean {
+private fun MatchFlowHarness.latestBoastOffer(usherIid: Int): Boolean {
     val actions = allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList ?: return false
     return withClue(actions.map { "${it.actionType}:${it.instanceId}:${it.abilityGrpId}" }) {
         actions.any {

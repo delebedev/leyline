@@ -21,8 +21,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 class BlockerConsultRebuildTest :
     SessionTest({
 
-        test("consult proposes the free block when no live combat exists") {
-            startPuzzle(
+        session(
+            "consult proposes the free block when no live combat exists",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -34,10 +35,8 @@ class BlockerConsultRebuildTest :
                 humanlibrary=Forest;Forest
                 ailibrary=Mountain;Mountain
                 """.trimIndent(),
-                name = "Blocker rebuild",
-            )
-
-            val bridge = harness.bridge
+        ) {
+            val bridge = bridge
 
             fun iidOf(
                 seat: Int,

@@ -14,8 +14,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class EvokeLifecycleTest :
     SessionTest({
-        test("Mulldrifter casts for Evoke and sacrifices itself after entering") {
-            startPuzzle(
+        session(
+            "Mulldrifter casts for Evoke and sacrifices itself after entering",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -27,12 +28,10 @@ class EvokeLifecycleTest :
                 humanlibrary=Island;Island;Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Evoke Mulldrifter",
-                validating = true,
-            )
-
-            val mulldrifterGrpId = harness.bridge.cardRepository.findGrpIdByName("Mulldrifter")!!
-            val evokeAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(mulldrifterGrpId, KeywordAbilityIds.EVOKE)!!
+            validating = true,
+        ) {
+            val mulldrifterGrpId = bridge.cardRepository.findGrpIdByName("Mulldrifter")!!
+            val evokeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(mulldrifterGrpId, KeywordAbilityIds.EVOKE)!!
 
             val snap = messageSnapshot()
             castSpellByName("Mulldrifter", alternativeGrpId = evokeAbilityGrpId).shouldBeTrue()

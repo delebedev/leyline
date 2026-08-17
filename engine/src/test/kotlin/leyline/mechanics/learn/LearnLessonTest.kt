@@ -14,6 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.detailInt
@@ -34,9 +35,7 @@ class LearnLessonTest :
     SessionTest({
         val learnPuzzle = "puzzles/learn-cram-session.pzl"
 
-        test("Learn emits SelectNReq with sideboard Lesson candidate") {
-            startPuzzleFile(learnPuzzle, validating = true)
-
+        session("Learn emits SelectNReq with sideboard Lesson candidate", puzzleFile = learnPuzzle, validating = true) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
             val handDiscardId = instanceIdOf("Forest", human, ZoneType.Hand)
@@ -90,8 +89,9 @@ class LearnLessonTest :
             }
         }
 
-        test("Learn with no discard candidate emits the lesson-only envelope") {
-            startPuzzle(
+        session(
+            "Learn with no discard candidate emits the lesson-only envelope",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -104,10 +104,8 @@ class LearnLessonTest :
                 humansideboard=Environmental Sciences
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Learn lesson only",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val message = allMessages.last { it.hasSelectNReq() }
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
@@ -123,9 +121,7 @@ class LearnLessonTest :
             }
         }
 
-        test("selecting sideboard Lesson reveals and moves it to hand") {
-            startPuzzleFile(learnPuzzle, validating = true)
-
+        session("selecting sideboard Lesson reveals and moves it to hand", puzzleFile = learnPuzzle, validating = true) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
             val resolution =

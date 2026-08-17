@@ -47,14 +47,13 @@ class OmenLifecycleTest :
             ailibrary=Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        test("Riling Dawnbreaker Omen face follows hand stack library lifecycle") {
-            startPuzzleRaw(omenPuzzle, validating = true)
+        session("Riling Dawnbreaker Omen face follows hand stack library lifecycle", puzzle = omenPuzzle, validating = true) {
             val handParentIid = human.hand.iid("Riling Dawnbreaker")
             val handCompanion =
-                harness.accumulator.objects.values.single {
+                accumulator.objects.values.single {
                     it.type == GameObjectType.Omen_a4aa && it.zoneId == ZoneIds.P1_HAND
                 }
-            harness.accumulator.zones
+            accumulator.zones
                 .getValue(ZoneIds.P1_HAND)
                 .objectInstanceIdsList shouldNotContain handCompanion.instanceId
             val omenAction =
@@ -65,15 +64,15 @@ class OmenLifecycleTest :
                     .single { it.actionType == ActionType.CastOmen && it.instanceId == handParentIid }
 
             val lifecycleStart = messageSnapshot()
-            harness.session.onPerformAction(
-                harness.submitWithGsId(
+            session.onPerformAction(
+                submitWithGsId(
                     performAction {
                         actionType = ActionType.CastOmen
                         instanceId = omenAction.instanceId
                     },
                 ),
             )
-            harness.drainSink()
+            drainSink()
 
             val castMessages = messagesSince(lifecycleStart)
             val stackCard =
@@ -180,11 +179,10 @@ class OmenLifecycleTest :
             }
         }
 
-        test("Riling Dawnbreaker main face preserves its Omen companion through resolution") {
-            startPuzzleRaw(omenPuzzle, validating = true)
+        session("Riling Dawnbreaker main face preserves its Omen companion through resolution", puzzle = omenPuzzle, validating = true) {
             val handParentIid = human.hand.iid("Riling Dawnbreaker")
-            val handCardId = checkNotNull(harness.bridge.getForgeCardId(InstanceId(handParentIid)))
-            harness.bridge.setSelectedSpellGrpId(handCardId, 95537)
+            val handCardId = checkNotNull(bridge.getForgeCardId(InstanceId(handParentIid)))
+            bridge.setSelectedSpellGrpId(handCardId, 95537)
             val castAction =
                 allMessages
                     .asReversed()
@@ -193,15 +191,15 @@ class OmenLifecycleTest :
                     .single { it.actionType == ActionType.Cast && it.instanceId == handParentIid }
 
             val lifecycleStart = messageSnapshot()
-            harness.session.onPerformAction(
-                harness.submitWithGsId(
+            session.onPerformAction(
+                submitWithGsId(
                     performAction {
                         actionType = ActionType.Cast
                         instanceId = castAction.instanceId
                     },
                 ),
             )
-            harness.drainSink()
+            drainSink()
             val castMessages = messagesSince(lifecycleStart)
             val stackParent =
                 castMessages.allGameObjects().single {
@@ -217,11 +215,11 @@ class OmenLifecycleTest :
             }.shouldBeTrue()
 
             val battlefieldParent =
-                harness.accumulator.objects.values.single {
+                accumulator.objects.values.single {
                     it.type == GameObjectType.Card && it.zoneId == ZoneIds.BATTLEFIELD && it.grpId == 95536
                 }
             val battlefieldCompanion =
-                harness.accumulator.objects.values.single {
+                accumulator.objects.values.single {
                     it.type == GameObjectType.Omen_a4aa && it.zoneId == ZoneIds.BATTLEFIELD
                 }
             assertSoftly {
@@ -229,7 +227,7 @@ class OmenLifecycleTest :
                 battlefieldParent.instanceId shouldBe stackParent.instanceId
                 battlefieldCompanion.instanceId shouldBe stackCompanion.instanceId
                 battlefieldCompanion.parentId shouldBe battlefieldParent.instanceId
-                harness.accumulator.zones
+                accumulator.zones
                     .getValue(ZoneIds.BATTLEFIELD)
                     .objectInstanceIdsList shouldNotContain battlefieldCompanion.instanceId
             }

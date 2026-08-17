@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -15,8 +16,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class EmergeLifecycleTest :
     SessionTest({
-        test("Wretched Gryff pays Emerge through sacrifice cost prompt") {
-            startPuzzle(
+        session(
+            "Wretched Gryff pays Emerge through sacrifice cost prompt",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -28,12 +30,10 @@ class EmergeLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Emerge Wretched Gryff",
-                validating = true,
-            )
-
-            val gryffGrpId = harness.bridge.cardRepository.findGrpIdByName("Wretched Gryff")!!
-            val emergeAbilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(gryffGrpId, KeywordAbilityIds.EMERGE)!!
+            validating = true,
+        ) {
+            val gryffGrpId = bridge.cardRepository.findGrpIdByName("Wretched Gryff")!!
+            val emergeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(gryffGrpId, KeywordAbilityIds.EMERGE)!!
             val corpseIid = human.battlefield.iid("Walking Corpse")
 
             val snap = messageSnapshot()

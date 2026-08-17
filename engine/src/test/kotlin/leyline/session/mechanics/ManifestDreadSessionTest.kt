@@ -12,6 +12,7 @@ import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.haveManaCost
@@ -22,14 +23,42 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 
+private fun manifestDreadPuzzle(library: String) =
+    """
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Unnerving Grasp
+    humanbattlefield=Island;Island;Island;Forest;Forest;Forest;Forest;Plains
+    humanlibrary=$library;Plains;Plains
+    aibattlefield=Grizzly Bears
+    ailibrary=Forest;Forest;Forest;Forest
+    """.trimIndent()
+
+private fun MatchFlowHarness.castUnnervingGraspUntilSelectN(): SelectNReq {
+    val targetIid = ai.battlefield.iid("Grizzly Bears")
+    castSpellByName("Unnerving Grasp") shouldBe true
+    selectTargets(listOf(targetIid))
+    passUntil(maxPasses = 4) { allMessages.any { it.hasSelectNReq() } }
+    return allMessages.lastOrNull { it.hasSelectNReq() }?.selectNReq
+        ?: error(
+            "No SelectNReq; messages=${allMessages.takeLast(30).map { it.type }}",
+        )
+}
+
 class ManifestDreadSessionTest :
     SessionTest({
-        test("Manifest Dread choice, hidden permanent, annotation, graveyard, and turn-up action") {
-            startManifestDreadPuzzle("Centaur Courser;Island")
-
+        session(
+            "Manifest Dread choice, hidden permanent, annotation, graveyard, and turn-up action",
+            puzzle = manifestDreadPuzzle("Centaur Courser;Island"),
+            turns = 4,
+        ) {
             val req = castUnnervingGraspUntilSelectN()
             val creatureIid = findInstanceId(req.idsList, "Centaur Courser")
             val islandIid = findInstanceId(req.idsList, "Island")
@@ -59,9 +88,9 @@ class ManifestDreadSessionTest :
             passUntilResolved()
 
             val manifested = human.getZone(ZoneType.Battlefield).cards.single { it.isFaceDown }
-            val manifestedIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(manifested.id)).value
+            val manifestedIid = bridge.getOrAllocInstanceId(ForgeCardId(manifested.id)).value
             val islandForgeId =
-                harness.bridge.getForgeCardId(leyline.bridge.types.InstanceId(islandIid))?.value
+                bridge.getForgeCardId(leyline.bridge.types.InstanceId(islandIid))?.value
                     ?: error("No Forge card id for unselected Island iid=$islandIid")
             val faceDown =
                 allMessages
@@ -84,12 +113,12 @@ class ManifestDreadSessionTest :
                 turnUp should haveManaCost(generic = 2, green = 1)
             }
 
-            harness.session.onPerformAction(
-                harness.submitWithGsId(
+            session.onPerformAction(
+                submitWithGsId(
                     performAction(turnUp),
                 ),
             )
-            harness.drainSink()
+            drainSink()
 
             assertSoftly {
                 manifested.isFaceDown shouldBe false
@@ -99,16 +128,18 @@ class ManifestDreadSessionTest :
             }
         }
 
-        test("manifested noncreature has no turn-face-up action") {
-            startManifestDreadPuzzle("Island;Grizzly Bears")
-
+        session(
+            "manifested noncreature has no turn-face-up action",
+            puzzle = manifestDreadPuzzle("Island;Grizzly Bears"),
+            turns = 4,
+        ) {
             val req = castUnnervingGraspUntilSelectN()
             val islandIid = findInstanceId(req.idsList, "Island")
             respondToSelectN(listOf(islandIid))
             passUntilResolved()
 
             val manifested = human.getZone(ZoneType.Battlefield).cards.single { it.isFaceDown }
-            val manifestedIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(manifested.id)).value
+            val manifestedIid = bridge.getOrAllocInstanceId(ForgeCardId(manifested.id)).value
             val turnUp =
                 allMessages
                     .filter { it.hasActionsAvailableReq() }
@@ -118,33 +149,3 @@ class ManifestDreadSessionTest :
             turnUp shouldBe false
         }
     })
-
-private fun SessionTest.startManifestDreadPuzzle(library: String) {
-    startPuzzle(
-        """
-        ActivePlayer=Human
-        ActivePhase=Main1
-        HumanLife=20
-        AILife=20
-
-        humanhand=Unnerving Grasp
-        humanbattlefield=Island;Island;Island;Forest;Forest;Forest;Forest;Plains
-        humanlibrary=$library;Plains;Plains
-        aibattlefield=Grizzly Bears
-        ailibrary=Forest;Forest;Forest;Forest
-        """.trimIndent(),
-        name = "Manifest Dread",
-        turns = 4,
-    )
-}
-
-private fun SessionTest.castUnnervingGraspUntilSelectN(): wotc.mtgo.gre.external.messaging.Messages.SelectNReq {
-    val targetIid = ai.battlefield.iid("Grizzly Bears")
-    castSpellByName("Unnerving Grasp") shouldBe true
-    selectTargets(listOf(targetIid))
-    passUntil(maxPasses = 4) { allMessages.any { it.hasSelectNReq() } }
-    return allMessages.lastOrNull { it.hasSelectNReq() }?.selectNReq
-        ?: error(
-            "No SelectNReq; messages=${allMessages.takeLast(30).map { it.type }}",
-        )
-}

@@ -2,6 +2,7 @@ package leyline.session.stack
 
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -32,8 +33,9 @@ class SimultaneousTriggerOrderTest :
 
         timeout = 30.seconds.inWholeMilliseconds
 
-        test("simultaneous triggers auto-resolve — no choose_one wire prompt") {
-            startPuzzle(
+        session(
+            "simultaneous triggers auto-resolve — no choose_one wire prompt",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -46,8 +48,7 @@ class SimultaneousTriggerOrderTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
                 """.trimIndent(),
-            )
-
+        ) {
             // [`castSpellByName`] + [`selectTargets`] drive Bolt to resolution.
             // Pump triggers fire and play in default order via the auto-resolve
             // short-circuit in `ClientGuiGame.order`.

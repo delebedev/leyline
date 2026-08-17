@@ -20,8 +20,9 @@ import leyline.testkit.TestCardRegistry
 class CtoHydrationProbeTest :
     SessionTest({
 
-        test("kicker CTO decision hydrates faithfully (snapshot bytes == live bytes)") {
-            startPuzzle(
+        session(
+            "kicker CTO decision hydrates faithfully (snapshot bytes == live bytes)",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -34,18 +35,16 @@ class CtoHydrationProbeTest :
                 aibattlefield=Centaur Courser
                 ailibrary=Mountain
                 """.trimIndent(),
-                name = "Burst Lightning",
-            )
-
+        ) {
             castSpellByName("Burst Lightning").shouldBeTrue()
             val cto = allMessages.last { it.hasCastingTimeOptionsReq() }
 
-            val live = CopilotProposalService(harness.bridge, SeatId(1)).propose(cto)
+            val live = CopilotProposalService(bridge, SeatId(1)).propose(cto)
 
-            val snap = GsmSnapshot.capture(harness.bridge.getGame()!!, harness.bridge, "probe", 0)
+            val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "probe", 0)
             val gsm =
                 StateMapper
-                    .buildFromSnapshot(snap, 0, "probe", harness.bridge, viewingSeatId = 1, events = FrameEventLog(emptyList()))
+                    .buildFromSnapshot(snap, 0, "probe", bridge, viewingSeatId = 1, events = FrameEventLog(emptyList()))
                     .gsm
             val snapshot = SnapshotConsult.consult(gsm, cto, 1, TestCardRegistry.repo).proposal
 

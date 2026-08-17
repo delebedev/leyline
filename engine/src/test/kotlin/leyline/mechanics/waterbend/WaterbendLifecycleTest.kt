@@ -13,7 +13,9 @@ import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.ClientAccumulator
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
@@ -27,8 +29,9 @@ import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
 class WaterbendLifecycleTest :
     SessionTest({
-        test("Giant Koi pays activated Waterbend through PayCostsReq") {
-            startPuzzle(
+        session(
+            "Giant Koi pays activated Waterbend through PayCostsReq",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -39,9 +42,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend Giant Koi",
-                validating = true,
-            )
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -90,15 +92,16 @@ class WaterbendLifecycleTest :
                 tappedIds shouldContain merfolkIid
                 tappedIds shouldContain bearIid
                 tappedIds shouldContain solRingIid
-                harness.bridge
+                bridge
                     .promptBridge(SeatId(1))
                     .journal
                     .activeConvokePayments() shouldBe emptyMap()
             }
         }
 
-        test("Ruinous Waterbending emits AdditionalCost CastingTimeOption when Waterbend is paid") {
-            startPuzzle(
+        session(
+            "Ruinous Waterbending emits AdditionalCost CastingTimeOption when Waterbend is paid",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -110,10 +113,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend Ruinous Waterbending",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -167,8 +168,9 @@ class WaterbendLifecycleTest :
             }
         }
 
-        test("Ruinous Waterbending accepts live Waterbend MakePayment responses") {
-            startPuzzle(
+        session(
+            "Ruinous Waterbending accepts live Waterbend MakePayment responses",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -180,10 +182,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend live payment response",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -220,8 +220,9 @@ class WaterbendLifecycleTest :
             }
         }
 
-        test("Giant Koi completes native Waterbend when empty payment UI sends Cancel") {
-            startPuzzle(
+        session(
+            "Giant Koi completes native Waterbend when empty payment UI sends Cancel",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -232,10 +233,8 @@ class WaterbendLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Waterbend Giant Koi cancel completion",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val koiIid = human.battlefield.iid("Giant Koi")
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val solRingIid = human.battlefield.iid("Sol Ring")
@@ -287,26 +286,26 @@ private fun assertWaterbendPaymentActions(
 
 private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
 
-private fun SessionTest.respondToWaterbendMakePayment(instanceId: Int) {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToWaterbendMakePayment(instanceId: Int) {
+    session.onPerformAction(
+        submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
-            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
 
-private fun SessionTest.respondToWaterbendPaymentDone() {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToWaterbendPaymentDone() {
+    session.onPerformAction(
+        submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()
-                .setGameStateId(harness.latestPromptGsId())
+                .setGameStateId(latestPromptGsId())
                 .build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }

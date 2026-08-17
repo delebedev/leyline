@@ -8,7 +8,9 @@ import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -18,8 +20,8 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 class LocalStackMicrostepTest :
     SessionTest({
-        fun enableStackAutoResolve() {
-            harness.session.autoPassState.update(
+        fun MatchFlowHarness.enableStackAutoResolve() {
+            session.autoPassState.update(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
@@ -56,9 +58,9 @@ class LocalStackMicrostepTest :
                 .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
                 .map { it.detailString("category") }
 
-        test("own-turn auto-resolved creature cast emits stack entry before resolve") {
-            startPuzzle(
-                """
+        session(
+            "own-turn auto-resolved creature cast emits stack entry before resolve",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -69,8 +71,7 @@ class LocalStackMicrostepTest :
                 humanlibrary=Forest;Forest;Forest
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Local cast split",
-            )
+        ) {
             enableStackAutoResolve()
 
             val messages = after { castSpellByName("Llanowar Elves").shouldBe(true) }.messages
@@ -96,9 +97,9 @@ class LocalStackMicrostepTest :
             }
         }
 
-        test("targeted spell uses cast, targets-confirmed, resolve slots") {
-            startPuzzle(
-                """
+        session(
+            "targeted spell uses cast, targets-confirmed, resolve slots",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -109,8 +110,7 @@ class LocalStackMicrostepTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Targeted spell split",
-            )
+        ) {
             enableStackAutoResolve()
 
             val castMessages = after { castSpellByName("Lightning Bolt").shouldBe(true) }.messages
@@ -160,9 +160,9 @@ class LocalStackMicrostepTest :
             }
         }
 
-        test("local ETB trigger enters stack before resolving") {
-            startPuzzle(
-                """
+        session(
+            "local ETB trigger enters stack before resolving",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -173,8 +173,7 @@ class LocalStackMicrostepTest :
                 humanlibrary=Forest;Forest;Forest
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "ETB trigger split",
-            )
+        ) {
             enableStackAutoResolve()
 
             val messages = after { castSpellByName("Llanowar Elves").shouldBe(true) }.messages
@@ -205,9 +204,9 @@ class LocalStackMicrostepTest :
             }
         }
 
-        test("counter add and trigger resolution share one finalized lifecycle frame") {
-            startPuzzle(
-                """
+        session(
+            "counter add and trigger resolution share one finalized lifecycle frame",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -218,8 +217,7 @@ class LocalStackMicrostepTest :
                 humanlibrary=Forest;Forest;Forest
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Counter microstep split",
-            )
+        ) {
             enableStackAutoResolve()
 
             val messages = after { castSpellByName("Llanowar Elves").shouldBe(true) }.messages
@@ -245,9 +243,9 @@ class LocalStackMicrostepTest :
             }
         }
 
-        test("local activated ability enters stack before resolving") {
-            startPuzzle(
-                """
+        session(
+            "local activated ability enters stack before resolving",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -257,8 +255,7 @@ class LocalStackMicrostepTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Activated ability split",
-            )
+        ) {
             enableStackAutoResolve()
 
             activateAbility("Goblin Fireslinger").shouldBe(true)

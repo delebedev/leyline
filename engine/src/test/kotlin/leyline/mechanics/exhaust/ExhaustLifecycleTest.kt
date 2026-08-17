@@ -18,8 +18,9 @@ import leyline.testkit.StateMapperShell as StateMapper
 
 class ExhaustLifecycleTest :
     SessionTest({
-        test("Exhaust activation emits spent ability marker and suppresses repeat offer") {
-            startPuzzle(
+        session(
+            "Exhaust activation emits spent ability marker and suppresses repeat offer",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -30,10 +31,8 @@ class ExhaustLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Exhaust Jeong Jeong",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val jeongIid = human.battlefield.iid("Jeong Jeong, the Deserter")
             val initialActions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList
             withClue(initialActions.map { "${it.actionType}:${it.instanceId}:${it.abilityGrpId}" }) {
@@ -76,8 +75,9 @@ class ExhaustLifecycleTest :
             }
         }
 
-        test("Exhaust mana ability emits spent ability marker") {
-            startPuzzle(
+        session(
+            "Exhaust mana ability emits spent ability marker",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -88,13 +88,12 @@ class ExhaustLifecycleTest :
                 humanlibrary=Forest;Forest;Forest
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Exhaust Loot mana ability",
-                validating = true,
-            )
+            validating = true,
+        ) {
             val lootIid = human.battlefield.iid("Loot, the Pathfinder")
             val loot = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Loot, the Pathfinder" }
             loot.addAbilityActivated(loot.manaAbilities.first { it.isExhaust })
-            val snapshot = GsmSnapshot.capture(game(), harness.bridge, "exhaust-mana-regression", 0)
+            val snapshot = GsmSnapshot.capture(game(), bridge, "exhaust-mana-regression", 0)
 
             val abilityExhausted =
                 StateMapper
@@ -102,9 +101,9 @@ class ExhaustLifecycleTest :
                         snapshot,
                         1,
                         "test",
-                        harness.bridge,
-                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, harness.bridge),
+                        bridge,
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge),
                     ).gsm
                     .persistentAnnotationsList
                     .last {

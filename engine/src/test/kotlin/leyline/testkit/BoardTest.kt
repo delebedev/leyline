@@ -19,6 +19,7 @@ import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.tooling.headless.iidVia
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import leyline.testkit.StateMapperShell as StateMapper

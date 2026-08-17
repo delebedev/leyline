@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allGameObjects
@@ -27,7 +28,7 @@ class NinjutsuPuzzleTest :
             TestCardRegistry.ensureCardRegistered("Ninja of the Deep Hours")
         }
 
-        fun hasNinjutsuOffer(): Boolean =
+        fun MatchFlowHarness.hasNinjutsuOffer(): Boolean =
             allMessages
                 .asReversed()
                 .firstOrNull { it.hasActionsAvailableReq() }
@@ -36,14 +37,15 @@ class NinjutsuPuzzleTest :
                 ?.filter { it.actionType == ActionType.Activate_add3 }
                 ?.any { it.abilityGrpId == NINJUTSU_GRP_ID } == true
 
-        fun zoneSummary(): String =
+        fun MatchFlowHarness.zoneSummary(): String =
             "hand=${human.getZone(ZoneType.Hand).cards.map { it.name }} " +
                 "battlefield=${human.getZone(ZoneType.Battlefield).cards.map { it.name }} " +
                 "graveyard=${human.getZone(ZoneType.Graveyard).cards.map { it.name }} " +
                 "gameOver=${isGameOver()} phase=${phase()}"
 
-        test("Ninjutsu returns an unblocked attacker and enters tapped attacking") {
-            startPuzzleRaw(
+        session(
+            "Ninjutsu returns an unblocked attacker and enters tapped attacking",
+            puzzle =
                 """
                 [metadata]
                 Name:Ninjutsu Deep Hours
@@ -64,9 +66,8 @@ class NinjutsuPuzzleTest :
                 aibattlefield=
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
             val attackerIid = human.battlefield.iid("Raging Goblin")
@@ -100,9 +101,9 @@ class NinjutsuPuzzleTest :
                     .numberValue shouldNotBe 0
                 returnCostReq.idsList.shouldContain(attackerIid)
             }
-            val postCostSnap = harness.messageSnapshot()
+            val postCostSnap = messageSnapshot()
             respondToEffectCost(listOf(attackerIid))
-            val postCostMessages = harness.messagesSince(postCostSnap)
+            val postCostMessages = messagesSince(postCostSnap)
 
             passUntil(maxPasses = 10) {
                 human.getZone(ZoneType.Battlefield).cards.any { it.name == "Ninja of the Deep Hours" }

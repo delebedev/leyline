@@ -15,7 +15,9 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.humanPlayer
@@ -65,8 +67,11 @@ class MutateActionTest :
 
 class MutateLifecycleTest :
     SessionTest({
-        test("mutate prompts for top or under, then resolves under with Suppressed component shape") {
-            startMutatePuzzle()
+        session(
+            "mutate prompts for top or under, then resolves under with Suppressed component shape",
+            puzzle = MUTATE_PUZZLE,
+            validating = true,
+        ) {
             val prompt = castMutateAndSelectTarget()
             val result = resolveMutate(choiceIid = prompt.targetIid)
 
@@ -78,8 +83,11 @@ class MutateLifecycleTest :
             )
         }
 
-        test("mutate top choice makes the mutating component the visible merged face") {
-            startMutatePuzzle()
+        session(
+            "mutate top choice makes the mutating component the visible merged face",
+            puzzle = MUTATE_PUZZLE,
+            validating = true,
+        ) {
             val prompt = castMutateAndSelectTarget()
             val result = resolveMutate(choiceIid = prompt.stackIid)
 
@@ -105,29 +113,29 @@ private data class MutateResolutionState(
     val suppressedIid: Int,
 )
 
-private fun SessionTest.startMutatePuzzle() {
-    startPuzzle(
-        """
-        ActivePlayer=Human
-        ActivePhase=Main1
-        HumanLife=20
-        AILife=20
+private val MUTATE_PUZZLE =
+    """
+    [metadata]
+    Name:Mutate Hemophage
+    Goal:Win
+    Turns:4
 
-        humanhand=$MUTATE_CARD
-        humanbattlefield=Swamp;Swamp;Swamp;$TARGET_CREATURE
-        humanlibrary=Swamp;Swamp;Swamp
-        ailibrary=Mountain;Mountain;Mountain
-        """.trimIndent(),
-        name = "Mutate Hemophage",
-        turns = 4,
-        validating = true,
-    )
-}
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
 
-private fun SessionTest.castMutateAndSelectTarget(): MutatePromptState {
-    val cardGrpId = harness.bridge.cardRepository.findGrpIdByName(MUTATE_CARD)!!
-    val targetGrpId = harness.bridge.cardRepository.findGrpIdByName(TARGET_CREATURE)!!
-    val mutateGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.MUTATE)!!
+    humanhand=$MUTATE_CARD
+    humanbattlefield=Swamp;Swamp;Swamp;$TARGET_CREATURE
+    humanlibrary=Swamp;Swamp;Swamp
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private fun MatchFlowHarness.castMutateAndSelectTarget(): MutatePromptState {
+    val cardGrpId = bridge.cardRepository.findGrpIdByName(MUTATE_CARD)!!
+    val targetGrpId = bridge.cardRepository.findGrpIdByName(TARGET_CREATURE)!!
+    val mutateGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.MUTATE)!!
     val targetIid = instanceIdOf(TARGET_CREATURE)
 
     val castSlice = after { castSpellByName(MUTATE_CARD, alternativeGrpId = mutateGrpId).shouldBeTrue() }
@@ -175,7 +183,7 @@ private fun SessionTest.castMutateAndSelectTarget(): MutatePromptState {
     return MutatePromptState(cardGrpId, targetGrpId, mutateGrpId, stackIid, targetIid)
 }
 
-private fun SessionTest.resolveMutate(choiceIid: Int): MutateResolutionState {
+private fun MatchFlowHarness.resolveMutate(choiceIid: Int): MutateResolutionState {
     val resolveStart = messageSnapshot()
     respondToSelectN(listOf(choiceIid))
     passUntilResolved(maxPasses = 12)
@@ -195,7 +203,7 @@ private fun SessionTest.resolveMutate(choiceIid: Int): MutateResolutionState {
     return MutateResolutionState(gsms, suppressedObject!!.instanceId)
 }
 
-private fun SessionTest.assertMutateMerge(
+private fun MatchFlowHarness.assertMutateMerge(
     prompt: MutatePromptState,
     result: MutateResolutionState,
     expectedIsTop: Int,
@@ -219,9 +227,9 @@ private fun SessionTest.assertMutateMerge(
                     it.detailInt("zone_src") == ZoneIds.STACK &&
                     it.detailInt("zone_dest") == ZoneIds.SUPPRESSED
             }
-    val targetObject = harness.accumulator.objects[prompt.targetIid]
-    val finalSuppressedZone = harness.accumulator.zones[ZoneIds.SUPPRESSED]!!
-    val finalBattlefieldZone = harness.accumulator.zones[ZoneIds.BATTLEFIELD]!!
+    val targetObject = accumulator.objects[prompt.targetIid]
+    val finalSuppressedZone = accumulator.zones.getValue(ZoneIds.SUPPRESSED)
+    val finalBattlefieldZone = accumulator.zones.getValue(ZoneIds.BATTLEFIELD)
 
     assertSoftly {
         withClue("Mutate LayeredEffect pAnn") { mergeEffect shouldNotBe null }

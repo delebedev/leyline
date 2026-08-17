@@ -7,7 +7,9 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.annotationsOfType
 import leyline.testkit.deletedPersistentAnnotationIds
@@ -21,7 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 class OpusAbilityWordLifecycleTest :
     SessionTest({
-        fun castTargetedSpell(
+        fun MatchFlowHarness.castTargetedSpell(
             spellName: String,
             targetIid: Int,
         ): List<GREToClientMessage> =
@@ -32,9 +34,9 @@ class OpusAbilityWordLifecycleTest :
                 passUntilResolved(maxPasses = 20)
             }.messages
 
-        test("below-five Opus trigger has no active marker") {
-            startPuzzle(
-                """
+        session(
+            "below-five Opus trigger has no active marker",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -46,8 +48,7 @@ class OpusAbilityWordLifecycleTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Forest;Forest;Forest
                 """,
-                name = "Opus below five",
-            )
+        ) {
             val source = human.getZone(forge.game.zone.ZoneType.Battlefield).cards.first { it.name == "Tackle Artist" }
             val target = instanceIdOf("Grizzly Bears", ai)
 
@@ -57,11 +58,10 @@ class OpusAbilityWordLifecycleTest :
             source.getCounters(CounterEnumType.P1P1) shouldBe 1
         }
 
-        test("five-plus Opus marker binds player to the exact trigger ability and is deleted on resolution") {
-            startPuzzle(
-                opusPuzzle(sourceCount = 1),
-                name = "Opus five plus",
-            )
+        session(
+            "five-plus Opus marker binds player to the exact trigger ability and is deleted on resolution",
+            puzzle = opusPuzzle(sourceCount = 1),
+        ) {
             val source = human.getZone(forge.game.zone.ZoneType.Battlefield).cards.first { it.name == "Tackle Artist" }
             val sourceIid = instanceIdOf("Tackle Artist")
             val target = instanceIdOf("Grizzly Bears", ai)
@@ -110,11 +110,10 @@ class OpusAbilityWordLifecycleTest :
             }
         }
 
-        test("two Opus sources aggregate under one player marker and shrink as abilities resolve") {
-            startPuzzle(
-                opusPuzzle(sourceCount = 2),
-                name = "Two Opus sources",
-            )
+        session(
+            "two Opus sources aggregate under one player marker and shrink as abilities resolve",
+            puzzle = opusPuzzle(sourceCount = 2),
+        ) {
             val target = instanceIdOf("Grizzly Bears", ai)
 
             val messages = castTargetedSpell("Unfriendly Fire", target)
@@ -141,11 +140,7 @@ class OpusAbilityWordLifecycleTest :
             }
         }
 
-        test("five-mana non-Opus spell without an Opus source emits no marker") {
-            startPuzzle(
-                opusPuzzle(sourceCount = 0),
-                name = "No Opus source",
-            )
+        session("five-mana non-Opus spell without an Opus source emits no marker", puzzle = opusPuzzle(sourceCount = 0)) {
             val target = instanceIdOf("Grizzly Bears", ai)
 
             castTargetedSpell("Unfriendly Fire", target).opusMarkers().shouldBeEmpty()

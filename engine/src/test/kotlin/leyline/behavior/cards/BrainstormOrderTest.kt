@@ -23,9 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class BrainstormOrderTest :
     SessionTest({
-        test("Brainstorm emits OrderReq for chosen top-library cards") {
-            startPuzzleFile("puzzles/brainstorm-order.pzl", validating = true)
-
+        session("Brainstorm emits OrderReq for chosen top-library cards", puzzleFile = "puzzles/brainstorm-order.pzl", validating = true) {
             val selectReq = castSpellUntilSelectNReq("Brainstorm")
             val selectMsg = allMessages.last { it.hasSelectNReq() }
             val selectedIids = selectReq.idsList.take(2)
@@ -37,7 +35,7 @@ class BrainstormOrderTest :
                 selectReq.idsList
                     .map { iid -> cardByIid(iid)?.zone?.zoneType }
                     .toSet() shouldBe setOf(ZoneType.Hand)
-                harness.bridge.cutCoordinator.cardSelect
+                bridge.cutCoordinator.cardSelect
                     .current()
                     .shouldNotBeNull()
             }
@@ -51,10 +49,10 @@ class BrainstormOrderTest :
             val orderGsm = allMessages.last { it.hasGameStateMessage() && it.gameStateId == orderMsg.gameStateId }.gameStateMessage
 
             assertSoftly {
-                harness.bridge.cutCoordinator.cardSelect
+                bridge.cutCoordinator.cardSelect
                     .current()
                     .shouldBeNull()
-                harness.bridge.cutCoordinator.order
+                bridge.cutCoordinator.order
                     .current()
                     .shouldNotBeNull()
                 orderMsg.gameStateId shouldBeGreaterThan selectMsg.gameStateId
@@ -82,7 +80,7 @@ class BrainstormOrderTest :
             passUntilResolved()
 
             assertSoftly {
-                harness.bridge.cutCoordinator.order
+                bridge.cutCoordinator.order
                     .current()
                     .shouldBeNull()
                 human

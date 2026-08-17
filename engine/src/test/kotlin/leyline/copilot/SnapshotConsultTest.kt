@@ -55,31 +55,13 @@ private fun decodeSingle(hex: String): ClientToGREMessage {
 class SnapshotConsultTest :
     SessionTest({
 
-        test("consult proposes the lethal bolt in source-game ids with eval") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=3
-
-                humanhand=Lightning Bolt
-                humanbattlefield=Mountain
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+        session(
+            "consult proposes the lethal bolt in source-game ids with eval",
+            puzzle = CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE,
+        ) {
             // The harness seeds its initial Full GSM into the accumulator rather
             // than the message log; rebuild the same wire Full GSM here.
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -122,40 +104,22 @@ class SnapshotConsultTest :
                 .status shouldBe "carried"
         }
 
-        test("consult proposes a cast after the source game's land drop is spent") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult Land Drop
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Raging Goblin;Mountain
-                humanbattlefield=Mountain
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+        session(
+            "consult proposes a cast after the source game's land drop is spent",
+            puzzle = CONSULT_PROPOSES_CAST_AFTER_PUZZLE,
+        ) {
             // Spend the land drop in the source game; the follow-up prompt
             // offers casts only. Hydration resets the drop, so the consult
             // must re-derive "drop spent" from the prompt — otherwise the AI
             // holds every spell waiting to play a land it can no longer play.
-            harness.playLand()
+            playLand()
             val aar = allMessages.last { it.hasActionsAvailableReq() }
             aar.actionsAvailableReq.actionsList.none {
                 it.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Play_add3
             } shouldBe
                 true
 
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -342,28 +306,10 @@ class SnapshotConsultTest :
             decodeSingle(result.proposal.responses.single()).type shouldBe ClientMessageType.SubmitBlockersReq
         }
 
-        test("consult targets the OPPONENT player for a player-burn spell") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult Player Target
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Lava Axe
-                humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
-                humanlibrary=Mountain
-                ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+        session(
+            "consult targets the OPPONENT player for a player-burn spell",
+            puzzle = CONSULT_TARGETS_OPPONENT_PLAYER_PUZZLE,
+        ) {
             // Cast in the source game up to the targeting prompt, then consult
             // the snapshot about that prompt. The hydrated game has no bound
             // targeting ability, so this exercises the required-target path
@@ -372,7 +318,7 @@ class SnapshotConsultTest :
             castSpellByName("Lava Axe").shouldBeTrue()
             val targetsReq = allMessages.last { it.hasSelectTargetsReq() }
 
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -391,29 +337,10 @@ class SnapshotConsultTest :
             result.proposal.responseIds shouldBe listOf(2)
         }
 
-        test("target consult reproduces the live decision byte-for-byte (rebuilt ability)") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult Target Fidelity
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanhand=Shock
-                humanbattlefield=Mountain;Mountain
-                humanlibrary=Mountain
-                aibattlefield=Raging Goblin;Centaur Courser
-                ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+        session(
+            "target consult reproduces the live decision byte-for-byte (rebuilt ability)",
+            puzzle = TARGET_CONSULT_REPRODUCES_LIVE_PUZZLE,
+        ) {
             // Multiple legal targets (two enemy creatures + both faces): the
             // pre-rebuild fallback picked by list order, not by the AI's
             // judgement. The contract under test: the hydrated consult routes
@@ -422,7 +349,7 @@ class SnapshotConsultTest :
             castSpellByName("Shock").shouldBeTrue()
             val targetsReq = allMessages.last { it.hasSelectTargetsReq() }
 
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val live = CopilotProposalService(sourceBridge, leyline.bridge.types.SeatId(1)).propose(targetsReq)
             live.responses.shouldNotBeEmpty()
 
@@ -442,29 +369,11 @@ class SnapshotConsultTest :
             result.proposal.responses shouldBe live.responses
         }
 
-        test("bounded target consult realizes zero-to-two and one-to-two groups") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult Bounded Targets
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Grizzly Bears
-                humanlibrary=Forest
-                aibattlefield=Raging Goblin
-                ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
-            val sourceBridge = harness.bridge
+        session(
+            "bounded target consult realizes zero-to-two and one-to-two groups",
+            puzzle = BOUNDED_TARGET_CONSULT_REALIZES_PUZZLE,
+        ) {
+            val sourceBridge = bridge
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
@@ -524,31 +433,13 @@ class SnapshotConsultTest :
             required.selectTargetsResp.target.targetIdx shouldBe 1
         }
 
-        test("multi-group target consult advances one group per echoed prompt") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult Grouped Targets
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Grizzly Bears;Walking Corpse
-                humanlibrary=Forest
-                aibattlefield=Raging Goblin;Centaur Courser
-                ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
+        session(
+            "multi-group target consult advances one group per echoed prompt",
+            puzzle = MULTI_GROUP_TARGET_CONSULT_PUZZLE,
+        ) {
             val ownIds = listOf(human.battlefield.iid("Grizzly Bears"), human.battlefield.iid("Walking Corpse"))
             val opponentIds = listOf(ai.battlefield.iid("Raging Goblin"), ai.battlefield.iid("Centaur Courser"))
-            val sourceBridge = harness.bridge
+            val sourceBridge = bridge
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
@@ -645,28 +536,11 @@ class SnapshotConsultTest :
                 .legalAction shouldBe SelectAction.Unselect
         }
 
-        test("modal consult retains the prompt ctoId in proposal and response") {
-            val pzl =
-                """
-                [metadata]
-                Name:Snapshot Consult Modal Identity
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Mountain
-                humanlibrary=Mountain
-                ailibrary=Mountain
-                """.trimIndent()
-            startPuzzleRaw(pzl)
-
-            val sourceBridge = harness.bridge
+        session(
+            "modal consult retains the prompt ctoId in proposal and response",
+            puzzle = MODAL_CONSULT_RETAINS_PROMPT_PUZZLE,
+        ) {
+            val sourceBridge = bridge
             val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
             val gsm =
                 StateMapper
@@ -714,3 +588,143 @@ class SnapshotConsultTest :
             response.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList shouldBe listOf(42_001)
         }
     })
+
+private val CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=3
+
+    humanhand=Lightning Bolt
+    humanbattlefield=Mountain
+    humanlibrary=Mountain;Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val CONSULT_PROPOSES_CAST_AFTER_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Land Drop
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Raging Goblin;Mountain
+    humanbattlefield=Mountain
+    humanlibrary=Mountain;Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val CONSULT_TARGETS_OPPONENT_PLAYER_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Player Target
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Lava Axe
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+    humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val TARGET_CONSULT_REPRODUCES_LIVE_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Target Fidelity
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Shock
+    humanbattlefield=Mountain;Mountain
+    humanlibrary=Mountain
+    aibattlefield=Raging Goblin;Centaur Courser
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val BOUNDED_TARGET_CONSULT_REALIZES_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Bounded Targets
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Grizzly Bears
+    humanlibrary=Forest
+    aibattlefield=Raging Goblin
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val MULTI_GROUP_TARGET_CONSULT_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Grouped Targets
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Grizzly Bears;Walking Corpse
+    humanlibrary=Forest
+    aibattlefield=Raging Goblin;Centaur Courser
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val MODAL_CONSULT_RETAINS_PROMPT_PUZZLE =
+    """
+    [metadata]
+    Name:Snapshot Consult Modal Identity
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Mountain
+    humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()

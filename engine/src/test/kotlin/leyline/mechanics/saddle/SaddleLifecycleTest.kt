@@ -12,6 +12,7 @@ import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
@@ -42,12 +43,11 @@ private val PUZZLE =
 
 class SaddleLifecycleTest :
     SessionTest({
-        test("saddle activation taps helper and emits saddled annotations") {
-            startPuzzleRaw(
-                PUZZLE.replace("Drover Grizzly;Grizzly Bears", "Drover Grizzly;Grizzly Bears;Coral Merfolk"),
-                validating = true,
-            )
-
+        session(
+            "saddle activation taps helper and emits saddled annotations",
+            puzzle = PUZZLE.replace("Drover Grizzly;Grizzly Bears", "Drover Grizzly;Grizzly Bears;Coral Merfolk"),
+            validating = true,
+        ) {
             val helperIid = human.battlefield.iid("Grizzly Bears")
             val otherHelperIid = human.battlefield.iid("Coral Merfolk")
             val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
@@ -106,9 +106,7 @@ class SaddleLifecycleTest :
             }
         }
 
-        test("saddled attack condition grants trample") {
-            startPuzzleRaw(PUZZLE, validating = true)
-
+        session("saddled attack condition grants trample", puzzle = PUZZLE, validating = true) {
             val helperIid = human.battlefield.iid("Grizzly Bears")
             val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
             paymentSlice.expectOnePayCostsReq()
@@ -119,7 +117,7 @@ class SaddleLifecycleTest :
             passUntilResolved(maxPasses = 4)
 
             val grizzly = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Drover Grizzly" }
-            harness.advanceToCombat(turn = 1)
+            advanceToCombat(turn = 1)
             declareAttackers(listOf(human.battlefield.iid(grizzly)))
             passUntilResolved(maxPasses = 4)
 
@@ -138,9 +136,7 @@ class SaddleLifecycleTest :
             }
         }
 
-        test("saddled state expires after turn changes") {
-            startPuzzleRaw(PUZZLE, validating = true)
-
+        session("saddled state expires after turn changes", puzzle = PUZZLE, validating = true) {
             val helperIid = human.battlefield.iid("Grizzly Bears")
             val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
             paymentSlice.expectOnePayCostsReq()

@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -18,31 +19,30 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class ExileUnderCardPuzzleTest :
     SessionTest({
+        session(
+            "Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it",
+            """
+            [metadata]
+            Name:Exile Under Card
+            Goal:Win
+            Turns:3
+            Difficulty:Easy
+            Description:DisplayCardUnderCard lifecycle test.
 
-        test("Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it") {
-            val pzl =
-                """
-                [metadata]
-                Name:Exile Under Card
-                Goal:Win
-                Turns:3
-                Difficulty:Easy
-                Description:DisplayCardUnderCard lifecycle test.
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=1
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=1
-
-                humanhand=Banishing Light;Disenchant
-                humanbattlefield=Plains;Plains;Plains;Plains;Plains
-                humanlibrary=Plains
-                aibattlefield=Grizzly Bears
-                ailibrary=Forest
-                """.trimIndent()
-
-            startPuzzleRaw(pzl, validating = true)
+            humanhand=Banishing Light;Disenchant
+            humanbattlefield=Plains;Plains;Plains;Plains;Plains
+            humanlibrary=Plains
+            aibattlefield=Grizzly Bears
+            ailibrary=Forest
+            """.trimIndent(),
+            validating = true,
+        ) {
             phase() shouldBe "MAIN1"
 
             val bearsIid = ai.battlefield.iid("Grizzly Bears")

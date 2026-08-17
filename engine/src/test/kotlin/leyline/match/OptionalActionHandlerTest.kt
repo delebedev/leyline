@@ -7,9 +7,9 @@ import leyline.testkit.SessionTest
 
 class OptionalActionHandlerTest :
     SessionTest({
-        test("accepted optional action publishes a chained search without waiting for action priority") {
-            startPuzzle(
-                """
+        session(
+            "accepted optional action publishes a chained search without waiting for action priority",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -20,20 +20,19 @@ class OptionalActionHandlerTest :
                 humanlibrary=Grizzly Bears
                 ailibrary=Mountain
                 """,
-                name = "Optional action chained selection",
-                turns = 3,
-                validating = true,
-            )
-            harness.holdNextOptionalAction()
+            turns = 3,
+            validating = true,
+        ) {
+            holdNextOptionalAction()
 
             castSpellByName("Formidable Speaker") shouldBe true
             passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
 
-            harness.respondToOptionalAction(accept = true)
+            respondToOptionalAction(accept = true)
             val search = allMessages.lastOrNull { it.hasSearchReq() }?.searchReq ?: error("Expected chained SearchReq")
 
             search.itemsSoughtCount shouldBe 1
-            harness.respondToSearch(search.itemsSoughtList)
+            respondToSearch(search.itemsSoughtList)
             human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Grizzly Bears"
         }
     })

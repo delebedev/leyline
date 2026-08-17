@@ -7,7 +7,9 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -17,8 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 class RecommissionEffectStackTest :
     SessionTest({
-        fun enableStackAutoResolve() {
-            harness.session.autoPassState.update(
+        fun MatchFlowHarness.enableStackAutoResolve() {
+            session.autoPassState.update(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
@@ -38,9 +40,9 @@ class RecommissionEffectStackTest :
                     ann.detailsList.any { it.key == "zone_dest" && it.getValueInt32(0) == dest }
             }
 
-        test("Recommission silent SP Effect resolution moves the spell off stack into graveyard") {
-            startPuzzle(
-                """
+        session(
+            "Recommission silent SP Effect resolution moves the spell off stack into graveyard",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -52,8 +54,7 @@ class RecommissionEffectStackTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """,
-                name = "Recommission silent SP Effect",
-            )
+        ) {
             enableStackAutoResolve()
 
             val bearIid = human.graveyard.iid("Grizzly Bears")

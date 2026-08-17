@@ -5,7 +5,9 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.haveManaCost
 import leyline.testkit.ofType
@@ -43,7 +45,7 @@ class EatenAliveInteractionTest :
             ailibrary=Swamp
             """.trimIndent()
 
-        fun latestCastActionsFor(cardName: String): List<Action> {
+        fun MatchFlowHarness.latestCastActionsFor(cardName: String): List<Action> {
             val iid = human.hand.iid(cardName)
             return allMessages
                 .asReversed()
@@ -53,28 +55,24 @@ class EatenAliveInteractionTest :
                 .filter { it.instanceId == iid }
         }
 
-        fun submitAction(action: Action) {
-            harness.session.onPerformAction(
-                harness.submitWithGsId(
+        fun MatchFlowHarness.submitAction(action: Action) {
+            session.onPerformAction(
+                submitWithGsId(
                     performAction {
                         mergeFrom(action)
                     },
                 ),
             )
-            harness.drainSink()
+            drainSink()
         }
 
-        test("Eaten Alive exposes a single cast action with base mana cost") {
-            startPuzzle(eatenAliveState, name = "Eaten Alive")
-
+        session("Eaten Alive exposes a single cast action with base mana cost", puzzle = eatenAliveState) {
             val casts = latestCastActionsFor("Eaten Alive")
             casts shouldHaveSize 1
             casts.single() should haveManaCost(black = 1)
         }
 
-        test("sacrifice-mode cast resolves fully after target and sacrifice selection") {
-            startPuzzle(eatenAliveState, name = "Eaten Alive")
-
+        session("sacrifice-mode cast resolves fully after target and sacrifice selection", puzzle = eatenAliveState) {
             submitAction(latestCastActionsFor("Eaten Alive").single())
             respondToOptionalCost(1)
 
@@ -90,9 +88,7 @@ class EatenAliveInteractionTest :
             "Walking Corpse" should beInGraveyardOf(human)
         }
 
-        test("Deadly Precision prompts for alternate additional cost before targeting") {
-            startPuzzle(deadlyPrecisionState, name = "Deadly Precision")
-
+        session("Deadly Precision prompts for alternate additional cost before targeting", puzzle = deadlyPrecisionState) {
             val action = latestCastActionsFor("Deadly Precision").single()
             val req = after { submitAction(action) }.expectOneCastingTimeOptionsReq()
 

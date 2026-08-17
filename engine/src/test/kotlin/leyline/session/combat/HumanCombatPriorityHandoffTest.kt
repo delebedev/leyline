@@ -5,6 +5,28 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import kotlin.time.Duration.Companion.seconds
 
+private val HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE =
+    """
+    [metadata]
+    Name:Human Combat Priority Handoff
+    Goal:Win
+    Turns:3
+    Difficulty:Easy
+    Description:Human attacks with no instants in hand; verifies DECLARE_BLOCKERS hand-off doesn't stall
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=COMBAT_DECLARE_ATTACKERS
+    HumanLife=20
+    AILife=20
+
+    humanhand=
+    humanbattlefield=Raging Goblin;Mountain
+    humanlibrary=Mountain;Mountain;Mountain
+    aibattlefield=
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
 /**
  * Regression test for the priority-handoff hang during combat resolution on
  * the human's turn.
@@ -32,46 +54,26 @@ class HumanCombatPriorityHandoffTest :
 
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
-        test("human attacks, no blockers — DECLARE_BLOCKERS pass-only priority doesn't hang bridge")
-            .config(timeout = 3.seconds) {
-                val puzzleText =
-                    """
-                    [metadata]
-                    Name:Human Combat Priority Handoff
-                    Goal:Win
-                    Turns:3
-                    Difficulty:Easy
-                    Description:Human attacks with no instants in hand; verifies DECLARE_BLOCKERS hand-off doesn't stall
+        session(
+            "human attacks, no blockers — DECLARE_BLOCKERS pass-only priority doesn't hang bridge",
+            puzzle = HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE,
+            validating = true,
+            timeout = 3.seconds,
+        ) {
+            // Puzzle starts at MAIN1 on human's turn; advance to combat so
+            // the harness sees a live DeclareAttackersReq.
+            if (phase() == "MAIN1") passPriority()
 
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=COMBAT_DECLARE_ATTACKERS
-                    HumanLife=20
-                    AILife=20
+            val attackerIid =
+                humanBattlefieldCreatures()
+                    .single { it.second == "Raging Goblin" }
+                    .first
+            declareAttackers(listOf(attackerIid))
 
-                    humanhand=
-                    humanbattlefield=Raging Goblin;Mountain
-                    humanlibrary=Mountain;Mountain;Mountain
-                    aibattlefield=
-                    ailibrary=Mountain;Mountain;Mountain
-                    """.trimIndent()
-
-                startPuzzleRaw(puzzleText, validating = true)
-
-                // Puzzle starts at MAIN1 on human's turn; advance to combat so
-                // the harness sees a live DeclareAttackersReq.
-                if (phase() == "MAIN1") passPriority()
-
-                val attackerIid =
-                    humanBattlefieldCreatures()
-                        .single { it.second == "Raging Goblin" }
-                        .first
-                declareAttackers(listOf(attackerIid))
-
-                // If the bug were present, the engine would block in awaitAction at
-                // COMBAT_DECLARE_BLOCKERS after AI declared blocks; damage never applies
-                // within the 3s test timeout. With the fix, the auto-pass loop falls
-                // through to advanceOrWait and Raging Goblin (1/1) resolves unblocked.
-                ai.life shouldBe 19
-            }
+            // If the bug were present, the engine would block in awaitAction at
+            // COMBAT_DECLARE_BLOCKERS after AI declared blocks; damage never applies
+            // within the 3s test timeout. With the fix, the auto-pass loop falls
+            // through to advanceOrWait and Raging Goblin (1/1) resolves unblocked.
+            ai.life shouldBe 19
+        }
     })

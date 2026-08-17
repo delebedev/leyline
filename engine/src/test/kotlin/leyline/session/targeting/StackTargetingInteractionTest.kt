@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -15,7 +16,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 
 class StackTargetingInteractionTest :
     SessionTest({
-        fun latestTargetCandidateIds(): List<Int> =
+        fun MatchFlowHarness.latestTargetCandidateIds(): List<Int> =
             allMessages
                 .last { it.hasSelectTargetsReq() }
                 .selectTargetsReq
@@ -24,7 +25,7 @@ class StackTargetingInteractionTest :
                 .map { it.targetInstanceId }
                 .filter { it > OPPONENT_SEAT }
 
-        fun targetPromptDebug(cardName: String): String {
+        fun MatchFlowHarness.targetPromptDebug(cardName: String): String {
             val prompts =
                 allMessages
                     .filter { it.hasSelectTargetsReq() }
@@ -38,7 +39,7 @@ class StackTargetingInteractionTest :
                         "gs=${msg.gameStateId} source=${msg.selectTargetsReq.sourceId} ids=$names"
                     }
             val history =
-                harness.bridge
+                bridge
                     .promptBridge(SeatId(HUMAN_SEAT))
                     .history
                     .takeLast(5)
@@ -46,10 +47,10 @@ class StackTargetingInteractionTest :
             return "Expected target '$cardName'. prompts=$prompts history=$history"
         }
 
-        fun latestTargetIidByCardName(cardName: String): Int {
+        fun MatchFlowHarness.latestTargetIidByCardName(cardName: String): Int {
             val found =
                 waitFor(timeoutMs = 2_000L) {
-                    harness.drainSink()
+                    drainSink()
                     latestTargetCandidateIds().any { iid -> cardByIid(iid)?.name == cardName }
                 }
             withClue(targetPromptDebug(cardName)) { found.shouldBeTrue() }
@@ -57,7 +58,7 @@ class StackTargetingInteractionTest :
             return findInstanceId(candidateIds, cardName)
         }
 
-        fun latestTargetSourceName(): String? {
+        fun MatchFlowHarness.latestTargetSourceName(): String? {
             val sourceId =
                 allMessages
                     .last { it.hasSelectTargetsReq() }
@@ -66,9 +67,9 @@ class StackTargetingInteractionTest :
             return cardByIid(sourceId)?.name
         }
 
-        test("targeted instant can be cast while another targeted instant is on stack") {
-            startPuzzle(
-                """
+        session(
+            "targeted instant can be cast while another targeted instant is on stack",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -79,14 +80,12 @@ class StackTargetingInteractionTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Plains;Plains;Plains;Plains;Plains
                 """,
-                name = "Stacking Targeted Instants",
-            )
-
+        ) {
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
 
             assertSoftly {
-                harness.hasPendingAction().shouldBeTrue()
+                hasPendingAction().shouldBeTrue()
                 castSpellByName("Lightning Bolt").shouldBeTrue()
 
                 human
@@ -98,9 +97,9 @@ class StackTargetingInteractionTest :
             }
         }
 
-        test("Make Disappear without Casualty counters the only stack spell") {
-            startPuzzle(
-                """
+        session(
+            "Make Disappear without Casualty counters the only stack spell",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -111,9 +110,7 @@ class StackTargetingInteractionTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Plains;Plains;Plains;Plains;Plains
                 """,
-                name = "Make Disappear Single Spell",
-            )
-
+        ) {
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
 
@@ -127,9 +124,9 @@ class StackTargetingInteractionTest :
             ai.life shouldBe 20
         }
 
-        test("Make Disappear with Casualty can counter two stack spells") {
-            startPuzzle(
-                """
+        session(
+            "Make Disappear with Casualty can counter two stack spells",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -140,8 +137,7 @@ class StackTargetingInteractionTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Plains;Plains;Plains;Plains;Plains
                 """,
-                name = "Make Disappear Casualty Two Spells",
-            )
+        ) {
             val bearIid = human.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Shock").shouldBeTrue()
@@ -171,9 +167,9 @@ class StackTargetingInteractionTest :
             ai.life shouldBe 20
         }
 
-        test("Casualty copy is visible on the stack while choosing its new target") {
-            startPuzzle(
-                """
+        session(
+            "Casualty copy is visible on the stack while choosing its new target",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -184,8 +180,7 @@ class StackTargetingInteractionTest :
                 humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
                 ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
                 """,
-                name = "Casualty Copy Targeting",
-            )
+        ) {
             val bearIid = human.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Cut Your Losses").shouldBeTrue()

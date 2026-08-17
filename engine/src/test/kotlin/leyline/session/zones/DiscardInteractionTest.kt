@@ -9,6 +9,8 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
+import leyline.testkit.after
+import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -38,9 +40,7 @@ class DiscardInteractionTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("discard-as-cost — SelectNReq proto shape") {
-            startPuzzle(marduState, name = "Mardu Outrider", turns = 10)
-
+        session("discard-as-cost — SelectNReq proto shape", puzzle = marduState, turns = 10) {
             castSpellByName("Mardu Outrider") shouldBe true
 
             val req = lastSelectNReq()
@@ -55,9 +55,7 @@ class DiscardInteractionTest :
             }
         }
 
-        test("discard-as-cost — spell resolves after responding") {
-            startPuzzle(marduState, name = "Mardu Outrider", turns = 10)
-
+        session("discard-as-cost — spell resolves after responding", puzzle = marduState, turns = 10) {
             castSpellByName("Mardu Outrider") shouldBe true
             val req = lastSelectNReq()
             val mountainId = findInstanceId(req.idsList, "Mountain")
@@ -93,21 +91,19 @@ class DiscardInteractionTest :
             }
         }
 
-        test("discard-as-cost — empty controller answer cancels exact payment") {
-            startPuzzle(marduState, name = "Mardu Outrider cancellation", turns = 2)
-
+        session("discard-as-cost — empty controller answer cancels exact payment", puzzle = marduState, turns = 2) {
             castSpellByName("Mardu Outrider") shouldBe true
             val pending =
-                harness.bridge.cutCoordinator.cardSelect
+                bridge.cutCoordinator.cardSelect
                     .current()
                     .shouldNotBeNull()
             pending.kind shouldBe leyline.bridge.handoff.CardSelectKind.Discard
-            harness.bridge.cutCoordinator.cardSelect.submitSelectN(
+            bridge.cutCoordinator.cardSelect.submitSelectN(
                 pending.interactionId,
                 pending.gameStateId,
                 emptyList(),
             ) shouldBe true
-            harness.bridge.awaitPriority()
+            bridge.awaitPriority()
 
             assertSoftly {
                 human
@@ -121,9 +117,9 @@ class DiscardInteractionTest :
             }
         }
 
-        test("targeted reveal discard emits SelectNReq") {
-            startPuzzle(
-                """
+        session(
+            "targeted reveal discard emits SelectNReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -135,10 +131,8 @@ class DiscardInteractionTest :
                 aihand=Divination;Walking Corpse;Swamp
                 ailibrary=Island;Island;Island;Island;Island
                 """,
-                name = "Duress reveal discard",
-                turns = 10,
-            )
-
+            turns = 10,
+        ) {
             castSpellByName("Duress") shouldBe true
             passPriority()
 
@@ -162,9 +156,9 @@ class DiscardInteractionTest :
             response.messages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard) shouldHaveSize 0
         }
 
-        test("targeted reveal with no matching cards emits an empty SelectNReq and resumes") {
-            startPuzzle(
-                """
+        session(
+            "targeted reveal with no matching cards emits an empty SelectNReq and resumes",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -176,10 +170,8 @@ class DiscardInteractionTest :
                 aihand=Walking Corpse;Swamp
                 ailibrary=Island;Island;Island;Island;Island
                 """,
-                name = "Duress reveal with no eligible card",
-                turns = 10,
-            )
-
+            turns = 10,
+        ) {
             castSpellByName("Duress") shouldBe true
             passPriority()
 
@@ -198,18 +190,18 @@ class DiscardInteractionTest :
                 ai.getZone(ForgeZoneType.Hand).cards shouldHaveSize 2
                 ai.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
                 game().stack.isEmpty shouldBe true
-                harness.bridge
+                bridge
                     .promptBridge(SeatId(1))
                     .journal
                     .activeRevealEntry() shouldBe null
-                harness.bridge.cutCoordinator.revealChoices
+                bridge.cutCoordinator.revealChoices
                     .current() shouldBe null
             }
         }
 
-        test("Deep-Cavern Bat reveal exile emits SelectNReq") {
-            startPuzzle(
-                """
+        session(
+            "Deep-Cavern Bat reveal exile emits SelectNReq",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -221,10 +213,8 @@ class DiscardInteractionTest :
                 aihand=Divination;Walking Corpse;Swamp
                 ailibrary=Island;Island;Island;Island;Island
                 """,
-                name = "Deep-Cavern Bat reveal exile",
-                turns = 10,
-            )
-
+            turns = 10,
+        ) {
             val promptStart = messageSnapshot()
             castSpellByName("Deep-Cavern Bat") shouldBe true
             passUntil(maxPasses = 10) { messagesSince(promptStart).any { it.hasSelectNReq() } } shouldBe true
@@ -243,7 +233,7 @@ class DiscardInteractionTest :
             val response = after { respondToSelectN(listOf(divinationId)) }
 
             val batIds =
-                harness.accumulator.objects.values
+                accumulator.objects.values
                     .filter { it.grpId == 87246 }
                     .map { it.instanceId }
             val exiledDivinationId = instanceIdOf("Divination", ai, ForgeZoneType.Exile)
@@ -256,9 +246,9 @@ class DiscardInteractionTest :
 
         // --- Cleanup discard (hand exceeds max hand size) ---
 
-        test("cleanup discard — hand size enforced at end of turn") {
-            startPuzzle(
-                """
+        session(
+            "cleanup discard — hand size enforced at end of turn",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -270,10 +260,8 @@ class DiscardInteractionTest :
                 aibattlefield=Centaur Courser
                 ailibrary=Island;Island;Island;Island;Island
                 """,
-                name = "Cleanup Discard",
-                turns = 10,
-            )
-
+            turns = 10,
+        ) {
             human.getZone(ForgeZoneType.Hand).size() shouldBe 7
 
             // Cast Divination (draw 2): hand 7 → 6 (on stack) → resolve → 8
@@ -309,7 +297,7 @@ class DiscardInteractionTest :
 
             // Verify the discard prompt was answered via the bridge
             val discardPrompts =
-                harness.bridge
+                bridge
                     .promptBridge(SeatId(1))
                     .history
                     .filter { it.message.contains("iscard", ignoreCase = true) }

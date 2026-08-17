@@ -27,15 +27,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class DrawUpdateTypeShapeTest :
     SessionTest({
 
-        test("turn-boundary DRAW for human seat uses SendHiFi") {
-            // AI goes first on this seed. After connectAndKeep + auto-pass through
-            // the AI's turn 1, the human reaches turn 2 Main1 — having just drawn
-            // their turn-boundary card during the draw step.
-            // Keep the opening hand free of legal-but-unaffordable spells. Those
-            // intentionally stop phase skipping now; this test only exercises the
-            // turn-boundary draw update shape.
-            startGame(seed = AI_FIRST_SEED, deckList = "60 Mountain")
-
+        session("turn-boundary DRAW for human seat uses SendHiFi", deckList = "60 Mountain", seed = AI_FIRST_SEED, validating = true) {
             assertSoftly {
                 isGameOver() shouldBe false
                 turn() shouldBe 2

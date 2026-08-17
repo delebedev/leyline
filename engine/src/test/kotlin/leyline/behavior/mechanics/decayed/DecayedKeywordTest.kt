@@ -14,6 +14,7 @@ import leyline.game.data.AbilityInfo
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
 import leyline.testkit.annotationsOfType
@@ -61,9 +62,11 @@ class DecayedKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        test("Decayed attack trigger registers EndCombat cleanup and sacrifices the attacker") {
-            startPuzzleRaw(decayedPuzzle, validating = true)
-
+        session(
+            "Decayed attack trigger registers EndCombat cleanup and sacrifices the attacker",
+            puzzle = decayedPuzzle,
+            validating = true,
+        ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val sourceIid = humanBattlefieldCreatures().first { it.second == "Rot-Curse Rakshasa" }.first
 

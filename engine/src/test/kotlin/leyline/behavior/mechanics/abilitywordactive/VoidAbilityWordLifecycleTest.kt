@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
@@ -18,9 +19,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class VoidAbilityWordLifecycleTest :
     SessionTest({
-        test("Void marker binds the controller to its source and is deleted next turn") {
-            startPuzzle(
-                """
+        session(
+            "Void marker binds the controller to its source and is deleted next turn",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -32,9 +33,8 @@ class VoidAbilityWordLifecycleTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Forest;Forest;Forest
                 """,
-                name = "Void lifecycle",
-                turns = 3,
-            )
+            turns = 3,
+        ) {
             val sourceIid = instanceIdOf("Insatiable Skittermaw")
             val source = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Insatiable Skittermaw" }
             val target = instanceIdOf("Grizzly Bears", ai)

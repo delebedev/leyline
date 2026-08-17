@@ -6,7 +6,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -37,10 +39,8 @@ class OptionalCostInteractionTest :
             ailibrary=Mountain
             """.trimIndent()
 
-        fun startBurst() = startPuzzle(burstState, name = "Burst Lightning")
-
         /** Accept kicker — send the Kicker option's ctoId. */
-        fun acceptKicker() {
+        fun MatchFlowHarness.acceptKicker() {
             val kickerOption =
                 lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                     it.castingTimeOptionType == CastingTimeOptionType.Kicker
@@ -49,7 +49,7 @@ class OptionalCostInteractionTest :
         }
 
         /** Decline kicker — send the Done option's ctoId (0). */
-        fun declineKicker() {
+        fun MatchFlowHarness.declineKicker() {
             val doneOption =
                 lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                     it.castingTimeOptionType == CastingTimeOptionType.Done
@@ -57,9 +57,7 @@ class OptionalCostInteractionTest :
             respondToOptionalCost(doneOption.ctoId)
         }
 
-        test("CastingTimeOptionsReq — kicker prompt shape") {
-            startBurst()
-
+        session("CastingTimeOptionsReq — kicker prompt shape", puzzle = burstState) {
             val cto =
                 after { castSpellByName("Burst Lightning").shouldBeTrue() }
                     .expectCastingTimeOptionsReq {
@@ -72,9 +70,7 @@ class OptionalCostInteractionTest :
             cto.castingTimeOptionReqList shouldHaveSize 2
         }
 
-        test("kicked Burst Lightning deals 4 damage") {
-            startBurst()
-
+        session("kicked Burst Lightning deals 4 damage", puzzle = burstState) {
             castSpellByName("Burst Lightning").shouldBeTrue()
             acceptKicker()
             selectTargets(listOf(OPPONENT_SEAT))
@@ -83,11 +79,10 @@ class OptionalCostInteractionTest :
             ai.life shouldBe 16
         }
 
-        test("accepted kicker emits CastingTimeOption Kicker details") {
-            startBurst()
-            val burstGrpId = harness.bridge.cardRepository.findGrpIdByName("Burst Lightning")!!
+        session("accepted kicker emits CastingTimeOption Kicker details", puzzle = burstState) {
+            val burstGrpId = bridge.cardRepository.findGrpIdByName("Burst Lightning")!!
             val kickerAbilityGrpId =
-                harness.bridge.cardRepository.findKeywordAbilityGrpId(burstGrpId, KeywordAbilityIds.KICKER)!!
+                bridge.cardRepository.findKeywordAbilityGrpId(burstGrpId, KeywordAbilityIds.KICKER)!!
 
             val snap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
@@ -109,9 +104,7 @@ class OptionalCostInteractionTest :
             }
         }
 
-        test("unkicked Burst Lightning deals 2 damage") {
-            startBurst()
-
+        session("unkicked Burst Lightning deals 2 damage", puzzle = burstState) {
             castSpellByName("Burst Lightning").shouldBeTrue()
             declineKicker()
             selectTargets(listOf(OPPONENT_SEAT))
@@ -120,9 +113,7 @@ class OptionalCostInteractionTest :
             ai.life shouldBe 18
         }
 
-        test("kicker GSM has no synthesized ability on stack") {
-            startBurst()
-
+        session("kicker GSM has no synthesized ability on stack", puzzle = burstState) {
             val cast = after { castSpellByName("Burst Lightning").shouldBeTrue() }
 
             // GSM immediately before the CTO should NOT carry a synthesized
@@ -132,9 +123,7 @@ class OptionalCostInteractionTest :
             gsmBeforeCto.gameObjectsList.filter { it.type == GameObjectType.Ability } shouldHaveSize 0
         }
 
-        test("optional cost prompt gates targeting — no SelectTargetsReq before response") {
-            startBurst()
-
+        session("optional cost prompt gates targeting — no SelectTargetsReq before response", puzzle = burstState) {
             val cast = after { castSpellByName("Burst Lightning").shouldBeTrue() }
             cast.expectOneCastingTimeOptionsReq().castingTimeOptionReqList shouldHaveSize 2
             cast.expectNoSelectTargetsReq()
@@ -142,9 +131,7 @@ class OptionalCostInteractionTest :
             after { declineKicker() }.expectOneSelectTargetsReq()
         }
 
-        test("cancel optional cost prompt returns to priority without orphaning cast") {
-            startBurst()
-
+        session("cancel optional cost prompt returns to priority without orphaning cast", puzzle = burstState) {
             after { castSpellByName("Burst Lightning").shouldBeTrue() }
                 .expectOneCastingTimeOptionsReq()
 

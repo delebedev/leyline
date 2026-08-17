@@ -11,6 +11,7 @@ import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.persistentAnnotationsOfType
@@ -19,8 +20,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class OrdinaryTapCostLifecycleTest :
     SessionTest({
-        test("spell tap-cost prompt uses the same-cut stack card identity") {
-            startPuzzle(
+        session(
+            "spell tap-cost prompt uses the same-cut stack card identity",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -33,10 +35,8 @@ class OrdinaryTapCostLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Spell tap cost source identity",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val handIid = human.hand.iid("Fear of Exposure")
             val paymentSlice = after { castSpellByName("Fear of Exposure").shouldBeTrue() }
             val payCostsMessage = paymentSlice.messages.single { it.hasPayCostsReq() }
@@ -58,8 +58,9 @@ class OrdinaryTapCostLifecycleTest :
             }
         }
 
-        test("ordinary exact-count tap cost delegates through the shared Forge visitor") {
-            startPuzzle(
+        session(
+            "ordinary exact-count tap cost delegates through the shared Forge visitor",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -71,10 +72,8 @@ class OrdinaryTapCostLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Ordinary tap cost",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             activateAbility("Goldfury Strider").shouldBeTrue()
             passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
             val bearIid = human.battlefield.iid("Grizzly Bears")
@@ -136,8 +135,9 @@ class OrdinaryTapCostLifecycleTest :
             }
         }
 
-        test("cancelling exact-count tap cost deletes the pre-stack ability") {
-            startPuzzle(
+        session(
+            "cancelling exact-count tap cost deletes the pre-stack ability",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -149,10 +149,8 @@ class OrdinaryTapCostLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Cancel ordinary tap cost",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             activateAbility("Goldfury Strider").shouldBeTrue()
             passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
             selectTargets(listOf(human.battlefield.iid("Grizzly Bears")))
@@ -171,12 +169,12 @@ class OrdinaryTapCostLifecycleTest :
                 allMessages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).filter {
                     sourceIid in it.affectedIdsList
                 } shouldHaveSize 1
-                harness.bridge.getLimboInstanceIds().map { it.value } shouldContain sourceIid
-                harness.bridge
+                bridge.getLimboInstanceIds().map { it.value } shouldContain sourceIid
+                bridge
                     .projectionStateSnapshot()
                     .annotations.abilityLineage
                     .find(sourceIid) shouldBe null
-                harness.bridge.cutCoordinator.oneShotPayCosts
+                bridge.cutCoordinator.oneShotPayCosts
                     .current() shouldBe null
             }
         }

@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.clientMessage
 import leyline.testkit.stop
@@ -20,7 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class ClientSettingsTest :
     SessionTest({
 
-        fun sendSettings(vararg stops: Stop) {
+        fun MatchFlowHarness.sendSettings(vararg stops: Stop) {
             val msg =
                 clientMessage(ClientMessageType.SetSettingsReq_097b) {
                     setSetSettingsReq(
@@ -29,7 +30,7 @@ class ClientSettingsTest :
                         ),
                     )
                 }
-            harness.session.onSettings(msg)
+            session.onSettings(msg)
         }
 
         fun stop(
@@ -44,10 +45,8 @@ class ClientSettingsTest :
                 .setStatus(status)
                 .build()
 
-        test("enabling Upkeep stop via Team scope updates the profile") {
-            startGame()
-
-            val profile = harness.bridge.phaseStopProfile!!
+        session("enabling Upkeep stop via Team scope updates the profile", validating = true) {
+            val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
             // Default: Upkeep is NOT enabled for human
@@ -69,10 +68,8 @@ class ClientSettingsTest :
             }
         }
 
-        test("disabling Main1 stop via Team scope updates the profile") {
-            startGame()
-
-            val profile = harness.bridge.phaseStopProfile!!
+        session("disabling Main1 stop via Team scope updates the profile", validating = true) {
+            val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
             // Default: Main1 IS enabled for human
@@ -92,10 +89,8 @@ class ClientSettingsTest :
             }
         }
 
-        test("multiple stops can be toggled in a single settings message") {
-            startGame()
-
-            val profile = harness.bridge.phaseStopProfile!!
+        session("multiple stops can be toggled in a single settings message", validating = true) {
+            val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
             // Enable Draw, disable Main2
@@ -118,10 +113,8 @@ class ClientSettingsTest :
             }
         }
 
-        test("opponents scope does not affect human") {
-            startGame()
-
-            val profile = harness.bridge.phaseStopProfile!!
+        session("opponents scope does not affect human", validating = true) {
+            val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
             val before = profile.getEnabled(humanId)
@@ -133,10 +126,8 @@ class ClientSettingsTest :
             after shouldBe before
         }
 
-        test("AnyPlayer scope applies to human") {
-            startGame()
-
-            val profile = harness.bridge.phaseStopProfile!!
+        session("AnyPlayer scope applies to human", validating = true) {
+            val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
             profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeFalse()
@@ -156,13 +147,11 @@ class ClientSettingsTest :
             }
         }
 
-        test("settings response is echoed back as raw message") {
-            startGame()
-
+        session("settings response is echoed back as raw message", validating = true) {
             sendSettings(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
-            harness.drainSink()
+            drainSink()
 
-            val last = harness.allRawMessages.single()
+            val last = allRawMessages.single()
             assertSoftly {
                 last.hasGreToClientEvent().shouldBeTrue()
                 last.greToClientEvent.greToClientMessagesList.map { it.type } shouldBe listOf(GREMessageType.SetSettingsResp_695e)

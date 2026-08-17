@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.event.FrameEventLog
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -55,7 +56,7 @@ class TokenDiffStabilityTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        fun castInspectorAndWaitForClue(): Int {
+        fun MatchFlowHarness.castInspectorAndWaitForClue(): Int {
             human
                 .getZone(ZoneType.Hand)
                 .cards
@@ -80,21 +81,19 @@ class TokenDiffStabilityTest :
             return human.battlefield.iid(clue)
         }
 
-        test("Clue token has Artifact type and Clue subtype in GSM") {
-            startPuzzleRaw(puzzleText, validating = true)
-
+        session("Clue token has Artifact type and Clue subtype in GSM", puzzle = puzzleText, validating = true) {
             val clueIid = castInspectorAndWaitForClue()
 
-            val snapClue1 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 1)
+            val snapClue1 = GsmSnapshot.capture(game(), bridge, "test-clue", 1)
             val gsm =
                 StateMapper
                     .buildFromSnapshot(
                         snapClue1,
                         1,
                         "test-clue",
-                        harness.bridge,
+                        bridge,
                         viewingSeatId = 1,
-                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
             val clueObj =
@@ -109,22 +108,20 @@ class TokenDiffStabilityTest :
             }
         }
 
-        test("Clue token retains types and subtypes across diff GSMs") {
-            startPuzzleRaw(puzzleText, validating = true)
-
+        session("Clue token retains types and subtypes across diff GSMs", puzzle = puzzleText, validating = true) {
             val clueIid = castInspectorAndWaitForClue()
 
             // First GSM — baseline
-            val snapClue2 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 1)
+            val snapClue2 = GsmSnapshot.capture(game(), bridge, "test-clue", 1)
             val gsm1 =
                 StateMapper
                     .buildFromSnapshot(
                         snapClue2,
                         1,
                         "test-clue",
-                        harness.bridge,
+                        bridge,
                         viewingSeatId = 1,
-                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
@@ -136,7 +133,7 @@ class TokenDiffStabilityTest :
             passPriority()
 
             // Second GSM — diff against snapClue2 baseline
-            val snapClue3 = GsmSnapshot.capture(harness.game(), harness.bridge, "test-clue", 2)
+            val snapClue3 = GsmSnapshot.capture(game(), bridge, "test-clue", 2)
             val gsm2 =
                 StateMapper
                     .buildDiff(
@@ -145,9 +142,9 @@ class TokenDiffStabilityTest :
                         FrameEventLog.EMPTY,
                         2,
                         "test-clue",
-                        harness.bridge,
+                        bridge,
                         viewingSeatId = 1,
-                        effectFacts = harness.bridge.materializeEffectProjectionFacts(),
+                        effectFacts = bridge.materializeEffectProjectionFacts(),
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
@@ -162,7 +159,7 @@ class TokenDiffStabilityTest :
             }
 
             // Registry cached the grpId — stable for future diffs
-            harness.bridge.tokenRegistry
+            bridge.tokenRegistry
                 .resolve(clueIid)
                 .shouldNotBeNull()
         }

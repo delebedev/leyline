@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -26,11 +27,7 @@ class HybridManaCostInteractionTest :
             ailibrary=Forest
             """.trimIndent()
 
-        fun startTawnyback() = startPuzzle(tawnybackState, name = "Temur Tawnyback")
-
-        test("hybrid two-or-color pips emit ManaType CTOs and honor printed-order choices") {
-            startTawnyback()
-
+        session("hybrid two-or-color pips emit ManaType CTOs and honor printed-order choices", puzzle = tawnybackState) {
             val cto =
                 after { castSpellByName("Temur Tawnyback").shouldBeTrue() }
                     .expectOneCastingTimeOptionsReq()

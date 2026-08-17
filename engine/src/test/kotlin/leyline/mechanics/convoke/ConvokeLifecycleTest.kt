@@ -12,7 +12,9 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasDetail
@@ -28,8 +30,9 @@ import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
 class ConvokeLifecycleTest :
     SessionTest({
-        test("Convoke creature can satisfy colored mana for action affordability") {
-            startPuzzle(
+        session(
+            "Convoke creature can satisfy colored mana for action affordability",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -41,10 +44,8 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Convoke colored affordability",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val tribunalHandIid = human.hand.iid("Conclave Tribunal")
             val actions =
                 allMessages
@@ -57,8 +58,9 @@ class ConvokeLifecycleTest :
             }
         }
 
-        test("Conclave Tribunal accepts duplicate native Convoke source fields once") {
-            startPuzzle(
+        session(
+            "Conclave Tribunal accepts duplicate native Convoke source fields once",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -70,10 +72,8 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Convoke Conclave Tribunal",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val tribunalHandIid = human.hand.iid("Conclave Tribunal")
@@ -88,7 +88,7 @@ class ConvokeLifecycleTest :
 
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
             val tribunalForgeId = ForgeCardId(game().stackZone.first().id)
-            val tribunalStackIid = harness.bridge.getOrAllocInstanceId(tribunalForgeId).value
+            val tribunalStackIid = bridge.getOrAllocInstanceId(tribunalForgeId).value
             assertSoftly {
                 allMessages.last { it.hasPrompt() }.prompt.promptId shouldBe PromptIds.PAY_COSTS
                 initialPayCosts.manaCostList.single { it.colorList == listOf(ManaColor.Generic) }.count shouldBe 3
@@ -148,14 +148,15 @@ class ConvokeLifecycleTest :
 
             passUntilResolved(maxPasses = 8)
             human.battlefield.iid("Conclave Tribunal") shouldBeGreaterThan 0
-            harness.bridge
+            bridge
                 .promptBridge(SeatId(1))
                 .journal
                 .activeConvokePayments(tribunalForgeId) shouldBe emptyList()
         }
 
-        test("white creature pays white Convoke pip through native MakePayment") {
-            startPuzzle(
+        session(
+            "white creature pays white Convoke pip through native MakePayment",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -167,13 +168,11 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Convoke Colored Pip",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val lionIid = human.battlefield.iid("Savannah Lions")
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
-            val tribunalStackIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(game().stackZone.first().id)).value
+            val tribunalStackIid = bridge.getOrAllocInstanceId(ForgeCardId(game().stackZone.first().id)).value
             assertConvokePaymentActions(initialPayCosts, listOf(lionIid), ManaColor.White_afc9)
 
             val firstPaymentSnap = messageSnapshot()
@@ -207,8 +206,9 @@ class ConvokeLifecycleTest :
             human.battlefield.iid("Conclave Tribunal") shouldBeGreaterThan 0
         }
 
-        test("selected white source keeps its frozen generic shard when its white peer is omitted") {
-            startPuzzle(
+        session(
+            "selected white source keeps its frozen generic shard when its white peer is omitted",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -220,10 +220,8 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Convoke Frozen Shard",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
             val genericWhiteSource =
                 initialPayCosts.paymentActions.actionsList.single { action ->
@@ -250,8 +248,9 @@ class ConvokeLifecycleTest :
             }
         }
 
-        test("declining all reducers does not mark the spell as convoked") {
-            startPuzzle(
+        session(
+            "declining all reducers does not mark the spell as convoked",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -263,10 +262,8 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Convoke Declined",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
             val paymentSnap = messageSnapshot()
             respondToConvokePaymentDone()
@@ -303,32 +300,32 @@ private fun assertConvokePaymentActions(
     }
 }
 
-private fun SessionTest.respondToConvokeMakePayment(
+private fun MatchFlowHarness.respondToConvokeMakePayment(
     instanceId: Int,
     repeatInManaSelection: Boolean = false,
 ) {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+    session.onPerformAction(
+        submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
                 if (repeatInManaSelection) {
                     addManaSelections(ManaSelection.newBuilder().setInstanceId(instanceId))
                 }
-            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
 
-private fun SessionTest.respondToConvokePaymentDone() {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToConvokePaymentDone() {
+    session.onPerformAction(
+        submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()
-                .setGameStateId(harness.latestPromptGsId())
+                .setGameStateId(latestPromptGsId())
                 .build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }

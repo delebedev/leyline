@@ -20,7 +20,9 @@ import leyline.config.MatchConfig
 import leyline.config.ServerConfig
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allAnnotations
+import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
@@ -61,9 +63,7 @@ class TargetingInteractionTest :
 
         // ─── Giant Growth: single-target creature buff ─────────────────────────
 
-        test("Giant Growth — prompt shape, select, resolve, zone transfer") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
-
+        session("Giant Growth — prompt shape, select, resolve, zone transfer", puzzleFile = "puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
 
             // Phase 1: prompt shape
@@ -99,18 +99,17 @@ class TargetingInteractionTest :
             }
         }
 
-        test("target selection requires the projected target group index") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
+        session("target selection requires the projected target group index", puzzleFile = "puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
             selectTargetsIterative(listOf(creatureIid))
-            val initialPromptMsgId = harness.latestPromptMsgId()
+            val initialPromptMsgId = latestPromptMsgId()
             val before = messageSnapshot()
 
-            harness.session.onSelectTargets(
-                harness.submitWithGsId(leyline.testkit.selectTargetsResp(listOf(creatureIid), targetIdx = 0)),
+            session.onSelectTargets(
+                submitWithGsId(leyline.testkit.selectTargetsResp(listOf(creatureIid), targetIdx = 0)),
             )
-            harness.drainSink()
+            drainSink()
 
             val messages = messagesSince(before)
             messages.none { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe true
@@ -127,24 +126,26 @@ class TargetingInteractionTest :
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
         }
 
-        test("targeting prompt rejects mismatched response families without consuming the pending route") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
+        session(
+            "targeting prompt rejects mismatched response families without consuming the pending route",
+            puzzleFile = "puzzles/pump-spell.pzl",
+        ) {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
             val promptBefore =
-                harness.bridge
+                bridge
                     .cutCoordinator
                     .targeting
                     .current()
                     .shouldNotBeNull()
 
-            harness.respondToSelectN(emptyList())
-            harness.respondToOrder(emptyList())
-            harness.respondToSearch(emptyList())
-            harness.respondModalChoice(emptyList())
-            harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
+            respondToSelectN(emptyList())
+            respondToOrder(emptyList())
+            respondToSearch(emptyList())
+            respondModalChoice(emptyList())
+            respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
 
-            harness.bridge
+            bridge
                 .cutCoordinator
                 .targeting
                 .current()
@@ -154,8 +155,7 @@ class TargetingInteractionTest :
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
         }
 
-        test("Giant Growth — invariants hold across targeting flow") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
+        session("Giant Growth — invariants hold across targeting flow", puzzleFile = "puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
 
             assertAccumulatorConsistent("before targeting")
@@ -228,10 +228,9 @@ class TargetingInteractionTest :
             }
         }
 
-        test("Giant Growth — multiple spells stack +3/+3 twice") {
-            // Dedicated puzzle with 2 Giant Growths + 2 Forests (enough mana for both).
-            startPuzzle(
-                """
+        session(
+            "Giant Growth — multiple spells stack +3/+3 twice",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -243,9 +242,7 @@ class TargetingInteractionTest :
                 aibattlefield=Plains
                 ailibrary=Plains;Plains;Plains;Plains;Plains
                 """,
-                name = "Stacking Giant Growth",
-            )
-
+        ) {
             val creatureIid = human.battlefield.iid("Grizzly Bears")
 
             castSpellByName("Giant Growth").shouldBeTrue()
@@ -266,8 +263,7 @@ class TargetingInteractionTest :
 
         // ─── Cancel targeting ───────────────────────────────────────────────────
 
-        test("cancel unwinds stack, card back in hand, re-cast succeeds") {
-            startPuzzleFile("puzzles/pump-spell.pzl")
+        session("cancel unwinds stack, card back in hand, re-cast succeeds", puzzleFile = "puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
 
             // Cast → cancel
@@ -298,9 +294,7 @@ class TargetingInteractionTest :
 
         // ─── Lightning Bolt: player + creature targeting ───────────────────────
 
-        test("Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent") {
-            startPuzzleFile("puzzles/bolt-face.pzl")
-
+        session("Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent", puzzleFile = "puzzles/bolt-face.pzl") {
             val msgs = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
             val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
             stMsg.shouldNotBeNull()
@@ -348,9 +342,7 @@ class TargetingInteractionTest :
             }
         }
 
-        test("Lightning Bolt — cancel then re-cast deals damage") {
-            startPuzzleFile("puzzles/bolt-face.pzl")
-
+        session("Lightning Bolt — cancel then re-cast deals damage", puzzleFile = "puzzles/bolt-face.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             cancelAction()
             game().stack.isEmpty.shouldBeTrue()
@@ -366,9 +358,7 @@ class TargetingInteractionTest :
 
         // ─── PST / PSuT lifecycle annotations ──────────────────────────────────
 
-        test("Lightning Bolt — PST on cast frame, PSuT on submit frame") {
-            startPuzzleFile("puzzles/bolt-face.pzl")
-
+        session("Lightning Bolt — PST on cast frame, PSuT on submit frame", puzzleFile = "puzzles/bolt-face.pzl") {
             val castMessages = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
 
             val selectTargetsReq = castMessages.firstOrNull { it.hasSelectTargetsReq() }
@@ -430,9 +420,7 @@ class TargetingInteractionTest :
             ailibrary=Mountain
             """.trimIndent()
 
-        test("two-phase — phase-1 echo re-prompt shows selected target as Unselect") {
-            startPuzzle(twoPhaseBoltState, name = "Bolt Conformance")
-
+        session("two-phase — phase-1 echo re-prompt shows selected target as Unselect", puzzle = twoPhaseBoltState) {
             val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
@@ -460,9 +448,7 @@ class TargetingInteractionTest :
             (preBoltAiLife - ai.life) shouldBe 3
         }
 
-        test("two-phase — phase-1 select alone does not resolve spell") {
-            startPuzzle(twoPhaseBoltState, name = "Bolt Two-Phase Gate")
-
+        session("two-phase — phase-1 select alone does not resolve spell", puzzle = twoPhaseBoltState) {
             val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
 
@@ -482,8 +468,9 @@ class TargetingInteractionTest :
             (preBoltAiLife - ai.life) shouldBe 3
         }
 
-        test("triggered mandatory single-target selection auto-submits") {
-            startPuzzle(
+        session(
+            "triggered mandatory single-target selection auto-submits",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -494,11 +481,10 @@ class TargetingInteractionTest :
                 humanlibrary=Plains
                 ailibrary=Mountain
                 """.trimIndent(),
-                name = "Triggered Target Two-Phase",
-            )
-            harness.holdNextOptionalAction()
+        ) {
+            holdNextOptionalAction()
             passPriority()
-            harness.respondToOptionalAction(accept = true)
+            respondToOptionalAction(accept = true)
             val vendorIid = human.battlefield.iid("Spellbook Vendor")
 
             val phase1Messages = after { selectTargetsIterative(listOf(vendorIid)) }.messages
@@ -526,9 +512,7 @@ class TargetingInteractionTest :
             ailibrary=Island
             """.trimIndent()
 
-        test("Run Away Together — initial prompt: both creatures legal with min=max=2") {
-            startPuzzle(runAwayTogetherState, name = "RAT Initial")
-
+        session("Run Away Together — initial prompt: both creatures legal with min=max=2", puzzle = runAwayTogetherState) {
             val stMsg =
                 after { castSpellByName("Run Away Together").shouldBeTrue() }
                     .messages
@@ -553,9 +537,7 @@ class TargetingInteractionTest :
             }
         }
 
-        test("Run Away Together — re-prompt: picked = Unselect, opposite-controller = Select+Tepid") {
-            startPuzzle(runAwayTogetherState, name = "RAT RePrompt")
-
+        session("Run Away Together — re-prompt: picked = Unselect, opposite-controller = Select+Tepid", puzzle = runAwayTogetherState) {
             val humanBearsIid = human.battlefield.iid("Grizzly Bears")
             val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
@@ -583,9 +565,7 @@ class TargetingInteractionTest :
             }
         }
 
-        test("Run Away Together — Unselect tap removes from accumulation") {
-            startPuzzle(runAwayTogetherState, name = "RAT Unselect")
-
+        session("Run Away Together — Unselect tap removes from accumulation", puzzle = runAwayTogetherState) {
             val humanBearsIid = human.battlefield.iid("Grizzly Bears")
             val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
@@ -593,8 +573,8 @@ class TargetingInteractionTest :
 
             // Pick Grizzly, then tap it again with legalAction=Unselect — accumulation clears.
             selectTargetsIterative(listOf(humanBearsIid))
-            harness.session.onSelectTargets(
-                harness.submitWithGsId(
+            session.onSelectTargets(
+                submitWithGsId(
                     clientMessage(ClientMessageType.SelectTargetsResp_097b) {
                         setSelectTargetsResp(
                             SelectTargetsResp.newBuilder().setTarget(
@@ -609,7 +589,7 @@ class TargetingInteractionTest :
                     },
                 ),
             )
-            harness.drainSink()
+            drainSink()
 
             // Re-prompt after Unselect: both creatures selectable, selectedTargets=0.
             // Trigger one more tap to observe the latest re-prompt.
@@ -630,9 +610,7 @@ class TargetingInteractionTest :
             }
         }
 
-        test("Run Away Together — submit both: creatures return to owners' hands") {
-            startPuzzle(runAwayTogetherState, name = "RAT Resolve")
-
+        session("Run Away Together — submit both: creatures return to owners' hands", puzzle = runAwayTogetherState) {
             val humanBearsIid = human.battlefield.iid("Grizzly Bears")
             val aiMerfolkIid = ai.battlefield.iid("Coral Merfolk")
 
@@ -653,9 +631,7 @@ class TargetingInteractionTest :
 
         // ─── Bite Down: multi-group fight targeting ────────────────────────────
 
-        test("Bite Down — resolution state: damage, destroy, target in GY") {
-            startPuzzleFile("puzzles/bite-down.pzl")
-
+        session("Bite Down — resolution state: damage, destroy, target in GY", puzzleFile = "puzzles/bite-down.pzl") {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 
@@ -697,9 +673,7 @@ class TargetingInteractionTest :
             }
         }
 
-        test("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve") {
-            startPuzzleFile("puzzles/bite-down.pzl")
-
+        session("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve", puzzleFile = "puzzles/bite-down.pzl") {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 
@@ -753,9 +727,9 @@ class TargetingInteractionTest :
 
         // TODO: Relocate to an AutoPass consolidation file when one exists —
         // this test is about handlePostCastPrompt / auto-resolve, not targeting.
-        test("#92 — non-targeted spell does not prompt Resolve while on stack") {
-            startPuzzle(
-                """
+        session(
+            "#92 — non-targeted spell does not prompt Resolve while on stack",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -767,12 +741,10 @@ class TargetingInteractionTest :
                 aibattlefield=Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
-                name = "Auto-resolve regression",
-                turns = 5,
-            )
-
+            turns = 5,
+        ) {
             // Simulate reference-client settings: auto-resolve own stack effects
-            harness.session.autoPassState.update(
+            session.autoPassState.update(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)

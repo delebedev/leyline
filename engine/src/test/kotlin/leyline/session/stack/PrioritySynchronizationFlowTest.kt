@@ -30,36 +30,34 @@ class PrioritySynchronizationFlowTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        test("manual synchronization publishes the next Visible action window") {
-            startPuzzle(puzzle, name = "Manual synchronization", turns = 3)
-            val before = harness.messageSnapshot()
+        session("manual synchronization publishes the next Visible action window", puzzle = puzzle, turns = 3) {
+            val before = messageSnapshot()
 
             castSpellByName("Runeclaw Bear").shouldBeTrue()
 
-            val pending = checkNotNull(harness.bridge.actionBridge(SeatId(1)).getPending())
+            val pending = checkNotNull(bridge.actionBridge(SeatId(1)).getPending())
             assertSoftly {
                 pending.state.kind shouldBe PendingActionKind.PRIORITY
-                harness.messagesSince(before).any { it.hasActionsAvailableReq() }.shouldBeTrue()
-                harness.bridge.cutCoordinator
+                messagesSince(before).any { it.hasActionsAvailableReq() }.shouldBeTrue()
+                bridge.cutCoordinator
                     .hasCommittedBatches(SeatId(1))
                     .shouldBeFalse()
             }
-            harness.bridge.throwIfGameLoopFailed()
+            bridge.throwIfGameLoopFailed()
         }
 
-        test("explicit auto-resolve advances through a second SyncOnly stop without an action request") {
-            startPuzzle(puzzle, name = "Automatic synchronization", turns = 3)
-            harness.session.autoPassState.update(
+        session("explicit auto-resolve advances through a second SyncOnly stop without an action request", puzzle = puzzle, turns = 3) {
+            session.autoPassState.update(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
                     .build(),
             )
-            val before = harness.messageSnapshot()
+            val before = messageSnapshot()
 
             castSpellByName("Runeclaw Bear").shouldBeTrue()
 
-            val emitted = harness.messagesSince(before)
+            val emitted = messagesSince(before)
             val significant = emitted.filter { it.hasGameStateMessage() || it.hasActionsAvailableReq() }.map { it.type }
             val firstActionRequest = significant.indexOfFirst { it == GREMessageType.ActionsAvailableReq_695e }
             assertSoftly {
@@ -69,17 +67,17 @@ class PrioritySynchronizationFlowTest :
                     .all {
                         it == GREMessageType.GameStateMessage_695e
                     }.shouldBeTrue()
-                harness.bridge
+                bridge
                     .actionBridge(SeatId(1))
                     .getPending()
                     ?.state
                     ?.kind shouldBe PendingActionKind.PRIORITY
-                harness.bridge.cutCoordinator
+                bridge.cutCoordinator
                     .hasCommittedBatches(SeatId(1))
                     .shouldBeFalse()
                 game().stack.isEmpty.shouldBeTrue()
                 human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Runeclaw Bear"
             }
-            harness.bridge.throwIfGameLoopFailed()
+            bridge.throwIfGameLoopFailed()
         }
     })

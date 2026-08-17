@@ -23,7 +23,10 @@ import java.util.concurrent.atomic.AtomicReference
 @Suppress("SleepInsteadOfDelay", "NoThreadSleepInTests")
 class CopilotAutopushTest :
     SessionTest({
-        test("autopush waits for the exact request and submits pass through the client workflow") {
+        session(
+            "autopush waits for the exact request and submits pass through the client workflow",
+            puzzle = PASS_PUZZLE,
+        ) {
             val statusCount = AtomicInteger(0)
             val submitCount = AtomicInteger(0)
             val rawCount = AtomicInteger(0)
@@ -51,18 +54,17 @@ class CopilotAutopushTest :
             server.start()
 
             try {
-                startPuzzleRaw(PASS_PUZZLE)
                 val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
-                val actionBridge = harness.bridge.seat(SeatId(1)).action
+                val actionBridge = bridge.seat(SeatId(1)).action
                 val pending = actionBridge.getPending() ?: error("expected a pending priority action")
                 onSubmit.set {
-                    harness.bridge.messageCounter.markResponseAccepted()
+                    bridge.messageCounter.markResponseAccepted()
                     actionBridge.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
                 }
 
                 val autopush =
                     CopilotAutopush(
-                        harness.bridge,
+                        bridge,
                         SeatId(1),
                         "http://127.0.0.1:${server.address.port}",
                         nativeReadyPollMs = 0,
@@ -90,7 +92,7 @@ class CopilotAutopushTest :
             }
         }
 
-        test("autopush skips a prompt superseded before native readiness") {
+        session("autopush skips a prompt superseded before native readiness", puzzle = PASS_PUZZLE) {
             val requestCount = AtomicInteger(0)
             val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
             server.createContext("/") { exchange ->
@@ -100,13 +102,12 @@ class CopilotAutopushTest :
             server.start()
 
             try {
-                startPuzzleRaw(PASS_PUZZLE)
                 val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
-                harness.bridge.messageCounter.markPromptMsgId(prompt.msgId + 1)
+                bridge.messageCounter.markPromptMsgId(prompt.msgId + 1)
 
                 val autopush =
                     CopilotAutopush(
-                        harness.bridge,
+                        bridge,
                         SeatId(1),
                         "http://127.0.0.1:${server.address.port}",
                         nativeReadyPollMs = 0,
@@ -196,7 +197,7 @@ class CopilotAutopushTest :
             }
         }
 
-        test("autopush never resubmits after the client delegate reports submitted") {
+        session("autopush never resubmits after the client delegate reports submitted", puzzle = CAST_PUZZLE) {
             val submitCount = AtomicInteger(0)
             val submitted = CountDownLatch(1)
             val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -213,11 +214,10 @@ class CopilotAutopushTest :
             server.start()
 
             try {
-                startPuzzleRaw(CAST_PUZZLE)
                 val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
                 val autopush =
                     CopilotAutopush(
-                        harness.bridge,
+                        bridge,
                         SeatId(1),
                         "http://127.0.0.1:${server.address.port}",
                         nativeReadyPollMs = 0,
@@ -236,15 +236,14 @@ class CopilotAutopushTest :
             }
         }
 
-        test("landed requires the priority window to advance") {
-            startPuzzleRaw(CAST_PUZZLE)
-            val autopush = CopilotAutopush(harness.bridge, SeatId(1), "http://127.0.0.1:1")
+        session("landed requires the priority window to advance", puzzle = CAST_PUZZLE) {
+            val autopush = CopilotAutopush(bridge, SeatId(1), "http://127.0.0.1:1")
             try {
-                val seatAction = harness.bridge.seat(SeatId(1)).action
+                val seatAction = bridge.seat(SeatId(1)).action
                 val pending = seatAction.getPending() ?: error("expected a pending priority window")
-                val baseline = harness.bridge.messageCounter.responsesAccepted()
+                val baseline = bridge.messageCounter.responsesAccepted()
 
-                harness.bridge.messageCounter.markResponseAccepted()
+                bridge.messageCounter.markResponseAccepted()
                 autopush.landed(baseline, pending.actionId) shouldBe false
                 autopush.landed(baseline, null) shouldBe true
 

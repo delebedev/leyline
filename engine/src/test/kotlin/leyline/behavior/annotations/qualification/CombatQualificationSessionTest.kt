@@ -10,6 +10,7 @@ import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.testkit.CardDataDeriver
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -18,8 +19,9 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 class CombatQualificationSessionTest :
     SessionTest({
-        test("cast Pacifism emits can't attack and can't block Qualifications") {
-            startPuzzle(
+        session(
+            "cast Pacifism emits can't attack and can't block Qualifications",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -32,12 +34,11 @@ class CombatQualificationSessionTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Island
                 """.trimIndent(),
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val targetIid = ai.battlefield.iid("Grizzly Bears")
             val aura = human.getZone(ZoneType.Hand).cards.first { it.name == "Pacifism" }
-            harness.bridge.abilityRegistryFor(
+            bridge.abilityRegistryFor(
                 aura,
                 CardDataDeriver.fromForgeCard(aura, "Pacifism").copy(
                     abilityIds = emptyList(),

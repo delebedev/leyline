@@ -3,13 +3,14 @@ package leyline.session.targeting
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.assertGsIdChain
 
 class SearchPromptSessionTest :
     SessionTest({
-        test("search response keeps playback diffs before post-search state") {
-            startPuzzle(
-                """
+        session(
+            "search response keeps playback diffs before post-search state",
+            puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
@@ -21,9 +22,8 @@ class SearchPromptSessionTest :
                 aibattlefield=Forest
                 ailibrary=Forest
                 """,
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             castSpellByName("Sylvan Ranger") shouldBe true
             passPriority()
 
@@ -50,7 +50,7 @@ class SearchPromptSessionTest :
             ) { "Library objects must be published before SearchReq" }
 
             after {
-                harness.respondToSearch(listOf(searchReq.itemsSoughtList.first()))
+                respondToSearch(listOf(searchReq.itemsSoughtList.first()))
             }
 
             assertGsIdChain(allMessages, context = "search response playback drain")

@@ -5,6 +5,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -19,32 +20,29 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 class ElectroduplicateTest :
     SessionTest({
+        // 2 creatures on BF so targeting prompt fires (not auto-resolved for single target).
+        // Auto-pass advances to combat — declare no attackers, pass through to Main2.
+        session(
+            "flashback from GY: targets creature, resolves, spell exiled",
+            """
+            [metadata]
+            Name:Electroduplicate Flashback
+            Goal:Win
+            Turns:5
+            Difficulty:Easy
 
-        test("flashback from GY: targets creature, resolves, spell exiled") {
-            // 2 creatures on BF so targeting prompt fires (not auto-resolved for single target).
-            // Auto-pass advances to combat — declare no attackers, pass through to Main2.
-            val pzl =
-                """
-                [metadata]
-                Name:Electroduplicate Flashback
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=4
 
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=4
-
-                humangraveyard=Electroduplicate
-                humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
-                humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent()
-
-            startPuzzleRaw(pzl)
-
+            humangraveyard=Electroduplicate
+            humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
+            humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            """.trimIndent(),
+        ) {
             // 1. Verify Cast action offered with alternativeGrpId for flashback
             val actions =
                 allMessages
@@ -59,8 +57,8 @@ class ElectroduplicateTest :
 
             // Auto-pass went to combat — skip it to get to Main2
             if (phase() != "MAIN1" && phase() != "MAIN2") {
-                harness.declareNoAttackers()
-                harness.passThroughCombat()
+                declareNoAttackers()
+                passThroughCombat()
             }
 
             val creaturesBefore =
@@ -73,7 +71,7 @@ class ElectroduplicateTest :
             val targetIid = human.battlefield.iid(creaturesBefore.first())
 
             // 2. Cast from GY — triggers SelectTargetsReq
-            val cast = after { harness.castFromGraveyard("Electroduplicate").shouldBeTrue() }
+            val cast = after { castFromGraveyard("Electroduplicate").shouldBeTrue() }
             cast.expectOneSelectTargetsReq()
 
             // 3. Select target + resolve

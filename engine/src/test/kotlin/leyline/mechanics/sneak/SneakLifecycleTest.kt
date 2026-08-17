@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.detail
@@ -39,8 +40,11 @@ private val SNEAK_PUZZLE =
 
 class SneakLifecycleTest :
     SessionTest({
-        test("Sneak returns an unblocked attacker and the permanent enters tapped and attacking") {
-            startPuzzleRaw(SNEAK_PUZZLE, validating = true)
+        session(
+            "Sneak returns an unblocked attacker and the permanent enters tapped and attacking",
+            puzzle = SNEAK_PUZZLE,
+            validating = true,
+        ) {
             val sneakAbilityGrpId = sneakAbilityGrpId()
 
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
@@ -58,7 +62,7 @@ class SneakLifecycleTest :
                 it.manaCostList.map { cost -> cost.abilityGrpId }.shouldContain(sneakAbilityGrpId)
             }
 
-            val castStart = harness.messageSnapshot()
+            val castStart = messageSnapshot()
             castSpellByName("Splinter, Hamato Yoshi", alternativeGrpId = sneakAbilityGrpId).shouldBeTrue()
             passUntil(maxPasses = 5) { allMessages.any { it.hasPayCostsReq() } }.shouldBeTrue()
 
@@ -74,7 +78,7 @@ class SneakLifecycleTest :
                 human.getZone(ZoneType.Battlefield).cards.any { it.name == "Splinter, Hamato Yoshi" }
             }.shouldBeTrue()
 
-            val castMessages = harness.messagesSince(castStart)
+            val castMessages = messagesSince(castStart)
             val castingTimeOption =
                 castMessages
                     .filter { it.hasGameStateMessage() }
@@ -120,13 +124,13 @@ class SneakLifecycleTest :
         }
     })
 
-private fun SessionTest.sneakAbilityGrpId(): Int {
-    val repo = harness.bridge.cardRepository
+private fun MatchFlowHarness.sneakAbilityGrpId(): Int {
+    val repo = bridge.cardRepository
     val cardGrpId = repo.findGrpIdByName("Splinter, Hamato Yoshi")!!
     return repo.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.SNEAK)!!
 }
 
-private fun SessionTest.latestSneakOffer(sneakAbilityGrpId: Int) =
+private fun MatchFlowHarness.latestSneakOffer(sneakAbilityGrpId: Int) =
     allMessages
         .asReversed()
         .firstOrNull { it.hasActionsAvailableReq() }

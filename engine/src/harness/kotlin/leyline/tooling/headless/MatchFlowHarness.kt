@@ -2,12 +2,15 @@ package leyline.tooling.headless
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
@@ -87,6 +90,7 @@ class MatchFlowHarness(
 
     private val matchId = "test-match"
     private val seatId = SeatId(1)
+    private val opponentSeatId = SeatId(2)
 
     val registry = MatchRegistry()
     val sink = ListMessageSink()
@@ -126,6 +130,46 @@ class MatchFlowHarness(
         private set
     lateinit var bridge: GameBridge
         private set
+
+    /**
+     * Bring the match up in whichever mode the caller described, then advance
+     * to the first action phase.
+     *
+     * At most one source may be non-null. All null starts a normal game
+     * (mulligan + keep) from the harness's deck lists.
+     *
+     * @param puzzleText full `.pzl` text (metadata + state)
+     * @param puzzleResource classpath resource path, e.g. `puzzles/bolt-face.pzl`
+     */
+    fun connect(
+        puzzleText: String? = null,
+        puzzleResource: String? = null,
+        aiScript: List<ScriptedAction>? = null,
+    ) {
+        require(puzzleText == null || puzzleResource == null) {
+            "Give at most one puzzle source: inline text or classpath resource"
+        }
+        when {
+            puzzleText != null -> connectAndKeepPuzzleText(puzzleText, aiScript)
+            puzzleResource != null -> connectAndKeepPuzzle(puzzleResource, aiScript)
+            else -> connectAndKeep(aiScript)
+        }
+        cacheSeatPlayers()
+    }
+
+    /**
+     * Resolve both seat handles while the game is still standing.
+     *
+     * [human] and [ai] memoize on first read, and `GameBridge.shutdown` clears
+     * the seat map, so a spec that first touches a seat after the game has ended
+     * — a lethal-damage assertion, a turn-limit loss — would resolve against an
+     * empty map. Binding both at connect keeps the handles valid for the whole
+     * test regardless of when it reads them.
+     */
+    private fun cacheSeatPlayers() {
+        humanRef = bridge.getPlayer(seatId)
+        aiRef = bridge.getPlayer(opponentSeatId)
+    }
 
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
     fun connectAndKeep(aiScript: List<ScriptedAction>? = null) {
@@ -463,6 +507,27 @@ class MatchFlowHarness(
             advanceDefaultStop()
         }
         return stopWhen()
+    }
+
+    /**
+     * Pass priority until the stack is empty. Use after cast + target to resolve.
+     *
+     * Always passes at least once: the stack may already be empty before the
+     * action's effect lands, because auto-pass can resolve it during
+     * `selectTargets` / `drainSink`.
+     */
+    fun passUntilResolved(maxPasses: Int = 10) {
+        repeat(maxPasses) {
+            if (isGameOver()) return
+            passPriority()
+            val retainedSynchronization =
+                bridge
+                    .actionBridge(seatId)
+                    .getPending()
+                    ?.state
+                    ?.kind == PendingActionKind.SYNC_ONLY
+            if (game().stackZone.size() == 0 && !retainedSynchronization) return
+        }
     }
 
     /**
@@ -1000,6 +1065,15 @@ class MatchFlowHarness(
     /** Get all annotations from game-state messages since a snapshot point. */
     fun annotationsSince(snapshot: Int): List<AnnotationInfo> = messageLog.annotationsSince(snapshot)
 
+    /** Most recent [SelectNReq] the harness has drained. */
+    fun lastSelectNReq(): SelectNReq = allMessages.last { it.hasSelectNReq() }.selectNReq
+
+    /** Most recent [GroupReq] the harness has drained. */
+    fun lastGroupReq(): GroupReq = allMessages.last { it.hasGroupReq() }.groupReq
+
+    /** Most recent [CastingTimeOptionsReq] the harness has drained. */
+    fun lastCastingTimeOptionsReq(): CastingTimeOptionsReq = allMessages.last { it.hasCastingTimeOptionsReq() }.castingTimeOptionsReq
+
     // --- State queries ---
 
     fun phase(): String? = game().phaseHandler.phase?.name
@@ -1034,6 +1108,99 @@ class MatchFlowHarness(
 
     fun game(): Game = bridge.getGame() ?: error("Game was not initialised")
 
+    // --- Seat handles ---
+    //
+    // Resolved once and held. Forge `Player` identity is stable for the whole
+    // game, but the bridge clears its seat map when the match closes — and a
+    // game that reaches its end during a test still has a readable final board
+    // that specs assert on. Caching keeps those assertions working.
+
+    private var humanRef: Player? = null
+    private var aiRef: Player? = null
+
+    /** Human player — seat 1. */
+    val human: Player get() = humanRef ?: resolveSeat(seatId).also { humanRef = it }
+
+    /** AI / opponent player — seat 2. */
+    val ai: Player get() = aiRef ?: resolveSeat(opponentSeatId).also { aiRef = it }
+
+    /** Seat handle if one has been resolved or is still reachable, else null. */
+    internal fun seatPlayerOrNull(seat: SeatId): Player? =
+        when (seat) {
+            seatId -> humanRef
+            opponentSeatId -> aiRef
+            else -> null
+        } ?: if (::bridge.isInitialized) bridge.getPlayer(seat) else null
+
+    private fun resolveSeat(seat: SeatId): Player =
+        bridge.getPlayer(seat) ?: error("No player at seat ${seat.value} — call connect() first")
+
+    // --- Instance probe DSL ---
+
+    /** Battlefield zone of [this] player as a probe handle. */
+    val Player.battlefield: PlayerZone get() = PlayerZone(this, ZoneType.Battlefield)
+
+    /** Hand zone of [this] player as a probe handle. */
+    val Player.hand: PlayerZone get() = PlayerZone(this, ZoneType.Hand)
+
+    /** Graveyard zone of [this] player as a probe handle. */
+    val Player.graveyard: PlayerZone get() = PlayerZone(this, ZoneType.Graveyard)
+
+    /** Exile zone of [this] player as a probe handle. */
+    val Player.exile: PlayerZone get() = PlayerZone(this, ZoneType.Exile)
+
+    /** Library zone of [this] player as a probe handle. */
+    val Player.library: PlayerZone get() = PlayerZone(this, ZoneType.Library)
+
+    /**
+     * Resolve a card by name within this (player, zone) handle to its
+     * instanceId, so call sites read like a path:
+     * `human.battlefield.iid("Walking Corpse")`.
+     */
+    fun PlayerZone.iid(cardName: String): Int = iidVia(bridge, cardName)
+
+    /**
+     * Resolve a [Card] already held by the caller to its instanceId. The zone
+     * is informational only — the bridge keys by Forge card id — but keeping
+     * the call shape uniform makes probe sites read the same way.
+     */
+    fun PlayerZone.iid(card: Card): Int = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+
+    /** Resolve several cards by name — `human.battlefield.iids("A", "B", "C")`. */
+    fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
+
+    /**
+     * Resolve a card by name in [player]'s [zone]. Prefer the probe DSL; use
+     * this when the zone or player is computed at runtime.
+     */
+    fun instanceIdOf(
+        cardName: String,
+        player: Player = human,
+        zone: ZoneType = ZoneType.Battlefield,
+    ): Int = PlayerZone(player, zone).iidVia(bridge, cardName)
+
+    /**
+     * Resolve an instanceId back to its Forge [Card], or null when the mapping
+     * is stale (card zoned out or the instanceId was reallocated).
+     */
+    fun cardByIid(iid: Int): Card? {
+        val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return null
+        return game().findById(cardId.value)
+    }
+
+    /** Resolve an instanceId to its card name. Fails clearly when unmapped. */
+    fun cardName(instanceId: Int): String =
+        cardByIid(instanceId)?.name
+            ?: error("No card for instanceId $instanceId")
+
+    /** Find the instanceId naming [name] among [candidateIds]. */
+    fun findInstanceId(
+        candidateIds: List<Int>,
+        name: String,
+    ): Int =
+        candidateIds.firstOrNull { cardName(it) == name }
+            ?: error("Card '$name' not found in candidates: $candidateIds")
+
     /**
      * True when the seat's [GameActionBridge] has a pending action awaiting
      * the client's response. False means the engine isn't blocked on us — any
@@ -1047,7 +1214,9 @@ class MatchFlowHarness(
 
     fun shutdown() {
         if (::session.isInitialized) session.close()
-        bridge.shutdown()
+        // `connect` can fail before the bridge exists; teardown must not then
+        // replace the real failure with an uninitialised-property error.
+        if (::bridge.isInitialized) bridge.shutdown()
     }
 
     // --- Real-client gsId reflection ---

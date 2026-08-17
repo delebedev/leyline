@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.annotation
 import leyline.testkit.detailInt
 import leyline.testkit.detailUint
@@ -14,8 +15,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class StationLifecycleTest :
     SessionTest({
-        test("Lumen-Class Frigate station resolves with shared Station ability grpId") {
-            startPuzzle(
+        session(
+            "Lumen-Class Frigate station resolves with shared Station ability grpId",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -26,10 +28,8 @@ class StationLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Station Lumen-Class Frigate",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             activateAbility("Lumen-Class Frigate").shouldBeTrue()
             val bearIid = human.battlefield.iid("Grizzly Bears")
 

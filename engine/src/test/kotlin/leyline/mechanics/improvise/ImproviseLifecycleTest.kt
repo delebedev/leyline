@@ -8,7 +8,9 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.hasDetail
 import leyline.testkit.haveManaCost
@@ -21,8 +23,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 
 class ImproviseLifecycleTest :
     SessionTest({
-        test("Ironheart pays Improvise through PayCostsReq") {
-            startPuzzle(
+        session(
+            "Ironheart pays Improvise through PayCostsReq",
+            puzzle =
                 """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -34,10 +37,8 @@ class ImproviseLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-                name = "Improvise Ironheart",
-                validating = true,
-            )
-
+            validating = true,
+        ) {
             val artifactIids =
                 listOf(
                     human.battlefield.iid("Ornithopter"),
@@ -93,26 +94,26 @@ class ImproviseLifecycleTest :
         }
     })
 
-private fun SessionTest.respondToMakePayment(instanceId: Int) {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToMakePayment(instanceId: Int) {
+    session.onPerformAction(
+        submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
                 this.instanceId = instanceId
-            }.toBuilder().setGameStateId(harness.latestPromptGsId()).build(),
+            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
 
-private fun SessionTest.respondToPaymentDone() {
-    harness.session.onPerformAction(
-        harness.submitWithGsId(
+private fun MatchFlowHarness.respondToPaymentDone() {
+    session.onPerformAction(
+        submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()
-                .setGameStateId(harness.latestPromptGsId())
+                .setGameStateId(latestPromptGsId())
                 .build(),
         ),
     )
-    harness.drainSink()
+    drainSink()
 }
