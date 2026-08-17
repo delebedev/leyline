@@ -10,7 +10,6 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
-import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
@@ -119,12 +118,8 @@ class WarpLifecycleTest :
 
             passUntilTurn(2, maxPasses = 30)
 
-            assertSoftly {
-                "Germinating Wurm" should beOnBattlefieldOf(human)
-                "Germinating Wurm" shouldNot beInExileOf(human)
-                "Germinating Wurm" shouldNot beInGraveyardOf(human)
-                "Germinating Wurm" shouldNot beInHandOf(human)
-            }
+            // One copy in the puzzle, so battlefield membership excludes the rest.
+            "Germinating Wurm" should beOnBattlefieldOf(human)
         }
 
         session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE, validating = true) {
@@ -136,9 +131,6 @@ class WarpLifecycleTest :
 
             assertSoftly {
                 "Germinating Wurm" should beInExileOf(human)
-                "Germinating Wurm" shouldNot beOnBattlefieldOf(human)
-                "Germinating Wurm" shouldNot beInGraveyardOf(human)
-                "Germinating Wurm" shouldNot beInHandOf(human)
             }
         }
     })

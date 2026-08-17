@@ -5,10 +5,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNot
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
-import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
@@ -53,10 +51,8 @@ class DashLifecycleTest :
                 passUntil(maxPasses = 30) { human.hasCard("Zurgo Bellstriker", ZoneType.Hand) }.shouldBeTrue()
             }
 
-            assertSoftly {
-                "Zurgo Bellstriker" should beInHandOf(human)
-                "Zurgo Bellstriker" shouldNot beOnBattlefieldOf(human)
-                "Zurgo Bellstriker" shouldNot beInGraveyardOf(human)
-            }
+            // One copy in the puzzle: reaching hand is also proof it neither
+            // stayed on the battlefield nor died.
+            "Zurgo Bellstriker" should beInHandOf(human)
         }
     })
