@@ -69,7 +69,7 @@ class WeakAssertionOnly(config: Config) : Rule(
         root.accept(object : KtTreeVisitorVoid() {
             override fun visitCallExpression(expression: KtCallExpression) {
                 val name = expression.calleeExpression?.text
-                if (name != null && isAssertion(name)) {
+                if (name != null && isAssertion(name) && !expression.isBareCheck(name)) {
                     found += name
                 }
                 super.visitCallExpression(expression)
@@ -139,8 +139,9 @@ class WeakAssertionOnly(config: Config) : Rule(
             "shouldNotThrowExactly",
             "shouldMatcher",
             "shouldNotMatcher",
-            // ArchUnit: .check(classes) is the evaluation step of a rule.
-            // Kotlin stdlib: check(cond) / checkNotNull(x) throw on false/null.
+            // ArchUnit: `<rule>.check(classes)` is the evaluation step of a rule.
+            // Kotlin's bare `check(cond)` is excluded upstream of this set —
+            // it reports `Check failed.` without printing either value.
             "check",
             "checkNotNull",
         )
