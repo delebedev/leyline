@@ -177,9 +177,7 @@ class DisturbActionTest :
                 }
             val card =
                 game.humanPlayer.graveyard.card("Galedrifter")
-            val waildrifterGrpId =
-                b.cardRepository.findGrpIdByName("Waildrifter")
-                    ?: TestCardRegistry.ensureCardRegistered("Waildrifter")
+            val waildrifterGrpId = TestCardRegistry.ensureCardRegistered("Waildrifter")
             val othersideGrpId = SnapshotCapture.resolveOthersideGrpId(card, b.cardRepository)
             othersideGrpId shouldBeGreaterThan 0
             othersideGrpId shouldBe waildrifterGrpId
@@ -192,9 +190,12 @@ class DisturbActionTest :
                 }
             val card =
                 game.humanPlayer.battlefield.card("Lunarch Veteran")
+            // Registering the back face standalone would hand back a different
+            // grpId than the one Lunarch Veteran's closure registered, so a miss
+            // here is a setup failure, not something to paper over.
             val luminousPhantomGrpId =
                 b.cardRepository.findGrpIdByNameAnyFace("Luminous Phantom")
-                    ?: TestCardRegistry.ensureCardRegistered("Luminous Phantom")
+                    ?: error("Lunarch Veteran's closure did not register its 'Luminous Phantom' back face")
 
             val othersideGrpId = SnapshotCapture.resolveOthersideGrpId(card, b.cardRepository)
 
