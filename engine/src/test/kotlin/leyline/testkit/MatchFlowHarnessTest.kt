@@ -11,6 +11,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -325,6 +326,26 @@ class MatchFlowHarnessTest :
                     it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Diff
                 }
             diffs.size shouldBeGreaterThanOrEqualTo 2
+        }
+
+        test("passUntilTurn advances through a cleanup discard") {
+            // Holding more than seven cards at end of turn produces a SelectNReq
+            // and no priority window. A pass loop that only knows how to Pass
+            // answers nothing, and the game sits in CLEANUP until the budget
+            // runs out — silently, since nothing throws.
+            val h = MatchFlowHarness(seed = AI_FIRST_SEED)
+            harness = h
+            h.connectAndKeep()
+            h.human.getZone(forge.game.zone.ZoneType.Hand).size() shouldBeGreaterThan 7
+
+            h.passUntilTurn(3)
+
+            // Hand size is not asserted afterwards: the discard happens at the
+            // end of turn 2 and the draws for turns 3 and 4 refill past seven.
+            assertSoftly {
+                h.isGameOver().shouldBeFalse()
+                h.turn() shouldBeGreaterThanOrEqual 3
+            }
         }
 
         test("AI turn phase annotation has details") {
