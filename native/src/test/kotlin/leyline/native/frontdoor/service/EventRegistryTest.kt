@@ -1,7 +1,10 @@
 package leyline.native.frontdoor.service
 
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -41,7 +44,7 @@ class EventRegistryTest :
 
             // AIBotMatch NOT in Events (lives in AiBotMatches)
             val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
-            check("AIBotMatch" !in names) { "AIBotMatch should not be in Events array" }
+            names shouldNotContain "AIBotMatch"
 
             val bots = obj["AiBotMatches"]?.jsonArray ?: error("no AiBotMatches")
             bots shouldHaveAtLeastSize 2
@@ -77,24 +80,30 @@ class EventRegistryTest :
         test("every event has non-null Group in EventUXInfo") {
             val result = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
             val events = json.parseToJsonElement(result).jsonObject["Events"]!!.jsonArray
-            for (event in events) {
-                val name = event.jsonObject["InternalEventName"]?.jsonPrimitive?.content
-                val group = event.jsonObject["EventUXInfo"]?.jsonObject?.get("Group")
-                check(group != null) { "Event $name has null Group — client will NRE" }
+            val groupless =
+                events
+                    .filter { it.jsonObject["EventUXInfo"]?.jsonObject?.get("Group") == null }
+                    .mapNotNull { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
+
+            withClue("events with a null EventUXInfo.Group — the client NREs on these") {
+                groupless.shouldBeEmpty()
             }
         }
 
         test("every queue EventNameBO1/BO3 has a matching active event") {
             val eventNames = EventRegistry.events.map { it.internalName }.toSet()
-            for (q in EventRegistry.queues) {
-                check(q.eventNameBO1 in eventNames) {
-                    "Queue ${q.id} references EventNameBO1='${q.eventNameBO1}' but no matching event exists — client will lock the tab"
+            val dangling =
+                EventRegistry.queues.flatMap { q ->
+                    listOfNotNull(
+                        "${q.id}.EventNameBO1=${q.eventNameBO1}".takeIf { q.eventNameBO1 !in eventNames },
+                        "${q.id}.EventNameBO3=${q.eventNameBO3}".takeIf {
+                            q.eventNameBO3 != null && q.eventNameBO3 !in eventNames
+                        },
+                    )
                 }
-                if (q.eventNameBO3 != null) {
-                    check(q.eventNameBO3 in eventNames) {
-                        "Queue ${q.id} references EventNameBO3='${q.eventNameBO3}' but no matching event exists — client will lock the tab"
-                    }
-                }
+
+            withClue("queue references with no matching event — the client locks the tab") {
+                dangling.shouldBeEmpty()
             }
         }
 
@@ -103,10 +112,12 @@ class EventRegistryTest :
             val result = EventWireBuilder.toDefaultCoursesJson(EventRegistry.defaultCourses)
             val courses = json.parseToJsonElement(result).jsonObject["Courses"]!!.jsonArray
             courses shouldHaveAtLeastSize 1
-            for (course in courses) {
-                val name = course.jsonObject["InternalEventName"]!!.jsonPrimitive.content
-                check(name in eventNames) { "Course references unknown event '$name'" }
-            }
+            val unknown =
+                courses
+                    .map { it.jsonObject["InternalEventName"]!!.jsonPrimitive.content }
+                    .filterNot(eventNames::contains)
+
+            withClue("default courses referencing an unknown event") { unknown.shouldBeEmpty() }
         }
 
         test("findEvent returns known event") {
