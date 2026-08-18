@@ -11,6 +11,7 @@ import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.annotation
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -50,10 +51,10 @@ class CoinFlipLifecycleTest :
                     .shouldNotBeNull()
             val prompt = messages.first { it.type == GREMessageType.PromptReq && it.prompt.promptId == PromptIds.COIN_FLIP }.prompt
             val annotations = resolutionGsm.annotationsList
-            val resolutionStart = annotations.first { AnnotationType.ResolutionStart in it.typeList }
-            val coinFlip = annotations.first { AnnotationType.CoinFlip in it.typeList }
-            val resolutionComplete = annotations.first { AnnotationType.ResolutionComplete in it.typeList }
-            val abilityDeleted = annotations.first { AnnotationType.AbilityInstanceDeleted in it.typeList }
+            val resolutionStart = annotations.annotation(AnnotationType.ResolutionStart)
+            val coinFlip = annotations.annotation(AnnotationType.CoinFlip)
+            val resolutionComplete = annotations.annotation(AnnotationType.ResolutionComplete)
+            val abilityDeleted = annotations.annotation(AnnotationType.AbilityInstanceDeleted)
             val types = annotations.map { it.typeList.first() }
             val lifeDeltas =
                 messages

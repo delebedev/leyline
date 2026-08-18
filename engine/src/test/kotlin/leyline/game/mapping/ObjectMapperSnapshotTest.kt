@@ -29,10 +29,7 @@ class ObjectMapperSnapshotTest :
                     addCard("Grizzly Bears", human, ZoneType.Hand)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.humanPlayer.hand.card("Grizzly Bears")
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -57,10 +54,7 @@ class ObjectMapperSnapshotTest :
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.humanPlayer.battlefield.card("Grizzly Bears")
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -97,10 +91,7 @@ class ObjectMapperSnapshotTest :
                     addCard("Grizzly Bears", human, ZoneType.Graveyard)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Graveyard)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.humanPlayer.graveyard.card("Grizzly Bears")
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -134,10 +125,7 @@ class ObjectMapperSnapshotTest :
                     addCard("Concealing Curtains", human, ZoneType.Battlefield)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Concealing Curtains" }
+                game.humanPlayer.battlefield.card("Concealing Curtains")
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -172,10 +160,7 @@ class ObjectMapperSnapshotTest :
                     addCard("Chandra, Torch of Defiance", human, ZoneType.Battlefield)
                 }
             val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Chandra, Torch of Defiance" }
+                game.humanPlayer.battlefield.card("Chandra, Torch of Defiance")
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 
@@ -202,10 +187,7 @@ class ObjectMapperSnapshotTest :
                     addCard("Grizzly Bears", ai, ZoneType.Battlefield)
                 }
             val card =
-                game.aiPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.aiPlayer.battlefield.card("Grizzly Bears")
             val fid = ForgeCardId(card.id)
             val instanceId = b.getOrAllocInstanceId(fid).value
 

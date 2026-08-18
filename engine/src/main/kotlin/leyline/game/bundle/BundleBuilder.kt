@@ -2245,7 +2245,7 @@ class BundleBuilder(
          * draw — one that should be emitted as [GameStateUpdate.SendHiFi] rather
          * than the default [GameStateUpdate.SendAndRecord].
          *
-         * The wire contract (bead leyline-pey) marks spell-driven draws in Main1
+         * The wire contract marks spell-driven draws in Main1
          * (Divination, Opt, etc.) as `SendAndRecord`, but turn-boundary auto-draws
          * and upkeep-triggered draws as `SendHiFi`. This helper detects the
          * latter by requiring all of:

@@ -11,78 +11,84 @@ import io.kotest.matchers.MatcherResult
  *
  * ```
  * "Grizzly Bears" should beInHandOf(human)
- * "Coral Merfolk" shouldNot beOnBattlefieldOf(ai)
  * "Forest" should beOnBattlefieldOf(human, count = 2)
- * "Treasure Token" should beInZoneOf(ZoneType.Battlefield, human)
+ * "Treasure Token" should beInZoneOf(ZoneType.Battlefield, human, count = 3)
  * ```
  *
- * Failure messages name the card, player, zone, and (when set) count so
- * assertSoftly reports are self-describing.
- *
- * Negation gotcha — `count` flips to *exact-cardinality negation*. With
- * `count = N`, the predicate is `actual == N`, so `shouldNot beInZoneOf(zone,
- * p, count = 1)` passes when the actual count is 0 OR 2+ — it does NOT mean
- * "must not be in zone in any quantity." For "X must not be in zone at all"
- * use `shouldNot beInZoneOf(zone, p)` with no count.
+ * `count` defaults to 1 and means **exactly N** copies. Failure messages name
+ * the card, player, zone, and count so assertSoftly reports are self-describing.
+ * For "X must not be in zone at all" use `should beMissingFrom(zone, player)`.
  */
 
 fun beInZoneOf(
     zone: ZoneType,
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> =
     Matcher { cardName ->
         val actual = player.getZone(zone).cards.count { it.name == cardName }
-        val passed =
-            if (count == null) {
-                actual >= 1
-            } else {
-                actual == count
-            }
-        val expectation =
-            if (count == null) {
-                "'$cardName' should be in ${player.name}'s $zone"
-            } else {
-                "${player.name}'s $zone should contain $count copies of '$cardName' (found $actual)"
-            }
-        val negation =
-            if (count == null) {
-                "'$cardName' should not be in ${player.name}'s $zone"
-            } else {
-                "${player.name}'s $zone should not contain $count copies of '$cardName' (found $actual)"
-            }
+        val passed = actual == count
+        val expectation = "${player.name}'s $zone should contain exactly $count copy(ies) of '$cardName' (found $actual)"
+        val negation = "${player.name}'s $zone should not contain exactly $count copy(ies) of '$cardName' (found $actual)"
         MatcherResult(passed, { expectation }, { negation })
     }
 
 fun beInHandOf(
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> = beInZoneOf(ZoneType.Hand, player, count)
 
 fun beOnBattlefieldOf(
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> = beInZoneOf(ZoneType.Battlefield, player, count)
 
 fun beInGraveyardOf(
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> = beInZoneOf(ZoneType.Graveyard, player, count)
 
 fun beInLibraryOf(
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> = beInZoneOf(ZoneType.Library, player, count)
 
 fun beInExileOf(
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> = beInZoneOf(ZoneType.Exile, player, count)
 
 fun beInCommandOf(
     player: Player,
-    count: Int? = null,
+    count: Int = 1,
 ): Matcher<String> = beInZoneOf(ZoneType.Command, player, count)
+
+/** Assert that a card does NOT appear in a zone (count = 0). */
+fun beMissingFrom(
+    zone: ZoneType,
+    player: Player,
+): Matcher<String> =
+    Matcher { cardName ->
+        val actual = player.getZone(zone).cards.count { it.name == cardName }
+        val passed = actual == 0
+        val expectation = "${player.name}'s $zone should not contain '$cardName' (found $actual)"
+        val negation = "${player.name}'s $zone should contain '$cardName' but didn't"
+        MatcherResult(passed, { expectation }, { negation })
+    }
+
+/** Assert that a card is on top of a zone (first in the list). */
+fun haveOnTop(cardName: String): Matcher<PlayerZone> =
+    Matcher { zone ->
+        val cards = zone.player.getZone(zone.zone).cards
+        val actual = cards.firstOrNull()?.name
+        val passed = actual == cardName
+        val present = cards.map { it.name }
+        val expectation =
+            "${zone.player.name}'s ${zone.zone.name} top should be '$cardName' but was '$actual'\n" +
+                "${zone.zone.name} (${cards.size}): $present"
+        val negation = "${zone.player.name}'s ${zone.zone.name} should not have '$cardName' on top (but does)"
+        MatcherResult(passed, { expectation }, { negation })
+    }
 
 /**
  * Zone membership as a plain predicate, for wait conditions such as

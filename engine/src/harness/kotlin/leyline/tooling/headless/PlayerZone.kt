@@ -1,5 +1,6 @@
 package leyline.tooling.headless
 
+import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
@@ -23,15 +24,35 @@ data class PlayerZone(
 )
 
 /**
+ * Find a card by name in [player]'s [zone], naming what the zone did hold when
+ * the lookup fails. Single implementation behind the `card` members, the
+ * [Player.card] extension, and [iidVia].
+ */
+fun cardIn(
+    player: Player,
+    zone: ZoneType,
+    cardName: String,
+): Card {
+    val cards = player.getZone(zone).cards
+    return cards.firstOrNull { it.name == cardName }
+        ?: error("No '$cardName' in ${player.name}'s $zone. Present: ${cards.map { it.name }}")
+}
+
+/**
+ * Zone-qualified card lookup for call sites that hold a [Player] but no probe
+ * handle — unit-tier tests driving a bare Forge `Game`. Harness-tier tests
+ * should prefer the probe DSL (`human.battlefield.card("Grizzly Bears")`).
+ */
+fun Player.card(
+    name: String,
+    zone: ZoneType,
+): Card = cardIn(this, zone, name)
+
+/**
  * Resolve a card by name within this (player, zone) handle to its proto
  * instanceId through [bridge]. Single implementation behind the `iid` members.
  */
 fun PlayerZone.iidVia(
     bridge: GameBridge,
     cardName: String,
-): Int {
-    val card =
-        player.getZone(zone).cards.firstOrNull { it.name == cardName }
-            ?: error("Card '$cardName' not found in ${player.name} $zone")
-    return bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-}
+): Int = bridge.getOrAllocInstanceId(ForgeCardId(cardIn(player, zone, cardName).id)).value

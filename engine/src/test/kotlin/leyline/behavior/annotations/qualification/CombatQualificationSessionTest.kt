@@ -1,6 +1,5 @@
 package leyline.behavior.annotations.qualification
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.comparables.shouldBeLessThan
@@ -8,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
+import leyline.testkit.*
 import leyline.testkit.CardDataDeriver
 import leyline.testkit.SessionTest
 import leyline.testkit.after
@@ -36,7 +36,7 @@ class CombatQualificationSessionTest :
                 """.trimIndent(),
         ) {
             val targetIid = ai.battlefield.iid("Grizzly Bears")
-            val aura = human.getZone(ZoneType.Hand).cards.first { it.name == "Pacifism" }
+            val aura = human.hand.card("Pacifism")
             bridge.abilityRegistryFor(
                 aura,
                 CardDataDeriver.fromForgeCard(aura, "Pacifism").copy(

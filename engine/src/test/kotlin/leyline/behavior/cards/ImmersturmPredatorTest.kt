@@ -46,10 +46,7 @@ class ImmersturmPredatorTest :
             phase() shouldBe "MAIN1"
 
             val predatorBefore =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Immersturm Predator" }
+                human.battlefield.card("Immersturm Predator")
             val basePower = predatorBefore.netPower
 
             // --- Step 1: Activate sacrifice ability ---
@@ -84,10 +81,8 @@ class ImmersturmPredatorTest :
                 .shouldBeTrue()
 
             // Predator should be tapped (from the ability's "Tap it" rider)
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .first { it.name == "Immersturm Predator" }
+            human.battlefield
+                .card("Immersturm Predator")
                 .isTapped
                 .shouldBeTrue()
 
@@ -118,10 +113,7 @@ class ImmersturmPredatorTest :
 
             // Verify Predator got +1/+1 counter
             val predatorAfter =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Immersturm Predator" }
+                human.battlefield.card("Immersturm Predator")
             predatorAfter.netPower shouldBeGreaterThan basePower
             predatorAfter.getCounters(forge.game.card.CounterEnumType.P1P1) shouldBeGreaterThan 0
 

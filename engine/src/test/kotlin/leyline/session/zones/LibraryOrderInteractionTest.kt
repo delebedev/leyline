@@ -3,15 +3,20 @@ package leyline.session.zones
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.annotation
 import leyline.testkit.annotations
 import leyline.testkit.assertAccumulatorConsistent
+import leyline.testkit.beInGraveyardOf
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailIntList
 import leyline.testkit.detailString
+import leyline.testkit.haveOnTop
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -64,11 +69,7 @@ class LibraryOrderInteractionTest :
 
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .first()
-                .name shouldBe "Grizzly Bears"
+            human.library should haveOnTop("Grizzly Bears")
         }
 
         session("grouping prompt rejects SelectTargetsResp without consuming the pending route", puzzle = surveil1State) {
@@ -88,11 +89,7 @@ class LibraryOrderInteractionTest :
                 .current()
                 ?.interactionId shouldBe promptBefore.interactionId
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .first()
-                .name shouldBe "Grizzly Bears"
+            human.library should haveOnTop("Grizzly Bears")
         }
 
         session("surveil 1 — put in graveyard moves card and produces Surveil annotation", puzzle = surveil1State) {
@@ -102,19 +99,10 @@ class LibraryOrderInteractionTest :
             respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Grizzly Bears in graveyard
-            val gyBears =
-                human
-                    .getZone(ForgeZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Grizzly Bears" }
-            gyBears shouldHaveSize 1
+            "Grizzly Bears" should beInGraveyardOf(human)
 
             // Library top is now Forest (Bears was removed)
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .first()
-                .name shouldBe "Forest"
+            human.library should haveOnTop("Forest")
 
             // ZoneTransfer annotation with Surveil category and non-zero affectorId
             val annotations = annotationsSince(snap)
@@ -244,29 +232,21 @@ class LibraryOrderInteractionTest :
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Wall of Runes on battlefield
-            human
-                .getZone(ForgeZoneType.Battlefield)
-                .cards
-                .filter { it.name == "Wall of Runes" } shouldHaveSize 1
+            "Wall of Runes" should beOnBattlefieldOf(human)
 
             // Scry annotation emitted
             val scryAnn =
                 allMessages
                     .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.annotationsList else emptyList() }
-                    .firstOrNull { ann -> ann.typeList.any { it == AnnotationType.Scry_af5a } }
+                    .annotation(AnnotationType.Scry_af5a)
             assertSoftly {
-                scryAnn.shouldNotBeNull()
                 scryAnn.affectedIdsList shouldBe cardIds
                 scryAnn.detailIntList("topIds") shouldBe emptyList()
                 scryAnn.detailIntList("bottomIds") shouldBe cardIds
             }
 
             // Grizzly Bears moved to bottom — library top is now Forest
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .first()
-                .name shouldBe "Forest"
+            human.library should haveOnTop("Forest")
         }
 
         session("scry 1 — keep on top", puzzle = scryState) {
@@ -275,11 +255,7 @@ class LibraryOrderInteractionTest :
             respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Grizzly Bears still on library top
-            human
-                .getZone(ForgeZoneType.Library)
-                .cards
-                .first()
-                .name shouldBe "Grizzly Bears"
+            human.library should haveOnTop("Grizzly Bears")
         }
 
         session(

@@ -9,6 +9,7 @@ import leyline.testkit.BoardTest
 import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.gsm
 import leyline.testkit.humanPlayer
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
  * Validates gsId chain **semantics** beyond structural invariants.
@@ -75,12 +76,19 @@ class GsIdChainTest :
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             assertSoftly {
                 gsms.size shouldBeGreaterThanOrEqual 3
+                // msg1 is SendHiFi: never carries pendingMessageCount, even though
+                // it embeds actions for display.
+                gsms[0].update shouldBe GameStateUpdate.SendHiFi
+                gsms[0].pendingMessageCount shouldBe 0
+
                 // msg2 (echo) chains from msg1, no pendingMessageCount
                 gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
                 gsms[1].pendingMessageCount shouldBe 0
 
-                // msg3 (commit) chains from echo
+                // msg3 (commit) chains from echo and is the real pending signal
                 gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+                gsms[2].update shouldBe GameStateUpdate.SendAndRecord
+                gsms[2].pendingMessageCount shouldBe 1
             }
         }
     })

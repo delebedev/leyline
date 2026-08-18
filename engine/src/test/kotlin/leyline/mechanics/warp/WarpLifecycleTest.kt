@@ -4,13 +4,12 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
-import leyline.testkit.beInHandOf
+import leyline.testkit.beMissingFrom
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.testkit.hasCard
@@ -86,7 +85,7 @@ class WarpLifecycleTest :
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
 
             assertSoftly {
-                "Germinating Wurm" shouldNot beInHandOf(human)
+                "Germinating Wurm" should beMissingFrom(ZoneType.Hand, human)
                 human.hasCardAnywhereExceptHand("Germinating Wurm") shouldBe true
             }
         }

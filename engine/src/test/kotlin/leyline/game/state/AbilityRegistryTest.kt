@@ -192,7 +192,7 @@ class AbilityRegistryTest :
             mappedGrpIds shouldBe expectedSlots
         }
 
-        // Regression for leyline-xht: when CardData carries Arena-style
+        // When CardData carries Arena-style
         // abilityKinds with a non-activated slot (trigger/static) interleaved
         // before the activated abilities, the registry must skip those slots
         // when assigning Forge activated SAs to abilityGrpIds.

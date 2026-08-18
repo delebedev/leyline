@@ -47,8 +47,10 @@ class CardProtoBuilder(
     private val faceDownPowerAndToughness = 2
 
     /**
-     * Build a [GameObjectInfo] for a face-down permanent (Disguise, Morph,
-     * Manifest, Cloak). The projection drops printed identity (name,
+     * Build a [GameObjectInfo] for a face-down permanent. Disguise is the
+     * only mechanic wired to this today; the projection itself is
+     * mechanic-agnostic, so Morph, Manifest and Cloak reuse it once their
+     * snapshot recognizers land. The projection drops printed identity (name,
      * subtypes, color, the per-card abilities) and substitutes the
      * universal face-down stencil — `overlayGrpId=3`, single
      * "Turn face up" ability `141939`, 2/2 P/T, `Creature` card type.

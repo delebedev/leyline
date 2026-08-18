@@ -119,8 +119,8 @@ object TransferAnnotations {
         // Persistent: CastingTimeOption variants (alt-cost / kicker / chooseX)
         // for the just-cast spell. Attached to the staged stack object;
         // deleted via diffDeletedPersistentAnnotationIds when the spell
-        // leaves the stack — see leyline-ucbf for the resolver that lets a
-        // PersistentAnnotationKind close the lifecycle cleanly.
+        // leaves the stack. PersistentAnnotationKind owns the resolver that
+        // closes that lifecycle.
         emitCastingTimeOptions(persistent, transfer, category, newId, altCostGrpId, castAbilityGrpId)
 
         // Persistent: ColorProduction for lands entering the battlefield

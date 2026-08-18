@@ -561,7 +561,7 @@ class PersistentAnnotationKindTest :
         }
 
         test("AbilityWordActive value transition emits delete-old + add-new in the same BatchResult") {
-            // Regression guard for leyline-ety5: the deletion ID flows through
+            // The deletion ID flows through
             // BatchResult.deletedIds and is drained directly into the GSM at
             // build time. If a refactor reintroduces the old "queue, drain
             // next frame" plumbing, the deletion would shift to the next

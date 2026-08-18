@@ -13,6 +13,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allAnnotations
@@ -97,7 +98,7 @@ class TreasureTokenTest :
             bfNames shouldContain "Prosperous Innkeeper"
             bfNames shouldContain "Treasure Token"
 
-            val treasure = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Treasure Token" }
+            val treasure = human.battlefield.card("Treasure Token")
             treasure.isToken.shouldBeTrue()
 
             // --- Regression: Treasure grpId must resolve to non-zero ---

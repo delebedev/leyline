@@ -25,8 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * Warp hand-cast-with-alternate-cost path.
  *
  * Scope (strict): only the cast-from-hand rail. No library-top offers, no
- * post-exile recast offers, no library-reveal flow — those shapes are not
- * attested in recordings.
+ * post-exile recast offers, no library-reveal flow.
  *
  * Card: Germinating Wurm (ManaCost 4G, Warp {1}{G}, ETB gain 2 life — no
  * mandatory target).
@@ -65,7 +64,7 @@ class WarpActionTest :
         }
 
         test("ActionMapper emits warp offer when production-shape CardData lacks keywordAbilityGrpIds") {
-            // Regression for leyline-g3zg. ExposedCardRepository does not populate
+            // ExposedCardRepository does not populate
             // keywordAbilityGrpIds (no column in the Cards table), so CardData arrives
             // at the mapper with an empty keyword-name → grpId map. The fix resolves
             // the per-card warp row via the Arena DB Abilities table (BaseId=371 for
@@ -97,7 +96,7 @@ class WarpActionTest :
         test(
             "resolver picks the warp ability row (BaseId=371 + cost match) and NOT the first abilityIds entry",
         ) {
-            // Direct regression for leyline-g3zg. Production AbilityIds arrive as
+            // Production AbilityIds arrive as
             // `etbTriggerId:textId,warpId:textId` — positional resolution picks the ETB
             // trigger (first slot), which made the client show "Alternate Cost" generic
             // marker on the wrong cost in the CastingTimeOptions modal. Under the fix

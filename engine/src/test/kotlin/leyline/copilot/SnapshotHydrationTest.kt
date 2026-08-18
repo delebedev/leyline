@@ -215,15 +215,9 @@ class SnapshotHydrationTest :
                 goblin.netToughness shouldBe 2
 
                 val pacifism =
-                    hydratedGame.players[0]
-                        .getZone(ForgeZoneType.Battlefield)
-                        .cards
-                        .first { it.name == "Pacifism" }
+                    hydratedGame.players[0].battlefield.card("Pacifism")
                 val bear =
-                    hydratedGame.players[1]
-                        .getZone(ForgeZoneType.Battlefield)
-                        .cards
-                        .first { it.name == "Grizzly Bears" }
+                    hydratedGame.players[1].battlefield.card("Grizzly Bears")
                 bear.damage shouldBe 1
                 pacifism.entityAttachedTo shouldBe bear
 

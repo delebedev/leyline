@@ -1,6 +1,5 @@
 package leyline.behavior.cards
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -12,6 +11,7 @@ import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.game.mapping.PromptIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
@@ -50,7 +50,7 @@ class FranticScapegoatSuspectedTest :
             castSpellByName("Frantic Scapegoat").shouldBeTrue()
             passUntilResolved(maxPasses = 8)
 
-            val scapegoat = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Frantic Scapegoat" }
+            val scapegoat = human.battlefield.card("Frantic Scapegoat")
             val scapegoatIid = human.battlefield.iid(scapegoat)
             val initialDesignation =
                 allMessages
@@ -85,7 +85,7 @@ class FranticScapegoatSuspectedTest :
             respondToSelectN(listOf(bearIid))
             passUntilResolved(maxPasses = 8)
 
-            val bear = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val bear = human.battlefield.card("Grizzly Bears")
             human.battlefield.iid(bear) shouldBe bearIid
             val gainBear =
                 allMessages

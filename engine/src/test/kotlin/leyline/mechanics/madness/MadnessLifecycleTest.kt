@@ -169,7 +169,7 @@ class MadnessLifecycleTest :
                     .any { it.name == "Fiery Temper" }
                     .shouldBeTrue()
 
-                // Wire-shape assertions across the captured GSM stream.
+                // Wire-shape assertions across the GSM stream this slice collected.
                 val allGsms = h.allMessages.mapNotNull { msgGsm(it) }
 
                 // (1) Persistent CastingTimeOption type=13 attached to the

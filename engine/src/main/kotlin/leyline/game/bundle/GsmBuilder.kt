@@ -470,11 +470,12 @@ object GsmBuilder {
             )
         }
 
-        // Embed stripped-down actions when AAR follows.
+        // Embed stripped-down actions for display only — SendHiFi never carries
+        // pendingMessageCount, the real decision-pending signal lives on the
+        // SendAndRecord commit message that follows later in the bundle.
         // actionSeatId = recipient seat (human), not necessarily the active player.
         if (actions != null) {
             val embedSeat = if (actionSeatId != 0) actionSeatId else frame.activeSeat
-            builder.setPendingMessageCount(1)
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo

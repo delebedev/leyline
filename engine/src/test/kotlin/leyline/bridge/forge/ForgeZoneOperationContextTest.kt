@@ -38,15 +38,9 @@ class ForgeZoneOperationContextTest :
                 }
             val probe = game.subscribeProbe()
             val source =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Goblin Fireslinger" }
+                game.humanPlayer.battlefield.card("Goblin Fireslinger")
             val moved =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.humanPlayer.battlefield.card("Grizzly Bears")
             val cause = source.spellAbilities.first().also { it.activatingPlayer = game.humanPlayer }
 
             game.action.moveToGraveyard(moved, cause)
@@ -92,16 +86,10 @@ class ForgeZoneOperationContextTest :
                 }
             val probe = game.subscribeProbe()
             val source =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Goblin Fireslinger" }
+                game.humanPlayer.battlefield.card("Goblin Fireslinger")
             val cause = source.spellAbilities.first().also { it.activatingPlayer = game.humanPlayer }
             val destroyed =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.humanPlayer.battlefield.card("Grizzly Bears")
 
             game.action.destroy(destroyed, cause, false, AbilityKey.newMap())
             probe.operationEventsFor(destroyed) shouldContainExactly
@@ -126,10 +114,7 @@ class ForgeZoneOperationContextTest :
 
             probe.clear()
             val sacrificed =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Runeclaw Bear" }
+                game.humanPlayer.battlefield.card("Runeclaw Bear")
             game.copyLastState()
             game.action.sacrifice(CardCollection(sacrificed), cause, true, game.lastStateParams())
             probe.operationEventsFor(sacrificed) shouldContainExactly
@@ -156,15 +141,9 @@ class ForgeZoneOperationContextTest :
                 }
             val probe = game.subscribeProbe()
             val source =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Goblin Fireslinger" }
+                game.humanPlayer.battlefield.card("Goblin Fireslinger")
             val sacrificed =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                game.humanPlayer.battlefield.card("Grizzly Bears")
             val cause = source.spellAbilities.first().also { it.activatingPlayer = game.humanPlayer }
             val costPart = CostSacrifice("1", "Creature", "a creature")
             val payment = CostPayment(Cost("0", true), cause)

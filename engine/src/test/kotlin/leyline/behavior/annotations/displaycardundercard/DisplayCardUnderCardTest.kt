@@ -4,20 +4,43 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.beInExileOf
+import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
- * Integration test for DisplayCardUnderCard annotation lifecycle.
+ * DisplayCardUnderCard lifecycle — the annotation means "exiled card shown
+ * tucked under a different source permanent".
  *
- * Puzzle: Cast Banishing Light to exile Grizzly Bears, verify persistent
- * DisplayCardUnderCard annotation appears. Then cast Disenchant to destroy
- * the Banishing Light, verify the annotation is removed and the creature
- * returns to play.
+ * The two cases that define it: an exiling permanent claims the card it
+ * exiled and releases it when destroyed, and a spell that exiles *itself*
+ * emits nothing, because a card cannot be displayed under itself.
  */
-class ExileUnderCardPuzzleTest :
+private val SELF_EXILE_PUZZLE =
+    """
+    [metadata]
+    Name:Flashback self-exile - no under-card
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=2
+
+    humanhand=Think Twice
+    humanbattlefield=Island;Island;Island;Island;Island;Island
+    humanlibrary=Coral Merfolk;Plains;Plains;Plains;Plains
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
+class DisplayCardUnderCardTest :
     SessionTest({
         session(
             "Banishing Light exile emits DisplayCardUnderCard, Disenchant removes it",
@@ -119,5 +142,38 @@ class ExileUnderCardPuzzleTest :
                 lastGsm2.persistentAnnotationsList
                     .filter { it.typeList.any { t -> t == AnnotationType.DisplayCardUnderCard } }
             remainingUnderCard.shouldBeEmpty()
+        }
+
+        session(
+            "flashback self-exile emits no under-card annotation",
+            puzzle = SELF_EXILE_PUZZLE,
+        ) {
+            // Forge sets `exiledWith` to the ChangeZone host when a graveyard-cast
+            // spell exiles itself on resolution, and that host is the spell card
+            // itself. Without a self-reference guard the collector reports
+            // CardExiled with sourceCardId == cardId, and the annotation comes out
+            // claiming the card is displayed under itself.
+            //
+            // Think Twice (Flashback {2}{U}) and Winternight Stories (Harmonize
+            // {4}{U}) share the identical self-exile path.
+            castSpellByName("Think Twice").shouldBeTrue()
+            passPriority()
+
+            val slice =
+                after {
+                    castFromGraveyard("Think Twice").shouldBeTrue()
+                    passPriority()
+                }
+
+            "Think Twice" should beInExileOf(human)
+
+            val selfReferential =
+                slice.messages
+                    .gameStateMessages()
+                    .flatMap { it.persistentAnnotationsList }
+                    .filter { AnnotationType.DisplayCardUnderCard in it.typeList }
+                    .filter { it.affectedIdsList == listOf(it.affectorId) }
+
+            selfReferential.shouldBeEmpty()
         }
     })

@@ -18,7 +18,7 @@ import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Token diff stability — standard tokens retain cardTypes, subtypes,
- * and uniqueAbilities across diff GSMs (regression for leyline-iz4).
+ * and uniqueAbilities across diff GSMs.
  *
  * Cast Novice Inspector → ETB investigate → Clue token.
  * Build two GSMs — second must still have Artifact type, Clue subtype,

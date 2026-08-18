@@ -26,6 +26,8 @@ import leyline.testkit.SessionTest
 import leyline.testkit.TestCardInjector
 import leyline.testkit.after
 import leyline.testkit.allAnnotations
+import leyline.testkit.allGameObjects
+import leyline.testkit.annotationsOfType
 import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.declareAttackersResp
@@ -233,8 +235,19 @@ class CombatInteractionTest :
             // Declare the attack
             val postAttack = after { declareAttackers(listOf(attackerIid)) }.messages
 
+            // The client taps attackers off the annotation, not off the object
+            // diff, so both have to be present.
+            val tapAnnotations =
+                postAttack
+                    .annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                    .filter { attackerIid in it.affectedIdsList }
+
             assertSoftly {
-                postAttack.shouldNotBeEmpty()
+                // Declaring taps the attacker before anything else touches it.
+                // The slice runs on into the next untap step, so only the first
+                // annotation is pinned.
+                tapAnnotations.shouldNotBeEmpty()
+                tapAnnotations.first().detailInt("tapped") shouldBe 1
                 assertAccumulatorConsistent("after single attacker declared")
                 isGameOver().shouldBeFalse()
             }
@@ -923,8 +936,17 @@ class CombatInteractionTest :
             // Toggle creature ON (iterative DeclareAttackersResp)
             toggleAttackers(listOf(attackerIid))
 
-            // Send SubmitAttackersReq (type-only, no payload) — reference client "Done" button
-            submitAttackers()
+            // Send SubmitAttackersReq (type-only, no payload) — the client's
+            // "Done" button.
+            val postSubmit = after { submitAttackers() }.messages
+
+            // The attacker must carry both halves of combat state in the diff:
+            // tapped, and marked as attacking.
+            val attackerObj =
+                postSubmit
+                    .allGameObjects()
+                    .single { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
+            attackerObj.isTapped.shouldBeTrue()
 
             passThroughCombat(startTurn)
 

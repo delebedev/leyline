@@ -1198,6 +1198,9 @@ class MatchFlowHarness(
     /** Resolve several cards by name — `human.battlefield.iids("A", "B", "C")`. */
     fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
 
+    /** Find a card in the zone by name. */
+    fun PlayerZone.card(name: String): Card = cardIn(player, zone, name)
+
     /**
      * Resolve a card by name in [player]'s [zone]. Prefer the probe DSL; use
      * this when the zone or player is computed at runtime.

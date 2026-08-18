@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
+import leyline.testkit.*
 import leyline.testkit.BoardTest
 import leyline.testkit.detail
 import leyline.testkit.detailInt
@@ -34,10 +35,7 @@ class AbilityWordPuzzleTest :
 
             val human = board.game.humanPlayer
             val scavenger =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Dreadwing Scavenger" }
+                human.battlefield.card("Dreadwing Scavenger")
             val iid = board.bridge.getOrAllocInstanceId(ForgeCardId(scavenger.id)).value
 
             // Seeded baseline state: the pAnn is carried in the initial Full GSM,
@@ -75,7 +73,7 @@ class AbilityWordPuzzleTest :
             // Move card from hand to GY (simulate discard) and drive the pipeline
             // to recompute pAnns against the new GY count.
             val human = board.game.humanPlayer
-            val island = human.getZone(ZoneType.Hand).cards.first { it.name == "Island" }
+            val island = human.hand.card("Island")
             board.game.action.moveToGraveyard(island, null)
             board.snapshotDiff {}
 
@@ -93,7 +91,7 @@ class AbilityWordPuzzleTest :
                     addCard("Roughshod Duo", human, ZoneType.Battlefield)
                 }
             val human = board.game.humanPlayer
-            val duo = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Roughshod Duo" }
+            val duo = human.battlefield.card("Roughshod Duo")
             val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
 
             human.expentThisTurn = 4
@@ -162,7 +160,7 @@ class AbilityWordPuzzleTest :
                 devotionRow().detailInt("AbilityGrpId") shouldBe 100654
             }
 
-            val lion = human.getZone(ZoneType.Hand).cards.first { it.name == "Savannah Lions" }
+            val lion = human.hand.card("Savannah Lions")
             board.snapshotDiff {
                 board.game.action.moveToPlay(
                     lion,
@@ -194,7 +192,7 @@ class AbilityWordPuzzleTest :
                 descendRow().detailInt("AbilityGrpId") shouldBe 169501
             }
 
-            val plains = human.getZone(ZoneType.Hand).cards.first { it.name == "Plains" }
+            val plains = human.hand.card("Plains")
             board.snapshotDiff { board.game.action.moveToGraveyard(plains, null) }
             descendRow().detailInt("value") shouldBe 8
         }
@@ -205,7 +203,7 @@ class AbilityWordPuzzleTest :
                     addCard("Reverberating Summons", human, ZoneType.Battlefield)
                 }
             val human = board.game.humanPlayer
-            val source = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Reverberating Summons" }
+            val source = human.battlefield.card("Reverberating Summons")
             val castAbility = source.firstSpellAbility.also { it.activatingPlayer = human }
 
             fun spellCountRow() =
@@ -240,10 +238,7 @@ class AbilityWordPuzzleTest :
                 }
             val human = board.game.humanPlayer
             val prowler =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Cackling Prowler" }
+                human.battlefield.card("Cackling Prowler")
             val prowlerIid = board.bridge.getOrAllocInstanceId(ForgeCardId(prowler.id)).value
 
             // Kill AI bear — triggers morbid condition
