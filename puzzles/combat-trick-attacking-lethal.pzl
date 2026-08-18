@@ -1,0 +1,26 @@
+# Design Narrative
+# Mechanic: Cast Giant Growth during combat on an attacking creature.
+# Forcing: Grizzly Bears deals two without the trick and exact lethal with it; no other spell or attacker exists.
+# AI behavior: Giant Growth on the attacking Bears is the only winning line.
+# Failure modes:
+#   WIN = Giant Growth targets the attacking Bears before combat damage for exact lethal.
+#   LOSE = The policy passes or targets anything else.
+#   TIMEOUT = Priority, targeting, or combat damage fails to converge.
+
+[metadata]
+Name:Combat Trick Attacking Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Giant Growth on the attacking Grizzly Bears for exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=COMBAT_DECLARE_ATTACKERS
+HumanLife=20
+AILife=5
+
+humanhand=Giant Growth
+humanbattlefield=Forest;Grizzly Bears|Attacking|Tapped
+humanlibrary=Forest
+ailibrary=Forest

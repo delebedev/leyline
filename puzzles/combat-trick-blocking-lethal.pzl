@@ -1,0 +1,28 @@
+# Design Narrative
+# Mechanic: Cast Righteousness during combat on a creature blocking a lethal attacker.
+# Forcing: Righteousness is not castable until Grizzly Bears blocks; Centaur Courser is lethal and survives an unassisted block.
+# AI behavior: Block with Grizzly Bears and target it with Righteousness before combat damage.
+# Failure modes:
+#   WIN = Grizzly Bears blocks, receives Righteousness, and destroys Centaur Courser.
+#   LOSE = The policy does not block, passes the trick window, or targets anything else.
+#   TIMEOUT = Block declaration, priority, targeting, or combat damage fails to converge.
+
+[metadata]
+Name:Combat Trick Blocking Lethal
+Goal:Destroy Specified Creatures
+Turns:1
+Difficulty:Easy
+Description:Block the lethal attacker and cast Righteousness before combat damage.
+Targets:Creature.OppCtrl
+
+[state]
+ActivePlayer=AI
+ActivePhase=COMBAT_DECLARE_ATTACKERS
+HumanLife=3
+AILife=20
+
+humanhand=Righteousness
+humanbattlefield=Plains;Grizzly Bears
+humanlibrary=Plains
+aibattlefield=Centaur Courser|Attacking|Tapped
+ailibrary=Plains

@@ -125,4 +125,21 @@ class SnapshotPromptDriverTest :
                 snapshot.promptProgressSamples.first().targetIds shouldBe listOf(100)
             }
         }
+
+        test("Forge AI and snapshot consult cast an attacking combat trick") {
+            val puzzle = "combat-trick-attacking-lethal.pzl"
+            val baseline = runPuzzle(puzzle, SimClientPolicyMode.ForgeAi)
+            val snapshot = runPuzzle(puzzle, SimClientPolicyMode.Snapshot)
+
+            assertSoftly {
+                baseline.winnerSeat shouldBe 1
+                baseline.cleanupConcede shouldBe false
+                baseline.promptProgressSamples.any { it.decisionKind == "perform:Cast" } shouldBe true
+
+                snapshot.winnerSeat shouldBe 1
+                snapshot.cleanupConcede shouldBe false
+                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:cast" } shouldBe true
+                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:target" } shouldBe true
+            }
+        }
     })
