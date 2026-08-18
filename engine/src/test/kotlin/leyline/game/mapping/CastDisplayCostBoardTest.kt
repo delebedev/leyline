@@ -4,6 +4,7 @@ import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -11,7 +12,9 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.SnapshotCapture
+import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
+import leyline.testkit.SessionTest
 import leyline.testkit.haveManaCost
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -27,12 +30,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 class CastDisplayCostBoardTest :
     BoardTest({
 
-        fun castActionsFor(
-            req: wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq,
-            instanceId: Int,
-            actionType: ActionType = ActionType.Cast,
-        ): List<Action> = (req.actionsList + req.inactiveActionsList).filter { it.actionType == actionType && it.instanceId == instanceId }
-
         test("Delve card in hand displays printed cost with a full graveyard, no prompt raised") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -40,13 +37,8 @@ class CastDisplayCostBoardTest :
                     repeat(4) { addCard("Forest", human, ZoneType.Graveyard) }
                     repeat(2) { addCard("Island", human) }
                 }
-            val cruise = game.humanPlayerCard("Treasure Cruise")
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(cruise.id)).value).single()
-            cast should haveManaCost(generic = 7, blue = 1)
+            val (active, inactive) = castOffers(b, game, "Treasure Cruise")
+            (active + inactive).single() should haveManaCost(generic = 7, blue = 1)
             b
                 .seat(SeatId(1))
                 .prompt.history
@@ -59,13 +51,8 @@ class CastDisplayCostBoardTest :
                     addCard("Conclave Tribunal", human, ZoneType.Hand)
                     repeat(4) { addCard("Grizzly Bears", human) }
                 }
-            val tribunal = game.humanPlayerCard("Conclave Tribunal")
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(tribunal.id)).value).single()
-            cast should haveManaCost(generic = 3, white = 1)
+            val (active, inactive) = castOffers(b, game, "Conclave Tribunal")
+            (active + inactive).single() should haveManaCost(generic = 3, white = 1)
             b
                 .seat(SeatId(1))
                 .prompt.history
@@ -80,13 +67,8 @@ class CastDisplayCostBoardTest :
                     addCard("Starfield Mystic", human)
                     addCard("Grizzly Bears", human)
                 }
-            val tribunal = game.humanPlayerCard("Conclave Tribunal")
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(tribunal.id)).value).single()
-            cast should haveManaCost(generic = 2, white = 1)
+            val (active, inactive) = castOffers(b, game, "Conclave Tribunal")
+            (active + inactive).single() should haveManaCost(generic = 2, white = 1)
         }
 
         test("Waterbend activation cost displays printed value despite untapped creatures") {
@@ -96,18 +78,25 @@ class CastDisplayCostBoardTest :
                     addCard("Giant Koi", human)
                     repeat(2) { addCard("Grizzly Bears", human) }
                 }
-            val koi = game.humanPlayerCard("Giant Koi")
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val activate =
-                castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(koi.id)).value, ActionType.Activate_add3).single()
-            activate should haveManaCost(generic = 3)
+            val (active, inactive) = castOffers(b, game, "Giant Koi", ActionType.Activate_add3)
+            (active + inactive).single() should haveManaCost(generic = 3)
             b
                 .seat(SeatId(1))
                 .prompt.history
                 .shouldBeEmpty()
+        }
+
+        test("X-cost spell offered as castable with only its colored pips payable") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    // Traumatic Critique {X}{U}{R} — X can be 0; only U and R are required.
+                    addCard("Traumatic Critique", human, ZoneType.Hand)
+                    addCard("Island", human)
+                    addCard("Mountain", human)
+                }
+            val (active, inactive) = castOffers(b, game, "Traumatic Critique")
+            active shouldHaveSize 1
+            inactive shouldHaveSize 0
         }
 
         test("static reducer shows on a plain spell") {
@@ -116,13 +105,8 @@ class CastDisplayCostBoardTest :
                     addCard("Fall of the Thran", human, ZoneType.Hand)
                     addCard("Starfield Mystic", human)
                 }
-            val fall = game.humanPlayerCard("Fall of the Thran")
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(fall.id)).value).single()
-            cast should haveManaCost(generic = 4, white = 1)
+            val (active, inactive) = castOffers(b, game, "Fall of the Thran")
+            (active + inactive).single() should haveManaCost(generic = 4, white = 1)
         }
 
         test("AlternateAdditionalCost card yields one Cast offer at base cost") {
@@ -181,25 +165,16 @@ class CastDisplayCostBoardTest :
                     addCard("Island", human)
                     addCard("Cavern of Souls", human).setChosenType("Elf")
                 }
-            val voice = game.humanPlayerCard("Voice of Victory")
             val cavern = game.humanPlayerCard("Cavern of Souls")
-            val instanceId = b.getOrAllocInstanceId(ForgeCardId(voice.id)).value
 
-            fun castOffer(): Pair<List<Action>, List<Action>> {
-                val snap = SnapshotCapture.run(game, b, "test", 0)
-                val req = ActionMapper.buildFromSnapshot(1, snap, b)
-                return req.actionsList.filter { it.actionType == ActionType.Cast && it.instanceId == instanceId } to
-                    req.inactiveActionsList.filter { it.actionType == ActionType.Cast && it.instanceId == instanceId }
-            }
-
-            castOffer().let { (active, inactive) ->
+            castOffers(b, game, "Voice of Victory").let { (active, inactive) ->
                 active.shouldBeEmpty()
-                inactive.size shouldBe 1
+                inactive shouldHaveSize 1
             }
 
             cavern.setChosenType("Human")
-            castOffer().let { (active, inactive) ->
-                active.size shouldBe 1
+            castOffers(b, game, "Voice of Victory").let { (active, inactive) ->
+                active shouldHaveSize 1
                 inactive.shouldBeEmpty()
             }
         }
@@ -217,8 +192,8 @@ class CastDisplayCostBoardTest :
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
-            val snapshotReq = ActionMapper.buildFromSnapshot(1, snap, b)
-            val naiveReq = ActionMapper.buildNaiveActions(1, b)
+            val snapshotReq = ActionMapper.buildFromSnapshot(SessionTest.HUMAN_SEAT, snap, b)
+            val naiveReq = ActionMapper.buildNaiveActions(SessionTest.HUMAN_SEAT, b)
 
             val naiveCasts =
                 naiveReq.actionsList
@@ -241,3 +216,20 @@ private fun forge.game.Game.humanPlayerCard(name: String): forge.game.card.Card 
     players
         .flatMap { p -> listOf(ZoneType.Hand, ZoneType.Battlefield).flatMap { p.getZone(it).cards } }
         .first { it.name == name }
+
+/**
+ * Cast-family action offers for [cardName], split active vs inactive.
+ * [actionType] defaults to Cast; pass e.g. [ActionType.Activate_add3] for an
+ * activated-ability offer (Waterbend, etc).
+ */
+private fun castOffers(
+    b: GameBridge,
+    game: forge.game.Game,
+    cardName: String,
+    actionType: ActionType = ActionType.Cast,
+): Pair<List<Action>, List<Action>> {
+    val instanceId = b.getOrAllocInstanceId(ForgeCardId(game.humanPlayerCard(cardName).id)).value
+    val req = ActionMapper.buildFromSnapshot(SessionTest.HUMAN_SEAT, SnapshotCapture.run(game, b, "test", 0), b)
+    return req.actionsList.filter { it.actionType == actionType && it.instanceId == instanceId } to
+        req.inactiveActionsList.filter { it.actionType == actionType && it.instanceId == instanceId }
+}
