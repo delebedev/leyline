@@ -60,7 +60,8 @@ class ValidatingMessageSink(
         if (violations.isNotEmpty()) {
             throw AssertionError(
                 "ValidatingMessageSink recorded ${violations.size} violation(s):\n" +
-                    violations.joinToString("\n") { "  - $it" },
+                    violations.joinToString("\n") { "  - $it" } +
+                    "\n\n$RELAX_GUIDANCE",
             )
         }
     }
@@ -87,7 +88,15 @@ class ValidatingMessageSink(
         violations.add("gsId=$gsId $violation")
         violationsByCheck.merge(check, 1) { a, b -> a + b }
         if (strict) {
-            throw AssertionError("ValidatingMessageSink: $violation")
+            throw AssertionError("ValidatingMessageSink: $violation\n\n$RELAX_GUIDANCE")
         }
+    }
+
+    companion object {
+        /** Shown with every validation failure: how to relax a check. */
+        private const val RELAX_GUIDANCE =
+            "Relax only for a named, tracked limitation: pass a narrower " +
+                "InvariantSelection (protocolFactsExcept / only / none) with a `because` " +
+                "reason at the call site, not a global off-switch."
     }
 }
