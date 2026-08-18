@@ -123,12 +123,16 @@ class CastDisplayCostBoardTest :
         test("Affinity displays cost reduced by artifacts controlled") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
-                    // Thoughtcast {4}{U}, Affinity for Artifacts.
+                    // Thoughtcast {4}{U}, Affinity for Artifacts — reduced to {1}{U}
+                    // by 3 artifacts; 2 Islands cover the reduced cost so the offer
+                    // is active, not just correctly priced.
                     addCard("Thoughtcast", human, ZoneType.Hand)
                     repeat(3) { addCard("Ornithopter", human) }
+                    repeat(2) { addCard("Island", human) }
                 }
             val (active, inactive) = castOffers(b, game, "Thoughtcast")
-            (active + inactive).single() should haveManaCost(generic = 1, blue = 1)
+            active.single() should haveManaCost(generic = 1, blue = 1)
+            inactive shouldHaveSize 0
         }
 
         test("static reducer shows on a plain spell") {
