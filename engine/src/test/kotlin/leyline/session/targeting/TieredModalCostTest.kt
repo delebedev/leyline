@@ -9,6 +9,29 @@ import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
+private val TIERED_THUNDER_MAGIC_PUZZLE =
+    """
+    [metadata]
+    Name:Tiered Thunder Magic
+    Goal:Destroy Specified Creature
+    Turns:3
+    Difficulty:Easy
+    Description:Cast Thunder Magic and choose the middle Tiered option to deal 4 damage to Grizzly Bears.
+    Targets:Grizzly Bears
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain
+    humanhand=Thunder Magic
+    humanlibrary=Mountain
+    aibattlefield=Grizzly Bears
+    ailibrary=Forest
+    """.trimIndent()
+
 class TieredModalCostTest :
     SessionTest({
 
@@ -62,7 +85,7 @@ class TieredModalCostTest :
 
         session(
             "Thunder Magic selected middle tier pays the tier cost and resolves",
-            puzzleFile = "puzzles/tiered-thunder-magic.pzl",
+            puzzle = TIERED_THUNDER_MAGIC_PUZZLE,
         ) {
             val cto = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
             val option = cto.getCastingTimeOptionReq(0)

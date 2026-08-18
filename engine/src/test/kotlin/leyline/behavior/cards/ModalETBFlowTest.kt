@@ -15,6 +15,28 @@ import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
 import wotc.mtgo.gre.external.messaging.Messages.*
 
+private val PRINCE_FLICKER_PUZZLE =
+    """
+    [metadata]
+    Name:Prince Flicker
+    Goal:Win
+    Turns:10
+    Difficulty:Easy
+    Description:Exile another creature with Charming Prince and return it at the next end step.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Plains;Plains;Grizzly Bears
+    humanhand=Charming Prince
+    humanlibrary=Plains;Plains;Plains;Plains;Plains
+    aibattlefield=Mountain
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
 /**
  * Modal ETB flow tests using [SessionTest] + puzzle files.
  *
@@ -243,7 +265,7 @@ class ModalETBFlowTest :
 
         session(
             "Charming Prince flicker exposes and retires pending trigger visuals",
-            puzzleFile = "puzzles/prince-flicker.pzl",
+            puzzle = PRINCE_FLICKER_PUZZLE,
         ) {
             val targetIid = human.battlefield.iid("Grizzly Bears")
 

@@ -18,6 +18,49 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
+private val EMERITUS_PREPARED_EMPTY_GRAVEYARD_PUZZLE =
+    """
+    [metadata]
+    Name:Emeritus Prepared Empty Graveyard
+    Goal:Win
+    Turns:3
+    Difficulty:Easy
+    Description:Cast Emeritus of Abundance with no card available for its prepared spell.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Emeritus of Abundance
+    humanbattlefield=Forest;Forest;Forest
+    humanlibrary=Forest;Forest;Forest
+    ailibrary=Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val TWO_PREPARED_PUZZLE =
+    """
+    [metadata]
+    Name:Two Prepared Creatures
+    Goal:Win
+    Turns:3
+    Difficulty:Easy
+    Description:Two different prepared creatures simultaneously — each owns its own exile copy with its own parentId.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=8
+
+    humanhand=Honorbound Page;Elite Interceptor
+    humanbattlefield=Plains;Plains;Plains;Plains;Plains;Plains
+    humanlibrary=Plains;Plains;Plains;Plains
+    aibattlefield=Grizzly Bears
+    ailibrary=Forest;Forest;Forest;Forest
+    """.trimIndent()
+
 /**
  * Active Prepared `Designation` pAnns (DesignationType=24) emitted in the
  * slice, deduped by id. Persistent annotations are differential — a pAnn
@@ -99,7 +142,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "Prepared spell with no legal mandatory target is inactive",
-            puzzleFile = "puzzles/emeritus-prepared-empty-graveyard.pzl",
+            puzzle = EMERITUS_PREPARED_EMPTY_GRAVEYARD_PUZZLE,
         ) {
             castSpellByName("Emeritus of Abundance")
             passUntilResolved()
@@ -259,7 +302,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "Two prepared creatures: each Designation anchored on its own source iid",
-            puzzleFile = "puzzles/two-prepared.pzl",
+            puzzle = TWO_PREPARED_PUZZLE,
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()

@@ -17,6 +17,50 @@ import leyline.testkit.lastGsmMatching
 import wotc.mtgo.gre.external.messaging.Messages.CardMechanicType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
+private val COMMANDER_RETURN_UNSUMMON_PUZZLE =
+    """
+    [metadata]
+    Name:Commander Return Unsummon
+    Goal:Move a commander toward its owner's hand and choose whether to return it to command.
+    Turns:3
+    Difficulty:Tutorial
+    Description:Arabella starts on the battlefield as the human commander with Unsummon ready.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=25
+    AILife=25
+
+    humanhand=Unsummon
+    humanbattlefield=Arabella, Abandoned Doll|IsCommander;Island;Island
+    humanlibrary=Island;Island;Island;Island;Island
+    aibattlefield=Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val COMMANDER_RETURN_SWORDS_PUZZLE =
+    """
+    [metadata]
+    Name:Commander Return Swords
+    Goal:Exile a commander, then return it to command through the state-based choice.
+    Turns:3
+    Difficulty:Tutorial
+    Description:Arabella starts on the battlefield as the human commander with Swords to Plowshares ready.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=25
+    AILife=25
+
+    humanhand=Swords to Plowshares
+    humanbattlefield=Arabella, Abandoned Doll|IsCommander;Plains;Plains
+    humanlibrary=Plains;Plains;Plains;Plains;Plains
+    aibattlefield=Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
 class BrawlCommanderPromptSessionTest :
     SessionTest({
         session(
@@ -83,7 +127,7 @@ class BrawlCommanderPromptSessionTest :
             }
         }
 
-        session("commander moving to hand keeps the replacement prompt", puzzleFile = "puzzles/commander-return-unsummon.pzl") {
+        session("commander moving to hand keeps the replacement prompt", puzzle = COMMANDER_RETURN_UNSUMMON_PUZZLE) {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
 
@@ -110,7 +154,7 @@ class BrawlCommanderPromptSessionTest :
             }
         }
 
-        session("commander reaching exile uses the state-based return prompt", puzzleFile = "puzzles/commander-return-swords.pzl") {
+        session("commander reaching exile uses the state-based return prompt", puzzle = COMMANDER_RETURN_SWORDS_PUZZLE) {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
 
