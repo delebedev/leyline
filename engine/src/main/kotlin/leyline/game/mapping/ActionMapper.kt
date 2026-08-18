@@ -1734,8 +1734,9 @@ object ActionMapper {
      * True if any ability in the SA chain requires targets and has no legal candidates.
      *
      * Special case: Forge's [TargetRestrictions.hasCandidates] short-circuits to true
-     * for stack-zone targets without checking stack contents. We override that for
-     * spells targeting the stack (counterspells) — check stack emptiness directly.
+     * for stack-zone targets without checking stack contents. For spells targeting
+     * the stack (counterspells), check per-candidate legality directly — matching
+     * Forge's own [TargetRestrictions.getNumCandidates] stack-counting logic.
      */
     private fun hasUnmetTargeting(sa: SpellAbility): Boolean {
         val game = sa.hostCard?.game ?: return false
@@ -1744,7 +1745,7 @@ object ActionMapper {
             val tr = node.targetRestrictions
             if (tr != null) {
                 if (tr.zone.contains(forge.game.zone.ZoneType.Stack)) {
-                    if (game.stack.isEmpty) return true
+                    if (game.stack.none { node.canTargetSpellAbility(it.spellAbility) }) return true
                 } else if (!tr.hasCandidates(node)) {
                     return true
                 }

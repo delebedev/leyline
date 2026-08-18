@@ -82,6 +82,53 @@ class ActionLegalityTest :
         }
 
         session(
+            "counterspell targeting noncreature spells not offered when only a creature spell is on stack",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Negate
+                humanbattlefield=Island;Island
+                humanlibrary=Island;Island;Island
+                aihand=Grizzly Bears
+                aibattlefield=Forest;Forest
+                ailibrary=Forest;Forest;Forest
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Grizzly Bears"), ScriptedAction.PassPriority),
+        ) {
+            val castOffered =
+                allMessages.any {
+                    it.hasActionsAvailableReq() &&
+                        it.actionsAvailableReq.actionsList.any { a -> a.actionType == ActionType.Cast }
+                }
+            castOffered shouldBe false
+        }
+
+        session(
+            "counterspell targeting noncreature spells is offered when a noncreature spell is on stack",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Negate
+                humanbattlefield=Island;Island
+                humanlibrary=Island;Island;Island
+                aihand=Divination
+                aibattlefield=Island;Island;Island
+                ailibrary=Island;Island;Island
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Divination"), ScriptedAction.PassPriority),
+        ) {
+            val aar = allMessages.last { it.hasActionsAvailableReq() }
+            val castActions = aar.actionsAvailableReq.actionsList.filter { it.actionType == ActionType.Cast }
+            castActions.size shouldBe 1
+        }
+
+        session(
             "no DeclareBlockersReq when only flyers attack and defender has no reach",
             puzzle = FLYING_BLOCKERS_PUZZLE,
             aiScript =
