@@ -75,13 +75,10 @@ local function or direct assertion.
 
 ## Validate emitted streams
 
-Use `validating = true` for Session tests that exercise message sequencing.
-The default validator checks stable game-state identity and affector facts.
-Use `InvariantSelection.diagnostics()` or `only(...)` for focused structural
+Session tests validate emitted streams by default — the sink checks stable
+game-state identity and affector facts on every message. Use
+`InvariantSelection.diagnostics()` or `only(...)` for focused structural
 checks.
-
-Relax validation only for a named, tracked limitation. Keep the reason at the
-call site; do not add test-specific exceptions to this guide.
 
 For puzzle state limits and setup-action choices, read
 `docs/puzzle-harness.md`.
