@@ -17,13 +17,10 @@ import leyline.testkit.StateMapperShell as StateMapper
 /**
  * Conformance test: library card objects during search.
  *
- * Compares the shape of GameObjectInfo we produce for library cards
- * against the known wire shape from reference sessions:
+ * Pins the GameObjectInfo we produce for a library card against the shape the
+ * protocol requires — a basic land in the library during a search.
  *
- * Session: 2026-03-21_22-05-00, frame 104 (gsId 52)
- * Card: Forest (basic land) in library during Bushwhack search
- *
- * Expected protocol shape for basic land in library:
+ * Required shape:
  *   type=Card, visibility=Private, viewers=[ownerSeatId],
  *   superTypes=[Basic], cardTypes=[Land], subtypes=[Forest],
  *   uniqueAbilityCount=1, owner=seatId, controller=seatId

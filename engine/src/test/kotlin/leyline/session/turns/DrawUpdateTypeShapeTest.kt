@@ -15,8 +15,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  * Stream contract: a turn-boundary or trigger-driven own-seat draw must be
  * emitted with [GameStateUpdate.SendHiFi]. Spell-driven Main1 draws continue
  * to use [GameStateUpdate.SendAndRecord] (covered by the bundle unit tests).
- *
- * Refs internal bead leyline-pey.
  */
 // TierPlacementCheck: the auto-pass that drives AI turn 1 → human turn 2 is
 // precisely the session-level behavior under test — the bundle needs to

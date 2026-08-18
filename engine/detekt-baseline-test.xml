@@ -30,7 +30,6 @@
     <ID>UnusedVariable:GamePlaybackTest.kt:GamePlaybackTest$@Suppress("UnusedPrivateProperty") val pb = createMinimalPlayback(counter)</ID>
     <ID>UnusedVariable:LearnLessonTest.kt:LearnLessonTest$val req = castSpellUntilSelectNReq("Cram Session")</ID>
     <ID>UnusedVariable:MatchRegistryTest.kt:MatchRegistryTest$val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)</ID>
-    <ID>UnusedVariable:NaiveActionsLandTest.kt:NaiveActionsLandTest$game</ID>
     <ID>UnusedVariable:PuzzleBridgeTest.kt:PuzzleBridgeTest$val game = b.getGame()!!</ID>
     <ID>UnusedVariable:TransferAnnotationPipelineTest.kt:TransferAnnotationPipelineTest$persistent</ID>
     <ID>UseAnyOrNoneInsteadOfFind:ImpendingLifecycleTest.kt:ImpendingLifecycleTest$lastOrNull { it.hasDeclareAttackersReq() }</ID>

@@ -1573,7 +1573,7 @@ class BundleBuilderTest :
             }
         }
 
-        // --- isTurnOrTriggerDraw unit tests (leyline-pey) ---
+        // --- isTurnOrTriggerDraw unit tests ---
         //
         // postAction overrides the default `SendAndRecord` to `SendHiFi` when the
         // drained event stream describes a turn-boundary or trigger-driven draw

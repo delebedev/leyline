@@ -7,17 +7,15 @@ import leyline.game.mapping.ShouldStopEvaluator
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
- * Validates [ShouldStopEvaluator] against expected shouldStop values
- * observed in reference ActionsAvailableReq messages.
- *
- * Source: reference session 2026-02-28, documented in #142
+ * Pins [ShouldStopEvaluator] to the shouldStop value the client expects on each
+ * ActionType in an ActionsAvailableReq.
  */
 class ShouldStopConformanceTest :
     FunSpec({
 
         tags(BoardTag)
 
-        // ActionType -> expected shouldStop from reference client behavior
+        // ActionType -> the shouldStop the client expects
         val expectedShouldStop =
             mapOf(
                 // shouldStop = true

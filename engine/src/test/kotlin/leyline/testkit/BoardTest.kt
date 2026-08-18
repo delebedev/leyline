@@ -19,6 +19,7 @@ import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.tooling.headless.cardIn
 import leyline.tooling.headless.iidVia
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -177,6 +178,9 @@ abstract class BoardTest(
 
     /** Resolve multiple cards by name in one go — `human.battlefield.iids("A", "B")`. */
     fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }
+
+    /** Find a card in the zone by name. */
+    fun PlayerZone.card(name: String): Card = cardIn(player, zone, name)
 
     private fun currentBridge(): GameBridge = bridge ?: error("Call a start*() method before using the probe DSL")
 

@@ -6,6 +6,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.codes.DetailKeys
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
@@ -52,7 +53,7 @@ class BannerStaticChoiceTest :
                     },
                 ) { "No ChoiceResult annotation emitted" }
                     .annotationsList
-                    .first { AnnotationType.ChoiceResult in it.typeList }
+                    .annotation(AnnotationType.ChoiceResult)
             val linkInfo =
                 checkNotNull(
                     allMessages.lastGsmMatching { gsm ->
@@ -60,7 +61,7 @@ class BannerStaticChoiceTest :
                     },
                 ) { "No persistent LinkInfo annotation emitted" }
                     .persistentAnnotationsList
-                    .first { AnnotationType.LinkInfo in it.typeList }
+                    .annotation(AnnotationType.LinkInfo)
 
             assertSoftly {
                 choiceResult.detailInt(DetailKeys.CHOICE_VALUE) shouldBe goblinId
@@ -88,7 +89,7 @@ class BannerStaticChoiceTest :
                     },
                 ) { "No ChoiceResult annotation emitted" }
                     .annotationsList
-                    .first { AnnotationType.ChoiceResult in it.typeList }
+                    .annotation(AnnotationType.ChoiceResult)
             val linkInfo =
                 checkNotNull(
                     allMessages.lastGsmMatching { gsm ->
@@ -96,7 +97,7 @@ class BannerStaticChoiceTest :
                     },
                 ) { "No persistent LinkInfo annotation emitted" }
                     .persistentAnnotationsList
-                    .first { AnnotationType.LinkInfo in it.typeList }
+                    .annotation(AnnotationType.LinkInfo)
 
             assertSoftly {
                 choiceResult.detailInt(DetailKeys.CHOICE_VALUE) shouldBe redId

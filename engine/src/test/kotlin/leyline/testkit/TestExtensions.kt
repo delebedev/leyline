@@ -1,5 +1,7 @@
 package leyline.testkit
 
+import forge.game.card.Card
+import forge.game.player.Player
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -7,6 +9,31 @@ import io.kotest.matchers.shouldBe
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.InvariantChecker
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
+
+// ----- Zone shorthand properties (package-level, complementing MatchFlowHarness) -----
+
+/** Battlefield zone of this player as a probe handle. */
+val Player.battlefield: PlayerZone get() = PlayerZone(this, ForgeZoneType.Battlefield)
+
+/** Hand zone of this player as a probe handle. */
+val Player.hand: PlayerZone get() = PlayerZone(this, ForgeZoneType.Hand)
+
+/** Graveyard zone of this player as a probe handle. */
+val Player.graveyard: PlayerZone get() = PlayerZone(this, ForgeZoneType.Graveyard)
+
+/** Exile zone of this player as a probe handle. */
+val Player.exile: PlayerZone get() = PlayerZone(this, ForgeZoneType.Exile)
+
+/** Library zone of this player as a probe handle. */
+val Player.library: PlayerZone get() = PlayerZone(this, ForgeZoneType.Library)
+
+// ----- Zone card access -----
+
+/** Find a card in the zone by name. */
+fun PlayerZone.card(name: String): Card =
+    player.getZone(zone).cards.firstOrNull { it.name == name }
+        ?: error("No '$name' on ${player.name}'s ${zone.name}. Present: ${player.getZone(zone).cards.map { it.name }}")
 
 // ----- Tier 0: Content-addressed GSM lookup -----
 //
@@ -17,8 +44,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 // matching against nothing — false-pass for absence checks, throws for
 // presence checks. Use the helpers below to address GSMs by their
 // content (the persistent annotation, the gameObject, an arbitrary
-// predicate) instead of position. See leyline-sxpo for the pattern
-// these replace.
+// predicate) instead of position.
 
 /** Last GSM from a list of GREs that satisfies [predicate], or null. */
 fun List<GREToClientMessage>.lastGsmMatching(predicate: (GameStateMessage) -> Boolean): GameStateMessage? =
@@ -122,7 +148,21 @@ fun ActionsAvailableReq.ofType(type: ActionType): List<Action> = actionsList.fil
 fun GameStateMessage.annotations(type: AnnotationType): List<AnnotationInfo> = annotationsList.filter { type in it.typeList }
 
 /** Find the first annotation with the given type. */
-fun GameStateMessage.annotation(type: AnnotationType): AnnotationInfo = annotationsList.first { type in it.typeList }
+fun GameStateMessage.annotation(type: AnnotationType): AnnotationInfo =
+    annotationsList.firstOrNull { type in it.typeList }
+        ?: error("No $type annotation. Present: ${annotationsList.flatMap { it.typeList }.distinct()}")
+
+/**
+ * Find the only annotation of [type] in an already-extracted list.
+ *
+ * Mirrors the [GameStateMessage] overload for the many sites that hold a plain
+ * list — a persistent-annotation slice, a filtered frame — rather than a whole
+ * message. Names the types that were present, which the bare `first { }` it
+ * replaces cannot.
+ */
+fun List<AnnotationInfo>.annotation(type: AnnotationType): AnnotationInfo =
+    firstOrNull { type in it.typeList }
+        ?: error("No $type annotation. Present: ${flatMap { it.typeList }.distinct()}")
 
 /** Find the first annotation with the given type, or null. */
 fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? = annotationsList.firstOrNull { type in it.typeList }
@@ -130,7 +170,7 @@ fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? = a
 /** Find the first persistent annotation with the given type. */
 fun GameStateMessage.persistentAnnotation(type: AnnotationType): AnnotationInfo =
     persistentAnnotationsList.firstOrNull { type in it.typeList }
-        ?: error("No persistent annotation of type $type")
+        ?: error("No $type persistent annotation. Present: ${persistentAnnotationsList.flatMap { it.typeList }.distinct()}")
 
 /** Find the first persistent annotation with the given type, or null. */
 fun GameStateMessage.persistentAnnotationOrNull(type: AnnotationType): AnnotationInfo? =
@@ -142,6 +182,11 @@ fun GameStateMessage.hasEnteredZoneThisTurn(instanceId: Int): Boolean =
         AnnotationType.EnteredZoneThisTurn in it.typeList &&
             instanceId in it.affectedIdsList
     }
+
+/** Find the first annotation with the given type in a list or iterable. */
+fun Iterable<AnnotationInfo>.annotation(type: AnnotationType): AnnotationInfo =
+    firstOrNull { type in it.typeList }
+        ?: error("No $type annotation. Present: ${flatMap { it.typeList }.distinct()}")
 
 // ----- Tier 2: Zone consistency -----
 

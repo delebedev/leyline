@@ -190,7 +190,7 @@ class LocalTriggerPlaybackTest :
             puzzle = noviceInspectorPuzzle,
             validation =
                 InvariantSelection.except(
-                    "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed (leyline-g8bw)",
+                    "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed",
                     InvariantCheck.AnnotationReferences,
                 ),
         ) {

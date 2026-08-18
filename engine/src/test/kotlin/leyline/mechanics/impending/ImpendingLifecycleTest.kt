@@ -52,7 +52,7 @@ class ImpendingLifecycleTest :
                 messagesSince(snap)
                     .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
                     .first { it.detailInt("alternateCostGrpId") == impendingAbilityGrpId }
-            val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
+            val overlord = human.battlefield.card("Overlord of the Mistmoors")
             val counterRemoved =
                 messagesSince(snap)
                     .allAnnotations()
@@ -80,7 +80,7 @@ class ImpendingLifecycleTest :
                     .allAnnotations()
                     .filter { AnnotationType.CounterRemoved in it.typeList }
 
-            val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
+            val overlord = human.battlefield.card("Overlord of the Mistmoors")
             assertSoftly {
                 removed.any { it.detailString("counter_type") == "Time" && it.detailInt("transaction_amount") == 1 }.shouldBeTrue()
                 overlord.getCounters(CounterEnumType.TIME) shouldBe 3
@@ -119,7 +119,7 @@ class ImpendingLifecycleTest :
                 allMessages
                     .allAnnotations()
                     .filter { AnnotationType.CounterRemoved in it.typeList && it.detailString("counter_type") == "Time" }
-            val overlord = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Overlord of the Mistmoors" }
+            val overlord = human.battlefield.card("Overlord of the Mistmoors")
 
             assertSoftly {
                 removed.sumOf { it.detailInt("transaction_amount") } shouldBe 4

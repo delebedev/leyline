@@ -1,12 +1,12 @@
 package leyline.behavior.mechanics.abilitywordactive
 
 import forge.game.card.CounterEnumType
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotationsOfType
@@ -36,7 +36,7 @@ class VoidAbilityWordLifecycleTest :
             turns = 3,
         ) {
             val sourceIid = instanceIdOf("Insatiable Skittermaw")
-            val source = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Insatiable Skittermaw" }
+            val source = human.battlefield.card("Insatiable Skittermaw")
             val target = instanceIdOf("Grizzly Bears", ai)
 
             val activeMessages =

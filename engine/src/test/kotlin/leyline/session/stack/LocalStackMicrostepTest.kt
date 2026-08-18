@@ -11,8 +11,10 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.annotation
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
+import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -180,7 +182,7 @@ class LocalStackMicrostepTest :
             val gsms = messages.gameStateMessages()
             val triggerEnter = gsms.firstOrNull { AnnotationType.TriggeringObject in it.persistentTypes() }
             triggerEnter.shouldNotBeNull()
-            val triggeringObject = triggerEnter.persistentAnnotationsList.first { AnnotationType.TriggeringObject in it.typeList }
+            val triggeringObject = triggerEnter.persistentAnnotation(AnnotationType.TriggeringObject)
             val resolveGsm =
                 gsms.firstOrNull { gsm ->
                     gsm.annotationsList.any {
@@ -272,8 +274,7 @@ class LocalStackMicrostepTest :
             val abilityIid =
                 abilityEnter
                     .shouldNotBeNull()
-                    .annotationsList
-                    .first { AnnotationType.AbilityInstanceCreated in it.typeList }
+                    .annotation(AnnotationType.AbilityInstanceCreated)
                     .affectedIdsList
                     .first()
             val resolveGsm =

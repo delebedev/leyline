@@ -37,6 +37,13 @@ mix Board and Integration tests in one file.
   owns card-text behavior; `behavior/puzzles/` owns puzzle plumbing.
 - `testkit/` owns test-only bases, matchers, probes, and message helpers.
 
+A new file earns its own existence only if it holds two or more substantive
+tests, needs setup no host can carry (a per-test timeout, a class-level
+suppression), or has no thematic host. A single test named after a bug belongs
+in the suite that should have caught it, usually as extra assertions on an
+existing test rather than as a new one. Name the file for the behavior it
+covers, never for the fix, the branch, or the report that prompted it.
+
 ## Use the existing harness surface
 
 Test-only helpers live under `engine/src/test/kotlin/leyline/testkit/`.
@@ -44,15 +51,18 @@ Shared headless runtime code lives under
 `engine/src/harness/kotlin/leyline/tooling/headless/`; tests import its aliases
 from `leyline.testkit` where provided.
 
-- Find instance IDs through the probe DSL:
-  `human.battlefield.iid("Walking Corpse")` or
+- Find cards and instance IDs through the probe DSL, which both `BoardTest` and
+  `MatchFlowHarness` carry: `human.battlefield.card("Walking Corpse")`,
   `ai.exile.iid("Forum's Favor")`. Use `instanceIdOf` only when the zone is
-  computed at runtime.
+  computed at runtime. Never walk `getZone(...).cards` to find a card by name —
+  the DSL names the zone's contents when the lookup misses.
 - Assert prompt windows through `after { ... }` and `MessageSlice` helpers.
   `expectOne*` means exactly one; use the raw message walker when repetition is
   part of the contract.
-- Assert zones with `ZoneMatchers`, annotations with `detail*()` helpers, and
-  actions with `ActionMatchers`.
+- Assert zones with `ZoneMatchers`, annotations with `annotation(type)` and the
+  `detail*()` helpers, and actions with `ActionMatchers`. `beInZoneOf` and its
+  wrappers mean *exactly* `count` copies and default to 1, so assert absence
+  with `beMissingFrom(zone, player)` rather than negating a count.
 - Build client messages through the proto DSL. Do not duplicate inline proto
   builders or private message walkers.
 - Put read-only helpers on message types. Put helpers requiring live state on

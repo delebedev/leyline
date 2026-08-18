@@ -35,7 +35,7 @@ private fun List<GREToClientMessage>.preparedDesignations(): List<AnnotationInfo
         }.distinctBy { it.id }
 
 /**
- * End-to-end coverage for the Prepared card-state designation (bd leyline-jtsv).
+ * End-to-end coverage for the Prepared card-state designation.
  *
  * Honorbound Page enters prepared via an ETB replacement effect. Forge's
  * AlterAttributeEffect spawns a copy of the alternate face (Forum's Favor)
@@ -129,10 +129,7 @@ class HonorboundPagePrepareTest :
             passUntilResolved()
 
             val copy =
-                human
-                    .getZone(ZoneType.Exile)
-                    .cards
-                    .first { it.name == "Forum's Favor" }
+                human.exile.card("Forum's Favor")
             val copyIid = human.exile.iid("Forum's Favor")
             val grpId = bridge.resolveGrpId(copy, copyIid)
             grpId shouldNotBe 0

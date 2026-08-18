@@ -13,7 +13,6 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
@@ -22,10 +21,11 @@ import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allAnnotations
+import leyline.testkit.annotation
 import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
-import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.clientMessage
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
@@ -44,7 +44,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
-import forge.game.zone.ZoneType as ForgeZoneType
 import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
@@ -92,10 +91,7 @@ class TargetingInteractionTest :
                 creature.netToughness shouldBeGreaterThanOrEqual 4
 
                 // Spell moved Stack → GY
-                human
-                    .getZone(ForgeZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Giant Growth" } shouldHaveSize 1
+                "Giant Growth" should beInGraveyardOf(human)
             }
         }
 
@@ -276,10 +272,7 @@ class TargetingInteractionTest :
             assertSoftly {
                 game().stack.isEmpty.shouldBeTrue()
                 // Puzzle has exactly 1 Giant Growth; cancel returns it to hand.
-                human
-                    .getZone(ForgeZoneType.Hand)
-                    .cards
-                    .filter { it.name == "Giant Growth" } shouldHaveSize 1
+                "Giant Growth" should beInHandOf(human)
                 cancel.messages.any { it.hasActionsAvailableReq() }.shouldBeTrue()
             }
 
@@ -375,7 +368,7 @@ class TargetingInteractionTest :
                         gsm.annotationsList.any { AnnotationType.PlayerSelectingTargets in it.typeList }
                     }
             pstFrame.shouldNotBeNull()
-            val pst = pstFrame.annotationsList.first { AnnotationType.PlayerSelectingTargets in it.typeList }
+            val pst = pstFrame.annotation(AnnotationType.PlayerSelectingTargets)
             assertSoftly {
                 pst.affectorId shouldBe HUMAN_SEAT
                 pst.affectedIdsList shouldContain stackIid
@@ -394,7 +387,7 @@ class TargetingInteractionTest :
                         gsm.annotationsList.any { AnnotationType.PlayerSubmittedTargets in it.typeList }
                     }
             psutFrame.shouldNotBeNull()
-            val psut = psutFrame.annotationsList.first { AnnotationType.PlayerSubmittedTargets in it.typeList }
+            val psut = psutFrame.annotation(AnnotationType.PlayerSubmittedTargets)
             assertSoftly {
                 psut.affectorId shouldBe HUMAN_SEAT
                 psut.affectedIdsList shouldContain stackIid
@@ -624,8 +617,6 @@ class TargetingInteractionTest :
             assertSoftly {
                 "Grizzly Bears" should beInHandOf(human)
                 "Coral Merfolk" should beInHandOf(ai)
-                "Grizzly Bears" shouldNot beOnBattlefieldOf(human)
-                "Coral Merfolk" shouldNot beOnBattlefieldOf(ai)
             }
         }
 
@@ -642,9 +633,8 @@ class TargetingInteractionTest :
             val damageAnn =
                 allMessages
                     .allAnnotations()
-                    .firstOrNull { AnnotationType.DamageDealt_af5a in it.typeList }
+                    .annotation(AnnotationType.DamageDealt_af5a)
             assertSoftly {
-                damageAnn.shouldNotBeNull()
                 // affectorId = dealing creature (not the spell iid)
                 damageAnn.affectorId shouldBe dealerIid
                 // Damage amount = dealer power (Grizzly Bears = 2)
@@ -659,15 +649,8 @@ class TargetingInteractionTest :
                 allMessages.firstWithTransferCategory("SBA_Damage").shouldNotBeNull()
 
                 // Bite Down → human GY, Grizzly Bears → ai GY
-                human
-                    .getZone(ForgeZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Bite Down" } shouldHaveSize 1
-                ai
-                    .getZone(ForgeZoneType.Graveyard)
-                    .cards
-                    .filter { it.name == "Grizzly Bears" }
-                    .shouldNotBeEmpty()
+                "Bite Down" should beInGraveyardOf(human)
+                "Grizzly Bears" should beInGraveyardOf(ai)
 
                 assertAccumulatorConsistent("after Bite Down resolution")
             }

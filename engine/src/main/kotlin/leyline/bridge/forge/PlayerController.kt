@@ -1299,7 +1299,7 @@ class PlayerController(
     ): Int =
         error(
             "chooseNumber(sa, title, values, relatedPlayer) not yet implemented for headless bridge — " +
-                "list-of-values shape needs a separate emit path (likely SelectN-of-1). See leyline-yt8x. " +
+                "list-of-values shape needs a separate emit path (likely SelectN-of-1). " +
                 "sa.hostCard=${sa.hostCard?.name}, values=$values",
         )
 

@@ -2,6 +2,7 @@ package leyline.behavior.cards
 
 import forge.game.zone.ZoneType
 import io.kotest.matchers.shouldBe
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -45,7 +46,7 @@ class ShockLandEtbTest :
             phase() shouldBe "MAIN1"
 
             // Play the shock land — don't use playLand() as it auto-accepts
-            val land = human.getZone(ZoneType.Hand).cards.first { it.name == "Temple Garden" }
+            val land = human.hand.card("Temple Garden")
             val msg =
                 performAction {
                     actionType = ActionType.Play_add3
@@ -80,7 +81,7 @@ class ShockLandEtbTest :
             human.life shouldBe 20
 
             // Play the shock land manually
-            val land = human.getZone(ZoneType.Hand).cards.first { it.name == "Temple Garden" }
+            val land = human.hand.card("Temple Garden")
             val msg =
                 performAction {
                     actionType = ActionType.Play_add3

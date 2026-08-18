@@ -4,7 +4,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
@@ -17,6 +16,7 @@ import leyline.game.snapshot.StackSnapshot
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
+import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import leyline.testkit.StateMapperShell as StateMapper
 
@@ -92,17 +92,9 @@ class TargetSpecAnnotationTest :
                 }
 
             val creature =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                b.getPlayer(SeatId(1))!!.battlefield.card("Grizzly Bears")
             val spell =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Murder" }
+                b.getPlayer(SeatId(1))!!.hand.card("Murder")
 
             // Simulate completed chooseTargetsFor state: add the pending group.
             val target =
@@ -131,13 +123,9 @@ class TargetSpecAnnotationTest :
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
 
-            val targetAnn =
-                gs.persistentAnnotationsList.firstOrNull { ann ->
-                    AnnotationType.TargetSpec in ann.typeList
-                }
+            val targetAnn = gs.persistentAnnotation(AnnotationType.TargetSpec)
             assertSoftly {
-                targetAnn shouldNotBe null
-                targetAnn!!.affectedIdsList.size shouldBe 1
+                targetAnn.affectedIdsList.size shouldBe 1
                 targetAnn.detailInt("index") shouldBe 1
                 targetAnn.detailInt("abilityGrpId") shouldBeGreaterThan 0
             }
@@ -151,17 +139,9 @@ class TargetSpecAnnotationTest :
                 }
 
             val creature =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                b.getPlayer(SeatId(1))!!.battlefield.card("Grizzly Bears")
             val spell =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Murder" }
+                b.getPlayer(SeatId(1))!!.hand.card("Murder")
 
             val target =
                 InteractivePromptBridge.PendingTarget(
@@ -240,17 +220,9 @@ class TargetSpecAnnotationTest :
                 }
 
             val creature =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
+                b.getPlayer(SeatId(1))!!.battlefield.card("Grizzly Bears")
             val spell =
-                b
-                    .getPlayer(SeatId(1))!!
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .first { it.name == "Murder" }
+                b.getPlayer(SeatId(1))!!.hand.card("Murder")
 
             b.seat(SeatId(1)).prompt.addPendingTargetSpec(
                 InteractivePromptBridge.PendingTarget(
