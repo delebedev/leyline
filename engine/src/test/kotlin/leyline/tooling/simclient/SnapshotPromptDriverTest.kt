@@ -109,4 +109,20 @@ class SnapshotPromptDriverTest :
                 snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:cast_omen" } shouldBe true
             }
         }
+
+        test("snapshot consult submits a partial blocker declaration without toggling it") {
+            val baseline = runPuzzle("partial-blocker-convergence.pzl", SimClientPolicyMode.ForgeAi)
+            val snapshot = runPuzzle("partial-blocker-convergence.pzl", SimClientPolicyMode.Snapshot)
+
+            assertSoftly {
+                baseline.winnerSeat shouldBe 1
+                baseline.promptProgressSamples.single().targetIds shouldBe listOf(100)
+
+                snapshot.winnerSeat shouldBe 1
+                snapshot.actionAttemptsByType["snapshot:block"] shouldBe 1
+                snapshot.actionAttemptsByType["snapshot:submit_blockers"] shouldBe 1
+                snapshot.actionAttemptsByType["snapshot:unblock"] shouldBe null
+                snapshot.promptProgressSamples.first().targetIds shouldBe listOf(100)
+            }
+        }
     })

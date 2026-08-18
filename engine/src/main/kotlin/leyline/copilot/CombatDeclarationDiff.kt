@@ -5,15 +5,15 @@ import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
 
 /**
  * One step of iterative combat declaration: compare the committed set the
- * prompt reflects against the AI's desired set and emit the next single
- * client message — one toggle per round-trip, exactly like a player clicking
- * one creature at a time, then Submit when they match.
+ * prompt reflects against the AI's desired set and emit the next client
+ * message. Attackers toggle individually. Blockers send the complete desired
+ * map once because a fresh AI consult against the intermediate combat can
+ * reinterpret its own accepted selection.
  *
  * The committed state is read from the prompt itself (stateless): a committed
  * attacker carries `selectedDamageRecipient`; a committed blocker carries
- * `selectedAttackerInstanceIds`. Each toggle makes the engine echo a fresh
- * prompt, so repeated consults converge and finish with a Submit that answers
- * the final re-prompt.
+ * `selectedAttackerInstanceIds`. The engine echoes a fresh prompt after the
+ * declaration, and that accepted echo is submitted without another AI choice.
  */
 internal object CombatDeclarationDiff {
     /** AI-desired attackers restricted to the instanceIds qualified by this prompt. */
@@ -37,16 +37,6 @@ internal object CombatDeclarationDiff {
         req.blockersList
             .filter { it.selectedAttackerInstanceIdsCount > 0 }
             .associate { it.blockerInstanceId to it.selectedAttackerInstanceIdsList.first() }
-
-    /**
-     * A prompt with every listed blocker already assigned is the final
-     * re-prompt. Its committed map is authoritative: rebuilding and asking the
-     * AI again can only reinterpret a declaration the server already accepted.
-     */
-    fun fullyCommittedBlocks(req: DeclareBlockersReq): Map<Int, Int>? =
-        req.blockersList
-            .takeIf { it.isNotEmpty() && it.all { blocker -> blocker.selectedAttackerInstanceIdsCount > 0 } }
-            ?.associate { it.blockerInstanceId to it.selectedAttackerInstanceIdsList.first() }
 
     /** AI-desired blocks restricted to each blocker's choices in this prompt. */
     fun qualifiedDesiredBlocks(
@@ -74,21 +64,12 @@ internal object CombatDeclarationDiff {
         return toggle?.let { SimDecision.DeclareAttackers(listOf(it)) } ?: SimDecision.SubmitAttackers
     }
 
-    /**
-     * Next blocker-declaration step: assign/reassign one blocker whose
-     * committed target differs from the desired one, else un-toggle one
-     * blocker no longer wanted, else Submit.
-     */
+    /** Send the complete blocker plan once, then submit its accepted echo. */
     fun blockerStep(
         committed: Map<Int, Int>,
         desired: Map<Int, Int>,
     ): SimDecision {
-        val reassign = desired.entries.firstOrNull { (blocker, attacker) -> committed[blocker]?.let { it != attacker } == true }
-        if (reassign != null) return SimDecision.UndeclareBlocker(reassign.key)
-        val assign = desired.entries.firstOrNull { (blocker, _) -> blocker !in committed }
-        if (assign != null) return SimDecision.DeclareBlockers(mapOf(assign.key to assign.value))
-        val unassign = committed.keys.firstOrNull { it !in desired }
-        if (unassign != null) return SimDecision.UndeclareBlocker(unassign)
-        return SimDecision.SubmitBlockers
+        if (committed.isNotEmpty()) return SimDecision.SubmitBlockers
+        return desired.takeIf { it.isNotEmpty() }?.let(SimDecision::DeclareBlockers) ?: SimDecision.SubmitBlockers
     }
 }
