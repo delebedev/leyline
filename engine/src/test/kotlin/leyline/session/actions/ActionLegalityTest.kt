@@ -129,6 +129,31 @@ class ActionLegalityTest :
         }
 
         session(
+            "counterspell targeting mana value 2 not offered when stack spell has a different mana value",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Spell Snare
+                humanbattlefield=Island
+                humanlibrary=Island;Island;Island
+                aihand=Divination
+                aibattlefield=Island;Island;Island
+                ailibrary=Island;Island;Island
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Divination"), ScriptedAction.PassPriority),
+        ) {
+            val castOffered =
+                allMessages.any {
+                    it.hasActionsAvailableReq() &&
+                        it.actionsAvailableReq.actionsList.any { a -> a.actionType == ActionType.Cast }
+                }
+            castOffered shouldBe false
+        }
+
+        session(
             "no DeclareBlockersReq when only flyers attack and defender has no reach",
             puzzle = FLYING_BLOCKERS_PUZZLE,
             aiScript =

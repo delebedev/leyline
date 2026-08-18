@@ -1,0 +1,8 @@
+name: "Spell Snare"
+grpId: 98389
+titleId: 12919
+abilities:
+  - id: 9525
+    textId: 629851
+    category: 4
+expansionCode: "ECL"
