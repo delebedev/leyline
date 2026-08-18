@@ -153,7 +153,7 @@ class GamePlayback(
         // combat-state diff (tapped creatures + attackState=Attacking) after
         // attackers are declared regardless of whose turn it is. Without this,
         // the human-seat auto-pass loop overshoots past combat before building
-        // a diff, and the client never sees attackers tapped (leyline-o2q).
+        // a diff, and the client never sees attackers tapped.
         if (isRemoteActing()) {
             requestCut(PlaybackCutReason.AttackersDeclared, COMBAT_DELAY, boundary = PlaybackCutBoundary.AttackersDeclared)
         } else {

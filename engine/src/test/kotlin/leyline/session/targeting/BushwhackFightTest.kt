@@ -19,8 +19,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
- * Regression for fix/bushwhack-fight-mode (bd leyline-xny).
- *
  * Bushwhack is `SP$ Charm | Choices$ FetchBasic,Fight`. The Fight branch is
  * `Pump|AILogic$ Fight + DBFight|ParentTarget` — same shape as Bite Down,
  * but wrapped in an outer Charm whose own SA does not target.

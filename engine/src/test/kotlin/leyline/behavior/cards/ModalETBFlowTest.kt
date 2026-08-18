@@ -211,7 +211,7 @@ class ModalETBFlowTest :
         }
 
         session(
-            "synthesized ability cleaned up after modal resolves (leyline-l1tc)",
+            "synthesized ability cleaned up after modal resolves",
             puzzleFile = "puzzles/modal-etb.pzl",
             validating = true,
         ) {

@@ -10,8 +10,8 @@ import leyline.game.snapshot.GsmSnapshot
  * `CardSnapshot` already carries every input — `netPower`, `netToughness`,
  * `currentStateNameIsBackside` — and the diff pipeline already pairs `prev`
  * with `cur`. Synthesizing here lets the collector translate Forge events
- * 1:1 without keeping its own diff state, removing the "two diffing engines"
- * smell flagged in the architectural-pressure review (parent leyline-y3pf).
+ * 1:1 without keeping its own diff state, so there is one diffing engine
+ * rather than two.
  *
  * Gates are conservative — emit only when both sides observe a creature
  * (non-null `netPower`/`netToughness`) or both sides observe the same card

@@ -3,7 +3,7 @@ Name:Scry ETB
 Goal:Win
 Turns:10
 Difficulty:Tutorial
-Description:Cast Wall of Runes to trigger scry 1 on ETB. Modeled from a reference session 2026-03-08_19-44-CHALLENGE-STARTER-SEAT1 idx 17-29. Same cards as the reference sequence.
+Description:Cast Wall of Runes to trigger scry 1 on ETB.
 
 [state]
 ActivePlayer=Human

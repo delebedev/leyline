@@ -24,19 +24,19 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Scry ETB flow tests — derived from a reference run.
+ * Scry ETB flow — the annotation stream a scry-on-enter trigger must produce.
  *
- * Source: local reference run 2026-03-08, indices 17-29.
  * Card: Wall of Runes (grpId 75478), 0/4 Defender Wall, "When ~ enters, scry 1."
+ * Fixture: `puzzles/scry-etb.pzl`.
  *
- * Reference sequence:
+ * Sequence under test:
  *   1. Play Island (hand → battlefield, ObjectIdChanged + ZoneTransfer/PlayLand)
  *   2. Cast Wall of Runes (hand → stack, CastSpell + mana payment annotations)
  *   3. Priority passes, Wall resolves (stack → battlefield, Resolve + ETB trigger created)
  *   4. Trigger resolves → GroupReq (context=Scry, top/bottom choice)
  *   5. Player chooses bottom → Scry annotation + trigger cleanup
  *
- * This test verifies leyline's output matches the reference annotation structure:
+ * Pinned along the way:
  * - ZoneTransfer categories (PlayLand, CastSpell, Resolve)
  * - Mana payment sequence (AbilityInstanceCreated → TappedUntappedPermanent → ManaPaid → Deleted)
  * - ETB trigger lifecycle (AbilityInstanceCreated → TriggeringObject → GroupReq → Scry → Deleted)
@@ -232,7 +232,7 @@ class ScryETBFlowTest :
                 // Wall of Runes' ETB triggers from the battlefield — assert the
                 // value, not just presence, so the snap-diff path's accurate
                 // sourceZoneId doesn't silently regress to the event-path
-                // BATTLEFIELD-fallback (leyline-w9ij).
+                // BATTLEFIELD-fallback.
                 triggering.detailInt("source_zone") shouldBe leyline.game.mapping.ZoneIds.BATTLEFIELD
             }
 

@@ -7,10 +7,9 @@ import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 
 /**
- * Lock down PromptId constants against reference values.
- *
- * Evidence: conformance observatory — `just segment-variance` + `just conform-proto`
- * against reference sessions. See issue #194.
+ * Lock down the PromptId constants the client resolves to localized strings.
+ * A changed value silently swaps the prompt text the player reads, so the
+ * numbers are pinned here rather than left to the call sites.
  */
 class PromptIdsTest :
     FunSpec({

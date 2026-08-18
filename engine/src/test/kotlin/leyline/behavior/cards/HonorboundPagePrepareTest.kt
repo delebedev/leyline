@@ -35,7 +35,7 @@ private fun List<GREToClientMessage>.preparedDesignations(): List<AnnotationInfo
         }.distinctBy { it.id }
 
 /**
- * End-to-end coverage for the Prepared card-state designation (bd leyline-jtsv).
+ * End-to-end coverage for the Prepared card-state designation.
  *
  * Honorbound Page enters prepared via an ETB replacement effect. Forge's
  * AlterAttributeEffect spawns a copy of the alternate face (Forum's Favor)

@@ -6,8 +6,6 @@ import leyline.testkit.after
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Repro for leyline-6vtg.
- *
  * When two simultaneous triggers from distinct sources fire under one
  * controller, Forge's `PCHuman.orderSimultaneousSa` routes through
  * `getGui().order(...)` → [leyline.bridge.forge.ClientGuiGame.order]. The

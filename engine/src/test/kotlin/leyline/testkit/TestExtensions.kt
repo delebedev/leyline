@@ -44,8 +44,7 @@ fun PlayerZone.card(name: String): Card =
 // matching against nothing — false-pass for absence checks, throws for
 // presence checks. Use the helpers below to address GSMs by their
 // content (the persistent annotation, the gameObject, an arbitrary
-// predicate) instead of position. See leyline-sxpo for the pattern
-// these replace.
+// predicate) instead of position.
 
 /** Last GSM from a list of GREs that satisfies [predicate], or null. */
 fun List<GREToClientMessage>.lastGsmMatching(predicate: (GameStateMessage) -> Boolean): GameStateMessage? =

@@ -74,10 +74,10 @@ object FieldPathExtractor {
     /**
      * Format a field coverage diff for human reading.
      *
-     * @param reference paths from the reference session
+     * @param reference the field paths the output is expected to carry
      * @param ours paths from our builder output
      * @param expectedMissing documented known gaps
-     * @param expectedExtra documented known extras (we produce, reference doesn't)
+     * @param expectedExtra documented known extras (we produce, the baseline doesn't)
      * @return multi-line report, empty if everything matches
      */
     fun formatDiff(
