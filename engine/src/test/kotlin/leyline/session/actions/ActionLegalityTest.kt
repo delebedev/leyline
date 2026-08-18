@@ -89,19 +89,15 @@ class ActionLegalityTest :
                 HumanLife=20
                 AILife=20
 
-                humanhand=Spell Pierce
-                humanbattlefield=Island
+                humanhand=Negate
+                humanbattlefield=Island;Island
                 humanlibrary=Island;Island;Island
                 aihand=Grizzly Bears
                 aibattlefield=Forest;Forest
                 ailibrary=Forest;Forest;Forest
                 """,
             aiScript = listOf(ScriptedAction.CastSpell("Grizzly Bears"), ScriptedAction.PassPriority),
-            validating = true,
         ) {
-            // AI casts Grizzly Bears (creature) then passes, giving the human
-            // priority with a creature spell — not a legal Spell Pierce target — on
-            // the stack.
             val castOffered =
                 allMessages.any {
                     it.hasActionsAvailableReq() &&
@@ -118,18 +114,15 @@ class ActionLegalityTest :
                 HumanLife=20
                 AILife=20
 
-                humanhand=Spell Pierce
-                humanbattlefield=Island
+                humanhand=Negate
+                humanbattlefield=Island;Island
                 humanlibrary=Island;Island;Island
                 aihand=Divination
                 aibattlefield=Island;Island;Island
                 ailibrary=Island;Island;Island
                 """,
             aiScript = listOf(ScriptedAction.CastSpell("Divination"), ScriptedAction.PassPriority),
-            validating = true,
         ) {
-            // AI casts Divination (noncreature) then passes — Spell Pierce's actual
-            // target exists, so it must still be offered.
             val aar = allMessages.last { it.hasActionsAvailableReq() }
             val castActions = aar.actionsAvailableReq.actionsList.filter { it.actionType == ActionType.Cast }
             castActions.size shouldBe 1

@@ -1,8 +1,0 @@
-name: "Spell Pierce"
-grpId: 102775
-titleId: 38340
-abilities:
-  - id: 30062
-    textId: 38342
-    category: 4
-expansionCode: "SOA"
