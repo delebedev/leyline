@@ -2,6 +2,8 @@ package leyline.game.mapping
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import leyline.bridge.types.ForgeCardId
 import leyline.game.state.GameBridge
@@ -11,17 +13,15 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
- * Regression: naive-mode Cast actions (the ones embedded in GSM frames during
- * the opponent's turn) must display the spell's effective cost after a static
- * cost reduction, not the printed cost.
+ * `ActionMapper.buildNaiveActions` — the action list embedded in GSM frames
+ * during the opponent's turn, built without a legality pass.
  *
- * The naive action path historically routed every hand cast through a fallback
- * that serialized the printed `CardData.manaCost`, so any static reduction
- * (`Eddymurk Crab`/`Tolarian Terror` graveyard reducers, Affinity, etc.) stayed
- * invisible in the embedded action until it happened to zero out the generic
- * portion.
+ * Two things the naive path gets wrong if left unguarded: it can offer actions
+ * the turn structure forbids, and it can serialize a card's printed cost rather
+ * than its effective one, because the fallback it used to route hand casts
+ * through read `CardData.manaCost` directly.
  */
-class NaiveActionsCostReductionTest :
+class NaiveActionsTest :
     BoardTest({
 
         fun naiveCastAction(
@@ -31,6 +31,22 @@ class NaiveActionsCostReductionTest :
             val req = ActionMapper.buildNaiveActions(1, bridge)
             return (req.actionsList + req.inactiveActionsList)
                 .first { it.actionType == ActionType.Cast && it.instanceId == instanceId }
+        }
+
+        test("lands are offered as inactive, never as playable actions") {
+            val (bridge, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Plains", human, ZoneType.Hand)
+                }
+
+            val req = ActionMapper.buildNaiveActions(1, bridge)
+
+            assertSoftly {
+                req.actionsList.filter { it.actionType == ActionType.Play_add3 }.shouldBeEmpty()
+                req.inactiveActionsList.filter { it.actionType == ActionType.Play_add3 }.shouldNotBeEmpty()
+            }
         }
 
         test("naive cast and embedded GSM actions reflect graveyard cost reduction") {

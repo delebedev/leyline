@@ -187,6 +187,33 @@ class GameEndTest :
         }
 
         session(
+            "spell resolving for lethal produces MatchCompleted room state",
+            puzzleFile = "puzzles/bolt-face.pzl",
+            validating = true,
+        ) {
+            // Combat damage and stack resolution reach game-over through
+            // different handlers; the stack-empty path must check isGameOver
+            // rather than returning as soon as the stack drains.
+            castSpellByName("Lightning Bolt").shouldBeTrue()
+            selectTargets(listOf(OPPONENT_SEAT))
+            passPriority()
+
+            isGameOver().shouldBeTrue()
+
+            val matchCompleted =
+                allRawMessages.firstOrNull {
+                    it.hasMatchGameRoomStateChangedEvent() &&
+                        it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                        MatchGameRoomStateType.MatchCompleted
+                }
+            matchCompleted.shouldNotBeNull()
+
+            val intermission = allMessages.firstOrNull { it.hasIntermissionReq() }
+            intermission.shouldNotBeNull()
+            intermission.intermissionReq.result.reason shouldBe ResultReason.Game_ae0a
+        }
+
+        session(
             "lethal poison produces poison loss annotation",
             puzzle =
                 """

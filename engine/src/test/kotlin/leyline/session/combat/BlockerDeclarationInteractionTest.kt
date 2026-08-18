@@ -241,4 +241,29 @@ class BlockerDeclarationInteractionTest :
                     .selectedAttackerInstanceIdsCount shouldBe 1
             }
         }
+
+        session(
+            "declare-blockers step sends exactly one DeclareBlockersReq",
+            puzzle = """
+            ActivePlayer=AI
+            ActivePhase=COMBAT_DECLARE_ATTACKERS
+            HumanLife=20
+            AILife=20
+
+            humanbattlefield=Mountain;Raging Goblin
+            humanlibrary=Mountain;Mountain;Mountain
+            aibattlefield=Mountain;Raging Goblin|Attacking|Tapped
+            ailibrary=Mountain;Mountain;Mountain
+            """,
+            turns = 1,
+        ) {
+            // checkCombatPhase runs again during the priority window that follows
+            // a blocker submission, so without the pendingBlockersSent latch it
+            // re-sends the request and the client stalls waiting on a prompt it
+            // already answered. declareNoBlockers drives autoPassAndAdvance
+            // internally, so any re-entry fires inside this synchronous call.
+            declareNoBlockers()
+
+            allMessages.count { it.hasDeclareBlockersReq() } shouldBe 1
+        }
     })
