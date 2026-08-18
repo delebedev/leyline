@@ -1,5 +1,7 @@
 package leyline.game.mapping
 
+import forge.card.MagicColor
+import forge.game.mana.Mana
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -97,6 +99,34 @@ class CastDisplayCostBoardTest :
             val (active, inactive) = castOffers(b, game, "Traumatic Critique")
             active shouldHaveSize 1
             inactive shouldHaveSize 0
+        }
+
+        test("spell is castable from floating mana alone with no untapped sources left") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    // Grizzly Bears {1}{G} — pay entirely from an already-floating
+                    // pool; both lands that produced it are tapped and no other
+                    // mana source exists.
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    val forest1 = addCard("Forest", human)
+                    val forest2 = addCard("Forest", human)
+                    forest1.setTapped(true)
+                    forest2.setTapped(true)
+                    human.manaPool.addMana(Mana(MagicColor.GREEN, forest1, null, human))
+                    human.manaPool.addMana(Mana(MagicColor.GREEN, forest2, null, human))
+                }
+            val bears = game.humanPlayerCard("Grizzly Bears")
+            val instanceId = b.getOrAllocInstanceId(ForgeCardId(bears.id)).value
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+
+            val active = req.actionsList.any { it.actionType == ActionType.Cast && it.instanceId == instanceId }
+            val inactive = req.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == instanceId }
+            assertSoftly {
+                active shouldBe true
+                inactive shouldBe false
+            }
         }
 
         test("static reducer shows on a plain spell") {
