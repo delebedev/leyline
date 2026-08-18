@@ -115,18 +115,9 @@ class CastDisplayCostBoardTest :
                     human.manaPool.addMana(Mana(MagicColor.GREEN, forest1, null, human))
                     human.manaPool.addMana(Mana(MagicColor.GREEN, forest2, null, human))
                 }
-            val bears = game.humanPlayerCard("Grizzly Bears")
-            val instanceId = b.getOrAllocInstanceId(ForgeCardId(bears.id)).value
-
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val req = ActionMapper.buildFromSnapshot(1, snap, b)
-
-            val active = req.actionsList.any { it.actionType == ActionType.Cast && it.instanceId == instanceId }
-            val inactive = req.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == instanceId }
-            assertSoftly {
-                active shouldBe true
-                inactive shouldBe false
-            }
+            val (active, inactive) = castOffers(b, game, "Grizzly Bears")
+            active shouldHaveSize 1
+            inactive shouldHaveSize 0
         }
 
         test("static reducer shows on a plain spell") {
