@@ -32,7 +32,6 @@ class ReconfigureLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val rabbitIid = human.battlefield.iid("Rabbit Battery")
             val bearIid = human.battlefield.iid("Grizzly Bears")

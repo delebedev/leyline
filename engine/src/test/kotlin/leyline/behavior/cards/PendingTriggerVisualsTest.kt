@@ -99,7 +99,6 @@ class PendingTriggerVisualsTest :
                 humanlibrary=Plains
                 ailibrary=Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val targetIid = human.battlefield.iid("Grizzly Bears")
             castSpellByName(ennis.name).shouldBeTrue()
@@ -143,7 +142,6 @@ class PendingTriggerVisualsTest :
                 humanlibrary=Island
                 ailibrary=Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
@@ -183,7 +181,6 @@ class PendingTriggerVisualsTest :
                 humanlibrary=Swamp
                 ailibrary=Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val familiarIid = human.battlefield.iid(familiar.name)
             castSpellByName("Shock").shouldBeTrue()

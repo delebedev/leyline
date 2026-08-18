@@ -34,7 +34,6 @@ class BlitzLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-            validating = true,
         ) {
             val patrolGrpId = bridge.cardRepository.findGrpIdByName("Mayhem Patrol")!!
             val blitzAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(patrolGrpId, KeywordAbilityIds.BLITZ)!!

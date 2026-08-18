@@ -36,7 +36,6 @@ class RetraceLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-            validating = true,
         ) {
             val wavesGrpId = bridge.cardRepository.findGrpIdByName("Waves of Aggression")!!
             val retraceAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(wavesGrpId, KeywordAbilityIds.RETRACE)!!

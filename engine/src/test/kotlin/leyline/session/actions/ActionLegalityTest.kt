@@ -17,7 +17,6 @@ class ActionLegalityTest :
         session(
             "counterspell not offered as castable when stack is empty",
             puzzleFile = "puzzles/counterspell-empty-stack.pzl",
-            validating = true,
         ) {
             // Pass to get ActionsAvailableReq in Main1
             val found =
@@ -42,7 +41,6 @@ class ActionLegalityTest :
         session(
             "no DeclareBlockersReq when only flyers attack and defender has no reach",
             puzzleFile = "puzzles/flying-blockers.pzl",
-            validating = true,
             aiScript =
                 listOf(
                     ScriptedAction.Attack(listOf("Spyglass Siren", "Kitesail Cleric")),

@@ -22,7 +22,6 @@ class DfcTransformLifecycleTest :
                 humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
                 aibattlefield=Runeclaw Bear
                 """.trimIndent(),
-            validating = true,
         ) {
             val curtains =
                 human

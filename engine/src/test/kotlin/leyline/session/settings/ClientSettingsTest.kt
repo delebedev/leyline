@@ -45,7 +45,7 @@ class ClientSettingsTest :
                 .setStatus(status)
                 .build()
 
-        session("enabling Upkeep stop via Team scope updates the profile", validating = true) {
+        session("enabling Upkeep stop via Team scope updates the profile") {
             val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
@@ -68,7 +68,7 @@ class ClientSettingsTest :
             }
         }
 
-        session("disabling Main1 stop via Team scope updates the profile", validating = true) {
+        session("disabling Main1 stop via Team scope updates the profile") {
             val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
@@ -89,7 +89,7 @@ class ClientSettingsTest :
             }
         }
 
-        session("multiple stops can be toggled in a single settings message", validating = true) {
+        session("multiple stops can be toggled in a single settings message") {
             val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
@@ -113,7 +113,7 @@ class ClientSettingsTest :
             }
         }
 
-        session("opponents scope does not affect human", validating = true) {
+        session("opponents scope does not affect human") {
             val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
@@ -126,7 +126,7 @@ class ClientSettingsTest :
             after shouldBe before
         }
 
-        session("AnyPlayer scope applies to human", validating = true) {
+        session("AnyPlayer scope applies to human") {
             val profile = bridge.phaseStopProfile!!
             val humanId = human.id
 
@@ -147,7 +147,7 @@ class ClientSettingsTest :
             }
         }
 
-        session("settings response is echoed back as raw message", validating = true) {
+        session("settings response is echoed back as raw message") {
             sendSettings(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
             drainSink()
 

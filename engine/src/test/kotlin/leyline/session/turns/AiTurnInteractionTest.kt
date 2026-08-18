@@ -60,7 +60,7 @@ class AiTurnInteractionTest :
 
         // ─── Boot wire conformance (seed-based, real game start) ────────────────
 
-        session("AI-first boot — ≤1 Full post-handshake + phaseTransitionDiff pattern", seed = AI_FIRST_SEED, validating = true) {
+        session("AI-first boot — ≤1 Full post-handshake + phaseTransitionDiff pattern", seed = AI_FIRST_SEED) {
             val gsms =
                 allMessages
                     .filter { it.hasGameStateMessage() }
@@ -262,7 +262,7 @@ class AiTurnInteractionTest :
                 ScriptedAction.PassPriority,
             )
 
-        session("AI land play precedes CastSpell in one completed-step frame", deckList = COMBAT_DECK, seed = 42L, validating = true) {
+        session("AI land play precedes CastSpell in one completed-step frame", deckList = COMBAT_DECK, seed = 42L) {
             installScriptedAi(scriptedLandThenGoblin)
             passUntilTurn(3)
 
@@ -321,7 +321,7 @@ class AiTurnInteractionTest :
             }
         }
 
-        session("AI-first land play not discarded (default AI, no script)", deckList = COMBAT_DECK, seed = 2L, validating = true) {
+        session("AI-first land play not discarded (default AI, no script)", deckList = COMBAT_DECK, seed = 2L) {
             passUntilTurn(2)
 
             val playLandMessages =

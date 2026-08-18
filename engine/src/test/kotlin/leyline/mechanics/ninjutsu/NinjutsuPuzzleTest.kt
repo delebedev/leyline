@@ -66,7 +66,6 @@ class NinjutsuPuzzleTest :
                 aibattlefield=
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-            validating = true,
         ) {
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 

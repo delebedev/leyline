@@ -28,7 +28,6 @@ class StationLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             activateAbility("Lumen-Class Frigate").shouldBeTrue()
             val bearIid = human.battlefield.iid("Grizzly Bears")

@@ -21,7 +21,6 @@ class OptionalActionHandlerTest :
                 ailibrary=Mountain
                 """,
             turns = 3,
-            validating = true,
         ) {
             holdNextOptionalAction()
 

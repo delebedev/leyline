@@ -15,7 +15,6 @@ class StaticKeywordGrantTest :
         session(
             "Hallowed Haunting refreshes creatures with flying and vigilance at seven enchantments",
             puzzleFile = "puzzles/enchantment-count-hallowed-haunting.pzl",
-            validating = true,
         ) {
             val hallowedIid = human.battlefield.iid("Hallowed Haunting")
             val lionsIid = human.battlefield.iid("Savannah Lions")

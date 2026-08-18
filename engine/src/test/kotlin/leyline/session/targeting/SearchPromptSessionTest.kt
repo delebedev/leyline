@@ -22,7 +22,6 @@ class SearchPromptSessionTest :
                 aibattlefield=Forest
                 ailibrary=Forest
                 """,
-            validating = true,
         ) {
             castSpellByName("Sylvan Ranger") shouldBe true
             passPriority()

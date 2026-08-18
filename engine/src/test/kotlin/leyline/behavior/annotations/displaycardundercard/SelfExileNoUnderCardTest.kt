@@ -47,7 +47,7 @@ private val PUZZLE =
 
 class SelfExileNoUnderCardTest :
     SessionTest({
-        session("flashback self-exile does not emit self-referential DisplayCardUnderCard", puzzle = PUZZLE, validating = true) {
+        session("flashback self-exile does not emit self-referential DisplayCardUnderCard", puzzle = PUZZLE) {
             // Cast from hand → resolves into graveyard.
             castSpellByName("Think Twice").shouldBeTrue()
             passPriority()

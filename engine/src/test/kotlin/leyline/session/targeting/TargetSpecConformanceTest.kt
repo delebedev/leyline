@@ -26,7 +26,6 @@ class TargetSpecConformanceTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Mountain
                 """,
-            validating = true,
         ) {
             val opponentIid = ai.battlefield.iid("Grizzly Bears")
             castSpellByName("Twin Bolt") shouldBe true
@@ -69,7 +68,6 @@ class TargetSpecConformanceTest :
                 aibattlefield=Grizzly Bears
                 ailibrary=Mountain
                 """,
-            validating = true,
         ) {
             castSpellByName("Twin Bolt") shouldBe true
             selectTargets(listOf(OPPONENT_SEAT))
@@ -95,7 +93,6 @@ class TargetSpecConformanceTest :
                 aibattlefield=Forest
                 ailibrary=Mountain
                 """,
-            validating = true,
         ) {
             val targetIid = ai.battlefield.iid("Forest")
             castSpellByName("Stone Rain") shouldBe true
@@ -127,7 +124,6 @@ class TargetSpecConformanceTest :
                 aibattlefield=Mountain
                 ailibrary=Mountain
                 """,
-            validating = true,
         ) {
             castSpellByName("Pilfer") shouldBe true
 

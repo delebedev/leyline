@@ -55,7 +55,7 @@ class SagaCreatureTypeTest :
                 ailibrary=Forest;Forest;Forest
                 """.trimIndent()
 
-            val harness = MatchFlowHarness(validating = true)
+            val harness = MatchFlowHarness()
             try {
                 harness.connectAndKeepPuzzleText(puzzleText)
                 val game = harness.bridge.getGame()!!

@@ -104,7 +104,7 @@ class CopyTokenIntegrationTest :
             return copyToken to copyIid
         }
 
-        session("copy token gets source grpId, isCopy, and objectSourceGrpId", puzzle = puzzleText, validating = true) {
+        session("copy token gets source grpId, isCopy, and objectSourceGrpId", puzzle = puzzleText) {
             val (copyToken, copyIid) = castAndResolveCopy()
 
             // Forge should mark this as a copy
@@ -139,7 +139,7 @@ class CopyTokenIntegrationTest :
             }
         }
 
-        session("copy token retains cardTypes and power/toughness in GSM", puzzle = puzzleText, validating = true) {
+        session("copy token retains cardTypes and power/toughness in GSM", puzzle = puzzleText) {
             val (_, copyIid) = castAndResolveCopy()
 
             val snapCopy2 = GsmSnapshot.capture(game(), bridge, "test-copy", 1)
@@ -164,7 +164,7 @@ class CopyTokenIntegrationTest :
             }
         }
 
-        session("copy token fields survive diff GSM", puzzle = puzzleText, validating = true) {
+        session("copy token fields survive diff GSM", puzzle = puzzleText) {
             val (_, copyIid) = castAndResolveCopy()
 
             // First GSM — establishes baseline (apply mutations so recordZone fires)
@@ -218,7 +218,7 @@ class CopyTokenIntegrationTest :
                 .shouldNotBeNull()
         }
 
-        session("TemporaryPermanent pAnn emitted for EOT-sacrifice copy", puzzle = puzzleText, validating = true) {
+        session("TemporaryPermanent pAnn emitted for EOT-sacrifice copy", puzzle = puzzleText) {
             val (copyToken, copyIid) = castAndResolveCopy()
 
             // Electroduplicate adds EndOfTurnLeavePlay SVar
@@ -305,7 +305,7 @@ class CopyTokenIntegrationTest :
             return copyToken to copyIid
         }
 
-        session("Homunculus Horde copy gets source grpId and isCopy", puzzle = homunculusPuzzle, validating = true) {
+        session("Homunculus Horde copy gets source grpId and isCopy", puzzle = homunculusPuzzle) {
             val (copyToken, copyIid) = castQuickStudyAndWaitForCopy()
 
             copyToken.copiedPermanent.shouldNotBeNull()
@@ -340,7 +340,7 @@ class CopyTokenIntegrationTest :
             }
         }
 
-        session("Homunculus Horde copy has NO TemporaryPermanent pAnn", puzzle = homunculusPuzzle, validating = true) {
+        session("Homunculus Horde copy has NO TemporaryPermanent pAnn", puzzle = homunculusPuzzle) {
             val (copyToken, copyIid) = castQuickStudyAndWaitForCopy()
 
             // Permanent copy — no EOT sacrifice SVar

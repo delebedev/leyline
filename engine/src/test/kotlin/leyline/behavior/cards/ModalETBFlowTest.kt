@@ -61,7 +61,7 @@ class ModalETBFlowTest :
             )
         }
 
-        session("modal ETB emits CastingTimeOptionsReq", puzzleFile = "puzzles/modal-etb.pzl", validating = true) {
+        session("modal ETB emits CastingTimeOptionsReq", puzzleFile = "puzzles/modal-etb.pzl") {
             val req = castSpellUntilCastingTimeOptionsReq("Trufflesnout")
             req.castingTimeOptionReqCount shouldBe 1
 
@@ -85,7 +85,7 @@ class ModalETBFlowTest :
             }
         }
 
-        session("modal choice resolves life gain", puzzleFile = "puzzles/modal-etb.pzl", validating = true) {
+        session("modal choice resolves life gain", puzzleFile = "puzzles/modal-etb.pzl") {
             val startLife = human.life
 
             castSpellUntilCastingTimeOptionsReq("Trufflesnout")
@@ -97,7 +97,7 @@ class ModalETBFlowTest :
             (human.life - startLife) shouldBe 4
         }
 
-        session("modal choice resolves +1/+1 counter", puzzleFile = "puzzles/modal-etb.pzl", validating = true) {
+        session("modal choice resolves +1/+1 counter", puzzleFile = "puzzles/modal-etb.pzl") {
             castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
             // Choose counter mode (index 0 → counterModeGrpId)
@@ -116,7 +116,6 @@ class ModalETBFlowTest :
         session(
             "Charming Prince ETB modal uses ability instanceId, not card instanceId",
             puzzleFile = "puzzles/prince-etb.pzl",
-            validating = true,
         ) {
             val req = castSpellUntilCastingTimeOptionsReq("Charming Prince")
             req.castingTimeOptionReqCount shouldBe 1
@@ -162,7 +161,7 @@ class ModalETBFlowTest :
             }
         }
 
-        session("ETB modal GSM has ability on stack and pendingMessageCount", puzzleFile = "puzzles/modal-etb.pzl", validating = true) {
+        session("ETB modal GSM has ability on stack and pendingMessageCount", puzzleFile = "puzzles/modal-etb.pzl") {
             val msgs = after { castSpellUntilCastingTimeOptionsReq("Trufflesnout") }.messages
 
             // Find the GSM that accompanies the CTO
@@ -191,7 +190,7 @@ class ModalETBFlowTest :
             abilityObj.instanceId shouldBe affectedId
         }
 
-        session("ETB ability object has correct parentId and objectSourceGrpId", puzzleFile = "puzzles/modal-etb.pzl", validating = true) {
+        session("ETB ability object has correct parentId and objectSourceGrpId", puzzleFile = "puzzles/modal-etb.pzl") {
             val trufflesnoutGrpId = TestCardRegistry.repo.findGrpIdByName("Trufflesnout")!!
 
             val msgs = after { castSpellUntilCastingTimeOptionsReq("Trufflesnout") }.messages
@@ -213,7 +212,6 @@ class ModalETBFlowTest :
         session(
             "synthesized ability cleaned up after modal resolves (leyline-l1tc)",
             puzzleFile = "puzzles/modal-etb.pzl",
-            validating = true,
         ) {
             castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
@@ -234,7 +232,7 @@ class ModalETBFlowTest :
             cleaned shouldBe true
         }
 
-        session("Charming Prince gain 3 life mode resolves", puzzleFile = "puzzles/prince-etb.pzl", validating = true) {
+        session("Charming Prince gain 3 life mode resolves", puzzleFile = "puzzles/prince-etb.pzl") {
             val startLife = human.life
 
             castSpellUntilCastingTimeOptionsReq("Charming Prince")
@@ -246,7 +244,6 @@ class ModalETBFlowTest :
         session(
             "Charming Prince flicker exposes and retires pending trigger visuals",
             puzzleFile = "puzzles/prince-flicker.pzl",
-            validating = true,
         ) {
             val targetIid = human.battlefield.iid("Grizzly Bears")
 

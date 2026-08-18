@@ -41,7 +41,6 @@ class FirebendingKeywordTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent(),
             turns = 5,
-            validating = true,
         ) {
             val sourceGrpId = TestCardRegistry.ensureCardRegistered("Jeong Jeong, the Deserter")
             val firebendingGrpId =

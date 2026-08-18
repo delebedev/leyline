@@ -188,7 +188,6 @@ class CombatInteractionTest :
         session(
             "human declares single attacker",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -223,7 +222,6 @@ class CombatInteractionTest :
         session(
             "human declares multiple attackers",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = multipleAttackersAiScript,
         ) {
@@ -256,7 +254,6 @@ class CombatInteractionTest :
         session(
             "AI declares blockers",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = aiBlockerAiScript,
         ) {
@@ -295,7 +292,6 @@ class CombatInteractionTest :
         session(
             "combat damage frame carries persistent DamagedThisTurn badge",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = aiBlockerAiScript,
         ) {
@@ -333,7 +329,6 @@ class CombatInteractionTest :
         session(
             "combat damage resolves correctly",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -370,7 +365,6 @@ class CombatInteractionTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """,
             turns = 5,
-            validating = true,
             validation = combatValidation,
         ) {
             val attacker =
@@ -449,7 +443,6 @@ class CombatInteractionTest :
         session(
             "combat damage GSM has correct phase and annotation shape",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -549,7 +542,6 @@ class CombatInteractionTest :
         session(
             "first strike combat damage uses first-strike damage step",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -588,7 +580,6 @@ class CombatInteractionTest :
         session(
             "double strike combat damage uses first-strike and regular damage steps",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -630,7 +621,6 @@ class CombatInteractionTest :
         session(
             "combat death produces zone transfer",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -683,7 +673,6 @@ class CombatInteractionTest :
         session(
             "full combat turn cycle",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -709,7 +698,6 @@ class CombatInteractionTest :
         session(
             "echo back contains creature object without combat state",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -768,7 +756,6 @@ class CombatInteractionTest :
         session(
             "re-drive preserves iterative attacker selection",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -789,7 +776,6 @@ class CombatInteractionTest :
         session(
             "unselected attacker without a damage recipient is rejected",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -815,7 +801,6 @@ class CombatInteractionTest :
         session(
             "echo back deselect clears selectedDamageRecipient",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -838,7 +823,6 @@ class CombatInteractionTest :
         session(
             "echo back deselect restores state",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -867,7 +851,6 @@ class CombatInteractionTest :
         session(
             "multi toggle before submit",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = multipleAttackersAiScript,
         ) {
@@ -900,7 +883,6 @@ class CombatInteractionTest :
         session(
             "toggle then submit deals damage",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -932,7 +914,6 @@ class CombatInteractionTest :
         session(
             "attack all then submit deals damage",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -962,7 +943,6 @@ class CombatInteractionTest :
         session(
             "declare no attackers skips combat",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -988,7 +968,6 @@ class CombatInteractionTest :
         session(
             "trample damage assignment sends AssignDamageReq and completes combat",
             puzzleFile = "puzzles/trample-damage-assign.pzl",
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -1074,7 +1053,6 @@ class CombatInteractionTest :
                 ailibrary=Forest;Forest;Forest;Forest;Forest
                 """,
             turns = 10,
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -1116,7 +1094,6 @@ class CombatInteractionTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
             turns = 10,
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -1164,7 +1141,6 @@ class CombatInteractionTest :
                 aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
             validation = combatValidation,
             timeout = 30.seconds,
         ) {

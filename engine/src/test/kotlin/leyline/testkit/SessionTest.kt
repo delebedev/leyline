@@ -86,7 +86,7 @@ abstract class SessionTest(
         deckList: String? = null,
         turns: Int = 1,
         seed: Long = 42L,
-        validating: Boolean = false,
+        validating: Boolean = true,
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
         aiScript: List<ScriptedAction>? = null,
         timeout: Duration? = null,

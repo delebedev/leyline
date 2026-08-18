@@ -35,7 +35,6 @@ class OrdinaryTapCostLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val handIid = human.hand.iid("Fear of Exposure")
             val paymentSlice = after { castSpellByName("Fear of Exposure").shouldBeTrue() }
@@ -72,7 +71,6 @@ class OrdinaryTapCostLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             activateAbility("Goldfury Strider").shouldBeTrue()
             passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
@@ -149,7 +147,6 @@ class OrdinaryTapCostLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             activateAbility("Goldfury Strider").shouldBeTrue()
             passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()

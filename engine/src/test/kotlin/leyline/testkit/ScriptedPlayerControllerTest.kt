@@ -32,7 +32,7 @@ class ScriptedPlayerControllerTest :
         }
 
         test("scripted AI plays Forest on its first turn") {
-            val h = MatchFlowHarness(validating = true)
+            val h = MatchFlowHarness()
             harness = h
             h.connectAndKeep()
 
@@ -64,7 +64,7 @@ class ScriptedPlayerControllerTest :
 
         test("script exhaustion does not hang") {
             // Empty script — AI should just pass on every decision
-            val h = MatchFlowHarness(validating = true)
+            val h = MatchFlowHarness()
             harness = h
             h.connectAndKeep()
 
@@ -78,7 +78,7 @@ class ScriptedPlayerControllerTest :
 
         test("illegal action in script does not hang") {
             // Script tries to play a card that doesn't exist — should warn and pass
-            val h = MatchFlowHarness(validating = true)
+            val h = MatchFlowHarness()
             harness = h
             h.connectAndKeep()
 

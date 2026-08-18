@@ -30,7 +30,6 @@ class SurgeLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-            validating = true,
         ) {
             val crushGrpId = bridge.cardRepository.findGrpIdByName("Crush of Tentacles")!!
             val surgeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(crushGrpId, KeywordAbilityIds.SURGE)!!

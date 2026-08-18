@@ -70,7 +70,6 @@ class MutateLifecycleTest :
         session(
             "mutate prompts for top or under, then resolves under with Suppressed component shape",
             puzzle = MUTATE_PUZZLE,
-            validating = true,
         ) {
             val prompt = castMutateAndSelectTarget()
             val result = resolveMutate(choiceIid = prompt.targetIid)
@@ -86,7 +85,6 @@ class MutateLifecycleTest :
         session(
             "mutate top choice makes the mutating component the visible merged face",
             puzzle = MUTATE_PUZZLE,
-            validating = true,
         ) {
             val prompt = castMutateAndSelectTarget()
             val result = resolveMutate(choiceIid = prompt.stackIid)

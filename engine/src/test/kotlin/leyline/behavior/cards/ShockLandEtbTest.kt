@@ -40,7 +40,7 @@ class ShockLandEtbTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        session("accept — pay 2 life, land enters untapped", puzzle = puzzleText(), validating = true) {
+        session("accept — pay 2 life, land enters untapped", puzzle = puzzleText()) {
             human.life shouldBe 20
             phase() shouldBe "MAIN1"
 
@@ -76,7 +76,7 @@ class ShockLandEtbTest :
             templeGarden.isTapped shouldBe false
         }
 
-        session("decline — land enters tapped, life unchanged", puzzle = puzzleText(), validating = true) {
+        session("decline — land enters tapped, life unchanged", puzzle = puzzleText()) {
             human.life shouldBe 20
 
             // Play the shock land manually

@@ -28,7 +28,6 @@ class EvokeLifecycleTest :
                 humanlibrary=Island;Island;Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val mulldrifterGrpId = bridge.cardRepository.findGrpIdByName("Mulldrifter")!!
             val evokeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(mulldrifterGrpId, KeywordAbilityIds.EVOKE)!!

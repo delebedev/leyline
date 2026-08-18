@@ -144,7 +144,7 @@ class LocalTriggerPlaybackTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        session("mandatory non-interactive local trigger enters before resolving", puzzle = ajaniPuzzle, validating = true) {
+        session("mandatory non-interactive local trigger enters before resolving", puzzle = ajaniPuzzle) {
             val post =
                 after {
                     castSpellByName("Revitalize").shouldBeTrue()
@@ -165,7 +165,7 @@ class LocalTriggerPlaybackTest :
                 .getCounters(CounterEnumType.P1P1) shouldBe 1
         }
 
-        session("mandatory non-interactive token trigger enters before resolving", puzzle = dwynenPuzzle, validating = true) {
+        session("mandatory non-interactive token trigger enters before resolving", puzzle = dwynenPuzzle) {
             val post =
                 after {
                     castSpellByName("Dwynen's Elite").shouldBeTrue()

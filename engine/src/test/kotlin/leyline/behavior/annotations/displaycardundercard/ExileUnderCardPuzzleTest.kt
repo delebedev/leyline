@@ -41,7 +41,6 @@ class ExileUnderCardPuzzleTest :
             aibattlefield=Grizzly Bears
             ailibrary=Forest
             """.trimIndent(),
-            validating = true,
         ) {
             phase() shouldBe "MAIN1"
 

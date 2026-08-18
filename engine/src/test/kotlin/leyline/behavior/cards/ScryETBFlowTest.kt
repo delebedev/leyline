@@ -40,7 +40,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class ScryETBFlowTest :
     SessionTest({
 
-        session("play land produces PlayLand zone transfer", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
+        session("play land produces PlayLand zone transfer", puzzleFile = "puzzles/scry-etb.pzl") {
             val msgs = after { playLand().shouldBeTrue() }.messages
             val allAnnotations =
                 msgs.flatMap { msg ->
@@ -83,7 +83,6 @@ class ScryETBFlowTest :
         session(
             "cast Wall of Runes produces CastSpell annotations with mana payment",
             puzzleFile = "puzzles/scry-etb.pzl",
-            validating = true,
         ) {
             // Play land first (need mana to cast)
             playLand().shouldBeTrue()
@@ -124,7 +123,6 @@ class ScryETBFlowTest :
         session(
             "Wall of Runes resolution produces Resolve transfer and ETB trigger",
             puzzleFile = "puzzles/scry-etb.pzl",
-            validating = true,
         ) {
             playLand().shouldBeTrue()
 
@@ -168,7 +166,7 @@ class ScryETBFlowTest :
             }
         }
 
-        session("scry ETB emits GroupReq with Scry context and correct specs", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
+        session("scry ETB emits GroupReq with Scry context and correct specs", puzzleFile = "puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
@@ -187,7 +185,7 @@ class ScryETBFlowTest :
             }
         }
 
-        session("scry put on bottom produces Scry annotation with card ids", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
+        session("scry put on bottom produces Scry annotation with card ids", puzzleFile = "puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
@@ -225,7 +223,7 @@ class ScryETBFlowTest :
             resComplete.shouldNotBeEmpty()
         }
 
-        session("scry keep on top does not move card", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
+        session("scry keep on top does not move card", puzzleFile = "puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
@@ -243,7 +241,6 @@ class ScryETBFlowTest :
         session(
             "ETB trigger emits TriggeringObject persistent annotation, deleted on resolve",
             puzzleFile = "puzzles/scry-etb.pzl",
-            validating = true,
         ) {
             playLand().shouldBeTrue()
 
@@ -278,7 +275,7 @@ class ScryETBFlowTest :
             (triggering.id in deletedIds).shouldBeTrue()
         }
 
-        session("full scry flow state validity", puzzleFile = "puzzles/scry-etb.pzl", validating = true) {
+        session("full scry flow state validity", puzzleFile = "puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 

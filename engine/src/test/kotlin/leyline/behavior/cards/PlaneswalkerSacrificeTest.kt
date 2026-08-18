@@ -39,7 +39,6 @@ class PlaneswalkerSacrificeTest :
             aibattlefield=Centaur Courser
             ailibrary=Mountain
             """.trimIndent(),
-            validating = true,
         ) {
             phase() shouldBe "MAIN1"
 

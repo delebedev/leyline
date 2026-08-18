@@ -33,7 +33,7 @@ private val PUZZLE =
 
 class FlashbackLifecycleTest :
     SessionTest({
-        session("hand cast goes to graveyard, flashback cast exiles", puzzle = PUZZLE, validating = true) {
+        session("hand cast goes to graveyard, flashback cast exiles", puzzle = PUZZLE) {
             val handBefore = human.getZone(ZoneType.Hand).size()
             val handCastStart = messageSnapshot()
             castSpellByName("Think Twice").shouldBeTrue()

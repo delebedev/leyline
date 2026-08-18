@@ -47,7 +47,7 @@ class OmenLifecycleTest :
             ailibrary=Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        session("Riling Dawnbreaker Omen face follows hand stack library lifecycle", puzzle = omenPuzzle, validating = true) {
+        session("Riling Dawnbreaker Omen face follows hand stack library lifecycle", puzzle = omenPuzzle) {
             val handParentIid = human.hand.iid("Riling Dawnbreaker")
             val handCompanion =
                 accumulator.objects.values.single {
@@ -179,7 +179,7 @@ class OmenLifecycleTest :
             }
         }
 
-        session("Riling Dawnbreaker main face preserves its Omen companion through resolution", puzzle = omenPuzzle, validating = true) {
+        session("Riling Dawnbreaker main face preserves its Omen companion through resolution", puzzle = omenPuzzle) {
             val handParentIid = human.hand.iid("Riling Dawnbreaker")
             val handCardId = checkNotNull(bridge.getForgeCardId(InstanceId(handParentIid)))
             bridge.setSelectedSpellGrpId(handCardId, 95537)

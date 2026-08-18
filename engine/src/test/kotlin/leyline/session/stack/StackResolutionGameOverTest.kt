@@ -14,7 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class StackResolutionGameOverTest :
     SessionTest({
 
-        session("spell resolving for lethal sends MatchCompleted", puzzleFile = "puzzles/bolt-face.pzl", validating = true) {
+        session("spell resolving for lethal sends MatchCompleted", puzzleFile = "puzzles/bolt-face.pzl") {
             // Cast Lightning Bolt — triggers SelectTargetsReq
             castSpellByName("Lightning Bolt").shouldBeTrue()
 

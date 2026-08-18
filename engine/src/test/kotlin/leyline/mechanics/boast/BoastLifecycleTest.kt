@@ -39,7 +39,6 @@ class BoastLifecycleTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
             turns = 5,
-            validating = true,
         ) {
             val usherIid = human.battlefield.iid("Usher of the Fallen")
             latestBoastOffer(usherIid).shouldBeFalse()

@@ -51,7 +51,7 @@ class NoviceInspectorTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        session("cast → ETB creates Clue token → sac Clue draws card", puzzle = puzzleText, validating = true) {
+        session("cast → ETB creates Clue token → sac Clue draws card", puzzle = puzzleText) {
             // 1. Cast Novice Inspector
             castSpellByName("Novice Inspector").shouldBeTrue()
 

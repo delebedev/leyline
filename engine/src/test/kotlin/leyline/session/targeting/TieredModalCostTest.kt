@@ -12,7 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 class TieredModalCostTest :
     SessionTest({
 
-        session("Ice Magic emits a one-of-three Tiered modal-cost prompt", puzzleFile = "puzzles/tiered-ice-magic.pzl", validating = true) {
+        session("Ice Magic emits a one-of-three Tiered modal-cost prompt", puzzleFile = "puzzles/tiered-ice-magic.pzl") {
             val cto = castSpellUntilCastingTimeOptionsReq("Ice Magic")
             val option = cto.getCastingTimeOptionReq(0)
             val modalReq = option.modalReq
@@ -46,7 +46,6 @@ class TieredModalCostTest :
         session(
             "Ice Magic selected first tier resolves through target selection",
             puzzleFile = "puzzles/tiered-ice-magic.pzl",
-            validating = true,
         ) {
             val cto = castSpellUntilCastingTimeOptionsReq("Ice Magic")
             val firstTier = cto.getCastingTimeOptionReq(0).modalReq.getModalOptions(0)
@@ -64,7 +63,6 @@ class TieredModalCostTest :
         session(
             "Thunder Magic selected middle tier pays the tier cost and resolves",
             puzzleFile = "puzzles/tiered-thunder-magic.pzl",
-            validating = true,
         ) {
             val cto = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
             val option = cto.getCastingTimeOptionReq(0)

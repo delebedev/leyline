@@ -23,7 +23,6 @@ class KeywordGrantOverrunTest :
         session(
             "Overrun: creatures get AddAbility pAnn with Trample grpId",
             puzzleFile = "puzzles/keyword-grant-overrun.pzl",
-            validating = true,
         ) {
             castSpellByName("Overrun").shouldBeTrue()
             // Pass priority to let Overrun resolve
@@ -47,7 +46,6 @@ class KeywordGrantOverrunTest :
         session(
             "Overrun: creature gameObjects have Trample in uniqueAbilities",
             puzzleFile = "puzzles/keyword-grant-overrun.pzl",
-            validating = true,
         ) {
             val bears =
                 human

@@ -28,7 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class AttackerTapStateTest :
     SessionTest({
 
-        session("attacker creature is tapped with attackState in post-submit GSM diff", deckList = COMBAT_DECK, validating = true) {
+        session("attacker creature is tapped with attackState in post-submit GSM diff", deckList = COMBAT_DECK) {
             installScriptedAi(
                 listOf(
                     ScriptedAction.PlayLand("Mountain"),
@@ -73,7 +73,7 @@ class AttackerTapStateTest :
             }
         }
 
-        session("TappedUntappedPermanent annotation emitted for attacker", deckList = COMBAT_DECK, validating = true) {
+        session("TappedUntappedPermanent annotation emitted for attacker", deckList = COMBAT_DECK) {
             installScriptedAi(
                 listOf(
                     ScriptedAction.PlayLand("Mountain"),

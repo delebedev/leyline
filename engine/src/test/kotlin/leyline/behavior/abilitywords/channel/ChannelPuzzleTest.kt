@@ -35,7 +35,6 @@ class ChannelPuzzleTest :
             aibattlefield=Centaur Courser
             ailibrary=Mountain
             """.trimIndent(),
-            validating = true,
         ) {
             assertSoftly {
                 phase() shouldBe "MAIN1"

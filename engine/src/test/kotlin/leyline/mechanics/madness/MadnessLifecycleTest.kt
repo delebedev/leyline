@@ -229,7 +229,7 @@ class MadnessLifecycleTest :
         }
 
         test("madness hardcast: regular cast from hand omits CastingTimeOption + alternativeGrpId") {
-            val h = MatchFlowHarness(validating = true)
+            val h = MatchFlowHarness()
             try {
                 h.connectAndKeepPuzzleText(HARDCAST_PUZZLE)
                 val player = h.bridge.getPlayer(SeatId(1))!!
@@ -278,7 +278,7 @@ class MadnessLifecycleTest :
         }
 
         test("madness decline: reject the optional cast → Exile→Graveyard Put") {
-            val h = MatchFlowHarness(validating = true)
+            val h = MatchFlowHarness()
             try {
                 h.connectAndKeepPuzzleText(MADNESS_PUZZLE)
                 val player = h.bridge.getPlayer(SeatId(1))!!

@@ -38,7 +38,7 @@ private val CYCLE_MISCALCULATION_PUZZLE =
 @Suppress("MissingAssertSoftly") // intentional fail-fast — passUntil depends on activation succeeding first
 class CyclingPuzzleTest :
     SessionTest({
-        session("Miscalculation cycle from hand draws + discards", puzzle = CYCLE_MISCALCULATION_PUZZLE, validating = true) {
+        session("Miscalculation cycle from hand draws + discards", puzzle = CYCLE_MISCALCULATION_PUZZLE) {
             // Pre-cycle invariants
             human
                 .getZone(ZoneType.Hand)

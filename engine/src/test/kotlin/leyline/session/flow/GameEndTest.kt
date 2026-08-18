@@ -27,7 +27,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class GameEndTest :
     SessionTest({
 
-        session("concede produces MatchCompleted", validating = true) {
+        session("concede produces MatchCompleted") {
             // Concede triggers sendGameOver()
             val concede =
                 after {
@@ -125,7 +125,6 @@ class GameEndTest :
                 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             // Advance to combat
             val startTurn = turn()
@@ -208,7 +207,6 @@ class GameEndTest :
                 humanlibrary=Forest
                 ailibrary=Forest
                 """.trimIndent(),
-            validating = true,
         ) {
             val startTurn = turn()
             passPriority()
