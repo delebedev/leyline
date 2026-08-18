@@ -37,6 +37,13 @@ mix Board and Integration tests in one file.
   owns card-text behavior; `behavior/puzzles/` owns puzzle plumbing.
 - `testkit/` owns test-only bases, matchers, probes, and message helpers.
 
+A new file earns its own existence only if it holds two or more substantive
+tests, needs setup no host can carry (a per-test timeout, a class-level
+suppression), or has no thematic host. A single test named after a bug belongs
+in the suite that should have caught it, usually as extra assertions on an
+existing test rather than as a new one. Name the file for the behavior it
+covers, never for the fix, the branch, or the report that prompted it.
+
 ## Use the existing harness surface
 
 Test-only helpers live under `engine/src/test/kotlin/leyline/testkit/`.
