@@ -37,14 +37,20 @@ class CastDisplayCostBoardTest :
                 startWithBoard { _, human, _ ->
                     addCard("Treasure Cruise", human, ZoneType.Hand)
                     repeat(4) { addCard("Forest", human, ZoneType.Graveyard) }
-                    repeat(2) { addCard("Island", human) }
+                    // Enough Islands to pay the full displayed cost outright — the
+                    // point is displayed cost ignores delve, not whether delve
+                    // could also afford it.
+                    repeat(8) { addCard("Island", human) }
                 }
             val (active, inactive) = castOffers(b, game, "Treasure Cruise")
-            (active + inactive).single() should haveManaCost(generic = 7, blue = 1)
-            b
-                .seat(SeatId(1))
-                .prompt.history
-                .shouldBeEmpty()
+            assertSoftly {
+                active.single() should haveManaCost(generic = 7, blue = 1)
+                inactive shouldHaveSize 0
+                b
+                    .seat(SeatId(1))
+                    .prompt.history
+                    .shouldBeEmpty()
+            }
         }
 
         test("Convoke card displays printed cost despite untapped creatures") {
@@ -52,13 +58,19 @@ class CastDisplayCostBoardTest :
                 startWithBoard { _, human, _ ->
                     addCard("Conclave Tribunal", human, ZoneType.Hand)
                     repeat(4) { addCard("Grizzly Bears", human) }
+                    // Pay outright — the point is displayed cost ignores convoke,
+                    // not whether convoke could also afford it.
+                    repeat(4) { addCard("Plains", human) }
                 }
             val (active, inactive) = castOffers(b, game, "Conclave Tribunal")
-            (active + inactive).single() should haveManaCost(generic = 3, white = 1)
-            b
-                .seat(SeatId(1))
-                .prompt.history
-                .shouldBeEmpty()
+            assertSoftly {
+                active.single() should haveManaCost(generic = 3, white = 1)
+                inactive shouldHaveSize 0
+                b
+                    .seat(SeatId(1))
+                    .prompt.history
+                    .shouldBeEmpty()
+            }
         }
 
         test("Convoke card displays a state-derived static reduction") {
@@ -68,9 +80,11 @@ class CastDisplayCostBoardTest :
                     // "Enchantment spells you cast cost {1} less to cast."
                     addCard("Starfield Mystic", human)
                     addCard("Grizzly Bears", human)
+                    repeat(3) { addCard("Plains", human) }
                 }
             val (active, inactive) = castOffers(b, game, "Conclave Tribunal")
-            (active + inactive).single() should haveManaCost(generic = 2, white = 1)
+            active.single() should haveManaCost(generic = 2, white = 1)
+            inactive shouldHaveSize 0
         }
 
         test("Waterbend activation cost displays printed value despite untapped creatures") {
@@ -79,13 +93,19 @@ class CastDisplayCostBoardTest :
                     // Giant Koi: "{Waterbend 3}: this creature can't be blocked."
                     addCard("Giant Koi", human)
                     repeat(2) { addCard("Grizzly Bears", human) }
+                    // Pay outright — the point is displayed cost ignores
+                    // waterbend, not whether waterbend could also afford it.
+                    repeat(3) { addCard("Island", human) }
                 }
             val (active, inactive) = castOffers(b, game, "Giant Koi", ActionType.Activate_add3)
-            (active + inactive).single() should haveManaCost(generic = 3)
-            b
-                .seat(SeatId(1))
-                .prompt.history
-                .shouldBeEmpty()
+            assertSoftly {
+                active.single() should haveManaCost(generic = 3)
+                inactive shouldHaveSize 0
+                b
+                    .seat(SeatId(1))
+                    .prompt.history
+                    .shouldBeEmpty()
+            }
         }
 
         test("X-cost spell offered as castable with only its colored pips payable") {
@@ -120,14 +140,31 @@ class CastDisplayCostBoardTest :
             inactive shouldHaveSize 0
         }
 
+        test("Affinity displays cost reduced by artifacts controlled") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    // Thoughtcast {4}{U}, Affinity for Artifacts — reduced to {1}{U}
+                    // by 3 artifacts; 2 Islands cover the reduced cost so the offer
+                    // is active, not just correctly priced.
+                    addCard("Thoughtcast", human, ZoneType.Hand)
+                    repeat(3) { addCard("Ornithopter", human) }
+                    repeat(2) { addCard("Island", human) }
+                }
+            val (active, inactive) = castOffers(b, game, "Thoughtcast")
+            active.single() should haveManaCost(generic = 1, blue = 1)
+            inactive shouldHaveSize 0
+        }
+
         test("static reducer shows on a plain spell") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Fall of the Thran", human, ZoneType.Hand)
                     addCard("Starfield Mystic", human)
+                    repeat(5) { addCard("Plains", human) }
                 }
             val (active, inactive) = castOffers(b, game, "Fall of the Thran")
-            (active + inactive).single() should haveManaCost(generic = 4, white = 1)
+            active.single() should haveManaCost(generic = 4, white = 1)
+            inactive shouldHaveSize 0
         }
 
         test("AlternateAdditionalCost card yields one Cast offer at base cost") {

@@ -1,0 +1,12 @@
+name: "Thoughtcast"
+grpId: 95107
+titleId: 3003
+abilities:
+  - id: 177
+    textId: 355
+    category: 3
+    baseId: 42
+  - id: 23607
+    textId: 1652
+    category: 4
+expansionCode: "SPG"
