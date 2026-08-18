@@ -32,10 +32,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
-import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.CastRails
-import leyline.game.mapping.resolveAltGrpId
-import leyline.game.snapshot.BoundCard
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -207,7 +203,7 @@ class ForgeAiPolicy(
      *
      * Match rules (iteration 1):
      *   - LandAbility → first AAR action with `actionType=Play_add3` and same grpId
-     *   - isSpell()    → first AAR action with `actionType=Cast`         and same grpId
+     *   - isSpell() → the unique prompt cast offer matching source + displayed cost
      *   - non-spell activated ability → exact `Activate_add3` host iid + abilityGrpId match
      *   - everything else → null (caller falls back to greedy / pass)
      */
@@ -221,19 +217,26 @@ class ForgeAiPolicy(
         for (sa in abilities) {
             val hostCard = sa.hostCard ?: continue
             val grpId = bridge.cardRepository.findGrpIdByName(hostCard.name) ?: continue
-            val actionType =
-                when {
-                    sa is LandAbility -> ActionType.Play_add3
-                    sa.isSpell -> ActionType.Cast
-                    else -> ActionType.Activate_add3
-                }
             // Prefer the action whose instanceId matches Forge's card id so we cast
             // THIS specific copy. getOrAlloc is idempotent (returns the existing
             // mapping if one exists) — no harmful side effect.
             val mappedInstanceId =
                 bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
-            val match = chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, isSkipped) ?: continue
-            return Choice(match, match.instanceId, match.grpId, actionType, match.abilityGrpId)
+            val match =
+                if (sa.isSpell) {
+                    choosePromptCastOfferForAbility(
+                        actions = promptActions.filterNot(isSkipped),
+                        sa = sa,
+                        player = seatPlayer,
+                        cardRepository = bridge.cardRepository,
+                        sourceInstanceId = mappedInstanceId,
+                        sourceGrpId = grpId,
+                    )
+                } else {
+                    val actionType = if (sa is LandAbility) ActionType.Play_add3 else ActionType.Activate_add3
+                    chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, isSkipped)
+                } ?: continue
+            return Choice(match, match.instanceId, match.grpId, match.actionType, match.abilityGrpId)
         }
         return null
     }
@@ -324,8 +327,8 @@ class ForgeAiPolicy(
                         !isSkipped(it) &&
                         (it.grpId == grpId || it.instanceId == mappedInstanceId)
                 }
-            return chooseCastVariant(sa, grpId, candidates.filter { it.instanceId == mappedInstanceId })
-                ?: chooseCastVariant(sa, grpId, candidates)
+            return chooseCastVariant(sa, grpId, seatPlayer, bridge.cardRepository, candidates.filter { it.instanceId == mappedInstanceId })
+                ?: chooseCastVariant(sa, grpId, seatPlayer, bridge.cardRepository, candidates)
         }
 
         val hostCard = sa.hostCard ?: return null
@@ -337,36 +340,6 @@ class ForgeAiPolicy(
                 it.abilityGrpId == abilityGrpId &&
                 !isSkipped(it)
         }
-    }
-
-    private fun chooseCastVariant(
-        sa: SpellAbility,
-        grpId: Int,
-        candidates: List<Action>,
-    ): Action? {
-        val variant = expectedCastVariant(sa, grpId)
-        return chooseCastActionByVariant(candidates, variant)
-    }
-
-    private fun expectedCastVariant(
-        sa: SpellAbility,
-        grpId: Int,
-    ): ExpectedCastVariant {
-        if (!sa.isSpell) return ExpectedCastVariant.Base
-        val rails = CastRails.all.filter { it.saPredicate(sa) }
-        if (rails.isEmpty()) return ExpectedCastVariant.Base
-        val altCosts = BoundCard.bindAltCosts(bridge.cardRepository.findByGrpId(grpId), bridge.cardRepository)
-        val payCostPairs =
-            ActionMapper
-                .computeEffectiveCost(sa, seatPlayer)
-                ?.takeIf { !it.isNoCost }
-                ?.let { ActionMapper.forgeManaCostToPairs(it) }
-                ?: emptyList()
-        val alternativeGrpId =
-            rails.firstNotNullOfOrNull { rail ->
-                resolveAltGrpId(rail, altCosts, payCostPairs).takeIf { it > 0 }
-            }
-        return alternativeGrpId?.let(ExpectedCastVariant::Alternative) ?: ExpectedCastVariant.UnresolvedAlternative
     }
 
     /**

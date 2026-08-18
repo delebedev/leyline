@@ -1,8 +1,8 @@
 package leyline.tooling.simclient
 
+import leyline.copilot.isCopilotCastOffer
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -200,7 +200,7 @@ internal fun Action.actionFingerprint(): String =
 
 internal fun Action.retryFingerprints(): Set<String> {
     val exact = actionFingerprint()
-    if (actionType != ActionType.Cast) return setOf(exact)
+    if (!actionType.isCopilotCastOffer()) return setOf(exact)
     val stable = listOf("retry", actionType.name, grpId, abilityGrpId, alternativeGrpId).joinToString(":")
     return setOf(exact, stable)
 }

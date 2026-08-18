@@ -72,6 +72,18 @@ class ProposalTranslatorTest :
             p.responseIds shouldBe listOf(11)
         }
 
+        test("Adventure cast action → cast_adventure intent") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.PerformAction(action(ActionType.CastAdventure, instanceId = 14, grpId = 201)),
+                    aar,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "cast_adventure"
+            p.responseIds shouldBe listOf(14)
+        }
+
         test("alt-cost cast action → cast_mdfc intent carrying the alternative grpId") {
             val p =
                 ProposalTranslator.translate(

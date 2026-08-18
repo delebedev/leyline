@@ -151,6 +151,7 @@ class SimClientRunner(
                     forgeAi = forgeAi,
                     shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                     snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
+                    snapshotConsult = config.policy == SimClientPolicyMode.Snapshot,
                 )
             is PuzzleSimClientRow ->
                 SimClientDriver(
@@ -162,6 +163,7 @@ class SimClientRunner(
                     forgeAi = forgeAi,
                     shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                     snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
+                    snapshotConsult = config.policy == SimClientPolicyMode.Snapshot,
                 )
         }
     }

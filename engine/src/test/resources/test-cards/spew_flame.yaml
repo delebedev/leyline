@@ -1,0 +1,11 @@
+name: "Spew Flame"
+grpId: 103488
+titleId: 1113649
+abilities:
+  - id: 13250
+    textId: 1113650
+    category: 4
+expansionCode: "HOB"
+linkedFaces:
+  - 103487
+isPrimaryCard: false

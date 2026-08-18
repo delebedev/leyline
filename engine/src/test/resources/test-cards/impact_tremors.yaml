@@ -1,0 +1,8 @@
+name: "Impact Tremors"
+grpId: 94145
+titleId: 47297
+abilities:
+  - id: 102058
+    textId: 919386
+    category: 2
+expansionCode: "FDN"

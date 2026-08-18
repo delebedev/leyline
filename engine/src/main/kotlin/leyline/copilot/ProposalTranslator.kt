@@ -166,6 +166,8 @@ internal object ProposalTranslator {
         val intent =
             when {
                 action.actionType == ActionType.Play_add3 -> "play_land"
+                action.actionType == ActionType.CastAdventure -> "cast_adventure"
+                action.actionType == ActionType.CastOmen -> "cast_omen"
                 action.actionType == ActionType.Cast && action.alternativeGrpId != 0 -> "cast_mdfc"
                 action.actionType == ActionType.Cast -> "cast"
                 action.actionType == ActionType.Activate_add3 -> "activate"

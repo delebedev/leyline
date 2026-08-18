@@ -18,6 +18,24 @@ internal class PromptProgressRecorder(
         beforeMessages: Int,
         beforeLast: GREToClientMessage?,
         sourceBefore: String,
+    ) = record(
+        prompt = prompt,
+        decisionKind = decision.kind,
+        targetIds = decision.targetIds(),
+        submitResult = submitResult,
+        beforeMessages = beforeMessages,
+        beforeLast = beforeLast,
+        sourceBefore = sourceBefore,
+    )
+
+    fun record(
+        prompt: ActivePrompt,
+        decisionKind: String,
+        targetIds: List<Int>,
+        submitResult: SimSubmitResult,
+        beforeMessages: Int,
+        beforeLast: GREToClientMessage?,
+        sourceBefore: String,
     ) {
         val afterLast = harness.allMessages.lastOrNull()
         val (sourceInstanceId, _, abilityGrpId) = prompt.sourceFields()
@@ -25,7 +43,7 @@ internal class PromptProgressRecorder(
         val sample =
             PromptProgressSample(
                 promptType = prompt.type.name,
-                decisionKind = decision.kind,
+                decisionKind = decisionKind,
                 submitResult = submitResult.name,
                 promptMsgId = prompt.msgId,
                 promptGameStateId = prompt.msg.gameStateId,
@@ -38,7 +56,7 @@ internal class PromptProgressRecorder(
                 sourceInstanceId = sourceInstanceId,
                 sourceGrpId = sourceGrpId,
                 abilityGrpId = abilityGrpId,
-                targetIds = decision.targetIds(),
+                targetIds = targetIds,
                 sourceBefore = sourceBefore,
                 sourceAfter = objectSnapshot(sourceInstanceId),
             )

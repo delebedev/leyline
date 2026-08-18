@@ -32,6 +32,7 @@ import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
+import leyline.match.dispatchGameplayResponse
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -1418,6 +1419,13 @@ class MatchFlowHarness(
         do {
             val acted = autoRespondToOptionalAction() || autoRespondToNumericInput()
         } while (acted)
+    }
+
+    /** Submit an already encoded gameplay response through the production dispatcher. */
+    internal fun submitGameplayResponse(message: ClientToGREMessage): Boolean {
+        val handled = dispatchGameplayResponse(session, message)
+        if (handled) drainSink()
+        return handled
     }
 
     private fun autoRespondToOptionalAction(): Boolean {

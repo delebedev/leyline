@@ -37,9 +37,11 @@ class SimClientDriver(
     private val forgeAi: ForgeAiPolicy? = null,
     private val shadowAdvisor: Boolean = false,
     private val snapshotShadow: Boolean = false,
+    private val snapshotConsult: Boolean = false,
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private val snapshotProbe: SnapshotShadowProbe? = if (snapshotShadow) SnapshotShadowProbe(harness) else null
+    private val snapshotDriver: SnapshotPromptDriver? = if (snapshotConsult) SnapshotPromptDriver(harness) else null
 
     /** Snapshot-shadow fidelity buckets per prompt family; null unless [snapshotShadow] is on. */
     internal fun snapshotShadowStats(): Map<String, SnapshotShadowProbe.Bucket>? = snapshotProbe?.stats()
@@ -155,7 +157,10 @@ class SimClientDriver(
         val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram)
         val durationMs = (System.nanoTime() - t0) / 1_000_000
         val logs = tap.stopAndDrain()
-        val policyTelemetry = (promptPolicy as? ForgeAiPromptPolicy)?.telemetry() ?: SimPromptPolicyTelemetry.Empty
+        val policyTelemetry =
+            snapshotDriver?.telemetry()
+                ?: (promptPolicy as? ForgeAiPromptPolicy)?.telemetry()
+                ?: SimPromptPolicyTelemetry.Empty
         val simFindings = detectReplayLoopFindings(policyTelemetry.targetChoices, policyTelemetry.targetChoiceSamples)
         val promptStats = promptLedger.stats()
         val attemptStats = attemptLedger.stats()
@@ -328,6 +333,7 @@ class SimClientDriver(
 
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
         snapshotProbe?.observe(prompt.msg)
+        snapshotDriver?.let { return respondToSnapshotPrompt(prompt, it) }
         val beforeMessages = harness.allMessages.size
         val beforeLast = harness.allMessages.lastOrNull()
         val sourceBefore = promptProgress.sourceSnapshot(prompt)
@@ -379,6 +385,45 @@ class SimClientDriver(
         harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
         if (response.decision == SimDecision.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
+    }
+
+    private fun respondToSnapshotPrompt(
+        prompt: ActivePrompt,
+        driver: SnapshotPromptDriver,
+    ): Boolean {
+        val beforeMessages = harness.allMessages.size
+        val beforeLast = harness.allMessages.lastOrNull()
+        val sourceBefore = promptProgress.sourceSnapshot(prompt)
+        val policyT0 = System.nanoTime()
+        val response = driver.respond(prompt.msg)
+        val decisionKind = "snapshot:${response.proposal.intent}"
+        recordMapTiming(
+            totals = policyTotalMsByPrompt,
+            maxes = policyMaxMsByPrompt,
+            key = prompt.type.name,
+            elapsedMs = elapsedMsSince(policyT0),
+        )
+        promptProgress.record(
+            prompt = prompt,
+            decisionKind = decisionKind,
+            targetIds = response.proposal.responseIds,
+            submitResult = response.submitResult,
+            beforeMessages = beforeMessages,
+            beforeLast = beforeLast,
+            sourceBefore = sourceBefore,
+        )
+        when (response.submitResult) {
+            SimSubmitResult.Submitted -> {
+                attemptLedger.markSubmitted(emptySet(), decisionKind)
+                promptLedger.markHandled(prompt)
+            }
+            SimSubmitResult.NoPending -> {
+                promptLedger.retire(prompt, "no-pending-snapshot")
+                attemptLedger.markNoPending(decisionKind)
+            }
+            SimSubmitResult.NotSubmitted -> promptLedger.retire(prompt, "snapshot-unrealizable")
+        }
+        return response.submitResult == SimSubmitResult.Submitted
     }
 
     /** Returns current turn number, or null if the game/bridge has been torn down. */

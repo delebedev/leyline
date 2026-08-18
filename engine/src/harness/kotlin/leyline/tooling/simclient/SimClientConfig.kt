@@ -125,8 +125,8 @@ data class SimClientConfig(
                   --opponent-deck <name>        Fixed seat-2 deck; omitted means mirror.
                   --puzzles <a.pzl,b.pzl>       Puzzle matrix instead of decks.
                   --seeds <1..20|1,2,3>         Seed matrix.
-                  --policy <greedy|forge-ai|shadow-ai|snapshot-shadow>
-                                                  Prompt policy. snapshot-shadow measures hydration fidelity.
+                  --policy <greedy|forge-ai|shadow-ai|snapshot-shadow|snapshot>
+                                                  snapshot drives reconstructed-state proposals; snapshot-shadow compares.
                   --max-turns <n>               Turn cap.
                   --game-timeout-seconds <n>    Per-game wall-clock watchdog.
                   --out-dir <path>              Artifact directory.
@@ -168,6 +168,9 @@ enum class SimClientPolicyMode {
      * state — to measure snapshot hydration fidelity as response-byte match rate.
      */
     SnapshotShadow,
+
+    /** Rebuild each prompted position and submit the response produced by [leyline.copilot.SnapshotConsult]. */
+    Snapshot,
     ;
 
     companion object {
@@ -177,6 +180,7 @@ enum class SimClientPolicyMode {
                 "forge-ai" -> ForgeAi
                 "shadow-ai" -> ShadowAi
                 "snapshot-shadow" -> SnapshotShadow
+                "snapshot" -> Snapshot
                 else -> error("unknown SIMCLIENT_POLICY: $value")
             }
     }
