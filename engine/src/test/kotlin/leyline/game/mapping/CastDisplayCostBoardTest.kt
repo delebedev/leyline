@@ -120,6 +120,22 @@ class CastDisplayCostBoardTest :
             inactive shouldHaveSize 0
         }
 
+        test("Affinity displays cost reduced by Forests controlled") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    // Sapling Nursery {6}{G}{G}, Affinity for Forests.
+                    addCard("Sapling Nursery", human, ZoneType.Hand)
+                    repeat(3) { addCard("Forest", human) }
+                }
+            val nursery = game.humanPlayerCard("Sapling Nursery")
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+
+            val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(nursery.id)).value).single()
+            cast should haveManaCost(generic = 3, green = 2)
+        }
+
         test("static reducer shows on a plain spell") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
