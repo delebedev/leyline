@@ -9,10 +9,33 @@ import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
+private val TIERED_THUNDER_MAGIC_PUZZLE =
+    """
+    [metadata]
+    Name:Tiered Thunder Magic
+    Goal:Destroy Specified Creature
+    Turns:3
+    Difficulty:Easy
+    Description:Cast Thunder Magic and choose the middle Tiered option to deal 4 damage to Grizzly Bears.
+    Targets:Grizzly Bears
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain
+    humanhand=Thunder Magic
+    humanlibrary=Mountain
+    aibattlefield=Grizzly Bears
+    ailibrary=Forest
+    """.trimIndent()
+
 class TieredModalCostTest :
     SessionTest({
 
-        session("Ice Magic emits a one-of-three Tiered modal-cost prompt", puzzleFile = "puzzles/tiered-ice-magic.pzl", validating = true) {
+        session("Ice Magic emits a one-of-three Tiered modal-cost prompt", puzzleFile = "puzzles/tiered-ice-magic.pzl") {
             val cto = castSpellUntilCastingTimeOptionsReq("Ice Magic")
             val option = cto.getCastingTimeOptionReq(0)
             val modalReq = option.modalReq
@@ -46,7 +69,6 @@ class TieredModalCostTest :
         session(
             "Ice Magic selected first tier resolves through target selection",
             puzzleFile = "puzzles/tiered-ice-magic.pzl",
-            validating = true,
         ) {
             val cto = castSpellUntilCastingTimeOptionsReq("Ice Magic")
             val firstTier = cto.getCastingTimeOptionReq(0).modalReq.getModalOptions(0)
@@ -63,8 +85,7 @@ class TieredModalCostTest :
 
         session(
             "Thunder Magic selected middle tier pays the tier cost and resolves",
-            puzzleFile = "puzzles/tiered-thunder-magic.pzl",
-            validating = true,
+            puzzle = TIERED_THUNDER_MAGIC_PUZZLE,
         ) {
             val cto = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
             val option = cto.getCastingTimeOptionReq(0)

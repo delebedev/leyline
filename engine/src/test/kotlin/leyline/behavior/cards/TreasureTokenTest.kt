@@ -70,7 +70,7 @@ class TreasureTokenTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        session("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal", puzzle = puzzleText, validating = true) {
+        session("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal", puzzle = puzzleText) {
             // --- Preconditions ---
             assertSoftly {
                 "Prosperous Innkeeper" should beInHandOf(human)

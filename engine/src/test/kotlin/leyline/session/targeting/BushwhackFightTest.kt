@@ -46,7 +46,6 @@ class BushwhackFightTest :
                 aibattlefield=Trufflesnout
                 ailibrary=Mountain
                 """,
-            validating = true,
         ) {
             val actions = accumulator.actions.shouldNotBeNull()
             val destroyEvilIid = human.hand.iid("Destroy Evil")

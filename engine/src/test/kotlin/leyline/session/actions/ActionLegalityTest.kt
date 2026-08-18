@@ -7,6 +7,49 @@ import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
+private val COUNTERSPELL_EMPTY_STACK_PUZZLE =
+    """
+    [metadata]
+    Name:Counterspell Empty Stack
+    Goal:Win
+    Turns:10
+    Difficulty:Tutorial
+    Description:Counterspell in hand with empty stack. Should not be offered as castable action.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Island;Island
+    humanhand=Counterspell
+    humanlibrary=Island;Island;Island;Island;Island
+    aibattlefield=Forest;Forest
+    ailibrary=Forest;Forest;Forest;Forest;Forest
+    """.trimIndent()
+
+private val FLYING_BLOCKERS_PUZZLE =
+    """
+    [metadata]
+    Name:Flying Blockers
+    Goal:Win
+    Turns:10
+    Difficulty:Tutorial
+    Description:AI attacks with 2 flyers, human has only ground creatures. No legal blocks — DeclareBlockersReq should not be sent.
+
+    [state]
+    ActivePlayer=AI
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
+    humanlibrary=Forest;Forest;Forest;Forest;Forest
+    aibattlefield=Island;Island;Island;Island;Spyglass Siren;Kitesail Cleric
+    ailibrary=Island;Island;Island;Island;Island
+    """.trimIndent()
+
 /**
  * Action legality filtering — spells and blockers should only be offered
  * when legal targets/blocks exist.
@@ -16,8 +59,7 @@ class ActionLegalityTest :
 
         session(
             "counterspell not offered as castable when stack is empty",
-            puzzleFile = "puzzles/counterspell-empty-stack.pzl",
-            validating = true,
+            puzzle = COUNTERSPELL_EMPTY_STACK_PUZZLE,
         ) {
             // Pass to get ActionsAvailableReq in Main1
             val found =
@@ -41,8 +83,7 @@ class ActionLegalityTest :
 
         session(
             "no DeclareBlockersReq when only flyers attack and defender has no reach",
-            puzzleFile = "puzzles/flying-blockers.pzl",
-            validating = true,
+            puzzle = FLYING_BLOCKERS_PUZZLE,
             aiScript =
                 listOf(
                     ScriptedAction.Attack(listOf("Spyglass Siren", "Kitesail Cleric")),

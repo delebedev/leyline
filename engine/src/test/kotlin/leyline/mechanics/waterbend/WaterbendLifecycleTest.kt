@@ -42,7 +42,6 @@ class WaterbendLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
@@ -113,7 +112,6 @@ class WaterbendLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
@@ -182,7 +180,6 @@ class WaterbendLifecycleTest :
                 humanlibrary=Swamp;Swamp;Swamp
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
@@ -233,7 +230,6 @@ class WaterbendLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val koiIid = human.battlefield.iid("Giant Koi")
             val merfolkIid = human.battlefield.iid("Coral Merfolk")

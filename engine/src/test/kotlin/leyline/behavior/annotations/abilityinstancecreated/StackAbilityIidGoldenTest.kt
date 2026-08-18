@@ -55,7 +55,7 @@ class StackAbilityIidGoldenTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain
                 """.trimIndent()
 
-            val harness = MatchFlowHarness(validating = true)
+            val harness = MatchFlowHarness()
             try {
                 harness.connectAndKeepPuzzleText(puzzleText)
 

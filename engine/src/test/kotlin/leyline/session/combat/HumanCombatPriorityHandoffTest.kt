@@ -57,7 +57,6 @@ class HumanCombatPriorityHandoffTest :
         session(
             "human attacks, no blockers — DECLARE_BLOCKERS pass-only priority doesn't hang bridge",
             puzzle = HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE,
-            validating = true,
             timeout = 3.seconds,
         ) {
             // Puzzle starts at MAIN1 on human's turn; advance to combat so

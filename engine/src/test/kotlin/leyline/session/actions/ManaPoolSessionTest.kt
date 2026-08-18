@@ -39,7 +39,6 @@ class ManaPoolSessionTest :
                 humanlibrary=Mountain
                 ailibrary=Mountain
                 """,
-            validating = true,
         ) {
             val forestIid = instanceIdOf("Forest")
             val elfIid = instanceIdOf("Llanowar Elves")
@@ -72,7 +71,6 @@ class ManaPoolSessionTest :
         session(
             "tapping dual land projects selected floating mana",
             puzzle = racersRingPuzzle,
-            validating = true,
         ) {
             val landIid = instanceIdOf("Racers' Ring")
             val messages =
@@ -89,7 +87,6 @@ class ManaPoolSessionTest :
         session(
             "unsupported mana color leaves projection state unchanged",
             puzzle = racersRingPuzzle,
-            validating = true,
         ) {
             val before = bridge.projectionStateSnapshot()
 

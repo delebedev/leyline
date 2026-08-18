@@ -64,7 +64,6 @@ class DisplayCardUnderCardTest :
             aibattlefield=Grizzly Bears
             ailibrary=Forest
             """.trimIndent(),
-            validating = true,
         ) {
             phase() shouldBe "MAIN1"
 
@@ -148,7 +147,6 @@ class DisplayCardUnderCardTest :
         session(
             "flashback self-exile emits no under-card annotation",
             puzzle = SELF_EXILE_PUZZLE,
-            validating = true,
         ) {
             // Forge sets `exiledWith` to the ChangeZone host when a graveyard-cast
             // spell exiles itself on resolution, and that host is the spell card

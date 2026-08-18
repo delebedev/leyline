@@ -122,7 +122,6 @@ class MobilizeKeywordTest :
         session(
             "Mobilize 1 trigger emits the full annotation lifecycle during attack + resolution",
             puzzle = mobilize1Puzzle,
-            validating = true,
         ) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             sources shouldHaveSize 1
@@ -208,7 +207,7 @@ class MobilizeKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        session("Mobilize 3 produces three Warrior tokens", puzzle = mobilize3Puzzle, validating = true) {
+        session("Mobilize 3 produces three Warrior tokens", puzzle = mobilize3Puzzle) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Dalkovan Packbeasts" }
             sources shouldHaveSize 1
             val sourceIid = sources.first().first
@@ -225,7 +224,6 @@ class MobilizeKeywordTest :
         session(
             "two Mobilize sources both surface AbilityInstanceCreated + TriggeringObject",
             puzzle = twoSourcePuzzle,
-            validating = true,
         ) {
             val creatures = humanBattlefieldCreatures()
             val attackerIids =
@@ -270,7 +268,7 @@ class MobilizeKeywordTest :
             distinctParents.size shouldBeGreaterThanOrEqual 2
         }
 
-        session("Mobilize 1 cleanup at next end step sacrifices the token", puzzle = mobilize1Puzzle, validating = true) {
+        session("Mobilize 1 cleanup at next end step sacrifices the token", puzzle = mobilize1Puzzle) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
@@ -299,7 +297,7 @@ class MobilizeKeywordTest :
 
         // ------- TriggerHolder gameObject shape + lifecycle -------
 
-        session("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields", puzzle = mobilize1Puzzle, validating = true) {
+        session("Mobilize 1 emits a TriggerHolder gameObject in Limbo with canonical fields", puzzle = mobilize1Puzzle) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first
 
@@ -359,7 +357,6 @@ class MobilizeKeywordTest :
         session(
             "Mobilize holder is emitted once, not re-emitted, then deleted via diffDeletedInstanceIds",
             puzzle = mobilize1Puzzle,
-            validating = true,
         ) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first

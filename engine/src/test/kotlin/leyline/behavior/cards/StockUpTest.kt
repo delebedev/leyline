@@ -34,7 +34,6 @@ class StockUpTest :
         session(
             "Stock Up wire shape matches look-and-pick spec (Resolution semantic)",
             puzzleFile = "puzzles/stock-up.pzl",
-            validating = true,
         ) {
             val req = castSpellUntilSelectNReq("Stock Up")
             // sourceId on the SelectNReq is Stock Up's stack iid (post-ObjectIdChanged).
@@ -117,7 +116,6 @@ class StockUpTest :
         session(
             "Stock Up resolves: 2 chosen cards move Library → Hand, no prompt loop",
             puzzleFile = "puzzles/stock-up.pzl",
-            validating = true,
         ) {
             val req = castSpellUntilSelectNReq("Stock Up")
             val pickedIids = req.idsList.take(2)

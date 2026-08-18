@@ -31,7 +31,6 @@ class ExhaustLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val jeongIid = human.battlefield.iid("Jeong Jeong, the Deserter")
             val initialActions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList
@@ -88,7 +87,6 @@ class ExhaustLifecycleTest :
                 humanlibrary=Forest;Forest;Forest
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val lootIid = human.battlefield.iid("Loot, the Pathfinder")
             val loot = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Loot, the Pathfinder" }

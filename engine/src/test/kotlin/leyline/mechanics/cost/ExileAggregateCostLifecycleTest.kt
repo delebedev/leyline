@@ -38,7 +38,7 @@ class ExileAggregateCostLifecycleTest :
             ailibrary=Mountain;Mountain
             """.trimIndent()
 
-        session("mana-symbol threshold rejection leaves the graveyard untouched", puzzle = puzzle, turns = 3, validating = true) {
+        session("mana-symbol threshold rejection leaves the graveyard untouched", puzzle = puzzle, turns = 3) {
             val zemoIid = human.battlefield.iid("Baron Helmut Zemo")
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             declareAttackers(listOf(zemoIid))
@@ -61,7 +61,7 @@ class ExileAggregateCostLifecycleTest :
             }
         }
 
-        session("mana-symbol threshold met exiles the selection and pays the cost", puzzle = puzzle, turns = 3, validating = true) {
+        session("mana-symbol threshold met exiles the selection and pays the cost", puzzle = puzzle, turns = 3) {
             val zemoIid = human.battlefield.iid("Baron Helmut Zemo")
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             declareAttackers(listOf(zemoIid))

@@ -48,7 +48,7 @@ private val PUZZLE =
 
 class TeamworkLifecycleTest :
     SessionTest({
-        session("Timeline Inquiry pays Teamwork through CTO plus weighted PayCostsReq", puzzle = PUZZLE, validating = true) {
+        session("Timeline Inquiry pays Teamwork through CTO plus weighted PayCostsReq", puzzle = PUZZLE) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearsIid = human.battlefield.iid("Grizzly Bears")
             val striderIid = human.battlefield.iid("Goldfury Strider")

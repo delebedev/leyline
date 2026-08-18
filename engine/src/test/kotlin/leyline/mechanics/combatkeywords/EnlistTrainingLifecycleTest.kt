@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class EnlistTrainingLifecycleTest :
     SessionTest({
-        session("Training attack trigger resolves as keyword counter ability", puzzle = trainingPuzzle, validating = true) {
+        session("Training attack trigger resolves as keyword counter ability", puzzle = trainingPuzzle) {
             val hopefulIid = human.battlefield.iid("Hopeful Initiate")
             val courserIid = human.battlefield.iid("Centaur Courser")
             advanceToAttackersReq()
@@ -65,7 +65,7 @@ class EnlistTrainingLifecycleTest :
             }
         }
 
-        session("Enlist attack cost prompts with PayCostsReq and links tapped creature", puzzle = enlistPuzzle, validating = true) {
+        session("Enlist attack cost prompts with PayCostsReq and links tapped creature", puzzle = enlistPuzzle) {
             val faithbonderIid = human.battlefield.iid("Benalish Faithbonder")
             val courserIid = human.battlefield.iid("Centaur Courser")
             advanceToAttackersReq()

@@ -44,7 +44,6 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val tribunalHandIid = human.hand.iid("Conclave Tribunal")
             val actions =
@@ -72,7 +71,6 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearIid = human.battlefield.iid("Grizzly Bears")
@@ -168,7 +166,6 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val lionIid = human.battlefield.iid("Savannah Lions")
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
@@ -220,7 +217,6 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
             val genericWhiteSource =
@@ -262,7 +258,6 @@ class ConvokeLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
             val paymentSnap = messageSnapshot()

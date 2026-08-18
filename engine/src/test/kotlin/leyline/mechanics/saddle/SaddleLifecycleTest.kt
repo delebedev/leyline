@@ -45,7 +45,6 @@ class SaddleLifecycleTest :
         session(
             "saddle activation taps helper and emits saddled annotations",
             puzzle = PUZZLE.replace("Drover Grizzly;Grizzly Bears", "Drover Grizzly;Grizzly Bears;Coral Merfolk"),
-            validating = true,
         ) {
             val helperIid = human.battlefield.iid("Grizzly Bears")
             val otherHelperIid = human.battlefield.iid("Coral Merfolk")
@@ -105,7 +104,7 @@ class SaddleLifecycleTest :
             }
         }
 
-        session("saddled attack condition grants trample", puzzle = PUZZLE, validating = true) {
+        session("saddled attack condition grants trample", puzzle = PUZZLE) {
             val helperIid = human.battlefield.iid("Grizzly Bears")
             val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
             paymentSlice.expectOnePayCostsReq()
@@ -135,7 +134,7 @@ class SaddleLifecycleTest :
             }
         }
 
-        session("saddled state expires after turn changes", puzzle = PUZZLE, validating = true) {
+        session("saddled state expires after turn changes", puzzle = PUZZLE) {
             val helperIid = human.battlefield.iid("Grizzly Bears")
             val paymentSlice = after { activateAbility("Drover Grizzly").shouldBeTrue() }
             paymentSlice.expectOnePayCostsReq()

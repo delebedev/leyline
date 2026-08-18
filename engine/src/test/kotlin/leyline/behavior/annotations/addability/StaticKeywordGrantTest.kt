@@ -9,13 +9,35 @@ import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+private val HALLOWED_HAUNTING_PUZZLE =
+    """
+    [metadata]
+    Name:Enchantment Count Hallowed Haunting
+    Goal:Demo
+    Turns:3
+    Difficulty:Easy
+    Description:Cast the seventh enchantment. NumberOfEnchantmentYouControl reaches seven and grants creatures flying and vigilance.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    removesummoningsickness=true
+
+    humanbattlefield=Hallowed Haunting;Authority of the Consuls;Authority of the Consuls;Authority of the Consuls;Authority of the Consuls;Authority of the Consuls;Savannah Lions;Plains;Plains
+    humanhand=Pacifism
+    humanlibrary=Plains
+    ailibrary=Forest
+    aibattlefield=Grizzly Bears
+    """.trimIndent()
+
 class StaticKeywordGrantTest :
     SessionTest({
 
         session(
             "Hallowed Haunting refreshes creatures with flying and vigilance at seven enchantments",
-            puzzleFile = "puzzles/enchantment-count-hallowed-haunting.pzl",
-            validating = true,
+            puzzle = HALLOWED_HAUNTING_PUZZLE,
         ) {
             val hallowedIid = human.battlefield.iid("Hallowed Haunting")
             val lionsIid = human.battlefield.iid("Savannah Lions")

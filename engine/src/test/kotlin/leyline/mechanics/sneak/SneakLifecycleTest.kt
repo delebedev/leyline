@@ -43,7 +43,6 @@ class SneakLifecycleTest :
         session(
             "Sneak returns an unblocked attacker and the permanent enters tapped and attacking",
             puzzle = SNEAK_PUZZLE,
-            validating = true,
         ) {
             val sneakAbilityGrpId = sneakAbilityGrpId()
 

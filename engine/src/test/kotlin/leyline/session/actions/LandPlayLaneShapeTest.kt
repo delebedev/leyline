@@ -20,7 +20,6 @@ class LandPlayLaneShapeTest :
         session(
             "post-LAND_PLAY SendAndRecord GSM is immediately followed by ActionsAvailableReq",
             deckList = COMBAT_DECK,
-            validating = true,
         ) {
             advanceToMain1()
 

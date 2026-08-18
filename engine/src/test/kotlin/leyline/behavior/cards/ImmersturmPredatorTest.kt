@@ -42,7 +42,6 @@ class ImmersturmPredatorTest :
             aibattlefield=Mountain
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent(),
-            validating = true,
         ) {
             phase() shouldBe "MAIN1"
 

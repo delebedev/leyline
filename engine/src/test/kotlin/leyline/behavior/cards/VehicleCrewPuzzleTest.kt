@@ -46,7 +46,6 @@ class VehicleCrewPuzzleTest :
                 aibattlefield=Coral Merfolk
                 ailibrary=Mountain|Mountain|Mountain|Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             assertSoftly {
                 // Auto-pass should stop at Main1 when crew ability is available
@@ -82,7 +81,6 @@ class VehicleCrewPuzzleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val wall = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Wall of Runes" }
             wall.addStaticAbility(

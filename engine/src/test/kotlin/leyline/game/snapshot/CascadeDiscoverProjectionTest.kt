@@ -11,6 +11,28 @@ import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
+private val PUZZLE =
+    """
+    [metadata]
+    Name:Cascade Bloodbraid Elf
+    Goal:Survive
+    Turns:5
+    Difficulty:Easy
+    Description:Cast Bloodbraid Elf to trigger Cascade. Library top first nonland is Llanowar Elves (MV 1) — accept the may-cast and it enters battlefield for free without needing a target.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Bloodbraid Elf
+    humanbattlefield=Mountain;Mountain;Mountain;Forest;Forest
+    humanlibrary=Llanowar Elves;Forest;Forest;Mountain;Mountain;Forest;Mountain;Forest;Mountain;Forest;Mountain;Forest
+    aibattlefield=Grizzly Bears
+    ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+    """.trimIndent()
+
 /**
  * End-to-end coverage for the trigger-ability projection on the Stack zone.
  *
@@ -40,7 +62,7 @@ class CascadeDiscoverProjectionTest :
 
         session(
             "Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently",
-            puzzleFile = "puzzles/cascade-bloodbraid.pzl",
+            puzzle = PUZZLE,
         ) {
             val before = messageSnapshot()
             val cast = castSpellByName("Bloodbraid Elf")

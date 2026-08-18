@@ -31,7 +31,6 @@ class DashLifecycleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
-            validating = true,
         ) {
             val zurgoGrpId = bridge.cardRepository.findGrpIdByName("Zurgo Bellstriker")!!
             val dashAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(zurgoGrpId, KeywordAbilityIds.DASH)!!

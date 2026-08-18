@@ -30,7 +30,6 @@ class GatherCountersSessionTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
             turns = 3,
-            validating = true,
         ) {
             val sources = human.getZone(ZoneType.Battlefield).cards.filter { it.name == "Hopeful Initiate" }
             sources.size shouldBe 2

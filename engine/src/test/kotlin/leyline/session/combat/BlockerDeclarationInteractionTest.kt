@@ -110,7 +110,6 @@ class BlockerDeclarationInteractionTest :
         session(
             "human blocks AI attacker",
             deckList = COMBAT_DECK,
-            validating = true,
             aiScript = GOBLIN_ATTACK_AI_SCRIPT,
         ) {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
@@ -137,7 +136,6 @@ class BlockerDeclarationInteractionTest :
         session(
             "human declines blocking takes damage",
             deckList = COMBAT_DECK,
-            validating = true,
             aiScript = GOBLIN_ATTACK_AI_SCRIPT,
         ) {
             setupAiAttacksHumanCanBlock() // advances to DeclareBlockersReq
@@ -163,7 +161,6 @@ class BlockerDeclarationInteractionTest :
         session(
             "trade produces creature deaths",
             deckList = COMBAT_DECK,
-            validating = true,
             aiScript = GOBLIN_ATTACK_AI_SCRIPT,
         ) {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
@@ -187,7 +184,6 @@ class BlockerDeclarationInteractionTest :
         session(
             "second iterative blocker toggle does not wipe first assignment",
             puzzleFile = "puzzles/multi-blocker.pzl",
-            validating = true,
             aiScript = MULTI_BLOCKER_AI_SCRIPT,
         ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()
@@ -218,7 +214,6 @@ class BlockerDeclarationInteractionTest :
         session(
             "deselect blocker removes only that assignment",
             puzzleFile = "puzzles/multi-blocker.pzl",
-            validating = true,
             aiScript = MULTI_BLOCKER_AI_SCRIPT,
         ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()

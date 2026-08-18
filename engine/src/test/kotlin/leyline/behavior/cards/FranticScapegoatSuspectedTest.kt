@@ -46,7 +46,7 @@ private fun AnnotationInfo.detailInts(key: String): List<Int> = detailsList.filt
 
 class FranticScapegoatSuspectedTest :
     SessionTest({
-        session("Frantic Scapegoat moves Suspected to the chosen entering creature", puzzle = PUZZLE, validating = true) {
+        session("Frantic Scapegoat moves Suspected to the chosen entering creature", puzzle = PUZZLE) {
             castSpellByName("Frantic Scapegoat").shouldBeTrue()
             passUntilResolved(maxPasses = 8)
 

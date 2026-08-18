@@ -28,7 +28,6 @@ class UntapCostLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             activateAbility("Halo Fountain", abilityIndex = 0).shouldBeTrue()
             val battlefield = human.getZone(ZoneType.Battlefield).cards
@@ -61,7 +60,6 @@ class UntapCostLifecycleTest :
                 humanlibrary=Plains;Plains;Plains
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val bearIid = human.battlefield.iid("Grizzly Bears")
             val corpseIid = human.battlefield.iid("Walking Corpse")

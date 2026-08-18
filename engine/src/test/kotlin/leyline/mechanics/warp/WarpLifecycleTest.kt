@@ -78,7 +78,7 @@ private val WARP_END_STEP_PUZZLE =
 @Suppress("UnnecessaryNotNullOperator")
 class WarpLifecycleTest :
     SessionTest({
-        session("alternativeGrpId cast chooses the warp spell ability", puzzle = WARP_PUZZLE, validating = true) {
+        session("alternativeGrpId cast chooses the warp spell ability", puzzle = WARP_PUZZLE) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -90,7 +90,7 @@ class WarpLifecycleTest :
             }
         }
 
-        session("warp cast emits CastThroughAbility annotation for the selected rail", puzzle = WARP_PUZZLE, validating = true) {
+        session("warp cast emits CastThroughAbility annotation for the selected rail", puzzle = WARP_PUZZLE) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -110,7 +110,7 @@ class WarpLifecycleTest :
             }
         }
 
-        session("regular-cost cast keeps Germinating Wurm on the battlefield", puzzle = REGULAR_COST_PUZZLE, validating = true) {
+        session("regular-cost cast keeps Germinating Wurm on the battlefield", puzzle = REGULAR_COST_PUZZLE) {
             check(castSpellByName("Germinating Wurm"))
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
             "Germinating Wurm" should beOnBattlefieldOf(human)
@@ -121,7 +121,7 @@ class WarpLifecycleTest :
             "Germinating Wurm" should beOnBattlefieldOf(human)
         }
 
-        session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE, validating = true) {
+        session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))

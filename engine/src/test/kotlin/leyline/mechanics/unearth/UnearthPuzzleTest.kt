@@ -44,7 +44,6 @@ class UnearthPuzzleTest :
         session(
             "Gixian Recycler unearth from graveyard returns with haste",
             puzzle = UNEARTH_GIXIAN_RECYCLER_PUZZLE,
-            validating = true,
         ) {
             // Pre-unearth invariants
             human

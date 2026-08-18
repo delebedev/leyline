@@ -45,7 +45,6 @@ class TrainingKeywordTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
             turns = 5,
-            validating = true,
         ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val hopefulIid = humanBattlefieldCreatures().first { it.second == "Hopeful Initiate" }.first
@@ -124,7 +123,6 @@ class TrainingKeywordTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
             turns = 5,
-            validating = true,
         ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val saviorIid = humanBattlefieldCreatures().first { it.second == "Savior of Ollenbock" }.first
@@ -174,7 +172,6 @@ class TrainingKeywordTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
             turns = 5,
-            validating = true,
         ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val hopefulIids = humanBattlefieldCreatures().filter { it.second == "Hopeful Initiate" }.map { it.first }
@@ -217,7 +214,6 @@ class TrainingKeywordTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
             turns = 5,
-            validating = true,
         ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
             val hopefulIids = humanBattlefieldCreatures().filter { it.second == "Hopeful Initiate" }.map { it.first }

@@ -25,7 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class DrawUpdateTypeShapeTest :
     SessionTest({
 
-        session("turn-boundary DRAW for human seat uses SendHiFi", deckList = "60 Mountain", seed = AI_FIRST_SEED, validating = true) {
+        session("turn-boundary DRAW for human seat uses SendHiFi", deckList = "60 Mountain", seed = AI_FIRST_SEED) {
             assertSoftly {
                 isGameOver() shouldBe false
                 turn() shouldBe 2

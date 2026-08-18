@@ -30,7 +30,6 @@ class EmergeLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val gryffGrpId = bridge.cardRepository.findGrpIdByName("Wretched Gryff")!!
             val emergeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(gryffGrpId, KeywordAbilityIds.EMERGE)!!

@@ -54,6 +54,27 @@ const val COMBAT_DECK = """
 16 Forest
 """
 
+private val TRAMPLE_DAMAGE_ASSIGN_PUZZLE =
+    """
+    [metadata]
+    Name:Trample Damage Assignment
+    Goal:Win
+    Turns:10
+    Difficulty:Tutorial
+    Description:5/5 trampler with haste blocked by two 2/2 bears. Player must assign damage: min 2 to each bear, 1 trample to opponent. AILife=1 so trample is lethal.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=1
+
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Charging Monstrosaur
+    humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    aibattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
+    ailibrary=Forest;Forest;Forest;Forest;Forest
+    """.trimIndent()
+
 /**
  * Raging Goblin (haste) + Mountain enables turn-1 combat without multi-turn
  * advancement — autoPassAndAdvance overshoots turns when stretched further.
@@ -190,7 +211,6 @@ class CombatInteractionTest :
         session(
             "human declares single attacker",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -236,7 +256,6 @@ class CombatInteractionTest :
         session(
             "human declares multiple attackers",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = multipleAttackersAiScript,
         ) {
@@ -269,7 +288,6 @@ class CombatInteractionTest :
         session(
             "AI declares blockers",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = aiBlockerAiScript,
         ) {
@@ -308,7 +326,6 @@ class CombatInteractionTest :
         session(
             "combat damage frame carries persistent DamagedThisTurn badge",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = aiBlockerAiScript,
         ) {
@@ -346,7 +363,6 @@ class CombatInteractionTest :
         session(
             "combat damage resolves correctly",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -383,7 +399,6 @@ class CombatInteractionTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """,
             turns = 5,
-            validating = true,
             validation = combatValidation,
         ) {
             val attacker =
@@ -462,7 +477,6 @@ class CombatInteractionTest :
         session(
             "combat damage GSM has correct phase and annotation shape",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -562,7 +576,6 @@ class CombatInteractionTest :
         session(
             "first strike combat damage uses first-strike damage step",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -601,7 +614,6 @@ class CombatInteractionTest :
         session(
             "double strike combat damage uses first-strike and regular damage steps",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -643,7 +655,6 @@ class CombatInteractionTest :
         session(
             "combat death produces zone transfer",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -696,7 +707,6 @@ class CombatInteractionTest :
         session(
             "full combat turn cycle",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -722,7 +732,6 @@ class CombatInteractionTest :
         session(
             "echo back contains creature object without combat state",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -781,7 +790,6 @@ class CombatInteractionTest :
         session(
             "re-drive preserves iterative attacker selection",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -802,7 +810,6 @@ class CombatInteractionTest :
         session(
             "unselected attacker without a damage recipient is rejected",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -828,7 +835,6 @@ class CombatInteractionTest :
         session(
             "echo back deselect clears selectedDamageRecipient",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -851,7 +857,6 @@ class CombatInteractionTest :
         session(
             "echo back deselect restores state",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -880,7 +885,6 @@ class CombatInteractionTest :
         session(
             "multi toggle before submit",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = multipleAttackersAiScript,
         ) {
@@ -913,7 +917,6 @@ class CombatInteractionTest :
         session(
             "toggle then submit deals damage",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -954,7 +957,6 @@ class CombatInteractionTest :
         session(
             "attack all then submit deals damage",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -984,7 +986,6 @@ class CombatInteractionTest :
         session(
             "declare no attackers skips combat",
             deckList = COMBAT_DECK,
-            validating = true,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
@@ -1009,8 +1010,7 @@ class CombatInteractionTest :
 
         session(
             "trample damage assignment sends AssignDamageReq and completes combat",
-            puzzleFile = "puzzles/trample-damage-assign.pzl",
-            validating = true,
+            puzzle = TRAMPLE_DAMAGE_ASSIGN_PUZZLE,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -1096,7 +1096,6 @@ class CombatInteractionTest :
                 ailibrary=Forest;Forest;Forest;Forest;Forest
                 """,
             turns = 10,
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -1138,7 +1137,6 @@ class CombatInteractionTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
                 """,
             turns = 10,
-            validating = true,
             validation = combatValidation,
             aiScript =
                 listOf(
@@ -1186,7 +1184,6 @@ class CombatInteractionTest :
                 aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
             validation = combatValidation,
             timeout = 30.seconds,
         ) {

@@ -66,7 +66,6 @@ class ParadigmLifecycleTest :
         session(
             "untargeted Paradigm original self-exiles, creates Main1 trigger, and casts copy for free",
             puzzle = GERMINATION_PUZZLE,
-            validating = true,
         ) {
             resolveSpell("Germination Practicum").shouldBeTrue()
             human
@@ -161,7 +160,6 @@ class ParadigmLifecycleTest :
         session(
             "targeted Paradigm copy prompt uses copied card source and targeting metadata",
             puzzle = DECORUM_PUZZLE,
-            validating = true,
         ) {
             castSpellByName("Decorum Dissertation").shouldBeTrue()
             val originalTargetSourceId = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq.sourceId

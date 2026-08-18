@@ -35,7 +35,7 @@ class LearnLessonTest :
     SessionTest({
         val learnPuzzle = "puzzles/learn-cram-session.pzl"
 
-        session("Learn emits SelectNReq with sideboard Lesson candidate", puzzleFile = learnPuzzle, validating = true) {
+        session("Learn emits SelectNReq with sideboard Lesson candidate", puzzleFile = learnPuzzle) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
             val handDiscardId = instanceIdOf("Forest", human, ZoneType.Hand)
@@ -104,7 +104,6 @@ class LearnLessonTest :
                 humansideboard=Environmental Sciences
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val message = allMessages.last { it.hasSelectNReq() }
@@ -121,7 +120,7 @@ class LearnLessonTest :
             }
         }
 
-        session("selecting sideboard Lesson reveals and moves it to hand", puzzleFile = learnPuzzle, validating = true) {
+        session("selecting sideboard Lesson reveals and moves it to hand", puzzleFile = learnPuzzle) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
             val resolution =

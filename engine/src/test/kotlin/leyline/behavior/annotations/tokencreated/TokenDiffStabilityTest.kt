@@ -81,7 +81,7 @@ class TokenDiffStabilityTest :
             return human.battlefield.iid(clue)
         }
 
-        session("Clue token has Artifact type and Clue subtype in GSM", puzzle = puzzleText, validating = true) {
+        session("Clue token has Artifact type and Clue subtype in GSM", puzzle = puzzleText) {
             val clueIid = castInspectorAndWaitForClue()
 
             val snapClue1 = GsmSnapshot.capture(game(), bridge, "test-clue", 1)
@@ -108,7 +108,7 @@ class TokenDiffStabilityTest :
             }
         }
 
-        session("Clue token retains types and subtypes across diff GSMs", puzzle = puzzleText, validating = true) {
+        session("Clue token retains types and subtypes across diff GSMs", puzzle = puzzleText) {
             val clueIid = castInspectorAndWaitForClue()
 
             // First GSM — baseline

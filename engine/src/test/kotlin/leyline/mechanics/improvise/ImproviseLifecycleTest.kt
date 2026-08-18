@@ -37,7 +37,6 @@ class ImproviseLifecycleTest :
                 humanlibrary=Island;Island;Island
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            validating = true,
         ) {
             val artifactIids =
                 listOf(

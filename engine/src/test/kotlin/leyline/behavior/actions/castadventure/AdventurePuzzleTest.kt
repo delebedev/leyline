@@ -59,7 +59,6 @@ class AdventurePuzzleTest :
             aibattlefield=Forest
             ailibrary=Forest
             """.trimIndent(),
-            validating = true,
         ) {
             phase() shouldBe "MAIN1"
 

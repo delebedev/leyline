@@ -34,7 +34,7 @@ private val PUZZLE =
 
 class CleaveLifecycleTest :
     SessionTest({
-        session("cleaved Path of Peril uses alt-cost rail and applies full board wipe", puzzle = PUZZLE, validating = false) {
+        session("cleaved Path of Peril uses alt-cost rail and applies full board wipe", puzzle = PUZZLE) {
             val pathGrpId = bridge.cardRepository.findGrpIdByName("Path of Peril")!!
             val cleaveAbilityGrpId =
                 bridge.cardRepository.findKeywordAbilityGrpId(pathGrpId, KeywordAbilityIds.CLEAVE)!!
@@ -68,7 +68,7 @@ class CleaveLifecycleTest :
             }
         }
 
-        session("regular Path of Peril keeps larger creatures alive", puzzle = PUZZLE, validating = false) {
+        session("regular Path of Peril keeps larger creatures alive", puzzle = PUZZLE) {
             castSpellByName("Path of Peril").shouldBeTrue()
             passUntilResolved()
 
