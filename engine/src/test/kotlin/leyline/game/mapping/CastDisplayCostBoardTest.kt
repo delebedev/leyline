@@ -110,6 +110,23 @@ class CastDisplayCostBoardTest :
                 .shouldBeEmpty()
         }
 
+        test("X-cost spell offered as castable with only its colored pips payable") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    // Traumatic Critique {X}{U}{R} — X can be 0; only U and R are required.
+                    addCard("Traumatic Critique", human, ZoneType.Hand)
+                    addCard("Island", human)
+                    addCard("Mountain", human)
+                }
+            val critique = game.humanPlayerCard("Traumatic Critique")
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val req = ActionMapper.buildFromSnapshot(1, snap, b)
+
+            val cast = castActionsFor(req, b.getOrAllocInstanceId(ForgeCardId(critique.id)).value)
+            cast.size shouldBe 1
+        }
+
         test("static reducer shows on a plain spell") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->

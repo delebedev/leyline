@@ -1,0 +1,8 @@
+name: "Traumatic Critique"
+grpId: 102698
+titleId: 1111584
+abilities:
+  - id: 204520
+    textId: 1111587
+    category: 4
+expansionCode: "SOS"
