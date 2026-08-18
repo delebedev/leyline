@@ -266,4 +266,25 @@ class RoomActionTest :
                 cardSnap.isRightDoorUnlocked shouldBe true
             }
         }
+
+        test("off-stack room resolves to the parent grpId even with a door unlocked") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                    addCard("Surgical Suite", human, ZoneType.Battlefield)
+                }
+            val human = game.humanPlayer
+            val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
+            card.unlockRoom(human, forge.card.CardStateName.LeftSplit)
+
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val cardSnap = snap.objects.getValue(ForgeCardId(card.id))
+
+            assertSoftly {
+                // Premise: unlocking a door flips the active face to the door —
+                // off-stack identity must stay the parent (Original) face.
+                card.currentState?.stateName shouldBe forge.card.CardStateName.LeftSplit
+                cardSnap.grpId shouldBe 92094 // parent grpId, not the 92095 door
+            }
+        }
     })
