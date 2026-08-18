@@ -129,6 +129,59 @@ class ActionLegalityTest :
         }
 
         session(
+            "counterspell targeting mana value 2 not offered when stack spell has a different mana value",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Spell Snare
+                humanbattlefield=Island
+                humanlibrary=Island;Island;Island
+                aihand=Divination
+                aibattlefield=Island;Island;Island
+                ailibrary=Island;Island;Island
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Divination"), ScriptedAction.PassPriority),
+            validating = true,
+        ) {
+            // AI casts Divination (mana value 3) then passes — Spell Snare only
+            // counters mana value 2, so it must not be offered.
+            val castOffered =
+                allMessages.any {
+                    it.hasActionsAvailableReq() &&
+                        it.actionsAvailableReq.actionsList.any { a -> a.actionType == ActionType.Cast }
+                }
+            castOffered shouldBe false
+        }
+
+        session(
+            "counterspell targeting mana value 2 is offered when stack spell has that mana value",
+            puzzle = """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Spell Snare
+                humanbattlefield=Island
+                humanlibrary=Island;Island;Island
+                aihand=Grizzly Bears
+                aibattlefield=Forest;Forest
+                ailibrary=Forest;Forest;Forest
+                """,
+            aiScript = listOf(ScriptedAction.CastSpell("Grizzly Bears"), ScriptedAction.PassPriority),
+            validating = true,
+        ) {
+            // AI casts Grizzly Bears (mana value 2) then passes — Spell Snare's
+            // actual target exists, so it must still be offered.
+            val aar = allMessages.last { it.hasActionsAvailableReq() }
+            val castActions = aar.actionsAvailableReq.actionsList.filter { it.actionType == ActionType.Cast }
+            castActions.size shouldBe 1
+        }
+
+        session(
             "no DeclareBlockersReq when only flyers attack and defender has no reach",
             puzzle = FLYING_BLOCKERS_PUZZLE,
             aiScript =
