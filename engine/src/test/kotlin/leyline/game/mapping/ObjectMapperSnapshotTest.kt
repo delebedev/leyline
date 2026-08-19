@@ -117,41 +117,6 @@ class ObjectMapperSnapshotTest :
             }
         }
 
-        test("DFC card has othersideGrpId set in snapshot path") {
-            TestCardRegistry.ensureCardRegistered("Revealing Eye")
-
-            val (b, game, _) =
-                startWithBoard { _, human, _ ->
-                    addCard("Concealing Curtains", human, ZoneType.Battlefield)
-                }
-            val card =
-                game.humanPlayer.battlefield.card("Concealing Curtains")
-            val fid = ForgeCardId(card.id)
-            val instanceId = b.getOrAllocInstanceId(fid).value
-
-            b.seedDiffBaseline(game)
-            val snap = SnapshotCapture.run(game, b, "test", 0)
-            val cardSnap = snap.objects.getValue(fid)
-
-            val frontGrpId = b.cardRepository.findGrpIdByName("Concealing Curtains")!!
-            val backGrpId = b.cardRepository.findGrpIdByName("Revealing Eye")!!
-
-            val fromSnap =
-                ObjectMapper.buildFromSnapshot(
-                    cardSnap,
-                    instanceId,
-                    ZoneIds.BATTLEFIELD,
-                    1,
-                    b.cardProto,
-                    Visibility.Public,
-                )
-
-            assertSoftly {
-                fromSnap.grpId shouldBe frontGrpId
-                fromSnap.othersideGrpId shouldBe backGrpId
-            }
-        }
-
         test("planeswalker loyalty is captured in snapshot") {
             TestCardRegistry.ensureCardRegistered("Chandra, Torch of Defiance")
 

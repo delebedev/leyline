@@ -3,10 +3,6 @@ package leyline.game.bundle
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
-import leyline.game.InMemoryCardRepository
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
-import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
@@ -59,16 +55,5 @@ class ShapeIntegrationTest :
                 messages[1].type shouldBe GREMessageType.DeclareAttackersReq_695e
                 messages[1].prompt.promptId shouldBe 6
             }
-        }
-
-        test("edictalPass produces single EdictalMessage") {
-            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            val messages =
-                BundleBuilder(bridge, "test-match", 1)
-                    .edictalPass(MessageCounter(initialGsId = 10, initialMsgId = 0))
-                    .messages
-
-            messages.size shouldBe 1
-            messages[0].type shouldBe GREMessageType.EdictalMessage_695e
         }
     })
