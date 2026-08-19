@@ -719,11 +719,18 @@ class BundleBuilderTest :
             }
         }
 
-        test("new-turn rider is numbered with the remote state frame") {
+        test("new-turn rider is numbered with the playback frame") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
 
-            val result = bundleBuilder(b).remoteActionDiff(game, counter, turnStarted = true)
-            val gsm = result.messages.first().gameStateMessage
+            val cut = builder.materializePlaybackCut(game, counter, turnStarted = true, events = FrameEventLog.EMPTY)
+            val prepared = builder.compilePlaybackCut(cut)
+            b.commitProjection(prepared.transition)
+            val gsm =
+                prepared.batches
+                    .first()
+                    .first { it.hasGameStateMessage() }
+                    .gameStateMessage
             val rider = gsm.annotationsList.single { AnnotationType.NewTurnStarted in it.typeList }
 
             assertSoftly {
@@ -1101,20 +1108,10 @@ class BundleBuilderTest :
                     .single()
             moveToBattlefield(card, game)
             b.diffListener = { _, _, _, _ -> error("induced finalization failure") }
-            val events =
-                FrameEventLog(
-                    listOf(
-                        GameEvent.SpellCast(
-                            cardId = ForgeCardId(card.id),
-                            seatId = SeatId(1),
-                            spellGrpId = 100,
-                        ),
-                    ),
-                )
 
             try {
                 shouldThrow<IllegalStateException> {
-                    builder.remoteActionDiff(game, counter, eventsOverride = events)
+                    builder.stateOnlyDiff(game, counter)
                 }
             } finally {
                 b.diffListener = null
@@ -1130,7 +1127,7 @@ class BundleBuilderTest :
             }
         }
 
-        test("interleaved identity allocation retries journal state exactly once") {
+        test("interleaved identity allocation is absorbed by finalization retry") {
             fun compile(interleaveWriter: Boolean): Pair<List<List<Byte>>, leyline.game.state.SyntheticEffectProjection> {
                 val (b, game, counter) =
                     startWithBoard { _, human, _ ->
@@ -1141,7 +1138,6 @@ class BundleBuilderTest :
                         .getZone(ZoneType.Battlefield)
                         .cards
                         .single()
-                card.addPTBoost(1, 1, 123L, 456L)
                 b.promptBridge(SeatId(1)).journal.record(
                     PromptSideEffect.ChoiceResult(
                         sourceForgeCardId = ForgeCardId(card.id),
@@ -1161,20 +1157,9 @@ class BundleBuilderTest :
                         }
                     }
                 }
-
-                val events =
-                    FrameEventLog(
-                        listOf(
-                            GameEvent.SpellCast(
-                                cardId = ForgeCardId(card.id),
-                                seatId = SeatId(1),
-                                spellGrpId = 100,
-                            ),
-                        ),
-                    )
                 val result =
                     try {
-                        builder.remoteActionDiff(game, counter, eventsOverride = events)
+                        builder.stateOnlyDiff(game, counter)
                     } finally {
                         b.diffListener = null
                     }
@@ -1183,16 +1168,10 @@ class BundleBuilderTest :
                     writerRan shouldBe true
                     b.peekInstanceId(interleavedForgeId) shouldBe b.getOrAllocInstanceId(interleavedForgeId)
                 }
-                val gsm = result.messages.first().gameStateMessage
-                assertSoftly {
-                    gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
-                    b.promptBridge(SeatId(1)).journal.snapshotChoiceResults() shouldBe emptyList()
-                    b
-                        .annotationProjectionStateSnapshot()
-                        .pendingSpellCasts
-                        .find(ForgeCardId(card.id), 100)
-                        ?.spellGrpId shouldBe 100
-                }
+                // The prompt-facts consumption lands exactly once with the
+                // finalization commit — even when the retry re-ran the frame
+                // after the interleaved allocation bumped the projection.
+                b.promptBridge(SeatId(1)).journal.snapshotChoiceResults() shouldBe emptyList()
                 return result.messages.map { it.toByteArray().toList() } to b.committedEffectProjection()
             }
 
@@ -1200,6 +1179,60 @@ class BundleBuilderTest :
             val retried = compile(interleaveWriter = true)
 
             retried shouldBe control
+        }
+
+        test("playback cut runs a SpellCast frame through the annotation pipeline") {
+            // Frame-path coverage for the SpellCast annotation fact: the
+            // PlaybackFrameSpec event log rides the playback cut through the
+            // annotation pipeline. The transition is committed so the
+            // journal-side consumption lands, matching production's
+            // flushPlaybackCut.
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card =
+                game.humanPlayer
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            card.addPTBoost(1, 1, 123L, 456L)
+            b.promptBridge(SeatId(1)).journal.record(
+                PromptSideEffect.ChoiceResult(
+                    sourceForgeCardId = ForgeCardId(card.id),
+                    chooserSeatId = SeatId(1),
+                    choiceValue = 1,
+                ),
+            )
+            val events =
+                FrameEventLog(
+                    listOf(
+                        GameEvent.SpellCast(
+                            cardId = ForgeCardId(card.id),
+                            seatId = SeatId(1),
+                            spellGrpId = 100,
+                        ),
+                    ),
+                )
+            val builder = bundleBuilder(b)
+            val cut = builder.materializePlaybackCut(game, counter, turnStarted = false, events)
+            val prepared = builder.compilePlaybackCut(cut)
+            b.commitProjection(prepared.transition)
+
+            val gsm =
+                prepared.batches
+                    .first()
+                    .first { it.hasGameStateMessage() }
+                    .gameStateMessage
+            assertSoftly {
+                gsm.annotationsList.any { AnnotationType.LayeredEffectCreated in it.typeList } shouldBe true
+                b.promptBridge(SeatId(1)).journal.snapshotChoiceResults() shouldBe emptyList()
+                b
+                    .annotationProjectionStateSnapshot()
+                    .pendingSpellCasts
+                    .find(ForgeCardId(card.id), 100)
+                    ?.spellGrpId shouldBe 100
+            }
         }
 
         test("stale retry remaps token group identity after allocation collision") {
@@ -1224,7 +1257,7 @@ class BundleBuilderTest :
             }
 
             try {
-                bundleBuilder(b).remoteActionDiff(game, counter)
+                bundleBuilder(b).stateOnlyDiff(game, counter)
             } finally {
                 b.diffListener = null
             }
@@ -1259,7 +1292,7 @@ class BundleBuilderTest :
             val first =
                 thread(start = true) {
                     try {
-                        results[0] = firstBuilder.remoteActionDiff(game, counter)
+                        results[0] = firstBuilder.stateOnlyDiff(game, counter)
                     } catch (caught: Throwable) {
                         failure.compareAndSet(null, caught)
                     }
@@ -1268,7 +1301,7 @@ class BundleBuilderTest :
             val second =
                 thread(start = true) {
                     try {
-                        results[1] = secondBuilder.remoteActionDiff(game, counter)
+                        results[1] = secondBuilder.stateOnlyDiff(game, counter)
                     } catch (caught: Throwable) {
                         failure.compareAndSet(null, caught)
                     } finally {

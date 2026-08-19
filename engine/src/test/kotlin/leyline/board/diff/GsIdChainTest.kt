@@ -26,13 +26,13 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class GsIdChainTest :
     BoardTest({
 
-        test("remoteActionDiff produces content GSM plus echo with chained gsIds and no pendingMessageCount") {
+        test("stateOnlyDiff produces content GSM plus echo with chained gsIds and no pendingMessageCount") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Hand)
                 }
 
-            val result = bundleBuilder(board.bridge).remoteActionDiff(board.game, board.counter)
+            val result = bundleBuilder(board.bridge).stateOnlyDiff(board.game, board.counter)
             result.messages.size shouldBe 2
             val content = result.messages[0].gameStateMessage
             val echo = result.messages[1].gameStateMessage

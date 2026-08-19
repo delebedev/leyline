@@ -7,7 +7,6 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.GrpId
 import leyline.bridge.types.SeatId
 import leyline.game.advanceToMain1
 import leyline.game.bundle.BundleBuilder
@@ -15,7 +14,6 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
-import leyline.game.snapshot.GrpIdResolver
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -84,19 +82,15 @@ class Board(
     // ----- Board actions -----
 
     /**
-     * Build the human player's hand and battlefield actions with the board's standard mapper wiring.
-     * Zone-cast actions require [ActionMapper.buildFromSnapshot].
+     * Build the human player's hand and battlefield actions via the production
+     * snapshot projection path ([ActionMapper.buildFromSnapshot]).
      */
     fun actions(): ActionsAvailableReq =
-        ActionMapper.buildActionList(
-            player = human,
-            seatId = SEAT_ID,
-            checkLegality = true,
-            idResolver = bridge::getOrAllocInstanceId,
-            grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, bridge.cardRepository)) },
-            cardDataLookup = { grpId -> bridge.cardRepository.findByGrpId(grpId.value) },
-            abilityRegistryLookup = bridge::abilityRegistryFor,
-            cardRepository = bridge.cardRepository,
+        ActionMapper.buildFromSnapshot(
+            SEAT_ID,
+            leyline.game.snapshot.SnapshotCapture
+                .run(game, bridge, TEST_MATCH_ID, 0),
+            bridge,
         )
 
     /** Add a card to a player's zone, registered so the bridge can resolve its instanceId. */

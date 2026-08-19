@@ -179,7 +179,8 @@ facts, and several cast shapes intentionally diverge by action type.
 
 - Do not introduce a generic action DSL.
 - Do not table-route every action type.
-- Do not merge `buildFromSnapshot` and `buildActionList` as part of this boundary split.
+- Do not merge the snapshot projection (`buildFromSnapshot`) and the naive
+  opponent-turn list (`buildNaiveActionsFromSnapshot`) as part of this boundary split.
 - Do not move `CastRails` back into `ActionMapper` or make rails own builder side effects.
 - Do not change can-pay, effective-cost, auto-tap, or active/inactive semantics.
 - Do not use this boundary split to add a new mechanic rail.
@@ -187,8 +188,9 @@ facts, and several cast shapes intentionally diverge by action type.
 ## Required Invariants
 
 `ActionMapper.buildFromSnapshot` remains the production action-emission entry
-point. `buildActionList` remains the live/pure helper path used by tests and
-naive action construction.
+point. `ActionMapper.buildNaiveActionsFromSnapshot` is the permissive,
+presentation-only list embedded in opponent-turn, transition, and combat-echo
+GSMs; it reads the immutable snapshot and creates no executable offers.
 
 Action ordering remains stable unless a test explicitly proves a behavior-neutral
 ordering change. Known order-sensitive areas include hand casts before hand-zone

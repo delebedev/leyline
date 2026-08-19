@@ -35,8 +35,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * keyword's per-card ability grpId.
  *
  * Foretell, Plot, and Sneak ride a structurally different rail (hand-keyword
- * KeywordInstance rather than AlternativeCost, buildActionList as the primary
- * entry point) and keep their own dedicated test files.
+ * KeywordInstance rather than AlternativeCost, the snapshot projection as the
+ * primary entry point) and keep their own dedicated test files.
  */
 private data class AltCostOfferRow(
     val mechanic: String,

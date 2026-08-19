@@ -6,71 +6,52 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.GrpId
 import leyline.game.data.CardData
-import leyline.game.snapshot.GrpIdResolver
-import leyline.testkit.Board
+import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
-import leyline.testkit.humanPlayer
 import leyline.testkit.mana
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Pure tests for [ActionMapper.buildActionList] — the overload with function params.
- *
- * Uses [Board.startWithBoard] to set up board state without a full
- * game loop. The key point: [ActionMapper.buildActionList] itself holds no
- * [leyline.game.state.GameBridge] reference — the bridge only provides the lambdas.
+ * Focused [ActionMapper] tests: the snapshot-based naive action list
+ * ([ActionMapper.buildNaiveActionsFromSnapshot]) used for opponent-turn GSM
+ * embedding, the production snapshot projection
+ * ([ActionMapper.buildFromSnapshot]), and GSM action stripping.
  */
 @Suppress("WeakAssertionOnly")
 class ActionMapperPureTest :
     BoardTest({
 
+        fun naiveActions(
+            bridge: leyline.game.state.GameBridge,
+            game: forge.game.Game,
+        ): ActionsAvailableReq = ActionMapper.buildNaiveActionsFromSnapshot(1, SnapshotCapture.run(game, bridge, "test", 0), bridge)
+
         // -----------------------------------------------------------------------
-        // Test 1: Pass action always present
+        // Naive list (opponent-turn embedding): Pass always present
         // -----------------------------------------------------------------------
 
-        test("buildActionList includes Pass action on empty board") {
+        test("naive actions include Pass action on empty board") {
             val (b, game, _) = startWithBoard { _, _, _ -> }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
-                )
+            val actions = naiveActions(b, game)
 
             val hasPass = actions.actionsList.any { it.actionType == ActionType.Pass }
             hasPass.shouldBeTrue()
         }
 
         // -----------------------------------------------------------------------
-        // Test 2: Land in hand → inactiveActions (naive mode: no canPlayLand check)
+        // Naive list: Land in hand → inactiveActions (no canPlayLand check)
         // -----------------------------------------------------------------------
 
-        test("buildActionList includes Play for lands in hand (inactiveActions in naive mode)") {
+        test("naive actions include Play for lands in hand (inactiveActions in naive mode)") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Island", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
-                )
+            val actions = naiveActions(b, game)
 
             // In naive mode lands are always non-playable → inactiveActions
             val hasPlay = actions.inactiveActionsList.any { it.actionType == ActionType.Play_add3 }
@@ -78,50 +59,32 @@ class ActionMapperPureTest :
         }
 
         // -----------------------------------------------------------------------
-        // Test 3: Non-land spell in hand → Cast in actions
+        // Naive list: Non-land spell in hand → Cast in actions
         // -----------------------------------------------------------------------
 
-        test("buildActionList includes Cast for non-land spells in hand") {
+        test("naive actions include Cast for non-land spells in hand") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Llanowar Elves", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = naiveActions(b, game)
 
             val hasCast = actions.actionsList.any { it.actionType == ActionType.Cast }
             hasCast.shouldBeTrue()
         }
 
         // -----------------------------------------------------------------------
-        // Test 4: Untapped land on battlefield → ActivateMana in actions
+        // Naive list: Untapped land on battlefield → ActivateMana in actions
         // -----------------------------------------------------------------------
 
-        test("buildActionList includes ActivateMana for untapped lands on battlefield") {
+        test("naive actions include ActivateMana for untapped lands on battlefield") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Island", human, ZoneType.Battlefield)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = false,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = naiveActions(b, game)
 
             val activateMana = actions.actionsList.first { it.actionType == ActionType.ActivateMana }
             activateMana.abilityGrpId shouldBe 1002
@@ -150,7 +113,7 @@ class ActionMapperPureTest :
         }
 
         // -----------------------------------------------------------------------
-        // Test 5: Unaffordable Cast → inactiveActions (legality mode)
+        // Snapshot projection: Unaffordable Cast → inactiveActions (legality mode)
         // -----------------------------------------------------------------------
 
         test("unaffordable Cast goes to inactiveActions with manaCost") {
@@ -159,17 +122,8 @@ class ActionMapperPureTest :
                     // Spell in hand, no lands — can't pay
                     addCard("Llanowar Elves", human, ZoneType.Hand) // costs {G}
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             // Cast should be inactive, not active
             actions.actionsList.none { it.actionType == ActionType.Cast }.shouldBeTrue()
@@ -179,7 +133,7 @@ class ActionMapperPureTest :
         }
 
         // -----------------------------------------------------------------------
-        // Test 6: Affordable Cast stays in actions
+        // Snapshot projection: Affordable Cast stays in actions
         // -----------------------------------------------------------------------
 
         test("affordable Cast stays in actions") {
@@ -188,45 +142,25 @@ class ActionMapperPureTest :
                     addCard("Llanowar Elves", human, ZoneType.Hand) // costs {G}
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             actions.actionsList.any { it.actionType == ActionType.Cast }.shouldBeTrue()
             actions.inactiveActionsList.none { it.actionType == ActionType.Cast }.shouldBeTrue()
         }
 
         // -----------------------------------------------------------------------
-        // Test 7: Unaffordable Activate → inactiveActions
+        // Snapshot projection: Unaffordable Activate → inactiveActions
         // -----------------------------------------------------------------------
 
         test("unaffordable Activate goes to inactiveActions") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     // Permanent with mana-costed activated ability, no mana available
-                    addCard("Prismari Command", human, ZoneType.Hand)
-                    // Sorcerer Class has {3}{U}{R}: level 2 — a mana-costed activate
                     addCard("Sorcerer Class", human, ZoneType.Battlefield)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             // Activate should be in inactiveActions (can't pay), not actions
             actions.actionsList.none { it.actionType == ActionType.Activate_add3 }.shouldBeTrue()
@@ -234,7 +168,7 @@ class ActionMapperPureTest :
         }
 
         // -----------------------------------------------------------------------
-        // Test 8: Affordable Activate stays in actions
+        // Snapshot projection: Affordable Activate stays in actions
         // -----------------------------------------------------------------------
 
         test("affordable Activate stays in actions") {
@@ -248,17 +182,8 @@ class ActionMapperPureTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                )
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             actions.actionsList.any { it.actionType == ActionType.Activate_add3 }.shouldBeTrue()
         }
@@ -270,18 +195,8 @@ class ActionMapperPureTest :
                     addCard("Snow-Covered Island", human, ZoneType.Battlefield)
                     addCard("Snow-Covered Island", human, ZoneType.Battlefield)
                 }
-            val human = game.humanPlayer
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId -> b.cardRepository.findByGrpId(grpId.value) },
-                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
-                )
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             val activate = actions.actionsList.first { it.actionType == ActionType.Activate_add3 }
             assertSoftly {
