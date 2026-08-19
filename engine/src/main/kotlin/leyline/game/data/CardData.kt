@@ -40,14 +40,6 @@ data class CardData(
     val abilityCategories: List<Int> = emptyList(),
     val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
-    /**
-     * Per-chapter ability grpIds for Saga cards, indexed 0-based by chapter
-     * number. Empty list is the normal shape — the client's `Cards.AbilityIds`
-     * column stores chapter abilities at leading positions of [abilityIds],
-     * and `ZoneMapper.chapterGrpIdFromCardData` resolves chapters via
-     * positional fallback when this list is empty.
-     */
-    val chapterAbilityGrpIds: List<Int> = emptyList(),
     /** Client card-DB relationship category for [linkedFaceGrpIds]. */
     val linkedFaceType: Int = 0,
     val linkedFaceGrpIds: List<Int> = emptyList(),

@@ -391,7 +391,7 @@ class AbilityRegistry private constructor(
             sa.api == ApiType.Unattach && sa.getParam("PrecostDesc") == "Reconfigure"
 
         private const val STATION_THRESHOLD_ABILITY_ID_FLOOR = 60_000
-        private const val TRIGGER_CATEGORY = 2
+        internal const val TRIGGER_CATEGORY = 2
         private const val STATIC_CATEGORY_FLOOR = 3
 
         private val KEYWORD_FAMILIES =
