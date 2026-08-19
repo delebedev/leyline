@@ -131,49 +131,35 @@ class CostDecisionTest :
             return method.invoke(decision, options, selected, amount) as Boolean
         }
 
-        test("visit pay life returns numeric payment when confirm defaults yes") {
-            val fx = fixture()
-            val result = fx.decision.visit(CostPayLife("3", null))
-
-            result!!.c shouldBe 3
+        // Each case holds a lambda rather than the cost itself: ICostVisitor
+        // declares one visit overload per cost type, so a heterogeneous list of
+        // costs would erase the static type the dispatch depends on.
+        listOf<Pair<String, (CostDecision) -> PaymentDecision?>>(
+            "exert" to { it.visit(CostExert("1", "Creature", null)) },
+            "exiled-to-grave" to { it.visit(CostExiledMoveToGrave("1", "Card", null)) },
+            "sacrifice" to { it.visit(CostSacrifice("1", "Creature", null)) },
+        ).forEach { (label, pay) ->
+            test("inherited $label visitor refuses impossible payment") {
+                pay(fixture().decision).shouldBeNull()
+            }
         }
 
-        test("inherited mill visitor returns numeric payment when confirm defaults yes") {
-            val fx = fixture()
-
-            fx.decision.visit(CostMill("2"))!!.c shouldBe 2
+        listOf<Triple<String, (CostDecision) -> PaymentDecision?, Int>>(
+            Triple("pay life", { it.visit(CostPayLife("3", null)) }, 3),
+            Triple("mill", { it.visit(CostMill("2")) }, 2),
+        ).forEach { (label, pay, expected) ->
+            test("$label visitor returns numeric payment when confirm defaults yes") {
+                pay(fixture().decision)!!.c shouldBe expected
+            }
         }
 
-        test("inherited exert visitor refuses impossible payment") {
-            val fx = fixture()
-
-            fx.decision.visit(CostExert("1", "Creature", null)).shouldBeNull()
-        }
-
-        test("inherited exiled-to-grave visitor refuses impossible payment") {
-            val fx = fixture()
-
-            fx.decision.visit(CostExiledMoveToGrave("1", "Card", null)).shouldBeNull()
-        }
-
-        test("visit discard from source returns source card") {
-            val fx = fixture()
-            val result: PaymentDecision? = fx.decision.visit(CostDiscard("1", "CARDNAME", null))
-
-            result!!.cards.map { it.name } shouldContainExactly listOf("Lightning Bolt")
-        }
-
-        test("visit reveal from source returns source card") {
-            val fx = fixture()
-            val result: PaymentDecision? = fx.decision.visit(CostReveal("1", "CARDNAME", null))
-
-            result!!.cards.map { it.name } shouldContainExactly listOf("Lightning Bolt")
-        }
-
-        test("inherited sacrifice visitor refuses impossible payment") {
-            val fx = fixture()
-
-            fx.decision.visit(CostSacrifice("1", "Creature", null)).shouldBeNull()
+        listOf<Pair<String, (CostDecision) -> PaymentDecision?>>(
+            "discard" to { it.visit(CostDiscard("1", "CARDNAME", null)) },
+            "reveal" to { it.visit(CostReveal("1", "CARDNAME", null)) },
+        ).forEach { (label, pay) ->
+            test("visit $label from source returns source card") {
+                pay(fixture().decision)!!.cards.map { it.name } shouldContainExactly listOf("Lightning Bolt")
+            }
         }
 
         test("inherited sacrifice visitor handles zero without a choice") {
