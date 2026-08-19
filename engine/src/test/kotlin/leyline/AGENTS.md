@@ -44,6 +44,50 @@ in the suite that should have caught it, usually as extra assertions on an
 existing test rather than as a new one. Name the file for the behavior it
 covers, never for the fix, the branch, or the report that prompted it.
 
+## Choose the shape that matches the claim
+
+| Shape | Use when |
+|---|---|
+| One example | The behavior has a single interesting case |
+| Decision table | One claim repeats over an enumerable domain — cost types, action types, prompt semantics, alt-cost mechanics |
+| Property over generated input | The claim quantifies over inputs, or concerns ordering, termination, or absence of corruption |
+| Contract pin | The claim is agreement with the client rather than internal consistency |
+
+Test a generic component's invariants at that component, once.
+`SinglePromptWindowState` owns single-window correlation, once-only completion,
+and waiter retirement for every prompt runtime instantiating it. Restating those
+guarantees per prompt type leaves a kernel regression failing many tests that
+each name a different symptom. Per-instantiation tests keep what is genuinely
+per-instantiation: default-handle policy and wire envelope.
+
+When production code is a registry, sweep the registry rather than testing each
+member. `AnnotationShapeConformanceTest` cross-checks every builder against the
+baseline detail keys, so a new builder is covered the day it is added.
+`OrderRules.all` has the same shape and is covered per rule instead, so a new
+rule arrives untested.
+
+Prefer a property when the input space is combinatorial. Ordering rules
+contribute edges independently, and examples reach only the combinations someone
+wrote. Per-rule intent stays an example; the property covers the merge. A
+generated-input test needs a seeded generator and a guard asserting the
+generation still exercises the behavior, or it passes vacuously once a signature
+drifts.
+
+Two tests of one unit are justified when they answer to different authorities.
+`ShouldStopEvaluatorTest` groups by internal logic; `ShouldStopConformanceTest`
+pins the values the client expects. If the client changed its expectations,
+exactly one should fail. Name the authority in the KDoc so the pair does not
+later read as duplication.
+
+Coverage is not the measure of a test. `PromptIdsTest` executes no production
+bytecode, because `const val` is inlined at the call site, and it guards the
+prompt text a player reads. Never argue a test is unnecessary from what it
+executes.
+
+A table whose cases dispatch through overloads holds lambdas, not values.
+`ICostVisitor` declares one `visit` overload per cost type, so a list of costs
+erases the static type the dispatch depends on.
+
 ## Use the existing harness surface
 
 Test-only helpers live under `engine/src/test/kotlin/leyline/testkit/`.
