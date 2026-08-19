@@ -57,7 +57,7 @@ class DiffDiagnosticTest :
             }
         }
 
-        test("remoteActionDiff contains BF objects for AI land play") {
+        test("stateOnlyDiff contains BF objects for AI land play") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ForgeZoneType.Hand)
@@ -73,7 +73,7 @@ class DiffDiagnosticTest :
             }
 
             val aiResult =
-                bundleBuilder(board.bridge).remoteActionDiff(
+                bundleBuilder(board.bridge).stateOnlyDiff(
                     board.game,
                     board.counter,
                 )
@@ -81,7 +81,7 @@ class DiffDiagnosticTest :
             val gsm = aiResult.gsm
             gsm.type shouldBe GameStateType.Diff
 
-            // remoteActionDiff may or may not include BF zone depending on
+            // stateOnlyDiff may or may not include BF zone depending on
             // what changed. Core invariant: all objects have a valid zoneId.
             for (obj in gsm.gameObjectsList) {
                 obj.zoneId shouldBeGreaterThan 0

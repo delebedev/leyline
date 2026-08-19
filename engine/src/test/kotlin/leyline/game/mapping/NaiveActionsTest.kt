@@ -5,7 +5,9 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
+import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
+import leyline.game.event.FrameEventLog
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
@@ -13,8 +15,9 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
- * `ActionMapper.buildNaiveActions` — the action list embedded in GSM frames
- * during the opponent's turn, built without a legality pass.
+ * `ActionMapper.buildNaiveActionsFromSnapshot` — the action list embedded in
+ * GSM frames during the opponent's turn, built from the immutable snapshot
+ * without a legality pass.
  *
  * Two things the naive path gets wrong if left unguarded: it can offer actions
  * the turn structure forbids, and it can serialize a card's printed cost rather
@@ -26,22 +29,29 @@ class NaiveActionsTest :
 
         fun naiveCastAction(
             bridge: GameBridge,
+            game: forge.game.Game,
             instanceId: Int,
         ): Action {
-            val req = ActionMapper.buildNaiveActions(1, bridge)
+            val snap =
+                leyline.game.snapshot.SnapshotCapture
+                    .run(game, bridge, "test", 0)
+            val req = ActionMapper.buildNaiveActionsFromSnapshot(1, snap, bridge)
             return (req.actionsList + req.inactiveActionsList)
                 .first { it.actionType == ActionType.Cast && it.instanceId == instanceId }
         }
 
         test("lands are offered as inactive, never as playable actions") {
-            val (bridge, _) =
+            val (bridge, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Hand)
                     addCard("Forest", human, ZoneType.Hand)
                     addCard("Plains", human, ZoneType.Hand)
                 }
 
-            val req = ActionMapper.buildNaiveActions(1, bridge)
+            val snap =
+                leyline.game.snapshot.SnapshotCapture
+                    .run(game, bridge, "test", 0)
+            val req = ActionMapper.buildNaiveActionsFromSnapshot(1, snap, bridge)
 
             assertSoftly {
                 req.actionsList.filter { it.actionType == ActionType.Play_add3 }.shouldBeEmpty()
@@ -65,11 +75,16 @@ class NaiveActionsTest :
             val legalAction =
                 (legalActions.actionsList + legalActions.inactiveActionsList)
                     .first { it.actionType == ActionType.Cast && it.instanceId == instanceId }
-            val naiveAction = naiveCastAction(bridge, instanceId)
+            val naiveAction = naiveCastAction(bridge, game, instanceId)
+            // Playback cuts are the opponent-turn frame vehicle: every frame's
+            // content GSM embeds the naive action list.
+            val builder = bundleBuilder(bridge)
+            val cut = builder.materializePlaybackCut(game, counter, turnStarted = false, events = FrameEventLog.EMPTY)
             val embeddedGsmAction =
-                bundleBuilder(bridge)
-                    .remoteActionDiff(game, counter)
-                    .messages
+                builder
+                    .compilePlaybackCut(cut)
+                    .batches
+                    .first()
                     .first { it.hasGameStateMessage() }
                     .gameStateMessage
                     .actionsList
@@ -84,9 +99,38 @@ class NaiveActionsTest :
             }
         }
 
+        test("naive emission order matches the opponent-turn contract") {
+            // ADR 0003: emission order is protocol-significant. Battlefield
+            // ActivateMana first, then inactive land Plays, then Cast before
+            // CastAdventure per hand spell, then Pass/FloatMana.
+            val (bridge, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Ratcatcher Trainee", human, ZoneType.Hand) // adventure
+                }
+
+            val snap =
+                leyline.game.snapshot.SnapshotCapture
+                    .run(game, bridge, "test", 0)
+            val req = ActionMapper.buildNaiveActionsFromSnapshot(1, snap, bridge)
+
+            req.actionsList.map { it.actionType } shouldBe
+                listOf(
+                    ActionType.ActivateMana,
+                    ActionType.Cast,
+                    ActionType.Cast,
+                    ActionType.CastAdventure,
+                    ActionType.Pass,
+                    ActionType.FloatMana,
+                )
+            req.inactiveActionsList.map { it.actionType } shouldBe listOf(ActionType.Play_add3)
+        }
+
         test("naive cast shows printed cost with no graveyard reducer") {
             var crabId = 0
-            val (bridge, _, _) =
+            val (bridge, game, _) =
                 startWithBoard { _, human, _ ->
                     val crab = addCard("Eddymurk Crab", human, ZoneType.Hand)
                     crabId = crab.id
@@ -94,6 +138,6 @@ class NaiveActionsTest :
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(crabId)).value
 
-            naiveCastAction(bridge, instanceId) should haveManaCost(generic = 5, blue = 2)
+            naiveCastAction(bridge, game, instanceId) should haveManaCost(generic = 5, blue = 2)
         }
     })

@@ -567,51 +567,6 @@ class BundleBuilder(
         )
     }
 
-    /**
-     * Remote action diff: content GS Diff with SendHiFi, then a bare SendHiFi echo.
-     *
-     * Client expects a commit-frame echo after remote-seat content GSMs.
-     * Both messages are standalone (no pendingMessageCount). The first carries
-     * the state delta + naive actions; the second is a bare diff (empty
-     * anns/pAnns/objects/zones with prevGsId chained to the content frame)
-     * used for animation pacing.
-     */
-    fun remoteActionDiff(
-        game: Game,
-        counter: MessageCounter,
-        turnStarted: Boolean = false,
-        eventsOverride: FrameEventLog? = null,
-    ): BundleResult =
-        synchronized(counter) {
-            val diff =
-                buildFrameDiff(
-                    game,
-                    counter,
-                    eventsOverride = eventsOverride,
-                    includePendingPlayerSubmittedTargets = true,
-                    supplements = if (turnStarted) listOf(ProjectionSupplement.NewTurnStarted) else emptyList(),
-                ) { _, _ -> GameStateUpdate.SendHiFi }
-            val nextGs = diff.gameStateId
-            val gsBase = diff.result.gsm
-            val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-            val gsBuilder = gsBase.toBuilder()
-            for (action in actions.actionsList) {
-                gsBuilder.addActions(
-                    ActionInfo
-                        .newBuilder()
-                        .setSeatId(seatId)
-                        .setAction(ActionMapper.stripActionForGsm(action)),
-                )
-            }
-            val gs = gsBuilder.build()
-            val content =
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                    it.gameStateMessage = gs
-                }
-            val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi, previousGsId = nextGs)
-            BundleResult(listOf(content) + coinFlipPromptMessages(diff.events.events, nextGs, counter) + listOf(echo))
-        }
-
     internal fun materializePlaybackCut(
         game: Game,
         counter: MessageCounter,
@@ -653,7 +608,7 @@ class BundleBuilder(
                         if (actions == null) {
                             val (mappedActions, actionProjection) =
                                 bridge.editProjection(captureProjection) {
-                                    ActionMapper.buildNaiveActions(seatId, bridge)
+                                    ActionMapper.buildNaiveActionsFromSnapshot(seatId, input.state.snapshot, bridge)
                                 }
                             actions = mappedActions
                             captureProjection = actionProjection.copy(revision = initialProjection.revision)
@@ -992,7 +947,7 @@ class BundleBuilder(
                 null
             }
         val projectedPriority = priorityActions ?: checkNotNull(priorityProjection).actions
-        val actions = priorityActions ?: ActionMapper.buildNaiveActions(seatId, bridge)
+        val actions = priorityActions ?: ActionMapper.buildNaiveActionsFromSnapshot(seatId, snap, bridge)
         val actionOffers = priorityProjection?.offers ?: emptyList()
 
         // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
@@ -1155,7 +1110,7 @@ class BundleBuilder(
                 promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.DeclareAttackersReq_695e) {
                     it.declareAttackersReq = req
                     it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
-                }.copy(actionGameStateId = diff.gameStateId) to ActionMapper.buildNaiveActions(seatId, bridge)
+                }.copy(actionGameStateId = diff.gameStateId) to ActionMapper.buildNaiveActionsFromSnapshot(seatId, diff.snap, bridge)
             }
         return ActionWindowPrepared(
             projected.first,
@@ -1286,7 +1241,7 @@ class BundleBuilder(
                 promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.DeclareBlockersReq_695e) {
                     it.declareBlockersReq = req
                     it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
-                }.copy(actionGameStateId = diff.gameStateId) to ActionMapper.buildNaiveActions(seatId, bridge)
+                }.copy(actionGameStateId = diff.gameStateId) to ActionMapper.buildNaiveActionsFromSnapshot(seatId, diff.snap, bridge)
             }
         return ActionWindowPrepared(
             projected.first,

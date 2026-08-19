@@ -1073,7 +1073,7 @@ object StateMapper {
      *
      * Note: protocol uses SendAndRecord for ALL zone-transfer diffs, regardless
      * of whose turn it is. This heuristic (acting == viewing) is an approximation
-     * used by postAction; remoteActionDiff hardcodes SendHiFi directly.
+     * used by postAction; playback frames hardcode SendHiFi directly.
      */
     fun resolveUpdateType(
         snap: GsmSnapshot,

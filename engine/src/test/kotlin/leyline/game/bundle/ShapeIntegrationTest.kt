@@ -3,6 +3,7 @@ package leyline.game.bundle
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
+import leyline.game.event.FrameEventLog
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
@@ -18,14 +19,18 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 class ShapeIntegrationTest :
     BoardTest({
 
-        test("remoteActionDiff produces content SendHiFi GSM plus bare SendHiFi echo") {
+        test("playback cut produces content SendHiFi GSM plus bare SendHiFi echo") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Plains", human, ZoneType.Hand)
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
 
-            val messages = bundleBuilder(b).remoteActionDiff(game, counter).messages
+            val builder = bundleBuilder(b)
+            val cut = builder.materializePlaybackCut(game, counter, turnStarted = false, events = FrameEventLog.EMPTY)
+            val prepared = builder.compilePlaybackCut(cut)
+            b.commitProjection(prepared.transition)
+            val messages = prepared.batches.first()
 
             messages.size shouldBe 2
             val echo = messages[1].gameStateMessage

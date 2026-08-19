@@ -8,12 +8,10 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.GrpId
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.AbilityInfo
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.beAltCostOffer
@@ -108,37 +106,29 @@ class WarpActionTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Germinating Wurm", human, ZoneType.Hand)
                 }
-            val human = game.humanPlayer
             val wurmGrpId = b.cardRepository.findGrpIdByName("Germinating Wurm")!!
             val realWarpAbilityGrpId =
                 b.cardRepository.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 
-            // Inject a fake ETB ability id (BaseId=0) at a leading position via the
-            // cardDataLookup override below. It must be registered with AbilityInfo so
-            // findAlternativeCostAbilityGrpId considers it during the BaseId scan, and
-            // must be rejected in favor of the real Warp row (BaseId=371 + cost match).
+            // Inject a fake ETB ability id (BaseId=0) at a leading position via
+            // the repository's CardData. It must be registered with AbilityInfo so
+            // the alt-cost binding scan considers it during the BaseId scan, and
+            // must be rejected in favor of the real Warp row (BaseId=371 + cost
+            // match). The snapshot projection reads boundCards from the same
+            // repository, so the injection rides the production path.
             val fakeEtbId = 999001
             (b.cardRepository as InMemoryCardRepository).registerAbilityInfo(
                 fakeEtbId,
                 AbilityInfo(baseId = 0, manaCost = emptyList()),
             )
+            val wurmData = checkNotNull(b.cardRepository.findByGrpId(wurmGrpId))
+            (b.cardRepository as InMemoryCardRepository).registerData(
+                wurmData.copy(abilityIds = listOf(fakeEtbId to 0) + wurmData.abilityIds),
+                "Germinating Wurm",
+            )
 
-            val actions =
-                ActionMapper.buildActionList(
-                    player = human,
-                    seatId = 1,
-                    checkLegality = true,
-                    idResolver = { forgeCardId -> b.getOrAllocInstanceId(forgeCardId) },
-                    grpIdResolver = { card -> GrpId(GrpIdResolver.resolve(card, b.cardRepository)) },
-                    cardDataLookup = { grpId ->
-                        // Prepend the ETB id so positional-first-wins would pick the wrong row.
-                        b.cardRepository.findByGrpId(grpId.value)?.copy(
-                            abilityIds = listOf(fakeEtbId to 0) + (b.cardRepository.findByGrpId(grpId.value)?.abilityIds ?: emptyList()),
-                        )
-                    },
-                    abilityRegistryLookup = { card, cardData -> b.abilityRegistryFor(card, cardData) },
-                    cardRepository = b.cardRepository,
-                )
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val actions = ActionMapper.buildFromSnapshot(1, snap, b)
 
             val warpOffer =
                 actions.actionsList.firstOrNull {

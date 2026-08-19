@@ -175,22 +175,13 @@ class CastDisplayCostBoardTest :
                     addCard("Thunderherd Migration", human, ZoneType.Hand)
                     repeat(2) { addCard("Forest", human) }
                 }
-            val migration = game.humanPlayerCard("Thunderherd Migration")
-            val human = game.players.first { it.name == migration.controller.name }
 
-            val (actions, inactive) =
-                ActionMapper.buildHandCastActionsForCard(
-                    card = migration,
-                    player = human,
-                    instanceId = b.getOrAllocInstanceId(ForgeCardId(migration.id)).value,
-                    grpId = 0,
-                    checkLegality = true,
-                    idResolver = { b.getOrAllocInstanceId(it) },
-                    grpIdResolver = { leyline.bridge.types.GrpId(0) },
-                    cardDataLookup = { null },
-                )
+            val actions =
+                ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
-            val casts = actions + inactive
+            val casts =
+                actions.actionsList.filter { it.actionType == ActionType.Cast } +
+                    actions.inactiveActionsList.filter { it.actionType == ActionType.Cast }
             casts.size shouldBe 1
             casts.single() should haveManaCost(generic = 1, green = 1)
         }
@@ -247,11 +238,15 @@ class CastDisplayCostBoardTest :
                     addCard("Starfield Mystic", human)
                     addCard("Grizzly Bears", human)
                     repeat(3) { addCard("Forest", human, ZoneType.Graveyard) }
+                    // AlternateAdditionalCost: variant-dependent payCosts — the
+                    // printed {1}{G} must appear on both the naive and the
+                    // projection side of the same snapshot.
+                    addCard("Thunderherd Migration", human, ZoneType.Hand)
                 }
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val snapshotReq = ActionMapper.buildFromSnapshot(SessionTest.HUMAN_SEAT, snap, b)
-            val naiveReq = ActionMapper.buildNaiveActions(SessionTest.HUMAN_SEAT, b)
+            val naiveReq = ActionMapper.buildNaiveActionsFromSnapshot(SessionTest.HUMAN_SEAT, snap, b)
 
             val naiveCasts =
                 naiveReq.actionsList
