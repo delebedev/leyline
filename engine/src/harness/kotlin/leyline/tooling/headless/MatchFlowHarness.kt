@@ -1294,6 +1294,10 @@ class MatchFlowHarness(
      * the session. Explicit non-zero ids remain unchanged so tests can submit
      * stale values deliberately.
      *
+     * gsId is stamped from the latest *prompt*, not the latest *state*; the two
+     * coincide for iterative prompts (the echo is both). Guards tested through
+     * this harness must not assume a real client stamps prompt-fidelity gsIds.
+     *
      * `internal` so cross-package drivers in the same module (notably
      * [leyline.tooling.simclient.SimClientDriver]) can route their direct
      * `session.on*` calls through it instead of bypassing reflection.
