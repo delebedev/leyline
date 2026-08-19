@@ -66,11 +66,12 @@ class TestCardFixturesTest :
             }
         }
 
-        test("saga: 3 chapter abilities, no chapterAbilityGrpIds field needed") {
+        test("saga: 3 chapter abilities as trigger rows") {
             val f = TestCardFixtures.findFixture("History of Benalia").shouldNotBeNull()
             assertSoftly {
                 f.rules.shouldBeNull()
                 f.identity.abilities shouldHaveSize 3
+                f.identity.abilities.forEach { it.category shouldBe 2 }
                 f.identity.tokens.values
                     .toSet()
                     .shouldHaveSize(1)

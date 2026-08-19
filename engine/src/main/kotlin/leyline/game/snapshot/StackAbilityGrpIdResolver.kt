@@ -5,6 +5,7 @@ import forge.game.card.Card
 import forge.game.spellability.SpellAbilityStackInstance
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneMapper
+import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 
@@ -13,7 +14,8 @@ internal object StackAbilityGrpIdResolver {
      * Resolve the **ability** grpId for a stack entry — the row in the Arena
      * `Abilities` table that describes this trigger / activated SA. Resolution
      * order:
-     *  1. Saga chapter (per-chapter ability id from CardData.chapterAbilityGrpIds).
+     *  1. Saga chapter (trigger-row grpId from CardData; see
+     *     `ZoneMapper.chapterGrpIdFromCardData`).
      *  2. Runtime-keyed identity recorded by the event lifecycle.
      *  3. Typed definition lookup for entries that bypassed that lifecycle.
      *  4. Explicit mechanic fallbacks for stack-only synthetic entries.
@@ -72,7 +74,7 @@ internal object StackAbilityGrpIdResolver {
         val cardData = bridge.cardRepository.findByGrpId(sourceCardGrpId) ?: return null
         return cardData
             .abilityIds
-            .firstOrNull { (id, _) -> bridge.cardRepository.findAbilityInfo(id)?.category == 2 }
+            .firstOrNull { (id, _) -> bridge.cardRepository.findAbilityInfo(id)?.category == AbilityRegistry.TRIGGER_CATEGORY }
             ?.first
     }
 

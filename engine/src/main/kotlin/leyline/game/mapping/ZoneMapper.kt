@@ -8,6 +8,7 @@ import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.AbilityRegistry
 import leyline.game.state.EffectTracker
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -359,16 +360,28 @@ object ZoneMapper {
 
     /**
      * Pick the chapter-specific ability grpId from a [CardData], independent of
-     * the Forge stack entry. Extracted for unit-testability of both resolver
-     * paths (populated [CardData.chapterAbilityGrpIds] vs positional fallback
-     * via [CardData.abilityIds]).
+     * the Forge stack entry.
+     *
+     * Chapter abilities are trigger rows (client `Abilities.Category` = 2)
+     * listed in chapter order. Read-ahead sagas (e.g. the DMU cycle) lead
+     * [CardData.abilityIds] with a shared static "Read ahead" row
+     * (Category = 3), so a positional index into [CardData.abilityIds] would
+     * misresolve chapter I. Filtering to trigger rows resolves the chapter
+     * grpIds regardless of leading non-chapter abilities.
      */
     internal fun chapterGrpIdFromCardData(
         cardData: CardData,
         chapterIdx: Int,
     ): Int? {
-        cardData.chapterAbilityGrpIds.getOrNull(chapterIdx - 1)?.let { return it }
-        return cardData.abilityIds.getOrNull(chapterIdx - 1)?.first
+        require(cardData.abilityCategories.size == cardData.abilityIds.size) {
+            "abilityCategories must align 1:1 with abilityIds for chapter resolution"
+        }
+        val chapterGrpIds =
+            cardData.abilityIds
+                .zip(cardData.abilityCategories)
+                .filter { (_, category) -> category == AbilityRegistry.TRIGGER_CATEGORY }
+                .map { (ability, _) -> ability.first }
+        return chapterGrpIds.getOrNull(chapterIdx - 1)
     }
 
     // --- Initial game zones ---

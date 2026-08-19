@@ -25,11 +25,11 @@ import leyline.game.data.TestCardFixtures
  * `TestCardInjector.inject`) call [fromForgeCard] directly with the card
  * name.
  *
- * `CardData.chapterAbilityGrpIds` is intentionally empty — the client's
- * `Cards.AbilityIds` column orders chapter abilities at leading positions,
- * and `ZoneMapper.chapterGrpIdFromCardData` falls back to that positional
- * ordering when the explicit chapter list is empty (matching the prod
- * `ExposedCardRepository` shape).
+ * Saga chapters resolve through [CardData.abilityCategories]: chapter
+ * abilities are trigger rows (Category = 2) in chapter order, and
+ * `ZoneMapper.chapterGrpIdFromCardData` filters to those rows — matching the
+ * prod `ExposedCardRepository` shape, including read-ahead sagas whose
+ * leading "Read ahead" static row (Category = 3) must be skipped.
  */
 object CardDataDeriver {
     /**

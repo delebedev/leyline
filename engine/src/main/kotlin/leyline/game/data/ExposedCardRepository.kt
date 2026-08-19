@@ -67,8 +67,8 @@ class ExposedCardRepository(
         val modalChildIds = text("ModalChildIds").nullable()
 
         // Arena ability category. Observed: 1 = Activated (player-initiated),
-        // 2 = Trigger/Static/Passive. Anything we don't recognize is treated
-        // as non-activated by the consumer.
+        // 2 = Trigger, 3+ = Static/Passive. Anything we don't recognize is
+        // treated as non-activated by the consumer.
         val category = integer("Category").default(0)
         val subCategory = integer("SubCategory").default(0)
         override val primaryKey = PrimaryKey(id)
