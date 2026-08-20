@@ -42,8 +42,6 @@ internal data class SimPromptLedgerStats(
     }
 }
 
-private const val STALL_HORIZON_GSIDS = 8
-
 internal class SimPromptLedger(
     private val harness: MatchFlowHarness,
 ) {
@@ -51,29 +49,12 @@ internal class SimPromptLedger(
     private val retiredPromptMsgIds = mutableMapOf<Int, String>()
     private val retiredByReason = mutableMapOf<String, Int>()
 
-    /**
-     * The prompt to answer next, or null when there is nothing live to answer.
-     *
-     * Only prompt types that need the action bridge are retired when superseded,
-     * so a prompt the driver stepped over — a targeting confirm that arrived
-     * while a newer prompt was already waiting, say — stays unhandled for the
-     * rest of the game. Answering one is worse than answering nothing: the
-     * window it belonged to closed long ago, the response is dropped as
-     * unmatched, and the driver burns its no-progress budget on a reply that
-     * could never land. Anything left that far behind the current state is
-     * retired instead of returned.
-     */
     fun activePrompt(): ActivePrompt? {
-        val latestGsId = harness.allMessages.lastOrNull()?.gameStateId ?: 0
         for (i in harness.allMessages.indices.reversed()) {
             val msg = harness.allMessages[i]
             if (!isSimPrompt(msg)) continue
             if (msg.msgId in handledPromptMsgIds || msg.msgId in retiredPromptMsgIds) continue
             val active = msg.toActivePrompt()
-            if (latestGsId - active.gsId > STALL_HORIZON_GSIDS) {
-                retire(active, "stale")
-                continue
-            }
             retireSupersededActionBridgePrompts(active)
             return active
         }
@@ -86,6 +67,11 @@ internal class SimPromptLedger(
 
     fun markHandled(msg: GREToClientMessage) {
         handledPromptMsgIds += msg.msgId
+    }
+
+    /** Mark a prompt answered by a responder that consumed it internally. */
+    fun markHandled(msgId: Int) {
+        handledPromptMsgIds += msgId
     }
 
     fun markAllHandled(

@@ -735,10 +735,27 @@ class MatchFlowHarness(
      * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
     fun selectTargets(targetInstanceIds: List<Int>) {
+        val before = allMessages.size
         session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
         drainSink()
+        // The engine echoes the picked target back as an iterative re-prompt and
+        // holds the window open for the submit below. That echo is answered here,
+        // not by whoever asked for this call, so record it as consumed — a driver
+        // that later treats it as outstanding work would answer a window this
+        // method already closed.
+        for (i in before until allMessages.size) {
+            val msg = allMessages[i]
+            if (msg.hasSelectTargetsReq()) consumedPromptMsgIds += msg.msgId
+        }
         session.onSubmitTargets(submitWithGsId(submitTargetsReq()))
         drainSink()
+    }
+
+    /** Prompt msgIds answered inside a multi-phase responder; drained by the caller. */
+    internal fun takeConsumedPromptMsgIds(): List<Int> {
+        val taken = consumedPromptMsgIds.toList()
+        consumedPromptMsgIds.clear()
+        return taken
     }
 
     /**
@@ -749,6 +766,8 @@ class MatchFlowHarness(
         session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
         drainSink()
     }
+
+    private val consumedPromptMsgIds = mutableSetOf<Int>()
 
     private fun currentTargetIndex(): Int =
         allMessages

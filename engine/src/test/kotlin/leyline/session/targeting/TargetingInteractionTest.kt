@@ -95,6 +95,19 @@ class TargetingInteractionTest :
             }
         }
 
+        session("selecting targets records the iterative echo as answered", puzzleFile = "puzzles/pump-spell.pzl") {
+            val creatureIid = human.battlefield.iid("Grizzly Bears")
+            castSpellByName("Giant Growth")
+
+            selectTargets(listOf(creatureIid))
+
+            // The engine echoes the pick back as a re-prompt and this call submits
+            // against it. A driver told nothing would treat the echo as outstanding
+            // and answer a window that is already closed.
+            // Exactly one: the engine echoes the pick back once per target group.
+            takeConsumedPromptMsgIds() shouldHaveSize 1
+        }
+
         session("target selection requires the projected target group index", puzzleFile = "puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
