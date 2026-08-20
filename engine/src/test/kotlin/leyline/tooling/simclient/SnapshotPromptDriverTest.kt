@@ -46,7 +46,7 @@ class SnapshotPromptDriverTest :
             }
         }
 
-        test("Forge AI and snapshot consult cast the exact-lethal line") {
+        test("forge-ai policy and snapshot consult cast the exact-lethal line") {
             val baseline = runPuzzle("gre-game-over-bolt.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("gre-game-over-bolt.pzl", SimClientPolicyMode.Snapshot)
 
@@ -70,7 +70,7 @@ class SnapshotPromptDriverTest :
             }
         }
 
-        test("Forge AI and snapshot consult make the forced block") {
+        test("forge-ai policy and snapshot consult make the forced block") {
             val baseline = runPuzzle("declare-blockers.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("declare-blockers.pzl", SimClientPolicyMode.Snapshot)
 
@@ -83,7 +83,7 @@ class SnapshotPromptDriverTest :
             }
         }
 
-        test("Forge AI and snapshot consult preserve the Adventure cast rail") {
+        test("forge-ai policy and snapshot consult preserve the Adventure cast rail") {
             val baseline = runPuzzle("smaug-spew-flame-lethal.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("smaug-spew-flame-lethal.pzl", SimClientPolicyMode.Snapshot)
 
@@ -97,7 +97,7 @@ class SnapshotPromptDriverTest :
             }
         }
 
-        test("Forge AI and snapshot consult preserve an Omen cast offer through the generic matcher") {
+        test("forge-ai policy and snapshot consult preserve an Omen cast offer through the generic matcher") {
             val baseline = runPuzzle("omen-signaling-roar-lethal.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("omen-signaling-roar-lethal.pzl", SimClientPolicyMode.Snapshot)
 
@@ -126,7 +126,7 @@ class SnapshotPromptDriverTest :
             }
         }
 
-        test("Forge AI and snapshot consult cast an attacking combat trick") {
+        test("forge-ai policy and snapshot consult cast an attacking combat trick") {
             val puzzle = "combat-trick-attacking-lethal.pzl"
             val baseline = runPuzzle(puzzle, SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle(puzzle, SimClientPolicyMode.Snapshot)

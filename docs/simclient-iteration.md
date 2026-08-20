@@ -114,14 +114,15 @@ iterating in a graphical client:
 2. Write a minimal puzzle where the intended card play or block is the clear
    winning line. Remove unrelated choices and make the relevant resource or
    timing constraint decisive.
-3. Run the puzzle with `forge-ai`. This verifies that Forge AI can find the line
-   on the active game and separates policy capability from response translation.
+3. Run the puzzle with `forge-ai`. This exercises the active-game advisor and
+   its normal greedy fallback. Check `aiChoseByPrompt` before attributing the
+   submitted action to Forge rather than the fallback.
 4. Run the same puzzle with `snapshot`. This exercises serialization,
    reconstruction, consultation, action matching, and response dispatch without
    a graphical client.
-5. Assert the terminal result and the discriminating
-   `promptProgressSamples[].decisionKind`. A win alone can hide cleanup or an
-   unrelated line.
+5. Assert the terminal result, the discriminating
+   `promptProgressSamples[].decisionKind`, and advisor telemetry when decision
+   parity matters. A win alone can hide cleanup, fallback, or an unrelated line.
 6. Fix the generic prompt or action seam. Add a second mechanic or an ambiguous
    choice as a control when the fix could accidentally depend on action order.
 7. Keep both headless lanes as regression probes. Return to the graphical client
@@ -130,7 +131,7 @@ iterating in a graphical client:
 Most iterations therefore need no graphical client: autoplay discovers the
 failure; the puzzle and the two policies reproduce, diagnose, and verify it.
 
-Run the direct Forge-AI probe after the bug shape is known:
+Run the active-game `forge-ai` policy after the bug shape is known:
 
 ```bash
 SIMCLIENT_POLICY=forge-ai \
@@ -148,9 +149,10 @@ SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
 just simclient-puzzle extinction-event-choice.pzl 1
 ```
 
-`forge-ai` proves the decision on the active game. `snapshot` serializes the
-position, hydrates an isolated game, consults it, then submits the encoded
-response through the session dispatcher.
+`forge-ai` runs the Forge advisor on the active game, then uses the greedy policy
+when the advisor returns no response. Its `aiChoseByPrompt` telemetry separates
+those paths. `snapshot` serializes the position, hydrates an isolated game,
+consults it, then submits the encoded response through the session dispatcher.
 
 Simclient writes per-game artifacts under `engine/build/simclient/`:
 
