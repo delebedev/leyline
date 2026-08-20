@@ -114,6 +114,18 @@ internal sealed interface SimDecision {
         override val kind: String = "modal-choice"
     }
 
+    /**
+     * Required cast-time branch pick for an alternate additional cost
+     * ("discard a card **or** pay 3 life"). [optionIndex] is the offered
+     * `selectNReq` id, which indexes the branch — not a ctoId.
+     */
+    data class AlternateCost(
+        val ctoId: Int,
+        val optionIndex: Int,
+    ) : SimDecision {
+        override val kind: String = "alternate-cost"
+    }
+
     data class ManaTypeChoices(
         val choicesByCtoId: List<Pair<Int, ManaColor>>,
     ) : SimDecision {

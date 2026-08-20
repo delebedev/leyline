@@ -6,6 +6,7 @@ import leyline.game.bundle.CastingTimeOptionsBuilder
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /** Owns pre-engine cast-cost prompts and deferred cast replay. */
@@ -255,7 +256,20 @@ internal class DeferredCastCostInteractionHandler(
         val selectedCtoId = optionResp?.selectNResp?.idsList?.firstOrNull()
         val chosenCtoId = optionResp?.ctoId ?: 0
         val runtimeToken = selectedCtoId?.let { pending.runtimeTokensByCtoId[it] } ?: pending.runtimeTokensByCtoId[chosenCtoId]
-        checkNotNull(runtimeToken) { "Alternate-cost response did not select a runtime token" }
+        if (runtimeToken == null) {
+            // The branch choice is required: a response naming no branch leaves the
+            // cast unresolved. Reject it and keep the prompt answerable rather than
+            // failing the claim, which terminates playback and stops the game loop.
+            log.warn(
+                "DeferredCastCostInteractionHandler: alternate-cost response selected no branch (selected={} ctoId={} options={})",
+                selectedCtoId,
+                chosenCtoId,
+                pending.runtimeTokensByCtoId.keys,
+            )
+            setPendingInteraction(pending)
+            ResponseEnvelopeGuard.reject(greMsg, FailureReason.InvalidOptionSelection, counters.counter, sink)
+            return
+        }
         complete(runtimeToken)
         bridge.awaitPriority()
         autoPass()
