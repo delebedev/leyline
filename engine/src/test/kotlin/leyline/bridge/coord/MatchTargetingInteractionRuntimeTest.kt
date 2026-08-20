@@ -337,7 +337,7 @@ class MatchTargetingInteractionRuntimeTest :
             coordinator.targeting.beforeInstall = null
         }
 
-        test("mandatory single target publishes once and tombstones one duplicate Done") {
+        test("mandatory single target re-prompts until the client submits") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
@@ -371,16 +371,47 @@ class MatchTargetingInteractionRuntimeTest :
                         published.targetIndex,
                         listOf(TargetToggleValue(targetId, true)),
                     ).shouldNotBeNull()
+            val echo = coordinator.drain(SeatId(1)).flatten()
+            assertSoftly {
+                // The tap echoes as an iterative re-prompt — no auto-submit,
+                // no SubmitTargetsResp, window still open.
+                echo.count { it.hasSelectTargetsReq() } shouldBe 1
+                echo
+                    .single { it.hasSelectTargetsReq() }
+                    .selectTargetsReq
+                    .targetsList
+                    .single()
+                    .targetsList
+                    .single()
+                    .legalAction shouldBe SelectAction.Unselect
+                echo.none { it.hasSubmitTargetsResp() } shouldBe true
+                coordinator.targeting.current().shouldNotBeNull()
+                finished.count shouldBe 1
+            }
+            coordinator.targeting.acknowledgeDelivery(selected.interactionId, checkNotNull(selected.deliveryToken)) shouldBe
+                true
+
+            val latest = checkNotNull(coordinator.targeting.current())
+            val done =
+                coordinator.targeting
+                    .submitTargets(latest.interactionId, latest.gameStateId)
+                    .shouldNotBeNull()
             val completion = coordinator.drain(SeatId(1)).flatten()
             assertSoftly {
                 completion.count { it.hasSubmitTargetsResp() } shouldBe 1
-                coordinator.targeting.acknowledgeDelivery(selected.interactionId, checkNotNull(selected.deliveryToken)) shouldBe
+                coordinator.targeting.acknowledgeDelivery(done.interactionId, checkNotNull(done.deliveryToken)) shouldBe
                     true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
                 coordinator.targeting
-                    .submitTargets(null, published.gameStateId)
-                    .shouldNotBeNull()
+                    .current()
+                    .shouldBeNull()
+                // No tombstone: an orphan SubmitTargetsReq is rejected. The
+                // completed window's own identity no longer matches anything,
+                // and the handler's no-window call carries a null interactionId.
+                coordinator.targeting
+                    .submitTargets(latest.interactionId, latest.gameStateId)
+                    .shouldBeNull()
                 coordinator.targeting
                     .submitTargets(null, published.gameStateId)
                     .shouldBeNull()

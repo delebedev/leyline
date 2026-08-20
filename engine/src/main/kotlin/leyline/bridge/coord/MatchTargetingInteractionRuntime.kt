@@ -29,7 +29,6 @@ internal class MatchTargetingInteractionRuntime(
 
     private val nextDeliveryToken = AtomicLong()
     private var window: TargetingWindow? = null
-    private var duplicateSubmitGameStateId: Int? = null
 
     override fun awaitTargeting(
         request: PromptRequest,
@@ -95,19 +94,7 @@ internal class MatchTargetingInteractionRuntime(
     fun submitTargets(
         interactionId: String?,
         gameStateId: Int,
-    ): TargetingCommandReceipt? {
-        if (interactionId == null) {
-            return synchronized(owner.feedLock) {
-                if (duplicateSubmitGameStateId == gameStateId) {
-                    duplicateSubmitGameStateId = null
-                    TargetingCommandReceipt("completed", null, completed = true, engineWillResume = false)
-                } else {
-                    null
-                }
-            }
-        }
-        return submit(TargetingCommand.Submit(interactionId, gameStateId))
-    }
+    ): TargetingCommandReceipt? = interactionId?.let { submit(TargetingCommand.Submit(it, gameStateId)) }
 
     fun cancel(
         interactionId: String,
@@ -138,7 +125,6 @@ internal class MatchTargetingInteractionRuntime(
     fun reset() {
         synchronized(owner.feedLock) {
             window = null
-            duplicateSubmitGameStateId = null
         }
     }
 
@@ -192,7 +178,6 @@ internal class MatchTargetingInteractionRuntime(
                                 published = published,
                             )
                         window = created
-                        duplicateSubmitGameStateId = null
                         created
                     }
                 }
@@ -207,19 +192,10 @@ internal class MatchTargetingInteractionRuntime(
             when (command) {
                 is TargetingCommand.Toggle -> {
                     applyToggles(pending, command)
-                    val completesTriggered =
-                        pending.value.isTriggeredAbility &&
-                            pending.value.minTargets == 1 &&
-                            pending.value.maxTargets == 1 &&
-                            pending.selectedOptionIndices.size == 1
-                    if (completesTriggered) {
-                        publishSubmit(pending, command, duplicateDone = true)
-                        return pending.selectedOptionIndices.toList()
-                    }
                     publishRePrompt(pending, command)
                 }
                 is TargetingCommand.Submit -> {
-                    publishSubmit(pending, command, duplicateDone = false)
+                    publishSubmit(pending, command)
                     return if (pending.selectedOptionIndices.isEmpty() && pending.value.finishOptionIndex != null) {
                         listOf(checkNotNull(pending.value.finishOptionIndex))
                     } else {
@@ -300,7 +276,6 @@ internal class MatchTargetingInteractionRuntime(
     private fun publishSubmit(
         pending: TargetingWindow,
         command: TargetingCommand,
-        duplicateDone: Boolean,
     ) {
         synchronized(owner.counter) {
             synchronized(owner.bridge.projectionBuildLock) {
@@ -321,7 +296,6 @@ internal class MatchTargetingInteractionRuntime(
                             owner.fail(ex)
                         }
                     publishPrepared(feed, prepared)
-                    if (duplicateDone) duplicateSubmitGameStateId = pending.published.gameStateId
                     beginDelivery(pending, command, completed = true)
                 }
             }

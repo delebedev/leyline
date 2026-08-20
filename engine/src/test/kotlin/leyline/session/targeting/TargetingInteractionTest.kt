@@ -462,7 +462,7 @@ class TargetingInteractionTest :
         }
 
         session(
-            "triggered mandatory single-target selection auto-submits",
+            "triggered mandatory single-target selection re-prompts until submit",
             puzzle =
                 """
                 ActivePlayer=Human
@@ -483,10 +483,23 @@ class TargetingInteractionTest :
             val phase1Messages = after { selectTargetsIterative(listOf(vendorIid)) }.messages
 
             assertSoftly {
-                phase1Messages.count { it.hasSelectTargetsReq() } shouldBe 0
-                phase1Messages.count { it.hasSubmitTargetsResp() } shouldBe 1
+                // Single-target triggers are not special on the wire: the tap
+                // echoes as an iterative re-prompt, no auto-submit.
+                phase1Messages.count { it.hasSelectTargetsReq() } shouldBe 1
+                phase1Messages.count { it.hasSubmitTargetsResp() } shouldBe 0
             }
-            after { submitTargets() }.messages.count { it.hasSubmitTargetsResp() } shouldBe 0
+            val rePrompt =
+                phase1Messages
+                    .last { it.hasSelectTargetsReq() }
+                    .selectTargetsReq
+            val group = rePrompt.getTargets(0)
+            assertSoftly {
+                group.selectedTargets shouldBe 1
+                group.targetsList.single().targetInstanceId shouldBe vendorIid
+                group.targetsList.single().legalAction shouldBe SelectAction.Unselect
+            }
+            // Completion still lands on the client's SubmitTargetsReq.
+            after { submitTargets() }.messages.count { it.hasSubmitTargetsResp() } shouldBe 1
         }
 
         // ─── Run Away Together: multi-target + TargetsWithDifferentControllers ──
