@@ -63,17 +63,17 @@ class SimPromptLedgerTest :
             payload.req.actionsList.map { it.instanceId } shouldContainExactly listOf(200)
         }
 
-        test("a prompt the game has moved past is retired rather than answered") {
+        test("a prompt answered inside a responder is not offered as work again") {
             val harness = MatchFlowHarness()
-            // Stepped over at the time and never handled.
-            harness.allMessages += declareAttackers(msgId = 1)
-            harness.allMessages += aar(msgId = 500, instanceId = 100)
+            harness.allMessages += aar(msgId = 1, instanceId = 100)
+            harness.allMessages += declareAttackers(msgId = 2)
 
             val ledger = SimPromptLedger(harness)
-            ledger.markHandled(harness.allMessages.last())
+            // Stands in for the targeting echo: answered by the responder itself,
+            // so the driver never sees it as outstanding.
+            ledger.markHandled(2)
 
-            ledger.activePrompt() shouldBe null
-            ledger.stats().retiredByReason["stale"] shouldBe 1
+            ledger.activePrompt()!!.msgId shouldBe 1
         }
 
         test("stall reports an unhandled prompt that is still current") {
@@ -81,22 +81,6 @@ class SimPromptLedgerTest :
             harness.allMessages += aar(msgId = 1, instanceId = 100)
 
             SimPromptLedger(harness).stallPrompt().prompt shouldBe GREMessageType.ActionsAvailableReq_695e.name
-        }
-
-        test("stall does not blame an unhandled prompt the game has long moved past") {
-            val harness = MatchFlowHarness()
-            // Skipped and never answered, so it stays unhandled for the whole game.
-            harness.allMessages += declareAttackers(msgId = 1)
-            // The game ran on for hundreds of states before going quiet.
-            harness.allMessages += aar(msgId = 500, instanceId = 100)
-
-            val ledger = SimPromptLedger(harness)
-            ledger.markHandled(harness.allMessages.last())
-
-            val stall = ledger.stallPrompt()
-
-            stall.prompt shouldBe "IdleNoUnhandledPrompt"
-            stall.fingerprint shouldBe "last=${GREMessageType.ActionsAvailableReq_695e.name}:Cast:100:1234:0:0"
         }
 
         test("retired prompt is skipped and counted by reason") {

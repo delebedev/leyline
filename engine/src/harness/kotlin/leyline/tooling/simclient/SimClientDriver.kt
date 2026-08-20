@@ -372,6 +372,11 @@ class SimClientDriver(
         }
         response.markAllHandledOfType?.let { promptLedger.markAllHandled(it, throughMsgId = prompt.msgId) }
         if (response.markHandled && submitResult != SimSubmitResult.NoPending) promptLedger.markHandled(prompt)
+        // A responder can answer more than the prompt it was handed: the targeting
+        // pair echoes an iterative re-prompt that the same call submits against.
+        // Without this the echo looks outstanding, and answering it later reaches a
+        // window that closed when the pair completed.
+        harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
         if (response.decision == SimDecision.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
     }
