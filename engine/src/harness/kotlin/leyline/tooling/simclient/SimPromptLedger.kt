@@ -42,6 +42,8 @@ internal data class SimPromptLedgerStats(
     }
 }
 
+private const val STALL_HORIZON_GSIDS = 8
+
 internal class SimPromptLedger(
     private val harness: MatchFlowHarness,
 ) {
@@ -111,13 +113,32 @@ internal class SimPromptLedger(
 
     fun stats(): SimPromptLedgerStats = SimPromptLedgerStats(retiredByReason.toMap())
 
+    /**
+     * What the driver was waiting on when it gave up.
+     *
+     * [activePrompt] scans newest-first for anything unhandled, and a prompt the
+     * driver skipped rather than answered is never handled and — unless it needs
+     * the action bridge — never retired. Once a game stalls and every newer
+     * prompt is resolved, that scan walks back to the oldest survivor, so
+     * reporting it unfiltered names a prompt that stopped mattering hundreds of
+     * game states earlier and sends triage at the wrong subsystem. A prompt that
+     * is genuinely blocking sits at the head of the state stream; only trailing
+     * state messages separate it from the last message seen.
+     */
     fun stallPrompt(): SimStallPrompt {
+        val latestGsId = harness.allMessages.lastOrNull()?.gameStateId ?: 0
         val unhandled = activePrompt()
-        if (unhandled != null) return SimStallPrompt(unhandled.type.name, unhandled.fingerprint)
-        return SimStallPrompt(
-            prompt = "IdleNoUnhandledPrompt",
-            fingerprint = lastPromptMessage()?.let { (msg, type) -> "last=${type.name}:${msg.promptFingerprint()}" },
-        )
+        if (unhandled != null && latestGsId - unhandled.gsId <= STALL_HORIZON_GSIDS) {
+            return SimStallPrompt(unhandled.type.name, unhandled.fingerprint)
+        }
+        val last = lastPromptMessage()?.let { (msg, type) -> "last=${type.name}:${msg.promptFingerprint()}" }
+        val label =
+            if (unhandled == null) {
+                "IdleNoUnhandledPrompt"
+            } else {
+                "IdleStalePromptOnly:${unhandled.type.name}@gs${unhandled.gsId}"
+            }
+        return SimStallPrompt(label, last)
     }
 
     private fun GREToClientMessage.toActivePrompt(): ActivePrompt =
