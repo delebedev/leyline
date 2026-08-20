@@ -95,7 +95,11 @@ class GameLoopController(
                 try {
                     block()
                     log.info("Game loop ended for game ${game.id}, gameOver=${game.isGameOver}")
-                } catch (ex: Exception) {
+                } catch (ex: Throwable) {
+                    // Throwable, not Exception: a StackOverflowError here used to
+                    // kill this thread with nothing logged and no pending work
+                    // cancelled, leaving every caller to wait on priority that
+                    // could never arrive until their own wall clock fired.
                     if (!stopping.get()) {
                         terminalFailure.compareAndSet(null, ex)
                         log.error("Game loop crashed for game ${game.id}", ex)

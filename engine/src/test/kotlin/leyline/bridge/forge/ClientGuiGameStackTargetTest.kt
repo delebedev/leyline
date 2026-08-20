@@ -42,6 +42,36 @@ class ClientGuiGameStackTargetTest :
             gui.stackTargetCandidates(listOf("opaque", "[FINISH TARGETING]")).map { it.optionIndex } shouldContainExactly listOf(0)
         }
 
+        test("a defaulted target choice never answers with a zone caption") {
+            val gui =
+                ClientGuiGame(
+                    InteractivePromptBridge(timeoutMs = 0),
+                    stackTargetingActive = { false },
+                    stackTargetCandidate = { _, _ -> null },
+                )
+
+            // The engine groups candidates under plain-string captions. Answering
+            // with one selects nothing, and it re-asks with the same list, so the
+            // target group never reaches its minimum and never terminates.
+            gui.one("Select target spell or permanent", listOf("--CARDS ON BATTLEFIELD:--", "Grizzly Bears"), null) shouldBe
+                "Grizzly Bears"
+        }
+
+        test("a defaulted target choice takes the finish offer once one is available") {
+            val gui =
+                ClientGuiGame(
+                    InteractivePromptBridge(timeoutMs = 0),
+                    stackTargetingActive = { false },
+                    stackTargetCandidate = { _, _ -> null },
+                )
+
+            gui.one(
+                "Select up to another target creature or spell",
+                listOf("--CARDS ON BATTLEFIELD:--", "Grizzly Bears", "[FINISH TARGETING]"),
+                null,
+            ) shouldBe "[FINISH TARGETING]"
+        }
+
         test("incomplete stack option set fails instead of defaulting") {
             val gui =
                 ClientGuiGame(

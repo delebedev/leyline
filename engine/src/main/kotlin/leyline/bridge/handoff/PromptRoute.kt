@@ -135,9 +135,16 @@ data class PromptPolicyDefault(
 
 fun PromptRequest.policyDefault(): PromptPolicyDefault? {
     if (route !is ResolvedPromptRoute.AutoResolve) return null
+    // When the engine offers to finish targeting it is asking whether to add one
+    // more optional target, and it asks again for every one taken. Defaulting to
+    // the first option answers "take this one too" every time, so the sequence
+    // never ends and the engine recurses until the thread runs out of stack.
+    // Taking the offer to stop is both terminating and the safer read of an
+    // optional target the seat never asked for.
+    val finish = targetingFinishOptionIndex
     return PromptPolicyDefault(
-        indices = listOf(defaultIndex),
-        warnAmbiguousGeneric = semantic == PromptSemantic.Generic && options.size > 1,
+        indices = listOf(finish ?: defaultIndex),
+        warnAmbiguousGeneric = finish == null && semantic == PromptSemantic.Generic && options.size > 1,
     )
 }
 
