@@ -178,8 +178,9 @@ internal open class GreedyPromptPolicy(
         )
 
     private fun respondSelectTargets(msg: GREToClientMessage): SimDecision {
+        val selections = msg.selectTargetsReq.targetsList
         val ids =
-            msg.selectTargetsReq.targetsList
+            selections
                 .flatMap { sel ->
                     val count = sel.minTargets.coerceAtLeast(0)
                     sel.targetsList
@@ -189,7 +190,13 @@ internal open class GreedyPromptPolicy(
                         .map { it.targetInstanceId }
                 }.filter { it != 0 }
                 .distinct()
-        return if (ids.isEmpty()) SimDecision.CancelAction else SimDecision.SelectTargets(ids)
+        if (ids.isNotEmpty()) return SimDecision.SelectTargets(ids)
+        // Nothing left to select. A re-offer of an already-chosen target carries
+        // only Unselect, and the selection is complete — submit it. Cancelling
+        // there unwinds the cast, which the policy then proposes again, so the
+        // pair loops until the driver calls the game stalled.
+        val satisfied = selections.isNotEmpty() && selections.all { it.selectedTargets >= it.minTargets }
+        return if (satisfied) SimDecision.SubmitTargets else SimDecision.CancelAction
     }
 
     private fun respondSelectN(msg: GREToClientMessage): SimDecision {

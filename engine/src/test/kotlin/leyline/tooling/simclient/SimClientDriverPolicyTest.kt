@@ -116,6 +116,7 @@ class SimClientDriverPolicyTest :
             sourceId: Int = 0,
             abilityGrpId: Int = 0,
             targetIds: List<Int> = listOf(2),
+            selected: Int = 0,
         ): GREToClientMessage =
             GREToClientMessage
                 .newBuilder()
@@ -132,6 +133,7 @@ class SimClientDriverPolicyTest :
                                 .newBuilder()
                                 .setMinTargets(min)
                                 .setMaxTargets(max)
+                                .setSelectedTargets(selected)
                                 .addAllTargets(
                                     targetIds.map { targetId ->
                                         ProtoTarget
@@ -196,6 +198,28 @@ class SimClientDriverPolicyTest :
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
             response.decision shouldBe SimDecision.Search(listOf(101, 102))
+        }
+
+        test("an already-satisfied targeting prompt submits rather than cancelling") {
+            val harness = MatchFlowHarness()
+            harness.allMessages +=
+                selectTargetsPrompt(min = 1, max = 1, legalAction = SelectAction.Unselect, selected = 1)
+
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
+
+            response.decision shouldBe SimDecision.SubmitTargets
+        }
+
+        test("a targeting prompt with nothing selectable and nothing selected cancels") {
+            val harness = MatchFlowHarness()
+            harness.allMessages +=
+                selectTargetsPrompt(min = 1, max = 1, legalAction = SelectAction.Unselect, selected = 0)
+
+            val prompt = SimPromptLedger(harness).activePrompt()!!
+            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
+
+            response.decision shouldBe SimDecision.CancelAction
         }
 
         test("forge-ai search adapter prefers lands before the fourth land") {
