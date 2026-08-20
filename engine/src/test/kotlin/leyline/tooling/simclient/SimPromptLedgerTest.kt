@@ -63,6 +63,19 @@ class SimPromptLedgerTest :
             payload.req.actionsList.map { it.instanceId } shouldContainExactly listOf(200)
         }
 
+        test("a prompt the game has moved past is retired rather than answered") {
+            val harness = MatchFlowHarness()
+            // Stepped over at the time and never handled.
+            harness.allMessages += declareAttackers(msgId = 1)
+            harness.allMessages += aar(msgId = 500, instanceId = 100)
+
+            val ledger = SimPromptLedger(harness)
+            ledger.markHandled(harness.allMessages.last())
+
+            ledger.activePrompt() shouldBe null
+            ledger.stats().retiredByReason["stale"] shouldBe 1
+        }
+
         test("stall reports an unhandled prompt that is still current") {
             val harness = MatchFlowHarness()
             harness.allMessages += aar(msgId = 1, instanceId = 100)
@@ -82,7 +95,7 @@ class SimPromptLedgerTest :
 
             val stall = ledger.stallPrompt()
 
-            stall.prompt shouldBe "IdleStalePromptOnly:${GREMessageType.DeclareAttackersReq_695e.name}@gs11"
+            stall.prompt shouldBe "IdleNoUnhandledPrompt"
             stall.fingerprint shouldBe "last=${GREMessageType.ActionsAvailableReq_695e.name}:Cast:100:1234:0:0"
         }
 
