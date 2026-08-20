@@ -30,6 +30,7 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
         is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
         is SimDecision.OptionalCost -> "optional-cost:$ctoId"
+        is SimDecision.AlternateCost -> "alternate-cost:$ctoId/$optionIndex"
         is SimDecision.ModalChoice -> "modal-choice:${selectedGrpIds.sorted().joinToString("+")}"
         is SimDecision.ManaTypeChoices -> "mana-type:${choicesByCtoId.joinToString("+") { (ctoId, color) -> "$ctoId=$color" }}"
         is SimDecision.NumericInput -> "numeric-input:$value"
@@ -121,6 +122,8 @@ internal class SimDecisionSubmitter(
                     }
                 }
             is SimDecision.OptionalAction -> submitted { harness.respondToOptionalAction(decision.accept) }
+            is SimDecision.AlternateCost ->
+                submitted { harness.respondToAlternateCost(decision.ctoId, decision.optionIndex) }
             is SimDecision.OptionalCost -> {
                 runCatching { harness.respondToOptionalCost(decision.ctoId) }
                     .onFailure {

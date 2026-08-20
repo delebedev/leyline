@@ -1,6 +1,7 @@
 package leyline.behavior.cards
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -102,5 +103,35 @@ class EatenAliveInteractionTest :
             }
 
             after { respondToOptionalCost(2) }.expectOneSelectTargetsReq()
+        }
+
+        session("a required alternate-cost choice survives a response that selects no branch", puzzle = deadlyPrecisionState) {
+            val action = latestCastActionsFor("Deadly Precision").single()
+            submitAction(action)
+
+            // ctoId 0 is the Done/decline shape; the ChooseOrCost option is
+            // required, so it names no branch. The match must stay playable.
+            respondToOptionalCost(0)
+
+            val targets = after { respondToOptionalCost(2) }.expectOneSelectTargetsReq()
+            targets.targetsList shouldHaveSize 1
+            targets.targetsList.flatMap { it.targetsList }.map { it.targetInstanceId } shouldContain
+                ai.battlefield.iid("Centaur Courser")
+        }
+
+        session("each offered branch index resolves its own cost branch", puzzle = deadlyPrecisionState) {
+            val action = latestCastActionsFor("Deadly Precision").single()
+            val req = after { submitAction(action) }.expectOneCastingTimeOptionsReq()
+            val ctoId = req.castingTimeOptionReqList.single().ctoId
+
+            after { respondToAlternateCost(ctoId, optionIndex = 1) }.expectOneSelectTargetsReq()
+            val targetId = ai.battlefield.iid("Centaur Courser")
+            after { selectTargets(listOf(targetId)) }.expectOnePayCostsReq()
+
+            val sacId = human.battlefield.iid("Grizzly Bears")
+            respondToEffectCost(listOf(sacId))
+            passUntilResolved(maxPasses = 8)
+
+            "Grizzly Bears" should beInGraveyardOf(human)
         }
     })

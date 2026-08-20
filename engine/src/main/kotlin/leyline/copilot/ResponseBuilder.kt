@@ -305,6 +305,22 @@ internal object ResponseBuilder {
                         ).build(),
                 )
 
+            // Required alternate additional cost: the branch rides the inner
+            // selectNResp id, not the ctoId.
+            is SimDecision.AlternateCost ->
+                listOf(
+                    base(ClientMessageType.CastingTimeOptionsResp_097b)
+                        .setCastingTimeOptionsResp(
+                            CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
+                                CastingTimeOptionResp
+                                    .newBuilder()
+                                    .setCtoId(decision.ctoId)
+                                    .setCastingTimeOptionType(CastingTimeOptionType.ChooseOrCost)
+                                    .setSelectNResp(SelectNResp.newBuilder().addIds(decision.optionIndex)),
+                            ),
+                        ).build(),
+                )
+
             // Optional cost (kicker/buyback): ctoId>0 pays it, 0 declines.
             // Casting-time optional cost. Declining (ctoId 0) must send the
             // required Done option by TYPE (no ctoId) — a strict host finalizes

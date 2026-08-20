@@ -1435,15 +1435,23 @@ class GameBridge(
      * start the game loop from current state (no mulligan), and wait for priority.
      *
      * @param puzzle the parsed [Puzzle] object to apply
+     * @param seed if non-null, seeds the RNG so RNG-dependent puzzle decisions
+     *             are reproducible and independent of prior games in this JVM
      */
     fun startPuzzle(
         puzzle: Puzzle,
         controlledSeat: SeatId = SeatId(1),
+        seed: Long? = null,
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
         beforeRuntimeStart: ((Game) -> Unit)? = null,
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
+
+        if (seed != null) {
+            log.info("GameBridge: using deterministic seed={}", seed)
+            MyRandom.setRandom(Random(seed))
+        }
         configureInteractiveSeat(controlledSeat)
 
         val g = GameBootstrap.createPuzzleGame(controlledSeat)
@@ -1568,7 +1576,7 @@ class GameBridge(
         for (bridge in promptBridges.values) bridge.resetForPuzzle()
 
         cutCoordinator.resetForNewGame()
-        startPuzzle(puzzle)
+        startPuzzle(puzzle, seed = matchConfig.game.seed)
         log.info("GameBridge: puzzle hot-swap complete, deleted {} old instanceIds", deletedIds.size)
         return deletedIds
     }

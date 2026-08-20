@@ -92,6 +92,12 @@ internal object ProposalTranslator {
                     responseIds = listOf(decision.ctoId),
                 )
 
+            is SimDecision.AlternateCost ->
+                base("alternate_cost", promptType, seat).copy(
+                    ctoId = decision.ctoId,
+                    responseIds = listOf(decision.optionIndex),
+                )
+
             is SimDecision.NumericInput ->
                 base("numeric", promptType, seat).copy(
                     numericValue = decision.value,

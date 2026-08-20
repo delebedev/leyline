@@ -82,7 +82,22 @@ class GameLogCollector {
             events
                 .filter { it.level == Level.ERROR }
                 .take(10)
-                .map { "${it.loggerName}: ${it.formattedMessage}" }
+                .map { ev ->
+                    val chain =
+                        generateSequence(ev.throwableProxy) { it.cause }
+                            .joinToString(" <- ") { tp ->
+                                val top =
+                                    tp.stackTraceElementProxyArray
+                                        ?.firstOrNull()
+                                        ?.steAsString
+                                        .orEmpty()
+                                "${tp.className}: ${tp.message} @ $top"
+                            }
+                    buildString {
+                        append(ev.loggerName).append(": ").append(ev.formattedMessage)
+                        if (chain.isNotEmpty()) append(" | ").append(chain)
+                    }
+                }
 
         return CollectedLogs(warns, errors, errorSamples)
     }

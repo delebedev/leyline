@@ -98,13 +98,28 @@ internal object DefaultDecisions {
     /** First [minSel] modal grpIds for callers that do not submit the response themselves. */
     fun modalGrpIds(msg: GREToClientMessage): List<Int>? = modalChoice(msg)?.selectedGrpIds
 
-    /** CastingTimeOptions: mana-type, else modal, else decline optional costs (ctoId 0). */
+    /**
+     * The required branch pick for an alternate additional cost, or null if this
+     * request carries no such option. The branch is named by a `selectNReq` id,
+     * so declining with ctoId 0 leaves the cast unanswerable.
+     */
+    fun alternateCostChoice(msg: GREToClientMessage): SimDecision.AlternateCost? {
+        val option =
+            msg.castingTimeOptionsReq.castingTimeOptionReqList
+                .firstOrNull { it.castingTimeOptionType == CastingTimeOptionType.ChooseOrCost && it.hasSelectNReq() }
+                ?: return null
+        val optionIndex = option.selectNReq.idsList.firstOrNull() ?: return null
+        return SimDecision.AlternateCost(ctoId = option.ctoId, optionIndex = optionIndex)
+    }
+
+    /** CastingTimeOptions: mana-type, else modal, else alternate cost, else decline optional costs (ctoId 0). */
     fun castingTimeOptions(
         msg: GREToClientMessage,
         acceptOptionalCosts: Boolean = false,
     ): SimDecision {
         manaTypeChoices(msg)?.let { return SimDecision.ManaTypeChoices(it) }
         modalChoice(msg)?.let { return it }
+        alternateCostChoice(msg)?.let { return it }
         val ctoId =
             if (!acceptOptionalCosts) {
                 0
