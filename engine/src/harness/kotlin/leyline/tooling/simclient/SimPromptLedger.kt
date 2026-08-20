@@ -51,12 +51,29 @@ internal class SimPromptLedger(
     private val retiredPromptMsgIds = mutableMapOf<Int, String>()
     private val retiredByReason = mutableMapOf<String, Int>()
 
+    /**
+     * The prompt to answer next, or null when there is nothing live to answer.
+     *
+     * Only prompt types that need the action bridge are retired when superseded,
+     * so a prompt the driver stepped over — a targeting confirm that arrived
+     * while a newer prompt was already waiting, say — stays unhandled for the
+     * rest of the game. Answering one is worse than answering nothing: the
+     * window it belonged to closed long ago, the response is dropped as
+     * unmatched, and the driver burns its no-progress budget on a reply that
+     * could never land. Anything left that far behind the current state is
+     * retired instead of returned.
+     */
     fun activePrompt(): ActivePrompt? {
+        val latestGsId = harness.allMessages.lastOrNull()?.gameStateId ?: 0
         for (i in harness.allMessages.indices.reversed()) {
             val msg = harness.allMessages[i]
             if (!isSimPrompt(msg)) continue
             if (msg.msgId in handledPromptMsgIds || msg.msgId in retiredPromptMsgIds) continue
             val active = msg.toActivePrompt()
+            if (latestGsId - active.gsId > STALL_HORIZON_GSIDS) {
+                retire(active, "stale")
+                continue
+            }
             retireSupersededActionBridgePrompts(active)
             return active
         }
@@ -116,29 +133,18 @@ internal class SimPromptLedger(
     /**
      * What the driver was waiting on when it gave up.
      *
-     * [activePrompt] scans newest-first for anything unhandled, and a prompt the
-     * driver skipped rather than answered is never handled and — unless it needs
-     * the action bridge — never retired. Once a game stalls and every newer
-     * prompt is resolved, that scan walks back to the oldest survivor, so
-     * reporting it unfiltered names a prompt that stopped mattering hundreds of
-     * game states earlier and sends triage at the wrong subsystem. A prompt that
-     * is genuinely blocking sits at the head of the state stream; only trailing
-     * state messages separate it from the last message seen.
+     * [activePrompt] never returns a prompt the game has moved past, so anything
+     * it hands back here is live. A stall with nothing live to answer is the
+     * engine having gone quiet; `retiredByReason["stale"]` says whether prompts
+     * were stepped over on the way there.
      */
     fun stallPrompt(): SimStallPrompt {
-        val latestGsId = harness.allMessages.lastOrNull()?.gameStateId ?: 0
         val unhandled = activePrompt()
-        if (unhandled != null && latestGsId - unhandled.gsId <= STALL_HORIZON_GSIDS) {
-            return SimStallPrompt(unhandled.type.name, unhandled.fingerprint)
-        }
-        val last = lastPromptMessage()?.let { (msg, type) -> "last=${type.name}:${msg.promptFingerprint()}" }
-        val label =
-            if (unhandled == null) {
-                "IdleNoUnhandledPrompt"
-            } else {
-                "IdleStalePromptOnly:${unhandled.type.name}@gs${unhandled.gsId}"
-            }
-        return SimStallPrompt(label, last)
+        if (unhandled != null) return SimStallPrompt(unhandled.type.name, unhandled.fingerprint)
+        return SimStallPrompt(
+            prompt = "IdleNoUnhandledPrompt",
+            fingerprint = lastPromptMessage()?.let { (msg, type) -> "last=${type.name}:${msg.promptFingerprint()}" },
+        )
     }
 
     private fun GREToClientMessage.toActivePrompt(): ActivePrompt =
