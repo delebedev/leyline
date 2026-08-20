@@ -406,7 +406,12 @@ class MatchTargetingInteractionRuntimeTest :
                 coordinator.targeting
                     .current()
                     .shouldBeNull()
-                // No tombstone: an orphan SubmitTargetsReq with no open window is rejected.
+                // No tombstone: an orphan SubmitTargetsReq is rejected. The
+                // completed window's own identity no longer matches anything,
+                // and the handler's no-window call carries a null interactionId.
+                coordinator.targeting
+                    .submitTargets(latest.interactionId, latest.gameStateId)
+                    .shouldBeNull()
                 coordinator.targeting
                     .submitTargets(null, published.gameStateId)
                     .shouldBeNull()
