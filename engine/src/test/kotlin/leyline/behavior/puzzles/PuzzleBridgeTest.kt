@@ -4,6 +4,7 @@ import forge.game.GameStage
 import forge.game.GameType
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
+import forge.util.MyRandom
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -58,14 +59,38 @@ class PuzzleBridgeTest :
             bridge = null
         }
 
-        fun startPuzzle(resourcePath: String): GameBridge {
+        fun startPuzzle(
+            resourcePath: String,
+            seed: Long? = null,
+        ): GameBridge {
             val puzzle = PuzzleSource.loadFromResource(resourcePath)
             val b = GameBridge(bridgeTimeoutMs = 5_000, cardRepository = TestCardRegistry.repo)
             bridge = b
             b.priorityWaitMs = 5_000
-            b.startPuzzle(puzzle)
+            b.startPuzzle(puzzle, seed = seed)
             TestCardRegistry.registerPuzzleCards(b.getGame()!!)
             return b
+        }
+
+        test("a seeded puzzle start is independent of the games that ran before it") {
+            fun seededRoll(): Int {
+                startPuzzle("puzzles/lands-only.pzl", seed = 7L)
+                val roll = MyRandom.getRandom().nextInt(1_000_000)
+                bridge?.shutdown()
+                bridge = null
+                return roll
+            }
+
+            val first = seededRoll()
+
+            // An unrelated game moves the static RNG on. A seeded puzzle must not
+            // inherit that position.
+            startPuzzle("puzzles/simple-attack.pzl", seed = 99L)
+            MyRandom.getRandom().nextInt(1_000_000)
+            bridge?.shutdown()
+            bridge = null
+
+            seededRoll() shouldBe first
         }
 
         test("start puzzle sets GameType Puzzle") {

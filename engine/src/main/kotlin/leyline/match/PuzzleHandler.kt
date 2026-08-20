@@ -57,7 +57,7 @@ class PuzzleHandler(
                     )
                 Match(matchId, bridge).also {
                     val puzzle = loadPuzzleForMatch(matchId)
-                    bridge.startPuzzle(puzzle)
+                    bridge.startPuzzle(puzzle, seed = matchConfig.game.seed)
                 }
             }
         return match.bridge

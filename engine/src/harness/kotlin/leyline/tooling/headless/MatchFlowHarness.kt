@@ -231,7 +231,7 @@ class MatchFlowHarness(
         val repo = cardRepositoryForPuzzle()
 
         bridge = newBridge(repo)
-        bridge.startPuzzle(puzzle) { game ->
+        bridge.startPuzzle(puzzle, seed = seed) { game ->
             // Fixture identity must exist before the first engine-owned action
             // window freezes its catalog and deferred-cost plan.
             if (cardRepositoryOverride == null) TestCardRegistry.registerPuzzleCards(game)
@@ -1073,6 +1073,15 @@ class MatchFlowHarness(
     /** Respond to a CastingTimeOptionsReq with the given ctoId (kicker, buyback). */
     fun respondToOptionalCost(ctoId: Int) {
         session.onCastingTimeOptions(submitWithGsId(optionalCostResp(ctoId)))
+        drainSink()
+    }
+
+    /** Respond to a required alternate-additional-cost CastingTimeOptionsReq. */
+    fun respondToAlternateCost(
+        ctoId: Int,
+        optionIndex: Int,
+    ) {
+        session.onCastingTimeOptions(submitWithGsId(alternateCostResp(ctoId, optionIndex)))
         drainSink()
     }
 
