@@ -17,6 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.DeclareAttackersResp
 import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersResp
+import wotc.mtgo.gre.external.messaging.Messages.Distribution
+import wotc.mtgo.gre.external.messaging.Messages.DistributionResp
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostResp
 import wotc.mtgo.gre.external.messaging.Messages.Group
 import wotc.mtgo.gre.external.messaging.Messages.GroupResp
@@ -382,6 +384,18 @@ internal object ResponseBuilder {
                     base(ClientMessageType.NumericInputResp_097b)
                         .setNumericInputResp(NumericInputResp.newBuilder().setNumericInputValue(decision.value))
                         .build(),
+                )
+
+            is SimDecision.Distribution ->
+                listOf(
+                    base(ClientMessageType.DistributionResp_097b)
+                        .setDistributionResp(
+                            DistributionResp.newBuilder().apply {
+                                decision.amountsByInstanceId.forEach { (instanceId, amount) ->
+                                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
+                                }
+                            },
+                        ).build(),
                 )
 
             // Combat damage assignment: per attacker, the (target, damage) pairs

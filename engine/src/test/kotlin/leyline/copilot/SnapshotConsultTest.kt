@@ -21,6 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
+import wotc.mtgo.gre.external.messaging.Messages.DistributionReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -260,6 +261,43 @@ class SnapshotConsultTest :
                 action.actionType shouldBe ActionType.Play_add3
                 action.instanceId shouldBe sourceIid
             }
+        }
+
+        test("forced distribution consult returns injectable target amounts") {
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setGameStateId(392)
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .build()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.DistributionReq_695e)
+                    .setGameStateId(392)
+                    .setMsgId(544)
+                    .addSystemSeatIds(1)
+                    .setDistributionReq(
+                        DistributionReq
+                            .newBuilder()
+                            .setMinAmount(2)
+                            .setMaxAmount(2)
+                            .setMinPerTarget(1)
+                            .addAllTargetIds(listOf(300, 361))
+                            .addAllValidSelectedTargetIds(listOf(300, 361)),
+                    ).build()
+
+            val result = SnapshotConsult.consult(gsm, prompt, 1, TestCardRegistry.repo)
+
+            result.proposal.intent shouldBe "distribute"
+            result.proposal.promptKey shouldBe "392:544"
+            result.proposal.responseIds shouldBe listOf(300, 361)
+            result.fidelity.grade shouldBe "prompt_safe"
+            decodeSingle(result.proposal.responses.single())
+                .distributionResp.distributionsList
+                .map { it.instanceId to it.amount } shouldBe
+                listOf(300 to 1, 361 to 1)
         }
 
         test("fully committed blocker snapshot submits without reinterpreting the accepted declaration") {

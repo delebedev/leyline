@@ -145,6 +145,12 @@ internal sealed interface SimDecision {
         override val kind: String = "numeric-input"
     }
 
+    data class Distribution(
+        val amountsByInstanceId: Map<Int, Int>,
+    ) : SimDecision {
+        override val kind: String = "distribution"
+    }
+
     data class AssignDamage(
         val assigners: List<DamageAssignerDecision>,
     ) : SimDecision {

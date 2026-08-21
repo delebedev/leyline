@@ -197,6 +197,18 @@ class ProposalTranslatorTest :
             p.numericValue shouldBe 3
         }
 
+        test("distribution → distribute intent") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.Distribution(linkedMapOf(300 to 1, 361 to 1)),
+                    GREMessageType.DistributionReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "distribute"
+            p.responseIds shouldBe listOf(300, 361)
+        }
+
         test("casting-time X retains ctoId and numeric value") {
             val p =
                 ProposalTranslator.translate(

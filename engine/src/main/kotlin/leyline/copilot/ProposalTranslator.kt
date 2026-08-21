@@ -111,6 +111,9 @@ internal object ProposalTranslator {
                     responseIds = listOf(decision.value),
                 )
 
+            is SimDecision.Distribution ->
+                base("distribute", promptType, seat).copy(responseIds = decision.amountsByInstanceId.keys.toList())
+
             is SimDecision.OptionalAction ->
                 base("optional_action", promptType, seat).copy(accept = decision.accept)
 
