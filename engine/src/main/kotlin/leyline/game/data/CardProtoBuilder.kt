@@ -28,14 +28,6 @@ class CardProtoBuilder(
     private fun isRoomCard(subtypes: List<Int>): Boolean = subtypes.contains(roomSubtype)
 
     /**
-     * Universal "Turn face up" stencil ability grpId carried as the sole
-     * `uniqueAbilities` entry on every face-down permanent. Same id across
-     * Morph / Manifest / Disguise / Cloak — the per-mechanic flip cost
-     * rides on the dedicated `Special_TurnFaceUp_add3` action emit, not on
-     * the projected ability list.
-     */
-
-    /**
      * Universal face-down overlay grpId — the "card back" stencil the
      * client renders in place of the real card art for any face-down
      * permanent.
