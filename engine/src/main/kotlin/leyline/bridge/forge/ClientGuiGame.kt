@@ -131,7 +131,7 @@ class ClientGuiGame(
                 options = labels,
                 min = if (stackTargetOptions.finishOptionIndex != null) 0 else 1,
                 max = 1,
-                defaultIndex = 0,
+                defaultIndex = firstSelectableIndex(labels),
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -168,7 +168,7 @@ class ClientGuiGame(
                 options = labels,
                 min = if (stackTargetOptions.finishOptionIndex != null) 0 else 1,
                 max = 1,
-                defaultIndex = 0,
+                defaultIndex = firstSelectableIndex(labels),
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -204,7 +204,7 @@ class ClientGuiGame(
                 options = labels,
                 min = 0,
                 max = 1,
-                defaultIndex = 0,
+                defaultIndex = firstSelectableIndex(labels),
                 targetingCandidates = targetingCandidates,
                 targetingFinishOptionIndex = stackTargetOptions.finishOptionIndex,
                 targetIndex = currentStackTargetIndex(),
@@ -472,8 +472,32 @@ class ClientGuiGame(
     internal fun stackTargetCandidates(optionList: List<*>): List<TargetingCandidateValue.StackObject> =
         stackTargetOptions(optionList).candidates
 
+    /**
+     * Index of the engine's "finish targeting" sentinel, if it offered one.
+     *
+     * The engine appends it once the minimum target count is met and treats
+     * picking it as "no more targets"; picking anything else means "target this
+     * too, ask me again". It is a plain option in the list, so a route that
+     * answers by index has to know which index ends the sequence — otherwise an
+     * optional target group can never terminate.
+     */
+    private fun finishTargetingIndex(optionList: List<*>): Int? = optionList.indexOfFirst { it == FINISH_TARGETING }.takeIf { it >= 0 }
+
+    /**
+     * First option that stands for something selectable.
+     *
+     * The engine groups target candidates under plain-string zone captions, and
+     * the caption sits at index 0 whenever the first candidate is on the
+     * battlefield. Answering with a caption is accepted but selects nothing: the
+     * engine reports the choice as made, adds no target, and asks again with the
+     * same list, so the minimum is never reached and the group never terminates.
+     */
+    private fun firstSelectableIndex(labels: List<String>): Int = labels.indexOfFirst { !it.isZoneCaption() }.takeIf { it >= 0 } ?: 0
+
+    private fun String.isZoneCaption(): Boolean = startsWith("--CARDS ") && endsWith(":--")
+
     private fun stackTargetOptions(optionList: List<*>): StackTargetOptionSet {
-        if (!stackTargetingActive()) return StackTargetOptionSet(emptyList(), null)
+        if (!stackTargetingActive()) return StackTargetOptionSet(emptyList(), finishTargetingIndex(optionList))
         val candidates =
             optionList.mapIndexed { index, option ->
                 index to if (option == FINISH_TARGETING) null else stackTargetCandidate(index, option)
