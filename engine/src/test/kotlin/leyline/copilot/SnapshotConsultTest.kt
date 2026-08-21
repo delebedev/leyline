@@ -21,6 +21,8 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
@@ -28,9 +30,11 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
+import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.PlayerInfo
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import wotc.mtgo.gre.external.messaging.Messages.Target
@@ -54,6 +58,48 @@ private fun decodeSingle(hex: String): ClientToGREMessage {
 @Suppress("MissingAssertSoftly")
 class SnapshotConsultTest :
     SessionTest({
+
+        test("effect-cost prompt resolves an ability object to its source card") {
+            val sourceId = 218
+            val abilityId = 283
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(abilityId)
+                            .setType(GameObjectType.Ability)
+                            .setParentId(sourceId),
+                    ).build()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.PayCostsReq_695e)
+                    .setPrompt(leyline.game.bundle.promptWithCardId(promptId = 14_424, cardId = abilityId))
+                    .setPayCostsReq(
+                        PayCostsReq
+                            .newBuilder()
+                            .setEffectCostReq(
+                                EffectCostReq
+                                    .newBuilder()
+                                    .setEffectCostType(EffectCostType.Select_a59c)
+                                    .setCostSelection(
+                                        SelectNReq
+                                            .newBuilder()
+                                            .setMinSel(1)
+                                            .setMaxSel(1)
+                                            .addIds(202),
+                                    ),
+                            ),
+                    ).build()
+
+            normalizePayCostsSource(gsm, prompt)
+                .prompt
+                .parametersList
+                .single()
+                .numberValue shouldBe sourceId
+        }
 
         session(
             "consult proposes the lethal bolt in source-game ids with eval",
