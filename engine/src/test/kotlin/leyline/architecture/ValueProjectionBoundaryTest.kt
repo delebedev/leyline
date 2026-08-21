@@ -156,6 +156,7 @@ private const val CAPTURE = "leyline.game.bundle"
 private val productionShells =
     listOf(
         "leyline.game.bundle.BundleBuilder",
+        "leyline.game.bundle.StateFrameInputCapture",
         "leyline.protocol.HandshakeMessages",
     )
 
