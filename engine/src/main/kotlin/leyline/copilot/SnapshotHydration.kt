@@ -52,6 +52,7 @@ object SnapshotHydration {
 
     private const val LIBRARY_FILLER_CARD = "Mountain"
     private const val LIBRARY_FILLER_COUNT = 5
+    private const val FACE_DOWN_CARD_NAME = "Face-down creature"
 
     /**
      * Hydrate a standalone [GameBridge] from [gsm]. The caller owns the bridge
@@ -190,7 +191,10 @@ object SnapshotHydration {
                 .mapTo(mutableSetOf()) { it.instanceId }
         val resolvableIds =
             objects
-                .filter { it.instanceId in battlefieldIds && cardRepository.findNameByGrpId(it.grpId) != null }
+                .filter {
+                    it.instanceId in battlefieldIds &&
+                        (it.isFacedown || cardRepository.findNameByGrpId(it.grpId) != null)
+                }
                 .mapTo(mutableSetOf()) { it.instanceId }
         val attachmentTargetsByIid =
             allAttachmentTargetsByIid.filter { (sourceId, targetId) ->
@@ -225,8 +229,15 @@ object SnapshotHydration {
         }
 
         fun cardEntry(obj: GameObjectInfo): String? {
-            val name = cardRepository.findNameByGrpId(obj.grpId)
-            if (name == null) {
+            val entry =
+                if (obj.isFacedown) {
+                    tokenEntry(obj, FACE_DOWN_CARD_NAME)
+                } else {
+                    cardRepository.findNameByGrpId(obj.grpId)?.let { name ->
+                        if (obj.type == GameObjectType.Token) tokenEntry(obj, name) else name
+                    }
+                }
+            if (entry == null) {
                 unresolvedIds += obj.instanceId
                 log.warn(
                     "SnapshotHydration: no card name for grpId={} (iid={}), dropping from snapshot",
@@ -237,7 +248,7 @@ object SnapshotHydration {
             }
             projectedIds += obj.instanceId
             return buildString {
-                append(if (obj.type == GameObjectType.Token) tokenEntry(obj, name) else name)
+                append(entry)
                 append("|Id:").append(obj.instanceId)
                 if (obj.isTapped) append("|Tapped")
                 if (obj.hasSummoningSickness) append("|SummonSick")

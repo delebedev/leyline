@@ -130,6 +130,56 @@ class SnapshotHydrationTest :
             }
         }
 
+        test("face-down card uses public characteristics without requiring its hidden identity") {
+            val battlefieldZoneId = 7
+            val faceDownIid = 201
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(battlefieldZoneId).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(faceDownIid)
+                            .setGrpId(3)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .setIsFacedown(true)
+                            .addCardTypes(CardType.Creature)
+                            .setPower(Int32Value.newBuilder().setValue(5))
+                            .setToughness(Int32Value.newBuilder().setValue(5)),
+                    ).build()
+
+            SnapshotHydration.toPuzzleLines(gsm, 1, TestCardRegistry.repo) shouldContain
+                "p1battlefield=t:Face-down creature,P:5,T:5,Cost:0,Types:Creature,Keywords:,Image:|Id:201"
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.bridge
+                    .getGame()
+                    .shouldNotBeNull()
+                    .players[1]
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .single()
+                    .let { card ->
+                        card.name shouldBe "Face-down creature"
+                        card.netPower shouldBe 5
+                        card.netToughness shouldBe 5
+                    }
+                hydrated.fidelity.features
+                    .first { it.feature == "unresolved_cards" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
         test("attacker and committed blocker hydrate into Forge combat") {
             val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
             val blockerGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
