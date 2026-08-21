@@ -1096,6 +1096,15 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    /** Respond to a required ChooseX option embedded in CastingTimeOptionsReq. */
+    fun respondToCastingTimeX(
+        ctoId: Int,
+        value: Int,
+    ) {
+        session.onCastingTimeOptions(submitWithGsId(castingTimeXResp(ctoId, value)))
+        drainSink()
+    }
+
     /** Respond to a required alternate-additional-cost CastingTimeOptionsReq. */
     fun respondToAlternateCost(
         ctoId: Int,

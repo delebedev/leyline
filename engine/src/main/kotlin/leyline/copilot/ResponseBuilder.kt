@@ -343,6 +343,22 @@ internal object ResponseBuilder {
                         ).build(),
                 )
 
+            is SimDecision.CastingTimeX ->
+                listOf(
+                    base(ClientMessageType.CastingTimeOptionsResp_097b)
+                        .setCastingTimeOptionsResp(
+                            CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
+                                CastingTimeOptionResp
+                                    .newBuilder()
+                                    .setCtoId(decision.ctoId)
+                                    .setCastingTimeOptionType(CastingTimeOptionType.ChooseX_a7b4)
+                                    .setNumericInputResp(
+                                        NumericInputResp.newBuilder().setNumericInputValue(decision.value),
+                                    ),
+                            ),
+                        ).build(),
+                )
+
             is SimDecision.ManaTypeChoices ->
                 listOf(
                     base(ClientMessageType.CastingTimeOptionsResp_097b)

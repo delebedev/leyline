@@ -197,6 +197,19 @@ class ProposalTranslatorTest :
             p.numericValue shouldBe 3
         }
 
+        test("casting-time X retains ctoId and numeric value") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.CastingTimeX(ctoId = 2, value = 4),
+                    GREMessageType.CastingTimeOptionsReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "numeric"
+            p.ctoId shouldBe 2
+            p.numericValue shouldBe 4
+        }
+
         test("optional-action → optional_action intent carrying accept/decline") {
             ProposalTranslator
                 .translate(SimDecision.OptionalAction(accept = true), GREMessageType.OptionalActionMessage_695e, seat = 1, resolve)

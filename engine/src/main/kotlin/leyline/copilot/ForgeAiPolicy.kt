@@ -2,6 +2,7 @@ package leyline.copilot
 
 import forge.ai.AiCostDecision
 import forge.ai.ComputerUtilCard
+import forge.ai.ComputerUtilCost
 import forge.ai.PlayerControllerAi
 import forge.ai.simulation.GameStateEvaluator
 import forge.card.ColorSet
@@ -676,7 +677,10 @@ class ForgeAiPolicy(
     fun canChooseCastingTimeOptions(msg: GREToClientMessage): Boolean {
         if (!msg.hasCastingTimeOptionsReq()) return false
         val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
-        return isManaTypeCto(options) || isSimpleModalCto(options) || isSingleOptionalCostCto(options)
+        return isManaTypeCto(options) ||
+            isSimpleModalCto(options) ||
+            isSingleOptionalCostCto(options) ||
+            isSingleChooseXCto(options)
     }
 
     internal fun chooseCastingTimeOptions(msg: GREToClientMessage): SimDecision? {
@@ -684,6 +688,7 @@ class ForgeAiPolicy(
         return chooseManaTypeCastingTimeOptions(msg)?.let { SimDecision.ManaTypeChoices(it) }
             ?: chooseModalCastingTimeOptions(msg)
             ?: chooseOptionalCastingTimeOptions(msg)?.let { SimDecision.OptionalCost(it) }
+            ?: chooseXCastingTimeOptions(msg)
     }
 
     private fun chooseManaTypeCastingTimeOptions(msg: GREToClientMessage): List<Pair<Int, ManaColor>>? {
@@ -743,6 +748,25 @@ class ForgeAiPolicy(
         if (optionalCosts.size != 1) return null
         val chosen = askAi("chooseOptionalCosts") { aiController.chooseOptionalCosts(sa, optionalCosts) } ?: return null
         return if (optionalCostChosen(chosen, optionalCosts.single())) costOption.ctoId else 0
+    }
+
+    private fun chooseXCastingTimeOptions(msg: GREToClientMessage): SimDecision.CastingTimeX? {
+        val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
+        if (!isSingleChooseXCto(options)) return null
+        val option = options.single()
+        val card = cardForInstance(option.affectedId) ?: return null
+        val sa =
+            getAllCastableAbilities(card, seatPlayer)
+                .firstOrNull { it.payCosts?.hasXInAnyCostPart() == true && it.getSVar("X") == "Count\$xPaid" }
+                ?: return null
+        sa.activatingPlayer = seatPlayer
+        val req = option.numericInputReq
+        val min = req.minValue.coerceAtLeast(0)
+        val max = ComputerUtilCost.setMaxXValue(sa, seatPlayer, false).coerceAtMost(req.maxValue)
+        if (max < min) return null
+        val chosen = askAi("chooseCastingTimeX") { aiController.chooseNumber(sa, "Choose X", min, max) } ?: return null
+        if (chosen !in min..max) return null
+        return SimDecision.CastingTimeX(option.ctoId, chosen)
     }
 
     private fun optionalCostChosen(
@@ -888,6 +912,15 @@ class ForgeAiPolicy(
     companion object {
         private val log = LoggerFactory.getLogger(ForgeAiPolicy::class.java)
     }
+}
+
+private fun isSingleChooseXCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean {
+    if (options.size != 1) return false
+    val option = options.single()
+    return option.ctoId > 0 &&
+        option.isRequired &&
+        option.castingTimeOptionType == CastingTimeOptionType.ChooseX_a7b4 &&
+        option.hasNumericInputReq()
 }
 
 internal sealed interface ExpectedCastVariant {

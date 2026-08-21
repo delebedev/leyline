@@ -370,6 +370,22 @@ fun optionalCostResp(ctoId: Int): ClientToGREMessage =
         )
     }
 
+fun castingTimeXResp(
+    ctoId: Int,
+    value: Int,
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+        setCastingTimeOptionsResp(
+            CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
+                CastingTimeOptionResp
+                    .newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(CastingTimeOptionType.ChooseX_a7b4)
+                    .setNumericInputResp(NumericInputResp.newBuilder().setNumericInputValue(value)),
+            ),
+        )
+    }
+
 /**
  * [CastingTimeOptionsResp] for a required alternate additional cost.
  * [optionIndex] is the offered `selectNReq` id naming the branch.

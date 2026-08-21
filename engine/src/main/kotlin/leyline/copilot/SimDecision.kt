@@ -107,6 +107,13 @@ internal sealed interface SimDecision {
         override val kind: String = "optional-cost"
     }
 
+    data class CastingTimeX(
+        val ctoId: Int,
+        val value: Int,
+    ) : SimDecision {
+        override val kind: String = "casting-time-x"
+    }
+
     data class ModalChoice(
         val ctoId: Int,
         val selectedGrpIds: List<Int>,
