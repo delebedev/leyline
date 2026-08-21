@@ -6,7 +6,6 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import leyline.IntegrationTag
-import leyline.bridge.types.ForgeCardId
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -63,7 +62,7 @@ class SagaTargetedChapterTest :
                         .getZone(ZoneType.Battlefield)
                         .cards
                         .first { it.name == "Grizzly Bears" }
-                val bearIid = harness.bridge.getOrAllocInstanceId(ForgeCardId(bear.id)).value
+                val bearIid = harness.bridge.instanceId(bear)
 
                 harness.castSpellByName("Teachings of the Kirin").shouldBeTrue()
 

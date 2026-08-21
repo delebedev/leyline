@@ -5,16 +5,14 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.allActions
 import leyline.testkit.haveManaCost
 import leyline.testkit.performAction
-import leyline.tooling.headless.ClientAccumulator
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
-import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
 private fun cloakPuzzle(topCard: String) =
     """
@@ -41,18 +39,16 @@ class CloakSessionTest :
 
             val cloaked = human.getZone(ZoneType.Battlefield).cards.single { it.isCloaked }
             val coat = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Cryptic Coat" }
-            val cloakedIid = bridge.getOrAllocInstanceId(ForgeCardId(cloaked.id)).value
-            val coatIid = bridge.getOrAllocInstanceId(ForgeCardId(coat.id)).value
+            val cloakedIid = bridge.instanceId(cloaked)
+            val coatIid = bridge.instanceId(coat)
             val offer =
                 allMessages
-                    .filter { it.hasActionsAvailableReq() }
-                    .flatMap { it.actionsAvailableReq.actionsList }
+                    .allActions()
                     .lastOrNull {
                         it.actionType == ActionType.SpecialTurnFaceUp_add3 && it.instanceId == cloakedIid
                     }
-            val objects = latestObjects(cloakedIid, coatIid)
-            val cloakedObject = objects.getValue(cloakedIid)
-            val coatObject = objects.getValue(coatIid)
+            val cloakedObject = accumulator.objects[cloakedIid] ?: error("No accumulated object $cloakedIid")
+            val coatObject = accumulator.objects[coatIid] ?: error("No accumulated object $coatIid")
             val turnUp = requireNotNull(offer) { "No turn-face-up offer for cloaked creature" }
             val faceDownAnnotation =
                 allMessages
@@ -97,11 +93,10 @@ class CloakSessionTest :
             passUntilResolved()
 
             val cloaked = human.getZone(ZoneType.Battlefield).cards.single { it.isCloaked }
-            val cloakedIid = bridge.getOrAllocInstanceId(ForgeCardId(cloaked.id)).value
+            val cloakedIid = bridge.instanceId(cloaked)
             val hasTurnUp =
                 allMessages
-                    .filter { it.hasActionsAvailableReq() }
-                    .flatMap { it.actionsAvailableReq.actionsList }
+                    .allActions()
                     .any { it.actionType == ActionType.SpecialTurnFaceUp_add3 && it.instanceId == cloakedIid }
 
             assertSoftly {
@@ -110,13 +105,4 @@ class CloakSessionTest :
                 hasTurnUp shouldBe false
             }
         }
-    }) {
-    companion object {
-        private fun leyline.tooling.headless.MatchFlowHarness.latestObjects(vararg instanceIds: Int): Map<Int, GameObjectInfo> {
-            val wanted = instanceIds.toSet()
-            val accumulator = ClientAccumulator()
-            allMessages.forEach(accumulator::process)
-            return wanted.associateWith { accumulator.objects[it] ?: error("No accumulated object $it") }
-        }
-    }
-}
+    })

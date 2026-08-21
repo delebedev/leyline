@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.testkit.*
 import leyline.testkit.BoardTest
 import leyline.testkit.detail
@@ -36,7 +35,7 @@ class AbilityWordPuzzleTest :
             val human = board.game.humanPlayer
             val scavenger =
                 human.battlefield.card("Dreadwing Scavenger")
-            val iid = board.bridge.getOrAllocInstanceId(ForgeCardId(scavenger.id)).value
+            val iid = board.bridge.instanceId(scavenger)
 
             // Seeded baseline state: the pAnn is carried in the initial Full GSM,
             // not re-emitted on subsequent Diffs (protocol spec). Assert on the
@@ -92,7 +91,7 @@ class AbilityWordPuzzleTest :
                 }
             val human = board.game.humanPlayer
             val duo = human.battlefield.card("Roughshod Duo")
-            val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
+            val duoIid = board.bridge.instanceId(duo)
 
             human.expentThisTurn = 4
             board.snapshotDiff {}
@@ -239,7 +238,7 @@ class AbilityWordPuzzleTest :
             val human = board.game.humanPlayer
             val prowler =
                 human.battlefield.card("Cackling Prowler")
-            val prowlerIid = board.bridge.getOrAllocInstanceId(ForgeCardId(prowler.id)).value
+            val prowlerIid = board.bridge.instanceId(prowler)
 
             // Kill AI bear — triggers morbid condition
             val ai = board.game.registeredPlayers.find { it != human }!!

@@ -1,6 +1,7 @@
 package leyline.game.state
 
 import forge.game.Game
+import forge.game.card.Card
 import forge.game.player.Player
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -20,6 +21,12 @@ import leyline.game.event.FrameEventLog
 
 /** Forge cardId ↔ client instanceId translation. Used by nearly every mapper. */
 interface IdMapping {
+    /** Allocate or return the typed client instance ID for a Forge card. */
+    fun instance(card: Card): InstanceId = getOrAllocInstanceId(ForgeCardId(card.id))
+
+    /** Allocate or return the scalar client instance ID for a Forge card. */
+    fun instanceId(card: Card): Int = instance(card).value
+
     /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId
 

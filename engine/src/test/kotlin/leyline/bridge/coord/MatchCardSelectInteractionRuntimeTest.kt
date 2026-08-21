@@ -15,7 +15,6 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedCardSelectInteraction
 import leyline.bridge.handoff.ResolutionAbilityShape
 import leyline.bridge.handoff.ResolutionRouteInput
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -339,7 +338,7 @@ class MatchCardSelectInteractionRuntimeTest :
                             CardSelectKind.Resolution,
                             CardSelectKind.ResolutionMapped,
                             CardSelectKind.Learn,
-                            -> board.bridge.getOrAllocInstanceId(ForgeCardId(source(board).id)).value
+                            -> board.bridge.instanceId(source(board))
                         }
                     if (case.kind == CardSelectKind.LegendRule) {
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly listOf(0)

@@ -426,7 +426,7 @@ object SnapshotCapture {
         // Attachment — pre-resolve the parent instanceId here so ObjectMapper
         // doesn't need bridge access at projection time.
         val attachedToInstanceId =
-            card.attachedTo?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+            card.attachedTo?.let(bridge::instanceId)
         val mergedState = MutateSnapshotSupport.mergedState(card, bridge, bridge.cardRepository)
 
         val ownForgeId = ForgeCardId(card.id)
@@ -459,7 +459,7 @@ object SnapshotCapture {
         val tokenSourceCard = tokenAbility?.hostCard?.takeIf { isEngineToken && tokenAbility.isAbility }
         val tokenSourceCardGrpId =
             tokenSourceCard?.let { source ->
-                val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(source.id)).value
+                val sourceIid = bridge.instanceId(source)
                 bridge.resolveGrpId(source, sourceIid)
             } ?: 0
         val tokenParentAbilityInstanceId =
@@ -627,7 +627,7 @@ object SnapshotCapture {
                     when {
                         defender == null -> 0
                         defender is Player -> bridge.seatOf(defender)?.value ?: 0
-                        defender is Card -> bridge.getOrAllocInstanceId(ForgeCardId(defender.id)).value
+                        defender is Card -> bridge.instanceId(defender)
                         else -> 0
                     }
                 }
@@ -640,7 +640,7 @@ object SnapshotCapture {
         if (combat.isBlocking(card)) {
             val attackerIds =
                 combat.getAttackersBlockedBy(card).map { atk ->
-                    bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value
+                    bridge.instanceId(atk)
                 }
             return CombatRole.Blocker(attackerInstanceIds = attackerIds)
         }

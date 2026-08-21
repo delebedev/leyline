@@ -6,6 +6,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.allActions
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -44,10 +45,7 @@ class ElectroduplicateTest :
             """.trimIndent(),
         ) {
             // 1. Verify Cast action offered with alternativeGrpId for flashback
-            val actions =
-                allMessages
-                    .filter { it.hasActionsAvailableReq() }
-                    .flatMap { it.actionsAvailableReq.actionsList }
+            val actions = allMessages.allActions()
             val flashbackAction =
                 actions.firstOrNull {
                     it.actionType == ActionType.Cast && it.alternativeGrpId > 0

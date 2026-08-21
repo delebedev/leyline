@@ -248,7 +248,7 @@ object ActionMapper {
                 cost,
                 player,
                 idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
-                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
+                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.instanceId(c))) },
                 cardDataLookup = { bridge.cardRepository.findByGrpId(it.value) },
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
             )

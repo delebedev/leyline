@@ -169,7 +169,7 @@ class ConvokeLifecycleTest :
         ) {
             val lionIid = human.battlefield.iid("Savannah Lions")
             val initialPayCosts = after { castSpellByName("Conclave Tribunal").shouldBeTrue() }.expectOnePayCostsReq()
-            val tribunalStackIid = bridge.getOrAllocInstanceId(ForgeCardId(game().stackZone.first().id)).value
+            val tribunalStackIid = bridge.instanceId(game().stackZone.first())
             assertConvokePaymentActions(initialPayCosts, listOf(lionIid), ManaColor.White_afc9)
 
             val firstPaymentSnap = messageSnapshot()

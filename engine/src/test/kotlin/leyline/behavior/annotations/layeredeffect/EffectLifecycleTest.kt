@@ -119,7 +119,7 @@ class EffectLifecycleTest :
                     .getZone(ZoneType.Hand)
                     .cards
                     .first { it.name == "Giant Growth" }
-            val swiftspearIid = b.getOrAllocInstanceId(ForgeCardId(swiftspear.id)).value
+            val swiftspearIid = b.instanceId(swiftspear)
 
             // Take initial snapshot (gsId=1)
             val snapEff2 = GsmSnapshot.capture(game, b, "test", 1)

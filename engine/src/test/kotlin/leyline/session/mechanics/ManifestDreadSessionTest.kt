@@ -7,13 +7,13 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
+import leyline.testkit.allActions
 import leyline.testkit.detailInt
 import leyline.testkit.haveManaCost
 import leyline.testkit.performAction
@@ -88,7 +88,7 @@ class ManifestDreadSessionTest :
             passUntilResolved()
 
             val manifested = human.getZone(ZoneType.Battlefield).cards.single { it.isFaceDown }
-            val manifestedIid = bridge.getOrAllocInstanceId(ForgeCardId(manifested.id)).value
+            val manifestedIid = bridge.instanceId(manifested)
             val islandForgeId =
                 bridge.getForgeCardId(leyline.bridge.types.InstanceId(islandIid))?.value
                     ?: error("No Forge card id for unselected Island iid=$islandIid")
@@ -98,8 +98,7 @@ class ManifestDreadSessionTest :
                     .last { AnnotationType.FaceDown in it.typeList && manifestedIid in it.affectedIdsList }
             val turnUp =
                 allMessages
-                    .filter { it.hasActionsAvailableReq() }
-                    .flatMap { it.actionsAvailableReq.actionsList }
+                    .allActions()
                     .lastOrNull {
                         it.actionType == ActionType.SpecialTurnFaceUp_add3 && it.instanceId == manifestedIid
                     } ?: error("No active turn-up action for manifested creature")
@@ -139,11 +138,10 @@ class ManifestDreadSessionTest :
             passUntilResolved()
 
             val manifested = human.getZone(ZoneType.Battlefield).cards.single { it.isFaceDown }
-            val manifestedIid = bridge.getOrAllocInstanceId(ForgeCardId(manifested.id)).value
+            val manifestedIid = bridge.instanceId(manifested)
             val turnUp =
                 allMessages
-                    .filter { it.hasActionsAvailableReq() }
-                    .flatMap { it.actionsAvailableReq.actionsList }
+                    .allActions()
                     .any { it.actionType == ActionType.SpecialTurnFaceUp_add3 && it.instanceId == manifestedIid }
 
             turnUp shouldBe false

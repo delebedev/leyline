@@ -695,7 +695,7 @@ class BundleBuilderTest :
             val rider = gsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
 
             assertSoftly {
-                rider.affectedIdsList shouldBe listOf(b.getOrAllocInstanceId(ForgeCardId(source.id)).value)
+                rider.affectedIdsList shouldBe listOf(b.instanceId(source))
                 gsm.annotationsList.map { it.id } shouldBe gsm.annotationsList.indices.map { gsm.annotationsList.first().id + it }
                 b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe gsm.annotationsList.last().id + 1
             }
@@ -1500,7 +1500,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .filter { it.isCreature }
-            val allIds = creatures.map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+            val allIds = creatures.map(b::instanceId)
             val selectedIds = listOf(allIds.first())
 
             val prepared =
@@ -1552,7 +1552,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isCreature }
-            val blockerId = b.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
+            val blockerId = b.instanceId(blocker)
             val blockAssignments = mapOf(blockerId to 999)
 
             val prepared =

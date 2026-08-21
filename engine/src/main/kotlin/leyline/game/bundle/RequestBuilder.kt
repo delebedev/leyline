@@ -4,7 +4,6 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
@@ -98,7 +97,7 @@ object RequestBuilder {
         DamageRecipient
             .newBuilder()
             .setType(DamageRecType.PlanesWalker)
-            .setPlaneswalkerInstanceId(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+            .setPlaneswalkerInstanceId(bridge.instanceId(card))
             .build()
 
     private fun legalAttackDamageRecipients(
@@ -159,7 +158,7 @@ object RequestBuilder {
             if (!card.isCreature) continue
             if (!CombatUtil.canAttack(card)) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val instanceId = bridge.instanceId(card)
             val hasEnlist = card.hasKeyword("Enlist")
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
@@ -218,7 +217,7 @@ object RequestBuilder {
             val legalAttackers = combat.attackers.filter { CombatUtil.canBlock(it, card) }
             if (legalAttackers.isEmpty()) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val instanceId = bridge.instanceId(card)
             val blocker =
                 Blocker
                     .newBuilder()
@@ -229,7 +228,7 @@ object RequestBuilder {
             if (assignedAttacker != null) {
                 blocker.addSelectedAttackerInstanceIds(assignedAttacker)
             } else {
-                val legalAttackerIds = legalAttackers.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+                val legalAttackerIds = legalAttackers.map(bridge::instanceId)
                 blocker.addAllAttackerInstanceIds(legalAttackerIds)
             }
             builder.addBlockers(blocker)

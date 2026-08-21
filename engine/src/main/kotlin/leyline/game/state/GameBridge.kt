@@ -1705,7 +1705,7 @@ class GameBridge(
                             abilityRegistryFor(card, cardData)
                         }
                     }
-                    val iid = getOrAllocInstanceId(ForgeCardId(card.id))
+                    val iid = instance(card)
                     // Seed zone tracking so the FIRST diff after the puzzle
                     // GSM can detect zone changes against the puzzle's
                     // initial state (cycling discard, unearth return, …).
@@ -1758,8 +1758,8 @@ class GameBridge(
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val target = card.attachedTo ?: continue
-                val auraIid = getOrAllocInstanceId(ForgeCardId(card.id))
-                val targetIid = getOrAllocInstanceId(ForgeCardId(target.id))
+                val auraIid = instance(card)
+                val targetIid = instance(target)
                 val ann =
                     AnnotationBuilder
                         .attachment(auraIid, targetIid)
@@ -1801,7 +1801,7 @@ class GameBridge(
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val counters = card.counters
                 if (counters.isEmpty()) continue
-                val instanceId = getOrAllocInstanceId(ForgeCardId(card.id))
+                val instanceId = instance(card)
                 for (entry in counters.entrySet()) {
                     val counterType = entry.element
                     val count = entry.count

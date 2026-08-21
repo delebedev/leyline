@@ -3,7 +3,6 @@ package leyline.tooling.headless
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -135,7 +134,7 @@ private fun MatchFlowHarness.describeCard(
     card: Card,
     owner: Player,
 ): String {
-    val iid = runCatching { bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value }.getOrNull()
+    val iid = runCatching { bridge.instanceId(card) }.getOrNull()
     val marks =
         buildList {
             if (card.isCreature) add("${card.netPower}/${card.netToughness}")
