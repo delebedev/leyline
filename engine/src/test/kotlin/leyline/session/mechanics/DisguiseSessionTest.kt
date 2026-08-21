@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getNonManaActivatedAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
@@ -48,7 +47,7 @@ class DisguiseSessionTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isFaceDown }
-            val battlefieldIid = bridge.getOrAllocInstanceId(ForgeCardId(faceDownPermanent.id)).value
+            val battlefieldIid = bridge.instanceId(faceDownPermanent)
             val faceDown =
                 firstFaceDownGsm!!.persistentAnnotationsList.first { AnnotationType.FaceDown in it.typeList }
             val faceDownIid = faceDown.affectedIdsList.single()
@@ -113,7 +112,7 @@ class DisguiseSessionTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isFaceDown }
-            val faceDownIid = bridge.getOrAllocInstanceId(ForgeCardId(faceDown.id)).value
+            val faceDownIid = bridge.instanceId(faceDown)
 
             session.onPerformAction(
                 submitWithGsId(

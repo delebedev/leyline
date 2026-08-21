@@ -5,6 +5,7 @@ import forge.game.card.Card
 import forge.game.zone.ZoneType
 
 enum class FaceDownKind {
+    Cloak,
     Disguise,
     ManifestDread,
 }
@@ -20,10 +21,16 @@ enum class FaceDownKind {
 object FaceDown {
     fun kind(card: Card): FaceDownKind? =
         when {
+            isCloak(card) -> FaceDownKind.Cloak
             Disguise.isFaceDownDisguise(card) -> FaceDownKind.Disguise
             isManifestDread(card) -> FaceDownKind.ManifestDread
             else -> null
         }
+
+    private fun isCloak(card: Card): Boolean =
+        card.isFaceDown &&
+            card.isCloaked &&
+            card.isInZone(ZoneType.Battlefield)
 
     private fun isManifestDread(card: Card): Boolean =
         card.isFaceDown &&

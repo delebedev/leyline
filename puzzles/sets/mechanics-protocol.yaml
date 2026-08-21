@@ -961,6 +961,27 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Centaur Courser }
             - battlefield_stats: { side: ours, card: Centaur Courser, power: 3, toughness: 3 }
             - stack_empty: true
+  - id: cloak-cryptic-coat
+    puzzle: cloak-cryptic-coat
+    web:
+      skip: Web runner does not yet activate this face-down action path.
+    run: cast Cryptic Coat, cloak Centaur Courser, then turn it face up for its mana cost
+    expect: Cryptic Coat remains attached while Centaur Courser turns face up as a 4/3
+    steps:
+      - expect:
+          action: { type: cast, card: Cryptic Coat }
+      - cast: Cryptic Coat
+      - resolve_stack: {}
+      - resolve_stack: {}
+      - expect:
+          zone_count_at_least: { side: ours, zone: battlefield, count: 8 }
+      - turn_face_up: Centaur Courser
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Cryptic Coat }
+            - zone_contains: { side: ours, zone: battlefield, card: Centaur Courser }
+            - battlefield_stats: { side: ours, card: Centaur Courser, power: 4, toughness: 3 }
+            - stack_empty: true
   - id: prepared-honorbound-page
     puzzle: honorbound-page-prepare
     run: cast Honorbound Page, then cast the prepared Forum's Favor copy from exile

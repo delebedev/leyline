@@ -9,7 +9,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.annotations.AbilityWordScanner
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -25,7 +24,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val frigate = human.battlefield.card("Lumen-Class Frigate")
             frigate.addCounterInternal(CounterEnumType.CHARGE, 3, human, true, null, AbilityKey.newMap())
-            val iid = b.getOrAllocInstanceId(ForgeCardId(frigate.id)).value
+            val iid = b.instanceId(frigate)
 
             val results =
                 AbilityWordScanner
@@ -56,7 +55,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val scavenger =
                 human.battlefield.card("Dreadwing Scavenger")
-            val iid = b.getOrAllocInstanceId(ForgeCardId(scavenger.id)).value
+            val iid = b.instanceId(scavenger)
 
             val results =
                 AbilityWordScanner.scan(
@@ -88,7 +87,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val prowler =
                 human.battlefield.card("Cackling Prowler")
-            val prowlerIid = b.getOrAllocInstanceId(ForgeCardId(prowler.id)).value
+            val prowlerIid = b.instanceId(prowler)
 
             // Kill the AI creature to trigger morbid condition
             val ai = game.registeredPlayers.find { it != human }!!
@@ -201,7 +200,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val devotee =
                 human.battlefield.card("Jeskai Devotee")
-            val devoteeIid = b.getOrAllocInstanceId(ForgeCardId(devotee.id)).value
+            val devoteeIid = b.instanceId(devotee)
 
             val results =
                 AbilityWordScanner.scan(
@@ -228,7 +227,7 @@ class AbilityWordScannerTest :
             val human = board.game.humanPlayer
             human.expentThisTurn = 3
             val duo = human.battlefield.card("Roughshod Duo")
-            val duoIid = board.bridge.getOrAllocInstanceId(ForgeCardId(duo.id)).value
+            val duoIid = board.bridge.instanceId(duo)
 
             val results =
                 AbilityWordScanner.scan(
@@ -320,7 +319,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val sentinel =
                 human.battlefield.card("Sungold Sentinel")
-            val sentinelIid = b.getOrAllocInstanceId(ForgeCardId(sentinel.id)).value
+            val sentinelIid = b.instanceId(sentinel)
 
             val results =
                 AbilityWordScanner.scan(
@@ -364,7 +363,7 @@ class AbilityWordScannerTest :
             val human = game.humanPlayer
             val rat =
                 human.battlefield.card("Rat King, Verminister")
-            val ratIid = b.getOrAllocInstanceId(ForgeCardId(rat.id)).value
+            val ratIid = b.instanceId(rat)
 
             // Move Bears to graveyard to satisfy Revolt (permanent left battlefield this turn).
             val bears = human.battlefield.card("Grizzly Bears")
@@ -409,7 +408,7 @@ class AbilityWordScannerTest :
             human.lifeGainedThisTurn = 3
             val pois =
                 human.battlefield.card("Poisoner's Apprentice")
-            val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
+            val poisIid = b.instanceId(pois)
 
             val results =
                 AbilityWordScanner.scan(
@@ -465,7 +464,7 @@ class AbilityWordScannerTest :
 
             val runner =
                 human.hand.card("Rigging Runner")
-            val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
+            val runnerIid = b.instanceId(runner)
 
             val results =
                 AbilityWordScanner.scan(
@@ -492,7 +491,7 @@ class AbilityWordScannerTest :
             human.lifeGainedThisTurn = 4
             val pois =
                 human.hand.card("Poisoner's Apprentice")
-            val poisIid = b.getOrAllocInstanceId(ForgeCardId(pois.id)).value
+            val poisIid = b.instanceId(pois)
 
             val results =
                 AbilityWordScanner.scan(
@@ -530,7 +529,7 @@ class AbilityWordScannerTest :
 
             val runner =
                 human.battlefield.card("Rigging Runner")
-            val runnerIid = b.getOrAllocInstanceId(ForgeCardId(runner.id)).value
+            val runnerIid = b.instanceId(runner)
 
             val results =
                 AbilityWordScanner.scan(

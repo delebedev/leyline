@@ -44,7 +44,7 @@ class OmenActionTest :
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isAdventureCard || it.name == "Riling Dawnbreaker" }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val projection = ActionMapper.buildProjectionFromSnapshot(1, snap, b)

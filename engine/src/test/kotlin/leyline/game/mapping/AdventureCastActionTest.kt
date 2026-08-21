@@ -5,7 +5,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
@@ -31,7 +30,7 @@ class AdventureCastActionTest :
                     .getZone(ZoneType.Hand)
                     .cards
                     .first { it.name == "Ratcatcher Trainee" }
-            val traineeIid = b.getOrAllocInstanceId(ForgeCardId(trainee.id)).value
+            val traineeIid = b.instanceId(trainee)
 
             val actions =
                 ActionMapper.buildFromSnapshot(

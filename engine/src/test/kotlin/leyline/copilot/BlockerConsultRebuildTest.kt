@@ -4,7 +4,6 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import wotc.mtgo.gre.external.messaging.Messages.Blocker
@@ -48,7 +47,7 @@ class BlockerConsultRebuildTest :
                         .getZone(ZoneType.Battlefield)
                         .cards
                         .first { it.name == name }
-                return bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                return bridge.instanceId(card)
             }
 
             val courser = iidOf(1, "Centaur Courser")

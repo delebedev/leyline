@@ -55,7 +55,7 @@ class RoomActionTest :
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -85,7 +85,7 @@ class RoomActionTest :
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -120,7 +120,7 @@ class RoomActionTest :
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Graveyard).cards.first { it.isRoom }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -142,7 +142,7 @@ class RoomActionTest :
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
             // Pretend the left door already unlocked. Forge's `unlockRoom` updates state too.
             card.unlockRoom(human, forge.card.CardStateName.LeftSplit)
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -164,7 +164,7 @@ class RoomActionTest :
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
             card.unlockRoom(human, forge.card.CardStateName.LeftSplit)
             card.unlockRoom(human, forge.card.CardStateName.RightSplit)
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
@@ -181,7 +181,7 @@ class RoomActionTest :
                 }
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Hand).cards.first { it.isRoom }
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
             val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
             val offers = roomOffersForIid(projection.actions.actionsList, iid)
 
@@ -216,7 +216,7 @@ class RoomActionTest :
             val human = game.humanPlayer
             val card = human.getZone(ZoneType.Battlefield).cards.first { it.isRoom }
             card.unlockRoom(human, forge.card.CardStateName.LeftSplit)
-            val iid = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val iid = b.instanceId(card)
 
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val result =

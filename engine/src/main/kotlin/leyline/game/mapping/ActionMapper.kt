@@ -248,7 +248,7 @@ object ActionMapper {
                 cost,
                 player,
                 idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(forgeCardId) },
-                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.getOrAllocInstanceId(ForgeCardId(c.id)).value)) },
+                grpIdResolver = { c -> GrpId(bridge.resolveGrpId(c, bridge.instanceId(c))) },
                 cardDataLookup = { bridge.cardRepository.findByGrpId(it.value) },
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
             )
@@ -385,6 +385,10 @@ object ActionMapper {
                 cardData = cardData,
                 fallbackAlternativeGrpId =
                     when (faceDownKind) {
+                        // Cloak has no printed turn-up row, so the projected Ward {2}
+                        // ability supplies its client-addressable fallback identity.
+                        leyline.game.snapshot.FaceDownKind.Cloak ->
+                            leyline.game.data.KeywordAbilityIds.WARD_TWO
                         leyline.game.snapshot.FaceDownKind.Disguise ->
                             bridge.cardRepository.findKeywordAbilityGrpId(
                                 cardSnap.grpId,
@@ -1213,10 +1217,9 @@ object ActionMapper {
     }
 
     /**
-     * Emit the `Special_TurnFaceUp_add3` action for a face-down disguise
-     * permanent. The action's `alternativeGrpId` is the per-card "Turn face
-     * up" ability grpId (resolved via the AbilityRegistry), and `manaCost`
-     * is the printed disguise cost from the SA.
+     * Emit the `Special_TurnFaceUp_add3` action for a supported face-down
+     * permanent. The action's `alternativeGrpId` identifies the turn-up rail,
+     * and `manaCost` comes from the Forge special action.
      *
      * Field divergence from regular Cast / Activate: no `grpId`, no
      * `facetId` — the action-type alone identifies the target permanent

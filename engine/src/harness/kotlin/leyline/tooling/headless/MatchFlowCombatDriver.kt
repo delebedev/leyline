@@ -1,7 +1,6 @@
 package leyline.tooling.headless
 
 import forge.game.zone.ZoneType
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.state.GameBridge
@@ -27,7 +26,7 @@ internal class MatchFlowCombatDriver(
             .getZone(ZoneType.Battlefield)
             .cards
             .filter { it.isCreature }
-            .map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value to it.name }
+            .map { bridge.instanceId(it) to it.name }
     }
 
     fun declareAttackers(attackerInstanceIds: List<Int>) {
