@@ -98,7 +98,8 @@ build:
     set -euo pipefail
     cd "{{project_dir}}"
     {{_forge_m2_setup}}
-    ./gradlew classes jar
+    # Runtime classpath entries are subproject jars, so refresh each one before launch.
+    ./gradlew classes jar :domain:jar :engine:jar :native:jar :web:jar
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile
