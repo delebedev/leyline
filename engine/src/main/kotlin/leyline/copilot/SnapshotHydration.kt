@@ -194,8 +194,7 @@ object SnapshotHydration {
                 .filter {
                     it.instanceId in battlefieldIds &&
                         (it.isFacedown || cardRepository.findNameByGrpId(it.grpId) != null)
-                }
-                .mapTo(mutableSetOf()) { it.instanceId }
+                }.mapTo(mutableSetOf()) { it.instanceId }
         val attachmentTargetsByIid =
             allAttachmentTargetsByIid.filter { (sourceId, targetId) ->
                 sourceId in resolvableIds && targetId in resolvableIds
