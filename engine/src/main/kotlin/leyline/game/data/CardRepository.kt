@@ -209,6 +209,7 @@ object KeywordAbilityIds {
     // Direct ability ids — well-known shared row used verbatim per card.
     const val CONVOKE = 52
     const val HASTE = 9
+    const val WARD_TWO = 141939
     const val PROWESS = 137
     const val IMPROVISE = 157
     const val TRAINING = 220
@@ -243,6 +244,7 @@ object KeywordAbilityIds {
     const val BLITZ = 240
     const val DASH = 274
     const val DISGUISE = 307
+    const val CLOAK = 349
     const val MANIFEST_DREAD = 351
     const val IMPENDING = 352
     const val HARMONIZE = 362

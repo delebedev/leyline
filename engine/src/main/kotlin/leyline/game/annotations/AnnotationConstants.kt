@@ -66,6 +66,9 @@ object AnnotationConstants {
     /** `REASON` value on the persistent `FaceDown` annotation for Disguise. */
     const val FACEDOWN_REASON_DISGUISE: Int = 6
 
+    /** `REASON` value on the persistent `FaceDown` annotation for Cloak. */
+    const val FACEDOWN_REASON_CLOAK: Int = 7
+
     /** `REASON` value on the persistent `FaceDown` annotation for Manifest Dread. */
     const val FACEDOWN_REASON_MANIFEST_DREAD: Int = 8
 }

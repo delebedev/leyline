@@ -34,7 +34,6 @@ class CardProtoBuilder(
      * rides on the dedicated `Special_TurnFaceUp_add3` action emit, not on
      * the projected ability list.
      */
-    private val faceDownTurnFaceUpStencilGrpId = 141939
 
     /**
      * Universal face-down overlay grpId — the "card back" stencil the
@@ -47,13 +46,11 @@ class CardProtoBuilder(
     private val faceDownPowerAndToughness = 2
 
     /**
-     * Build a [GameObjectInfo] for a face-down permanent. Disguise is the
-     * only mechanic wired to this today; the projection itself is
-     * mechanic-agnostic, so Morph, Manifest and Cloak reuse it once their
-     * snapshot recognizers land. The projection drops printed identity (name,
+     * Build a [GameObjectInfo] for a supported face-down permanent. The
+     * projection drops printed identity (name,
      * subtypes, color, the per-card abilities) and substitutes the
      * universal face-down stencil — `overlayGrpId=3`, single
-     * "Turn face up" ability `141939`, 2/2 P/T, `Creature` card type.
+     * Ward {2} ability `141939`, 2/2 P/T, `Creature` card type.
      *
      * The [grpId] of the underlying card is still set on the proto so the
      * per-seat filter can preserve it for the controller and strip it for
@@ -72,7 +69,7 @@ class CardProtoBuilder(
                 UniqueAbilityInfo
                     .newBuilder()
                     .setId(50)
-                    .setGrpId(faceDownTurnFaceUpStencilGrpId),
+                    .setGrpId(KeywordAbilityIds.WARD_TWO),
             )
 
     /** Build a [GameObjectInfo] from DB data, no template — for the buildFromSnapshot path. */
