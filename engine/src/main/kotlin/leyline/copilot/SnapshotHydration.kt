@@ -276,7 +276,8 @@ object SnapshotHydration {
                 .firstOrNull { it in playerSeats }
                 ?: playerSeats.first()
         lines += "ActivePlayer=P${activeSeat - 1}"
-        lines += "ActivePhase=${mainPhaseOf(gsm)}"
+        val projectedPhase = mainPhaseOf(gsm)
+        lines += "ActivePhase=$projectedPhase"
         lines += "Turn=${gsm.turnInfo.turnNumber.coerceAtLeast(1)}"
         for (player in gsm.playersList) {
             lines += "${prefix(player.systemSeatNumber).replaceFirstChar { it.uppercase() }}Life=${player.lifeTotal}"
@@ -336,8 +337,7 @@ object SnapshotHydration {
         val exactPhase =
             gsm.turnInfo.phase.name
                 .contains("Main", ignoreCase = true) ||
-                gsm.turnInfo.step.name
-                    .startsWith("DeclareBlock")
+                projectedPhase.startsWith("COMBAT_")
         return SnapshotProjection(
             lines = lines,
             projectedIds = projectedIds,

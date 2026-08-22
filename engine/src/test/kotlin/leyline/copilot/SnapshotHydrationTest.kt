@@ -255,6 +255,58 @@ class SnapshotHydrationTest :
             }
         }
 
+        test("committed attacker phase is carried exactly") {
+            val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
+            val battlefieldZoneId = 7
+            val attackerId = 201
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(
+                        TurnInfo
+                            .newBuilder()
+                            .setPhase(Phase.Combat_a549)
+                            .setStep(Step.DeclareAttack_a2cb)
+                            .setTurnNumber(4)
+                            .setActivePlayer(1)
+                            .setPriorityPlayer(1)
+                            .setDecisionPlayer(1),
+                    ).addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(battlefieldZoneId)
+                            .setType(ZoneType.Battlefield)
+                            .setOwnerSeatId(1)
+                            .addObjectInstanceIds(attackerId),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(attackerId)
+                            .setGrpId(attackerGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .setAttackState(AttackState.Attacking),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.bridge
+                    .getGame()
+                    .shouldNotBeNull()
+                    .phaseHandler.phase
+                    .toString() shouldBe "COMBAT_DECLARE_ATTACKERS"
+                val phase = hydrated.fidelity.features.single { it.feature == "phase" }
+                phase.status shouldBe "carried"
+                phase.detail shouldBe null
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
         session(
             "hydrated game matches source on zones, flags, counters, damage, attachments, life, ids",
             puzzle =
