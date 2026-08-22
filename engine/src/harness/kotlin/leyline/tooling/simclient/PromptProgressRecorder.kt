@@ -1,15 +1,14 @@
 package leyline.tooling.simclient
 
 import leyline.copilot.SimDecision
-import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.HeadlessMatch
 import leyline.tooling.simclient.PromptProgressSample
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 internal class PromptProgressRecorder(
-    private val harness: SimClientHeadlessAdapter,
+    private val harness: HeadlessMatch,
     private val maxSamples: Int = 50,
 ) {
-    internal constructor(harness: MatchFlowHarness, maxSamples: Int = 50) : this(SimClientHeadlessAdapter(harness), maxSamples)
     private val samples = ArrayDeque<PromptProgressSample>()
 
     fun record(
@@ -20,9 +19,13 @@ internal class PromptProgressRecorder(
         beforeLast: GREToClientMessage?,
         sourceBefore: String,
     ) {
-        val afterLast = harness.allMessages.lastOrNull()
+        val afterLast = harness.observe().messages.lastOrNull()
         val (sourceInstanceId, _, abilityGrpId) = prompt.sourceFields()
-        val sourceGrpId = harness.accumulator.objects[sourceInstanceId]?.grpId ?: 0
+        val sourceGrpId =
+            harness
+                .observe()
+                .client.objects[sourceInstanceId]
+                ?.grpId ?: 0
         val sample =
             PromptProgressSample(
                 promptType = prompt.type.name,
@@ -35,7 +38,7 @@ internal class PromptProgressRecorder(
                 afterMsgId = afterLast?.msgId ?: 0,
                 afterGameStateId = afterLast?.gameStateId ?: 0,
                 beforeMessages = beforeMessages,
-                afterMessages = harness.allMessages.size,
+                afterMessages = harness.observe().messages.size,
                 sourceInstanceId = sourceInstanceId,
                 sourceGrpId = sourceGrpId,
                 abilityGrpId = abilityGrpId,
@@ -53,7 +56,7 @@ internal class PromptProgressRecorder(
 
     fun objectSnapshot(instanceId: Int): String {
         if (instanceId == 0) return ""
-        val obj = harness.accumulator.objects[instanceId] ?: return "missing:$instanceId"
+        val obj = harness.observe().client.objects[instanceId] ?: return "missing:$instanceId"
         val zone = zoneName(obj.zoneId)
         return "id=${obj.instanceId};grp=${obj.grpId};zone=$zone;" +
             "ctrl=${obj.controllerSeatId};type=${obj.type.name}"

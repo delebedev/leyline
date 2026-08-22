@@ -1,12 +1,9 @@
 package leyline.tooling.simclient
 
-import leyline.bridge.types.SeatId
 import leyline.copilot.CopilotProposal
-import leyline.copilot.CopilotProposalService
-import leyline.copilot.SnapshotConsult
-import leyline.game.event.FrameEventLog
-import leyline.game.projectSnapshotForTest
-import leyline.game.snapshot.GsmSnapshot
+import leyline.tooling.headless.HeadlessAdviceMode
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.cardNameByGrpId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -32,11 +29,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  *   - error        — state rebuild or consult threw
  */
 internal class SnapshotShadowProbe(
-    private val harness: SimClientHeadlessAdapter,
+    private val harness: HeadlessMatch,
     private val seat: Int = 1,
 ) {
     private val log = LoggerFactory.getLogger(SnapshotShadowProbe::class.java)
-    private val liveService by lazy { CopilotProposalService(harness.bridge, SeatId(seat)) }
     private val seen = mutableSetOf<Long>()
 
     data class Bucket(
@@ -69,38 +65,40 @@ internal class SnapshotShadowProbe(
         b.probed++
 
         val live =
-            runCatching { liveService.propose(prompt) }.getOrElse {
+            runCatching { harness.advise(prompt, HeadlessAdviceMode.Live) }.getOrElse {
                 b.error++
                 log.debug("shadow live propose failed {}: {}", key, it.message)
                 return
             }
         val snapshot =
-            runCatching { snapshotProposal(prompt) }.getOrElse {
+            runCatching { harness.advise(prompt, HeadlessAdviceMode.Snapshot) }.getOrElse {
                 b.error++
                 log.debug("shadow snapshot consult failed {}: {}", key, it.message)
                 return
             }
 
-        val liveMessages = live.responses
-        val snapshotMessages = snapshot.responses
+        val liveProposal = live.proposal
+        val snapshotProposal = snapshot.proposal
+        val liveMessages = liveProposal.responses
+        val snapshotMessages = snapshotProposal.responses
         when {
             liveMessages.isEmpty() && snapshotMessages.isEmpty() -> b.bothUncovered++
             snapshotMessages.isEmpty() -> {
                 b.uncovered++
-                sample(key, prompt, live, snapshot, "snapshot-uncovered")
+                sample(key, prompt, liveProposal, snapshotProposal, "snapshot-uncovered")
             }
             liveMessages.isEmpty() -> {
                 b.mismatch++
-                sample(key, prompt, live, snapshot, "live-uncovered")
+                sample(key, prompt, liveProposal, snapshotProposal, "live-uncovered")
             }
             liveMessages == snapshotMessages -> b.match++
             else -> {
                 b.mismatch++
-                sample(key, prompt, live, snapshot, "bytes-differ")
+                sample(key, prompt, liveProposal, snapshotProposal, "bytes-differ")
             }
         }
         if (prompt.type == GREMessageType.SelectTargetsReq_695e && (liveMessages != snapshotMessages)) {
-            classifySelectTargets(prompt, live, snapshot)
+            classifySelectTargets(prompt, liveProposal, snapshotProposal)
         }
     }
 
@@ -148,34 +146,13 @@ internal class SnapshotShadowProbe(
 
     /** own / enemy / player, relative to the probed seat. */
     private fun sideOf(instanceId: Int): String {
-        val obj = harness.accumulator.objects[instanceId] ?: return "player"
+        val obj = harness.observe().client.objects[instanceId] ?: return "player"
         return if (obj.controllerSeatId == seat) "own" else "enemy"
     }
 
     private fun nameOf(instanceId: Int): String {
-        val obj = harness.accumulator.objects[instanceId] ?: return "player/face"
-        return runCatching { harness.bridge.cardRepository.findNameByGrpId(obj.grpId) }.getOrNull() ?: "grp:${obj.grpId}"
-    }
-
-    /** Builds an isolated state for the comparison consult. */
-    private fun snapshotProposal(prompt: GREToClientMessage): CopilotProposal {
-        val game = harness.bridge.getGame() ?: error("no live game")
-        val bridge = harness.bridge
-        val prior = bridge.projectionStateSnapshot()
-        val (snap, capturedProjection) =
-            bridge.editProjection(prior) {
-                GsmSnapshot.capture(game, bridge, "shadow", 0)
-            }
-        val events = FrameEventLog.EMPTY
-        val gsm =
-            bridge
-                .projectSnapshotForTest(
-                    snap = snap,
-                    viewingSeatId = seat,
-                    events = events,
-                    projectionState = capturedProjection.copy(revision = prior.revision),
-                ).gsm
-        return SnapshotConsult.consult(gsm, prompt, seat, harness.bridge.cardRepository).proposal
+        val obj = harness.observe().client.objects[instanceId] ?: return "player/face"
+        return runCatching { harness.cardNameByGrpId(obj.grpId) }.getOrNull() ?: "grp:${obj.grpId}"
     }
 
     private fun sample(
@@ -186,7 +163,7 @@ internal class SnapshotShadowProbe(
         reason: String,
     ) {
         if (mismatchSamples.containsKey(key)) return
-        val turn = runCatching { harness.turn() }.getOrNull()
+        val turn = runCatching { harness.observe().turn }.getOrNull()
         val diffAt = firstDiffOffset(live.responses, snapshot.responses)
         val digest =
             "reason=$reason turn=$turn gsId=${prompt.gameStateId} diffAtChar=$diffAt " +

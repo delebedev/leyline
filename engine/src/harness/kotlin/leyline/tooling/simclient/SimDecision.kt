@@ -1,6 +1,8 @@
 package leyline.tooling.simclient
 
 import leyline.copilot.SimDecision
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.MatchIntent
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -88,83 +90,82 @@ internal data class SimPromptResponse(
 )
 
 internal class SimDecisionSubmitter(
-    private val harness: SimClientHeadlessAdapter,
+    private val harness: HeadlessMatch,
 ) {
     fun submit(decision: SimDecision): SimSubmitResult =
         when (decision) {
             is SimDecision.PerformAction -> submitPerformAction(decision.action)
-            is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetInstanceIds) }
-            SimDecision.SubmitTargets -> submitted { harness.submitTargets() }
+            is SimDecision.SelectTargets -> submitted { harness.submit(MatchIntent.Targets(decision.targetInstanceIds)) }
+            SimDecision.SubmitTargets -> submitted { harness.submit(MatchIntent.SubmitTargets) }
             // Consult/live-client path only; simclient uses full-list SelectTargets.
             is SimDecision.UnselectTargets -> SimSubmitResult.NotSubmitted
-            is SimDecision.SelectN -> submitted { harness.respondToSelectN(decision.selectedInstanceIds) }
-            is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
-            is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
-            is SimDecision.EffectCost -> submitted { harness.respondToEffectCost(decision.selectedInstanceIds) }
+            is SimDecision.SelectN -> submitted { harness.submit(MatchIntent.SelectN(decision.selectedInstanceIds)) }
+            is SimDecision.Order -> submitted { harness.submit(MatchIntent.Order(decision.orderedInstanceIds)) }
+            is SimDecision.Search -> submitted { harness.submit(MatchIntent.Search(decision.itemsFound)) }
+            is SimDecision.EffectCost -> submitted { harness.submit(MatchIntent.EffectCost(decision.selectedInstanceIds)) }
             // Consult/live-client path only; leyline's own server auto-resolves mana.
             is SimDecision.AutoTapPayment -> SimSubmitResult.NotSubmitted
             // Consult/live-client path only; scripted puzzles skip the mulligan.
             SimDecision.KeepHand -> SimSubmitResult.NotSubmitted
             is SimDecision.GroupTop ->
                 submitted {
-                    harness.respondToScry(
-                        bottom = emptyList(),
-                        all = decision.instanceIds,
-                    )
+                    harness.submit(MatchIntent.Scry(emptyList(), decision.instanceIds))
                 }
             is SimDecision.GroupAway ->
                 submitted {
                     if (decision.context == GroupingContext.Surveil) {
-                        harness.respondToGroupReq(decision.awayInstanceIds, decision.allInstanceIds)
+                        harness.submit(MatchIntent.Group(decision.awayInstanceIds, decision.allInstanceIds))
                     } else {
-                        harness.respondToScry(decision.awayInstanceIds, decision.allInstanceIds)
+                        harness.submit(MatchIntent.Scry(decision.awayInstanceIds, decision.allInstanceIds))
                     }
                 }
-            is SimDecision.OptionalAction -> submitted { harness.respondToOptionalAction(decision.accept) }
+            is SimDecision.OptionalAction -> submitted { harness.submit(MatchIntent.OptionalAction(decision.accept)) }
             is SimDecision.AlternateCost ->
-                submitted { harness.respondToAlternateCost(decision.ctoId, decision.optionIndex) }
+                submitted { harness.submit(MatchIntent.AlternateCost(decision.ctoId, decision.optionIndex)) }
             is SimDecision.OptionalCost -> {
-                runCatching { harness.respondToOptionalCost(decision.ctoId) }
+                runCatching { harness.submit(MatchIntent.OptionalCost(decision.ctoId)) }
                     .onFailure {
                         log.warn(
                             "respondCastingTimeOptions: ctoId={} failed ({}), falling back to passPriority",
                             decision.ctoId,
                             it::class.simpleName,
                         )
-                        harness.passPriority()
+                        harness.submit(MatchIntent.PassPriority)
                     }
                 SimSubmitResult.Submitted
             }
-            is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
-            is SimDecision.ManaTypeChoices -> submitted { harness.respondToManaTypeChoices(decision.choicesByCtoId) }
-            is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
+            is SimDecision.ModalChoice -> submitted { harness.submit(MatchIntent.ModalChoice(decision.selectedGrpIds)) }
+            is SimDecision.ManaTypeChoices -> submitted { harness.submit(MatchIntent.ManaTypeChoices(decision.choicesByCtoId)) }
+            is SimDecision.NumericInput -> submitted { harness.submit(MatchIntent.NumericInput(decision.value)) }
             is SimDecision.AssignDamage ->
                 submitted {
-                    harness.assignDamage(
-                        decision.assigners.map { assigner ->
-                            assigner.instanceId to
-                                assigner.assignments.map { assignment ->
-                                    assignment.instanceId to assignment.assignedDamage
-                                }
-                        },
+                    harness.submit(
+                        MatchIntent.DamageAssignment(
+                            decision.assigners.map { assigner ->
+                                assigner.instanceId to
+                                    assigner.assignments.map { assignment ->
+                                        assignment.instanceId to assignment.assignedDamage
+                                    }
+                            },
+                        ),
                     )
                 }
             SimDecision.DeclareAllAttackers ->
                 submitted {
-                    harness.declareAllAttackers()
-                    harness.submitAttackers()
+                    harness.submit(MatchIntent.AllAttackers)
+                    harness.submit(MatchIntent.SubmitAttackers)
                 }
-            is SimDecision.DeclareAttackers -> submitted { harness.declareAttackers(decision.attackerInstanceIds) }
-            is SimDecision.DeclareBlockers -> submitted { harness.declareBlockers(decision.assignments) }
-            SimDecision.DeclareNoBlockers -> submitted { harness.declareNoBlockers() }
-            SimDecision.SubmitAttackers -> submitted { harness.submitAttackers() }
-            SimDecision.SubmitBlockers -> submitted { harness.submitBlockers() }
+            is SimDecision.DeclareAttackers -> submitted { harness.submit(MatchIntent.Attackers(decision.attackerInstanceIds)) }
+            is SimDecision.DeclareBlockers -> submitted { harness.submit(MatchIntent.Blockers(decision.assignments)) }
+            SimDecision.DeclareNoBlockers -> submitted { harness.submit(MatchIntent.NoBlockers) }
+            SimDecision.SubmitAttackers -> submitted { harness.submit(MatchIntent.SubmitAttackers) }
+            SimDecision.SubmitBlockers -> submitted { harness.submit(MatchIntent.SubmitBlockers) }
             // Consult-path only; the harness two-round-trip never emits it.
             is SimDecision.UndeclareBlocker -> SimSubmitResult.NotSubmitted
-            SimDecision.CancelAction -> submitted { harness.cancelAction() }
+            SimDecision.CancelAction -> submitted { harness.submit(MatchIntent.CancelAction) }
             SimDecision.PassPriority ->
-                if (harness.hasPendingAction()) {
-                    submitted { harness.passPriority() }
+                if (harness.observe().pendingAction) {
+                    submitted { harness.submit(MatchIntent.PassPriority) }
                 } else {
                     SimSubmitResult.NoPending
                 }
@@ -175,8 +176,8 @@ internal class SimDecisionSubmitter(
         }
 
     private fun submitPerformAction(action: Action): SimSubmitResult {
-        if (!harness.hasPendingAction()) return SimSubmitResult.NoPending
-        harness.submitAction(action)
+        if (!harness.observe().pendingAction) return SimSubmitResult.NoPending
+        harness.submit(MatchIntent.Action(action))
         return SimSubmitResult.Submitted
     }
 

@@ -1,11 +1,12 @@
 package leyline.tooling.simclient
 
-import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ExposedCardRepository
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.HeadlessMatchFactory
 import leyline.tooling.headless.HeadlessResponseMode
-import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.MatchSpec
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.nio.file.Path
@@ -105,45 +106,43 @@ class SimClientRunner(
         return stats
     }
 
-    private fun createHarness(row: SimClientRow): MatchFlowHarness =
+    private fun createHarness(row: SimClientRow): HeadlessMatch =
         when (row) {
             is DeckSimClientRow ->
-                MatchFlowHarness(
-                    seed = row.seed,
-                    deckList = row.deckList,
-                    opponentDeckList = row.opponentDeckList,
-                    validation = InvariantSelection.protocolFacts(),
-                    validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
-                    responseMode = HeadlessResponseMode.PolicyVisible,
+                HeadlessMatchFactory.create(
+                    MatchSpec(
+                        seed = row.seed,
+                        deckList = row.deckList,
+                        opponentDeckList = row.opponentDeckList,
+                        validation = InvariantSelection.protocolFacts(),
+                        validationStrict = false,
+                        responseMode = HeadlessResponseMode.PolicyVisible,
+                    ),
+                    cardRepository = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
                 )
             is PuzzleSimClientRow ->
-                MatchFlowHarness(
-                    seed = row.seed,
-                    deckList = null,
-                    validation = InvariantSelection.protocolFacts(),
-                    validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
-                    responseMode = HeadlessResponseMode.PolicyVisible,
+                HeadlessMatchFactory.create(
+                    MatchSpec(
+                        seed = row.seed,
+                        puzzleText = row.puzzleText,
+                        validation = InvariantSelection.protocolFacts(),
+                        validationStrict = false,
+                        responseMode = HeadlessResponseMode.PolicyVisible,
+                    ),
+                    cardRepository = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
                 )
         }
 
     private fun createDriver(
         row: SimClientRow,
-        harness: MatchFlowHarness,
+        harness: HeadlessMatch,
         playerLog: PlayerLogWriter,
     ): SimClientDriver {
-        val match = SimClientHeadlessAdapter(harness)
-        val forgeAi =
-            if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
-                ForgeAiPolicy({ match.bridge }, leyline.bridge.types.SeatId(1))
-            } else {
-                null
-            }
+        val forgeAi = config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi
         return when (row) {
             is DeckSimClientRow ->
                 SimClientDriver(
-                    match,
+                    harness,
                     playerLog,
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
@@ -153,11 +152,10 @@ class SimClientRunner(
                 )
             is PuzzleSimClientRow ->
                 SimClientDriver(
-                    match,
+                    harness,
                     playerLog,
                     maxTurns = config.maxTurns,
                     maxIterations = 3_000,
-                    connect = { match.connectAndKeepPuzzleText(row.puzzleText) },
                     forgeAi = forgeAi,
                     shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                     snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
@@ -167,11 +165,11 @@ class SimClientRunner(
 
     private fun runWithTimeout(
         run: TimedRunContext,
-        createHarness: () -> MatchFlowHarness,
-        runGame: (MatchFlowHarness, PlayerLogWriter) -> GameStats,
+        createHarness: () -> HeadlessMatch,
+        runGame: (HeadlessMatch, PlayerLogWriter) -> GameStats,
     ): GameStats {
         val matchId = "simclient-${run.tag}"
-        val harnessRef = AtomicReference<MatchFlowHarness?>()
+        val harnessRef = AtomicReference<HeadlessMatch?>()
         val timeoutMs = config.gameTimeoutSeconds * 1_000
         val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-${run.tag}").apply { isDaemon = true } }
         val future =
@@ -194,7 +192,7 @@ class SimClientRunner(
                         runGame(harness, playerLog)
                     } finally {
                         runCatching { writer.close() }
-                        runCatching { harness.shutdown() }
+                        runCatching { harness.close() }
                     }
                 }
                 if (config.verbose) runBody() else SimClientLogging.withRedirectedStdio(run.consoleLogFile, runBody)
@@ -206,12 +204,12 @@ class SimClientRunner(
             } catch (_: TimeoutException) {
                 val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs)
                 future.cancel(true)
-                runCatching { harnessRef.get()?.shutdown() }
+                runCatching { harnessRef.get()?.close() }
                 statsAtTimeout
             } catch (e: ExecutionException) {
                 if (!config.continueOnException) throw e
                 val statsAtException = exceptionStats(harnessRef.get(), (System.nanoTime() - t0) / 1_000_000, e)
-                runCatching { harnessRef.get()?.shutdown() }
+                runCatching { harnessRef.get()?.close() }
                 statsAtException
             } finally {
                 executor.shutdownNow()
@@ -246,14 +244,15 @@ class SimClientRunner(
     }
 
     private fun timeoutStats(
-        harness: MatchFlowHarness?,
+        harness: HeadlessMatch?,
         timeoutMs: Long,
     ): GameStats {
-        val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
+        val observation = runCatching { harness?.observe() }.getOrNull()
+        val messages = observation?.messages.orEmpty()
         val histogram = messages.filter { isSimPrompt(it) }.groupingBy { it.type }.eachCount()
         return GameStats(
-            turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
-            gameOver = runCatching { harness?.isGameOver() ?: false }.getOrDefault(false),
+            turn = observation?.turn ?: 0,
+            gameOver = observation?.gameOver ?: false,
             iterations = 0,
             totalMessages = messages.size,
             promptHistogram = histogram,
@@ -265,17 +264,18 @@ class SimClientRunner(
     }
 
     private fun exceptionStats(
-        harness: MatchFlowHarness?,
+        harness: HeadlessMatch?,
         elapsedMs: Long,
         throwable: Throwable,
     ): GameStats {
         val cause = throwable.rootCause()
-        val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
+        val observation = runCatching { harness?.observe() }.getOrNull()
+        val messages = observation?.messages.orEmpty()
         val histogram = messages.filter { isSimPrompt(it) }.groupingBy { it.type }.eachCount()
         val stackTop = cause.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
         return GameStats(
-            turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
-            gameOver = runCatching { harness?.isGameOver() ?: false }.getOrDefault(false),
+            turn = observation?.turn ?: 0,
+            gameOver = observation?.gameOver ?: false,
             iterations = 0,
             totalMessages = messages.size,
             promptHistogram = histogram,

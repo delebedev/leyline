@@ -1,6 +1,6 @@
 package leyline.tooling.simclient
 
-import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
@@ -43,16 +43,18 @@ internal data class SimPromptLedgerStats(
 }
 
 internal class SimPromptLedger(
-    private val harness: SimClientHeadlessAdapter,
+    private val harness: HeadlessMatch,
 ) {
-    internal constructor(harness: MatchFlowHarness) : this(SimClientHeadlessAdapter(harness))
     private val handledPromptMsgIds = mutableSetOf<Int>()
     private val retiredPromptMsgIds = mutableMapOf<Int, String>()
     private val retiredByReason = mutableMapOf<String, Int>()
 
     fun activePrompt(): ActivePrompt? {
-        for (i in harness.allMessages.indices.reversed()) {
-            val msg = harness.allMessages[i]
+        for (i in harness
+            .observe()
+            .messages.indices
+            .reversed()) {
+            val msg = harness.observe().messages[i]
             if (!isSimPrompt(msg)) continue
             if (msg.msgId in handledPromptMsgIds || msg.msgId in retiredPromptMsgIds) continue
             val active = msg.toActivePrompt()
@@ -79,7 +81,9 @@ internal class SimPromptLedger(
         type: GREMessageType,
         throughMsgId: Int = Int.MAX_VALUE,
     ) {
-        harness.allMessages
+        harness
+            .observe()
+            .messages
             .filter { it.type == type && it.msgId <= throughMsgId }
             .forEach { markHandled(it) }
     }
@@ -93,7 +97,9 @@ internal class SimPromptLedger(
     }
 
     fun retireActionBridgePrompts(reason: String) {
-        harness.allMessages
+        harness
+            .observe()
+            .messages
             .asSequence()
             .filter { isSimPrompt(it) }
             .map { it.toActivePrompt() }
@@ -104,7 +110,9 @@ internal class SimPromptLedger(
 
     private fun retireSupersededActionBridgePrompts(active: ActivePrompt) {
         if (!active.requiresActionBridge) return
-        harness.allMessages
+        harness
+            .observe()
+            .messages
             .asSequence()
             .filter { isSimPrompt(it) }
             .map { it.toActivePrompt() }
@@ -150,8 +158,11 @@ internal class SimPromptLedger(
         )
 
     private fun lastPromptMessage(): Pair<GREToClientMessage, GREMessageType>? {
-        for (i in harness.allMessages.indices.reversed()) {
-            val msg = harness.allMessages[i]
+        for (i in harness
+            .observe()
+            .messages.indices
+            .reversed()) {
+            val msg = harness.observe().messages[i]
             if (isSimPrompt(msg)) return msg to msg.type
         }
         return null

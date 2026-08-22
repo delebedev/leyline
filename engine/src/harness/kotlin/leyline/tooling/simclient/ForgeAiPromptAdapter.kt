@@ -1,9 +1,9 @@
 package leyline.tooling.simclient
 
-import leyline.tooling.headless.MatchFlowHarness
-import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.CopilotProposal
 import leyline.copilot.SimDecision
 import leyline.game.mapping.ZoneIds
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -11,10 +11,53 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 internal data class ForgeAiPromptContext(
-    val harness: SimClientHeadlessAdapter,
-    val forgeAi: ForgeAiPolicy,
+    val harness: HeadlessMatch,
     val attempts: ActionAttemptLedger,
 )
+
+private fun ForgeAiPromptContext.proposal(prompt: ActivePrompt): CopilotProposal = harness.advise(prompt.msg).proposal
+
+private fun CopilotProposal.toDecision(prompt: ActivePrompt): SimDecision? =
+    when (intent) {
+        "play_land", "cast", "activate", "pass" -> {
+            val action =
+                prompt.aarActions().firstOrNull { action ->
+                    when (intent) {
+                        "play_land" -> action.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Play_add3
+                        "cast" -> action.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Cast
+                        "activate" -> action.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Activate_add3
+                        else -> action.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass
+                    } &&
+                        (
+                            responseIds.isEmpty() ||
+                                action.instanceId in responseIds ||
+                                action.grpId in responseIds ||
+                                action.grpId == card?.grpId
+                        )
+                } ?: return null
+            SimDecision.PerformAction(action)
+        }
+        "target" -> SimDecision.SelectTargets(responseIds)
+        "select_n" -> SimDecision.SelectN(responseIds)
+        "search" -> SimDecision.Search(responseIds)
+        "pay_cost" -> SimDecision.EffectCost(responseIds)
+        "group" -> SimDecision.GroupAway(responseIds, prompt.msg.groupReq.instanceIdsList, prompt.msg.groupReq.context)
+        "attack", "attack_all" -> SimDecision.DeclareAttackers(responseIds)
+        "block" -> SimDecision.DeclareBlockers(blocks.associate { it.blocker.instanceId to it.attacker.instanceId })
+        "modal" -> ctoId?.let { SimDecision.ModalChoice(it, modalGrpIds) }
+        "mana_type" ->
+            SimDecision.ManaTypeChoices(
+                manaTypes.map {
+                    it.ctoId to
+                        wotc.mtgo.gre.external.messaging.Messages.ManaColor
+                            .valueOf(it.color)
+                },
+            )
+        "optional_cost" -> ctoId?.let(SimDecision::OptionalCost)
+        "optional_action" -> accept?.let(SimDecision::OptionalAction)
+        "numeric" -> numericValue?.let(SimDecision::NumericInput)
+        else -> null
+    }
 
 internal interface ForgeAiPromptAdapter {
     val promptType: GREMessageType
@@ -44,11 +87,9 @@ internal object ForgeAiAarAdapter : ForgeAiPromptAdapter {
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val skipFingerprints = context.attempts.skipFingerprints()
-        val choice =
-            context.forgeAi.chooseAarAction(prompt.aarActions()) { it.isSkippedBy(skipFingerprints) } ?: return null
+        val choice = context.proposal(prompt).toDecision(prompt) as? SimDecision.PerformAction ?: return null
         return SimPromptResponse(
-            decision = SimDecision.PerformAction(choice.action),
+            decision = choice,
             aarActionFingerprint = choice.action.actionFingerprint(),
         )
     }
@@ -62,9 +103,9 @@ internal object ForgeAiDeclareAttackersAdapter : ForgeAiPromptAdapter {
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val attackers = context.forgeAi.chooseAttackers() ?: return null
+        val attackers = context.proposal(prompt).toDecision(prompt) as? SimDecision.DeclareAttackers ?: return null
         return SimPromptResponse(
-            decision = SimDecision.DeclareAttackers(attackers),
+            decision = attackers,
             markHandled = false,
             markAllHandledOfType = prompt.type,
         )
@@ -79,8 +120,8 @@ internal object ForgeAiDeclareBlockersAdapter : ForgeAiPromptAdapter {
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val blockers = context.forgeAi.chooseBlockers() ?: return null
-        return SimPromptResponse(SimDecision.DeclareBlockers(blockers))
+        val blockers = context.proposal(prompt).toDecision(prompt) as? SimDecision.DeclareBlockers ?: return null
+        return SimPromptResponse(blockers)
     }
 }
 
@@ -91,19 +132,14 @@ internal object ForgeAiSelectNAdapter : ForgeAiPromptAdapter {
     override fun shouldConsult(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
-    ): Boolean =
-        context.forgeAi.canChooseSelectN(prompt.msg.selectNReq) ||
-            context.forgeAi.canChooseStaticColorSelectN(prompt.msg)
+    ): Boolean = context.proposal(prompt).intent == "select_n"
 
     override fun decide(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val selected =
-            context.forgeAi.chooseSelectN(prompt.msg.selectNReq)
-                ?: context.forgeAi.chooseStaticColorSelectN(prompt.msg)
-                ?: return null
-        return SimPromptResponse(SimDecision.SelectN(selected))
+        val selected = context.proposal(prompt).toDecision(prompt) as? SimDecision.SelectN ?: return null
+        return SimPromptResponse(selected)
     }
 }
 
@@ -114,14 +150,14 @@ internal object ForgeAiSelectTargetsAdapter : ForgeAiPromptAdapter {
     override fun shouldConsult(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
-    ): Boolean = context.forgeAi.canChooseSelectTargets(prompt.msg)
+    ): Boolean = context.proposal(prompt).intent == "target"
 
     override fun decide(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val selected = context.forgeAi.chooseSelectTargets(prompt.msg) ?: return null
-        return SimPromptResponse(SimDecision.SelectTargets(selected.values.flatten()))
+        val selected = context.proposal(prompt).toDecision(prompt) as? SimDecision.SelectTargets ?: return null
+        return SimPromptResponse(selected)
     }
 }
 
@@ -138,8 +174,8 @@ internal object ForgeAiSearchAdapter : ForgeAiPromptAdapter {
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val selected = chooseBoardAwareSearchIds(prompt.msg, context.harness) ?: return null
-        return SimPromptResponse(SimDecision.Search(selected))
+        val selected = context.proposal(prompt).toDecision(prompt) as? SimDecision.Search ?: return null
+        return SimPromptResponse(selected)
     }
 }
 
@@ -156,16 +192,8 @@ internal object ForgeAiGroupAdapter : ForgeAiPromptAdapter {
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val awayIds = chooseBoardAwareGroupAwayIds(prompt.msg, context.harness) ?: return null
-        return SimPromptResponse(
-            SimDecision.GroupAway(
-                awayInstanceIds = awayIds,
-                allInstanceIds =
-                    prompt.msg.groupReq.instanceIdsList
-                        .toList(),
-                context = prompt.msg.groupReq.context,
-            ),
-        )
+        val decision = context.proposal(prompt).toDecision(prompt) as? SimDecision.GroupAway ?: return null
+        return SimPromptResponse(decision)
     }
 }
 
@@ -176,14 +204,14 @@ internal object ForgeAiPayCostsAdapter : ForgeAiPromptAdapter {
     override fun shouldConsult(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
-    ): Boolean = context.forgeAi.canChooseSacrificeCostPayment(prompt.msg)
+    ): Boolean = context.proposal(prompt).intent == "pay_cost"
 
     override fun decide(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val selected = context.forgeAi.chooseSacrificeCostPayment(prompt.msg) ?: return null
-        return SimPromptResponse(SimDecision.EffectCost(selected))
+        val selected = context.proposal(prompt).toDecision(prompt) as? SimDecision.EffectCost ?: return null
+        return SimPromptResponse(selected)
     }
 }
 
@@ -194,20 +222,20 @@ internal object ForgeAiCastingTimeOptionsAdapter : ForgeAiPromptAdapter {
     override fun shouldConsult(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
-    ): Boolean = context.forgeAi.canChooseCastingTimeOptions(prompt.msg)
+    ): Boolean = context.proposal(prompt).intent in setOf("modal", "optional_cost", "mana_type")
 
     override fun decide(
         prompt: ActivePrompt,
         context: ForgeAiPromptContext,
     ): SimPromptResponse? {
-        val decision = context.forgeAi.chooseCastingTimeOptions(prompt.msg) ?: return null
+        val decision = context.proposal(prompt).toDecision(prompt) ?: return null
         return SimPromptResponse(decision)
     }
 }
 
 internal fun chooseBoardAwareSearchIds(
     msg: GREToClientMessage,
-    harness: SimClientHeadlessAdapter,
+    harness: HeadlessMatch,
 ): List<Int>? {
     val req = msg.searchReq
     val max = if (req.maxFind > 0) req.maxFind else req.minFind
@@ -217,16 +245,21 @@ internal fun chooseBoardAwareSearchIds(
 
     val candidates =
         soughtIds.mapNotNull { id ->
-            harness.accumulator.objects[id]?.let { SearchCandidate(id, it) }
+            harness
+                .observe()
+                .client.objects[id]
+                ?.let { SearchCandidate(id, it) }
         }
     if (candidates.size != soughtIds.size) return null
 
     val chooserSeat =
-        harness.accumulator.objects[req.sourceId]
+        harness
+            .observe()
+            .client.objects[req.sourceId]
             ?.controllerSeatId
             .takeIf { it != 0 } ?: 1
     val battlefieldLands =
-        harness.accumulator.objects.values.count {
+        harness.observe().client.objects.values.count {
             it.zoneId == ZoneIds.BATTLEFIELD &&
                 it.controllerSeatId == chooserSeat &&
                 CardType.Land_a80b in it.cardTypesList
@@ -239,11 +272,6 @@ internal fun chooseBoardAwareSearchIds(
         ).take(count)
         .map { it.instanceId }
 }
-
-internal fun chooseBoardAwareSearchIds(
-    msg: GREToClientMessage,
-    harness: MatchFlowHarness,
-): List<Int>? = chooseBoardAwareSearchIds(msg, SimClientHeadlessAdapter(harness))
 
 private data class SearchCandidate(
     val instanceId: Int,
@@ -266,7 +294,7 @@ private fun GameObjectInfo.creatureScore(): Int =
 
 internal fun chooseBoardAwareGroupAwayIds(
     msg: GREToClientMessage,
-    harness: SimClientHeadlessAdapter,
+    harness: HeadlessMatch,
 ): List<Int>? {
     val req = msg.groupReq
     if (req.context != GroupingContext.Scry_a0f6 && req.context != GroupingContext.Surveil) return null
@@ -275,14 +303,16 @@ internal fun chooseBoardAwareGroupAwayIds(
 
     val candidates =
         ids.map { id ->
-            GroupCandidate(id, harness.accumulator.objects[id])
+            GroupCandidate(id, harness.observe().client.objects[id])
         }
     val chooserSeat =
-        harness.accumulator.objects[req.sourceId]
+        harness
+            .observe()
+            .client.objects[req.sourceId]
             ?.controllerSeatId
             .takeIf { it != 0 } ?: 1
     val battlefieldLands =
-        harness.accumulator.objects.values.count {
+        harness.observe().client.objects.values.count {
             it.zoneId == ZoneIds.BATTLEFIELD &&
                 it.controllerSeatId == chooserSeat &&
                 CardType.Land_a80b in it.cardTypesList
@@ -292,11 +322,6 @@ internal fun chooseBoardAwareGroupAwayIds(
             candidate.objectInfo?.let { groupKeepPriority(it, battlefieldLands) } == GROUP_AWAY_PRIORITY
         }.map { it.instanceId }
 }
-
-internal fun chooseBoardAwareGroupAwayIds(
-    msg: GREToClientMessage,
-    harness: MatchFlowHarness,
-): List<Int>? = chooseBoardAwareGroupAwayIds(msg, SimClientHeadlessAdapter(harness))
 
 private data class GroupCandidate(
     val instanceId: Int,

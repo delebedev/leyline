@@ -1,11 +1,11 @@
 package leyline.tooling.simclient
 
 import leyline.copilot.DefaultDecisions
-import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
-import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.cardNameByGrpId
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -48,9 +48,8 @@ internal data class SimPromptPolicyTelemetry(
 }
 
 internal open class GreedyPromptPolicy(
-    protected val harness: SimClientHeadlessAdapter,
+    protected val harness: HeadlessMatch,
 ) : SimPromptPolicy {
-    internal constructor(harness: MatchFlowHarness) : this(SimClientHeadlessAdapter(harness))
     override fun respondToPrompt(
         prompt: ActivePrompt,
         attempts: ActionAttemptLedger,
@@ -223,7 +222,13 @@ internal open class GreedyPromptPolicy(
     private fun respondSearch(msg: GREToClientMessage): SimDecision = DefaultDecisions.search(msg)
 
     private fun learnLessonIds(req: SelectNReq): List<Int> {
-        val sideboardIds = req.idsList.filter { id -> harness.accumulator.objects[id]?.zoneId == ZoneIds.P1_SIDEBOARD }
+        val sideboardIds =
+            req.idsList.filter { id ->
+                harness
+                    .observe()
+                    .client.objects[id]
+                    ?.zoneId == ZoneIds.P1_SIDEBOARD
+            }
         return sideboardIds.ifEmpty { req.idsList }
     }
 
@@ -274,8 +279,7 @@ internal open class GreedyPromptPolicy(
 }
 
 internal class ForgeAiPromptPolicy(
-    harness: SimClientHeadlessAdapter,
-    private val forgeAi: ForgeAiPolicy,
+    harness: HeadlessMatch,
 ) : GreedyPromptPolicy(harness) {
     private val aiConsultedByPrompt = mutableMapOf<String, Int>()
     private val aiChoseByPrompt = mutableMapOf<String, Int>()
@@ -311,7 +315,7 @@ internal class ForgeAiPromptPolicy(
         attempts: ActionAttemptLedger,
     ): SimPromptResponse {
         val adapter = adapters[prompt.type]
-        val context = ForgeAiPromptContext(harness, forgeAi, attempts)
+        val context = ForgeAiPromptContext(harness, attempts)
         if (adapter != null && adapter.shouldConsult(prompt, context)) {
             bumpConsulted(adapter.telemetryName)
             val response = timed(adapter.telemetryName) { adapter.decide(prompt, context) }
@@ -353,11 +357,11 @@ internal class ForgeAiPromptPolicy(
     }
 
     private fun targetChoiceObjectKey(instanceId: Int): String {
-        val objectInfo = harness.accumulator.objects[instanceId]
+        val objectInfo = harness.observe().client.objects[instanceId]
         if (objectInfo == null) return "playerOrMissing:$instanceId"
         val name =
             if (objectInfo.type == GameObjectType.Card && objectInfo.grpId != 0) {
-                runCatching { harness.bridge.cardRepository.findNameByGrpId(objectInfo.grpId) }.getOrNull()
+                runCatching { harness.cardNameByGrpId(objectInfo.grpId) }.getOrNull()
             } else {
                 null
             } ?: "grp:${objectInfo.grpId}"

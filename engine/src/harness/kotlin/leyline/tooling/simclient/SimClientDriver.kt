@@ -1,19 +1,18 @@
 package leyline.tooling.simclient
 
-import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
-import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.HeadlessMatch
 import leyline.tooling.simclient.GameStats
 import leyline.tooling.simclient.SimClientFinding
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
- * Drives one match end-to-end against a [SimClientHeadlessAdapter] using a greedy
+ * Drives one match end-to-end against a [HeadlessMatch] using a greedy
  * policy, and emits scry-ts-parseable Player.log lines via [PlayerLogWriter].
  *
  * v0 policy:
- *   - mulligan: always keep (delegated to harness.connectAndKeep)
+ *   - mulligan: always keep (delegated to the headless start operation)
  *   - main phases: play one land per turn, then cast cheapest castable creature, else pass
  *   - declare attackers: send all
  *   - declare blockers: none
@@ -22,42 +21,21 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * Loop runs until the engine reports game-over or [maxTurns] is reached.
  */
 internal class SimClientDriver(
-    val harness: SimClientHeadlessAdapter,
+    val harness: HeadlessMatch,
     private val log: PlayerLogWriter,
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
     private val turnStallThreshold: Int = TURN_STALL_THRESHOLD,
-    private val connect: () -> Unit = { harness.connectAndKeep() },
+    private val connect: () -> Unit = { harness.start() },
     /**
      * When non-null, the driver consults this advisor for `ActionsAvailableReq`
      * decisions before falling back to greedy heuristics. Iteration 1 covers
      * priority-window action picking only; other prompt types stay greedy.
      */
-    private val forgeAi: ForgeAiPolicy? = null,
+    private val forgeAi: Boolean = false,
     private val shadowAdvisor: Boolean = false,
     private val snapshotShadow: Boolean = false,
 ) {
-    internal constructor(
-        harness: MatchFlowHarness,
-        log: PlayerLogWriter,
-        maxTurns: Int = 50,
-        maxIterations: Int = 2_000,
-        turnStallThreshold: Int = TURN_STALL_THRESHOLD,
-        connect: () -> Unit = { harness.connectAndKeep() },
-        forgeAi: ForgeAiPolicy? = null,
-        shadowAdvisor: Boolean = false,
-        snapshotShadow: Boolean = false,
-    ) : this(
-        SimClientHeadlessAdapter(harness),
-        log,
-        maxTurns,
-        maxIterations,
-        turnStallThreshold,
-        connect,
-        forgeAi,
-        shadowAdvisor,
-        snapshotShadow,
-    )
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private val snapshotProbe: SnapshotShadowProbe? = if (snapshotShadow) SnapshotShadowProbe(harness) else null
 
@@ -73,7 +51,7 @@ internal class SimClientDriver(
     private val attemptLedger = ActionAttemptLedger { currentTurnOrNull() }
     private val submitter = SimDecisionSubmitter(harness)
     private val promptPolicy: SimPromptPolicy =
-        forgeAi?.let { ForgeAiPromptPolicy(harness, it) } ?: GreedyPromptPolicy(harness)
+        if (forgeAi) ForgeAiPromptPolicy(harness) else GreedyPromptPolicy(harness)
     private var connectMs = 0L
     private var stepTotalMs = 0L
     private var stepMaxMs = 0L
@@ -107,7 +85,7 @@ internal class SimClientDriver(
         var lastTurn = currentTurnOrNull() ?: 0
         var lastTurnIter = 0
         while (true) {
-            if (harness.isGameOver()) break
+            if (harness.observe().gameOver) break
             if (sawTerminalIntermission) break
             val currentTurn = currentTurnOrNull() ?: break // bridge torn down
             if (currentTurn >= maxTurns) {
@@ -120,7 +98,7 @@ internal class SimClientDriver(
                 break
             }
             iter++
-            val before = harness.allMessages.size
+            val before = harness.observe().messages.size
             val stepT0 = System.nanoTime()
             val acted = takeOneStep()
             recordStep(elapsedMsSince(stepT0))
@@ -128,7 +106,7 @@ internal class SimClientDriver(
             // Only count "no-progress" iterations when we actually tried to
             // submit something. Race-guard skips (no pending action) leave the
             // engine async — give it room before declaring a stall.
-            if (acted && harness.allMessages.size == before) {
+            if (acted && harness.observe().messages.size == before) {
                 attemptLedger.markNoProgress()
                 stuckAtPriority++
                 if (stuckAtPriority >= 3) {
@@ -159,7 +137,7 @@ internal class SimClientDriver(
         // Final cleanup — if loop exited but game is still active (max-turns,
         // no-progress break, or iter cap), concede so the game produces a proper
         // game-over sequence and gameOver=true in stats.
-        if (!harness.isGameOver() && !sawTerminalIntermission) {
+        if (!harness.observe().gameOver && !sawTerminalIntermission) {
             cleanupConcede = true
             if (completionReason == "natural") completionReason = "cleanup"
             concedeAndFlush(reason = "cleanup", logFailureAtError = false)
@@ -168,7 +146,9 @@ internal class SimClientDriver(
         }
         log.flush()
         val histogram =
-            harness.allMessages
+            harness
+                .observe()
+                .messages
                 .filter { isSimPrompt(it) }
                 .groupingBy { it.type }
                 .eachCount()
@@ -183,13 +163,13 @@ internal class SimClientDriver(
         snapshotProbe?.logSummary("turn=${currentTurnOrNull() ?: lastTurn},reason=$completionReason")
         return GameStats(
             turn = currentTurnOrNull() ?: lastTurn,
-            gameOver = harness.isGameOver() || sawTerminalIntermission,
+            gameOver = harness.observe().gameOver || sawTerminalIntermission,
             winnerSeat = outcome.winnerSeat,
             loserSeat = outcome.loserSeat,
             finalLifeBySeat = outcome.lifeBySeat,
             finalStatusBySeat = outcome.statusBySeat,
             iterations = iter,
-            totalMessages = harness.allMessages.size,
+            totalMessages = harness.observe().messages.size,
             promptHistogram = histogram,
             hitIterCap = hitIterCap,
             durationMs = durationMs,
@@ -205,16 +185,8 @@ internal class SimClientDriver(
             warnsByLogger = logs.warnsByLogger,
             errorsByType = logs.errorsByType,
             logErrorSamples = logs.errorSamples,
-            validationViolationsByCheck =
-                harness.validatingSink
-                    ?.violationsByCheck
-                    ?.toMap()
-                    .orEmpty(),
-            validationViolations =
-                harness.validatingSink
-                    ?.violations
-                    ?.take(10)
-                    .orEmpty(),
+            validationViolationsByCheck = harness.observe().validationViolationsByCheck,
+            validationViolations = harness.observe().validationViolations.take(10),
             stalledPrompt = stalledPrompt,
             stalledFingerprint = stalledFingerprint,
             completionReason = completionReason,
@@ -244,7 +216,7 @@ internal class SimClientDriver(
     }
 
     private fun promptHistory(): List<leyline.bridge.handoff.PromptRecord> =
-        runCatching { harness.promptHistory() }.getOrDefault(emptyList())
+        runCatching { harness.observe().promptHistory }.getOrDefault(emptyList())
 
     private data class FinalOutcome(
         val winnerSeat: Int?,
@@ -256,7 +228,7 @@ internal class SimClientDriver(
     private fun finalOutcome(): FinalOutcome {
         val lifeBySeat = mutableMapOf<Int, Int>()
         val statusBySeat = mutableMapOf<Int, String>()
-        for (msg in harness.allMessages) {
+        for (msg in harness.observe().messages) {
             if (!msg.hasGameStateMessage()) continue
             for (player in msg.gameStateMessage.playersList) {
                 val seat = player.systemSeatNumber
@@ -293,10 +265,10 @@ internal class SimClientDriver(
         logFailureAtError: Boolean,
     ) {
         try {
-            harness.concede()
+            harness.submit(leyline.tooling.headless.MatchIntent.Concede)
             // Concede emits via the semantic seam; flush pulls those bytes
             // into the immutable message view so the log writer sees them.
-            harness.drainSink()
+            harness.submit(leyline.tooling.headless.MatchIntent.Flush)
             flushNewMessagesToLog()
         } catch (t: Throwable) {
             val msg = "SimClientDriver: $reason concede failed: ${t::class.simpleName}: ${t.message}"
@@ -321,7 +293,7 @@ internal class SimClientDriver(
         // `WARN ActionPerformer: PerformActionResp but no pending action`.
         // Drain instead so the auto-pass loop's outbound messages flush and we
         // pick up the next real prompt on the next iteration.
-        if (!harness.hasPendingAction()) {
+        if (!harness.observe().pendingAction) {
             if (prompt != null) {
                 promptLedger.retire(prompt, "no-pending")
                 attemptLedger.markNoPending("pre-submit:${prompt.type.name}")
@@ -330,26 +302,26 @@ internal class SimClientDriver(
         }
         val active =
             prompt ?: run {
-                if (harness.isAiTurn()) return triggerAutoPassAndDrain()
-                harness.passPriority()
+                if (harness.observe().aiTurn) return triggerAutoPassAndDrain()
+                harness.submit(leyline.tooling.headless.MatchIntent.PassPriority)
                 return true
             }
         return respondToPrompt(active)
     }
 
     private fun triggerAutoPassAndDrain(): Boolean {
-        val before = harness.allMessages.size
+        val before = harness.observe().messages.size
         val autoPassT0 = System.nanoTime()
-        runCatching { harness.triggerAutoPass() }
-        harness.drainSink()
+        runCatching { harness.submit(leyline.tooling.headless.MatchIntent.Flush) }
+        harness.submit(leyline.tooling.headless.MatchIntent.Flush)
         recordAutoPass(elapsedMsSince(autoPassT0))
-        return harness.allMessages.size > before
+        return harness.observe().messages.size > before
     }
 
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
         snapshotProbe?.observe(prompt.msg)
-        val beforeMessages = harness.allMessages.size
-        val beforeLast = harness.allMessages.lastOrNull()
+        val beforeMessages = harness.observe().messages.size
+        val beforeLast = harness.observe().messages.lastOrNull()
         val sourceBefore = promptProgress.sourceSnapshot(prompt)
         val policyT0 = System.nanoTime()
         val response = promptPolicy.respondToPrompt(prompt, attemptLedger)
@@ -396,13 +368,13 @@ internal class SimClientDriver(
         // pair echoes an iterative re-prompt that the same call submits against.
         // Without this the echo looks outstanding, and answering it later reaches a
         // window that closed when the pair completed.
-        harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
+        harness.observe().consumedPromptMsgIds.forEach { promptLedger.markHandled(it) }
         if (response.decision == SimDecision.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
     }
 
     /** Returns current turn number, or null if the game/bridge has been torn down. */
-    private fun currentTurnOrNull(): Int? = runCatching { harness.turn() }.getOrNull()
+    private fun currentTurnOrNull(): Int? = runCatching { harness.observe().turn }.getOrNull()
 
     private fun recordStallPrompt() {
         val stall = promptLedger.stallPrompt()
@@ -411,10 +383,15 @@ internal class SimClientDriver(
     }
 
     private fun flushNewMessagesToLog() {
-        val total = harness.allMessages.size
+        val total = harness.observe().messages.size
         if (total <= lastFlushedSize) return
         val flushT0 = System.nanoTime()
-        val fresh = harness.allMessages.subList(lastFlushedSize, total).toList()
+        val fresh =
+            harness
+                .observe()
+                .messages
+                .subList(lastFlushedSize, total)
+                .toList()
         log.writeBundle(fresh)
         lastFlushedSize = total
         recordFlush(elapsedMsSince(flushT0))
