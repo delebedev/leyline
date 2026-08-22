@@ -268,6 +268,24 @@ fun selectTargetsResp(
         )
     }
 
+fun unselectTargetsResp(
+    targets: List<Int>,
+    targetIdx: Int = 1,
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.SelectTargetsResp_097b) {
+        setSelectTargetsResp(
+            SelectTargetsResp.newBuilder().setTarget(
+                TargetSelection.newBuilder().setTargetIdx(targetIdx).apply {
+                    targets.forEach { iid ->
+                        addTargets(
+                            ProtoTarget.newBuilder().setTargetInstanceId(iid).setLegalAction(SelectAction.Unselect),
+                        )
+                    }
+                },
+            ),
+        )
+    }
+
 /**
  * [CancelActionReq] — cancel the current pending action (e.g. back out of targeting).
  *

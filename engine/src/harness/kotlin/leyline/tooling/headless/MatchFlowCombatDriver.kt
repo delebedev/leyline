@@ -51,6 +51,15 @@ internal class MatchFlowCombatDriver(
         drainSink()
     }
 
+    fun declareAttackersWithoutRecipients(attackerInstanceIds: List<Int>) {
+        session().onDeclareAttackers(
+            submitWithGsId(
+                declareAttackersResp(attackers = attackerInstanceIds),
+            ),
+        )
+        drainSink()
+    }
+
     fun declareNoAttackers() {
         declareAttackers(emptyList())
     }

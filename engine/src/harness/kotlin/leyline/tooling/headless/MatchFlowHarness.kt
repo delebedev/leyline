@@ -32,6 +32,7 @@ import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.*
+import java.util.IdentityHashMap
 
 /**
  * Test harness wrapping real [MatchSession] — zero reimplemented logic.
@@ -82,12 +83,7 @@ internal class MatchFlowHarness(
     private val startupAiScript: List<ScriptedAction>? = null,
 ) : HeadlessMatch {
     companion object {
-        fun defaultValidation(validating: Boolean): InvariantSelection =
-            if (validating) {
-                InvariantSelection.protocolFacts()
-            } else {
-                InvariantSelection.none("legacy disabled validation flag")
-            }
+        fun defaultValidation(validating: Boolean): InvariantSelection = defaultHeadlessValidation(validating)
 
         /** Build the concrete adapter behind the semantic headless seam. */
         internal fun fromSpec(
@@ -112,7 +108,13 @@ internal class MatchFlowHarness(
                 validating = spec.validating,
                 validation = spec.validation,
                 validationStrict = spec.validationStrict,
-                matchConfig = matchConfig,
+                matchConfig =
+                    matchConfig.copy(
+                        server =
+                            matchConfig.server.copy(
+                                promptFailsafeMs = spec.promptTimeoutMs ?: matchConfig.server.promptFailsafeMs,
+                            ),
+                    ),
                 variant = variant,
                 cardRepositoryOverride = cardRepositoryOverride,
                 responseMode = spec.responseMode,
@@ -165,6 +167,9 @@ internal class MatchFlowHarness(
         private set
     lateinit var bridge: GameBridge
         private set
+    private var lastGame: Game? = null
+    private val seatByPlayerId = mutableMapOf<Int, Int>()
+    private val cardInstanceIds = IdentityHashMap<Card, Int>()
 
     /**
      * Bring the match up in whichever mode the caller described, then advance
@@ -803,6 +808,11 @@ internal class MatchFlowHarness(
         drainSink()
     }
 
+    fun unselectTargets(targetInstanceIds: List<Int>) {
+        session.onSelectTargets(submitWithGsId(unselectTargetsResp(targetInstanceIds, currentTargetIndex())))
+        drainSink()
+    }
+
     private val consumedPromptMsgIds = mutableSetOf<Int>()
 
     private fun currentTargetIndex(): Int =
@@ -1199,7 +1209,11 @@ internal class MatchFlowHarness(
         }
     }
 
-    fun game(): Game = bridge.getGame() ?: error("Game was not initialised")
+    fun game(): Game {
+        val active = if (::bridge.isInitialized) bridge.getGame() else null
+        if (active != null) lastGame = active
+        return active ?: lastGame ?: error("Game was not initialised")
+    }
 
     // --- Seat handles ---
     //
@@ -1595,38 +1609,62 @@ internal class MatchFlowHarness(
 
     override fun submit(intent: MatchIntent): MatchResult {
         val consumedBefore = consumedPromptMsgIds.toList()
+        var accepted = true
         when (intent) {
-            is MatchIntent.PlayLand -> playLand(intent.name)
+            is MatchIntent.PlayLand -> accepted = playLand(intent.name)
             is MatchIntent.CastSpell ->
-                castSpellByName(
-                    intent.cardName,
-                    zone =
-                        when (intent.zone) {
-                            SpellZone.Battlefield -> error("Casting from battlefield is not supported")
-                            SpellZone.Hand -> ZoneType.Hand
-                            SpellZone.Graveyard -> ZoneType.Graveyard
-                            SpellZone.Exile -> ZoneType.Exile
-                        },
-                )
+                accepted =
+                    castSpellByName(
+                        intent.cardName,
+                        zone =
+                            when (intent.zone) {
+                                SpellZone.Battlefield -> error("Casting from battlefield is not supported")
+                                SpellZone.Hand -> ZoneType.Hand
+                                SpellZone.Graveyard -> ZoneType.Graveyard
+                                SpellZone.Exile -> ZoneType.Exile
+                            },
+                        alternativeGrpId = intent.alternativeGrpId ?: 0,
+                    )
             is MatchIntent.ActivateAbility ->
-                when (intent.zone) {
-                    SpellZone.Battlefield -> activateAbility(intent.cardName, intent.abilityIndex)
-                    SpellZone.Hand -> activateAbilityFromHand(intent.cardName, intent.abilityIndex)
-                    SpellZone.Graveyard -> activateAbilityFromGraveyard(intent.cardName, intent.abilityIndex)
-                    SpellZone.Exile -> error("Ability activation from exile is not supported")
-                }
+                accepted =
+                    when (intent.zone) {
+                        SpellZone.Battlefield -> activateAbility(intent.cardName, intent.abilityIndex)
+                        SpellZone.Hand -> activateAbilityFromHand(intent.cardName, intent.abilityIndex)
+                        SpellZone.Graveyard -> activateAbilityFromGraveyard(intent.cardName, intent.abilityIndex)
+                        SpellZone.Exile -> error("Ability activation from exile is not supported")
+                    }
+            is MatchIntent.ActivateMana -> accepted = activateMana(intent.cardName, intent.abilityIndex, intent.selectedColor)
+            is MatchIntent.AddIntrinsicKeyword -> {
+                val forgeId = bridge.getForgeCardId(InstanceId(intent.instanceId)) ?: error("Unknown card ${intent.instanceId}")
+                game().findById(forgeId.value)?.addIntrinsicKeyword(intent.keyword)
+            }
+            is MatchIntent.AddStaticAbility -> {
+                val forgeId = bridge.getForgeCardId(InstanceId(intent.instanceId)) ?: error("Unknown card ${intent.instanceId}")
+                game().findById(forgeId.value)?.addStaticAbility(intent.script)
+            }
             MatchIntent.PassPriority -> passPriority()
             is MatchIntent.Action -> submitAction(intent.action)
-            is MatchIntent.Attackers -> declareAttackers(intent.instanceIds, intent.damageRecipients)
+            is MatchIntent.Attackers ->
+                if (intent.damageRecipients.isEmpty()) {
+                    declareAttackers(intent.instanceIds)
+                } else {
+                    declareAttackers(intent.instanceIds, intent.damageRecipients)
+                }
+            is MatchIntent.AttackersWithoutRecipients -> combatDriver.declareAttackersWithoutRecipients(intent.instanceIds)
+            is MatchIntent.DeselectAttackers -> combatDriver.deselectAttackers(intent.instanceIds)
+            is MatchIntent.ToggleAttackers -> toggleAttackers(intent.instanceIds, intent.alternatives, intent.damageRecipients)
             MatchIntent.NoAttackers -> declareNoAttackers()
             MatchIntent.AllAttackers -> declareAllAttackers()
             MatchIntent.SubmitAttackers -> submitAttackers()
             is MatchIntent.Blockers -> declareBlockers(intent.assignments)
+            is MatchIntent.ToggleBlockers -> toggleBlockers(intent.assignments)
+            is MatchIntent.DeselectBlocker -> deselectBlocker(intent.blockerInstanceId)
             MatchIntent.NoBlockers -> declareNoBlockers()
             MatchIntent.SubmitBlockers -> submitBlockers()
             is MatchIntent.DamageAssignment -> assignDamage(intent.assigners)
             is MatchIntent.Targets -> selectTargets(intent.instanceIds)
             is MatchIntent.TargetsIterative -> selectTargetsIterative(intent.instanceIds)
+            is MatchIntent.UnselectTargets -> unselectTargets(intent.instanceIds)
             MatchIntent.SubmitTargets -> submitTargets()
             MatchIntent.CancelAction -> cancelAction()
             is MatchIntent.Group -> respondToGroupReq(intent.awayInstanceIds, intent.allInstanceIds)
@@ -1647,10 +1685,29 @@ internal class MatchFlowHarness(
                 session.onConcede()
                 drainSink()
             }
+            MatchIntent.HoldNextOptionalAction -> holdNextOptionalAction()
+            MatchIntent.DeclineNextOptionalAction -> declineNextOptionalAction()
+            is MatchIntent.Settings -> {
+                val msg =
+                    clientMessage(ClientMessageType.SetSettingsReq_097b) {
+                        setSetSettingsReq(
+                            SetSettingsReq.newBuilder().setSettings(
+                                SettingsMessage.newBuilder().addAllStops(intent.stops),
+                            ),
+                        )
+                    }
+                session.onSettings(submitWithGsId(msg))
+                drainSink()
+            }
+            is MatchIntent.AutoPass -> {
+                session.autoPassState.update(
+                    SettingsMessage.newBuilder().setAutoPassOption(intent.option).build(),
+                )
+            }
         }
         val consumed = consumedPromptMsgIds.toList().filterNot { it in consumedBefore }
         lastConsumedPromptMsgIds = consumed
-        return result(consumedPromptMsgIds = consumed)
+        return result(accepted = accepted, consumedPromptMsgIds = consumed)
     }
 
     override fun advance(goal: AdvanceGoal): MatchResult {
@@ -1659,13 +1716,29 @@ internal class MatchFlowHarness(
             is AdvanceGoal.UntilTurn -> passUntilTurn(goal.turn, goal.maxPasses)
             is AdvanceGoal.ThroughCombat -> passThroughCombat(goal.startTurn ?: turn(), goal.maxPasses)
             is AdvanceGoal.Resolved -> passUntilResolved(goal.maxPasses)
-            is AdvanceGoal.Phase -> advanceToPhase(goal.name, goal.turn)
-            AdvanceGoal.Main1 -> advanceToMain1()
-            is AdvanceGoal.Combat -> advanceToCombat(goal.turn)
-            is AdvanceGoal.Main2 -> advanceToMain2(goal.turn)
+            is AdvanceGoal.Phase -> advanceSemanticallyTo(goal.name, goal.turn)
+            AdvanceGoal.Main1 -> advanceSemanticallyTo("MAIN1")
+            is AdvanceGoal.Combat -> advanceSemanticallyTo("COMBAT_DECLARE_ATTACKERS", goal.turn)
+            is AdvanceGoal.Main2 -> advanceSemanticallyTo("MAIN2", goal.turn)
             AdvanceGoal.TriggerAutoPass -> triggerAutoPass()
         }
+        drainSink()
         return result()
+    }
+
+    private fun advanceSemanticallyTo(
+        targetPhase: String,
+        targetTurn: Int? = null,
+        maxPasses: Int = 50,
+    ) {
+        repeat(maxPasses) {
+            if (phase() == targetPhase && (targetTurn == null || turn() == targetTurn)) return
+            if (isGameOver()) return
+            passPriority()
+        }
+        check(phase() == targetPhase && (targetTurn == null || turn() == targetTurn)) {
+            "Could not advance to $targetPhase${targetTurn?.let { " on turn $it" } ?: ""}"
+        }
     }
 
     override fun observe(): MatchObservation = observation()
@@ -1674,12 +1747,29 @@ internal class MatchFlowHarness(
 
     override fun messagesSince(checkpoint: MatchCheckpoint): List<GREToClientMessage> = messageLog.since(checkpoint.index)
 
-    override fun diagnostics(label: String, messageTail: Int): String = renderDiagnostics(label, messageTail)
+    fun diagnostics(
+        label: String,
+        messageTail: Int = 15,
+    ): String = renderDiagnostics(label, messageTail)
+
+    override fun advise(
+        prompt: GREToClientMessage,
+        mode: HeadlessAdviceMode,
+    ) = when (mode) {
+        HeadlessAdviceMode.Live -> HeadlessMatchRuntime.liveConsult(this, prompt, seatId)
+        HeadlessAdviceMode.Snapshot -> HeadlessMatchRuntime.snapshotConsult(this, prompt, seatId)
+    }
+
+    override fun query(query: MatchQuery): MatchQueryResult = HeadlessMatchRuntime.query(this, query)
 
     override fun close() = shutdown()
 
-    private fun result(consumedPromptMsgIds: List<Int> = emptyList()): MatchResult =
-        MatchResult(accepted = true, observation = observation(), consumedPromptMsgIds = consumedPromptMsgIds)
+    private fun cardRepositoryByRuntime(grpId: Int): String? = bridge.cardRepository.findNameByGrpId(grpId)
+
+    private fun result(
+        accepted: Boolean = true,
+        consumedPromptMsgIds: List<Int> = emptyList(),
+    ): MatchResult = MatchResult(accepted = accepted, observation = observation(), consumedPromptMsgIds = consumedPromptMsgIds)
 
     private fun observation(): MatchObservation =
         MatchObservation(
@@ -1693,32 +1783,134 @@ internal class MatchFlowHarness(
             latestPromptGsId = messageLog.latestPromptGsId(),
             latestPromptMsgId = messageLog.latestPromptMsgId(),
             cards = cardViews(),
-            stackSize = runCatching { game().stack.size() }.getOrNull(),
+            stackSize = runCatching { game().stackZone.size() }.getOrNull(),
+            stackObjectsSize = runCatching { game().stack.size() }.getOrNull(),
             pendingAction = runCatching { hasPendingAction() }.getOrDefault(false),
             pendingActionKind =
-                runCatching { bridge.actionBridge(seatId).getPending()?.state?.kind?.name }.getOrNull(),
+                runCatching {
+                    bridge
+                        .actionBridge(seatId)
+                        .getPending()
+                        ?.state
+                        ?.kind
+                        ?.name
+                }.getOrNull(),
             blockingInteraction =
-                runCatching { bridge.cutCoordinator.currentBlockingInteraction()?.interaction?.javaClass?.simpleName }.getOrNull(),
+                runCatching {
+                    bridge.cutCoordinator
+                        .currentBlockingInteraction()
+                        ?.interaction
+                        ?.javaClass
+                        ?.simpleName
+                }.getOrNull(),
+            pendingCostSelection = runCatching { bridge.cutCoordinator.oneShotPayCosts.current() != null }.getOrDefault(false),
             validationViolations = validatingSink?.violations?.toList().orEmpty(),
             validationViolationsByCheck = validatingSink?.violationsByCheck?.toMap().orEmpty(),
+            promptHistory = runCatching { bridge.promptBridge(seatId).history.toList() }.getOrDefault(emptyList()),
             consumedPromptMsgIds = lastConsumedPromptMsgIds,
+            enabledStops =
+                runCatching {
+                    bridge.getPlayer(seatId)?.let { player ->
+                        bridge.phaseStopProfile
+                            ?.getEnabled(player.id)
+                            ?.map { it.name }
+                            ?.toSet()
+                            .orEmpty()
+                    }
+                }.getOrNull().orEmpty(),
+            poisonCountersBySeat =
+                runCatching {
+                    game()
+                        .registeredPlayers
+                        .associate { player ->
+                            (bridge.seatOf(player)?.value ?: seatByPlayerId[player.id] ?: 0) to player.poisonCounters
+                        }.filterKeys { it > 0 }
+                }.getOrDefault(emptyMap()),
         )
 
     private fun cardViews(): List<HeadlessCard> =
         runCatching {
             game().registeredPlayers.flatMap { player ->
-                val seat = bridge.seatOf(player)?.value ?: return@flatMap emptyList()
+                val seat =
+                    runCatching { bridge.seatOf(player)?.value }.getOrNull()
+                        ?: when {
+                            runCatching { bridge.getPlayer(seatId) == player }.getOrDefault(false) -> seatId.value
+                            runCatching { bridge.getPlayer(opponentSeatId) == player }.getOrDefault(false) -> opponentSeatId.value
+                            else -> null
+                        }
+                        ?: seatByPlayerId[player.id]
+                        ?: return@flatMap emptyList()
+                seatByPlayerId[player.id] = seat
                 ZoneType.values().flatMap { zoneType ->
-                    player.getZone(zoneType).cards.map { card ->
+                    val cards =
+                        if (zoneType == ZoneType.Stack) {
+                            game().getStackZone().cards.filter { it.controller == player }
+                        } else {
+                            player.getZone(zoneType)?.cards.orEmpty()
+                        }
+                    cards.mapNotNull { card ->
+                        val instanceId =
+                            runCatching { bridge.instanceId(card) }.getOrNull()
+                                ?: cardInstanceIds[card]
+                                ?: return@mapNotNull null
+                        cardInstanceIds[card] = instanceId
+                        val objectInfo = accumulator.snapshot().objects[instanceId]
+                        val displayName =
+                            card.name.ifBlank {
+                                objectInfo?.grpId?.let(::cardRepositoryByRuntime).orEmpty()
+                            }
                         HeadlessCard(
-                            instanceId = bridge.instanceId(card),
-                            name = card.name,
+                            instanceId = instanceId,
+                            name = displayName,
                             seat = seat,
                             zone = zoneType.name,
                             power = card.netPower.takeIf { card.isCreature },
                             toughness = card.netToughness.takeIf { card.isCreature },
                             planeswalker = card.isPlaneswalker,
                             faceDown = card.isFaceDown,
+                            isToken = card.isToken,
+                            isCopy = objectInfo?.isCopy ?: false,
+                            isLand = card.isLand,
+                            isTapped = card.isTapped,
+                            damage = card.damage,
+                            counters =
+                                runCatching { card.counters.entrySet().associate { it.element.name to it.count } }.getOrDefault(
+                                    emptyMap(),
+                                ),
+                            grpId = objectInfo?.grpId ?: 0,
+                            objectSourceGrpId = objectInfo?.objectSourceGrpId ?: 0,
+                            cardTypes =
+                                objectInfo
+                                    ?.cardTypesList
+                                    ?.map { it.name }
+                                    ?.toSet()
+                                    .orEmpty(),
+                            subtypes =
+                                objectInfo
+                                    ?.subtypesList
+                                    ?.map { it.name }
+                                    ?.toSet()
+                                    .orEmpty(),
+                            abilityIds = objectInfo?.uniqueAbilitiesList?.map { it.grpId }.orEmpty(),
+                            keywords =
+                                runCatching {
+                                    card
+                                        .getKeywords()
+                                        ?.mapNotNull { it.original }
+                                        .orEmpty()
+                                        .toSet()
+                                }.getOrDefault(
+                                    emptySet(),
+                                ),
+                            isSaddled = runCatching { card.isSaddled }.getOrDefault(false),
+                            isSuspected = runCatching { card.isSuspected }.getOrDefault(false),
+                            currentStateName = card.currentStateName,
+                            sVars = runCatching { card.sVars?.keys.orEmpty() }.getOrDefault(emptySet()),
+                            hasSickness = runCatching { card.isSick }.getOrDefault(false),
+                            attachedToInstanceId =
+                                runCatching {
+                                    (card.entityAttachedTo as? forge.game.card.Card)?.let { bridge.instanceId(it) }
+                                }.getOrNull(),
                         )
                     }
                 }
