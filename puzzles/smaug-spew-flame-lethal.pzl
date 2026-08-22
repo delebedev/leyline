@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Cast Spew Flame, the Adventure face of Smaug, the Great Calamity, from hand.
+# Forcing: Five Mountains pay Spew Flame's {4}{R} but cannot pay Smaug's {5}{R}{R}; Typhoid Rats kills Colossal Dreadmaw if it attacks before the blocker is removed.
+# AI behavior: Spew Flame is the only castable spell and removing Typhoid Rats is its only productive target; attacking first loses Dreadmaw and deals only five trample damage, while Adventure first yields exact lethal.
+# Failure modes:
+#   WIN = Spew Flame removed the blocker and Colossal Dreadmaw attacked for exact lethal.
+#   LOSE = The policy passed, attacked before removing the blocker, chose the unaffordable creature face, targeted unproductively, or missed the attack.
+#   TIMEOUT = Adventure selection, payment, targeting, priority, or combat failed to converge.
+# Card roles:
+#   Smaug, the Great Calamity — supplies the unaffordable creature face and payable Spew Flame Adventure.
+#   Typhoid Rats — deathtouch blocker that makes attacking before Spew Flame a losing line.
+#   Colossal Dreadmaw — exact-lethal attacker after the blocker is removed.
+#   Mountain — exactly five mana for Spew Flame, insufficient for Smaug.
+# Protocol path: ActionsAvailableReq CastAdventure -> PerformActionResp -> SelectTargetsReq/Resp -> SubmitTargetsReq, followed by attacker declaration; no Adventure gap is listed.
+
+[metadata]
+Name:Smaug Spew Flame Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Spew Flame from Smaug to remove the only blocker, then attack for exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=6
+
+humanhand=Smaug, the Great Calamity
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Colossal Dreadmaw
+humanlibrary=Mountain
+aibattlefield=Typhoid Rats
+ailibrary=Plains

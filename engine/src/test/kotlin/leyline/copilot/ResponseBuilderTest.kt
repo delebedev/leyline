@@ -202,6 +202,26 @@ class ResponseBuilderTest :
             msgs[0].numericInputResp.numericInputValue shouldBe 3
         }
 
+        test("casting-time X serializes inside the casting option response") {
+            val msgs = bytesOf(SimDecision.CastingTimeX(ctoId = 2, value = 4))
+            msgs.size shouldBe 1
+            msgs[0].type shouldBe ClientMessageType.CastingTimeOptionsResp_097b
+            val cto = msgs[0].castingTimeOptionsResp.castingTimeOptionResp
+            cto.ctoId shouldBe 2
+            cto.castingTimeOptionType shouldBe wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType.ChooseX_a7b4
+            cto.numericInputResp.numericInputValue shouldBe 4
+        }
+
+        test("distribution serializes each target amount against the prompt") {
+            val msgs = bytesOf(SimDecision.Distribution(linkedMapOf(300 to 1, 361 to 1)), gsId = 392, respId = 544)
+            msgs.size shouldBe 1
+            msgs[0].type shouldBe ClientMessageType.DistributionResp_097b
+            msgs[0].gameStateId shouldBe 392
+            msgs[0].respId shouldBe 544
+            msgs[0].distributionResp.distributionsList.map { it.instanceId to it.amount } shouldBe
+                listOf(300 to 1, 361 to 1)
+        }
+
         test("assign damage echoes each attacker's (target, damage) pairs") {
             val decision =
                 SimDecision.AssignDamage(

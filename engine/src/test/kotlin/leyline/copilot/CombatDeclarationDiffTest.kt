@@ -111,48 +111,26 @@ class CombatDeclarationDiffTest :
             CombatDeclarationDiff.attackerStep(committed = emptySet(), desired = desired) shouldBe SimDecision.SubmitAttackers
         }
 
-        test("blocker step assigns one missing blocker at a time") {
-            val assign = CombatDeclarationDiff.blockerStep(committed = emptyMap(), desired = mapOf(10 to 20))
-            assign.shouldBeInstanceOf<SimDecision.DeclareBlockers>().assignments shouldBe mapOf(10 to 20)
+        test("blocker step assigns the complete desired declaration in one response") {
+            val assign = CombatDeclarationDiff.blockerStep(committed = emptyMap(), desired = mapOf(10 to 20, 11 to 21))
+            assign.shouldBeInstanceOf<SimDecision.DeclareBlockers>().assignments shouldBe mapOf(10 to 20, 11 to 21)
         }
 
-        test("blocker step unassigns before reconsidering a different target") {
+        test("blocker step submits an accepted declaration instead of reconsidering its target") {
             val step = CombatDeclarationDiff.blockerStep(committed = mapOf(10 to 20), desired = mapOf(10 to 21))
 
-            step.shouldBeInstanceOf<SimDecision.UndeclareBlocker>().blockerInstanceId shouldBe 10
+            step shouldBe SimDecision.SubmitBlockers
         }
 
-        test("blocker step un-toggles a committed blocker no longer desired") {
+        test("blocker step submits an accepted partial declaration when a fresh consult changes its mind") {
             val step = CombatDeclarationDiff.blockerStep(committed = mapOf(10 to 20), desired = emptyMap())
-            step.shouldBeInstanceOf<SimDecision.UndeclareBlocker>().blockerInstanceId shouldBe 10
+            step shouldBe SimDecision.SubmitBlockers
         }
 
         test("blocker step submits when committed equals desired — including the no-blocks case") {
             CombatDeclarationDiff.blockerStep(committed = mapOf(10 to 20), desired = mapOf(10 to 20)) shouldBe
                 SimDecision.SubmitBlockers
             CombatDeclarationDiff.blockerStep(committed = emptyMap(), desired = emptyMap()) shouldBe SimDecision.SubmitBlockers
-        }
-
-        test("fully committed blocker prompt preserves the server-accepted map") {
-            val req =
-                DeclareBlockersReq
-                    .newBuilder()
-                    .addBlockers(blocker(10, blocking = 20))
-                    .addBlockers(blocker(11, blocking = 21))
-                    .build()
-
-            CombatDeclarationDiff.fullyCommittedBlocks(req) shouldBe mapOf(10 to 20, 11 to 21)
-        }
-
-        test("partially committed blocker prompt still requires policy evaluation") {
-            val req =
-                DeclareBlockersReq
-                    .newBuilder()
-                    .addBlockers(blocker(10, blocking = 20))
-                    .addBlockers(blocker(11))
-                    .build()
-
-            CombatDeclarationDiff.fullyCommittedBlocks(req) shouldBe null
         }
 
         test("blocker selection keeps only blocker-specific offered or selected attackers") {

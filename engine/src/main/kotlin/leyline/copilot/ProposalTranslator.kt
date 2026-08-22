@@ -92,6 +92,13 @@ internal object ProposalTranslator {
                     responseIds = listOf(decision.ctoId),
                 )
 
+            is SimDecision.CastingTimeX ->
+                base("numeric", promptType, seat).copy(
+                    ctoId = decision.ctoId,
+                    numericValue = decision.value,
+                    responseIds = listOf(decision.value),
+                )
+
             is SimDecision.AlternateCost ->
                 base("alternate_cost", promptType, seat).copy(
                     ctoId = decision.ctoId,
@@ -103,6 +110,9 @@ internal object ProposalTranslator {
                     numericValue = decision.value,
                     responseIds = listOf(decision.value),
                 )
+
+            is SimDecision.Distribution ->
+                base("distribute", promptType, seat).copy(responseIds = decision.amountsByInstanceId.keys.toList())
 
             is SimDecision.OptionalAction ->
                 base("optional_action", promptType, seat).copy(accept = decision.accept)
@@ -166,6 +176,8 @@ internal object ProposalTranslator {
         val intent =
             when {
                 action.actionType == ActionType.Play_add3 -> "play_land"
+                action.actionType == ActionType.CastAdventure -> "cast_adventure"
+                action.actionType == ActionType.CastOmen -> "cast_omen"
                 action.actionType == ActionType.Cast && action.alternativeGrpId != 0 -> "cast_mdfc"
                 action.actionType == ActionType.Cast -> "cast"
                 action.actionType == ActionType.Activate_add3 -> "activate"

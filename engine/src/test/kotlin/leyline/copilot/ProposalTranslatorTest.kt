@@ -72,6 +72,18 @@ class ProposalTranslatorTest :
             p.responseIds shouldBe listOf(11)
         }
 
+        test("Adventure cast action → cast_adventure intent") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.PerformAction(action(ActionType.CastAdventure, instanceId = 14, grpId = 201)),
+                    aar,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "cast_adventure"
+            p.responseIds shouldBe listOf(14)
+        }
+
         test("alt-cost cast action → cast_mdfc intent carrying the alternative grpId") {
             val p =
                 ProposalTranslator.translate(
@@ -183,6 +195,31 @@ class ProposalTranslatorTest :
                 )
             p.intent shouldBe "numeric"
             p.numericValue shouldBe 3
+        }
+
+        test("distribution → distribute intent") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.Distribution(linkedMapOf(300 to 1, 361 to 1)),
+                    GREMessageType.DistributionReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "distribute"
+            p.responseIds shouldBe listOf(300, 361)
+        }
+
+        test("casting-time X retains ctoId and numeric value") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.CastingTimeX(ctoId = 2, value = 4),
+                    GREMessageType.CastingTimeOptionsReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "numeric"
+            p.ctoId shouldBe 2
+            p.numericValue shouldBe 4
         }
 
         test("optional-action → optional_action intent carrying accept/decline") {

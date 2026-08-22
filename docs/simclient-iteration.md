@@ -104,7 +104,34 @@ common basic land. Use `SIMCLIENT_EXCLUDE_POLICY=skip-deck` or
 `--exclude-policy skip-deck` when you want a clean sweep that omits any deck row
 touching quarantined cards.
 
-Puzzle confirmation after the bug shape is known:
+## Autoplay Failure Compression
+
+Use a repeatable autoplay failure to build a deterministic headless probe before
+iterating in a graphical client:
+
+1. Reduce the failure to the first wrong decision: prompt kind, source card,
+   legal choices, chosen response, and expected response.
+2. Write a minimal puzzle where the intended card play or block is the clear
+   winning line. Remove unrelated choices and make the relevant resource or
+   timing constraint decisive.
+3. Run the puzzle with `forge-ai`. This exercises the active-game advisor and
+   its normal greedy fallback. Check `aiChoseByPrompt` before attributing the
+   submitted action to Forge rather than the fallback.
+4. Run the same puzzle with `snapshot`. This exercises serialization,
+   reconstruction, consultation, action matching, and response dispatch without
+   a graphical client.
+5. Assert the terminal result, the discriminating
+   `promptProgressSamples[].decisionKind`, and advisor telemetry when decision
+   parity matters. A win alone can hide cleanup, fallback, or an unrelated line.
+6. Fix the generic prompt or action seam. Add a second mechanic or an ambiguous
+   choice as a control when the fix could accidentally depend on action order.
+7. Keep both headless lanes as regression probes. Return to the graphical client
+   only for the final UI and transport smoke.
+
+Most iterations therefore need no graphical client: autoplay discovers the
+failure; the puzzle and the two policies reproduce, diagnose, and verify it.
+
+Run the active-game `forge-ai` policy after the bug shape is known:
 
 ```bash
 SIMCLIENT_POLICY=forge-ai \
@@ -112,6 +139,20 @@ SIMCLIENT_MAX_TURNS=3 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
 just simclient-puzzle extinction-event-choice.pzl 1
 ```
+
+Run the same forced position from reconstructed state:
+
+```bash
+SIMCLIENT_POLICY=snapshot \
+SIMCLIENT_MAX_TURNS=3 \
+SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
+just simclient-puzzle extinction-event-choice.pzl 1
+```
+
+`forge-ai` runs the Forge advisor on the active game, then uses the greedy policy
+when the advisor returns no response. Its `aiChoseByPrompt` telemetry separates
+those paths. `snapshot` serializes the position, hydrates an isolated game,
+consults it, then submits the encoded response through the session dispatcher.
 
 Simclient writes per-game artifacts under `engine/build/simclient/`:
 

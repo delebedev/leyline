@@ -69,6 +69,12 @@ class SimClientToolTest :
             config.verbose shouldBe true
         }
 
+        test("config parser accepts snapshot policy") {
+            val config = SimClientConfig.parse(listOf("--policy", "snapshot"), emptyMap())!!
+
+            config.policy shouldBe SimClientPolicyMode.Snapshot
+        }
+
         test("scry ingest excludes per-row console logs") {
             isSimClientGameLogFile(File("deck-1.log")) shouldBe true
             isSimClientGameLogFile(File("deck-1.console.log")) shouldBe false

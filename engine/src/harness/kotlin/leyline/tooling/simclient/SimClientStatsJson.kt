@@ -81,6 +81,7 @@ private fun SimClientPolicyMode.serializedName(): String =
         SimClientPolicyMode.ForgeAi -> "forge-ai"
         SimClientPolicyMode.ShadowAi -> "shadow-ai"
         SimClientPolicyMode.SnapshotShadow -> "snapshot-shadow"
+        SimClientPolicyMode.Snapshot -> "snapshot"
     }
 
 fun failureClass(stats: GameStats): String =

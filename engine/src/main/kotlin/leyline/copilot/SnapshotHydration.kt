@@ -11,6 +11,7 @@ import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -32,11 +33,11 @@ import forge.game.card.CounterType as ForgeCounterType
  * Fidelity notes (sorcery-speed consults):
  * - carried: zone contents (battlefield/hand/graveyard/exile), tapped,
  *   summoning sickness, counters, marked damage, attachments, life totals,
- *   turn number, active player, and main phase; the consult seat's own
+ *   combat assignments, turn number, active player, and phase; the consult seat's own
  *   in-flight stack cards ride the hand line so target consults can rebuild
  *   their ability
  * - not yet carried: resolved stack objects/triggers, opponent stack cards,
- *   mana pools, attack state, and delayed triggers
+ *   mana pools and delayed triggers
  * - recomputed where possible: dynamic abilities from Forge card scripts;
  *   observable current power/toughness is then reconciled, while effect
  *   provenance and duration remain approximate
@@ -51,6 +52,7 @@ object SnapshotHydration {
 
     private const val LIBRARY_FILLER_CARD = "Mountain"
     private const val LIBRARY_FILLER_COUNT = 5
+    private const val FACE_DOWN_CARD_NAME = "Face-down creature"
 
     /**
      * Hydrate a standalone [GameBridge] from [gsm]. The caller owns the bridge
@@ -92,7 +94,11 @@ object SnapshotHydration {
                 matchConfig = matchConfig,
                 cardRepository = cardRepository,
             )
-        bridge.startPuzzle(puzzle, controlledSeat = SeatId(consultSeat))
+        bridge.startPuzzle(
+            puzzle,
+            controlledSeat = SeatId(consultSeat),
+            beforeRuntimeStart = { restoreCombatState(gsm, puzzle, bridge, consultSeat) },
+        )
         rebindInstanceIds(puzzle, bridge)
         enforceTapState(gsm, puzzle)
         reconcileCharacteristics(gsm, puzzle)
@@ -185,8 +191,10 @@ object SnapshotHydration {
                 .mapTo(mutableSetOf()) { it.instanceId }
         val resolvableIds =
             objects
-                .filter { it.instanceId in battlefieldIds && cardRepository.findNameByGrpId(it.grpId) != null }
-                .mapTo(mutableSetOf()) { it.instanceId }
+                .filter {
+                    it.instanceId in battlefieldIds &&
+                        (it.isFacedown || cardRepository.findNameByGrpId(it.grpId) != null)
+                }.mapTo(mutableSetOf()) { it.instanceId }
         val attachmentTargetsByIid =
             allAttachmentTargetsByIid.filter { (sourceId, targetId) ->
                 sourceId in resolvableIds && targetId in resolvableIds
@@ -220,8 +228,15 @@ object SnapshotHydration {
         }
 
         fun cardEntry(obj: GameObjectInfo): String? {
-            val name = cardRepository.findNameByGrpId(obj.grpId)
-            if (name == null) {
+            val entry =
+                if (obj.isFacedown) {
+                    tokenEntry(obj, FACE_DOWN_CARD_NAME)
+                } else {
+                    cardRepository.findNameByGrpId(obj.grpId)?.let { name ->
+                        if (obj.type == GameObjectType.Token) tokenEntry(obj, name) else name
+                    }
+                }
+            if (entry == null) {
                 unresolvedIds += obj.instanceId
                 log.warn(
                     "SnapshotHydration: no card name for grpId={} (iid={}), dropping from snapshot",
@@ -232,10 +247,16 @@ object SnapshotHydration {
             }
             projectedIds += obj.instanceId
             return buildString {
-                append(if (obj.type == GameObjectType.Token) tokenEntry(obj, name) else name)
+                append(entry)
                 append("|Id:").append(obj.instanceId)
                 if (obj.isTapped) append("|Tapped")
                 if (obj.hasSummoningSickness) append("|SummonSick")
+                if (obj.attackState == AttackState.Attacking) {
+                    append("|Attacking")
+                    obj.attackInfo.targetId
+                        .takeIf { it in battlefieldIds }
+                        ?.let { append(":").append(it) }
+                }
                 if (obj.damage > 0) append("|Damage:").append(obj.damage)
                 countersByIid[obj.instanceId]?.let { append("|Counters:").append(it.joinToString(",")) }
                 attachmentTargetsByIid[obj.instanceId]?.let { append("|AttachedTo:").append(it) }
@@ -255,7 +276,8 @@ object SnapshotHydration {
                 .firstOrNull { it in playerSeats }
                 ?: playerSeats.first()
         lines += "ActivePlayer=P${activeSeat - 1}"
-        lines += "ActivePhase=${mainPhaseOf(gsm)}"
+        val projectedPhase = mainPhaseOf(gsm)
+        lines += "ActivePhase=$projectedPhase"
         lines += "Turn=${gsm.turnInfo.turnNumber.coerceAtLeast(1)}"
         for (player in gsm.playersList) {
             lines += "${prefix(player.systemSeatNumber).replaceFirstChar { it.uppercase() }}Life=${player.lifeTotal}"
@@ -315,8 +337,7 @@ object SnapshotHydration {
         val exactPhase =
             gsm.turnInfo.phase.name
                 .contains("Main", ignoreCase = true) ||
-                gsm.turnInfo.step.name
-                    .startsWith("DeclareBlock")
+                projectedPhase.startsWith("COMBAT_")
         return SnapshotProjection(
             lines = lines,
             projectedIds = projectedIds,
@@ -407,9 +428,9 @@ object SnapshotHydration {
                 ),
                 SnapshotFidelityFeature(
                     "combat_state",
-                    if (projection.combat) "approximated" else "carried",
+                    "carried",
                     if (projection.combat) 1 else 0,
-                    projection.combat.takeIf { it }?.let { "combat relationships are rebuilt from the pending prompt" },
+                    projection.combat.takeIf { it }?.let { "attackers and blockers are restored from object combat state" },
                 ),
                 SnapshotFidelityFeature(
                     "phase",
@@ -471,17 +492,18 @@ object SnapshotHydration {
 
     /**
      * Project the GSM phase/step onto Forge's puzzle phase vocabulary. The
-     * declare-blockers step hydrates as its combat phase so block evaluation
-     * runs with the phase context the live game has. Attack consults stay on
-     * Main1 deliberately: the AI's "would I attack" judgement is main-phase
-     * shaped, and a game hydrated already inside declare-attackers declines
-     * every attack. Anything else not recognisably Main2 hydrates as Main1
-     * (sorcery-speed consults).
+     * A combat step with committed attackers hydrates in combat so priority
+     * decisions see those roles. An empty declare-attackers prompt stays on
+     * Main1 because the AI's "would I attack" judgement is main-phase shaped.
+     * Anything else not recognisably Main2 hydrates as Main1.
      */
     private fun mainPhaseOf(gsm: GameStateMessage): String =
         when {
             gsm.turnInfo.step.name
                 .startsWith("DeclareBlock") -> "COMBAT_DECLARE_BLOCKERS"
+            gsm.turnInfo.step.name
+                .startsWith("DeclareAttack") &&
+                gsm.gameObjectsList.any { it.attackState == AttackState.Attacking } -> "COMBAT_DECLARE_ATTACKERS"
             gsm.turnInfo.phase.name
                 .contains("Main2", ignoreCase = true) -> "MAIN2"
             else -> "MAIN1"
@@ -502,6 +524,34 @@ object SnapshotHydration {
             bridge.bindInstanceId(ForgeCardId(card.id), InstanceId(sourceIid))
         }
         log.info("SnapshotHydration: rebound {} instanceIds to source ids", idToCard.size)
+    }
+
+    /** Restore committed blocks and the acting priority seat for combat consultation. */
+    private fun restoreCombatState(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+        bridge: GameBridge,
+        consultSeat: Int,
+    ) {
+        val assignments =
+            gsm.gameObjectsList.flatMap { blocker ->
+                blocker.blockInfo.attackerIdsList.map { attackerId -> blocker.instanceId to attackerId }
+            }
+        if (assignments.isEmpty()) return
+
+        val seat = SeatId(consultSeat)
+        val game = bridge.getGame() ?: return
+        val player = bridge.getPlayer(seat) ?: return
+        val combat = game.combat ?: return
+        val cards = idToCardOf(puzzle)
+        for ((blockerId, attackerId) in assignments) {
+            val blocker = cards[blockerId] ?: continue
+            val attacker = cards[attackerId] ?: continue
+            if (attacker !in combat.getAttackersBlockedBy(blocker)) combat.addBlocker(attacker, blocker)
+        }
+        game.phaseHandler.setPriority(player)
+        game.players.forEach { it.setHasPriority(it === player) }
+        game.updateCombatForView()
     }
 
     private fun idToCardOf(puzzle: Puzzle): Map<Int, forge.game.card.Card> {

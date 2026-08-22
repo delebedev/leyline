@@ -86,6 +86,9 @@ class CopilotProposalService(
 
             GREMessageType.NumericInputReq_695e -> proposalFor(DefaultDecisions.numericInput(prompt), prompt)
 
+            GREMessageType.DistributionReq_695e ->
+                mapDecision(prompt) { DefaultDecisions.forcedDistribution(prompt) }
+
             GREMessageType.PayCostsReq_695e ->
                 // Auto-tap mana confirm ("Auto-Pay") vs an effect's sacrifice
                 // cost. The former offers tap solutions; confirm the first
@@ -128,18 +131,22 @@ class CopilotProposalService(
             // lethal (+ trample overflow to the player) so the attack resolves.
             GREMessageType.AssignDamageReq_695e -> proposalFor(DefaultDecisions.assignDamage(prompt), prompt)
 
-            // Same diff/submit contract as attackers; a null chooseBlockers
-            // means "no blocks", converging straight to Submit.
+            // Send the complete blocker plan once. A re-prompt carrying any
+            // committed assignment is the accepted echo and submits without
+            // consulting the AI against its own intermediate declaration.
             GREMessageType.DeclareBlockersReq_695e ->
                 mapDecision(prompt) {
                     val req = prompt.declareBlockersReq
                     val committed = CombatDeclarationDiff.committedBlocks(req)
                     val desired =
-                        CombatDeclarationDiff.fullyCommittedBlocks(req)
-                            ?: CombatDeclarationDiff.qualifiedDesiredBlocks(
+                        if (committed.isEmpty()) {
+                            CombatDeclarationDiff.qualifiedDesiredBlocks(
                                 req,
                                 policy.chooseBlockers(prompt) ?: emptyMap(),
                             )
+                        } else {
+                            emptyMap()
+                        }
                     CombatDeclarationDiff.blockerStep(
                         committed = committed,
                         desired = desired,

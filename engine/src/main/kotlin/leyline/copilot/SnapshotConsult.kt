@@ -6,6 +6,8 @@ import leyline.config.MatchConfig
 import leyline.game.data.CardRepository
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * One-shot consult against a serialized game state: hydrate a standalone game
@@ -29,13 +31,14 @@ object SnapshotConsult {
     ): ConsultResponse {
         val hydrated = SnapshotHydration.hydrateWithReport(gsm, seat, cardRepository, matchConfig)
         val bridge = hydrated.bridge
+        val normalizedPrompt = prompt?.let { normalizePayCostsSource(gsm, it) }
         return try {
-            syncLandDrop(bridge, prompt, seat)
+            syncLandDrop(bridge, normalizedPrompt, seat)
             val service = CopilotProposalService(bridge, SeatId(seat))
             ConsultResponse(
-                proposal = service.propose(prompt),
+                proposal = service.propose(normalizedPrompt),
                 eval = service.evaluate(),
-                fidelity = hydrated.fidelity.forPrompt(prompt),
+                fidelity = hydrated.fidelity.forPrompt(normalizedPrompt),
             )
         } finally {
             bridge.teardownResources()
@@ -63,6 +66,26 @@ object SnapshotConsult {
             if (player.landsPlayedThisTurn == 0) player.setLandsPlayedThisTurn(1)
         }
     }
+}
+
+/** Resolve an effect-cost prompt's stack ability object back to its source permanent. */
+internal fun normalizePayCostsSource(
+    gsm: GameStateMessage,
+    prompt: GREToClientMessage,
+): GREToClientMessage {
+    if (!prompt.hasPayCostsReq() || !prompt.payCostsReq.hasEffectCostReq()) return prompt
+    val parameterIndex = prompt.prompt.parametersList.indexOfFirst { it.parameterName == "CardId" }
+    if (parameterIndex < 0) return prompt
+    val sourceId = prompt.prompt.getParameters(parameterIndex).numberValue
+    val sourceObject = gsm.gameObjectsList.firstOrNull { it.instanceId == sourceId } ?: return prompt
+    if (sourceObject.type != GameObjectType.Ability || sourceObject.parentId <= 0) return prompt
+    val normalizedParameter =
+        prompt.prompt
+            .getParameters(parameterIndex)
+            .toBuilder()
+            .setNumberValue(sourceObject.parentId)
+    val normalizedInnerPrompt = prompt.prompt.toBuilder().setParameters(parameterIndex, normalizedParameter)
+    return prompt.toBuilder().setPrompt(normalizedInnerPrompt).build()
 }
 
 /** Consult result: the proposed response plus a position eval for the seat. */

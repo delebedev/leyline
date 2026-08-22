@@ -33,6 +33,23 @@ internal object DefaultDecisions {
         return SimDecision.NumericInput(req.minValue.coerceAtLeast(NUMERIC_INPUT_DEFAULT_MAX.coerceAtMost(req.maxValue)))
     }
 
+    /** Submit an allocation only when the prompt constraints leave one possible answer. */
+    fun forcedDistribution(msg: GREToClientMessage): SimDecision.Distribution? {
+        val req = msg.distributionReq
+        if (req.minAmount <= 0 || req.minAmount != req.maxAmount) return null
+        if (req.existingDistributionValuesCount > 0 || req.requiredDistributionValuesCount > 0) return null
+        val targets = (req.validSelectedTargetIdsList.ifEmpty { req.targetIdsList }).distinct()
+        if (targets.isEmpty() || (req.targetIdsCount > 0 && targets.toSet() != req.targetIdsList.toSet())) return null
+        val amount =
+            when {
+                targets.size == 1 -> req.minAmount
+                req.minAmount == targets.size * req.minPerTarget -> req.minPerTarget
+                else -> return null
+            }
+        if (amount < req.minPerTarget) return null
+        return SimDecision.Distribution(targets.associateWith { amount })
+    }
+
     /** Answer a "you may" trigger; accept by default. */
     fun optionalAction(accept: Boolean = true): SimDecision = SimDecision.OptionalAction(accept)
 

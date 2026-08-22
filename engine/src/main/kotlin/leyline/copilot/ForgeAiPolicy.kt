@@ -2,6 +2,7 @@ package leyline.copilot
 
 import forge.ai.AiCostDecision
 import forge.ai.ComputerUtilCard
+import forge.ai.ComputerUtilCost
 import forge.ai.PlayerControllerAi
 import forge.ai.simulation.GameStateEvaluator
 import forge.card.ColorSet
@@ -31,10 +32,6 @@ import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
-import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.CastRails
-import leyline.game.mapping.resolveAltGrpId
-import leyline.game.snapshot.BoundCard
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -206,7 +203,7 @@ class ForgeAiPolicy(
      *
      * Match rules (iteration 1):
      *   - LandAbility → first AAR action with `actionType=Play_add3` and same grpId
-     *   - isSpell()    → first AAR action with `actionType=Cast`         and same grpId
+     *   - isSpell() → the unique prompt cast offer matching source + displayed cost
      *   - non-spell activated ability → exact `Activate_add3` host iid + abilityGrpId match
      *   - everything else → null (caller falls back to greedy / pass)
      */
@@ -220,19 +217,23 @@ class ForgeAiPolicy(
         for (sa in abilities) {
             val hostCard = sa.hostCard ?: continue
             val grpId = bridge.cardRepository.findGrpIdByName(hostCard.name) ?: continue
-            val actionType =
-                when {
-                    sa is LandAbility -> ActionType.Play_add3
-                    sa.isSpell -> ActionType.Cast
-                    else -> ActionType.Activate_add3
-                }
-            // Prefer the action whose instanceId matches Forge's card id so we cast
-            // THIS specific copy. getOrAlloc is idempotent (returns the existing
-            // mapping if one exists) — no harmful side effect.
-            val mappedInstanceId =
-                bridge.instanceId(hostCard)
-            val match = chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, isSkipped) ?: continue
-            return Choice(match, match.instanceId, match.grpId, actionType, match.abilityGrpId)
+            // Match the action to this exact Forge card instance.
+            val mappedInstanceId = bridge.instanceId(hostCard)
+            val match =
+                if (sa.isSpell) {
+                    choosePromptCastOfferForAbility(
+                        actions = promptActions.filterNot(isSkipped),
+                        sa = sa,
+                        player = seatPlayer,
+                        cardRepository = bridge.cardRepository,
+                        sourceInstanceId = mappedInstanceId,
+                        sourceGrpId = grpId,
+                    )
+                } else {
+                    val actionType = if (sa is LandAbility) ActionType.Play_add3 else ActionType.Activate_add3
+                    chooseMatchingAction(sa, actionType, grpId, mappedInstanceId, promptActions, isSkipped)
+                } ?: continue
+            return Choice(match, match.instanceId, match.grpId, match.actionType, match.abilityGrpId)
         }
         return null
     }
@@ -323,8 +324,8 @@ class ForgeAiPolicy(
                         !isSkipped(it) &&
                         (it.grpId == grpId || it.instanceId == mappedInstanceId)
                 }
-            return chooseCastVariant(sa, grpId, candidates.filter { it.instanceId == mappedInstanceId })
-                ?: chooseCastVariant(sa, grpId, candidates)
+            return chooseCastVariant(sa, grpId, seatPlayer, bridge.cardRepository, candidates.filter { it.instanceId == mappedInstanceId })
+                ?: chooseCastVariant(sa, grpId, seatPlayer, bridge.cardRepository, candidates)
         }
 
         val hostCard = sa.hostCard ?: return null
@@ -336,36 +337,6 @@ class ForgeAiPolicy(
                 it.abilityGrpId == abilityGrpId &&
                 !isSkipped(it)
         }
-    }
-
-    private fun chooseCastVariant(
-        sa: SpellAbility,
-        grpId: Int,
-        candidates: List<Action>,
-    ): Action? {
-        val variant = expectedCastVariant(sa, grpId)
-        return chooseCastActionByVariant(candidates, variant)
-    }
-
-    private fun expectedCastVariant(
-        sa: SpellAbility,
-        grpId: Int,
-    ): ExpectedCastVariant {
-        if (!sa.isSpell) return ExpectedCastVariant.Base
-        val rails = CastRails.all.filter { it.saPredicate(sa) }
-        if (rails.isEmpty()) return ExpectedCastVariant.Base
-        val altCosts = BoundCard.bindAltCosts(bridge.cardRepository.findByGrpId(grpId), bridge.cardRepository)
-        val payCostPairs =
-            ActionMapper
-                .computeEffectiveCost(sa, seatPlayer)
-                ?.takeIf { !it.isNoCost }
-                ?.let { ActionMapper.forgeManaCostToPairs(it) }
-                ?: emptyList()
-        val alternativeGrpId =
-            rails.firstNotNullOfOrNull { rail ->
-                resolveAltGrpId(rail, altCosts, payCostPairs).takeIf { it > 0 }
-            }
-        return alternativeGrpId?.let(ExpectedCastVariant::Alternative) ?: ExpectedCastVariant.UnresolvedAlternative
     }
 
     /**
@@ -702,7 +673,10 @@ class ForgeAiPolicy(
     fun canChooseCastingTimeOptions(msg: GREToClientMessage): Boolean {
         if (!msg.hasCastingTimeOptionsReq()) return false
         val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
-        return isManaTypeCto(options) || isSimpleModalCto(options) || isSingleOptionalCostCto(options)
+        return isManaTypeCto(options) ||
+            isSimpleModalCto(options) ||
+            isSingleOptionalCostCto(options) ||
+            isSingleChooseXCto(options)
     }
 
     internal fun chooseCastingTimeOptions(msg: GREToClientMessage): SimDecision? {
@@ -710,6 +684,7 @@ class ForgeAiPolicy(
         return chooseManaTypeCastingTimeOptions(msg)?.let { SimDecision.ManaTypeChoices(it) }
             ?: chooseModalCastingTimeOptions(msg)
             ?: chooseOptionalCastingTimeOptions(msg)?.let { SimDecision.OptionalCost(it) }
+            ?: chooseXCastingTimeOptions(msg)
     }
 
     private fun chooseManaTypeCastingTimeOptions(msg: GREToClientMessage): List<Pair<Int, ManaColor>>? {
@@ -769,6 +744,25 @@ class ForgeAiPolicy(
         if (optionalCosts.size != 1) return null
         val chosen = askAi("chooseOptionalCosts") { aiController.chooseOptionalCosts(sa, optionalCosts) } ?: return null
         return if (optionalCostChosen(chosen, optionalCosts.single())) costOption.ctoId else 0
+    }
+
+    private fun chooseXCastingTimeOptions(msg: GREToClientMessage): SimDecision.CastingTimeX? {
+        val options = msg.castingTimeOptionsReq.castingTimeOptionReqList
+        if (!isSingleChooseXCto(options)) return null
+        val option = options.single()
+        val card = cardForInstance(option.affectedId) ?: return null
+        val sa =
+            getAllCastableAbilities(card, seatPlayer)
+                .firstOrNull { it.payCosts?.hasXInAnyCostPart() == true && it.getSVar("X") == "Count\$xPaid" }
+                ?: return null
+        sa.activatingPlayer = seatPlayer
+        val req = option.numericInputReq
+        val min = req.minValue.coerceAtLeast(0)
+        val max = ComputerUtilCost.setMaxXValue(sa, seatPlayer, false).coerceAtMost(req.maxValue)
+        if (max < min) return null
+        val chosen = askAi("chooseCastingTimeX") { aiController.chooseNumber(sa, "Choose X", min, max) } ?: return null
+        if (chosen !in min..max) return null
+        return SimDecision.CastingTimeX(option.ctoId, chosen)
     }
 
     private fun optionalCostChosen(
@@ -914,6 +908,15 @@ class ForgeAiPolicy(
     companion object {
         private val log = LoggerFactory.getLogger(ForgeAiPolicy::class.java)
     }
+}
+
+private fun isSingleChooseXCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean {
+    if (options.size != 1) return false
+    val option = options.single()
+    return option.ctoId > 0 &&
+        option.isRequired &&
+        option.castingTimeOptionType == CastingTimeOptionType.ChooseX_a7b4 &&
+        option.hasNumericInputReq()
 }
 
 internal sealed interface ExpectedCastVariant {

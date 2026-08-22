@@ -28,6 +28,7 @@ data class SnapshotFidelityReport(
                 family.contains("Group") ||
                 family.contains("CastingTimeOptions") ||
                 family.contains("Order") ||
+                family.contains("Distribution") ||
                 family.contains("AssignDamage")
         val nextGrade =
             when {

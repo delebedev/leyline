@@ -3,6 +3,7 @@ package leyline.tooling.simclient
 import leyline.copilot.DefaultDecisions
 import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
+import leyline.copilot.isCopilotCastOffer
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.tooling.headless.MatchFlowHarness
@@ -151,7 +152,7 @@ internal open class GreedyPromptPolicy(
         prompt: ActivePrompt,
         attempts: ActionAttemptLedger,
     ): Action? {
-        val casts = prompt.aarActions().filter { it.actionType == ActionType.Cast }
+        val casts = prompt.aarActions().filter { it.actionType.isCopilotCastOffer() }
         val ordered = casts.sortedBy { if (it.alternativeGrpId != 0) 0 else 1 }
         val skipFingerprints = attempts.skipFingerprints()
         val action = ordered.firstOrNull { !it.isSkippedBy(skipFingerprints) }
@@ -406,4 +407,6 @@ internal fun chooseSimClientModalGrpIds(msg: GREToClientMessage?): List<Int>? = 
 internal fun ActivePrompt.aarActions(): List<Action> = (payload as? PromptPayload.ActionsAvailable)?.req?.actionsList.orEmpty()
 
 internal fun Action.isActionableAarAction(): Boolean =
-    actionType == ActionType.Cast || actionType == ActionType.Play_add3 || actionType == ActionType.Activate_add3
+    actionType.isCopilotCastOffer() ||
+        actionType == ActionType.Play_add3 ||
+        actionType == ActionType.Activate_add3

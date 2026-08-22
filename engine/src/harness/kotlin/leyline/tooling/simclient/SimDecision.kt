@@ -30,10 +30,13 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
         is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
         is SimDecision.OptionalCost -> "optional-cost:$ctoId"
+        is SimDecision.CastingTimeX -> "casting-time-x:$ctoId=$value"
         is SimDecision.AlternateCost -> "alternate-cost:$ctoId/$optionIndex"
         is SimDecision.ModalChoice -> "modal-choice:${selectedGrpIds.sorted().joinToString("+")}"
         is SimDecision.ManaTypeChoices -> "mana-type:${choicesByCtoId.joinToString("+") { (ctoId, color) -> "$ctoId=$color" }}"
         is SimDecision.NumericInput -> "numeric-input:$value"
+        is SimDecision.Distribution ->
+            "distribution:${amountsByInstanceId.entries.joinToString("+") { "${it.key}=${it.value}" }}"
         is SimDecision.AssignDamage -> {
             val assignmentDigest =
                 assigners
@@ -136,9 +139,12 @@ internal class SimDecisionSubmitter(
                     }
                 SimSubmitResult.Submitted
             }
+            is SimDecision.CastingTimeX -> submitted { harness.respondToCastingTimeX(decision.ctoId, decision.value) }
             is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
             is SimDecision.ManaTypeChoices -> submitted { harness.respondToManaTypeChoices(decision.choicesByCtoId) }
             is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
+            // Consult/live-client path only; leyline does not currently emit this prompt.
+            is SimDecision.Distribution -> SimSubmitResult.NotSubmitted
             is SimDecision.AssignDamage ->
                 submitted {
                     harness.assignDamage(

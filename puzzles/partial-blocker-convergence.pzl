@@ -1,0 +1,40 @@
+# Design Narrative
+# Mechanic: A snapshot-guided blocker declaration converges when two creatures
+#   can block but Forge AI wants only Centaur Courser assigned.
+# Forcing: Valley Dasher must attack. Centaur Courser kills it without dying,
+#   while zero-power Yoked Ox cannot satisfy the destruction goal.
+# AI behavior: Valley Dasher is required to attack. Forge AI prefers the free
+#   Courser kill over the nonlethal Ox block.
+# Failure modes:
+#   WIN = Centaur Courser was assigned, the partial declaration was submitted,
+#     and Valley Dasher died in combat.
+#   LOSE = no useful block was submitted and Valley Dasher survived combat.
+#   TIMEOUT = blocker selection toggled without converging on Submit.
+# Card roles:
+#   Valley Dasher — forced attacker and destruction target.
+#   Centaur Courser — intended blocker that wins combat without dying.
+#   Yoked Ox — legal but nonlethal second blocker that keeps the
+#     committed declaration partial.
+# Protocol path: DeclareBlockersReq -> snapshot consultation -> iterative
+#   DeclareBlockersResp -> SubmitBlockersReq.
+# Harness assertion: exactly one block response, then one submit response, with
+#   no unblock response; the block must name Centaur Courser.
+
+[metadata]
+Name:Partial Blocker Convergence
+Goal:Destroy Specified Creatures
+Targets:Creature.OppCtrl
+Turns:1
+Difficulty:Easy
+Description:Choose one useful blocker from two legal blockers, then submit the partial declaration.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Centaur Courser;Yoked Ox
+humanlibrary=Forest
+aibattlefield=Valley Dasher
+ailibrary=Plains

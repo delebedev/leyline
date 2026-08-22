@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Select and cast Signaling Roar, the Omen face of Riling Dawnbreaker, from hand.
+# Forcing: Two Plains pay Signaling Roar's {1}{W} but cannot pay Riling Dawnbreaker's {4}{W}; its Soldier token triggers Impact Tremors for exact lethal.
+# AI behavior: CastOmen is the only active cast offer and wins through a deterministic enter-the-battlefield trigger; passing every main-phase opportunity loses at cleanup.
+# Failure modes:
+#   WIN = Signaling Roar created the Soldier and Impact Tremors dealt exact lethal.
+#   LOSE = The policy passed every opportunity, selected the unaffordable creature face, or failed to realize the Omen cast offer.
+#   TIMEOUT = Omen selection, payment, token creation, trigger resolution, or priority failed to converge.
+# Card roles:
+#   Riling Dawnbreaker — supplies the unaffordable creature face and payable Signaling Roar Omen.
+#   Impact Tremors — converts the created Soldier into an exact terminal outcome.
+#   Plains — exactly two mana for Signaling Roar, insufficient for Riling Dawnbreaker.
+# Protocol path: ActionsAvailableReq CastOmen -> PerformActionResp -> token creation -> triggered damage; no Omen gap is listed.
+# Paired with: smaug-spew-flame-lethal.pzl
+
+[metadata]
+Name:Omen Signaling Roar Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Signaling Roar from Riling Dawnbreaker to create a Soldier and trigger exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+
+humanhand=Riling Dawnbreaker
+humanbattlefield=Plains;Plains;Impact Tremors
+humanlibrary=Plains
+ailibrary=Plains

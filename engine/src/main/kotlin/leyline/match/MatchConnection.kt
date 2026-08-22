@@ -391,6 +391,8 @@ class MatchConnection(
                 return
             }
 
+        if (dispatchGameplayResponse(s, greMsg)) return
+
         when (greMsg.type) {
             ClientMessageType.SetSettingsReq_097b -> s.onSettings(greMsg)
 
@@ -398,42 +400,6 @@ class MatchConnection(
                 log.info("Match Door GRE: concede")
                 s.onConcede()
             }
-
-            ClientMessageType.PerformActionResp_097b -> s.onPerformAction(greMsg)
-
-            ClientMessageType.DeclareAttackersResp_097b -> s.onDeclareAttackers(greMsg)
-
-            // SubmitAttackersReq: client race condition may send on Familiar channel.
-            // FamiliarSession no-ops handle it.
-            ClientMessageType.SubmitAttackersReq -> s.onDeclareAttackers(greMsg)
-
-            ClientMessageType.DeclareBlockersResp_097b -> s.onDeclareBlockers(greMsg)
-
-            // Same pattern as SubmitAttackersReq.
-            ClientMessageType.SubmitBlockersReq -> s.onDeclareBlockers(greMsg)
-
-            ClientMessageType.SelectTargetsResp_097b -> s.onSelectTargets(greMsg)
-
-            // SubmitTargetsReq: client's "Done" button for targeting (like SubmitAttackersReq for combat).
-            ClientMessageType.SubmitTargetsReq -> s.onSubmitTargets(greMsg)
-
-            ClientMessageType.EffectCostResp_097b -> s.onEffectCost(greMsg)
-
-            ClientMessageType.CancelActionReq_097b -> s.onCancelAction(greMsg)
-
-            ClientMessageType.SelectNresp -> s.onSelectN(greMsg)
-
-            ClientMessageType.OrderResp_097b -> s.onOrderResp(greMsg)
-
-            ClientMessageType.CastingTimeOptionsResp_097b -> s.onCastingTimeOptions(greMsg)
-
-            ClientMessageType.SearchResp_097b -> s.onSearch(greMsg)
-
-            ClientMessageType.AssignDamageResp_097b -> s.onAssignDamage(greMsg)
-
-            ClientMessageType.OptionalActionResp -> s.onOptionalActionResp(greMsg)
-
-            ClientMessageType.NumericInputResp_097b -> s.onNumericInputResp(greMsg)
 
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state

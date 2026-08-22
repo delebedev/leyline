@@ -3,10 +3,6 @@ package leyline.tooling.simclient
 import leyline.bridge.types.SeatId
 import leyline.copilot.CopilotProposal
 import leyline.copilot.CopilotProposalService
-import leyline.copilot.SnapshotConsult
-import leyline.game.event.FrameEventLog
-import leyline.game.projectSnapshotForTest
-import leyline.game.snapshot.GsmSnapshot
 import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -38,6 +34,7 @@ internal class SnapshotShadowProbe(
 ) {
     private val log = LoggerFactory.getLogger(SnapshotShadowProbe::class.java)
     private val liveService by lazy { CopilotProposalService(harness.bridge, SeatId(seat)) }
+    private val snapshotSource = SnapshotProposalSource(harness, seat)
     private val seen = mutableSetOf<Long>()
 
     data class Bucket(
@@ -76,7 +73,7 @@ internal class SnapshotShadowProbe(
                 return
             }
         val snapshot =
-            runCatching { snapshotProposal(prompt) }.getOrElse {
+            runCatching { snapshotSource.propose(prompt) }.getOrElse {
                 b.error++
                 log.debug("shadow snapshot consult failed {}: {}", key, it.message)
                 return
@@ -156,27 +153,6 @@ internal class SnapshotShadowProbe(
     private fun nameOf(instanceId: Int): String {
         val obj = harness.accumulator.objects[instanceId] ?: return "player/face"
         return runCatching { harness.bridge.cardRepository.findNameByGrpId(obj.grpId) }.getOrNull() ?: "grp:${obj.grpId}"
-    }
-
-    /** Builds an isolated state for the comparison consult. */
-    private fun snapshotProposal(prompt: GREToClientMessage): CopilotProposal {
-        val game = harness.bridge.getGame() ?: error("no live game")
-        val bridge = harness.bridge
-        val prior = bridge.projectionStateSnapshot()
-        val (snap, capturedProjection) =
-            bridge.editProjection(prior) {
-                GsmSnapshot.capture(game, bridge, "shadow", 0)
-            }
-        val events = FrameEventLog.EMPTY
-        val gsm =
-            bridge
-                .projectSnapshotForTest(
-                    snap = snap,
-                    viewingSeatId = seat,
-                    events = events,
-                    projectionState = capturedProjection.copy(revision = prior.revision),
-                ).gsm
-        return SnapshotConsult.consult(gsm, prompt, seat, harness.bridge.cardRepository).proposal
     }
 
     private fun sample(

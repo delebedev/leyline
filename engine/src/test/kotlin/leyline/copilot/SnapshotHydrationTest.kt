@@ -11,13 +11,18 @@ import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
+import wotc.mtgo.gre.external.messaging.Messages.BlockInfo
+import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.Int32Value
+import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.PlayerInfo
+import wotc.mtgo.gre.external.messaging.Messages.Step
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
@@ -120,6 +125,183 @@ class SnapshotHydrationTest :
                 hydrated.fidelity.features
                     .first { it.feature == "attachments" }
                     .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("face-down card uses public characteristics without requiring its hidden identity") {
+            val battlefieldZoneId = 7
+            val faceDownIid = 201
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(battlefieldZoneId).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(faceDownIid)
+                            .setGrpId(3)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .setIsFacedown(true)
+                            .addCardTypes(CardType.Creature)
+                            .setPower(Int32Value.newBuilder().setValue(5))
+                            .setToughness(Int32Value.newBuilder().setValue(5)),
+                    ).build()
+
+            SnapshotHydration.toPuzzleLines(gsm, 1, TestCardRegistry.repo) shouldContain
+                "p1battlefield=t:Face-down creature,P:5,T:5,Cost:0,Types:Creature,Keywords:,Image:|Id:201"
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.bridge
+                    .getGame()
+                    .shouldNotBeNull()
+                    .players[1]
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .single()
+                    .let { card ->
+                        card.name shouldBe "Face-down creature"
+                        card.netPower shouldBe 5
+                        card.netToughness shouldBe 5
+                    }
+                hydrated.fidelity.features
+                    .first { it.feature == "unresolved_cards" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("attacker and committed blocker hydrate into Forge combat") {
+            val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
+            val blockerGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            val battlefieldZoneId = 7
+            val attackerId = 201
+            val blockerId = 101
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(
+                        TurnInfo
+                            .newBuilder()
+                            .setPhase(Phase.Combat_a549)
+                            .setStep(Step.DeclareBlock_a2cb)
+                            .setTurnNumber(4)
+                            .setActivePlayer(2)
+                            .setPriorityPlayer(1)
+                            .setDecisionPlayer(1),
+                    ).addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(battlefieldZoneId)
+                            .setType(ZoneType.Battlefield)
+                            .addObjectInstanceIds(blockerId)
+                            .addObjectInstanceIds(attackerId),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(blockerId)
+                            .setGrpId(blockerGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .setBlockState(BlockState.Blocking)
+                            .setBlockInfo(BlockInfo.newBuilder().addAttackerIds(attackerId)),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(attackerId)
+                            .setGrpId(attackerGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .setAttackState(AttackState.Attacking),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrate(gsm, 1, TestCardRegistry.repo)
+            try {
+                val game = hydrated.getGame().shouldNotBeNull()
+                val combat = game.combat.shouldNotBeNull()
+                val blocker =
+                    game.players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Grizzly Bears" }
+                val attacker =
+                    game.players[1]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Raging Goblin" }
+
+                game.phaseHandler.phase.toString() shouldBe "COMBAT_DECLARE_BLOCKERS"
+                combat.isAttacking(attacker) shouldBe true
+                combat.isBlocking(blocker) shouldBe true
+                combat.getAttackersBlockedBy(blocker).single() shouldBe attacker
+                game.phaseHandler.priorityPlayer shouldBe game.players[0]
+            } finally {
+                hydrated.teardownResources()
+            }
+        }
+
+        test("committed attacker phase is carried exactly") {
+            val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
+            val battlefieldZoneId = 7
+            val attackerId = 201
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(
+                        TurnInfo
+                            .newBuilder()
+                            .setPhase(Phase.Combat_a549)
+                            .setStep(Step.DeclareAttack_a2cb)
+                            .setTurnNumber(4)
+                            .setActivePlayer(1)
+                            .setPriorityPlayer(1)
+                            .setDecisionPlayer(1),
+                    ).addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(battlefieldZoneId)
+                            .setType(ZoneType.Battlefield)
+                            .setOwnerSeatId(1)
+                            .addObjectInstanceIds(attackerId),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(attackerId)
+                            .setGrpId(attackerGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .setAttackState(AttackState.Attacking),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.bridge
+                    .getGame()
+                    .shouldNotBeNull()
+                    .phaseHandler.phase
+                    .toString() shouldBe "COMBAT_DECLARE_ATTACKERS"
+                val phase = hydrated.fidelity.features.single { it.feature == "phase" }
+                phase.status shouldBe "carried"
+                phase.detail shouldBe null
             } finally {
                 hydrated.bridge.teardownResources()
             }
