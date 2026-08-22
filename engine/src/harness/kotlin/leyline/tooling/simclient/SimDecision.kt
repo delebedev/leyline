@@ -26,6 +26,7 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.AutoTapPayment -> "auto-tap-payment:$solutionIndex"
         SimDecision.KeepHand -> "keep-hand"
+        SimDecision.ChooseStartingPlayer -> "choose-starting-player"
         is SimDecision.GroupTop -> "group-top:${instanceIds.joinToString("+")}"
         is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
         is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
@@ -109,6 +110,7 @@ internal class SimDecisionSubmitter(
             is SimDecision.AutoTapPayment -> SimSubmitResult.NotSubmitted
             // Consult/live-client path only; scripted puzzles skip the mulligan.
             SimDecision.KeepHand -> SimSubmitResult.NotSubmitted
+            SimDecision.ChooseStartingPlayer -> SimSubmitResult.NotSubmitted
             is SimDecision.GroupTop ->
                 submitted {
                     harness.respondToScry(

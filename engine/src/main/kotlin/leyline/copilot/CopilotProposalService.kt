@@ -49,6 +49,8 @@ class CopilotProposalService(
             // so it only fires on the live-client path.
             GREMessageType.MulliganReq_aa0d -> proposalFor(SimDecision.KeepHand, prompt)
 
+            GREMessageType.ChooseStartingPlayerReq_695e -> proposalFor(SimDecision.ChooseStartingPlayer, prompt)
+
             GREMessageType.ActionsAvailableReq_695e -> {
                 val actions = prompt.actionsAvailableReq.actionsList
                 val choice = policy.chooseAarAction(actions) ?: policy.chooseMain2ProactivePermanent(actions)
