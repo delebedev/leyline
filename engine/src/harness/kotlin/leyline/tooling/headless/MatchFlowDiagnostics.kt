@@ -39,7 +39,7 @@ private val DIAGNOSTIC_ZONES =
  *
  * Returns the same text so a spec can assert on it.
  */
-fun MatchFlowHarness.dumpDiagnostics(
+internal fun MatchFlowHarness.dumpDiagnostics(
     label: String,
     messageTail: Int = DEFAULT_MESSAGE_TAIL,
 ): String {
@@ -49,7 +49,7 @@ fun MatchFlowHarness.dumpDiagnostics(
 }
 
 /** [dumpDiagnostics] without the print — for tests that assert on the rendering. */
-fun MatchFlowHarness.renderDiagnostics(
+internal fun MatchFlowHarness.renderDiagnostics(
     label: String,
     messageTail: Int = DEFAULT_MESSAGE_TAIL,
 ): String =

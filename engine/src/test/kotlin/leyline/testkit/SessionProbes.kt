@@ -12,11 +12,11 @@ package leyline.testkit
  * line and lets typed prompt expectations replace raw `any { hasFooReq() }`
  * scans. Raw access remains via [MessageSlice.messages].
  */
-fun MatchFlowHarness.after(block: () -> Unit): MessageSlice {
+internal fun MatchFlowHarness.after(block: () -> Unit): MessageSlice {
     val snapshot = messageSnapshot()
     block()
     return MessageSlice(messagesSince(snapshot))
 }
 
 /** Assert the client accumulator's projected state is self-consistent. */
-fun MatchFlowHarness.assertAccumulatorConsistent(context: String) = accumulator.assertConsistent(context)
+internal fun MatchFlowHarness.assertAccumulatorConsistent(context: String) = accumulator.assertConsistent(context)

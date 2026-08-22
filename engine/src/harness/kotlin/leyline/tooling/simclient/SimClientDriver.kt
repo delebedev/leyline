@@ -22,7 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  *
  * Loop runs until the engine reports game-over or [maxTurns] is reached.
  */
-class SimClientDriver(
+internal class SimClientDriver(
     val harness: MatchFlowHarness,
     private val log: PlayerLogWriter,
     private val maxTurns: Int = 50,

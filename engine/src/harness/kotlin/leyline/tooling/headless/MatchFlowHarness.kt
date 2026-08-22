@@ -42,8 +42,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * @param validating when true (default), wraps the sink in [ValidatingMessageSink]
  *                   to get automatic invariant checking on every message
  */
-@Suppress("LargeClass") // Test harness grows linearly with prompt-type coverage; refactor is its own task.
-class MatchFlowHarness(
+@Suppress("LargeClass")
+internal class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
     private val opponentDeckList: String? = null,
@@ -77,7 +77,10 @@ class MatchFlowHarness(
      */
     private val cardRepositoryOverride: CardRepository? = null,
     val responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
-) {
+    private val startupPuzzleText: String? = null,
+    private val startupPuzzleResource: String? = null,
+    private val startupAiScript: List<ScriptedAction>? = null,
+) : HeadlessMatch {
     companion object {
         fun defaultValidation(validating: Boolean): InvariantSelection =
             if (validating) {
@@ -85,6 +88,38 @@ class MatchFlowHarness(
             } else {
                 InvariantSelection.none("legacy disabled validation flag")
             }
+
+        /** Build the concrete adapter behind the semantic headless seam. */
+        internal fun fromSpec(
+            spec: MatchSpec,
+            cardRepositoryOverride: CardRepository? = null,
+            matchConfig: MatchConfig =
+                MatchConfig(
+                    ai = AiConfig(speed = 0.0),
+                    server =
+                        ServerConfig(
+                            bridgeTimeoutMs = 15_000L,
+                            aiTurnWaitMs = 2_000L,
+                            mulliganWaitMs = 2_000L,
+                        ),
+                ),
+            variant: String? = null,
+        ): HeadlessMatch =
+            MatchFlowHarness(
+                seed = spec.seed,
+                deckList = spec.deckList,
+                opponentDeckList = spec.opponentDeckList,
+                validating = spec.validating,
+                validation = spec.validation,
+                validationStrict = spec.validationStrict,
+                matchConfig = matchConfig,
+                variant = variant,
+                cardRepositoryOverride = cardRepositoryOverride,
+                responseMode = spec.responseMode,
+                startupPuzzleText = spec.puzzleText,
+                startupPuzzleResource = spec.puzzleResource,
+                startupAiScript = spec.aiScript,
+            )
     }
 
     private val matchId = "test-match"
@@ -1545,4 +1580,110 @@ class MatchFlowHarness(
         session.onOptionalActionResp(greMsg)
         collectSinkMessages()
     }
+
+    // --- Semantic headless seam ---
+
+    override fun start(): MatchResult {
+        connect(
+            puzzleText = startupPuzzleText,
+            puzzleResource = startupPuzzleResource,
+            aiScript = startupAiScript,
+        )
+        return result()
+    }
+
+    override fun submit(intent: MatchIntent): MatchResult {
+        val consumedBefore = consumedPromptMsgIds.toList()
+        when (intent) {
+            is MatchIntent.PlayLand -> playLand(intent.name)
+            is MatchIntent.CastSpell ->
+                castSpellByName(
+                    intent.cardName,
+                    zone =
+                        when (intent.zone) {
+                            SpellZone.Battlefield -> error("Casting from battlefield is not supported")
+                            SpellZone.Hand -> ZoneType.Hand
+                            SpellZone.Graveyard -> ZoneType.Graveyard
+                            SpellZone.Exile -> ZoneType.Exile
+                        },
+                )
+            is MatchIntent.ActivateAbility ->
+                when (intent.zone) {
+                    SpellZone.Battlefield -> activateAbility(intent.cardName, intent.abilityIndex)
+                    SpellZone.Hand -> activateAbilityFromHand(intent.cardName, intent.abilityIndex)
+                    SpellZone.Graveyard -> activateAbilityFromGraveyard(intent.cardName, intent.abilityIndex)
+                    SpellZone.Exile -> error("Ability activation from exile is not supported")
+                }
+            MatchIntent.PassPriority -> passPriority()
+            is MatchIntent.Action -> submitAction(intent.action)
+            is MatchIntent.Attackers -> declareAttackers(intent.instanceIds, intent.damageRecipients)
+            MatchIntent.NoAttackers -> declareNoAttackers()
+            MatchIntent.AllAttackers -> declareAllAttackers()
+            MatchIntent.SubmitAttackers -> submitAttackers()
+            is MatchIntent.Blockers -> declareBlockers(intent.assignments)
+            MatchIntent.NoBlockers -> declareNoBlockers()
+            MatchIntent.SubmitBlockers -> submitBlockers()
+            is MatchIntent.DamageAssignment -> assignDamage(intent.assigners)
+            is MatchIntent.Targets -> selectTargets(intent.instanceIds)
+            is MatchIntent.TargetsIterative -> selectTargetsIterative(intent.instanceIds)
+            MatchIntent.SubmitTargets -> submitTargets()
+            MatchIntent.CancelAction -> cancelAction()
+            is MatchIntent.Group -> respondToGroupReq(intent.awayInstanceIds, intent.allInstanceIds)
+            is MatchIntent.Scry -> respondToScry(intent.bottomInstanceIds, intent.allInstanceIds)
+            is MatchIntent.SelectN -> respondToSelectN(intent.instanceIds)
+            is MatchIntent.Order -> respondToOrder(intent.instanceIds)
+            is MatchIntent.Search -> respondToSearch(intent.instanceIds)
+            is MatchIntent.EffectCost -> respondToEffectCost(intent.instanceIds)
+            is MatchIntent.GatherCounters -> respondToGatherCounters(intent.gatherings)
+            is MatchIntent.ModalChoice -> respondModalChoice(intent.selectedGrpIds)
+            is MatchIntent.OptionalCost -> respondToOptionalCost(intent.ctoId)
+            is MatchIntent.AlternateCost -> respondToAlternateCost(intent.ctoId, intent.optionIndex)
+            is MatchIntent.ManaTypeChoices -> respondToManaTypeChoices(intent.choicesByCtoId)
+            is MatchIntent.OptionalAction -> respondToOptionalAction(intent.accept)
+            is MatchIntent.NumericInput -> respondToNumericInput(intent.value)
+        }
+        val consumed = consumedPromptMsgIds.toList().filterNot { it in consumedBefore }
+        return result(consumedPromptMsgIds = consumed)
+    }
+
+    override fun advance(goal: AdvanceGoal): MatchResult {
+        when (goal) {
+            is AdvanceGoal.Until -> passUntil(goal.maxPasses) { true }
+            is AdvanceGoal.UntilTurn -> passUntilTurn(goal.turn, goal.maxPasses)
+            is AdvanceGoal.ThroughCombat -> passThroughCombat(goal.startTurn ?: turn(), goal.maxPasses)
+            is AdvanceGoal.Resolved -> passUntilResolved(goal.maxPasses)
+            is AdvanceGoal.Phase -> advanceToPhase(goal.name, goal.turn)
+            AdvanceGoal.Main1 -> advanceToMain1()
+            is AdvanceGoal.Combat -> advanceToCombat(goal.turn)
+            is AdvanceGoal.Main2 -> advanceToMain2(goal.turn)
+            AdvanceGoal.TriggerAutoPass -> triggerAutoPass()
+        }
+        return result()
+    }
+
+    override fun observe(): MatchObservation = observation()
+
+    override fun checkpoint(): MatchCheckpoint = MatchCheckpoint(messageLog.snapshot())
+
+    override fun messagesSince(checkpoint: MatchCheckpoint): List<GREToClientMessage> = messageLog.since(checkpoint.index)
+
+    override fun diagnostics(label: String, messageTail: Int): String = renderDiagnostics(label, messageTail)
+
+    override fun close() = shutdown()
+
+    private fun result(consumedPromptMsgIds: List<Int> = emptyList()): MatchResult =
+        MatchResult(accepted = true, observation = observation(), consumedPromptMsgIds = consumedPromptMsgIds)
+
+    private fun observation(): MatchObservation =
+        MatchObservation(
+            messages = allMessages.toList(),
+            rawMessages = allRawMessages.toList(),
+            client = accumulator.snapshot(),
+            phase = runCatching { phase() }.getOrNull(),
+            turn = runCatching { turn() }.getOrNull(),
+            aiTurn = runCatching { isAiTurn() }.getOrDefault(false),
+            gameOver = runCatching { isGameOver() }.getOrDefault(false),
+            latestPromptGsId = messageLog.latestPromptGsId(),
+            latestPromptMsgId = messageLog.latestPromptMsgId(),
+        )
 }

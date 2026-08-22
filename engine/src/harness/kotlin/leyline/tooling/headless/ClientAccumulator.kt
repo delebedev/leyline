@@ -64,6 +64,19 @@ class ClientAccumulator {
         processGameState(gsm)
     }
 
+    /** Return a detached, immutable view for callers at the headless seam. */
+    fun snapshot(): ClientStateSnapshot =
+        ClientStateSnapshot(
+            objects = objects.toMap(),
+            zones = zones.toMap(),
+            players = players.toMap(),
+            turnInfo = turnInfo,
+            actions = actions,
+            latestGsId = latestGsId,
+            messageCount = messageCount,
+            gsIdHistory = gsIdHistory.toList(),
+        )
+
     // --- Invariant checks ---
 
     /**

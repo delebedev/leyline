@@ -5,6 +5,7 @@ import io.kotest.core.test.TestScope
 import leyline.IntegrationTag
 import leyline.game.bundle.InvariantSelection
 import leyline.tooling.headless.ScriptedAction
+import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.headless.dumpDiagnostics
 import kotlin.time.Duration
 
@@ -79,7 +80,7 @@ abstract class SessionTest(
     // sites; this is the wrapper that produces those blocks, so its own
     // `test(name)` carries no assertion by construction.
     @Suppress("LongParameterList", "EmptyAssertion")
-    fun session(
+    internal fun session(
         name: String,
         puzzle: String? = null,
         puzzleFile: String? = null,
