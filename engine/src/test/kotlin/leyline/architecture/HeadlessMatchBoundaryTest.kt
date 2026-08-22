@@ -2,15 +2,18 @@ package leyline.architecture
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.tooling.headless.ActionSelection
 import leyline.tooling.headless.CombatAction
 import leyline.tooling.headless.ControlAction
+import leyline.tooling.headless.HeadlessMatch
 import leyline.tooling.headless.MatchIntent
 import leyline.tooling.headless.MatchQuery
 import leyline.tooling.headless.PlayAction
 import leyline.tooling.headless.PromptResponse
+import java.lang.reflect.Modifier
 import java.lang.reflect.Type
 import java.nio.file.Files
 import java.nio.file.Path
@@ -69,17 +72,14 @@ class HeadlessMatchBoundaryTest :
                 .shouldBe(listOf("leyline/game/state/GameBridge"))
         }
 
-        test("headless convenience extensions are module-internal") {
-            val source =
-                listOf(
-                    Path.of("engine/src/harness/kotlin/leyline/tooling/headless/HeadlessMatch.kt"),
-                    Path.of("src/harness/kotlin/leyline/tooling/headless/HeadlessMatch.kt"),
-                ).first(Files::exists)
-            val publicExtensions =
-                Files.readAllLines(source).filter { line ->
-                    line.matches(Regex("\\s*(?:public\\s+)?fun HeadlessMatch\\..*"))
+        test("compiled headless extensions stay outside the Java API") {
+            val facade = Class.forName("leyline.tooling.headless.HeadlessMatchKt")
+            val extensions =
+                facade.declaredMethods.filter { method ->
+                    Modifier.isStatic(method.modifiers) && method.parameterTypes.firstOrNull() == HeadlessMatch::class.java
                 }
-            publicExtensions.shouldBeEmpty()
+            extensions.shouldNotBeEmpty()
+            extensions.filterNot { it.isSynthetic }.map { it.name }.shouldBeEmpty()
         }
     })
 
