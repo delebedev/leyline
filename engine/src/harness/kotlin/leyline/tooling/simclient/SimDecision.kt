@@ -103,6 +103,7 @@ internal class SimDecisionSubmitter(
             is SimDecision.UnselectTargets -> SimSubmitResult.NotSubmitted
             is SimDecision.SelectN -> submitted { harness.respondToSelectN(decision.selectedInstanceIds) }
             is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
+            is SimDecision.Distribution -> submitted { harness.respondToDistribution(decision.amountsByInstanceId.toList()) }
             is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
             is SimDecision.EffectCost -> submitted { harness.respondToEffectCost(decision.selectedInstanceIds) }
             // Consult/live-client path only; leyline's own server auto-resolves mana.
@@ -143,8 +144,6 @@ internal class SimDecisionSubmitter(
             is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
             is SimDecision.ManaTypeChoices -> submitted { harness.respondToManaTypeChoices(decision.choicesByCtoId) }
             is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
-            // Consult/live-client path only; leyline does not currently emit this prompt.
-            is SimDecision.Distribution -> SimSubmitResult.NotSubmitted
             is SimDecision.AssignDamage ->
                 submitted {
                     harness.assignDamage(

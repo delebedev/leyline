@@ -218,6 +218,16 @@ private val promptRouteFamilies =
             semantics = listOf(PromptSemantic.OrderForBottom, PromptSemantic.OrderForTop),
         ),
         PromptRouteFamily(
+            name = "Distribution",
+            materializers = listOf("$MATERIALIZERS.DistributionWindowMaterializer"),
+            handoffValues = "$HANDOFF.DistributionWindowValue",
+            handler = "$MATCH.DistributionInteractionHandler",
+            prepareMethod = "prepareDistributionWindow",
+            runtime = "$COORD.MatchDistributionInteractionRuntime",
+            routeType = ResolvedPromptRoute.Distribution::class,
+            semantics = listOf(PromptSemantic.DividedAllocationDamage, PromptSemantic.DividedAllocationCounters),
+        ),
+        PromptRouteFamily(
             name = "Grouping",
             materializers = listOf("$MATERIALIZERS.GroupingWindowMaterializer"),
             handoffValues = "$HANDOFF.(Grouping.*Value|PublishedGroupingInteraction)",

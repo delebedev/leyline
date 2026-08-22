@@ -1164,6 +1164,11 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    fun respondToDistribution(amounts: List<Pair<Int, Int>>) {
+        localConnection.submitGREMessage(submitWithGsId(distributionResp(amounts)))
+        drainSink()
+    }
+
     fun respondToSearch(itemsFound: List<Int>) {
         localConnection.submitGREMessage(submitWithGsId(searchResp(itemsFound)))
         drainSink()

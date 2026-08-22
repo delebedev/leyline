@@ -283,6 +283,18 @@ internal object ResponseBuilder {
                         ).build(),
                 )
 
+            is SimDecision.Distribution ->
+                listOf(
+                    base(ClientMessageType.DistributionResp_097b)
+                        .setDistributionResp(
+                            DistributionResp.newBuilder().apply {
+                                decision.amountsByInstanceId.forEach { (instanceId, amount) ->
+                                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
+                                }
+                            },
+                        ).build(),
+                )
+
             is SimDecision.Search ->
                 listOf(
                     base(ClientMessageType.SearchResp_097b)
@@ -384,18 +396,6 @@ internal object ResponseBuilder {
                     base(ClientMessageType.NumericInputResp_097b)
                         .setNumericInputResp(NumericInputResp.newBuilder().setNumericInputValue(decision.value))
                         .build(),
-                )
-
-            is SimDecision.Distribution ->
-                listOf(
-                    base(ClientMessageType.DistributionResp_097b)
-                        .setDistributionResp(
-                            DistributionResp.newBuilder().apply {
-                                decision.amountsByInstanceId.forEach { (instanceId, amount) ->
-                                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
-                                }
-                            },
-                        ).build(),
                 )
 
             // Combat damage assignment: per attacker, the (target, damage) pairs

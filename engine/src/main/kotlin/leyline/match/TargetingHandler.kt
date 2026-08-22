@@ -278,6 +278,15 @@ class TargetingHandler(
         val modal = bridge.cutCoordinator.modalChoices.current()
         if (modal != null && cancelModalChoice(modal, greMsg.gameStateId, autoPass)) return
 
+        val distribution = bridge.cutCoordinator.distribution.current()
+        if (distribution != null) {
+            if (bridge.cutCoordinator.distribution.cancel(distribution.interactionId, greMsg.gameStateId)) {
+                bridge.awaitPriority()
+                autoPass()
+                return
+            }
+        }
+
         if (manaSourcePaymentHandler.tryHandleCancel(greMsg, autoPass)) return
         if (manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg, autoPass)) return
 

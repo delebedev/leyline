@@ -7,6 +7,7 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.CommanderReturnPromptContext
+import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.OrderWindowValue
@@ -95,6 +96,7 @@ class BundleBuilder(
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val orderWindows = OrderWindowMaterializer(seatId)
+    private val distributionWindows = DistributionWindowMaterializer(seatId)
     private val groupingWindows = GroupingWindowMaterializer(seatId)
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
     private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
@@ -1314,6 +1316,24 @@ class BundleBuilder(
             frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
         val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(orderPrompt = orderPrompt))
         return orderWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
+    /** Prepare, but do not install, one coordinator-owned divided-allocation window. */
+    internal fun prepareDistributionWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: DistributionWindowValue,
+    ): DistributionWindowMaterializer.Prepared {
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return distributionWindows.prepare(
             gameState = diff.result.gsm,
             gameStateId = diff.gameStateId,
             counter = counter,

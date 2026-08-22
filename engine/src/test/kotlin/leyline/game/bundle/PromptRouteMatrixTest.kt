@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectPromptRoute
+import leyline.bridge.handoff.DistributionRouteKind
 import leyline.bridge.handoff.ManaSourcePaymentKind
 import leyline.bridge.handoff.OrderRouteKind
 import leyline.bridge.handoff.PayCostsPromptRoute
@@ -49,6 +50,10 @@ class PromptRouteMatrixTest :
                     PromptSemantic.OrderForBottom to
                         ResolvedPromptRoute.Order(PromptSemantic.OrderForBottom, OrderRouteKind.Bottom),
                     PromptSemantic.OrderForTop to ResolvedPromptRoute.Order(PromptSemantic.OrderForTop, OrderRouteKind.Top),
+                    PromptSemantic.DividedAllocationDamage to
+                        ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationDamage, DistributionRouteKind.Damage),
+                    PromptSemantic.DividedAllocationCounters to
+                        ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationCounters, DistributionRouteKind.Counters),
                     PromptSemantic.RevealChoose to
                         ResolvedPromptRoute.RevealChoice(PromptSemantic.RevealChoose),
                     PromptSemantic.SelectNResolution to selectN(PromptSemantic.SelectNResolution),

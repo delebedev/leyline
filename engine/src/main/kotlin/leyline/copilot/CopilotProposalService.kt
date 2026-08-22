@@ -82,12 +82,11 @@ class CopilotProposalService(
 
             GREMessageType.OrderReq_695e -> proposalFor(DefaultDecisions.order(prompt), prompt)
 
+            GREMessageType.DistributionReq_695e -> proposalFor(DefaultDecisions.distribution(prompt), prompt)
+
             GREMessageType.SearchReq_695e -> proposalFor(DefaultDecisions.search(prompt), prompt)
 
             GREMessageType.NumericInputReq_695e -> proposalFor(DefaultDecisions.numericInput(prompt), prompt)
-
-            GREMessageType.DistributionReq_695e ->
-                mapDecision(prompt) { DefaultDecisions.forcedDistribution(prompt) }
 
             GREMessageType.PayCostsReq_695e ->
                 // Auto-tap mana confirm ("Auto-Pay") vs an effect's sacrifice

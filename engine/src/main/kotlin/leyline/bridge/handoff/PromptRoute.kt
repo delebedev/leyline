@@ -66,6 +66,12 @@ sealed interface ResolvedPromptRoute {
         val kind: OrderRouteKind,
     ) : ResolvedPromptRoute
 
+    /** Fixed-total allocation across already-selected targets. */
+    data class Distribution(
+        override val semantic: PromptSemantic,
+        val kind: DistributionRouteKind,
+    ) : ResolvedPromptRoute
+
     data class Targeting(
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
@@ -83,6 +89,11 @@ sealed interface ResolvedPromptRoute {
 enum class OrderRouteKind {
     Bottom,
     Top,
+}
+
+enum class DistributionRouteKind {
+    Damage,
+    Counters,
 }
 
 enum class CardSelectKind {
@@ -271,6 +282,8 @@ object PromptRouteResolver {
             PromptSemantic.Search -> ResolvedPromptRoute.Search(semantic)
             PromptSemantic.OrderForBottom -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Bottom)
             PromptSemantic.OrderForTop -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Top)
+            PromptSemantic.DividedAllocationDamage -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Damage)
+            PromptSemantic.DividedAllocationCounters -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Counters)
             PromptSemantic.SelectNLegendRule -> cardSelect(semantic, CardSelectKind.LegendRule)
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
             PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)

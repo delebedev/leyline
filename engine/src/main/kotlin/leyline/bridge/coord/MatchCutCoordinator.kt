@@ -53,6 +53,7 @@ internal class MatchCutCoordinator(
     internal val compatibilityCostSelection get() = prompts.compatibilityCostSelection
     internal val search get() = prompts.search
     internal val order get() = prompts.order
+    internal val distribution get() = prompts.distribution
     internal val grouping get() = prompts.grouping
     internal val cardSelect get() = prompts.cardSelect
     internal val staticChoices get() = prompts.staticChoices
@@ -149,6 +150,12 @@ internal class MatchCutCoordinator(
         gameStateId: Int,
         accepted: Boolean,
     ): Boolean = interactions.submitOptional(interactionId, gameStateId, accepted)
+
+    fun submitDistributionAnswer(
+        interactionId: String,
+        gameStateId: Int,
+        rows: List<Pair<Int, Int>>,
+    ): Boolean = distribution.submit(interactionId, gameStateId, rows)
 
     fun submitNumericAnswer(
         interactionId: String,

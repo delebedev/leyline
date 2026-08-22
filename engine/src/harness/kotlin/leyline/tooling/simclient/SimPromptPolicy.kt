@@ -69,6 +69,8 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondSelectN(prompt.msg))
             GREMessageType.OrderReq_695e ->
                 SimPromptResponse(respondOrder(prompt.msg))
+            GREMessageType.DistributionReq_695e ->
+                SimPromptResponse(respondDistribution(prompt.msg))
             GREMessageType.SearchReq_695e ->
                 SimPromptResponse(respondSearch(prompt.msg))
             GREMessageType.PayCostsReq_695e ->
@@ -219,6 +221,8 @@ internal open class GreedyPromptPolicy(
     }
 
     private fun respondOrder(msg: GREToClientMessage): SimDecision = DefaultDecisions.order(msg)
+
+    private fun respondDistribution(msg: GREToClientMessage): SimDecision = DefaultDecisions.distribution(msg)
 
     private fun respondSearch(msg: GREToClientMessage): SimDecision = DefaultDecisions.search(msg)
 
