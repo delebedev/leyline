@@ -178,7 +178,8 @@ class DiscardInteractionTest :
                 ai.getZone(ForgeZoneType.Hand).cards shouldHaveSize 2
                 ai.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
                 (observe().stackSize ?: 0) shouldBe 0
-                observe().promptHistory.none { it.message.contains("reveal", ignoreCase = true) }
+                observe().activeRevealVersion shouldBe null
+                observe().pendingRevealInteractionId shouldBe null
             }
         }
 

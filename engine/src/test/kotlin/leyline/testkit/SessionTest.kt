@@ -7,6 +7,7 @@ import leyline.game.bundle.InvariantSelection
 import leyline.testkit.*
 import leyline.tooling.headless.HeadlessMatch
 import leyline.tooling.headless.HeadlessMatchFactory
+import leyline.tooling.headless.MatchSetup
 import leyline.tooling.headless.MatchSpec
 import leyline.tooling.headless.ScriptedAction
 import leyline.tooling.headless.diagnostics
@@ -91,6 +92,7 @@ abstract class SessionTest(
         turns: Int = 1,
         seed: Long = 42L,
         promptTimeoutMs: Long? = null,
+        setup: List<MatchSetup> = emptyList(),
         validating: Boolean = true,
         validation: InvariantSelection = leyline.tooling.headless.defaultHeadlessValidation(validating),
         aiScript: List<ScriptedAction>? = null,
@@ -110,6 +112,7 @@ abstract class SessionTest(
                     MatchSpec(
                         seed = seed,
                         promptTimeoutMs = promptTimeoutMs,
+                        setup = setup,
                         deckList = deckList,
                         puzzleText = puzzleText,
                         puzzleResource = puzzleFile,

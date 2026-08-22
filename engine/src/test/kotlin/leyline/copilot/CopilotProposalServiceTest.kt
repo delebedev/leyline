@@ -6,7 +6,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.SimClientTag
 import leyline.bridge.types.SeatId
-import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 

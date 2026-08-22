@@ -2,23 +2,40 @@ package leyline.testkit
 
 import forge.card.CardStateName
 import forge.game.zone.ZoneType
+import leyline.tooling.headless.ActionKind
+import leyline.tooling.headless.ActionSelection
 import leyline.tooling.headless.AdvanceGoal
+import leyline.tooling.headless.AttackerRecipientMode
+import leyline.tooling.headless.AutoPassChoice
 import leyline.tooling.headless.ClientStateSnapshot
+import leyline.tooling.headless.CombatAction
+import leyline.tooling.headless.ControlAction
+import leyline.tooling.headless.DamageRecipientChoice
 import leyline.tooling.headless.HeadlessCard
 import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.ManaColorChoice
 import leyline.tooling.headless.MatchCheckpoint
 import leyline.tooling.headless.MatchIntent
 import leyline.tooling.headless.MatchResult
+import leyline.tooling.headless.PlayAction
+import leyline.tooling.headless.PromptResponse
 import leyline.tooling.headless.SpellZone
+import leyline.tooling.headless.StopChange
+import leyline.tooling.headless.StopScope
 import leyline.tooling.headless.cardNameByGrpId
 import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
+import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.OrderReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
+import wotc.mtgo.gre.external.messaging.Messages.SettingScope
+import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
+import wotc.mtgo.gre.external.messaging.Messages.Stop
 import leyline.tooling.headless.actionMatchesAlternative as headlessActionMatchesAlternative
 import leyline.tooling.headless.cardGrpId as headlessCardGrpId
 import leyline.tooling.headless.enabledStops as headlessEnabledStops
@@ -62,11 +79,11 @@ fun HeadlessMatch.messageSnapshot(): Int = observe().messages.size
 
 fun HeadlessMatch.messagesSince(snapshot: Int): List<GREToClientMessage> = messagesSince(MatchCheckpoint(snapshot))
 
-fun HeadlessMatch.drainSink(): MatchResult = submit(MatchIntent.Flush)
+fun HeadlessMatch.drainSink(): MatchResult = MatchResult(true, observe())
 
-fun HeadlessMatch.passPriority(): MatchResult = submit(MatchIntent.PassPriority)
+fun HeadlessMatch.passPriority(): MatchResult = submit(MatchIntent.Control(ControlAction.PassPriority))
 
-fun HeadlessMatch.playLand(name: String? = null): Boolean = submit(MatchIntent.PlayLand(name)).accepted
+fun HeadlessMatch.playLand(name: String? = null): Boolean = submit(MatchIntent.Play(PlayAction.Land(name))).accepted
 
 @Suppress("ElseCaseInsteadOfExhaustiveWhen")
 fun HeadlessMatch.castSpellByName(
@@ -75,17 +92,19 @@ fun HeadlessMatch.castSpellByName(
     alternativeGrpId: Int? = null,
 ): Boolean =
     submit(
-        MatchIntent.CastSpell(
-            cardName = cardName,
-            zone =
-                when (zone) {
-                    ZoneType.Hand -> SpellZone.Hand
-                    ZoneType.Graveyard -> SpellZone.Graveyard
-                    ZoneType.Exile -> SpellZone.Exile
-                    ZoneType.Battlefield -> SpellZone.Battlefield
-                    else -> error("Unsupported spell zone: $zone")
-                },
-            alternativeGrpId = alternativeGrpId,
+        MatchIntent.Play(
+            PlayAction.Spell(
+                cardName = cardName,
+                zone =
+                    when (zone) {
+                        ZoneType.Hand -> SpellZone.Hand
+                        ZoneType.Graveyard -> SpellZone.Graveyard
+                        ZoneType.Exile -> SpellZone.Exile
+                        ZoneType.Battlefield -> SpellZone.Battlefield
+                        else -> error("Unsupported spell zone: $zone")
+                    },
+                alternativeGrpId = alternativeGrpId,
+            ),
         ),
     ).accepted
 
@@ -96,24 +115,23 @@ fun HeadlessMatch.castFromExile(cardName: String): Boolean = castSpellByName(car
 fun HeadlessMatch.activateAbility(
     cardName: String,
     abilityIndex: Int = 0,
-    selectedColor: ManaColor? = null,
-): Boolean = submit(MatchIntent.ActivateAbility(cardName, SpellZone.Battlefield, abilityIndex, selectedColor)).accepted
+): Boolean = submit(MatchIntent.Play(PlayAction.Ability(cardName, SpellZone.Battlefield, abilityIndex))).accepted
 
 fun HeadlessMatch.activateMana(
     cardName: String,
     abilityIndex: Int = 0,
     selectedColor: ManaColor? = null,
-): Boolean = submit(MatchIntent.ActivateMana(cardName, abilityIndex, selectedColor)).accepted
+): Boolean = submit(MatchIntent.Play(PlayAction.ManaAbility(cardName, abilityIndex, selectedColor?.toManaColorChoice()))).accepted
 
 fun HeadlessMatch.activateAbilityFromHand(
     cardName: String,
     abilityIndex: Int = 0,
-): Boolean = submit(MatchIntent.ActivateAbility(cardName, SpellZone.Hand, abilityIndex)).accepted
+): Boolean = submit(MatchIntent.Play(PlayAction.Ability(cardName, SpellZone.Hand, abilityIndex))).accepted
 
 fun HeadlessMatch.activateAbilityFromGraveyard(
     cardName: String,
     abilityIndex: Int = 0,
-): Boolean = submit(MatchIntent.ActivateAbility(cardName, SpellZone.Graveyard, abilityIndex)).accepted
+): Boolean = submit(MatchIntent.Play(PlayAction.Ability(cardName, SpellZone.Graveyard, abilityIndex))).accepted
 
 fun HeadlessMatch.resolveSpell(cardName: String): Boolean {
     if (!castSpellByName(cardName)) return false
@@ -139,12 +157,12 @@ fun HeadlessMatch.gameStateMessagesSince(snapshot: Int) =
 fun HeadlessMatch.respondToGroupReq(
     awayInstanceIds: List<Int>,
     allInstanceIds: List<Int>,
-): MatchResult = submit(MatchIntent.Group(awayInstanceIds, allInstanceIds))
+): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Group(awayInstanceIds, allInstanceIds)))
 
 fun HeadlessMatch.respondToScry(
     bottomInstanceIds: List<Int>,
     allInstanceIds: List<Int>,
-): MatchResult = submit(MatchIntent.Scry(bottomInstanceIds, allInstanceIds))
+): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Scry(bottomInstanceIds, allInstanceIds)))
 
 fun HeadlessMatch.castSpellUntilGroupReq(
     cardName: String,
@@ -195,43 +213,55 @@ fun HeadlessMatch.annotationsSince(snapshot: Int) =
 
 fun HeadlessMatch.deselectAttackers(ids: List<Int>): List<GREToClientMessage> {
     val checkpoint = checkpoint()
-    submit(MatchIntent.DeselectAttackers(ids))
+    submit(MatchIntent.Combat(CombatAction.DeselectAttackers(ids)))
     return messagesSince(checkpoint)
 }
 
-fun HeadlessMatch.submitAction(action: Action): MatchResult = submit(MatchIntent.Action(action))
+fun HeadlessMatch.submitAction(action: Action): MatchResult = submit(MatchIntent.Play(PlayAction.Selection(action.toActionSelection())))
 
 fun HeadlessMatch.submitAction(message: wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage): MatchResult =
-    submit(MatchIntent.Action(message.performActionResp.actionsList.single()))
+    submitAction(message.performActionResp.actionsList.single())
 
-fun HeadlessMatch.selectTargets(ids: List<Int>): MatchResult = submit(MatchIntent.Targets(ids))
+fun HeadlessMatch.respondToManaPayment(
+    sourceInstanceId: Int,
+    repeatedSelectionInstanceIds: List<Int> = emptyList(),
+): MatchResult =
+    submit(
+        MatchIntent.Prompt(
+            PromptResponse.ManaPayment(
+                sourceInstanceId = sourceInstanceId,
+                repeatedSelectionInstanceIds = repeatedSelectionInstanceIds,
+            ),
+        ),
+    )
 
-fun HeadlessMatch.selectTargetsIterative(ids: List<Int>): MatchResult = submit(MatchIntent.TargetsIterative(ids))
+fun HeadlessMatch.finishManaPayment(): MatchResult = submit(MatchIntent.Prompt(PromptResponse.ManaPayment()))
 
-fun HeadlessMatch.unselectTargets(ids: List<Int>): MatchResult = submit(MatchIntent.UnselectTargets(ids))
+fun HeadlessMatch.selectTargets(
+    ids: List<Int>,
+    targetIndex: Int? = null,
+): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Targets(ids, targetIndex = targetIndex)))
 
-fun HeadlessMatch.addIntrinsicKeyword(
-    instanceId: Int,
-    keyword: String,
-): MatchResult = submit(MatchIntent.AddIntrinsicKeyword(instanceId, keyword))
+fun HeadlessMatch.selectTargetsIterative(
+    ids: List<Int>,
+    targetIndex: Int? = null,
+): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Targets(ids, iterative = true, targetIndex = targetIndex)))
 
-fun HeadlessMatch.addStaticAbility(
-    instanceId: Int,
-    script: String,
-): MatchResult = submit(MatchIntent.AddStaticAbility(instanceId, script))
+fun HeadlessMatch.unselectTargets(ids: List<Int>): MatchResult = submit(MatchIntent.Prompt(PromptResponse.UnselectTargets(ids)))
 
-fun HeadlessMatch.submitTargets(): MatchResult = submit(MatchIntent.SubmitTargets)
+fun HeadlessMatch.submitTargets(): MatchResult = submit(MatchIntent.Prompt(PromptResponse.SubmitTargets))
 
-fun HeadlessMatch.cancelAction(): MatchResult = submit(MatchIntent.CancelAction)
+fun HeadlessMatch.cancelAction(): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Cancel))
 
-fun HeadlessMatch.declareAttackers(ids: List<Int>): MatchResult = submit(MatchIntent.Attackers(ids))
+fun HeadlessMatch.declareAttackers(ids: List<Int>): MatchResult = submit(MatchIntent.Combat(CombatAction.Attackers(ids)))
 
-fun HeadlessMatch.declareAttackersWithoutRecipients(ids: List<Int>): MatchResult = submit(MatchIntent.AttackersWithoutRecipients(ids))
+fun HeadlessMatch.declareAttackersWithoutRecipients(ids: List<Int>): MatchResult =
+    submit(MatchIntent.Combat(CombatAction.Attackers(ids, recipientMode = AttackerRecipientMode.Omit)))
 
 fun HeadlessMatch.declareAttackers(
     ids: List<Int>,
     damageRecipients: Map<Int, DamageRecipient>,
-): MatchResult = submit(MatchIntent.Attackers(ids, damageRecipients))
+): MatchResult = submit(MatchIntent.Combat(CombatAction.Attackers(ids, damageRecipients.mapValues { it.value.toDamageRecipientChoice() })))
 
 fun HeadlessMatch.toggleAttackers(
     ids: List<Int>,
@@ -239,71 +269,88 @@ fun HeadlessMatch.toggleAttackers(
     damageRecipients: Map<Int, DamageRecipient> = emptyMap(),
 ): List<GREToClientMessage> {
     val checkpoint = checkpoint()
-    submit(MatchIntent.ToggleAttackers(ids, alternatives, damageRecipients))
+    submit(
+        MatchIntent.Combat(
+            CombatAction.ToggleAttackers(
+                ids,
+                alternatives,
+                damageRecipients.mapValues {
+                    it.value.toDamageRecipientChoice()
+                },
+            ),
+        ),
+    )
     return messagesSince(checkpoint)
 }
 
-fun HeadlessMatch.declareNoAttackers(): MatchResult = submit(MatchIntent.NoAttackers)
+fun HeadlessMatch.declareNoAttackers(): MatchResult = submit(MatchIntent.Combat(CombatAction.NoAttackers))
 
-fun HeadlessMatch.declareAllAttackers(): MatchResult = submit(MatchIntent.AllAttackers)
+fun HeadlessMatch.declareAllAttackers(): MatchResult = submit(MatchIntent.Combat(CombatAction.AllAttackers))
 
-fun HeadlessMatch.submitAttackers(): MatchResult = submit(MatchIntent.SubmitAttackers)
+fun HeadlessMatch.submitAttackers(): MatchResult = submit(MatchIntent.Combat(CombatAction.SubmitAttackers))
 
-fun HeadlessMatch.declareBlockers(assignments: Map<Int, Int>): MatchResult = submit(MatchIntent.Blockers(assignments))
+fun HeadlessMatch.declareBlockers(assignments: Map<Int, Int>): MatchResult = submit(MatchIntent.Combat(CombatAction.Blockers(assignments)))
 
-fun HeadlessMatch.declareNoBlockers(): MatchResult = submit(MatchIntent.NoBlockers)
+fun HeadlessMatch.declareNoBlockers(): MatchResult = submit(MatchIntent.Combat(CombatAction.NoBlockers))
 
 fun HeadlessMatch.toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
     val checkpoint = checkpoint()
-    submit(MatchIntent.ToggleBlockers(assignments))
+    submit(MatchIntent.Combat(CombatAction.ToggleBlockers(assignments)))
     return messagesSince(checkpoint)
 }
 
 fun HeadlessMatch.deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> {
     val checkpoint = checkpoint()
-    submit(MatchIntent.DeselectBlocker(blockerInstanceId))
+    submit(MatchIntent.Combat(CombatAction.DeselectBlocker(blockerInstanceId)))
     return messagesSince(checkpoint)
 }
 
-fun HeadlessMatch.submitBlockers(): MatchResult = submit(MatchIntent.SubmitBlockers)
+fun HeadlessMatch.submitBlockers(): MatchResult = submit(MatchIntent.Combat(CombatAction.SubmitBlockers))
 
 fun HeadlessMatch.assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>): MatchResult =
-    submit(MatchIntent.DamageAssignment(assigners))
+    submit(MatchIntent.Combat(CombatAction.DamageAssignment(assigners)))
 
-fun HeadlessMatch.respondToSelectN(ids: List<Int>): MatchResult = submit(MatchIntent.SelectN(ids))
+fun HeadlessMatch.respondToSelectN(ids: List<Int>): MatchResult = submit(MatchIntent.Prompt(PromptResponse.SelectN(ids)))
 
-fun HeadlessMatch.respondToOrder(ids: List<Int>): MatchResult = submit(MatchIntent.Order(ids))
+fun HeadlessMatch.respondToOrder(ids: List<Int>): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Order(ids)))
 
-fun HeadlessMatch.respondToSearch(ids: List<Int>): MatchResult = submit(MatchIntent.Search(ids))
+fun HeadlessMatch.respondToSearch(ids: List<Int>): MatchResult = submit(MatchIntent.Prompt(PromptResponse.Search(ids)))
 
-fun HeadlessMatch.respondToEffectCost(ids: List<Int>): MatchResult = submit(MatchIntent.EffectCost(ids))
+fun HeadlessMatch.respondToEffectCost(ids: List<Int>): MatchResult = submit(MatchIntent.Prompt(PromptResponse.EffectCost(ids)))
 
-fun HeadlessMatch.respondToGatherCounters(gatherings: List<Pair<Int, Int>>): MatchResult = submit(MatchIntent.GatherCounters(gatherings))
+fun HeadlessMatch.respondToGatherCounters(gatherings: List<Pair<Int, Int>>): MatchResult =
+    submit(MatchIntent.Prompt(PromptResponse.GatherCounters(gatherings)))
 
-fun HeadlessMatch.respondModalChoice(ids: List<Int>): MatchResult = submit(MatchIntent.ModalChoice(ids))
+fun HeadlessMatch.respondModalChoice(ids: List<Int>): MatchResult = submit(MatchIntent.Prompt(PromptResponse.ModalChoice(ids)))
 
-fun HeadlessMatch.respondToOptionalCost(ctoId: Int): MatchResult = submit(MatchIntent.OptionalCost(ctoId))
+fun HeadlessMatch.respondToOptionalCost(ctoId: Int): MatchResult = submit(MatchIntent.Prompt(PromptResponse.OptionalCost(ctoId)))
 
 fun HeadlessMatch.respondToAlternateCost(
     ctoId: Int,
     optionIndex: Int,
-): MatchResult = submit(MatchIntent.AlternateCost(ctoId, optionIndex))
+): MatchResult = submit(MatchIntent.Prompt(PromptResponse.AlternateCost(ctoId, optionIndex)))
 
-fun HeadlessMatch.respondToManaTypeChoices(choices: List<Pair<Int, ManaColor>>): MatchResult = submit(MatchIntent.ManaTypeChoices(choices))
+fun HeadlessMatch.respondToManaTypeChoices(choices: List<Pair<Int, ManaColor>>): MatchResult =
+    submit(MatchIntent.Prompt(PromptResponse.ManaTypeChoices(choices.map { it.first to it.second.toManaColorChoice() })))
 
-fun HeadlessMatch.respondToOptionalAction(accept: Boolean): MatchResult = submit(MatchIntent.OptionalAction(accept))
+fun HeadlessMatch.respondToOptionalAction(accept: Boolean): MatchResult = submit(MatchIntent.Prompt(PromptResponse.OptionalAction(accept)))
 
-fun HeadlessMatch.respondToNumericInput(value: Int): MatchResult = submit(MatchIntent.NumericInput(value))
+fun HeadlessMatch.respondToNumericInput(value: Int): MatchResult = submit(MatchIntent.Prompt(PromptResponse.NumericInput(value)))
 
-fun HeadlessMatch.holdNextOptionalAction(): MatchResult = submit(MatchIntent.HoldNextOptionalAction)
+fun HeadlessMatch.holdNextOptionalAction(): MatchResult = submit(MatchIntent.Control(ControlAction.HoldNextOptionalAction))
 
 fun HeadlessMatch.sendSettings(vararg stops: wotc.mtgo.gre.external.messaging.Messages.Stop): MatchResult =
-    submit(MatchIntent.Settings(stops.toList()))
+    submit(MatchIntent.Control(ControlAction.Stops(stops.map { it.toStopChange() })))
 
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
 fun HeadlessMatch.setAutoPass(option: wotc.mtgo.gre.external.messaging.Messages.AutoPassOption): MatchResult =
-    submit(MatchIntent.AutoPass(option))
+    when (option) {
+        wotc.mtgo.gre.external.messaging.Messages.AutoPassOption.ResolveMyStackEffects ->
+            submit(MatchIntent.Control(ControlAction.AutoPass(AutoPassChoice.ResolveMyStackEffects)))
+        else -> error("Unsupported semantic auto-pass option: $option")
+    }
 
-fun HeadlessMatch.declineNextOptionalAction(): MatchResult = submit(MatchIntent.DeclineNextOptionalAction)
+fun HeadlessMatch.declineNextOptionalAction(): MatchResult = submit(MatchIntent.Control(ControlAction.DeclineNextOptionalAction))
 
 fun HeadlessMatch.passUntil(
     maxPasses: Int = 20,
@@ -312,9 +359,9 @@ fun HeadlessMatch.passUntil(
     repeat(maxPasses) {
         if (isGameOver() || stopWhen()) return true
         when (phase()) {
-            "COMBAT_DECLARE_ATTACKERS" -> submit(MatchIntent.NoAttackers)
-            "COMBAT_DECLARE_BLOCKERS" -> submit(MatchIntent.NoBlockers)
-            else -> submit(MatchIntent.PassPriority)
+            "COMBAT_DECLARE_ATTACKERS" -> declareNoAttackers()
+            "COMBAT_DECLARE_BLOCKERS" -> declareNoBlockers()
+            else -> passPriority()
         }
     }
     return isGameOver() || stopWhen()
@@ -350,6 +397,67 @@ fun HeadlessMatch.advanceToCombat(turn: Int? = null): MatchResult = advance(Adva
 fun HeadlessMatch.advanceToMain2(turn: Int? = null): MatchResult = advance(AdvanceGoal.Main2(turn))
 
 fun HeadlessMatch.triggerAutoPass(): MatchResult = advance(AdvanceGoal.TriggerAutoPass)
+
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
+private fun Action.toActionSelection(): ActionSelection =
+    ActionSelection(
+        kind =
+            when (actionType) {
+                ActionType.Pass -> ActionKind.Pass
+                ActionType.Cast -> ActionKind.Cast
+                ActionType.Activate_add3 -> ActionKind.Activate
+                ActionType.ActivateMana -> ActionKind.ActivateMana
+                ActionType.Play_add3 -> ActionKind.PlayLand
+                ActionType.PlayMdfc -> ActionKind.PlayMdfc
+                ActionType.CastMdfc -> ActionKind.CastMdfc
+                ActionType.CastAdventure -> ActionKind.CastAdventure
+                ActionType.CastOmen -> ActionKind.CastOmen
+                ActionType.SpecialTurnFaceUp_add3 -> ActionKind.TurnFaceUp
+                else -> error("Unsupported semantic action: $actionType")
+            },
+        instanceId = instanceId,
+        abilityGrpId = abilityGrpId,
+        alternativeGrpId = alternativeGrpId,
+    )
+
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
+private fun ManaColor.toManaColorChoice(): ManaColorChoice =
+    when (this) {
+        ManaColor.White_afc9 -> ManaColorChoice.White
+        ManaColor.Blue_afc9 -> ManaColorChoice.Blue
+        ManaColor.Black_afc9 -> ManaColorChoice.Black
+        ManaColor.Red_afc9 -> ManaColorChoice.Red
+        ManaColor.Green_afc9 -> ManaColorChoice.Green
+        ManaColor.Colorless_afc9 -> ManaColorChoice.Colorless
+        ManaColor.Phyrexian_afc9 -> ManaColorChoice.Phyrexian
+        ManaColor.Generic -> ManaColorChoice.Generic
+        ManaColor.X -> ManaColorChoice.X
+        ManaColor.Y -> ManaColorChoice.Y
+        ManaColor.TwoGeneric -> ManaColorChoice.TwoGeneric
+        ManaColor.AnyColor -> ManaColorChoice.AnyColor
+        ManaColor.Snow_afc9 -> ManaColorChoice.Snow
+        else -> error("Unsupported semantic mana color: $this")
+    }
+
+private fun wotc.mtgo.gre.external.messaging.Messages.DamageRecipient.toDamageRecipientChoice(): DamageRecipientChoice =
+    when (type) {
+        DamageRecType.Player_a0e5 -> DamageRecipientChoice.Opponent
+        DamageRecType.PlanesWalker -> DamageRecipientChoice.Planeswalker(planeswalkerInstanceId)
+        else -> error("Unsupported semantic damage recipient: $type")
+    }
+
+private fun Stop.toStopChange(): StopChange =
+    StopChange(
+        phase = stopType.name,
+        scope =
+            when (appliesTo) {
+                SettingScope.Team_ac6e -> StopScope.Team
+                SettingScope.Opponents -> StopScope.Opponents
+                SettingScope.AnyPlayer -> StopScope.AnyPlayer
+                else -> error("Unsupported semantic stop scope: $appliesTo")
+            },
+        enabled = status == SettingStatus.Set,
+    )
 
 fun HeadlessMatch.humanBattlefieldCreatures(): List<Pair<Int, String>> =
     observe().cards.filter { it.seat == 1 && it.zone == ZoneType.Battlefield.name && it.power != null }.map { it.instanceId to it.name }

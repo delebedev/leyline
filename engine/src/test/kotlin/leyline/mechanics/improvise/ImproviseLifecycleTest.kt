@@ -14,7 +14,6 @@ import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.hasDetail
 import leyline.testkit.haveManaCost
-import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
 import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -95,14 +94,9 @@ class ImproviseLifecycleTest :
     })
 
 private fun HeadlessMatch.respondToMakePayment(instanceId: Int) {
-    submitAction(
-        performAction {
-            actionType = ActionType.MakePayment
-            this.instanceId = instanceId
-        },
-    )
+    respondToManaPayment(instanceId)
 }
 
 private fun HeadlessMatch.respondToPaymentDone() {
-    submitAction(performAction { actionType = ActionType.Pass })
+    finishManaPayment()
 }

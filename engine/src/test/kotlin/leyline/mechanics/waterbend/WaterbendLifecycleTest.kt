@@ -16,7 +16,6 @@ import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
-import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
 import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -282,14 +281,9 @@ private fun assertWaterbendPaymentActions(
 private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
 
 private fun HeadlessMatch.respondToWaterbendMakePayment(instanceId: Int) {
-    submitAction(
-        performAction {
-            actionType = ActionType.MakePayment
-            this.instanceId = instanceId
-        },
-    )
+    respondToManaPayment(instanceId)
 }
 
 private fun HeadlessMatch.respondToWaterbendPaymentDone() {
-    submitAction(performAction { actionType = ActionType.Pass })
+    finishManaPayment()
 }

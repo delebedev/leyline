@@ -28,6 +28,8 @@ import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailInt
 import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.IntrinsicKeyword
+import leyline.tooling.headless.MatchSetup
 import leyline.tooling.headless.planeswalkerDamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -538,11 +540,11 @@ class CombatInteractionTest :
         session(
             "first strike combat damage uses first-strike damage step",
             deckList = COMBAT_DECK,
+            setup = listOf(MatchSetup.AddKeyword("Raging Goblin", IntrinsicKeyword.FirstStrike)),
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
             val attackerIid = setupSingleAttacker()
-            addIntrinsicKeyword(attackerIid, "First Strike")
 
             passPriority()
             declareAttackers(listOf(attackerIid))
@@ -571,11 +573,11 @@ class CombatInteractionTest :
         session(
             "double strike combat damage uses first-strike and regular damage steps",
             deckList = COMBAT_DECK,
+            setup = listOf(MatchSetup.AddKeyword("Raging Goblin", IntrinsicKeyword.DoubleStrike)),
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
         ) {
             val attackerIid = setupSingleAttacker()
-            addIntrinsicKeyword(attackerIid, "Double Strike")
 
             passPriority()
             declareAttackers(listOf(attackerIid))

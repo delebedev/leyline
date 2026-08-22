@@ -17,13 +17,11 @@ import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasDetail
 import leyline.testkit.haveManaCost
-import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
 import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.ManaSelection
 import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
@@ -292,17 +290,12 @@ private fun HeadlessMatch.respondToConvokeMakePayment(
     instanceId: Int,
     repeatInManaSelection: Boolean = false,
 ) {
-    submitAction(
-        performAction {
-            actionType = ActionType.MakePayment
-            this.instanceId = instanceId
-            if (repeatInManaSelection) {
-                addManaSelections(ManaSelection.newBuilder().setInstanceId(instanceId))
-            }
-        },
+    respondToManaPayment(
+        sourceInstanceId = instanceId,
+        repeatedSelectionInstanceIds = if (repeatInManaSelection) listOf(instanceId) else emptyList(),
     )
 }
 
 private fun HeadlessMatch.respondToConvokePaymentDone() {
-    submitAction(performAction { actionType = ActionType.Pass })
+    finishManaPayment()
 }

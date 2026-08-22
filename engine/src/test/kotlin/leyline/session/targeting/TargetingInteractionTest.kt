@@ -106,7 +106,7 @@ class TargetingInteractionTest :
             val initialPromptMsgId = latestPromptMsgId()
             val before = messageSnapshot()
 
-            selectTargetsIterative(listOf(creatureIid))
+            selectTargetsIterative(listOf(creatureIid), targetIndex = 0)
 
             val messages = messagesSince(before)
             messages.none { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe true
@@ -129,7 +129,7 @@ class TargetingInteractionTest :
         ) {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
-            val promptBefore = observe().blockingInteraction
+            val promptBefore = observe().blockingInteractionId
 
             respondToSelectN(emptyList())
             respondToOrder(emptyList())
@@ -137,7 +137,7 @@ class TargetingInteractionTest :
             respondModalChoice(emptyList())
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
 
-            observe().blockingInteraction shouldBe promptBefore
+            observe().blockingInteractionId shouldBe promptBefore
             selectTargets(listOf(creatureIid))
             passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4

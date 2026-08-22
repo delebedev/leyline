@@ -1,7 +1,10 @@
 package leyline.tooling.simclient
 
 import leyline.copilot.SimDecision
+import leyline.tooling.headless.AdvanceGoal
+import leyline.tooling.headless.ControlAction
 import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.MatchIntent
 import leyline.tooling.simclient.GameStats
 import leyline.tooling.simclient.SimClientFinding
 import org.slf4j.LoggerFactory
@@ -265,10 +268,7 @@ internal class SimClientDriver(
         logFailureAtError: Boolean,
     ) {
         try {
-            harness.submit(leyline.tooling.headless.MatchIntent.Concede)
-            // Concede emits via the semantic seam; flush pulls those bytes
-            // into the immutable message view so the log writer sees them.
-            harness.submit(leyline.tooling.headless.MatchIntent.Flush)
+            harness.submit(MatchIntent.Control(ControlAction.Concede))
             flushNewMessagesToLog()
         } catch (t: Throwable) {
             val msg = "SimClientDriver: $reason concede failed: ${t::class.simpleName}: ${t.message}"
@@ -303,7 +303,7 @@ internal class SimClientDriver(
         val active =
             prompt ?: run {
                 if (harness.observe().aiTurn) return triggerAutoPassAndDrain()
-                harness.submit(leyline.tooling.headless.MatchIntent.PassPriority)
+                harness.submit(MatchIntent.Control(ControlAction.PassPriority))
                 return true
             }
         return respondToPrompt(active)
@@ -312,8 +312,7 @@ internal class SimClientDriver(
     private fun triggerAutoPassAndDrain(): Boolean {
         val before = harness.observe().messages.size
         val autoPassT0 = System.nanoTime()
-        runCatching { harness.submit(leyline.tooling.headless.MatchIntent.Flush) }
-        harness.submit(leyline.tooling.headless.MatchIntent.Flush)
+        harness.advance(AdvanceGoal.TriggerAutoPass)
         recordAutoPass(elapsedMsSince(autoPassT0))
         return harness.observe().messages.size > before
     }

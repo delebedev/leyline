@@ -8,9 +8,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import leyline.SimClientTag
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
+import leyline.testkit.turn
+import leyline.tooling.headless.HeadlessMatchFactory
+import leyline.tooling.headless.MatchSpec
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.nio.file.Files
@@ -19,8 +21,7 @@ import java.time.LocalDateTime
 
 /**
  * v0 end-to-end smoke for the simclient. Both variants drive a full game
- * through MatchSession + GameBridge + Forge engine, write a Player.log,
- * and assert the log shape.
+ * through the semantic headless seam, write a Player.log, and assert the log shape.
  *
  * - mono-Forest: pipeline-only (no combat). Validates non-combat wire.
  * - vanilla-creatures: 24 Forest + 36 Grizzly Bears mirror. Forces combat
@@ -38,10 +39,7 @@ class SimClientE2ETest :
             maxTurns: Int = 30,
         ): java.io.File {
             val harness =
-                MatchFlowHarness(
-                    seed = seed,
-                    deckList = deck,
-                )
+                HeadlessMatchFactory.create(MatchSpec(seed = seed, deckList = deck))
             val tempLog = Files.createTempFile("simclient-$tag-", ".log").toFile()
             var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
             val writer = tempLog.bufferedWriter()
@@ -55,9 +53,14 @@ class SimClientE2ETest :
                     },
                 )
             val driver = SimClientDriver(harness, playerLog, maxTurns = maxTurns)
-            driver.runOneGame()
-            writer.close()
-            val finalTurn = runCatching { harness.turn() }.getOrNull() ?: -1
+            val finalTurn =
+                try {
+                    driver.runOneGame()
+                    harness.turn()
+                } finally {
+                    writer.close()
+                    harness.close()
+                }
             println("SimClientE2ETest [$tag] log: ${tempLog.absolutePath} (${tempLog.length()} bytes), turn=$finalTurn")
             return tempLog
         }
@@ -88,7 +91,8 @@ class SimClientE2ETest :
         }
 
         test("bolt-face orders noncombat damage inside its resolution lifecycle before stack exit") {
-            val harness = MatchFlowHarness(seed = 42L)
+            val puzzle = Files.readString(Path.of("../puzzles/bolt-face.pzl"))
+            val harness = HeadlessMatchFactory.create(MatchSpec(seed = 42L, puzzleText = puzzle))
             val tempLog = Files.createTempFile("simclient-bolt-face-", ".log").toFile()
             val writer = tempLog.bufferedWriter()
             val playerLog = PlayerLogWriter(out = writer, matchId = "simclient-bolt-face")
@@ -97,14 +101,11 @@ class SimClientE2ETest :
                     harness = harness,
                     log = playerLog,
                     maxTurns = 3,
-                    connect = {
-                        harness.connectAndKeepPuzzleText(
-                            Files.readString(Path.of("../puzzles/bolt-face.pzl")),
-                        )
-                    },
                 ).runOneGame()
                 val damageGsms =
-                    harness.allMessages
+                    harness
+                        .observe()
+                        .messages
                         .gameStateMessages()
                         .filter { gsm -> gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList } }
                 damageGsms.shouldHaveSize(1)
@@ -128,7 +129,7 @@ class SimClientE2ETest :
                 }
             } finally {
                 writer.close()
-                runCatching { harness.shutdown() }
+                runCatching { harness.close() }
             }
         }
     })

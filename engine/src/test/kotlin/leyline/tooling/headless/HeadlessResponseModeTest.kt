@@ -7,7 +7,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 /**

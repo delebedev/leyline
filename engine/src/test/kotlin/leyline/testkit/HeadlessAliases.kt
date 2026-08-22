@@ -2,7 +2,6 @@ package leyline.testkit
 
 import wotc.mtgo.gre.external.messaging.Messages.*
 
-internal typealias MatchFlowHarness = leyline.tooling.headless.MatchFlowHarness
 typealias PlayerZone = leyline.tooling.headless.PlayerZone
 typealias ClientAccumulator = leyline.tooling.headless.ClientAccumulator
 typealias ValidatingMessageSink = leyline.tooling.headless.ValidatingMessageSink

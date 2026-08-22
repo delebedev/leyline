@@ -4,8 +4,8 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.*
 import leyline.testkit.SessionTest
@@ -68,7 +68,7 @@ class NoviceInspectorTest :
                 clueCard = bfCards.first { it.name.contains("Clue", ignoreCase = true) }
                 bfCards.map { it.name } shouldContain "Novice Inspector"
                 clueCard.isToken.shouldBeTrue()
-                clueCard.abilityIds.shouldNotBeEmpty()
+                clueCard.abilityIds shouldContain 152
             }
 
             // Verify Clue has the sac-for-draw ability registered
@@ -87,6 +87,8 @@ class NoviceInspectorTest :
                 activateAbility(clueCard.name).shouldBeTrue()
                 messagesSince(beforeActivation).any { it.hasGameStateMessage() }.shouldBeTrue()
                 observe().validationViolations shouldBe emptyList()
+                observe().pendingActionKind shouldNotBe "SYNC_ONLY"
+                observe().loopFailure shouldBe null
             }
 
             assertSoftly {

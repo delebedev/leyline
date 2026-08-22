@@ -1,14 +1,18 @@
 package leyline.mechanics.endure
 
-import forge.game.card.CounterEnumType
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.castSpellByName
+import leyline.testkit.declineNextOptionalAction
+import leyline.testkit.passPriority
+import leyline.testkit.phase
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.HeadlessMatchFactory
+import leyline.tooling.headless.MatchSpec
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 /**
@@ -31,9 +35,9 @@ class EndureLifecycleTest :
 
         tags(IntegrationTag)
 
-        var harness: MatchFlowHarness? = null
+        var harness: HeadlessMatch? = null
         afterEach {
-            harness?.shutdown()
+            harness?.close()
             harness = null
         }
 
@@ -58,17 +62,16 @@ class EndureLifecycleTest :
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-        // The harness auto-responds AllowYes by default (`MatchFlowHarness.drainSink` →
+        // The headless seam auto-responds AllowYes by default (`observe` →
         // `autoRespondToOptionalAction`). For Mode A we rely on that default; for
         // Mode B we pre-seed `declineNextOptionalAction()` so the auto-responder
         // sends `CancelNo` instead. Tests assert post-resolution state.
 
         test("Mode A — Yes puts a +1/+1 counter on the source") {
-            val h = MatchFlowHarness(seed = 42L)
+            val h = HeadlessMatchFactory.create(MatchSpec(seed = 42L, puzzleText = puzzleText()))
             harness = h
-            h.connectAndKeepPuzzleText(puzzleText())
+            h.start()
 
-            val human = h.bridge.getPlayer(SeatId(1))!!
             h.phase() shouldBe "MAIN1"
 
             check(h.castSpellByName("Kin-Tree Nurturer"))
@@ -76,28 +79,25 @@ class EndureLifecycleTest :
             h.passPriority() // resolve the trigger → confirmAction → auto-Yes
 
             val endureOams =
-                h.allMessages.filter {
+                h.observe().messages.filter {
                     it.type == GREMessageType.OptionalActionMessage_695e &&
                         it.prompt.promptId == PromptIds.ENDURE_PUT_COUNTERS
                 }
             endureOams.size shouldBe 1
             val oam = endureOams.single()
 
-            val nurturer =
-                human.getZone(ZoneType.Battlefield).cards.firstOrNull { it.name == "Kin-Tree Nurturer" }
+            val nurturer = h.observe().cards.firstOrNull { it.seat == 1 && it.zone == "Battlefield" && it.name == "Kin-Tree Nurturer" }
             checkNotNull(nurturer) { "Kin-Tree Nurturer should be on battlefield" }
-            nurturer.getCounters(CounterEnumType.P1P1) shouldBe 1
+            nurturer.counters.values.sum() shouldBe 1
 
-            val tokens = human.getZone(ZoneType.Battlefield).cards.filter { it.isToken }
+            val tokens = h.observe().cards.filter { it.seat == 1 && it.zone == "Battlefield" && it.isToken }
             tokens.none { it.name.contains("Spirit", ignoreCase = true) } shouldBe true
         }
 
         test("Mode B — No creates a 1/1 Spirit token") {
-            val h = MatchFlowHarness(seed = 42L)
+            val h = HeadlessMatchFactory.create(MatchSpec(seed = 42L, puzzleText = puzzleText()))
             harness = h
-            h.connectAndKeepPuzzleText(puzzleText())
-
-            val human = h.bridge.getPlayer(SeatId(1))!!
+            h.start()
 
             // Pre-seed: next OAM gets declined. Cleared after the auto-responder fires.
             h.declineNextOptionalAction()
@@ -107,43 +107,45 @@ class EndureLifecycleTest :
             h.passPriority()
 
             val endureOams =
-                h.allMessages.filter {
+                h.observe().messages.filter {
                     it.type == GREMessageType.OptionalActionMessage_695e &&
                         it.prompt.promptId == PromptIds.ENDURE_PUT_COUNTERS
                 }
             endureOams.size shouldBe 1
             val oam = endureOams.single()
 
-            val nurturer =
-                human.getZone(ZoneType.Battlefield).cards.firstOrNull { it.name == "Kin-Tree Nurturer" }
+            val nurturer = h.observe().cards.firstOrNull { it.seat == 1 && it.zone == "Battlefield" && it.name == "Kin-Tree Nurturer" }
             checkNotNull(nurturer) { "Kin-Tree Nurturer should be on battlefield" }
-            nurturer.getCounters(CounterEnumType.P1P1) shouldBe 0
+            nurturer.counters.values.sum() shouldBe 0
 
             val spirits =
-                human.getZone(ZoneType.Battlefield).cards.filter {
-                    it.isToken && it.name.contains("Spirit", ignoreCase = true)
+                h.observe().cards.filter {
+                    it.seat == 1 &&
+                        it.zone == "Battlefield" &&
+                        it.isToken &&
+                        it.name.contains("Spirit", ignoreCase = true)
                 }
             spirits.size shouldBe 1
             val spirit = spirits.single()
             assertSoftly(spirit) {
-                currentPower shouldBe 1
-                currentToughness shouldBe 1
-                isCreature shouldBe true
-                isWhite shouldBe true
+                power shouldBe 1
+                toughness shouldBe 1
+                cardTypes shouldContain "Creature"
+                colors shouldContain "White"
             }
         }
 
         test("OAM envelope — promptId, sourceId, parameters, allowCancel") {
-            val h = MatchFlowHarness(seed = 42L)
+            val h = HeadlessMatchFactory.create(MatchSpec(seed = 42L, puzzleText = puzzleText()))
             harness = h
-            h.connectAndKeepPuzzleText(puzzleText())
+            h.start()
 
             check(h.castSpellByName("Kin-Tree Nurturer"))
             h.passPriority()
             h.passPriority()
 
             val oam =
-                h.allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+                h.observe().messages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
             checkNotNull(oam) { "Expected OptionalActionMessage for Endure trigger" }
 
             assertSoftly(oam) {

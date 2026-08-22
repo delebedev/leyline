@@ -81,6 +81,7 @@ internal class MatchFlowHarness(
     private val startupPuzzleText: String? = null,
     private val startupPuzzleResource: String? = null,
     private val startupAiScript: List<ScriptedAction>? = null,
+    private val startupSetup: List<MatchSetup> = emptyList(),
 ) : HeadlessMatch {
     companion object {
         fun defaultValidation(validating: Boolean): InvariantSelection = defaultHeadlessValidation(validating)
@@ -121,6 +122,7 @@ internal class MatchFlowHarness(
                 startupPuzzleText = spec.puzzleText,
                 startupPuzzleResource = spec.puzzleResource,
                 startupAiScript = spec.aiScript,
+                startupSetup = spec.setup,
             )
     }
 
@@ -162,6 +164,7 @@ internal class MatchFlowHarness(
     private var holdNextOptionalResponse = false
     private var nextNumericInputValue: Int? = null
     private var lastConsumedPromptMsgIds: List<Int> = emptyList()
+    private val appliedSetupCards = mutableSetOf<Pair<MatchSetup, Int>>()
 
     lateinit var session: MatchSession
         private set
@@ -195,6 +198,147 @@ internal class MatchFlowHarness(
             else -> connectAndKeep(aiScript)
         }
         cacheSeatPlayers()
+        applyStartupSetup()
+    }
+
+    private fun applyStartupSetup() {
+        applySetupToCards(cardViews())
+        if (startupSetup.isNotEmpty()) drainSink()
+    }
+
+    private fun applySetupToCards(cards: List<HeadlessCard>) {
+        startupSetup.forEach { setup ->
+            val zone =
+                when (setup) {
+                    is MatchSetup.AddKeyword -> setup.zone
+                    is MatchSetup.AddStaticAbility -> setup.zone
+                }
+            val matching =
+                cards.filter {
+                    val cardName =
+                        when (setup) {
+                            is MatchSetup.AddKeyword -> setup.cardName
+                            is MatchSetup.AddStaticAbility -> setup.cardName
+                        }
+                    it.name == cardName && (zone == SpellZone.Anywhere || it.zone == zone.toZoneType().name)
+                }
+            if (matching.isEmpty() && zone != SpellZone.Anywhere) {
+                error(
+                    "Startup setup card not found: ${when (setup) {
+                        is MatchSetup.AddKeyword -> setup.cardName
+                        is MatchSetup.AddStaticAbility -> setup.cardName
+                    }} in $zone",
+                )
+            }
+            matching.forEach { card ->
+                if (!appliedSetupCards.add(setup to card.instanceId)) return@forEach
+                val forgeId = bridge.getForgeCardId(InstanceId(card.instanceId)) ?: error("Unknown setup card ${card.instanceId}")
+                val forgeCard = game().findById(forgeId.value) ?: error("Unknown setup card ${card.instanceId}")
+                when (setup) {
+                    is MatchSetup.AddKeyword -> forgeCard.addIntrinsicKeyword(setup.keyword.toForgeName())
+                    is MatchSetup.AddStaticAbility -> forgeCard.addStaticAbility(setup.ability.toForgeScript())
+                }
+            }
+        }
+    }
+
+    private fun SpellZone.toZoneType(): ZoneType =
+        when (this) {
+            SpellZone.Anywhere -> error("Anywhere is a setup selector, not a Forge zone")
+            SpellZone.Battlefield -> ZoneType.Battlefield
+            SpellZone.Hand -> ZoneType.Hand
+            SpellZone.Graveyard -> ZoneType.Graveyard
+            SpellZone.Exile -> ZoneType.Exile
+        }
+
+    private fun IntrinsicKeyword.toForgeName(): String =
+        when (this) {
+            IntrinsicKeyword.FirstStrike -> "First Strike"
+            IntrinsicKeyword.DoubleStrike -> "Double Strike"
+        }
+
+    private fun StaticAbilitySetup.toForgeScript(): String =
+        when (this) {
+            StaticAbilitySetup.VehicleCrewPowerWeight ->
+                "Mode\$ TapPowerValue | ValidSA\$ Activated.Crew+Vehicle | " +
+                    "ValidCard\$ Card.Self | Value\$ Toughness"
+        }
+
+    private fun ManaColorChoice.toProtoColor(): ManaColor =
+        when (this) {
+            ManaColorChoice.White -> ManaColor.White_afc9
+            ManaColorChoice.Blue -> ManaColor.Blue_afc9
+            ManaColorChoice.Black -> ManaColor.Black_afc9
+            ManaColorChoice.Red -> ManaColor.Red_afc9
+            ManaColorChoice.Green -> ManaColor.Green_afc9
+            ManaColorChoice.Colorless -> ManaColor.Colorless_afc9
+            ManaColorChoice.Phyrexian -> ManaColor.Phyrexian_afc9
+            ManaColorChoice.Generic -> ManaColor.Generic
+            ManaColorChoice.X -> ManaColor.X
+            ManaColorChoice.Y -> ManaColor.Y
+            ManaColorChoice.TwoGeneric -> ManaColor.TwoGeneric
+            ManaColorChoice.AnyColor -> ManaColor.AnyColor
+            ManaColorChoice.Snow -> ManaColor.Snow_afc9
+        }
+
+    private fun DamageRecipientChoice.toProtoRecipient(): DamageRecipient =
+        when (this) {
+            DamageRecipientChoice.Opponent ->
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.Player_a0e5)
+                    .setPlayerSystemSeatId(opponentSeatId.value)
+                    .build()
+            is DamageRecipientChoice.Planeswalker ->
+                DamageRecipient
+                    .newBuilder()
+                    .setType(DamageRecType.PlanesWalker)
+                    .setPlaneswalkerInstanceId(instanceId)
+                    .build()
+        }
+
+    private fun StopChange.toProtoStop(): Stop =
+        Stop
+            .newBuilder()
+            .setStopType(StopType.valueOf(phase))
+            .setAppliesTo(
+                when (scope) {
+                    StopScope.Team -> SettingScope.Team_ac6e
+                    StopScope.Opponents -> SettingScope.Opponents
+                    StopScope.AnyPlayer -> SettingScope.AnyPlayer
+                },
+            ).setStatus(if (enabled) SettingStatus.Set else SettingStatus.Clear_a3fe)
+            .build()
+
+    private fun AutoPassChoice.toProtoOption(): AutoPassOption =
+        when (this) {
+            AutoPassChoice.ResolveMyStackEffects -> AutoPassOption.ResolveMyStackEffects
+        }
+
+    private fun submitSelection(selection: ActionSelection) {
+        val expectedType =
+            when (selection.kind) {
+                ActionKind.Pass -> ActionType.Pass
+                ActionKind.Cast -> ActionType.Cast
+                ActionKind.Activate -> ActionType.Activate_add3
+                ActionKind.ActivateMana -> ActionType.ActivateMana
+                ActionKind.PlayLand -> ActionType.Play_add3
+                ActionKind.PlayMdfc -> ActionType.PlayMdfc
+                ActionKind.CastMdfc -> ActionType.CastMdfc
+                ActionKind.CastAdventure -> ActionType.CastAdventure
+                ActionKind.CastOmen -> ActionType.CastOmen
+                ActionKind.TurnFaceUp -> ActionType.SpecialTurnFaceUp_add3
+            }
+        val action =
+            accumulator.actions
+                ?.actionsList
+                ?.firstOrNull {
+                    it.actionType == expectedType &&
+                        (selection.instanceId == 0 || it.instanceId == selection.instanceId) &&
+                        (selection.abilityGrpId == 0 || it.abilityGrpId == selection.abilityGrpId) &&
+                        (selection.alternativeGrpId == 0 || it.alternativeGrpId == selection.alternativeGrpId)
+                } ?: error("No offered ${selection.kind} action for instance ${selection.instanceId}")
+        submitAction(action)
     }
 
     /**
@@ -497,6 +641,20 @@ internal class MatchFlowHarness(
 
     private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
+    /** Submit the semantic answer to a native mana-payment prompt. */
+    private fun respondToManaPayment(
+        sourceInstanceId: Int?,
+        repeatedSelectionInstanceIds: List<Int>,
+    ) {
+        val action =
+            performAction {
+                actionType = if (sourceInstanceId == null) ActionType.Pass else ActionType.MakePayment
+                if (sourceInstanceId != null) instanceId = sourceInstanceId
+                repeatedSelectionInstanceIds.forEach { addManaSelections(ManaSelection.newBuilder().setInstanceId(it)) }
+            }
+        submitAction(action.performActionResp.actionsList.single())
+    }
+
     /** Advance one exact priority or state-only synchronization stop. */
     fun passPriority() {
         val pending = bridge.actionBridge(seatId).getPending()
@@ -541,6 +699,16 @@ internal class MatchFlowHarness(
      * which for a discard is "exactly as many as the rules demand".
      */
     private fun unansweredSelectN(): PendingSelectN? {
+        val pending = pendingSelectN() ?: return null
+        return PendingSelectN(ids = pending.instanceIds, count = pending.min)
+    }
+
+    /**
+     * Return only the latest interaction when no subsequent prompt supersedes it.
+     * The result is copied into the immutable observation so consumers never need
+     * to inspect message history to decide whether a response is currently legal.
+     */
+    private fun pendingSelectN(): PendingInteraction.SelectN? {
         val index = allMessages.indexOfLast { it.hasSelectNReq() }
         if (index < 0) return null
         val laterPrompts =
@@ -548,8 +716,14 @@ internal class MatchFlowHarness(
                 it.hasActionsAvailableReq() || it.hasSelectNReq() || it.hasDeclareAttackersReq() || it.hasDeclareBlockersReq()
             }
         if (laterPrompts) return null
-        val req = allMessages[index].selectNReq
-        return PendingSelectN(ids = req.idsList.map { it.toInt() }, count = req.minSel.coerceAtLeast(0))
+        val message = allMessages[index]
+        val req = message.selectNReq
+        return PendingInteraction.SelectN(
+            messageId = message.msgId,
+            instanceIds = req.idsList.map { it.toInt() },
+            min = req.minSel.coerceAtLeast(0),
+            max = req.maxSel.coerceAtLeast(req.minSel),
+        )
     }
 
     private data class PendingSelectN(
@@ -775,9 +949,12 @@ internal class MatchFlowHarness(
      * Convenience wrapper — sends both messages so existing tests don't need to change.
      * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
-    fun selectTargets(targetInstanceIds: List<Int>) {
+    fun selectTargets(
+        targetInstanceIds: List<Int>,
+        targetIndex: Int = currentTargetIndex(),
+    ) {
         val before = allMessages.size
-        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIndex)))
         drainSink()
         // The engine echoes the picked target back as an iterative re-prompt and
         // holds the window open for the submit below. That echo is answered here,
@@ -803,8 +980,11 @@ internal class MatchFlowHarness(
      * Phase 1 only: send SelectTargetsResp without SubmitTargetsReq.
      * Use to inspect the echo-back re-prompt before confirming.
      */
-    fun selectTargetsIterative(targetInstanceIds: List<Int>) {
-        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())))
+    fun selectTargetsIterative(
+        targetInstanceIds: List<Int>,
+        targetIndex: Int = currentTargetIndex(),
+    ) {
+        session.onSelectTargets(submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIndex)))
         drainSink()
     }
 
@@ -1611,99 +1791,114 @@ internal class MatchFlowHarness(
         val consumedBefore = consumedPromptMsgIds.toList()
         var accepted = true
         when (intent) {
-            is MatchIntent.PlayLand -> accepted = playLand(intent.name)
-            is MatchIntent.CastSpell ->
-                accepted =
-                    castSpellByName(
-                        intent.cardName,
-                        zone =
-                            when (intent.zone) {
-                                SpellZone.Battlefield -> error("Casting from battlefield is not supported")
-                                SpellZone.Hand -> ZoneType.Hand
-                                SpellZone.Graveyard -> ZoneType.Graveyard
-                                SpellZone.Exile -> ZoneType.Exile
-                            },
-                        alternativeGrpId = intent.alternativeGrpId ?: 0,
-                    )
-            is MatchIntent.ActivateAbility ->
-                accepted =
-                    when (intent.zone) {
-                        SpellZone.Battlefield -> activateAbility(intent.cardName, intent.abilityIndex)
-                        SpellZone.Hand -> activateAbilityFromHand(intent.cardName, intent.abilityIndex)
-                        SpellZone.Graveyard -> activateAbilityFromGraveyard(intent.cardName, intent.abilityIndex)
-                        SpellZone.Exile -> error("Ability activation from exile is not supported")
-                    }
-            is MatchIntent.ActivateMana -> accepted = activateMana(intent.cardName, intent.abilityIndex, intent.selectedColor)
-            is MatchIntent.AddIntrinsicKeyword -> {
-                val forgeId = bridge.getForgeCardId(InstanceId(intent.instanceId)) ?: error("Unknown card ${intent.instanceId}")
-                game().findById(forgeId.value)?.addIntrinsicKeyword(intent.keyword)
-            }
-            is MatchIntent.AddStaticAbility -> {
-                val forgeId = bridge.getForgeCardId(InstanceId(intent.instanceId)) ?: error("Unknown card ${intent.instanceId}")
-                game().findById(forgeId.value)?.addStaticAbility(intent.script)
-            }
-            MatchIntent.PassPriority -> passPriority()
-            is MatchIntent.Action -> submitAction(intent.action)
-            is MatchIntent.Attackers ->
-                if (intent.damageRecipients.isEmpty()) {
-                    declareAttackers(intent.instanceIds)
-                } else {
-                    declareAttackers(intent.instanceIds, intent.damageRecipients)
+            is MatchIntent.Play ->
+                when (val action = intent.action) {
+                    is PlayAction.Land -> accepted = playLand(action.name)
+                    is PlayAction.Spell ->
+                        accepted =
+                            castSpellByName(
+                                action.cardName,
+                                zone = action.zone.toZoneType(),
+                                alternativeGrpId = action.alternativeGrpId ?: 0,
+                            )
+                    is PlayAction.Ability ->
+                        accepted =
+                            when (action.zone) {
+                                SpellZone.Anywhere -> error("Anywhere is a setup selector, not an ability zone")
+                                SpellZone.Battlefield -> activateAbility(action.cardName, action.abilityIndex)
+                                SpellZone.Hand -> activateAbilityFromHand(action.cardName, action.abilityIndex)
+                                SpellZone.Graveyard -> activateAbilityFromGraveyard(action.cardName, action.abilityIndex)
+                                SpellZone.Exile -> error("Ability activation from exile is not supported")
+                            }
+                    is PlayAction.ManaAbility -> accepted = activateMana(action.cardName, action.abilityIndex, action.color?.toProtoColor())
+                    is PlayAction.Selection -> submitSelection(action.action)
                 }
-            is MatchIntent.AttackersWithoutRecipients -> combatDriver.declareAttackersWithoutRecipients(intent.instanceIds)
-            is MatchIntent.DeselectAttackers -> combatDriver.deselectAttackers(intent.instanceIds)
-            is MatchIntent.ToggleAttackers -> toggleAttackers(intent.instanceIds, intent.alternatives, intent.damageRecipients)
-            MatchIntent.NoAttackers -> declareNoAttackers()
-            MatchIntent.AllAttackers -> declareAllAttackers()
-            MatchIntent.SubmitAttackers -> submitAttackers()
-            is MatchIntent.Blockers -> declareBlockers(intent.assignments)
-            is MatchIntent.ToggleBlockers -> toggleBlockers(intent.assignments)
-            is MatchIntent.DeselectBlocker -> deselectBlocker(intent.blockerInstanceId)
-            MatchIntent.NoBlockers -> declareNoBlockers()
-            MatchIntent.SubmitBlockers -> submitBlockers()
-            is MatchIntent.DamageAssignment -> assignDamage(intent.assigners)
-            is MatchIntent.Targets -> selectTargets(intent.instanceIds)
-            is MatchIntent.TargetsIterative -> selectTargetsIterative(intent.instanceIds)
-            is MatchIntent.UnselectTargets -> unselectTargets(intent.instanceIds)
-            MatchIntent.SubmitTargets -> submitTargets()
-            MatchIntent.CancelAction -> cancelAction()
-            is MatchIntent.Group -> respondToGroupReq(intent.awayInstanceIds, intent.allInstanceIds)
-            is MatchIntent.Scry -> respondToScry(intent.bottomInstanceIds, intent.allInstanceIds)
-            is MatchIntent.SelectN -> respondToSelectN(intent.instanceIds)
-            is MatchIntent.Order -> respondToOrder(intent.instanceIds)
-            is MatchIntent.Search -> respondToSearch(intent.instanceIds)
-            is MatchIntent.EffectCost -> respondToEffectCost(intent.instanceIds)
-            is MatchIntent.GatherCounters -> respondToGatherCounters(intent.gatherings)
-            is MatchIntent.ModalChoice -> respondModalChoice(intent.selectedGrpIds)
-            is MatchIntent.OptionalCost -> respondToOptionalCost(intent.ctoId)
-            is MatchIntent.AlternateCost -> respondToAlternateCost(intent.ctoId, intent.optionIndex)
-            is MatchIntent.ManaTypeChoices -> respondToManaTypeChoices(intent.choicesByCtoId)
-            is MatchIntent.OptionalAction -> respondToOptionalAction(intent.accept)
-            is MatchIntent.NumericInput -> respondToNumericInput(intent.value)
-            MatchIntent.Flush -> drainSink()
-            MatchIntent.Concede -> {
-                session.onConcede()
-                drainSink()
-            }
-            MatchIntent.HoldNextOptionalAction -> holdNextOptionalAction()
-            MatchIntent.DeclineNextOptionalAction -> declineNextOptionalAction()
-            is MatchIntent.Settings -> {
-                val msg =
-                    clientMessage(ClientMessageType.SetSettingsReq_097b) {
-                        setSetSettingsReq(
-                            SetSettingsReq.newBuilder().setSettings(
-                                SettingsMessage.newBuilder().addAllStops(intent.stops),
-                            ),
+            is MatchIntent.Combat ->
+                when (val action = intent.action) {
+                    is CombatAction.Attackers ->
+                        if (action.recipientMode == AttackerRecipientMode.Omit) {
+                            combatDriver.declareAttackersWithoutRecipients(action.instanceIds)
+                        } else if (action.damageRecipients.isEmpty()) {
+                            declareAttackers(action.instanceIds)
+                        } else {
+                            declareAttackers(action.instanceIds, action.damageRecipients.mapValues { it.value.toProtoRecipient() })
+                        }
+                    is CombatAction.ToggleAttackers ->
+                        toggleAttackers(
+                            action.instanceIds,
+                            action.alternatives,
+                            action.damageRecipients.mapValues { it.value.toProtoRecipient() },
+                        )
+                    is CombatAction.DeselectAttackers -> combatDriver.deselectAttackers(action.instanceIds)
+                    is CombatAction.Blockers -> declareBlockers(action.assignments)
+                    is CombatAction.ToggleBlockers -> toggleBlockers(action.assignments)
+                    is CombatAction.DeselectBlocker -> deselectBlocker(action.blockerInstanceId)
+                    is CombatAction.DamageAssignment -> assignDamage(action.assigners)
+                    CombatAction.NoAttackers -> declareNoAttackers()
+                    CombatAction.AllAttackers -> declareAllAttackers()
+                    CombatAction.SubmitAttackers -> submitAttackers()
+                    CombatAction.NoBlockers -> declareNoBlockers()
+                    CombatAction.SubmitBlockers -> submitBlockers()
+                }
+            is MatchIntent.Prompt ->
+                when (val response = intent.response) {
+                    is PromptResponse.Targets ->
+                        if (response.iterative) {
+                            selectTargetsIterative(response.instanceIds, response.targetIndex ?: currentTargetIndex())
+                        } else {
+                            selectTargets(response.instanceIds, response.targetIndex ?: currentTargetIndex())
+                        }
+                    is PromptResponse.UnselectTargets -> unselectTargets(response.instanceIds)
+                    PromptResponse.SubmitTargets -> submitTargets()
+                    is PromptResponse.Group -> respondToGroupReq(response.awayInstanceIds, response.allInstanceIds)
+                    is PromptResponse.Scry -> respondToScry(response.bottomInstanceIds, response.allInstanceIds)
+                    is PromptResponse.SelectN -> respondToSelectN(response.instanceIds)
+                    is PromptResponse.Order -> respondToOrder(response.instanceIds)
+                    is PromptResponse.Search -> respondToSearch(response.instanceIds)
+                    is PromptResponse.EffectCost -> respondToEffectCost(response.instanceIds)
+                    is PromptResponse.GatherCounters -> respondToGatherCounters(response.gatherings)
+                    is PromptResponse.ModalChoice -> respondModalChoice(response.selectedGrpIds)
+                    is PromptResponse.OptionalCost -> respondToOptionalCost(response.ctoId)
+                    is PromptResponse.AlternateCost -> respondToAlternateCost(response.ctoId, response.optionIndex)
+                    is PromptResponse.ManaTypeChoices ->
+                        respondToManaTypeChoices(
+                            response.choicesByCtoId.map {
+                                it.first to
+                                    it.second.toProtoColor()
+                            },
+                        )
+                    is PromptResponse.OptionalAction -> respondToOptionalAction(response.accept)
+                    is PromptResponse.NumericInput -> respondToNumericInput(response.value)
+                    is PromptResponse.ManaPayment -> respondToManaPayment(response.sourceInstanceId, response.repeatedSelectionInstanceIds)
+                    PromptResponse.Cancel -> cancelAction()
+                }
+            is MatchIntent.Control ->
+                when (val action = intent.action) {
+                    ControlAction.PassPriority -> passPriority()
+                    ControlAction.Concede -> {
+                        session.onConcede()
+                        drainSink()
+                    }
+                    ControlAction.HoldNextOptionalAction -> holdNextOptionalAction()
+                    ControlAction.DeclineNextOptionalAction -> declineNextOptionalAction()
+                    is ControlAction.Stops -> {
+                        val msg =
+                            clientMessage(ClientMessageType.SetSettingsReq_097b) {
+                                setSetSettingsReq(
+                                    SetSettingsReq.newBuilder().setSettings(
+                                        SettingsMessage.newBuilder().addAllStops(action.changes.map { it.toProtoStop() }),
+                                    ),
+                                )
+                            }
+                        session.onSettings(submitWithGsId(msg))
+                        drainSink()
+                    }
+                    is ControlAction.AutoPass -> {
+                        session.autoPassState.update(
+                            SettingsMessage.newBuilder().setAutoPassOption(action.option.toProtoOption()).build(),
                         )
                     }
-                session.onSettings(submitWithGsId(msg))
-                drainSink()
-            }
-            is MatchIntent.AutoPass -> {
-                session.autoPassState.update(
-                    SettingsMessage.newBuilder().setAutoPassOption(intent.option).build(),
-                )
-            }
+                }
         }
         val consumed = consumedPromptMsgIds.toList().filterNot { it in consumedBefore }
         lastConsumedPromptMsgIds = consumed
@@ -1711,19 +1906,61 @@ internal class MatchFlowHarness(
     }
 
     override fun advance(goal: AdvanceGoal): MatchResult {
-        when (goal) {
-            is AdvanceGoal.Until -> passUntil(goal.maxPasses) { true }
-            is AdvanceGoal.UntilTurn -> passUntilTurn(goal.turn, goal.maxPasses)
-            is AdvanceGoal.ThroughCombat -> passThroughCombat(goal.startTurn ?: turn(), goal.maxPasses)
-            is AdvanceGoal.Resolved -> passUntilResolved(goal.maxPasses)
-            is AdvanceGoal.Phase -> advanceSemanticallyTo(goal.name, goal.turn)
-            AdvanceGoal.Main1 -> advanceSemanticallyTo("MAIN1")
-            is AdvanceGoal.Combat -> advanceSemanticallyTo("COMBAT_DECLARE_ATTACKERS", goal.turn)
-            is AdvanceGoal.Main2 -> advanceSemanticallyTo("MAIN2", goal.turn)
-            AdvanceGoal.TriggerAutoPass -> triggerAutoPass()
-        }
+        val advanced =
+            when (goal) {
+                is AdvanceGoal.Until -> advanceUntilProgress(goal.maxPasses)
+                is AdvanceGoal.UntilTurn -> {
+                    passUntilTurn(goal.turn, goal.maxPasses)
+                    true
+                }
+                is AdvanceGoal.ThroughCombat -> {
+                    passThroughCombat(goal.startTurn ?: turn(), goal.maxPasses)
+                    true
+                }
+                is AdvanceGoal.Resolved -> {
+                    passUntilResolved(goal.maxPasses)
+                    true
+                }
+                is AdvanceGoal.Phase -> {
+                    advanceSemanticallyTo(goal.name, goal.turn)
+                    true
+                }
+                AdvanceGoal.Main1 -> {
+                    advanceSemanticallyTo("MAIN1")
+                    true
+                }
+                is AdvanceGoal.Combat -> {
+                    advanceSemanticallyTo("COMBAT_DECLARE_ATTACKERS", goal.turn)
+                    true
+                }
+                is AdvanceGoal.Main2 -> {
+                    advanceSemanticallyTo("MAIN2", goal.turn)
+                    true
+                }
+                AdvanceGoal.TriggerAutoPass -> {
+                    triggerAutoPass()
+                    true
+                }
+            }
         drainSink()
-        return result()
+        return result(accepted = advanced)
+    }
+
+    private fun advanceUntilProgress(maxPasses: Int): Boolean {
+        require(maxPasses > 0) { "Until requires a positive pass budget" }
+        val beforeMessages = allMessages.size
+        val beforeTurn = runCatching { turn() }.getOrNull()
+        val beforePhase = runCatching { phase() }.getOrNull()
+
+        fun progressed(): Boolean =
+            allMessages.size > beforeMessages ||
+                runCatching { turn() }.getOrNull() != beforeTurn ||
+                runCatching { phase() }.getOrNull() != beforePhase
+        repeat(maxPasses) {
+            if (progressed() || isGameOver()) return progressed()
+            advanceDefaultStop()
+        }
+        return progressed()
     }
 
     private fun advanceSemanticallyTo(
@@ -1741,7 +1978,10 @@ internal class MatchFlowHarness(
         }
     }
 
-    override fun observe(): MatchObservation = observation()
+    override fun observe(): MatchObservation {
+        if (::bridge.isInitialized) drainSink()
+        return observation()
+    }
 
     override fun checkpoint(): MatchCheckpoint = MatchCheckpoint(messageLog.snapshot())
 
@@ -1771,8 +2011,10 @@ internal class MatchFlowHarness(
         consumedPromptMsgIds: List<Int> = emptyList(),
     ): MatchResult = MatchResult(accepted = accepted, observation = observation(), consumedPromptMsgIds = consumedPromptMsgIds)
 
-    private fun observation(): MatchObservation =
-        MatchObservation(
+    private fun observation(): MatchObservation {
+        val initialCards = cardViews()
+        applySetupToCards(initialCards)
+        return MatchObservation(
             messages = allMessages.toList(),
             rawMessages = allRawMessages.toList(),
             client = accumulator.snapshot(),
@@ -1803,6 +2045,32 @@ internal class MatchFlowHarness(
                         ?.javaClass
                         ?.simpleName
                 }.getOrNull(),
+            blockingInteractionId =
+                runCatching {
+                    bridge.cutCoordinator.targeting
+                        .current()
+                        ?.interactionId
+                }.getOrNull(),
+            pendingInteraction = runCatching { pendingSelectN() }.getOrNull(),
+            activeRevealVersion =
+                runCatching {
+                    bridge
+                        .promptBridge(seatId)
+                        .journal
+                        .activeRevealEntry()
+                        ?.version
+                }.getOrNull(),
+            pendingRevealInteractionId =
+                runCatching {
+                    bridge.cutCoordinator.revealChoices
+                        .current()
+                        ?.interactionId
+                }.getOrNull(),
+            loopFailure =
+                runCatching {
+                    bridge.throwIfGameLoopFailed()
+                    null
+                }.getOrElse { it.message ?: it::class.simpleName },
             pendingCostSelection = runCatching { bridge.cutCoordinator.oneShotPayCosts.current() != null }.getOrDefault(false),
             validationViolations = validatingSink?.violations?.toList().orEmpty(),
             validationViolationsByCheck = validatingSink?.violationsByCheck?.toMap().orEmpty(),
@@ -1827,6 +2095,7 @@ internal class MatchFlowHarness(
                         }.filterKeys { it > 0 }
                 }.getOrDefault(emptyMap()),
         )
+    }
 
     private fun cardViews(): List<HeadlessCard> =
         runCatching {
@@ -1877,6 +2146,22 @@ internal class MatchFlowHarness(
                                 runCatching { card.counters.entrySet().associate { it.element.name to it.count } }.getOrDefault(
                                     emptyMap(),
                                 ),
+                            colors =
+                                objectInfo
+                                    ?.colorList
+                                    ?.map { it.name.substringBefore('_') }
+                                    ?.toSet()
+                                    ?.takeIf { it.isNotEmpty() }
+                                    ?: runCatching {
+                                        buildSet {
+                                            val color = card.rules.color
+                                            if (color.hasWhite()) add("White")
+                                            if (color.hasBlue()) add("Blue")
+                                            if (color.hasBlack()) add("Black")
+                                            if (color.hasRed()) add("Red")
+                                            if (color.hasGreen()) add("Green")
+                                        }
+                                    }.getOrDefault(emptySet()),
                             grpId = objectInfo?.grpId ?: 0,
                             objectSourceGrpId = objectInfo?.objectSourceGrpId ?: 0,
                             cardTypes =
@@ -1884,7 +2169,8 @@ internal class MatchFlowHarness(
                                     ?.cardTypesList
                                     ?.map { it.name }
                                     ?.toSet()
-                                    .orEmpty(),
+                                    ?.takeIf { it.isNotEmpty() }
+                                    ?: runCatching { if (card.isCreature) setOf("Creature") else emptySet() }.getOrDefault(emptySet()),
                             subtypes =
                                 objectInfo
                                     ?.subtypesList

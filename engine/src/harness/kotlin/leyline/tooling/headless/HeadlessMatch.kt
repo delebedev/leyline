@@ -5,7 +5,6 @@ import leyline.bridge.handoff.PromptRecord
 import leyline.copilot.ConsultResponse
 import leyline.game.bundle.InvariantSelection
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 
 /**
@@ -93,6 +92,7 @@ data class MatchSpec(
     val puzzleText: String? = null,
     val puzzleResource: String? = null,
     val aiScript: List<ScriptedAction>? = null,
+    val setup: List<MatchSetup> = emptyList(),
     /** Optional client prompt deadline used by deterministic interaction tests. */
     val promptTimeoutMs: Long? = null,
     val validating: Boolean = true,
@@ -110,183 +110,269 @@ data class MatchSpec(
     }
 }
 
-/** One semantic action or prompt answer submitted at the headless seam. */
+/** Declarative fixture mutation applied after a match has been created. */
+sealed interface MatchSetup {
+    data class AddKeyword(
+        val cardName: String,
+        val keyword: IntrinsicKeyword,
+        val zone: SpellZone = SpellZone.Anywhere,
+    ) : MatchSetup
+
+    data class AddStaticAbility(
+        val cardName: String,
+        val ability: StaticAbilitySetup,
+        val zone: SpellZone = SpellZone.Battlefield,
+    ) : MatchSetup
+}
+
+enum class IntrinsicKeyword { FirstStrike, DoubleStrike }
+
+enum class StaticAbilitySetup { VehicleCrewPowerWeight }
+
+/** One semantic gameplay operation or prompt answer submitted at the seam. */
 sealed interface MatchIntent {
-    data class PlayLand(
-        val name: String? = null,
+    data class Play(
+        val action: PlayAction,
     ) : MatchIntent
 
-    data class CastSpell(
+    data class Combat(
+        val action: CombatAction,
+    ) : MatchIntent
+
+    data class Prompt(
+        val response: PromptResponse,
+    ) : MatchIntent
+
+    data class Control(
+        val action: ControlAction,
+    ) : MatchIntent
+}
+
+sealed interface PlayAction {
+    data class Land(
+        val name: String? = null,
+    ) : PlayAction
+
+    data class Spell(
         val cardName: String,
         val zone: SpellZone = SpellZone.Hand,
         val alternativeGrpId: Int? = null,
-    ) : MatchIntent
+    ) : PlayAction
 
-    data class ActivateAbility(
+    data class Ability(
         val cardName: String,
         val zone: SpellZone = SpellZone.Battlefield,
         val abilityIndex: Int = 0,
-        val selectedColor: ManaColor? = null,
-    ) : MatchIntent
+    ) : PlayAction
 
-    data class ActivateMana(
+    data class ManaAbility(
         val cardName: String,
         val abilityIndex: Int = 0,
-        val selectedColor: ManaColor? = null,
-    ) : MatchIntent
+        val color: ManaColorChoice? = null,
+    ) : PlayAction
 
-    data class AddIntrinsicKeyword(
-        val instanceId: Int,
-        val keyword: String,
-    ) : MatchIntent
+    data class Selection(
+        val action: ActionSelection,
+    ) : PlayAction
+}
 
-    data class AddStaticAbility(
-        val instanceId: Int,
-        val script: String,
-    ) : MatchIntent
+data class ActionSelection(
+    val kind: ActionKind,
+    val instanceId: Int = 0,
+    val abilityGrpId: Int = 0,
+    val alternativeGrpId: Int = 0,
+)
 
-    data object PassPriority : MatchIntent
+enum class ActionKind {
+    Pass,
+    Cast,
+    Activate,
+    ActivateMana,
+    PlayLand,
+    PlayMdfc,
+    CastMdfc,
+    CastAdventure,
+    CastOmen,
+    TurnFaceUp,
+}
 
-    data class Action(
-        val action: wotc.mtgo.gre.external.messaging.Messages.Action,
-    ) : MatchIntent
+enum class ManaColorChoice {
+    White,
+    Blue,
+    Black,
+    Red,
+    Green,
+    Colorless,
+    Phyrexian,
+    Generic,
+    X,
+    Y,
+    TwoGeneric,
+    AnyColor,
+    Snow,
+}
 
+sealed interface CombatAction {
     data class Attackers(
         val instanceIds: List<Int>,
-        val damageRecipients: Map<Int, wotc.mtgo.gre.external.messaging.Messages.DamageRecipient> = emptyMap(),
-    ) : MatchIntent
-
-    data class AttackersWithoutRecipients(
-        val instanceIds: List<Int>,
-    ) : MatchIntent
-
-    data class DeselectAttackers(
-        val instanceIds: List<Int>,
-    ) : MatchIntent
+        val damageRecipients: Map<Int, DamageRecipientChoice> = emptyMap(),
+        val recipientMode: AttackerRecipientMode = AttackerRecipientMode.Default,
+    ) : CombatAction
 
     data class ToggleAttackers(
         val instanceIds: List<Int>,
         val alternatives: Map<Int, Int> = emptyMap(),
-        val damageRecipients: Map<Int, wotc.mtgo.gre.external.messaging.Messages.DamageRecipient> = emptyMap(),
-    ) : MatchIntent
+        val damageRecipients: Map<Int, DamageRecipientChoice> = emptyMap(),
+    ) : CombatAction
 
-    data object NoAttackers : MatchIntent
-
-    data object AllAttackers : MatchIntent
-
-    data object SubmitAttackers : MatchIntent
+    data class DeselectAttackers(
+        val instanceIds: List<Int>,
+    ) : CombatAction
 
     data class Blockers(
         val assignments: Map<Int, Int>,
-    ) : MatchIntent
+    ) : CombatAction
 
-    /** Update an iterative blocker selection without submitting the declaration. */
     data class ToggleBlockers(
         val assignments: Map<Int, Int>,
-    ) : MatchIntent
+    ) : CombatAction
 
-    /** Remove one blocker assignment from an iterative declaration. */
     data class DeselectBlocker(
         val blockerInstanceId: Int,
-    ) : MatchIntent
-
-    data object NoBlockers : MatchIntent
-
-    data object SubmitBlockers : MatchIntent
+    ) : CombatAction
 
     data class DamageAssignment(
         val assigners: List<Pair<Int, List<Pair<Int, Int>>>>,
-    ) : MatchIntent
+    ) : CombatAction
 
+    data object NoAttackers : CombatAction
+
+    data object AllAttackers : CombatAction
+
+    data object SubmitAttackers : CombatAction
+
+    data object NoBlockers : CombatAction
+
+    data object SubmitBlockers : CombatAction
+}
+
+enum class AttackerRecipientMode { Default, Omit }
+
+sealed interface DamageRecipientChoice {
+    data object Opponent : DamageRecipientChoice
+
+    data class Planeswalker(
+        val instanceId: Int,
+    ) : DamageRecipientChoice
+}
+
+sealed interface PromptResponse {
     data class Targets(
         val instanceIds: List<Int>,
-    ) : MatchIntent
-
-    data class TargetsIterative(
-        val instanceIds: List<Int>,
-    ) : MatchIntent
+        val iterative: Boolean = false,
+        val targetIndex: Int? = null,
+    ) : PromptResponse
 
     data class UnselectTargets(
         val instanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
-    data object SubmitTargets : MatchIntent
-
-    data object CancelAction : MatchIntent
+    data object SubmitTargets : PromptResponse
 
     data class Group(
         val awayInstanceIds: List<Int>,
         val allInstanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class Scry(
         val bottomInstanceIds: List<Int>,
         val allInstanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class SelectN(
         val instanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class Order(
         val instanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class Search(
         val instanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class EffectCost(
         val instanceIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class GatherCounters(
         val gatherings: List<Pair<Int, Int>>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class ModalChoice(
         val selectedGrpIds: List<Int>,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class OptionalCost(
         val ctoId: Int,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class AlternateCost(
         val ctoId: Int,
         val optionIndex: Int,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class ManaTypeChoices(
-        val choicesByCtoId: List<Pair<Int, ManaColor>>,
-    ) : MatchIntent
+        val choicesByCtoId: List<Pair<Int, ManaColorChoice>>,
+    ) : PromptResponse
 
     data class OptionalAction(
         val accept: Boolean,
-    ) : MatchIntent
+    ) : PromptResponse
 
     data class NumericInput(
         val value: Int,
-    ) : MatchIntent
+    ) : PromptResponse
 
-    data object Flush : MatchIntent
+    /** Select one source for a native mana-payment prompt, or finish it when [sourceInstanceId] is null. */
+    data class ManaPayment(
+        val sourceInstanceId: Int? = null,
+        val repeatedSelectionInstanceIds: List<Int> = emptyList(),
+    ) : PromptResponse
 
-    data object Concede : MatchIntent
-
-    data object HoldNextOptionalAction : MatchIntent
-
-    data object DeclineNextOptionalAction : MatchIntent
-
-    data class Settings(
-        val stops: List<wotc.mtgo.gre.external.messaging.Messages.Stop>,
-    ) : MatchIntent
-
-    data class AutoPass(
-        val option: wotc.mtgo.gre.external.messaging.Messages.AutoPassOption,
-    ) : MatchIntent
+    data object Cancel : PromptResponse
 }
 
+sealed interface ControlAction {
+    data object PassPriority : ControlAction
+
+    data object Concede : ControlAction
+
+    data object HoldNextOptionalAction : ControlAction
+
+    data object DeclineNextOptionalAction : ControlAction
+
+    data class Stops(
+        val changes: List<StopChange>,
+    ) : ControlAction
+
+    data class AutoPass(
+        val option: AutoPassChoice,
+    ) : ControlAction
+}
+
+data class StopChange(
+    val phase: String,
+    val scope: StopScope,
+    val enabled: Boolean,
+)
+
+enum class StopScope { Team, Opponents, AnyPlayer }
+
+enum class AutoPassChoice { ResolveMyStackEffects }
+
 enum class SpellZone {
+    Anywhere,
     Battlefield,
     Hand,
     Graveyard,
@@ -344,6 +430,16 @@ data class MatchResult(
     val consumedPromptMsgIds: List<Int> = emptyList(),
 )
 
+/** Prompt that is still waiting for a semantic response at the observation boundary. */
+sealed interface PendingInteraction {
+    data class SelectN(
+        val messageId: Int,
+        val instanceIds: List<Int>,
+        val min: Int,
+        val max: Int,
+    ) : PendingInteraction
+}
+
 /** Immutable client-visible state at a headless synchronization point. */
 data class MatchObservation(
     val messages: List<GREToClientMessage>,
@@ -362,6 +458,11 @@ data class MatchObservation(
     val pendingAction: Boolean,
     val pendingActionKind: String?,
     val blockingInteraction: String?,
+    val blockingInteractionId: String? = null,
+    val pendingInteraction: PendingInteraction? = null,
+    val activeRevealVersion: Long? = null,
+    val pendingRevealInteractionId: String? = null,
+    val loopFailure: String? = null,
     val pendingCostSelection: Boolean = false,
     val validationViolations: List<String>,
     val validationViolationsByCheck: Map<String, Int>,
@@ -387,6 +488,7 @@ data class HeadlessCard(
     val isTapped: Boolean = false,
     val damage: Int = 0,
     val counters: Map<String, Int> = emptyMap(),
+    val colors: Set<String> = emptySet(),
     val abilityIds: List<Int> = emptyList(),
     val grpId: Int = 0,
     val objectSourceGrpId: Int = 0,

@@ -30,7 +30,10 @@ class GameEndTest :
             // Concede triggers sendGameOver()
             val concede =
                 after {
-                    submit(leyline.tooling.headless.MatchIntent.Concede)
+                    submit(
+                        leyline.tooling.headless.MatchIntent
+                            .Control(leyline.tooling.headless.ControlAction.Concede),
+                    )
                 }
 
             // Verify GRE messages: 3x GSM + IntermissionReq

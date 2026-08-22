@@ -41,7 +41,7 @@ class HeadlessMatchContractTest :
                     started.phase shouldBe "MAIN1"
 
                     val checkpoint = match.checkpoint()
-                    val action = match.submit(MatchIntent.PlayLand()).observation
+                    val action = match.submit(MatchIntent.Play(PlayAction.Land())).observation
                     action.messages.size shouldBeGreaterThan checkpoint.index
                     match.messagesSince(checkpoint).shouldNotBeEmpty()
                     action.client.objects.values
@@ -74,7 +74,15 @@ class HeadlessMatchContractTest :
             val result =
                 try {
                     match.start()
-                    match.advance(AdvanceGoal.Until(maxPasses = 1))
+                    val before = match.observe()
+                    val advanced = match.advance(AdvanceGoal.Until(maxPasses = 1))
+                    advanced.accepted shouldBe true
+                    (
+                        advanced.observation.messages.size > before.messages.size ||
+                            advanced.observation.phase != before.phase ||
+                            advanced.observation.turn != before.turn
+                    ) shouldBe true
+                    advanced
                 } finally {
                     val text = match.diagnostics("contract")
                     text shouldContain "session diagnostics"

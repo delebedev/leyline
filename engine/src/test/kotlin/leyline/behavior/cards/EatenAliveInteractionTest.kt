@@ -56,13 +56,6 @@ class EatenAliveInteractionTest :
                 .filter { it.instanceId == iid }
         }
 
-        fun HeadlessMatch.submitAction(action: Action) {
-            submit(
-                leyline.tooling.headless.MatchIntent
-                    .Action(action),
-            )
-        }
-
         session("Eaten Alive exposes a single cast action with base mana cost", puzzle = eatenAliveState) {
             val casts = latestCastActionsFor("Eaten Alive")
             casts shouldHaveSize 1

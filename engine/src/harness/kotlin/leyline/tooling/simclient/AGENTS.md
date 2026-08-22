@@ -1,6 +1,6 @@
 # simclient
 
-Synthetic GRE-log generator. Drives a Leyline match in-process through `MatchSession`, `GameBridge`, and Forge; writes Player.log-shaped output plus metadata and stats under `engine/build/simclient/`.
+Synthetic GRE-log generator. Drives a Leyline match in-process through the semantic `HeadlessMatch` seam; writes Player.log-shaped output plus metadata and stats under `engine/build/simclient/`.
 
 Use `docs/simclient-iteration.md` for the fixed-seed debugging loop, failure taxonomy, deck-vs-puzzle choice, quarantine, resume, and sharding. Treat CLI help and current code as option authority.
 
@@ -24,7 +24,7 @@ Arbitrary deck files may require `LEYLINE_CARD_DB`; built-in fixture decks do no
 - `ActionAttemptLedger` — per-turn action attempts and outcomes.
 - `PlayerLogWriter` — Player.log-compatible GRE output and metadata sidecars.
 - `GameLogCollector` — per-row warning/error telemetry.
-- `leyline.tooling.headless.MatchFlowHarness` — generic in-process session wiring shared with tests.
+- `leyline.tooling.headless.HeadlessMatch` — semantic match operations and immutable observations; runtime wiring stays private to the headless implementation.
 - This harness package — CLI/config, matrix expansion, watchdog, stats, summary, ingest.
 
 Keep policy, telemetry, and row orchestration here. Put generic session response helpers in the headless harness. Policies return decisions; they do not submit directly.
@@ -57,7 +57,7 @@ Add a translator in `ForgeAiPromptAdapter`, not the driver. Translate the Forge-
 When a prompt stalls:
 
 1. Add or extend the policy/adapter decision for that GRE type.
-2. Reuse a `MatchFlowHarness` response helper; add a generic helper there if missing.
+2. Reuse a `HeadlessMatch` semantic response helper; add a generic helper there if missing.
 3. Ensure `PlayerLogWriter` recognizes the message type so downstream parsing preserves it.
 4. Ensure prompt detection/ledger retirement includes the type.
 5. Test one successful response and one retirement/stale-prompt case.

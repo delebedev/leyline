@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
+import leyline.tooling.headless.MatchFlowHarness
 
 /**
  * Tests for [ScriptedPlayerController] — verifies the scripted AI

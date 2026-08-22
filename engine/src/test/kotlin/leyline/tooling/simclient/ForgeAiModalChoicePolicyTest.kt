@@ -8,8 +8,8 @@ import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
-import leyline.testkit.MatchFlowHarness
 import leyline.tooling.headless.HeadlessResponseMode
+import leyline.tooling.headless.MatchFlowHarness
 
 class ForgeAiModalChoicePolicyTest :
     FunSpec({

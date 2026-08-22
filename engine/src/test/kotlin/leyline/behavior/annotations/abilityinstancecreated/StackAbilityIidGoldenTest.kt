@@ -5,8 +5,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.gsm
+import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 

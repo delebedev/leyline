@@ -6,10 +6,18 @@ import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.tooling.headless.ActionKind
+import leyline.tooling.headless.ActionSelection
+import leyline.tooling.headless.CombatAction
+import leyline.tooling.headless.ControlAction
+import leyline.tooling.headless.DamageRecipientChoice
 import leyline.tooling.headless.HeadlessMatch
 import leyline.tooling.headless.HeadlessMatchFactory
+import leyline.tooling.headless.ManaColorChoice
 import leyline.tooling.headless.MatchIntent
 import leyline.tooling.headless.MatchSpec
+import leyline.tooling.headless.PlayAction
+import leyline.tooling.headless.PromptResponse
 import leyline.tooling.headless.actionMatchesAlternative
 import leyline.tooling.headless.cardNameByGrpId
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -75,6 +83,32 @@ private fun readPuzzleText(puzzle: String): String {
     return Files.readString(AcceptancePaths.resolve("puzzles/$fileName", notFoundMessage = "puzzle not found: $fileName"))
 }
 
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
+private fun semanticColor(color: ManaColor): ManaColorChoice =
+    when (color) {
+        ManaColor.White_afc9 -> ManaColorChoice.White
+        ManaColor.Blue_afc9 -> ManaColorChoice.Blue
+        ManaColor.Black_afc9 -> ManaColorChoice.Black
+        ManaColor.Red_afc9 -> ManaColorChoice.Red
+        ManaColor.Green_afc9 -> ManaColorChoice.Green
+        ManaColor.Colorless_afc9 -> ManaColorChoice.Colorless
+        ManaColor.Phyrexian_afc9 -> ManaColorChoice.Phyrexian
+        ManaColor.Generic -> ManaColorChoice.Generic
+        ManaColor.X -> ManaColorChoice.X
+        ManaColor.Y -> ManaColorChoice.Y
+        ManaColor.TwoGeneric -> ManaColorChoice.TwoGeneric
+        ManaColor.AnyColor -> ManaColorChoice.AnyColor
+        ManaColor.Snow_afc9 -> ManaColorChoice.Snow
+        else -> error("Unsupported semantic mana color: $color")
+    }
+
+private fun semanticRecipient(recipient: DamageRecipient): DamageRecipientChoice =
+    when (recipient.type) {
+        DamageRecType.Player_a0e5 -> DamageRecipientChoice.Opponent
+        DamageRecType.PlanesWalker -> DamageRecipientChoice.Planeswalker(recipient.planeswalkerInstanceId)
+        else -> error("Unsupported semantic damage recipient: ${recipient.type}")
+    }
+
 private val OUR_SEAT = SeatId(1)
 private val OPPONENT_SEAT = SeatId(2)
 
@@ -87,7 +121,9 @@ private fun HeadlessMatch.promptHistory() = observe().promptHistory
 
 private fun HeadlessMatch.hasPendingCostSelection() = observe().pendingCostSelection
 
-private fun HeadlessMatch.hasPendingSelectNPrompt() = observe().messages.any { it.hasSelectNReq() }
+private fun HeadlessMatch.pendingSelectN() = observe().pendingInteraction as? leyline.tooling.headless.PendingInteraction.SelectN
+
+private fun HeadlessMatch.hasPendingSelectNPrompt() = pendingSelectN() != null
 
 private fun HeadlessMatch.hasOptionalInteraction() = observe().blockingInteraction == "Optional"
 
@@ -110,43 +146,44 @@ private fun HeadlessMatch.cards(
     zone: AcceptanceZone,
 ) = observe().cards.filter { it.seat == (if (side == AcceptanceSide.Ours) 1 else 2) && it.zone == zone.toForgeZone().name }
 
-private fun HeadlessMatch.holdNextOptionalAction() = submit(MatchIntent.HoldNextOptionalAction)
+private fun HeadlessMatch.holdNextOptionalAction() = submit(MatchIntent.Control(ControlAction.HoldNextOptionalAction))
 
-private fun HeadlessMatch.passPriority() = submit(MatchIntent.PassPriority)
+private fun HeadlessMatch.passPriority() = submit(MatchIntent.Control(ControlAction.PassPriority))
 
-private fun HeadlessMatch.playLand(name: String?) = submit(MatchIntent.PlayLand(name)).accepted
+private fun HeadlessMatch.playLand(name: String?) = submit(MatchIntent.Play(PlayAction.Land(name))).accepted
 
-private fun HeadlessMatch.respondToSelectN(ids: List<Int>) = submit(MatchIntent.SelectN(ids))
+private fun HeadlessMatch.respondToSelectN(ids: List<Int>) = submit(MatchIntent.Prompt(PromptResponse.SelectN(ids)))
 
-private fun HeadlessMatch.respondToSearch(ids: List<Int>) = submit(MatchIntent.Search(ids))
+private fun HeadlessMatch.respondToSearch(ids: List<Int>) = submit(MatchIntent.Prompt(PromptResponse.Search(ids)))
 
-private fun HeadlessMatch.respondToOrder(ids: List<Int>) = submit(MatchIntent.Order(ids))
+private fun HeadlessMatch.respondToOrder(ids: List<Int>) = submit(MatchIntent.Prompt(PromptResponse.Order(ids)))
 
-private fun HeadlessMatch.respondToEffectCost(ids: List<Int>) = submit(MatchIntent.EffectCost(ids))
+private fun HeadlessMatch.respondToEffectCost(ids: List<Int>) = submit(MatchIntent.Prompt(PromptResponse.EffectCost(ids)))
 
-private fun HeadlessMatch.respondModalChoice(ids: List<Int>) = submit(MatchIntent.ModalChoice(ids))
+private fun HeadlessMatch.respondModalChoice(ids: List<Int>) = submit(MatchIntent.Prompt(PromptResponse.ModalChoice(ids)))
 
-private fun HeadlessMatch.respondToOptionalCost(ctoId: Int) = submit(MatchIntent.OptionalCost(ctoId))
+private fun HeadlessMatch.respondToOptionalCost(ctoId: Int) = submit(MatchIntent.Prompt(PromptResponse.OptionalCost(ctoId)))
 
-private fun HeadlessMatch.respondToManaTypeChoices(choices: List<Pair<Int, ManaColor>>) = submit(MatchIntent.ManaTypeChoices(choices))
+private fun HeadlessMatch.respondToManaTypeChoices(choices: List<Pair<Int, ManaColor>>) =
+    submit(MatchIntent.Prompt(PromptResponse.ManaTypeChoices(choices.map { it.first to semanticColor(it.second) })))
 
-private fun HeadlessMatch.respondToOptionalAction(accept: Boolean) = submit(MatchIntent.OptionalAction(accept))
+private fun HeadlessMatch.respondToOptionalAction(accept: Boolean) = submit(MatchIntent.Prompt(PromptResponse.OptionalAction(accept)))
 
-private fun HeadlessMatch.selectTargets(ids: List<Int>) = submit(MatchIntent.Targets(ids))
+private fun HeadlessMatch.selectTargets(ids: List<Int>) = submit(MatchIntent.Prompt(PromptResponse.Targets(ids)))
 
-private fun HeadlessMatch.declareBlockers(assignments: Map<Int, Int>) = submit(MatchIntent.Blockers(assignments))
+private fun HeadlessMatch.declareBlockers(assignments: Map<Int, Int>) = submit(MatchIntent.Combat(CombatAction.Blockers(assignments)))
 
-private fun HeadlessMatch.declareAllAttackers() = submit(MatchIntent.AllAttackers)
+private fun HeadlessMatch.declareAllAttackers() = submit(MatchIntent.Combat(CombatAction.AllAttackers))
 
-private fun HeadlessMatch.submitAttackers() = submit(MatchIntent.SubmitAttackers)
+private fun HeadlessMatch.submitAttackers() = submit(MatchIntent.Combat(CombatAction.SubmitAttackers))
 
 private fun HeadlessMatch.toggleAttackers(
     ids: List<Int>,
     alternatives: Map<Int, Int>,
     recipients: Map<Int, DamageRecipient>,
-) = submit(MatchIntent.ToggleAttackers(ids, alternatives, recipients))
+) = submit(MatchIntent.Combat(CombatAction.ToggleAttackers(ids, alternatives, recipients.mapValues { it.value.let(::semanticRecipient) })))
 
-private fun HeadlessMatch.drainSink() = submit(MatchIntent.Flush)
+private fun HeadlessMatch.drainSink() = observe()
 
 private fun HeadlessMatch.passUntil(
     maxPasses: Int,
@@ -161,8 +198,8 @@ private fun HeadlessMatch.passUntil(
 
 private fun HeadlessMatch.advanceDefaultStop() {
     when (observe().phase) {
-        "COMBAT_DECLARE_ATTACKERS" -> submit(MatchIntent.NoAttackers)
-        "COMBAT_DECLARE_BLOCKERS" -> submit(MatchIntent.NoBlockers)
+        "COMBAT_DECLARE_ATTACKERS" -> submit(MatchIntent.Combat(CombatAction.NoAttackers))
+        "COMBAT_DECLARE_BLOCKERS" -> submit(MatchIntent.Combat(CombatAction.NoBlockers))
         else -> passPriority()
     }
 }
@@ -261,13 +298,10 @@ private class ScenarioRun(
 
     private fun playLand(step: PlayLandStep) {
         if (harness.hasPendingSelectNPrompt()) {
-            val prompt = latestPromptMessage()
-            require(prompt?.hasSelectNReq() == true) {
-                "$context active SelectN interaction has no SelectNReq"
-            }
+            val pending = requireNotNull(harness.pendingSelectN())
             val instanceId = resolveCardInZone(AcceptanceSide.Ours, AcceptanceZone.Hand, step.card)
-            require(instanceId in prompt.selectNReq.idsList) {
-                "$context land $step.card iid=$instanceId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+            require(instanceId in pending.instanceIds) {
+                "$context land $step.card iid=$instanceId is not in SelectN candidates ${pending.instanceIds}"
             }
             harness.respondToSelectN(listOf(instanceId))
             return
@@ -371,13 +405,12 @@ private class ScenarioRun(
 
     private fun selectCards(step: SelectCardsStep) {
         val prompt = latestPromptMessage()
-        require(prompt?.hasSelectNReq() == true) {
-            "$context expected latest prompt SelectNReq"
-        }
+        val pending = requireNotNull(harness.pendingSelectN()) { "$context expected active SelectN interaction" }
+        require(prompt?.hasSelectNReq() == true) { "$context expected latest prompt SelectNReq" }
         val selectedIds = step.cards.map { resolveCardInZone(step.side, step.zone, it) }
         selectedIds.zip(step.cards).forEach { (selectedId, card) ->
-            require(selectedId in prompt.selectNReq.idsList) {
-                "$context selected $card iid=$selectedId is not in SelectNReq candidates ${prompt.selectNReq.idsList}"
+            require(selectedId in pending.instanceIds) {
+                "$context selected $card iid=$selectedId is not in SelectN candidates ${pending.instanceIds}"
             }
         }
         if (step.zone == AcceptanceZone.Sideboard) {
@@ -876,8 +909,34 @@ private class ScenarioRun(
     }
 
     private fun submitAction(action: Action) {
-        harness.submit(MatchIntent.Action(action))
+        harness.submit(
+            MatchIntent.Play(
+                PlayAction.Selection(
+                    ActionSelection(
+                        kind = action.kind(),
+                        instanceId = action.instanceId,
+                        abilityGrpId = action.abilityGrpId,
+                        alternativeGrpId = action.alternativeGrpId,
+                    ),
+                ),
+            ),
+        )
     }
+
+    private fun Action.kind(): ActionKind =
+        when (actionType) {
+            ActionType.Pass -> ActionKind.Pass
+            ActionType.Cast -> ActionKind.Cast
+            ActionType.Activate_add3 -> ActionKind.Activate
+            ActionType.ActivateMana -> ActionKind.ActivateMana
+            ActionType.Play_add3 -> ActionKind.PlayLand
+            ActionType.PlayMdfc -> ActionKind.PlayMdfc
+            ActionType.CastMdfc -> ActionKind.CastMdfc
+            ActionType.CastAdventure -> ActionKind.CastAdventure
+            ActionType.CastOmen -> ActionKind.CastOmen
+            ActionType.SpecialTurnFaceUp_add3 -> ActionKind.TurnFaceUp
+            else -> error("Unsupported semantic action: $actionType")
+        }
 
     private fun resolveTargetInstanceId(target: AcceptanceTargetSpec): Int =
         when (target) {

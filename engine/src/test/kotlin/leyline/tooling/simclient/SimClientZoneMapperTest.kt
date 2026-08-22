@@ -6,7 +6,7 @@ import io.kotest.matchers.maps.shouldNotContainKey
 import io.kotest.matchers.shouldBe
 import leyline.SimClientTag
 import leyline.game.bundle.InvariantSelection
-import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.MatchFlowHarness
 import java.nio.file.Files
 import java.time.LocalDateTime
 

@@ -6,8 +6,8 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.humanPlayer
+import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 /**

@@ -13,12 +13,12 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasDetail
+import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage

@@ -12,6 +12,8 @@ import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
+import leyline.tooling.headless.MatchSetup
+import leyline.tooling.headless.StaticAbilitySetup
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
@@ -90,13 +92,15 @@ class VehicleCrewPuzzleTest :
                 humanlibrary=Mountain;Mountain;Mountain
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
+            setup =
+                listOf(
+                    MatchSetup.AddStaticAbility(
+                        cardName = "Wall of Runes",
+                        ability = StaticAbilitySetup.VehicleCrewPowerWeight,
+                    ),
+                ),
         ) {
             val wallIid = human.battlefield.iid("Wall of Runes")
-            addStaticAbility(
-                wallIid,
-                "Mode\$ TapPowerValue | ValidSA\$ Activated.Crew+Vehicle | " +
-                    "ValidCard\$ Card.Self | Value\$ Toughness",
-            )
             val bearsIid = human.battlefield.iid("Grizzly Bears")
             val paymentSlice = after { activateAbility("Brute Suit").shouldBeTrue() }
             val payment = paymentSlice.expectOnePayCostsReq()

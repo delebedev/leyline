@@ -11,8 +11,10 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
-import leyline.testkit.detailInt
+import leyline.testkit.*
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.HeadlessMatchFactory
+import leyline.tooling.headless.MatchSpec
 import leyline.tooling.headless.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -40,19 +42,21 @@ class KeywordTriggerTargetPromptTest :
             TestCardRegistry.ensureCardRegistered("Sunhome Stalwart")
         }
 
-        fun MatchFlowHarness.targetSpecs() =
-            allMessages
+        fun HeadlessMatch.targetSpecs() =
+            observe()
+                .messages
                 .filter { it.hasGameStateMessage() }
                 .flatMap { it.gameStateMessage.persistentAnnotationsList }
                 .filter { AnnotationType.TargetSpec in it.typeList }
 
-        fun MatchFlowHarness.selectTargetsReqs(): List<SelectTargetsReq> =
-            allMessages
+        fun HeadlessMatch.selectTargetsReqs(): List<SelectTargetsReq> =
+            observe()
+                .messages
                 .filter { it.type == GREMessageType.SelectTargetsReq_695e }
                 .map { it.selectTargetsReq }
 
         /** Let the stack resolve until the keyword trigger asks for its target. */
-        fun MatchFlowHarness.passUntilPrompt(matching: (SelectTargetsReq) -> Boolean) {
+        fun HeadlessMatch.passUntilPrompt(matching: (SelectTargetsReq) -> Boolean) {
             repeat(6) {
                 if (selectTargetsReqs().any(matching)) return
                 if (!hasPendingAction()) return
@@ -66,27 +70,31 @@ class KeywordTriggerTargetPromptTest :
                 TestCardRegistry.repo.findKeywordAbilityGrpId(bondwardenGrpId, KeywordAbilityIds.BACKUP)
                     ?: error("Enduring Bondwarden Backup ability row missing")
 
-            val h = MatchFlowHarness()
-            try {
-                h.connectAndKeepPuzzleText(
-                    """
-                    [metadata]
-                    Name:Backup Target Prompt
-                    Goal:Resolve Backup trigger
-                    Turns:2
+            val h =
+                HeadlessMatchFactory.create(
+                    MatchSpec(
+                        puzzleText =
+                            """
+                            [metadata]
+                            Name:Backup Target Prompt
+                            Goal:Resolve Backup trigger
+                            Turns:2
 
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=Main1
-                    HumanLife=20
-                    AILife=20
+                            [state]
+                            ActivePlayer=Human
+                            ActivePhase=Main1
+                            HumanLife=20
+                            AILife=20
 
-                    humanhand=Enduring Bondwarden
-                    humanbattlefield=Plains;Grizzly Bears
-                    humanlibrary=Plains
-                    ailibrary=Mountain
-                    """.trimIndent(),
+                            humanhand=Enduring Bondwarden
+                            humanbattlefield=Plains;Grizzly Bears
+                            humanlibrary=Plains
+                            ailibrary=Mountain
+                            """.trimIndent(),
+                    ),
                 )
+            try {
+                h.start()
                 h.castSpellByName("Enduring Bondwarden").shouldBeTrue()
                 h.passUntilPrompt { it.abilityGrpId == backupGrpId }
 
@@ -114,34 +122,40 @@ class KeywordTriggerTargetPromptTest :
                 )
                 h.targetSpecs().any { it.detailInt("abilityGrpId") == backupGrpId }.shouldBeTrue()
             } finally {
-                h.shutdown()
+                h.close()
             }
         }
 
         test("Mentor target prompt carries the shared keyword prompt shape") {
-            val h = MatchFlowHarness()
-            try {
-                h.connectAndKeepPuzzleText(
-                    """
-                    [metadata]
-                    Name:Mentor Target Prompt
-                    Goal:Resolve Mentor trigger
-                    Turns:2
+            val h =
+                HeadlessMatchFactory.create(
+                    MatchSpec(
+                        puzzleText =
+                            """
+                            [metadata]
+                            Name:Mentor Target Prompt
+                            Goal:Resolve Mentor trigger
+                            Turns:2
 
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=Main1
-                    HumanLife=20
-                    AILife=20
+                            [state]
+                            ActivePlayer=Human
+                            ActivePhase=Main1
+                            HumanLife=20
+                            AILife=20
 
-                    humanbattlefield=Sunhome Stalwart;Enduring Bondwarden;Llanowar Elves;Plains
-                    humanlibrary=Plains
-                    ailibrary=Mountain
-                    """.trimIndent(),
+                            humanbattlefield=Sunhome Stalwart;Enduring Bondwarden;Llanowar Elves;Plains
+                            humanlibrary=Plains
+                            ailibrary=Mountain
+                            """.trimIndent(),
+                    ),
                 )
-                val reachedDeclareAttackers = h.passUntil(maxPasses = 30) { h.allMessages.any { it.hasDeclareAttackersReq() } }
+            try {
+                h.start()
+                val reachedDeclareAttackers = h.passUntil(maxPasses = 30) { observe().messages.any { it.hasDeclareAttackersReq() } }
                 reachedDeclareAttackers.shouldBeTrue()
-                h.allMessages
+                h
+                    .observe()
+                    .messages
                     .last { it.hasDeclareAttackersReq() }
                     .declareAttackersReq
                     .attackersList
@@ -187,7 +201,7 @@ class KeywordTriggerTargetPromptTest :
                             it.detailInt("promptId") == PromptIds.MENTOR_TARGET
                     }.shouldBeTrue()
             } finally {
-                h.shutdown()
+                h.close()
             }
         }
     })

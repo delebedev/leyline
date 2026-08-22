@@ -8,9 +8,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.IntegrationTag
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.humanPlayer
+import leyline.tooling.headless.MatchFlowHarness
 
 /**
  * Phase 4 — creature-saga (scope §2d).
