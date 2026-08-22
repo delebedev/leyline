@@ -1,6 +1,7 @@
 package leyline.game.bundle
 
 import leyline.bridge.handoff.DistributionRouteKind
+import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.DistributionWindowValue
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
@@ -39,13 +40,13 @@ internal class DistributionWindowMaterializer(
                 },
             )
         val targetIds =
-            window.targetForgeIds.map { targetId ->
-                if (targetId in window.targetSeatIds) {
-                    targetId
-                } else {
-                    projection.requireInstanceId(leyline.bridge.types.ForgeCardId(targetId))
+            window.targets.map { target ->
+                when (target) {
+                    is DistributionTargetRef.Card -> projection.requireInstanceId(target.id)
+                    is DistributionTargetRef.Player -> target.id.value
                 }
             }
+        require(targetIds.distinct().size == targetIds.size) { "Distribution targets have colliding wire ids" }
         val request =
             DistributionReq
                 .newBuilder()

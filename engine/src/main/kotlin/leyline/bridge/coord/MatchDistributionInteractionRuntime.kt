@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.DistributionInteractionResult
 import leyline.bridge.handoff.DistributionInteractionRuntime
 import leyline.bridge.handoff.DistributionInteractionTimeoutException
+import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedDistributionInteraction
@@ -21,7 +22,7 @@ internal class MatchDistributionInteractionRuntime(
         val published: PublishedDistributionInteraction,
         val value: DistributionWindowValue,
         override val cut: PendingPromptCut<DistributionWindowValue>,
-        val forgeIdByInstanceId: Map<Int, Int>,
+        val targetByWireId: Map<Int, DistributionTargetRef>,
         override val future: CompletableFuture<DistributionInteractionResult> = CompletableFuture(),
     ) : SinglePromptWindow<DistributionInteractionResult, PendingPromptCut<DistributionWindowValue>> {
         override val interactionId: String get() = published.interactionId
@@ -59,7 +60,7 @@ internal class MatchDistributionInteractionRuntime(
     fun submit(
         interactionId: String,
         gameStateId: Int,
-        rows: List<Pair<Int, Int>>,
+        rows: List<Pair<DistributionTargetRef, Int>>,
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
@@ -75,15 +76,11 @@ internal class MatchDistributionInteractionRuntime(
         synchronized(owner.feedLock) {
             owner.ensureOpen()
             val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            val forgeIdByWireId = pending.forgeIdByInstanceId
             submitLocked(
                 pending,
                 rows.map { (wireId, amount) ->
-                    val forgeId =
-                        forgeIdByWireId[wireId]
-                            ?: wireId.takeIf { it in pending.value.targetSeatIds }
-                            ?: return false
-                    forgeId to amount
+                    val target = pending.targetByWireId[wireId] ?: return false
+                    target to amount
                 },
             )
         }
@@ -97,7 +94,7 @@ internal class MatchDistributionInteractionRuntime(
             windows.completeLocked(
                 pending,
                 DistributionInteractionResult(
-                    pending.value.targetForgeIds.associateWith { 0 },
+                    pending.value.targets.associateWith { 0 },
                     cancelled = true,
                 ),
             )
@@ -128,12 +125,21 @@ internal class MatchDistributionInteractionRuntime(
                     PublishedDistributionInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId), initial.kind)
                 val exact =
                     PendingPromptCut(interactionId, published.gameStateId, initial, prepared.bundle.messages, prepared.transition)
-                val forgeIdByInstanceId =
-                    prepared.transition.nextState.identities.instanceIdToForgeId
-                        .mapKeys { it.key.value }
-                        .mapValues { it.value.value }
+                val targetByWireId =
+                    initial.targets.associateBy { target ->
+                        when (target) {
+                            is DistributionTargetRef.Card ->
+                                prepared.transition.nextState.identities.forgeIdToInstanceId[target.id]
+                                    ?.value
+                                    ?: owner.fail(IllegalStateException("Distribution target has no projected instance id"))
+                            is DistributionTargetRef.Player -> target.id.value
+                        }
+                    }
+                if (targetByWireId.size != initial.targets.size) {
+                    owner.fail(IllegalStateException("Distribution targets have colliding wire ids"))
+                }
                 SinglePromptPublication(
-                    Window(published, initial, exact, forgeIdByInstanceId),
+                    Window(published, initial, exact, targetByWireId),
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -143,9 +149,9 @@ internal class MatchDistributionInteractionRuntime(
 
     private fun submitLocked(
         pending: Window,
-        rows: List<Pair<Int, Int>>,
+        rows: List<Pair<DistributionTargetRef, Int>>,
     ): Boolean {
-        val expected = pending.value.targetForgeIds.toSet()
+        val expected = pending.value.targets.toSet()
         if (rows.size != expected.size || rows.map { it.first }.toSet() != expected) return false
         if (rows.any { it.second < pending.value.minPerTarget }) return false
         if (rows.sumOf { it.second } != pending.value.amount) return false

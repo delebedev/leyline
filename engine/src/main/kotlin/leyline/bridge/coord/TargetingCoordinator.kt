@@ -14,6 +14,7 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OrderMoveIntent
@@ -812,7 +813,7 @@ class TargetingCoordinator(
     }
 
     /** Record a completed target group and return the affectee order used by TargetSpec projection. */
-    fun recordCompletedTargetSpec(sa: SpellAbility): List<Int> {
+    fun recordCompletedTargetSpec(sa: SpellAbility): List<DistributionTargetRef> {
         val spellCard = sa.hostCard ?: return emptyList()
         val targets = sa.targets.targetEntities.toList()
         if (targets.isEmpty()) return emptyList()
@@ -875,7 +876,10 @@ class TargetingCoordinator(
                 forgeAbilityId = sa.id,
             ),
         )
-        return affectees.map { checkNotNull(it.targetForgeCardId ?: it.targetSeatId) }
+        return affectees.map { affectee ->
+            affectee.targetForgeCardId?.let { DistributionTargetRef.Card(ForgeCardId(it)) }
+                ?: DistributionTargetRef.Player(SeatId(checkNotNull(affectee.targetSeatId)))
+        }
     }
 
     /** Remove a pre-allocation target fact when Forge abandons the divided choice. */

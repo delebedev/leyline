@@ -1,11 +1,22 @@
 package leyline.bridge.handoff
 
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
+
+sealed interface DistributionTargetRef {
+    data class Card(
+        val id: ForgeCardId,
+    ) : DistributionTargetRef
+
+    data class Player(
+        val id: SeatId,
+    ) : DistributionTargetRef
+}
+
 /** Exact target identity and ordering recorded before a divided allocation prompt. */
 data class DistributionWindowValue(
     val kind: DistributionRouteKind,
-    val targetForgeIds: List<Int>,
-    /** Target entries that are player seat ids rather than Forge card ids. */
-    val targetSeatIds: Set<Int> = emptySet(),
+    val targets: List<DistributionTargetRef>,
     val amount: Int,
     val minPerTarget: Int,
     val sourceForgeCardId: Int,
@@ -13,25 +24,24 @@ data class DistributionWindowValue(
     val sourceIsSpell: Boolean,
 ) {
     init {
-        require(targetForgeIds.size >= 2) { "Distribution requires at least two targets" }
-        require(amount > targetForgeIds.size) { "Distribution amount must exceed target count" }
+        require(targets.size >= 2) { "Distribution requires at least two targets" }
+        require(amount > targets.size) { "Distribution amount must exceed target count" }
         require(minPerTarget >= 1) { "Distribution requires a positive minimum" }
-        require(targetForgeIds.distinct().size == targetForgeIds.size) { "Distribution targets must be distinct" }
-        require(targetSeatIds.all { it in targetForgeIds }) { "Distribution seat targets must be present in target ids" }
+        require(targets.distinct().size == targets.size) { "Distribution targets must be distinct" }
     }
 
     fun fallback(): DistributionInteractionResult {
-        val base = amount / targetForgeIds.size
-        val remainder = amount % targetForgeIds.size
+        val base = amount / targets.size
+        val remainder = amount % targets.size
         return DistributionInteractionResult(
-            targetForgeIds.mapIndexed { index, id -> id to base + if (index < remainder) 1 else 0 }.toMap(),
+            targets.mapIndexed { index, target -> target to base + if (index < remainder) 1 else 0 }.toMap(),
             timedOut = true,
         )
     }
 }
 
 data class DistributionInteractionResult(
-    val amounts: Map<Int, Int>,
+    val amounts: Map<DistributionTargetRef, Int>,
     val timedOut: Boolean = false,
     val cancelled: Boolean = false,
 )
