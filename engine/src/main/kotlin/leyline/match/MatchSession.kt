@@ -89,7 +89,7 @@ class MatchSession(
     }
 
     private val autoAdvanceRequest: (String) -> Unit = { reason -> requestAutoAdvance(reason) }
-    private val playbackDrainRequest: () -> Unit = { drainCoordinatorFeed() }
+    private val playbackDrainRequest: () -> Unit = { requestPlaybackDrain() }
 
     /**
      * Game + bridge bound at construction. MatchSession is per-game; on
@@ -699,6 +699,24 @@ class MatchSession(
             }
         } catch (_: RejectedExecutionException) {
             autoAdvanceRunning.set(false)
+        }
+    }
+
+    private fun requestPlaybackDrain() {
+        if (autoAdvanceClosed.get()) return
+        try {
+            autoAdvanceExecutor.execute {
+                try {
+                    synchronized(sessionLock) {
+                        if (gameBridge.getGame() == null) return@synchronized
+                        drainCoordinatorFeed()
+                    }
+                } catch (t: Throwable) {
+                    log.warn("MatchSession: playback drain failed: {}", t.message, t)
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            // Session teardown won the race with the engine callback.
         }
     }
 
