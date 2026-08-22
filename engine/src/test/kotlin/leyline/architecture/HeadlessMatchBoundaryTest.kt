@@ -17,6 +17,11 @@ import java.lang.reflect.Modifier
 import java.lang.reflect.Type
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.metadata.KmClassifier
+import kotlin.metadata.Visibility
+import kotlin.metadata.jvm.KotlinClassMetadata
+import kotlin.metadata.jvm.UnstableMetadataApi
+import kotlin.metadata.visibility
 
 /**
  * Keeps the semantic seam independent from runtime handles.
@@ -72,14 +77,22 @@ class HeadlessMatchBoundaryTest :
                 .shouldBe(listOf("leyline/game/state/GameBridge"))
         }
 
-        test("compiled headless extensions stay outside the Java API") {
-            val facade = Class.forName("leyline.tooling.headless.HeadlessMatchKt")
-            val extensions =
-                facade.declaredMethods.filter { method ->
-                    Modifier.isStatic(method.modifiers) && method.parameterTypes.firstOrNull() == HeadlessMatch::class.java
-                }
+        test("compiled headless extension metadata has no public declarations") {
+            val extensions = compiledHeadlessExtensions()
             extensions.shouldNotBeEmpty()
-            extensions.filterNot { it.isSynthetic }.map { it.name }.shouldBeEmpty()
+            extensions.filter { it.visibility == Visibility.PUBLIC }.map { it.qualifiedName }.shouldBeEmpty()
+        }
+
+        test("compiled metadata detector rejects public extension fixture forms") {
+            val fixture = Class.forName("leyline.architecture.fixtures.HeadlessMatchBoundaryFixturesKt")
+            val extensions = metadataExtensions(fixture)
+            extensions.filter { it.visibility == Visibility.PUBLIC }.map { it.name }.toSet() shouldBe
+                setOf(
+                    "publicGenericFixture",
+                    "publicJvmSyntheticFixture",
+                    "publicMultilineFixture",
+                )
+            extensions.first { it.name == "internalFixture" }.visibility shouldBe Visibility.INTERNAL
         }
     })
 
@@ -114,10 +127,72 @@ private data class CompiledClass(
     val sourceSet: String = "test",
 )
 
+private data class MetadataExtension(
+    val qualifiedName: String,
+    val name: String,
+    val visibility: Visibility,
+)
+
+private const val EXTENSION_FIXTURE_PACKAGE = "leyline/architecture/fixtures/"
+
 private fun compiledClasses(): List<CompiledClass> =
     (testClassFiles() + harnessClassFiles()).map { path ->
         CompiledClass(binaryName(path), classBytes(path), sourceSet(path))
     }
+
+@OptIn(UnstableMetadataApi::class)
+private fun metadataExtensions(type: Class<*>): List<MetadataExtension> {
+    val metadata = type.getAnnotation(Metadata::class.java) ?: return emptyList()
+    val declarationPackage =
+        when (val parsed = KotlinClassMetadata.readLenient(metadata)) {
+            is KotlinClassMetadata.FileFacade -> parsed.kmPackage
+            is KotlinClassMetadata.MultiFileClassPart -> parsed.kmPackage
+            is KotlinClassMetadata.Class,
+            is KotlinClassMetadata.MultiFileClassFacade,
+            is KotlinClassMetadata.SyntheticClass,
+            is KotlinClassMetadata.Unknown,
+            -> return emptyList()
+        }
+    return declarationPackage.functions.mapNotNull { function ->
+        val receiver = function.receiverParameterType?.classifier as? KmClassifier.Class ?: return@mapNotNull null
+        if (receiver.name != "leyline/tooling/headless/HeadlessMatch") return@mapNotNull null
+        MetadataExtension(
+            qualifiedName = "${type.name}.${function.name}",
+            name = function.name,
+            visibility = function.visibility,
+        )
+    }
+}
+
+private fun compiledHeadlessExtensions(): List<MetadataExtension> =
+    compiledClasses()
+        .filter { it.sourceSet == "harness" && !it.binaryName.startsWith(EXTENSION_FIXTURE_PACKAGE) }
+        .flatMap { compiled ->
+            val type = compiled.loadClass()
+            val metadata = type.getAnnotation(Metadata::class.java) ?: return@flatMap emptyList()
+            val parsed = KotlinClassMetadata.readLenient(metadata)
+            if (parsed !is KotlinClassMetadata.FileFacade && parsed !is KotlinClassMetadata.MultiFileClassPart) {
+                return@flatMap emptyList()
+            }
+            val declarations = metadataExtensions(type)
+            val methods =
+                type.declaredMethods.filter { method ->
+                    Modifier.isStatic(method.modifiers) &&
+                        method.parameterTypes.firstOrNull() == HeadlessMatch::class.java
+                }
+            val unmatched = methods.filter { method -> declarations.none { it.name == method.name } }
+            check(unmatched.all { it.isSynthetic }) {
+                "Missing Kotlin metadata for HeadlessMatch extension ${type.name}.${unmatched.first { !it.isSynthetic }.name}"
+            }
+            methods.flatMap { method -> declarations.filter { declaration -> declaration.name == method.name } }
+        }
+
+private fun CompiledClass.loadClass(): Class<*> =
+    Class.forName(
+        binaryName.replace('/', '.'),
+        false,
+        HeadlessMatchBoundaryTest::class.java.classLoader,
+    )
 
 private fun fullLoopConsumerClasses(classes: List<CompiledClass>): List<CompiledClass> {
     val sessionRoots =

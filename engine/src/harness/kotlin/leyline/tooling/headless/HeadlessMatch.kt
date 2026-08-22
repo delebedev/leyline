@@ -6,7 +6,6 @@ import leyline.copilot.ConsultResponse
 import leyline.game.bundle.InvariantSelection
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
-import kotlin.jvm.JvmSynthetic
 
 /**
  * Semantic seam for an in-process match used by tests and local tooling.
@@ -532,25 +531,20 @@ data class ClientStateSnapshot(
     }
 }
 
-@JvmSynthetic
 internal fun HeadlessMatch.cardNameByGrpId(grpId: Int): String? = (query(MatchQuery.CardName(grpId)) as MatchQueryResult.CardName).value
 
-@JvmSynthetic
 internal fun HeadlessMatch.cardGrpId(cardName: String): Int? = (query(MatchQuery.CardGrpId(cardName)) as MatchQueryResult.CardGrpId).value
 
-@JvmSynthetic
 internal fun HeadlessMatch.keywordAbilityGrpId(
     cardGrpId: Int,
     keywordAbilityId: Int,
 ): Int? = (query(MatchQuery.KeywordAbilityGrpId(cardGrpId, keywordAbilityId)) as MatchQueryResult.KeywordAbilityGrpId).value
 
-@JvmSynthetic
 internal fun HeadlessMatch.keywordAbilityGrpId(
     cardName: String,
     keywordAbilityId: Int,
 ): Int? = cardGrpId(cardName)?.let { keywordAbilityGrpId(it, keywordAbilityId) }
 
-@JvmSynthetic
 internal fun HeadlessMatch.actionMatchesAlternative(
     action: wotc.mtgo.gre.external.messaging.Messages.Action,
     keywordAbilityId: Int,
@@ -567,10 +561,8 @@ internal fun HeadlessMatch.actionMatchesAlternative(
         ) as MatchQueryResult.ActionMatchesAlternative
     ).value
 
-@JvmSynthetic
 internal fun HeadlessMatch.enabledStops(seat: Int = 1): Set<String> = if (seat == 1) observe().enabledStops else emptySet()
 
-@JvmSynthetic
 internal fun HeadlessMatch.diagnostics(
     label: String,
     messageTail: Int = 15,

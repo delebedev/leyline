@@ -63,6 +63,7 @@ dependencies {
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.archunit)
     testImplementation(libs.kotlin.reflect)
+    testImplementation(libs.kotlin.metadata.jvm)
     testImplementation(harness.output)
 }
 
