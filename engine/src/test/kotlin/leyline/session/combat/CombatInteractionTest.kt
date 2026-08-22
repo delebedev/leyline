@@ -368,7 +368,7 @@ class CombatInteractionTest :
 
             val badge = damageGsm.persistentAnnotationsList.single { AnnotationType.DamagedThisTurn in it.typeList }
             assertSoftly {
-                badge.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR
+                badge.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
                 badge.affectedIdsList.last() shouldBe attackerIid
                 damageGsm.annotationsList.count { AnnotationType.DamagedThisTurn in it.typeList } shouldBe 0
             }
