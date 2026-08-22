@@ -27,7 +27,10 @@ import java.nio.file.Files
 class MatchdoorAcceptanceExecutor(
     private val seed: Long = 42L,
 ) {
-    fun runScenario(scenario: AcceptanceScenario): Int {
+    fun runScenario(
+        scenario: AcceptanceScenario,
+        onComplete: (List<GREToClientMessage>) -> Unit = {},
+    ): Int {
         require(scenario.steps.isNotEmpty()) { "scenario ${scenario.id} has no executable steps" }
         val harness = MatchFlowHarness(seed = seed)
         try {
@@ -44,6 +47,7 @@ class MatchdoorAcceptanceExecutor(
                     harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
                 }
             }
+            onComplete(harness.allMessages.toList())
             return scenario.steps.size
         } finally {
             harness.shutdown()

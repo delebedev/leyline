@@ -77,6 +77,11 @@ test-integration forks='':
 test-acceptance:
     cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testAcceptance
 
+# one scripted acceptance path with a local diagnostic trace
+[group('test')]
+acceptance-scry suite scenario:
+    cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testAcceptance -PacceptanceSuites={{suite}} -PacceptanceScenarios={{scenario}} -PacceptanceScry=true
+
 # sim-client E2E suite — synthetic GRE log generation, drives full games (slow)
 [group('test')]
 test-simclient:

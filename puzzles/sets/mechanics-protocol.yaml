@@ -1,6 +1,22 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: llanowar-elves-mana
+    puzzle: llanowar-elves-mana
+    run: cast Grizzly Bears with Llanowar Elves as the required second mana source
+    expect: the Elf taps for green and Grizzly Bears resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Grizzly Bears }
+      - cast: Grizzly Bears
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: AbilityInstanceCreated
+            - annotation_seen: TappedUntappedPermanent
+            - annotation_seen: ManaPaid
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true
   - id: paradigm-germination-main1-copy
     puzzle: paradigm-germination-live
     run: cast Germination Practicum, then cast its recurring copy during the next Main1 trigger
