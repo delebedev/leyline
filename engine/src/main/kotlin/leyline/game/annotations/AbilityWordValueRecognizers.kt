@@ -16,6 +16,9 @@ import leyline.game.state.AbilityRegistry
 object AbilityWordValueRecognizers {
     private val COMPARISON_THRESHOLD = Regex("(?:GE|GT|LE|LT|EQ|NE)(\\d+)")
 
+    /** Forge's own guard on an unsolved Case's end-step solve trigger. */
+    private const val UNSOLVED_CASE = "Card.Self+!IsSolved"
+
     private enum class TraitKind {
         STATIC,
         TRIGGER,
@@ -23,11 +26,18 @@ object AbilityWordValueRecognizers {
 
     private data class ValueFamily(
         val abilityWordName: String,
+        val active: (Card) -> Boolean = { true },
         val matches: (TraitKind, CardTraitBase, String, String) -> Boolean,
     )
 
     private val families =
         listOf(
+            ValueFamily("ToSolveCondition", active = { card -> !card.isSolved }) { kind, trait, _, _ ->
+                kind == TraitKind.TRIGGER &&
+                    trait.getParam("Mode") == "Phase" &&
+                    trait.getParam("Phase") == "End of Turn" &&
+                    trait.getParam("IsPresent") == UNSOLVED_CASE
+            },
             ValueFamily("Devotion") { kind, trait, expression, comparator ->
                 kind == TraitKind.STATIC &&
                     trait.getParam("Mode") == "Continuous" &&
@@ -139,6 +149,7 @@ object AbilityWordValueRecognizers {
         val expression = trait.getSVar(checkSVar)
         val comparator = trait.getParamOrDefault("SVarCompare", "GE1")
         val family = families.firstOrNull { it.matches(kind, trait, expression, comparator) } ?: return null
+        if (!family.active(card)) return null
         val threshold = comparisonThreshold(comparator) ?: return null
         val value = AbilityUtils.calculateAmount(card, checkSVar, trait)
         return Projection(family.abilityWordName, value, threshold)

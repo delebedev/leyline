@@ -8,9 +8,7 @@ import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
-import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
@@ -342,13 +340,9 @@ class SimClientRunner(
 
     private fun ingestScry() {
         val out = Path.of(System.getProperty("user.home"), ".scry", "games")
-        Files.createDirectories(out)
         var count = 0
         config.outDir.listFiles { file -> isSimClientGameLogFile(file) }.orEmpty().forEach { log ->
-            val base = log.nameWithoutExtension
-            Files.copy(log.toPath(), out.resolve("$base.log"), StandardCopyOption.REPLACE_EXISTING)
-            val sidecar = File(config.outDir, "$base.meta.json")
-            if (sidecar.exists()) Files.copy(sidecar.toPath(), out.resolve("$base.meta.json"), StandardCopyOption.REPLACE_EXISTING)
+            ingestSimClientArtifacts(log, out)
             count += 1
         }
         println("Sim-client: $count game(s) ingested into $out")

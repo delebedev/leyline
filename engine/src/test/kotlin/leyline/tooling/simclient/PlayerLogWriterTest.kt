@@ -73,6 +73,18 @@ class PlayerLogWriterTest :
                 """.trimIndent()
         }
 
+        test("ingest copies a generated log and its sidecar") {
+            val source = Files.createTempDirectory("simclient-ingest-source").toFile()
+            val target = Files.createTempDirectory("simclient-ingest-target")
+            val logFile = source.resolve("acceptance-example.log").apply { writeText("trace") }
+            source.resolve("acceptance-example.meta.json").writeText("{}")
+
+            ingestSimClientArtifacts(logFile, target)
+
+            target.resolve("acceptance-example.log").toFile().readText() shouldBe "trace"
+            target.resolve("acceptance-example.meta.json").toFile().readText() shouldBe "{}"
+        }
+
         test("writeBundle normalizes annotation enum suffixes") {
             val out = StringWriter()
             val writer =
