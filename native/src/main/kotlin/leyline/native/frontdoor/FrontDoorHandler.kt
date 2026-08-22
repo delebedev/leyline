@@ -355,22 +355,14 @@ class FrontDoorHandler(
             CmdType.EVENT_DROP.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_Drop event={}", req?.eventName)
-                if (req?.eventName != null) {
-                    try {
-                        val course =
-                            if (EventRegistry.isDraft(req.eventName)) {
-                                draftService.drop(playerId, req.eventName)
-                            } else {
-                                courseService.drop(playerId, req.eventName)
-                            }
-                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
-                    } catch (e: IllegalArgumentException) {
-                        log.debug("Front Door: Event_Drop failed: {}", e.message)
-                        writer.send(ctx, txId, FdResponse.Json("{}"))
-                    }
-                } else {
-                    writer.send(ctx, txId, FdResponse.Json("{}"))
-                }
+                respondForEvent(
+                    ctx,
+                    txId,
+                    req?.eventName,
+                    "Event_Drop",
+                    FdResponse.Json("{}"),
+                    ::dropEvent,
+                )
             }
 
             CmdType.EVENT_ENTER_PAIRING.value -> {
@@ -419,38 +411,19 @@ class FrontDoorHandler(
             CmdType.EVENT_RESIGN.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_Resign event={}", req?.eventName)
-                if (req?.eventName != null) {
-                    try {
-                        val course =
-                            if (EventRegistry.isDraft(req.eventName)) {
-                                draftService.drop(playerId, req.eventName)
-                            } else {
-                                courseService.drop(playerId, req.eventName)
-                            }
-                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
-                    } catch (e: IllegalArgumentException) {
-                        log.debug("Front Door: Event_Resign failed: {}", e.message)
-                        writer.send(ctx, txId, FdResponse.Empty)
-                    }
-                } else {
-                    writer.send(ctx, txId, FdResponse.Empty)
-                }
+                respondForEvent(ctx, txId, req?.eventName, "Event_Resign", action = ::dropEvent)
             }
 
             CmdType.EVENT_CLAIM_PRIZE.value -> {
                 val req = FdRequests.parseEventName(json)
                 val eventName = req?.eventName
                 log.info("Front Door: Event_ClaimPrize event={}", eventName)
-                if (eventName != null) {
-                    try {
-                        val course = courseService.claimPrize(playerId, eventName)
-                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildClaimPrizeResponse(course)))
-                    } catch (e: IllegalArgumentException) {
-                        log.debug("Front Door: Event_ClaimPrize failed: {}", e.message)
-                        writer.send(ctx, txId, FdResponse.Empty)
-                    }
-                } else {
-                    writer.send(ctx, txId, FdResponse.Empty)
+                respondForEvent(ctx, txId, eventName, "Event_ClaimPrize") {
+                    FdResponse.Json(
+                        EventWireBuilder.buildClaimPrizeResponse(
+                            courseService.claimPrize(playerId, it),
+                        ),
+                    )
                 }
             }
 
@@ -593,6 +566,38 @@ class FrontDoorHandler(
     }
 
     // --- Helpers ---
+
+    private fun respondForEvent(
+        ctx: ChannelHandlerContext,
+        txId: String?,
+        eventName: String?,
+        operation: String,
+        failureResponse: FdResponse = FdResponse.Empty,
+        action: (String) -> FdResponse,
+    ) {
+        val response =
+            if (eventName == null) {
+                failureResponse
+            } else {
+                try {
+                    action(eventName)
+                } catch (e: IllegalArgumentException) {
+                    log.debug("Front Door: {} failed: {}", operation, e.message)
+                    failureResponse
+                }
+            }
+        writer.send(ctx, txId, response)
+    }
+
+    private fun dropEvent(eventName: String): FdResponse {
+        val course =
+            if (EventRegistry.isDraft(eventName)) {
+                draftService.drop(playerId, eventName)
+            } else {
+                courseService.drop(playerId, eventName)
+            }
+        return FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString())
+    }
 
     private inline fun requireJson(
         ctx: ChannelHandlerContext,
