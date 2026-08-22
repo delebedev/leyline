@@ -44,10 +44,11 @@ class DfcTransformBridgeTest :
 
             val pending2 = awaitFreshPending(b, pending.actionId)
             pending2.shouldNotBeNull()
-            b.submitTestAction(
-                pending2.actionId,
-                PlayerAction.PassPriority,
-            )
+            b
+                .submitTestAction(
+                    pending2.actionId,
+                    PlayerAction.PassPriority,
+                ).shouldBeTrue()
 
             val pending3 = awaitFreshPending(b, pending2.actionId)
             pending3.shouldNotBeNull()
