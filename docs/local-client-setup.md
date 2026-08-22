@@ -18,9 +18,12 @@ Needed for end-to-end local playtesting only.
 
 ## Steps
 
-1. Install the local connection config.
+1. Prepare the local connection config.
 
-   Install `app/main/resources/services.conf` as the client `StreamingAssets/services.conf`.
+   `just serve` installs or refreshes the client's `StreamingAssets/services.conf`
+   when it finds one client in the standard macOS install location. Set
+   `LEYLINE_CLIENT_PATH` when the application is elsewhere. Values in
+   `.local/leyline.env` are applied to both the generated config and server.
 
 2. Create and trust a localhost TLS cert.
 

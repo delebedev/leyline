@@ -347,6 +347,16 @@ simclient-puzzle puzzles seeds="42":
 serve: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
+    if [ -f "{{local_env}}" ]; then
+      set -a
+      source "{{local_env}}"
+      set +a
+    fi
+    fd_port="${LEYLINE_FD_PORT:-30010}"
+    md_port="${LEYLINE_MD_PORT:-30003}"
+    debug_port="${LEYLINE_DEBUG_PORT:-8090}"
+    management_port="${LEYLINE_MANAGEMENT_PORT:-8091}"
+    account_port="${LEYLINE_ACCOUNT_PORT:-9443}"
     client_path="${LEYLINE_CLIENT_PATH:-}"
     if [ -z "$client_path" ]; then
       shopt -s nullglob
@@ -356,11 +366,18 @@ serve: build check-java
     if [ -n "$client_path" ]; then
       source_services="{{project_dir}}/app/main/resources/services.conf"
       client_services="$client_path/Contents/Resources/Data/StreamingAssets/services.conf"
+      rendered_services="$(mktemp "${TMPDIR:-/tmp}/leyline-services.XXXXXX")"
+      trap 'rm -f "$rendered_services"' EXIT
+      sed \
+        -e "s/\"fdPort\": 30010/\"fdPort\": $fd_port/" \
+        -e "s/\"mdPort\": 30003/\"mdPort\": $md_port/" \
+        -e "s/localhost:9443/localhost:$account_port/g" \
+        "$source_services" > "$rendered_services"
       if [ ! -f "$client_services" ]; then
-        install -m 644 "$source_services" "$client_services"
+        install -m 644 "$rendered_services" "$client_services"
         echo "Installed local client services.conf because it was absent. Relaunch a running client to use it."
-      elif ! cmp -s "$source_services" "$client_services"; then
-        install -m 644 "$source_services" "$client_services"
+      elif ! cmp -s "$rendered_services" "$client_services"; then
+        install -m 644 "$rendered_services" "$client_services"
         echo "Updated local client services.conf. Relaunch a running client to use it."
       else
         echo "Local client services.conf already current."
@@ -368,9 +385,9 @@ serve: build check-java
     fi
     {{_cert_flags}}
     if [ ${#cert_flags[@]} -gt 0 ]; then
-      {{_java}} leyline.LeylineMainKt "${cert_flags[@]}" --fd-port "${LEYLINE_FD_PORT:-30010}" --md-port "${LEYLINE_MD_PORT:-30003}" --debug-port "${LEYLINE_DEBUG_PORT:-8090}" --management-port "${LEYLINE_MANAGEMENT_PORT:-8091}" --account-port "${LEYLINE_ACCOUNT_PORT:-9443}"
+      {{_java}} leyline.LeylineMainKt "${cert_flags[@]}" --fd-port "$fd_port" --md-port "$md_port" --debug-port "$debug_port" --management-port "$management_port" --account-port "$account_port"
     else
-      {{_java}} leyline.LeylineMainKt --fd-port "${LEYLINE_FD_PORT:-30010}" --md-port "${LEYLINE_MD_PORT:-30003}" --debug-port "${LEYLINE_DEBUG_PORT:-8090}" --management-port "${LEYLINE_MANAGEMENT_PORT:-8091}" --account-port "${LEYLINE_ACCOUNT_PORT:-9443}"
+      {{_java}} leyline.LeylineMainKt --fd-port "$fd_port" --md-port "$md_port" --debug-port "$debug_port" --management-port "$management_port" --account-port "$account_port"
     fi
 
 # verify web profile excludes local client door/debug posture
