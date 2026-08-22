@@ -43,12 +43,20 @@ class ProjectionCardReferences internal constructor(
             }?.first ?: 0
     }
 
+    /** True for the card-database row used by Case solve trigger abilities. */
+    fun isCaseSolveTrigger(abilityGrpId: Int): Boolean =
+        cards.findAbilityInfo(abilityGrpId)?.let { info ->
+            info.category == TRIGGERED_ABILITY_CATEGORY && info.subCategory == CASE_SOLVE_SUBCATEGORY
+        } == true
+
     fun decayedCleanupGrpId(grpId: Int): Int? {
         if (cards.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.DECAYED) == null) return null
         return cards.findHiddenTriggeredAbilityGrpId(grpId)
     }
 
     private companion object {
+        const val TRIGGERED_ABILITY_CATEGORY = 2
+        const val CASE_SOLVE_SUBCATEGORY = 27
         const val STATIC_ABILITY_CATEGORY = 3
         const val COLLECT_EVIDENCE_CATEGORY = 5
         const val COLLECT_EVIDENCE_SUBCATEGORY = 29
