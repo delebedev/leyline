@@ -1638,6 +1638,10 @@ internal class MatchFlowHarness(
     internal fun drainSink() {
         collectSinkMessages()
 
+        // Setup is applied at an explicit action/progression boundary. Reads
+        // remain projections and never mutate Forge state or answer prompts.
+        if (startupSetup.isNotEmpty()) applySetupToCards(cardViews())
+
         if (responseMode != HeadlessResponseMode.AutoForTests) return
 
         // Auto-respond to engine-initiated prompts so the engine can continue.
@@ -1648,6 +1652,8 @@ internal class MatchFlowHarness(
         do {
             val acted = autoRespondToOptionalAction() || autoRespondToNumericInput()
         } while (acted)
+
+        if (startupSetup.isNotEmpty()) applySetupToCards(cardViews())
     }
 
     private fun autoRespondToOptionalAction(): Boolean {
@@ -1978,10 +1984,7 @@ internal class MatchFlowHarness(
         }
     }
 
-    override fun observe(): MatchObservation {
-        if (::bridge.isInitialized) drainSink()
-        return observation()
-    }
+    override fun observe(): MatchObservation = observation()
 
     override fun checkpoint(): MatchCheckpoint = MatchCheckpoint(messageLog.snapshot())
 
@@ -2011,10 +2014,8 @@ internal class MatchFlowHarness(
         consumedPromptMsgIds: List<Int> = emptyList(),
     ): MatchResult = MatchResult(accepted = accepted, observation = observation(), consumedPromptMsgIds = consumedPromptMsgIds)
 
-    private fun observation(): MatchObservation {
-        val initialCards = cardViews()
-        applySetupToCards(initialCards)
-        return MatchObservation(
+    private fun observation(): MatchObservation =
+        MatchObservation(
             messages = allMessages.toList(),
             rawMessages = allRawMessages.toList(),
             client = accumulator.snapshot(),
@@ -2037,6 +2038,17 @@ internal class MatchFlowHarness(
                         ?.kind
                         ?.name
                 }.getOrNull(),
+            pendingSynchronization =
+                runCatching {
+                    bridge
+                        .actionBridge(seatId)
+                        .getPending()
+                        ?.state
+                        ?.kind == PendingActionKind.SYNC_ONLY ||
+                        bridge
+                            .cutCoordinator
+                            .hasCommittedBatches(seatId)
+                }.getOrDefault(false),
             blockingInteraction =
                 runCatching {
                     bridge.cutCoordinator
@@ -2095,7 +2107,6 @@ internal class MatchFlowHarness(
                         }.filterKeys { it > 0 }
                 }.getOrDefault(emptyMap()),
         )
-    }
 
     private fun cardViews(): List<HeadlessCard> =
         runCatching {

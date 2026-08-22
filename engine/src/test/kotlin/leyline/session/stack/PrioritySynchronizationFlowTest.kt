@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.testkit.*
 import leyline.testkit.SessionTest
+import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 class PrioritySynchronizationFlowTest :
@@ -34,6 +35,7 @@ class PrioritySynchronizationFlowTest :
 
             assertSoftly {
                 observe().pendingActionKind shouldBe PendingActionKind.PRIORITY.name
+                observe().pendingSynchronization shouldBe false
                 messagesSince(before).any { it.hasActionsAvailableReq() }.shouldBeTrue()
                 observe().pendingAction shouldBe true
             }
@@ -42,6 +44,7 @@ class PrioritySynchronizationFlowTest :
         session("explicit auto-resolve advances through a second SyncOnly stop without an action request", puzzle = puzzle, turns = 3) {
             val before = messageSnapshot()
 
+            setAutoPass(AutoPassOption.ResolveMyStackEffects)
             castSpellByName("Runeclaw Bear").shouldBeTrue()
 
             val emitted = messagesSince(before)
@@ -55,6 +58,7 @@ class PrioritySynchronizationFlowTest :
                         it == GREMessageType.GameStateMessage_695e
                     }.shouldBeTrue()
                 observe().pendingActionKind shouldBe PendingActionKind.PRIORITY.name
+                observe().pendingSynchronization shouldBe false
                 observe().stackSize shouldBe 0
                 human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Runeclaw Bear"
             }

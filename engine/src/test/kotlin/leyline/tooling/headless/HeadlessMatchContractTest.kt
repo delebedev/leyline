@@ -91,4 +91,67 @@ class HeadlessMatchContractTest :
             result.observation.messages.shouldNotBeEmpty()
             result.observation.turn shouldBe 1
         }
+
+        test("observation and query reads do not answer prompts or apply setup") {
+            val puzzle =
+                """
+                [metadata]
+                Name:Headless read boundary
+                Goal:Survive
+                Turns:2
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Centaur Courser
+                humanbattlefield=Wildborn Preserver;Forest;Forest;Forest;Forest;Forest
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """.trimIndent()
+            val match =
+                MatchFlowHarness.fromSpec(
+                    MatchSpec(
+                        puzzleText = puzzle,
+                        responseMode = HeadlessResponseMode.PolicyVisible,
+                        setup = listOf(MatchSetup.AddKeyword("Centaur Courser", IntrinsicKeyword.FirstStrike)),
+                    ),
+                )
+            try {
+                match.start()
+                match.submit(MatchIntent.Play(PlayAction.Spell("Centaur Courser")))
+                var current = match.observe()
+                repeat(8) {
+                    if (current.blockingInteraction == "Optional") return@repeat
+                    match.submit(MatchIntent.Control(ControlAction.PassPriority))
+                    current = match.observe()
+                }
+                current.blockingInteraction shouldBe "Optional"
+
+                val checkpoint = match.checkpoint()
+                val before = current
+                repeat(3) {
+                    match.observe()
+                    match.query(MatchQuery.CardGrpId("Centaur Courser"))
+                    match.messagesSince(checkpoint)
+                }
+                val after = match.observe()
+                assertSoftly {
+                    after.messages.size shouldBe before.messages.size
+                    after.client.messageCount shouldBe before.client.messageCount
+                    after.phase shouldBe before.phase
+                    after.turn shouldBe before.turn
+                    after.pendingAction shouldBe before.pendingAction
+                    after.pendingActionKind shouldBe before.pendingActionKind
+                    after.pendingSynchronization shouldBe before.pendingSynchronization
+                    after.blockingInteraction shouldBe before.blockingInteraction
+                    after.cards.filter { it.name == "Centaur Courser" } shouldBe
+                        before.cards.filter { it.name == "Centaur Courser" }
+                    match.messagesSince(checkpoint).size shouldBe 0
+                }
+            } finally {
+                match.close()
+            }
+        }
     })

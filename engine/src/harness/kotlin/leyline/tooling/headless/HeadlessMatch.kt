@@ -457,6 +457,8 @@ data class MatchObservation(
     val stackObjectsSize: Int? = null,
     val pendingAction: Boolean,
     val pendingActionKind: String?,
+    /** True while a SyncOnly action or committed coordinator batch awaits delivery. */
+    val pendingSynchronization: Boolean = false,
     val blockingInteraction: String?,
     val blockingInteractionId: String? = null,
     val pendingInteraction: PendingInteraction? = null,
@@ -529,21 +531,21 @@ data class ClientStateSnapshot(
     }
 }
 
-fun HeadlessMatch.cardNameByGrpId(grpId: Int): String? = (query(MatchQuery.CardName(grpId)) as MatchQueryResult.CardName).value
+internal fun HeadlessMatch.cardNameByGrpId(grpId: Int): String? = (query(MatchQuery.CardName(grpId)) as MatchQueryResult.CardName).value
 
-fun HeadlessMatch.cardGrpId(cardName: String): Int? = (query(MatchQuery.CardGrpId(cardName)) as MatchQueryResult.CardGrpId).value
+internal fun HeadlessMatch.cardGrpId(cardName: String): Int? = (query(MatchQuery.CardGrpId(cardName)) as MatchQueryResult.CardGrpId).value
 
-fun HeadlessMatch.keywordAbilityGrpId(
+internal fun HeadlessMatch.keywordAbilityGrpId(
     cardGrpId: Int,
     keywordAbilityId: Int,
 ): Int? = (query(MatchQuery.KeywordAbilityGrpId(cardGrpId, keywordAbilityId)) as MatchQueryResult.KeywordAbilityGrpId).value
 
-fun HeadlessMatch.keywordAbilityGrpId(
+internal fun HeadlessMatch.keywordAbilityGrpId(
     cardName: String,
     keywordAbilityId: Int,
 ): Int? = cardGrpId(cardName)?.let { keywordAbilityGrpId(it, keywordAbilityId) }
 
-fun HeadlessMatch.actionMatchesAlternative(
+internal fun HeadlessMatch.actionMatchesAlternative(
     action: wotc.mtgo.gre.external.messaging.Messages.Action,
     keywordAbilityId: Int,
 ): Boolean =
@@ -559,9 +561,9 @@ fun HeadlessMatch.actionMatchesAlternative(
         ) as MatchQueryResult.ActionMatchesAlternative
     ).value
 
-fun HeadlessMatch.enabledStops(seat: Int = 1): Set<String> = if (seat == 1) observe().enabledStops else emptySet()
+internal fun HeadlessMatch.enabledStops(seat: Int = 1): Set<String> = if (seat == 1) observe().enabledStops else emptySet()
 
-fun HeadlessMatch.diagnostics(
+internal fun HeadlessMatch.diagnostics(
     label: String,
     messageTail: Int = 15,
 ): String = HeadlessMatchRuntime.diagnostics(this, label, messageTail)

@@ -13,6 +13,7 @@ import leyline.tooling.headless.ControlAction
 import leyline.tooling.headless.DamageRecipientChoice
 import leyline.tooling.headless.HeadlessCard
 import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.HeadlessMatchRuntime
 import leyline.tooling.headless.ManaColorChoice
 import leyline.tooling.headless.MatchCheckpoint
 import leyline.tooling.headless.MatchIntent
@@ -79,7 +80,10 @@ fun HeadlessMatch.messageSnapshot(): Int = observe().messages.size
 
 fun HeadlessMatch.messagesSince(snapshot: Int): List<GREToClientMessage> = messagesSince(MatchCheckpoint(snapshot))
 
-fun HeadlessMatch.drainSink(): MatchResult = MatchResult(true, observe())
+fun HeadlessMatch.drainSink(): MatchResult {
+    HeadlessMatchRuntime.drain(this)
+    return MatchResult(true, observe())
+}
 
 fun HeadlessMatch.passPriority(): MatchResult = submit(MatchIntent.Control(ControlAction.PassPriority))
 

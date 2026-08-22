@@ -13,6 +13,12 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /** Implementation-owned capabilities that cannot be expressed as client state. */
 internal object HeadlessMatchRuntime {
+    /** Collect queued output and run configured automatic responses at an explicit boundary. */
+    fun drain(match: HeadlessMatch) {
+        (match as? MatchFlowHarness)?.drainSink()
+            ?: error("Output draining requires the standard headless runtime")
+    }
+
     fun diagnostics(
         match: HeadlessMatch,
         label: String,

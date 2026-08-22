@@ -47,24 +47,39 @@ class HeadlessMatchBoundaryTest :
         }
 
         test("full-loop consumers have no compiled runtime reach-through") {
-            val files =
-                (testClassFiles() + harnessClassFiles()).filter { path ->
-                    val relative = path.toString().replace('\\', '/')
-                    relative.contains("/leyline/acceptance/") ||
-                        relative.endsWith("/leyline/session/targeting/KeywordTriggerTargetPromptTest.class") ||
-                        relative.contains("/leyline/mechanics/endure/") ||
-                        relative.endsWith("/leyline/tooling/simclient/SimClientE2ETest.class") ||
-                        relative.contains("/leyline/tooling/simclient/") &&
-                        relative.contains("build/classes/kotlin/harness") ||
-                        classBytes(path).containsAscii("leyline/testkit/SessionTest")
-                }
-            val violations = files.flatMap { path -> forbiddenRuntimeTypes(classBytes(path)).map { "$path: $it" } }
+            val violations =
+                fullLoopConsumerClasses(compiledClasses())
+                    .flatMap { compiled -> forbiddenRuntimeTypes(compiled.bytes).map { "${compiled.binaryName}: $it" } }
             violations.shouldBeEmpty()
         }
 
         test("compiled boundary detector catches a forbidden alias reference") {
             val sample = "Lleyline/game/state/GameBridge;".toByteArray()
             forbiddenRuntimeTypes(sample) shouldBe listOf("leyline/game/state/GameBridge")
+        }
+
+        test("compiled boundary detector includes generated SessionTest nested classes") {
+            val sample =
+                listOf(
+                    CompiledClass("leyline/FakeSessionSpec", "Lleyline/testkit/SessionTest;".toByteArray()),
+                    CompiledClass("leyline/FakeSessionSpec\$nested", "Lleyline/game/state/GameBridge;".toByteArray()),
+                )
+            fullLoopConsumerClasses(sample)
+                .flatMap { compiled -> forbiddenRuntimeTypes(compiled.bytes) }
+                .shouldBe(listOf("leyline/game/state/GameBridge"))
+        }
+
+        test("headless convenience extensions are module-internal") {
+            val source =
+                listOf(
+                    Path.of("engine/src/harness/kotlin/leyline/tooling/headless/HeadlessMatch.kt"),
+                    Path.of("src/harness/kotlin/leyline/tooling/headless/HeadlessMatch.kt"),
+                ).first(Files::exists)
+            val publicExtensions =
+                Files.readAllLines(source).filter { line ->
+                    line.matches(Regex("\\s*(?:public\\s+)?fun HeadlessMatch\\..*"))
+                }
+            publicExtensions.shouldBeEmpty()
         }
     })
 
@@ -93,6 +108,38 @@ private fun nestedTypes(type: Class<*>): List<Class<*>> = listOf(type) + type.de
 
 private fun forbiddenTypeNames(type: Type): List<String> = forbiddenRuntimeNames.filter { it in type.typeName.replace('.', '/') }
 
+private data class CompiledClass(
+    val binaryName: String,
+    val bytes: ByteArray,
+    val sourceSet: String = "test",
+)
+
+private fun compiledClasses(): List<CompiledClass> =
+    (testClassFiles() + harnessClassFiles()).map { path ->
+        CompiledClass(binaryName(path), classBytes(path), sourceSet(path))
+    }
+
+private fun fullLoopConsumerClasses(classes: List<CompiledClass>): List<CompiledClass> {
+    val sessionRoots =
+        classes
+            .filter { !it.binaryName.startsWith("leyline/architecture/") }
+            .filter { it.bytes.containsAscii("leyline/testkit/SessionTest") }
+            .map { it.binaryName }
+    return classes.filter { compiled ->
+        isExplicitFullLoopConsumer(compiled) ||
+            sessionRoots.any { root -> compiled.binaryName == root || compiled.binaryName.startsWith("$root$") }
+    }
+}
+
+private fun isExplicitFullLoopConsumer(compiled: CompiledClass): Boolean =
+    compiled.binaryName.contains("leyline/acceptance/") ||
+        compiled.binaryName == "leyline/session/targeting/KeywordTriggerTargetPromptTest" ||
+        compiled.binaryName.contains("leyline/mechanics/endure/") ||
+        compiled.sourceSet == "test" &&
+        compiled.binaryName == "leyline/tooling/simclient/SimClientE2ETest" ||
+        compiled.sourceSet == "harness" &&
+        compiled.binaryName.contains("leyline/tooling/simclient/")
+
 private fun testClassFiles(): List<Path> =
     listOf(
         Path.of("engine/build/classes/kotlin/test"),
@@ -108,6 +155,14 @@ private fun harnessClassFiles(): List<Path> =
     ).filter(Files::isDirectory).flatMap { root ->
         Files.walk(root).use { stream -> stream.filter { it.toString().endsWith(".class") }.toList() }
     }
+
+private fun binaryName(path: Path): String {
+    val normalized = path.toString().replace('\\', '/')
+    val marker = listOf("/kotlin/test/", "/kotlin/harness/").first { normalized.contains(it) }
+    return normalized.substringAfter(marker).removeSuffix(".class")
+}
+
+private fun sourceSet(path: Path): String = if (path.toString().replace('\\', '/').contains("/kotlin/harness/")) "harness" else "test"
 
 private fun classBytes(path: Path): ByteArray = Files.readAllBytes(path)
 

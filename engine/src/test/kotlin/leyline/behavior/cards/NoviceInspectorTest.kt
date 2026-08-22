@@ -88,6 +88,7 @@ class NoviceInspectorTest :
                 messagesSince(beforeActivation).any { it.hasGameStateMessage() }.shouldBeTrue()
                 observe().validationViolations shouldBe emptyList()
                 observe().pendingActionKind shouldNotBe "SYNC_ONLY"
+                observe().pendingSynchronization shouldBe false
                 observe().loopFailure shouldBe null
             }
 
