@@ -94,10 +94,6 @@ Read `docs/ai-solved-acceptance.md` when converting a direct Forge-AI puzzle sol
 
 For player-visible gameplay work, completion requires focused production tests, one repository-local puzzle-backed acceptance scenario, and an autonomous local-client playthrough. A lower layer does not substitute for a higher one. Ground public acceptance claims in repository-local tests, fixtures, puzzles, and docs.
 
-## Proto
-
-The `:gre-proto` module (mapped to `proto/`) owns the generated GRE schema: it synchronizes `proto/src/main/proto/messages.proto` from the `proto/upstream` submodule through `proto/rename-map.sed`, then runs protoc before compilation. Don't edit `messages.proto` directly — edit `proto/rename-map.sed` and run `just sync-proto`.
-
 ## Public Repo — Content Rules
 
 Every commit is public. **IMPORTANT: Violating these rules exposes the project legally.**

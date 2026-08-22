@@ -9,12 +9,6 @@ repositories {
     mavenCentral()
 }
 
-// :gre-proto owns the generated GRE wire schema: it synchronizes the schema
-// from the proto/upstream submodule through proto/rename-map.sed, runs protoc,
-// and ships the generated classes. The root app, engine, native, and web all
-// import the generated types directly, so this is a plain Java module with no
-// Leyline application-module or Forge dependency.
-
 val syncProto =
     tasks.register<SyncProtoTask>("syncProto") {
         description = "Generate messages.proto from upstream submodule + rename map"

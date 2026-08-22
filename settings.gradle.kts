@@ -12,5 +12,4 @@ include("native")
 include("web")
 include("tools:detekt-rules")
 
-// :gre-proto maps to the existing proto/ directory (rename-map.sed + upstream submodule).
 project(":gre-proto").projectDir = file("proto")

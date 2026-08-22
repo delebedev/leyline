@@ -10,24 +10,22 @@ import java.nio.file.Path
 class ModuleDependencyInvariantTest :
     FunSpec({
         val root = Path.of(System.getProperty("user.dir"))
+        val projectDirectories = mapOf("gre-proto" to "proto")
 
         fun projectDependencies(module: String): Set<String> {
             val buildFile =
                 if (module.isEmpty()) {
                     root.resolve("build.gradle.kts")
                 } else {
-                    root.resolve(module).resolve("build.gradle.kts")
+                    root.resolve(projectDirectories[module] ?: module).resolve("build.gradle.kts")
                 }
-            if (!Files.exists(buildFile)) return emptySet()
+            check(Files.exists(buildFile)) { "Missing build file: $buildFile" }
             val dependencyPattern = Regex("project\\(\":([^\"]+)\"\\)")
             return dependencyPattern.findAll(Files.readString(buildFile)).map { it.groupValues[1] }.toSet()
         }
 
         test("heads and the composition root share core modules without depending on each other") {
             assertSoftly {
-                // :gre-proto is the generated GRE schema owner; every direct
-                // generated-type consumer declares it, and heads stay peers.
-                // (Root also depends on :tools:detekt-rules via detektPlugins.)
                 projectDependencies("") shouldBe setOf("domain", "engine", "gre-proto", "native", "web", "tools:detekt-rules")
                 projectDependencies("native") shouldBe setOf("domain", "engine", "gre-proto")
                 projectDependencies("engine") shouldBe setOf("domain", "gre-proto")

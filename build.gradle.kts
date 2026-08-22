@@ -42,8 +42,6 @@ configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
     version.set(ktlintVersion)
 }
 subprojects {
-    // :gre-proto is Java-only (generated protobuf classes); Kotlin linters and
-    // detekt's per-source-set task graph don't apply to it.
     if (path == ":tools" || path == ":tools:detekt-rules" || path == ":gre-proto") return@subprojects
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
     configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
@@ -81,10 +79,7 @@ allprojects {
 }
 
 subprojects {
-    // Skip the implicit `:tools` container project and the custom-rules module
-    // itself (can't depend on itself, and it doesn't need detekt's scrutiny).
-    // :gre-proto is Java-only — detekt analyzes Kotlin and its per-source-set
-    // task graph doesn't exist without the Kotlin plugin.
+    // Skip projects without Kotlin sources and the custom-rules module itself.
     if (path == ":tools" || path == ":tools:detekt-rules" || path == ":gre-proto") return@subprojects
     apply(plugin = "dev.detekt")
     repositories { mavenCentral() }
