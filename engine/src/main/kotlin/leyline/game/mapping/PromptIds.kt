@@ -148,4 +148,10 @@ object PromptIds {
 
     /** Order cards being placed on top of a library. */
     const val ORDER_LIBRARY_TOP = 86
+
+    /** Divided damage allocation across already-selected targets. */
+    const val DISTRIBUTE_DAMAGE = 2234
+
+    /** Divided counter allocation across already-selected targets. */
+    const val DISTRIBUTE_COUNTERS = 4051
 }

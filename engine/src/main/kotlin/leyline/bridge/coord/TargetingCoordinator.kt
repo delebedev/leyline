@@ -811,11 +811,11 @@ class TargetingCoordinator(
         }
     }
 
-    /** Record a completed target group after Forge has finalized divided allocations. */
-    fun recordCompletedTargetSpec(sa: SpellAbility) {
-        val spellCard = sa.hostCard ?: return
+    /** Record a completed target group and return the affectee order used by TargetSpec projection. */
+    fun recordCompletedTargetSpec(sa: SpellAbility): List<Int> {
+        val spellCard = sa.hostCard ?: return emptyList()
         val targets = sa.targets.targetEntities.toList()
-        if (targets.isEmpty()) return
+        if (targets.isEmpty()) return emptyList()
         val groupIndex = targetGroupIndex(sa)
         val isStackAbility = !isSpellTargeting(sa)
         val affectees =
@@ -841,7 +841,7 @@ class TargetingCoordinator(
                     else -> null
                 }
             }
-        if (affectees.isEmpty()) return
+        if (affectees.isEmpty()) return emptyList()
         // Resolve the spell card's iid here, while the spell is still on the
         // stack. Re-deriving from the live bridge at TargetSpec emission time
         // is unsafe for multi-target spells: per-group TargetSpecs are emitted
@@ -875,6 +875,16 @@ class TargetingCoordinator(
                 forgeAbilityId = sa.id,
             ),
         )
+        return affectees.map { checkNotNull(it.targetForgeCardId ?: it.targetSeatId) }
+    }
+
+    /** Remove a pre-allocation target fact when Forge abandons the divided choice. */
+    fun discardCompletedTargetSpec(sa: SpellAbility) {
+        val spellCard = sa.hostCard ?: return
+        val groupIndex = targetGroupIndex(sa)
+        bridge.removePendingTargetSpecs { spec ->
+            spec.spellForgeCardId == spellCard.id && spec.index == groupIndex && spec.forgeAbilityId == sa.id
+        }
     }
 
     private fun isSpellTargeting(sa: SpellAbility): Boolean {

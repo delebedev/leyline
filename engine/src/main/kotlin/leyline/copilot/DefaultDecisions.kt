@@ -20,6 +20,21 @@ internal object DefaultDecisions {
     /** Keep the order the engine offered. */
     fun order(msg: GREToClientMessage): SimDecision = SimDecision.Order(msg.orderReq.idsList.toList())
 
+    /** Allocate the required total with one point per target, giving the remainder to the first target. */
+    fun distribution(msg: GREToClientMessage): SimDecision {
+        val req = msg.distributionReq
+        val ids = req.validSelectedTargetIdsList.ifEmpty { req.targetIdsList }
+        val min = req.minPerTarget.coerceAtLeast(1)
+        val total = req.maxAmount.coerceAtLeast(req.minAmount)
+        val amounts = ids.map { it to min }.toMutableList()
+        val remainder = total - amounts.sumOf { it.second }
+        if (remainder > 0 && amounts.isNotEmpty()) {
+            val (id, amount) = amounts.first()
+            amounts[0] = id to (amount + remainder)
+        }
+        return SimDecision.Distribution(amounts.toMap())
+    }
+
     /** Take the required number of sought items. */
     fun search(msg: GREToClientMessage): SimDecision {
         val req = msg.searchReq

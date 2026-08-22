@@ -133,6 +133,10 @@ class InteractivePromptBridge(
         pendingTargetSpecs.add(spec)
     }
 
+    fun removePendingTargetSpecs(predicate: (PendingTarget) -> Boolean) {
+        pendingTargetSpecs.removeIf(predicate)
+    }
+
     fun snapshotPendingTargetSpecs(): List<PendingTarget> = pendingTargetSpecs.specs()
 
     fun snapshotPendingTargetSpecEntries(): List<PendingTargetEntry> = pendingTargetSpecs.entries()
@@ -432,6 +436,35 @@ class InteractivePromptBridge(
         }
     }
 
+    /** Route a fixed-total divided allocation across the exact selected entities. */
+    fun requestDistribution(
+        request: PromptRequest,
+        window: DistributionWindowValue,
+    ): DistributionInteractionResult {
+        check(request.route is ResolvedPromptRoute.Distribution) { "Distribution route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
+            val fallback = window.fallback()
+            record(request, PromptCallStatus.DEFAULTED_POLICY, fallback.amounts.values.toList(), 0)
+            return fallback
+        }
+        val runtime = checkNotNull(runtimeBindings.distribution) { "Distribution runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitDistribution(request, window, timeoutMs)
+            record(
+                request,
+                if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
+                result.amounts.values.toList(),
+                System.currentTimeMillis() - startMs,
+            )
+            if (result.timedOut) timeoutListener?.invoke() else prioritySignal?.markPromptResolved()
+            result
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
     /** Route one Scry or Surveil grouping request with its exact Forge card handles. */
     fun requestGrouping(
         request: PromptRequest,
@@ -711,6 +744,12 @@ enum class PromptSemantic {
 
     /** Order cards going to the top of a library. */
     OrderForTop,
+
+    /** Allocate a fixed damage total across already-selected targets. */
+    DividedAllocationDamage,
+
+    /** Allocate a fixed counter total across already-selected targets. */
+    DividedAllocationCounters,
 
     /** "Choose from revealed hand" — Duress, Revealing Eye, Thoughtseize, etc. */
     RevealChoose,

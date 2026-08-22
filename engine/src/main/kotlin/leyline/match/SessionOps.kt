@@ -175,6 +175,8 @@ interface ActionReceiver {
 
     fun onOrderResp(greMsg: ClientToGREMessage) {}
 
+    fun onDistributionResp(greMsg: ClientToGREMessage) {}
+
     fun onEffectCost(greMsg: ClientToGREMessage) {}
 
     fun onGroupResp(greMsg: ClientToGREMessage) {}

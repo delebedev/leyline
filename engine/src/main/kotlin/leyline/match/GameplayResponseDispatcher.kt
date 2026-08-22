@@ -35,6 +35,7 @@ private fun gameplayResponseHandler(type: ClientMessageType): GameplayResponseHa
         ClientMessageType.CancelActionReq_097b -> ActionReceiver::onCancelAction
         ClientMessageType.SelectNresp -> ActionReceiver::onSelectN
         ClientMessageType.OrderResp_097b -> ActionReceiver::onOrderResp
+        ClientMessageType.DistributionResp_097b -> ActionReceiver::onDistributionResp
         ClientMessageType.CastingTimeOptionsResp_097b -> ActionReceiver::onCastingTimeOptions
         ClientMessageType.SearchResp_097b -> ActionReceiver::onSearch
         ClientMessageType.AssignDamageResp_097b -> ActionReceiver::onAssignDamage

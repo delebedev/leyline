@@ -270,6 +270,8 @@ data object TargetSpecKind : PersistentAnnotationKind {
 
     override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to (int32Detail(ann, DetailKeys.INDEX) ?: 0)
 
+    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean = true
+
     override fun shouldExpire(
         ann: AnnotationInfo,
         frame: FrameContext,

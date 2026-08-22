@@ -18,6 +18,7 @@ internal class MatchPromptRuntimeSet(
     val blocking = own(MatchBlockingInteractionRuntime(owner))
     val search = own(MatchSearchInteractionRuntime(owner))
     val order = own(MatchOrderInteractionRuntime(owner))
+    val distribution = own(MatchDistributionInteractionRuntime(owner))
     val grouping = own(MatchGroupingInteractionRuntime(owner))
     val cardSelect = own(MatchCardSelectInteractionRuntime(owner))
     val staticChoices = own(MatchStaticChoiceInteractionRuntime(owner))
@@ -33,6 +34,7 @@ internal class MatchPromptRuntimeSet(
             compatibilityCostSelection = compatibilityCostSelection,
             search = search,
             order = order,
+            distribution = distribution,
             grouping = grouping,
             cardSelect = cardSelect,
             staticChoice = staticChoices,

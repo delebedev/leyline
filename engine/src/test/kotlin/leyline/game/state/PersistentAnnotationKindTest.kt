@@ -113,7 +113,7 @@ class PersistentAnnotationKindTest :
             }
         }
 
-        test("retargeting replaces the same TargetSpec group") {
+        test("retargeting updates the same TargetSpec identity") {
             val original =
                 AnnotationBuilder
                     .targetSpec(101.iid, 900.iid, 42.grp, 1, 10, 900)
@@ -135,7 +135,8 @@ class PersistentAnnotationKindTest :
                 )
 
             assertSoftly {
-                result.deletedIds shouldContainExactlyInAnyOrder listOf(original.id)
+                result.deletedIds.shouldBeEmpty()
+                result.allAnnotations.single().id shouldBe original.id
                 result.allAnnotations.single().affectedIdsList shouldBe listOf(202)
             }
         }
