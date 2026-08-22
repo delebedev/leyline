@@ -272,13 +272,15 @@ class MatchSearchInteractionRuntimeTest :
                 ) shouldBe false
                 finished.count shouldBe 1
             }
-            coordinator.search.submitGroups(
-                published.interactionId,
-                published.gameStateId,
-                listOf(SearchGroupResponseValue(first.groupId, first.idsList, first.maxSelect)),
-            ) shouldBe true
-            finished.await(3, TimeUnit.SECONDS) shouldBe true
-            result.get() shouldContainExactly listOf(0)
+            assertSoftly {
+                coordinator.search.submitGroups(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(SearchGroupResponseValue(first.groupId, first.idsList, first.maxSelect)),
+                ) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get() shouldContainExactly listOf(0)
+            }
         }
 
         test("response invalidates the reveal baseline before the engine resumes") {
@@ -348,9 +350,11 @@ class MatchSearchInteractionRuntimeTest :
             val published = awaitPublished(coordinator)
             coordinator.drain(SeatId(1))
 
-            coordinator.search.submitGroups(published.interactionId, published.gameStateId, emptyList()) shouldBe true
-            finished.await(3, TimeUnit.SECONDS) shouldBe true
-            result.get() shouldContainExactly listOf(2)
+            assertSoftly {
+                coordinator.search.submitGroups(published.interactionId, published.gameStateId, emptyList()) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get() shouldContainExactly listOf(2)
+            }
         }
 
         test("bridge timeout returns the configured default and requests later progression") {
