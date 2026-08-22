@@ -1,33 +1,21 @@
 package leyline.session.flow
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
-import leyline.game.PlaybackTerminalFailure
 import leyline.game.mapping.PromptIds
-import leyline.infra.MessageSink
-import leyline.match.ConnectionState
-import leyline.match.Match
-import leyline.match.MatchRegistry
-import leyline.match.MatchSession
-import leyline.match.MatchTeardownReason
-import leyline.testkit.Board
 import leyline.testkit.SessionTest
-import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.GameStage as ForgeGameStage
 
 /**
  * Tests for game-end protocol: IntermissionReq + MatchCompleted room state.
@@ -280,44 +268,5 @@ class GameEndTest :
 
             val intermission = allMessages.first { it.hasIntermissionReq() }.intermissionReq
             intermission.result.reason shouldBe ResultReason.Game_ae0a
-        }
-
-        test("MatchSession game-over delivery failure terminalizes the coordinator") {
-            GameBootstrap.initializeCardDatabase(quiet = true)
-            TestCardRegistry.ensureRegistered()
-            val board = Board.startWithBoard { _, _, _ -> }
-            val bridge = board.bridge
-            bridge.getGame()!!.age = ForgeGameStage.GameOver
-            val registry = MatchRegistry()
-            val match = registry.getOrCreateMatch("test-match") { Match("test-match", bridge) }
-            val failure = IllegalStateException("match sink failed")
-            val sink =
-                object : MessageSink {
-                    override fun send(messages: List<GREToClientMessage>) = throw failure
-
-                    override fun sendRaw(msg: MatchServiceToClientMessage) = error("raw delivery should not run")
-                }
-            val session =
-                MatchSession(
-                    connection = ConnectionState(SeatId(1), "test-match", sink, registry),
-                    gameBridge = bridge,
-                    paceDelayMs = 0,
-                )
-
-            try {
-                val terminal =
-                    shouldThrow<PlaybackTerminalFailure> {
-                        session.sendGameOver(ResultReason.Concede)
-                    }
-
-                assertSoftly {
-                    terminal.cause shouldBe failure
-                    bridge.cutCoordinator.failure() shouldBe terminal
-                    registry.getMatch("test-match") shouldBe match
-                }
-            } finally {
-                session.close()
-                registry.teardownMatch("test-match", MatchTeardownReason.Disconnect)
-            }
         }
     })

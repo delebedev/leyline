@@ -18,7 +18,6 @@ internal class MatchGameOverRuntime(
     private val owner: MatchCutCoordinator,
 ) {
     internal var beforeMaterialization: (() -> Unit)? = null
-    internal var beforeEnqueue: (() -> Unit)? = null
     internal var beforeInstall: (() -> Unit)? = null
 
     /** Publish pending resolution facts before the terminal game-over sequence. */
@@ -77,7 +76,7 @@ internal class MatchGameOverRuntime(
                                 transition = transition,
                                 closesPlaybackFrame = pending?.closesPlaybackFrame == true,
                             ),
-                        hooks = CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
+                        hooks = CutInstallHooks(beforeInstall = beforeInstall),
                         onInstalled = { feed.requestedCut = null },
                     ) { ex -> owner.fail(ex) }
                 }

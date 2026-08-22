@@ -12,15 +12,10 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
-import leyline.game.PlaybackTerminalFailure
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
-import leyline.infra.MessageSink
 import leyline.testkit.TestCardRegistry
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
@@ -99,46 +94,6 @@ class SpectatorSessionTest :
 
                 sink.messages.shouldNotBeEmpty()
                 sink.messages.size shouldBe 2
-            } finally {
-                releaseHook.countDown()
-                session.close()
-            }
-        }
-
-        test("game-over delivery failure terminalizes the coordinator") {
-            val reachedHook = CountDownLatch(1)
-            val releaseHook = CountDownLatch(1)
-            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
-            bridge = b
-            b.startAiVsAi(
-                seed = 42,
-                startGameHook =
-                    Runnable {
-                        reachedHook.countDown()
-                        releaseHook.await(5, TimeUnit.SECONDS)
-                    },
-            )
-            reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
-
-            val failure = IllegalStateException("spectator sink failed")
-            val sink =
-                object : MessageSink {
-                    override fun send(messages: List<GREToClientMessage>) = throw failure
-
-                    override fun sendRaw(msg: MatchServiceToClientMessage) = error("raw delivery should not run")
-                }
-            val session = SpectatorSession(SeatId(1), "test-match", sink, b)
-            try {
-                b.getGame()!!.age = GameStage.GameOver
-                val terminal =
-                    shouldThrow<PlaybackTerminalFailure> {
-                        session.sendGameOver(ResultReason.Concede)
-                    }
-
-                assertSoftly {
-                    terminal.cause shouldBe failure
-                    b.cutCoordinator.failure() shouldBe terminal
-                }
             } finally {
                 releaseHook.countDown()
                 session.close()

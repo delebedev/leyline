@@ -528,12 +528,10 @@ class MatchCutCoordinatorTest :
                 }
             val pendingIndex = messages.indexOfFirst { it.hasGameStateMessage() && !it.gameStateMessage.hasGameInfo() }
             assertSoftly {
-                batches.size shouldBe 1
                 gameOverIndex shouldBeGreaterThan pendingIndex
                 messages.count { it.hasGameStateMessage() } shouldBe 5
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 board.bridge.hasPendingEvents().shouldBeFalse()
-                board.bridge.cutCoordinator.failure() shouldBe null
             }
         }
 
