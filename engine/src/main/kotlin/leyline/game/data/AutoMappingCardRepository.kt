@@ -14,8 +14,12 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class AutoMappingCardRepository(
     private val useFixtures: Boolean = false,
+    private val fixtureRepo: InMemoryCardRepository? = if (useFixtures) InMemoryCardRepository() else null,
 ) : CardRepository {
-    private val fixtureRepo = if (useFixtures) InMemoryCardRepository() else null
+    init {
+        require(useFixtures || fixtureRepo == null) { "fixtureRepo requires useFixtures=true" }
+    }
+
     private val counter = AtomicInteger(500_000)
     private val nameToGrpId = ConcurrentHashMap<String, Int>()
     private val grpIdToName = ConcurrentHashMap<Int, String>()

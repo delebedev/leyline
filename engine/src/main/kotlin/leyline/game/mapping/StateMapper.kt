@@ -1429,14 +1429,14 @@ object StateMapper {
                                 it,
                                 reveal.ownerSeatId.value,
                                 reveal.sourceZone?.let { zone ->
-                                    ZoneIds.revealZone(zone, reveal.ownerSeatId)
+                                    revealZoneId(zone, reveal.ownerSeatId)
                                 },
                             ),
                         )
                     }
                 }
                 activeReveal?.allHandCardIds?.forEach { cardId ->
-                    add(Triple(cardId, activeReveal.ownerSeatId.value, ZoneIds.handOf(activeReveal.ownerSeatId)))
+                    add(Triple(cardId, activeReveal.ownerSeatId.value, ZoneIds.handOf(activeReveal.ownerSeatId.value)))
                 }
             }.distinctBy { it.first }
 

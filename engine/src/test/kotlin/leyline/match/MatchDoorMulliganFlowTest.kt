@@ -212,7 +212,11 @@ class MatchDoorMulliganFlowTest :
                 assertSoftly {
                     override.get() shouldBe null
                     overrideReads.get() shouldBe 1
-                    registry.getBridge("ai-override-first")!!.getDeckGrpIds(SeatId(2)).toSet() shouldBe setOf(forestGrpId)
+                    registry
+                        .getMatch("ai-override-first")!!
+                        .bridge
+                        .getDeckGrpIds(SeatId(2))
+                        .toSet() shouldBe setOf(forestGrpId)
                 }
             } finally {
                 first.first.close()
@@ -223,7 +227,11 @@ class MatchDoorMulliganFlowTest :
             try {
                 assertSoftly {
                     overrideReads.get() shouldBe 2
-                    registry.getBridge("ai-override-second")!!.getDeckGrpIds(SeatId(2)).toSet() shouldBe setOf(mountainGrpId)
+                    registry
+                        .getMatch("ai-override-second")!!
+                        .bridge
+                        .getDeckGrpIds(SeatId(2))
+                        .toSet() shouldBe setOf(mountainGrpId)
                 }
             } finally {
                 second.first.close()

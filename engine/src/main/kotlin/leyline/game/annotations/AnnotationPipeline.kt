@@ -842,7 +842,7 @@ object AnnotationPipeline {
                 uniqueAbilityIdAllocator = { ctx.effects.effects.nextEffectId() },
                 keywordExtraAbilityGrpIds = { instanceId, keyword ->
                     if (keyword == "Menace" && instanceId.value in suspectedIids) {
-                        listOf(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID)
+                        listOf(GrpId(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID))
                     } else {
                         emptyList()
                     }

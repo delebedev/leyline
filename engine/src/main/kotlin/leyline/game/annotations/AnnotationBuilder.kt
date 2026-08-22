@@ -876,7 +876,7 @@ object AnnotationBuilder {
         instanceId: InstanceId,
         qualificationType: QualificationType = QualificationType.Adventure,
         qualificationSubtype: Int = 0,
-        grpId: GrpId = AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID,
+        grpId: GrpId = GrpId(AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID),
         sourceParent: InstanceId = InstanceId(0),
     ): AnnotationInfo =
         AnnotationInfo
@@ -1608,7 +1608,7 @@ object AnnotationBuilder {
      *  `affectedIds` is the cumulative set of victims for the current turn. */
     fun damagedThisTurn(
         affectedIds: List<InstanceId>,
-        affectorId: InstanceId = AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR,
+        affectorId: InstanceId = InstanceId(AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR),
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1630,7 +1630,7 @@ object AnnotationBuilder {
      */
     fun temporaryPermanent(
         tokenInstanceId: InstanceId,
-        abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
+        abilityGrpId: GrpId = GrpId(AnnotationConstants.EOT_SACRIFICE_GRP_ID),
         affectorId: InstanceId = tokenInstanceId,
     ): AnnotationInfo =
         AnnotationInfo

@@ -115,7 +115,7 @@ class TargetingInteractionTest :
             val initialPromptMsgId = latestPromptMsgId()
             val before = messageSnapshot()
 
-            session.onSelectTargets(
+            send(
                 submitWithGsId(leyline.testkit.selectTargetsResp(listOf(creatureIid), targetIdx = 0)),
             )
             drainSink()
@@ -592,7 +592,7 @@ class TargetingInteractionTest :
 
             // Pick Grizzly, then tap it again with legalAction=Unselect — accumulation clears.
             selectTargetsIterative(listOf(humanBearsIid))
-            session.onSelectTargets(
+            send(
                 submitWithGsId(
                     clientMessage(ClientMessageType.SelectTargetsResp_097b) {
                         setSelectTargetsResp(
@@ -753,7 +753,7 @@ class TargetingInteractionTest :
             turns = 5,
         ) {
             // Simulate reference-client settings: auto-resolve own stack effects
-            session.autoPassState.update(
+            updateSettings(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)

@@ -1290,7 +1290,7 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.DamagedThisTurn
                 ann.affectedIdsList shouldContain 355
-                ann.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
+                ann.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR
                 ann.affectorId shouldBe 28
                 ann.detailsCount shouldBe 0
             }

@@ -10,17 +10,10 @@ read_when:
 
 ## Status
 
-Proposed. No code has moved.
-
-The mechanism is already demonstrated in-tree. `PuzzleMatchDoorFlowTest`,
-`PuzzleLandPlayGsmDumpTest`, and `MatchDoorMulliganFlowTest` drive puzzle
-matches through `MatchConnection` over an `EmbeddedChannel`. All eight tests
-pass, and the three files reference `GameBridge`, `MatchSession`, and `forge.*`
-zero times.
-
-Those tests cover connect, mulligan, pass, and land play. Targeting, combat
-declaration, and prompt responses have not been driven through the port. The
-mechanism is verified; the surface is not.
+Accepted and implemented. The `headless` module drives repository-local puzzle
+matches through `MatchConnection` without a transport channel. The existing
+harness, acceptance executor, and simclient submit gameplay responses through
+the same port.
 
 ## Context
 
@@ -57,43 +50,49 @@ message and pays nothing.
 
 ## Decision
 
-Add a `headless` module that attaches at the port `native` and `web` attach
-to: `MatchRegistry`, `MatchConnection`, and `MatchOutput`.
+Add a `headless` module that attaches to the same port as `native` and `web`:
+`MatchRegistry`, `MatchConnection`, and `MatchOutput`.
 
 `headless` differs from those two in what sits on the far side of the port.
 `native` and `web` relay an external client into it; `headless` supplies the
-client in-process, which is also why it can read engine state at all.
+client in-process and may later expose bounded engine observations as
+headless-owned values.
 
 `headless` drives matches through the GRE port: `ClientToGREMessage` in,
-`List<GREToClientMessage>` out. Promote `MatchConnection.processGREMessage` to
-the module boundary so in-process drivers skip the envelope round-trip.
-`MessageSink.send(List<GREToClientMessage>)` is already the outbound half and
-`ListMessageSink` is already its queueing implementation.
+`List<GREToClientMessage>` out. Connection setup still uses
+`MatchConnection.receive`, because the outer service messages establish match
+identity. Gameplay input uses `MatchConnection.submitGREMessage` and skips the
+envelope round-trip.
 
-Run-to-quiescence needs no new mechanism. `MatchSession` handlers return after
-the engine has produced its output, so a synchronous submit followed by a queue
-drain is sufficient. The prototype does exactly this with
-`EmbeddedChannel.writeInbound` and `generateSequence { channel.readOutbound() }`.
+The outbound half is `MatchOutput`. The in-process client supplies a queueing
+`MatchOutput` adapter and drains only its GRE events after each completed input.
+`MessageSink` and `ListMessageSink` remain engine-internal session machinery.
 
-`headless` exposes two named readers. The **client reader** returns what the
-port delivered: accumulated `GameStateMessage` projections, the message stream,
-and pending prompts. The **engine reader** returns Forge state and mutates
-fixtures. A spec's choice of reader declares whether it claims client-visible
-behaviour or engine state.
+Completion is explicit. `MatchConnection.submitGREMessage` waits for deferred
+auto-advance and playback work scheduled by the input before returning. The
+wait uses the session executor as a barrier and does not hold `sessionLock`.
+This is server publication quiescence, not client acknowledgement or a promise
+that future timers cannot produce more output.
 
-`headless` depends on `engine` with `implementation`, which removes
-`GameBridge`, `MatchSession`, `ListMessageSink`, and Forge from the compile
-classpath of every consumer. Enforcement moves from inspection to compilation.
+The public surface exposes both the emitted message batch and a **client
+reader** that accumulates projections and pending prompts from those messages.
+A bounded **engine reader** exposes headless-owned immutable values and fixture
+commands. Its public signatures do not return Forge or engine types. A spec's
+choice of reader declares whether it claims client-visible behaviour or engine
+state.
+
+`headless` depends on `engine` with `implementation`. Its callable API names
+only JDK and GRE schema types, so consumers cannot import `GameBridge`,
+`MatchSession`, `MatchOutput`, or Forge through the module.
 
 `gre-proto` already carries the generated schema, and `engine`, `native`, and
 `web` each depend on it with `implementation`. `headless` re-exports it with
 `api` so specs can name the wire types.
 
-The protocol constant tables specs import — `PromptIds`, `ZoneIds`,
-`DetailKeys`, `KeywordAbilityIds`, `AnnotationConstants` — still sit in
-`engine` and need the same extraction.
-
-Delete `HeadlessMatchBoundaryTest` once the compiler enforces the same rule.
+The protocol constant tables shared with consumers — `PromptIds`, `ZoneIds`,
+`DetailKeys`, `KeywordAbilityIds`, `AnnotationConstants` — live in `gre-proto`
+beside the generated schema. This keeps them available without an engine compile
+dependency.
 
 ## Consequences
 
@@ -102,40 +101,25 @@ message type instead of the caller naming a handler. A routing bug then fails a
 spec instead of passing silently.
 
 Client-visible assertions become reproducible by `native` and `web`, because all
-three attach to the same port and observe the same emitted messages. Assertions needing Forge state
-stay possible and stay marked as such.
+three attach to the same port and observe the same emitted messages. Assertions
+that still need Forge state remain engine tests until a value-only reader exists.
 
-14 of 113 migrated specs use a read the port does not serve today: `getCounters`
-(8 specs), `hasSVar` and `sVars`, `currentStateName`, own-library contents, and
-fixture mutation through `MatchSetup`. Those specs keep the engine reader.
-Counters travel on the wire as `CounterAdded` and `CounterRemoved` annotations
-rather than as an object field, so a client could derive them; the accumulator
-does not do so today.
+`HeadlessClient` serves zone, object, life, and pending-action reads from emitted
+messages. Counters travel as annotations rather than object fields, so
+counter assertions that need engine truth use `HeadlessEngine` values.
 
-The remaining 265 reads — 206 zone reads and 59 life reads — are served by
-`GameObjectInfo`, `ZoneInfo`, and `PlayerInfo` fields the projection already
-emits.
+Engine-tier session specs may combine emitted messages with bounded Forge-state
+probes through `MatchFlowHarness`. Gameplay responses still enter through
+`MatchConnection`; direct session calls remain only for sync-only advancement
+and focused lifecycle controls that have no client message.
 
-Per-test time does not change measurably. Three envelope-driven tests ran in
-13.8 s and two session-tier tests ran in 13.9 s, both dominated by
-card-database initialization.
+The former `MatchRegistry.getBridge`, `MatchRegistry.activeSession`, and
+`MatchHandler.session` escape handles are removed. `MatchConnection.session`
+remains internal for focused engine tests and harness-only lifecycle controls;
+it is absent from the public headless API.
 
-`MatchFlowHarness.passPriority` reads `bridge.actionBridge(seatId).getPending()`
-to choose between a sync-only advance and a Pass action. A client makes that
-choice from the `ActionsAvailableReq` it received. This read moves behind the
-engine reader or is replaced before the client reader is port-only.
-
-Three handles keep the seam clean by convention rather than construction and
-need separate closure: `MatchRegistry.getBridge()`,
-`MatchRegistry.activeSession()`, and `MatchHandler.session`.
-
-Specs pass puzzle text inline; the port takes a puzzle file path through
-`RuntimeMatchConfig`. Either the port grows an inline source or `headless`
-writes a temporary file per spec.
-
-Predicted, not measured: session-tier suite wall-clock improves, because the
-current observation walks every zone of both seats and rebuilds an accumulator
-snapshot per card on each read.
+Inline puzzle text is written to a temporary puzzle file before connection.
+The production port continues to resolve puzzles through `RuntimeMatchConfig`.
 
 ## Alternatives Considered
 

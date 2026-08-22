@@ -29,4 +29,11 @@ class MatchdoorAcceptanceExecutorPolicyTest :
                 stackResolutionNeedsAdvance(passCount = 1, stackEmpty = true, pendingKind = null) shouldBe false
             }
         }
+
+        test("stack resolution stops at a client combat decision") {
+            assertSoftly {
+                stackResolutionNeedsAdvance(0, stackEmpty = false, PendingActionKind.DECLARE_ATTACKERS) shouldBe false
+                stackResolutionNeedsAdvance(0, stackEmpty = false, PendingActionKind.DECLARE_BLOCKERS) shouldBe false
+            }
+        }
     })

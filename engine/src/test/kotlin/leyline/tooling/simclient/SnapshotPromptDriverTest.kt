@@ -116,13 +116,13 @@ class SnapshotPromptDriverTest :
 
             assertSoftly {
                 baseline.winnerSeat shouldBe 1
-                baseline.promptProgressSamples.single().targetIds shouldBe listOf(100)
+                baseline.promptProgressSamples.single { it.decisionKind == "declare-blockers" }.targetIds shouldBe listOf(100)
 
                 snapshot.winnerSeat shouldBe 1
                 snapshot.actionAttemptsByType["snapshot:block"] shouldBe 1
                 snapshot.actionAttemptsByType["snapshot:submit_blockers"] shouldBe 1
                 snapshot.actionAttemptsByType["snapshot:unblock"] shouldBe null
-                snapshot.promptProgressSamples.first().targetIds shouldBe listOf(100)
+                snapshot.promptProgressSamples.single { it.decisionKind == "snapshot:block" }.targetIds shouldBe listOf(100)
             }
         }
 

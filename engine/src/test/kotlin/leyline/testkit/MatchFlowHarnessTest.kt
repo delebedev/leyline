@@ -247,7 +247,7 @@ class MatchFlowHarnessTest :
                         .setGameStateId(h.latestPromptGsId() - delta)
                         .setRespId(h.latestPromptMsgId())
                         .build()
-                h.session.onPerformAction(stalePass)
+                h.send(stalePass)
                 h.drainSink()
 
                 // Stale action ignored — no state change, no further messages.
@@ -267,7 +267,7 @@ class MatchFlowHarnessTest :
                     .setRespId(h.latestPromptMsgId())
                     .build()
 
-            h.session.onPerformAction(freshPass)
+            h.send(freshPass)
             h.drainSink()
 
             // Either we changed phase/turn or the engine produced bundles
@@ -300,7 +300,7 @@ class MatchFlowHarnessTest :
                     .setGameStateId(oldPromptGsId)
                     .setRespId(h.latestPromptMsgId())
                     .build()
-            h.session.onPerformAction(latePass)
+            h.send(latePass)
             h.drainSink()
 
             val stillPending = actionBridge.getPending().shouldNotBeNull()

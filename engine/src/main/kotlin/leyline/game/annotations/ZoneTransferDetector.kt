@@ -1545,7 +1545,7 @@ object ZoneTransferDetector {
 
             val stillOnBattlefield = instanceId in currentInstanceIds
             val ownerSeat = sacrificeEv.seatId
-            val destZone = ZoneIds.graveyardOf(ownerSeat)
+            val destZone = ZoneIds.graveyardOf(ownerSeat.value)
             val handoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
             val origId = handoff.realloc.old.value
             val newId = handoff.realloc.new.value

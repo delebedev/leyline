@@ -54,11 +54,13 @@ test-gate: docs-lint
         :test \
         :domain:test \
         :engine:testGate \
+        :headless:testConsumer \
         :native:test \
         :web:test
     ./gradlew \
         :domain:jacocoTestReport \
         :engine:jacocoTestReport \
+        :headless:jacocoTestReport \
         :native:jacocoTestReport \
         :web:jacocoTestReport
     git diff --exit-code -- web/src/main/resources/openapi.json
@@ -139,6 +141,7 @@ coverage:
     ./gradlew :test :jacocoTestReport \
               :domain:test :domain:jacocoTestReport \
               :engine:testGate :engine:jacocoTestReport \
+              :headless:testConsumer :headless:jacocoTestReport \
               :native:test :native:jacocoTestReport \
               :web:test :web:jacocoTestReport; rc=$?
     xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')

@@ -64,7 +64,7 @@ class OmenLifecycleTest :
                     .single { it.actionType == ActionType.CastOmen && it.instanceId == handParentIid }
 
             val lifecycleStart = messageSnapshot()
-            session.onPerformAction(
+            send(
                 submitWithGsId(
                     performAction {
                         actionType = ActionType.CastOmen
@@ -191,7 +191,7 @@ class OmenLifecycleTest :
                     .single { it.actionType == ActionType.Cast && it.instanceId == handParentIid }
 
             val lifecycleStart = messageSnapshot()
-            session.onPerformAction(
+            send(
                 submitWithGsId(
                     performAction {
                         actionType = ActionType.Cast

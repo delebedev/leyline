@@ -94,7 +94,7 @@ class ImproviseLifecycleTest :
     })
 
 private fun MatchFlowHarness.respondToMakePayment(instanceId: Int) {
-    session.onPerformAction(
+    send(
         submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
@@ -106,7 +106,7 @@ private fun MatchFlowHarness.respondToMakePayment(instanceId: Int) {
 }
 
 private fun MatchFlowHarness.respondToPaymentDone() {
-    session.onPerformAction(
+    send(
         submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()

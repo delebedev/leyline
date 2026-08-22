@@ -31,9 +31,6 @@ class MatchRegistry {
     /** Look up a match by id. */
     fun getMatch(matchId: String): Match? = matches[matchId]
 
-    /** Convenience: get the bridge for a match directly. */
-    fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
-
     fun registerSession(
         matchId: String,
         seatId: SeatId,
@@ -114,12 +111,4 @@ class MatchRegistry {
             match != null || fallbackBridge != null,
         )
     }
-
-    /** Get seat 1 MatchSession for any active match (for debug injection). */
-    fun activeSession(): MatchSession? =
-        sessions.values
-            .firstOrNull()
-            ?.values
-            ?.filterIsInstance<MatchSession>()
-            ?.firstOrNull()
 }

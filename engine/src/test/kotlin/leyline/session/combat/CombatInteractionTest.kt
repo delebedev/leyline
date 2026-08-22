@@ -325,14 +325,28 @@ class CombatInteractionTest :
 
         session(
             "combat damage frame carries persistent DamagedThisTurn badge",
-            deckList = COMBAT_DECK,
-            validation = combatValidation,
-            aiScript = aiBlockerAiScript,
-        ) {
-            val attackerIid = setupWithAiBlocker()
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
 
-            passBackToHumanMain1()
-            playLand("Mountain")
+                humanbattlefield=Mountain;Raging Goblin
+                humanlibrary=Mountain;Mountain;Mountain
+                aibattlefield=Forest;Grizzly Bears
+                ailibrary=Forest;Forest;Forest
+                """,
+            validation = combatValidation,
+            aiScript =
+                listOf(
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.Block(mapOf("Grizzly Bears" to "Raging Goblin")),
+                    ScriptedAction.PassPriority,
+                ),
+        ) {
+            val attackerIid = humanBattlefieldCreatures().single().first
+
             val snap = messageSnapshot()
             passUntil { messagesSince(snap).any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
@@ -354,7 +368,7 @@ class CombatInteractionTest :
 
             val badge = damageGsm.persistentAnnotationsList.single { AnnotationType.DamagedThisTurn in it.typeList }
             assertSoftly {
-                badge.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
+                badge.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR
                 badge.affectedIdsList.last() shouldBe attackerIid
                 damageGsm.annotationsList.count { AnnotationType.DamagedThisTurn in it.typeList } shouldBe 0
             }
@@ -817,7 +831,7 @@ class CombatInteractionTest :
             passPriority()
             val before = messageSnapshot()
 
-            session.onDeclareAttackers(
+            send(
                 submitWithGsId(declareAttackersResp(attackers = listOf(attackerIid))),
             )
             drainSink()

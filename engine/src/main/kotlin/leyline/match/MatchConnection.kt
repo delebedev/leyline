@@ -51,6 +51,8 @@ class MatchConnection(
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
     private val aiDeckNameOverride: () -> String? = { null },
+    /** Run post-response advancement inline for in-process callers. */
+    private val deferGameplayAdvance: Boolean = true,
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
 
@@ -153,7 +155,7 @@ class MatchConnection(
 
     init {
         // Wire local-control bridge/session providers once per handler instance.
-        debugSink?.sessionProvider = { registry.activeSession() }
+        debugSink?.sessionProvider = { session as? MatchSession }
     }
 
     private fun resolvePuzzlePath(matchId: String): String? {
@@ -184,6 +186,24 @@ class MatchConnection(
             ClientToMatchServiceMessageType.UNRECOGNIZED,
             -> log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
         }
+    }
+
+    /**
+     * Submit one parsed gameplay message and wait for deferred session work caused
+     * by that message to publish its output. Connection setup still enters through
+     * [receive], where the outer service envelope establishes match identity.
+     */
+    fun submitGREMessage(
+        greMsg: ClientToGREMessage,
+        timeoutMs: Long = 15_000L,
+    ) {
+        processGREMessage(greMsg)
+        awaitQuiescence(timeoutMs)
+    }
+
+    /** Wait for all deferred session work scheduled before this call to finish. */
+    fun awaitQuiescence(timeoutMs: Long = 15_000L) {
+        (session as? MatchSession)?.awaitQuiescence(timeoutMs)
     }
 
     private fun handleMatchAuth(msg: ClientToMatchServiceMessage) {
@@ -291,7 +311,7 @@ class MatchConnection(
                 connection = connection,
                 gameBridge = bridge,
                 paceDelayMs = matchConfig.paceDelayMs,
-                deferNetworkAdvance = true,
+                deferNetworkAdvance = deferGameplayAdvance,
             )
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)

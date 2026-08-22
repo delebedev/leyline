@@ -64,7 +64,7 @@ class DamagedThisTurnPipelineTest :
             val dtt = result.damagedThisTurnPersistent[0]
             assertSoftly {
                 dtt.typeList shouldContain AnnotationType.DamagedThisTurn
-                dtt.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
+                dtt.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR
                 dtt.affectedIdsList shouldBe listOf(idResolver(ForgeCardId(2)).value)
             }
         }
@@ -160,7 +160,7 @@ class DamagedThisTurnPipelineTest :
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.DamagedThisTurn
                 ann.id shouldBe 10
-                ann.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
+                ann.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR
                 ann.affectedIdsList shouldBe listOf(1002)
                 result.deletedIds.shouldBeEmpty()
             }

@@ -30,7 +30,7 @@ class ClientSettingsTest :
                         ),
                     )
                 }
-            session.onSettings(msg)
+            send(msg)
         }
 
         fun stop(
@@ -151,7 +151,14 @@ class ClientSettingsTest :
             sendSettings(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
             drainSink()
 
-            val last = allRawMessages.single()
+            val last =
+                allRawMessages.single { message ->
+                    message.hasGreToClientEvent() &&
+                        message.greToClientEvent.greToClientMessagesList
+                            .singleOrNull()
+                            ?.type ==
+                        GREMessageType.SetSettingsResp_695e
+                }
             assertSoftly {
                 last.hasGreToClientEvent().shouldBeTrue()
                 last.greToClientEvent.greToClientMessagesList.map { it.type } shouldBe listOf(GREMessageType.SetSettingsResp_695e)

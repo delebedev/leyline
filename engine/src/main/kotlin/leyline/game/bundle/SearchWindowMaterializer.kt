@@ -44,7 +44,7 @@ internal class SearchWindowMaterializer(
                 sourceInstanceId = sourceId,
                 hostCardInstanceId = hostId,
                 searchingSeat = seatId.value,
-                libraryZoneId = ZoneIds.libraryOf(seatId),
+                libraryZoneId = ZoneIds.libraryOf(seatId.value),
                 allLibraryIds = libraryIds,
                 validTargetIds = validIds,
                 maxFind = window.maxFind,

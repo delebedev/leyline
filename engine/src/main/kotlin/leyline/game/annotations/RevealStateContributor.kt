@@ -3,7 +3,7 @@ package leyline.game.annotations
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.event.GameEvent
-import leyline.game.mapping.ZoneIds
+import leyline.game.mapping.revealZoneId
 import leyline.game.state.CardRevealedKind
 import leyline.game.state.InstanceRevealedToOpponentKind
 
@@ -32,7 +32,7 @@ object RevealStateContributor : AnnotationContributor {
                     sourceZoneId =
                         effectiveZone(
                             cardId,
-                            reveal.sourceZone?.let { ZoneIds.revealZone(it, reveal.ownerSeatId) },
+                            reveal.sourceZone?.let { revealZoneId(it, reveal.ownerSeatId) },
                             ctx,
                         ),
                 )

@@ -299,7 +299,7 @@ private fun MatchFlowHarness.respondToConvokeMakePayment(
     instanceId: Int,
     repeatInManaSelection: Boolean = false,
 ) {
-    session.onPerformAction(
+    send(
         submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
@@ -314,7 +314,7 @@ private fun MatchFlowHarness.respondToConvokeMakePayment(
 }
 
 private fun MatchFlowHarness.respondToConvokePaymentDone() {
-    session.onPerformAction(
+    send(
         submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()

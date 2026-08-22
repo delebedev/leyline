@@ -70,7 +70,7 @@ class ImmersturmPredatorTest :
             respondToEffectCost(listOf(selection.idsList.first()))
 
             // Drain messages produced by the sacrifice
-            session.triggerAutoPass()
+            triggerAutoPass()
             drainSink()
 
             // Bears should be sacrificed now

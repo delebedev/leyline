@@ -9,27 +9,36 @@ internal fun dispatchGameplayResponse(
     receiver: ActionReceiver,
     message: ClientToGREMessage,
 ): Boolean {
-    when (message.type) {
-        ClientMessageType.PerformActionResp_097b -> receiver.onPerformAction(message)
-        ClientMessageType.DeclareAttackersResp_097b,
-        ClientMessageType.SubmitAttackersReq,
-        -> receiver.onDeclareAttackers(message)
-        ClientMessageType.DeclareBlockersResp_097b,
-        ClientMessageType.SubmitBlockersReq,
-        -> receiver.onDeclareBlockers(message)
-        ClientMessageType.SelectTargetsResp_097b -> receiver.onSelectTargets(message)
-        ClientMessageType.SubmitTargetsReq -> receiver.onSubmitTargets(message)
-        ClientMessageType.EffectCostResp_097b -> receiver.onEffectCost(message)
-        ClientMessageType.GroupResp_097b -> receiver.onGroupResp(message)
-        ClientMessageType.CancelActionReq_097b -> receiver.onCancelAction(message)
-        ClientMessageType.SelectNresp -> receiver.onSelectN(message)
-        ClientMessageType.OrderResp_097b -> receiver.onOrderResp(message)
-        ClientMessageType.CastingTimeOptionsResp_097b -> receiver.onCastingTimeOptions(message)
-        ClientMessageType.SearchResp_097b -> receiver.onSearch(message)
-        ClientMessageType.AssignDamageResp_097b -> receiver.onAssignDamage(message)
-        ClientMessageType.OptionalActionResp -> receiver.onOptionalActionResp(message)
-        ClientMessageType.NumericInputResp_097b -> receiver.onNumericInputResp(message)
-        else -> return false
-    }
+    val handler = gameplayResponseHandler(message.type) ?: return false
+    handler(receiver, message)
     return true
 }
+
+internal fun isGameplayResponse(type: ClientMessageType): Boolean = gameplayResponseHandler(type) != null
+
+private typealias GameplayResponseHandler = (ActionReceiver, ClientToGREMessage) -> Unit
+
+@Suppress("ElseCaseInsteadOfExhaustiveWhen")
+private fun gameplayResponseHandler(type: ClientMessageType): GameplayResponseHandler? =
+    when (type) {
+        ClientMessageType.PerformActionResp_097b -> ActionReceiver::onPerformAction
+        ClientMessageType.DeclareAttackersResp_097b,
+        ClientMessageType.SubmitAttackersReq,
+        -> ActionReceiver::onDeclareAttackers
+        ClientMessageType.DeclareBlockersResp_097b,
+        ClientMessageType.SubmitBlockersReq,
+        -> ActionReceiver::onDeclareBlockers
+        ClientMessageType.SelectTargetsResp_097b -> ActionReceiver::onSelectTargets
+        ClientMessageType.SubmitTargetsReq -> ActionReceiver::onSubmitTargets
+        ClientMessageType.EffectCostResp_097b -> ActionReceiver::onEffectCost
+        ClientMessageType.GroupResp_097b -> ActionReceiver::onGroupResp
+        ClientMessageType.CancelActionReq_097b -> ActionReceiver::onCancelAction
+        ClientMessageType.SelectNresp -> ActionReceiver::onSelectN
+        ClientMessageType.OrderResp_097b -> ActionReceiver::onOrderResp
+        ClientMessageType.CastingTimeOptionsResp_097b -> ActionReceiver::onCastingTimeOptions
+        ClientMessageType.SearchResp_097b -> ActionReceiver::onSearch
+        ClientMessageType.AssignDamageResp_097b -> ActionReceiver::onAssignDamage
+        ClientMessageType.OptionalActionResp -> ActionReceiver::onOptionalActionResp
+        ClientMessageType.NumericInputResp_097b -> ActionReceiver::onNumericInputResp
+        else -> null
+    }

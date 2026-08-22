@@ -1,8 +1,10 @@
 import leyline.build.SyncProtoTask
 
 plugins {
+    alias(libs.plugins.kotlin.jvm)
     `java-library`
     alias(libs.plugins.protobuf)
+    id("leyline.kotlin-conventions")
 }
 
 repositories {
@@ -38,4 +40,5 @@ dependencies {
     // Generated public signatures expose protobuf runtime types, so protobuf-java
     // is part of this module's API surface.
     api(libs.protobuf.java)
+    implementation(libs.kotlin.stdlib)
 }

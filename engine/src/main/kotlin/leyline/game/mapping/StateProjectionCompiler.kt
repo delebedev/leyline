@@ -346,8 +346,8 @@ object StateProjectionCompiler {
         check(move.forgeCardIds == order.candidateForgeIds) {
             "Order move must describe the exact prompt candidate sequence"
         }
-        val sourceZoneId = ZoneIds.handOf(move.seatId)
-        val destinationZoneId = ZoneIds.libraryOf(move.seatId)
+        val sourceZoneId = ZoneIds.handOf(move.seatId.value)
+        val destinationZoneId = ZoneIds.libraryOf(move.seatId.value)
         val moved =
             move.forgeCardIds.map { forgeCardId ->
                 MovedCard(forgeCardId, editor.identities.realloc(forgeCardId))

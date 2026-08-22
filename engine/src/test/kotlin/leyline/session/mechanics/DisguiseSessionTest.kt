@@ -114,7 +114,7 @@ class DisguiseSessionTest :
                     .first { it.isFaceDown }
             val faceDownIid = bridge.instanceId(faceDown)
 
-            session.onPerformAction(
+            send(
                 submitWithGsId(
                     performAction {
                         actionType = ActionType.SpecialTurnFaceUp_add3

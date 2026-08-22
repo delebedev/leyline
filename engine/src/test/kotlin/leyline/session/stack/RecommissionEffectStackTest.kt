@@ -20,7 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 class RecommissionEffectStackTest :
     SessionTest({
         fun MatchFlowHarness.enableStackAutoResolve() {
-            session.autoPassState.update(
+            updateSettings(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
