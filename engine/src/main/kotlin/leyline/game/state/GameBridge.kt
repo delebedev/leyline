@@ -1844,6 +1844,14 @@ class GameBridge(
                 player.getZone(ZoneType.Battlefield).cards
             }
         val keywordAffectorByStaticId = keywordAffectorByStaticId(battlefieldCards)
+        val boostSourceByStaticId =
+            buildMap<Long, Card> {
+                for (card in battlefieldCards) {
+                    for (staticAbility in card.staticAbilities.orEmpty()) {
+                        if (staticAbility.id > 0) putIfAbsent(staticAbility.id.toLong(), card)
+                    }
+                }
+            }
 
         for (player in currentGame.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
@@ -1851,6 +1859,7 @@ class GameBridge(
                 val boostTable = card.ptBoostTable
                 if (!boostTable.isEmpty) {
                     for (cell in boostTable.cellSet()) {
+                        val sourceCard = boostSourceByStaticId[cell.columnKey]
                         boosts +=
                             EffectProjectionFacts.BoostEntry(
                                 forgeCardId = forgeCardId,
@@ -1858,7 +1867,8 @@ class GameBridge(
                                 staticId = cell.columnKey,
                                 power = cell.value.left,
                                 toughness = cell.value.right,
-                                sourceAbilityGrpId = resolveBoostSourceAbilityGrpId(card, cell.columnKey),
+                                sourceAbilityGrpId = resolveBoostSourceAbilityGrpId(card, cell.columnKey, sourceCard),
+                                sourceForgeCardId = sourceCard?.let { ForgeCardId(it.id) },
                             )
                     }
                 }
@@ -1927,8 +1937,10 @@ class GameBridge(
     private fun resolveBoostSourceAbilityGrpId(
         card: Card,
         staticId: Long,
+        sourceCard: Card? = null,
     ): Int? {
-        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val source = sourceCard ?: card
+        val grpId = cardRepository.findGrpIdByName(source.name) ?: return null
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
 
         if (staticId == 0L) {
@@ -1938,8 +1950,8 @@ class GameBridge(
         }
         if (staticId > Int.MAX_VALUE) return null
 
-        val registry = abilityRegistryFor(card, cardData) ?: return null
-        val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() } ?: return null
+        val registry = abilityRegistryFor(source, cardData) ?: return null
+        val sourceStatic = source.staticAbilities?.firstOrNull { it.id == staticId.toInt() } ?: return null
         return registry.forStaticAbility(sourceStatic.definitionId)
             ?: sourceStatic.keyword?.let { keyword ->
                 keyword.abilities.firstNotNullOfOrNull { registry.forSpellAbility(it.definitionId) }

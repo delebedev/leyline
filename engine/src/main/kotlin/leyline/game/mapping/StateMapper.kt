@@ -636,6 +636,7 @@ object StateMapper {
                         power = entry.power,
                         toughness = entry.toughness,
                         sourceAbilityGrpId = entry.sourceAbilityGrpId,
+                        sourceForgeCardId = entry.sourceForgeCardId,
                     ),
                 )
         }

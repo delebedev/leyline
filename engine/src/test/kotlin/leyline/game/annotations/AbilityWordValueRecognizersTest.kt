@@ -235,7 +235,7 @@ class AbilityWordValueRecognizersTest :
             enchantmentCount().value shouldBe 6
         }
 
-        test("unsolved Case projects its running solve count and retires once solved") {
+        test("Case projects its running solve count after it is solved") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Case of the Gateway Express", human, ZoneType.Battlefield)
@@ -266,6 +266,6 @@ class AbilityWordValueRecognizersTest :
 
             val case = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Case of the Gateway Express" }
             case.setSolved(true)
-            toSolve().shouldBeEmpty()
+            toSolve().single().value shouldBe 3
         }
     })

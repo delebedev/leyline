@@ -251,6 +251,7 @@ data class DesignationSet(
     val plotted: PlottedRole = PlottedRole.None,
     val isSaddled: Boolean = false,
     val isSuspected: Boolean = false,
+    val isSolved: Boolean = false,
     val foretold: Boolean = false,
     val isCommander: Boolean = false,
     val commanderTax: Int = 0,

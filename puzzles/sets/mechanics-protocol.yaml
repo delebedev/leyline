@@ -188,6 +188,10 @@ scenarios:
                 type: AbilityWordActive
                 details: { AbilityWordName: ToSolveCondition, value: 3, threshold: 3, AbilityGrpId: 170350 }
             - annotation_seen: ModifiedPower
+            - annotation_seen: LayeredEffect
+            - annotation_seen:
+                type: Designation
+                details: { DesignationType: 15 }
   - id: extinction-event-parity-choice
     puzzle: extinction-event-choice
     run: cast Extinction Event and choose even

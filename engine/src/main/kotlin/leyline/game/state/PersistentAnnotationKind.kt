@@ -187,7 +187,8 @@ data object AbilityWordActiveKind : PersistentAnnotationKind {
         }
     }
 
-    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean = stringDetail(ann, DetailKeys.ABILITY_WORD_NAME) in setOf("Opus", "Void")
+    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean =
+        stringDetail(ann, DetailKeys.ABILITY_WORD_NAME) in setOf("Opus", "Void", "ToSolveCondition")
 }
 
 data object QualificationKind : PersistentAnnotationKind {
@@ -353,6 +354,18 @@ data object SuspectedDesignationKind : PersistentAnnotationKind {
     override fun matches(ann: AnnotationInfo): Boolean =
         AnnotationType.Designation in ann.typeList &&
             designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object SolvedDesignationKind : PersistentAnnotationKind {
+    override val name = "SolvedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_SOLVED
 
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
@@ -673,6 +686,7 @@ object PersistentAnnotationKinds {
             CommanderDesignationKind,
             SaddledDesignationKind,
             SuspectedDesignationKind,
+            SolvedDesignationKind,
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
             ManaCreatureDesignationKind,

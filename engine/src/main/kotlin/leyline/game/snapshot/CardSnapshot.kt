@@ -135,6 +135,8 @@ data class CardSnapshot(
     val isSaddled: Boolean = false,
     /** True when this battlefield permanent is suspected. Drives DesignationType=16. */
     val isSuspected: Boolean = false,
+    /** True when a Case permanent is solved. Drives DesignationType=15. */
+    val isSolved: Boolean = false,
     /**
      * True when the card is currently in Exile with the foretold state.
      * Drives the face-down exile rendering (FaceDown +
