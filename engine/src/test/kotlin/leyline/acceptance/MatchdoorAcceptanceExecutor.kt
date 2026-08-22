@@ -1,6 +1,7 @@
 package leyline.acceptance
 
 import forge.game.card.Card
+import forge.game.Game
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import leyline.bridge.coord.GameLoopPoller
@@ -12,6 +13,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import leyline.tooling.headless.MatchSpec
+import leyline.tooling.headless.MatchIntent
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -41,7 +43,7 @@ class MatchdoorAcceptanceExecutor(
                     responseMode = leyline.tooling.headless.HeadlessResponseMode.AutoForTests,
                 ),
             )
-        val harness = match as MatchFlowHarness
+        val harness = AcceptanceHeadlessAdapter(match)
         try {
             match.start()
             val run = ScenarioRun(harness, scenario.id)
@@ -61,6 +63,78 @@ class MatchdoorAcceptanceExecutor(
         } finally {
             match.close()
         }
+    }
+}
+
+/**
+ * Private acceptance adapter. Scenario assertions consume semantic startup
+ * and immutable message state; Forge inspection stays in this one adapter for
+ * assertions that intentionally verify board projections.
+ */
+private class AcceptanceHeadlessAdapter(
+    val match: leyline.tooling.headless.HeadlessMatch,
+) {
+    private val runtime: MatchFlowHarness get() = match as MatchFlowHarness
+
+    val bridge get() = runtime.bridge
+    val session get() = runtime.session
+    val accumulator get() = runtime.accumulator
+    val allMessages get() = match.observe().messages
+
+    fun game(): Game = runtime.game()
+
+    fun isGameOver() = match.observe().gameOver
+
+    fun phase() = match.observe().phase
+
+    fun passPriority() = match.submit(MatchIntent.PassPriority)
+
+    fun playLand(name: String?) = match.submit(MatchIntent.PlayLand(name)).accepted
+
+    fun respondToSelectN(ids: List<Int>) = match.submit(MatchIntent.SelectN(ids))
+
+    fun respondToSearch(ids: List<Int>) = match.submit(MatchIntent.Search(ids))
+
+    fun respondToOrder(ids: List<Int>) = match.submit(MatchIntent.Order(ids))
+
+    fun respondToEffectCost(ids: List<Int>) = match.submit(MatchIntent.EffectCost(ids))
+
+    fun respondModalChoice(ids: List<Int>) = match.submit(MatchIntent.ModalChoice(ids))
+
+    fun respondToOptionalCost(ctoId: Int) = match.submit(MatchIntent.OptionalCost(ctoId))
+
+    fun respondToManaTypeChoices(choices: List<Pair<Int, ManaColor>>) = match.submit(MatchIntent.ManaTypeChoices(choices))
+
+    fun respondToOptionalAction(accept: Boolean) = match.submit(MatchIntent.OptionalAction(accept))
+
+    fun selectTargets(ids: List<Int>) = match.submit(MatchIntent.Targets(ids))
+
+    fun declareBlockers(assignments: Map<Int, Int>) = match.submit(MatchIntent.Blockers(assignments))
+
+    fun declareAllAttackers() = match.submit(MatchIntent.AllAttackers)
+
+    fun submitAttackers() = match.submit(MatchIntent.SubmitAttackers)
+
+    fun toggleAttackers(
+        ids: List<Int>,
+        alternatives: Map<Int, Int>,
+        recipients: Map<Int, DamageRecipient>,
+    ) = runtime.toggleAttackers(ids, alternatives, recipients)
+
+    fun submitWithGsId(msg: wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage) = runtime.submitWithGsId(msg)
+
+    fun drainSink() = match.submit(MatchIntent.Flush)
+
+    fun holdNextOptionalAction() = runtime.holdNextOptionalAction()
+
+    fun hasPendingSelectNPrompt() = allMessages.lastOrNull { it.hasSelectNReq() } != null
+
+    fun passUntil(maxPasses: Int, stopWhen: AcceptanceHeadlessAdapter.() -> Boolean): Boolean {
+        repeat(maxPasses) {
+            if (isGameOver() || stopWhen()) return true
+            passPriority()
+        }
+        return isGameOver() || stopWhen()
     }
 }
 
@@ -119,7 +193,7 @@ private data class ConditionResult(
  */
 @Suppress("LargeClass") // Grows one small adapter per backend-neutral DSL verb.
 private class ScenarioRun(
-    val harness: MatchFlowHarness,
+    val harness: AcceptanceHeadlessAdapter,
     private val scenarioId: String,
 ) {
     lateinit var context: String
