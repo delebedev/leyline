@@ -458,21 +458,24 @@ object MechanicAnnotations {
         boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)?,
     ) {
         for (effect in diff.created) {
-            val sourceAbilityGrpId = effect.sourceAbilityGrpId?.let(::GrpId)
+            val sourceAbilityGrpId = effect.sourceAbilityGrpId?.takeUnless { effect.sourceForgeCardId != null }?.let(::GrpId)
             val cardIid = InstanceId(effect.cardInstanceId)
+            val affectedIids = effect.affectedCardInstanceIds.map(::InstanceId)
             val effectId = EffectId(effect.syntheticId)
             val affectorId = boostAffectorResolver?.invoke(effect, sourceAbilityGrpId) ?: cardIid
 
             transient.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorId))
             if (effect.powerDelta != 0 || effect.toughnessDelta != 0) {
-                transient.add(
-                    AnnotationBuilder.powerToughnessModCreated(
-                        instanceId = cardIid,
-                        power = effect.powerDelta,
-                        toughness = effect.toughnessDelta,
-                        affectorId = affectorId,
-                    ),
-                )
+                for (affectedIid in affectedIids) {
+                    transient.add(
+                        AnnotationBuilder.powerToughnessModCreated(
+                            instanceId = affectedIid,
+                            power = effect.powerDelta,
+                            toughness = effect.toughnessDelta,
+                            affectorId = affectorId,
+                        ),
+                    )
+                }
             }
             persistent.add(
                 AnnotationBuilder.layeredEffect(
@@ -482,6 +485,7 @@ object MechanicAnnotations {
                     toughnessDelta = effect.toughnessDelta,
                     affectorId = affectorId,
                     sourceAbilityGrpId = sourceAbilityGrpId,
+                    affectedInstanceIds = affectedIids,
                 ),
             )
         }

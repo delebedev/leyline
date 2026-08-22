@@ -308,6 +308,7 @@ internal class MatchCutCoordinator(
                 }
             }
         pacePlayback(request.delayMs, delayMultiplier)
+        bridge.playbackDrainRequester?.invoke()
     }
 
     fun acknowledgeExternalFrame(seatId: SeatId) {

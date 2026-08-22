@@ -12,6 +12,7 @@ import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PlottedDesignationKind
 import leyline.game.state.RightUnlockedDesignationKind
 import leyline.game.state.SaddledDesignationKind
+import leyline.game.state.SolvedDesignationKind
 import leyline.game.state.SuspectedDesignationKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -43,6 +44,7 @@ enum class DesignationKind {
     FORETOLD,
     LEFT_UNLOCKED,
     RIGHT_UNLOCKED,
+    SOLVED,
 }
 
 /**
@@ -61,6 +63,7 @@ enum class TransientMode {
     GAIN_INSERT_BEFORE_RESOLVE_ZT,
     GAIN_APPEND,
     FACE_DOWN_PAIR,
+    PERSISTENT_ONLY,
 }
 
 data class CardStateDesignationSpec(
@@ -156,9 +159,18 @@ object CardStateDesignations {
                 )
             },
         )
+    val Solved =
+        CardStateDesignationSpec(
+            kind = DesignationKind.SOLVED,
+            designationType = AnnotationConstants.DESIGNATION_TYPE_SOLVED,
+            mode = TransientMode.PERSISTENT_ONLY,
+            readRole = { it.designations.isSolved },
+            persistentKind = SolvedDesignationKind,
+            persistentEmitter = { iid -> AnnotationBuilder.solvedDesignation(iid) },
+        )
 
     val all: List<CardStateDesignationSpec> =
-        listOf(Prepared, Plotted, Saddled, Suspected, Foretold, LeftUnlocked, RightUnlocked)
+        listOf(Prepared, Plotted, Saddled, Suspected, Foretold, LeftUnlocked, RightUnlocked, Solved)
 
     val simplePersistent: List<CardStateDesignationSpec> = all.filter { it.persistentKind != null }
 }
@@ -233,6 +245,7 @@ private fun emitGain(
             annotations.add(AnnotationBuilder.faceDown(iid))
             annotations.add(AnnotationBuilder.suppressedPowerAndToughness(iid))
         }
+        TransientMode.PERSISTENT_ONLY -> Unit
     }
 }
 
@@ -257,6 +270,7 @@ private fun emitLose(
         TransientMode.FACE_DOWN_PAIR -> {
             // No lose pair — face-down state comes off via the cast-acceptance ZT alone.
         }
+        TransientMode.PERSISTENT_ONLY -> Unit
     }
 }
 

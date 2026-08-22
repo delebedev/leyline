@@ -43,6 +43,7 @@ class MatchSession(
     override val gameBridge: GameBridge,
     val paceDelayMs: Long = 200L,
     override var counter: MessageCounter = gameBridge.messageCounter,
+    private val deferNetworkAdvance: Boolean = false,
 ) : GameOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -89,6 +90,7 @@ class MatchSession(
     }
 
     private val autoAdvanceRequest: (String) -> Unit = { reason -> requestAutoAdvance(reason) }
+    private val playbackDrainRequest: () -> Unit = { requestPlaybackDrain() }
 
     /**
      * Game + bridge bound at construction. MatchSession is per-game; on
@@ -158,6 +160,7 @@ class MatchSession(
 
     init {
         gameBridge.autoAdvanceRequester = autoAdvanceRequest
+        gameBridge.playbackDrainRequester = playbackDrainRequest
     }
 
     // --- Public entry points (called by MatchHandler) ---
@@ -216,7 +219,7 @@ class MatchSession(
     fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
         synchronized(sessionLock) {
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
-            val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
+            val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter, deferNetworkAdvance)
             registry.registerSession(matchId, seatId, replacement)
             // Update the per-channel handler so future inbound GRE messages dispatch
             // to the new session. Without this, MatchHandler keeps a stale reference
@@ -264,7 +267,7 @@ class MatchSession(
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            combatHandler.onDeclareAttackers(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            combatHandler.onDeclareAttackers(greMsg) { advanceAfterAttackersSubmitted() }
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
@@ -343,6 +346,16 @@ class MatchSession(
         synchronized(sessionLock) {
             if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
         }
+
+    private fun advanceAfterAttackersSubmitted() {
+        val requester = gameBridge.autoAdvanceRequester
+        if (deferNetworkAdvance && requester != null) {
+            requester("attackers submitted")
+            return
+        }
+        gameBridge.awaitPriority()
+        autoPassEngine.autoPassAndAdvance()
+    }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -678,11 +691,32 @@ class MatchSession(
         }
     }
 
+    private fun requestPlaybackDrain() {
+        if (autoAdvanceClosed.get()) return
+        try {
+            autoAdvanceExecutor.execute {
+                try {
+                    synchronized(sessionLock) {
+                        if (gameBridge.getGame() == null) return@synchronized
+                        drainCoordinatorFeed()
+                    }
+                } catch (t: Throwable) {
+                    log.warn("MatchSession: playback drain failed: {}", t.message, t)
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            // Session teardown won the race with the engine callback.
+        }
+    }
+
     fun close() {
         autoAdvanceClosed.set(true)
         autoAdvanceRequested.set(false)
         if (gameBridge.autoAdvanceRequester === autoAdvanceRequest) {
             gameBridge.autoAdvanceRequester = null
+        }
+        if (gameBridge.playbackDrainRequester === playbackDrainRequest) {
+            gameBridge.playbackDrainRequester = null
         }
         autoAdvanceExecutor.shutdownNow()
         autopush?.shutdown()

@@ -16,8 +16,7 @@ import leyline.game.state.AbilityRegistry
 object AbilityWordValueRecognizers {
     private val COMPARISON_THRESHOLD = Regex("(?:GE|GT|LE|LT|EQ|NE)(\\d+)")
 
-    /** Forge's own guard on an unsolved Case's end-step solve trigger. */
-    private const val UNSOLVED_CASE = "Card.Self+!IsSolved"
+    private const val CASE_SOLVE_ABILITY = "Card.Self+!IsSolved"
 
     private enum class TraitKind {
         STATIC,
@@ -32,11 +31,11 @@ object AbilityWordValueRecognizers {
 
     private val families =
         listOf(
-            ValueFamily("ToSolveCondition", active = { card -> !card.isSolved }) { kind, trait, _, _ ->
+            ValueFamily("ToSolveCondition") { kind, trait, _, _ ->
                 kind == TraitKind.TRIGGER &&
                     trait.getParam("Mode") == "Phase" &&
                     trait.getParam("Phase") == "End of Turn" &&
-                    trait.getParam("IsPresent") == UNSOLVED_CASE
+                    trait.getParam("IsPresent") == CASE_SOLVE_ABILITY
             },
             ValueFamily("Devotion") { kind, trait, expression, comparator ->
                 kind == TraitKind.STATIC &&
@@ -101,6 +100,7 @@ object AbilityWordValueRecognizers {
                     projection.toEntry(
                         iid = iid,
                         abilityGrpId = registry?.forStaticAbility(staticAbility.id),
+                        forgeCardId = ForgeCardId(card.id),
                     ),
                 )
             }
@@ -110,6 +110,7 @@ object AbilityWordValueRecognizers {
                     projection.toEntry(
                         iid = iid,
                         abilityGrpId = registry?.forTrigger(trigger.id),
+                        forgeCardId = ForgeCardId(card.id),
                     ),
                 )
             }
@@ -125,8 +126,10 @@ object AbilityWordValueRecognizers {
         fun toEntry(
             iid: Int,
             abilityGrpId: Int?,
+            forgeCardId: ForgeCardId,
         ) = AbilityWordScanner.AbilityWordEntry(
             instanceId = iid,
+            forgeCardId = forgeCardId,
             abilityWordName = abilityWordName,
             value = value,
             threshold = threshold,

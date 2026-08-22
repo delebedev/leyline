@@ -6,6 +6,8 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.InstanceId
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.state.EffectTracker
 import leyline.testkit.detailInt
@@ -164,5 +166,33 @@ class EffectAnnotationPipelineTest :
 
             persistent.size shouldBe 1
             persistent[0].detailsList.none { it.key == "sourceAbilityGRPID" } shouldBe true
+        }
+
+        test("source-owned boost emits one persistent row over all affected cards") {
+            val effect =
+                EffectTracker.TrackedEffect(
+                    syntheticId = 7012,
+                    fingerprint = EffectTracker.EffectFingerprint(0, 1L, 7L, ForgeCardId(900)),
+                    powerDelta = 1,
+                    toughnessDelta = 0,
+                    sourceAbilityGrpId = 170351,
+                    sourceForgeCardId = ForgeCardId(900),
+                    affectedCardInstanceIds = listOf(101, 102, 103),
+                )
+
+            val (transient, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = EffectTracker.DiffResult(listOf(effect), emptyList()),
+                    boostAffectorResolver = { tracked, _ -> tracked.sourceForgeCardId?.let { InstanceId(100) } },
+                )
+
+            val createdAnnotation = transient.single { AnnotationType.LayeredEffectCreated in it.typeList }
+            val persistentAnnotation = persistent.single()
+            assertSoftly {
+                createdAnnotation.affectorId shouldBe 100
+                persistentAnnotation.affectedIdsList shouldBe listOf(101, 102, 103)
+                persistentAnnotation.affectorId shouldBe 100
+                persistentAnnotation.detailsList.none { it.key == "sourceAbilityGRPID" } shouldBe true
+            }
         }
     })

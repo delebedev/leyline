@@ -1213,6 +1213,16 @@ class AnnotationBuilderTest :
             ann.affectedIdsList shouldBe listOf(100)
         }
 
+        test("solvedDesignation uses card-scoped DesignationType 15") {
+            val ann = AnnotationBuilder.solvedDesignation(23.iid)
+            assertSoftly {
+                ann.typeList shouldBe listOf(AnnotationType.Designation)
+                ann.affectorId shouldBe 23
+                ann.affectedIdsList shouldBe listOf(23)
+                ann.detailsList.single().getValueInt32(0) shouldBe AnnotationConstants.DESIGNATION_TYPE_SOLVED
+            }
+        }
+
         test("layeredEffect sourceAbilityGrpId included when set") {
             val ann =
                 AnnotationBuilder.layeredEffect(

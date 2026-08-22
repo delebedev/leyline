@@ -33,12 +33,14 @@ class EffectTracker {
         val power: Int,
         val toughness: Int,
         val sourceAbilityGrpId: Int? = null,
+        val sourceForgeCardId: ForgeCardId? = null,
     )
 
     data class EffectFingerprint(
         val cardInstanceId: Int,
         val timestamp: Long,
         val staticId: Long,
+        val sourceForgeCardId: ForgeCardId? = null,
     )
 
     data class TrackedEffect(
@@ -47,8 +49,10 @@ class EffectTracker {
         val powerDelta: Int,
         val toughnessDelta: Int,
         val sourceAbilityGrpId: Int? = null,
+        val sourceForgeCardId: ForgeCardId? = null,
+        val affectedCardInstanceIds: List<Int> = listOf(fingerprint.cardInstanceId),
     ) {
-        val cardInstanceId: Int get() = fingerprint.cardInstanceId
+        val cardInstanceId: Int get() = affectedCardInstanceIds.firstOrNull() ?: fingerprint.cardInstanceId
     }
 
     data class DiffResult(
@@ -135,9 +139,11 @@ class EffectTracker {
     fun diffBoosts(currentBoosts: Map<Int, List<BoostEntry>>): DiffResult {
         val diff =
             diffLifecycle(
-                currentByCard = currentBoosts,
+                currentByCard = groupedBoosts(currentBoosts),
                 active = activeEffects,
-                fingerprintOf = { cardIid, entry -> EffectFingerprint(cardIid, entry.timestamp, entry.staticId) },
+                fingerprintOf = { cardIid, entry ->
+                    EffectFingerprint(cardIid, entry.timestamp, entry.staticId, entry.sourceForgeCardId)
+                },
                 createTracked = { fp, entry ->
                     TrackedEffect(
                         nextEffectId(),
@@ -145,11 +151,38 @@ class EffectTracker {
                         entry.power,
                         entry.toughness,
                         entry.sourceAbilityGrpId,
+                        entry.sourceForgeCardId,
+                        if (fp.cardInstanceId == 0) groupedTargets(currentBoosts, entry) else listOf(fp.cardInstanceId),
                     )
                 },
             )
         return DiffResult(diff.created, diff.destroyed)
     }
+
+    private fun groupedBoosts(currentBoosts: Map<Int, List<BoostEntry>>): Map<Int, List<BoostEntry>> {
+        val grouped = linkedMapOf<Int, MutableList<BoostEntry>>()
+        for ((cardIid, entries) in currentBoosts) {
+            for (entry in entries) {
+                val key = if (entry.sourceForgeCardId == null) cardIid else 0
+                grouped.getOrPut(key) { mutableListOf() }.add(entry)
+            }
+        }
+        return grouped
+    }
+
+    private fun groupedTargets(
+        currentBoosts: Map<Int, List<BoostEntry>>,
+        entry: BoostEntry,
+    ): List<Int> =
+        currentBoosts
+            .filterValues { entries ->
+                entries.any {
+                    it.timestamp == entry.timestamp &&
+                        it.staticId == entry.staticId &&
+                        it.sourceForgeCardId == entry.sourceForgeCardId
+                }
+            }.keys
+            .toList()
 
     /**
      * Diff current keyword grants against previously tracked state.

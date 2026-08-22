@@ -105,6 +105,24 @@ class EffectTrackerTest :
             }
         }
 
+        test("boosts from one static source share one effect row") {
+            val source = ForgeCardId(900)
+            val boosts =
+                mapOf(
+                    101 to listOf(EffectTracker.BoostEntry(1L, 7L, 1, 0, sourceForgeCardId = source)),
+                    102 to listOf(EffectTracker.BoostEntry(1L, 7L, 1, 0, sourceForgeCardId = source)),
+                    103 to listOf(EffectTracker.BoostEntry(1L, 7L, 1, 0, sourceForgeCardId = source)),
+                )
+
+            val created = EffectTracker().diffBoosts(boosts).created.single()
+
+            assertSoftly {
+                created.cardInstanceId shouldBe 101
+                created.affectedCardInstanceIds shouldBe listOf(101, 102, 103)
+                created.sourceForgeCardId shouldBe source
+            }
+        }
+
         test("diffBoosts handles multiple effects on same card") {
             val tracker = EffectTracker()
             val boosts =

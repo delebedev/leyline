@@ -24,6 +24,7 @@ import leyline.game.state.LeftUnlockedDesignationKind
 import leyline.game.state.PlottedDesignationKind
 import leyline.game.state.RightUnlockedDesignationKind
 import leyline.game.state.SaddledDesignationKind
+import leyline.game.state.SolvedDesignationKind
 import leyline.game.state.SuspectedDesignationKind
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -207,6 +208,19 @@ class CardStateDesignationsTest :
             loseAnnotations.shouldBeEmpty()
         }
 
+        test("Solved is persistent-only and emits no gain or lose transient") {
+            val fid = 23
+            val prev = snap(listOf(bound(fid, DesignationSet())))
+            val cur = snap(listOf(bound(fid, DesignationSet(isSolved = true))))
+            val gain = mutableListOf<AnnotationInfo>()
+            insertStateDesignationTransients(gain, prev, cur, resolveIid)
+            gain.shouldBeEmpty()
+
+            val lose = mutableListOf<AnnotationInfo>()
+            insertStateDesignationTransients(lose, cur, prev, resolveIid)
+            lose.shouldBeEmpty()
+        }
+
         test("Table inventory pins the current rows in order") {
             CardStateDesignations.all.map { it.kind } shouldContainExactly
                 listOf(
@@ -217,6 +231,7 @@ class CardStateDesignationsTest :
                     DesignationKind.FORETOLD,
                     DesignationKind.LEFT_UNLOCKED,
                     DesignationKind.RIGHT_UNLOCKED,
+                    DesignationKind.SOLVED,
                 )
         }
 
@@ -229,6 +244,7 @@ class CardStateDesignationsTest :
                 CardStateDesignations.Foretold.designationType shouldBe null
                 CardStateDesignations.LeftUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_LEFT_UNLOCKED
                 CardStateDesignations.RightUnlocked.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_RIGHT_UNLOCKED
+                CardStateDesignations.Solved.designationType shouldBe AnnotationConstants.DESIGNATION_TYPE_SOLVED
             }
         }
 
@@ -240,6 +256,7 @@ class CardStateDesignationsTest :
                     SuspectedDesignationKind,
                     LeftUnlockedDesignationKind,
                     RightUnlockedDesignationKind,
+                    SolvedDesignationKind,
                 )
         }
     })

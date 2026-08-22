@@ -284,7 +284,10 @@ open class CombatHandler(
             ),
             confirmation,
         )
-        bridge.awaitPriority()
+        // Release the committed confirmation before auto-pass starts the next
+        // phases. The coordinator queue preserves ordering; this is its flush
+        // boundary for the client's submit acknowledgment.
+        sink.sendPriorityState(bridge)
         autoPass()
     }
 
