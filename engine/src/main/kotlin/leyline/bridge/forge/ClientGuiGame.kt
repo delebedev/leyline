@@ -31,12 +31,15 @@ import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
 import leyline.DevCheck
 import leyline.bridge.handoff.DistributionRouteKind
+import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.TargetingCandidateValue
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
 
 /**
@@ -57,7 +60,7 @@ class ClientGuiGame(
     private val playerSeatOf: (Player) -> Int? = { null },
     private val stackTargetCandidate: (Int, Any?) -> TargetingCandidateValue.StackObject? = { _, _ -> null },
     private val currentDividedAllocationAbility: () -> SpellAbility? = { null },
-    private val beforeDividedAllocation: (SpellAbility) -> List<Int> = { emptyList() },
+    private val beforeDividedAllocation: (SpellAbility) -> List<DistributionTargetRef> = { emptyList() },
 ) : IGuiGame {
     private data class StackTargetOptionSet(
         val candidates: List<TargetingCandidateValue.StackObject>,
@@ -631,13 +634,16 @@ class ClientGuiGame(
                 else -> return evenDistribution(target, amount, effectSource, amountLabel)
             }
         if (atLeastOne && target.size >= 2 && amount > target.size && effectSource.id > 0) {
-            val targetIds = target.keys.map { targetWireId(it) ?: return evenDistribution(target, amount, effectSource, amountLabel) }
-            val targetSeatIds = target.keys.mapNotNull { entity -> (entity as? Player)?.let(playerSeatOf) }.toSet()
-            if (targetIds.distinct().size != targetIds.size || ability.id <= 0) {
+            val targetRefs =
+                target.keys.map {
+                    distributionTargetRef(it)
+                        ?: return evenDistribution(target, amount, effectSource, amountLabel)
+                }
+            if (targetRefs.distinct().size != targetRefs.size || ability.id <= 0) {
                 return evenDistribution(target, amount, effectSource, amountLabel)
             }
-            val orderedTargetIds = beforeDividedAllocation(ability)
-            if (orderedTargetIds.size != targetIds.size || orderedTargetIds.toSet() != targetIds.toSet()) {
+            val orderedTargets = beforeDividedAllocation(ability)
+            if (orderedTargets.size != targetRefs.size || orderedTargets.toSet() != targetRefs.toSet()) {
                 return evenDistribution(target, amount, effectSource, amountLabel)
             }
             val window =
@@ -650,8 +656,7 @@ class ClientGuiGame(
                         } else {
                             DistributionRouteKind.Counters
                         },
-                    targetForgeIds = orderedTargetIds,
-                    targetSeatIds = targetSeatIds,
+                    targets = orderedTargets,
                     amount = amount,
                     minPerTarget = 1,
                     sourceForgeCardId = effectSource.id,
@@ -670,7 +675,7 @@ class ClientGuiGame(
                     sourceEntityId = effectSource.id,
                 )
             val result = bridge.requestDistribution(request, window)
-            return target.keys.associateWith { key -> targetWireId(key)?.let(result.amounts::get) ?: 0 }
+            return target.keys.associateWith { key -> distributionTargetRef(key)?.let(result.amounts::get) ?: 0 }
         }
         return evenDistribution(target, amount, effectSource, amountLabel)
     }
@@ -703,10 +708,10 @@ class ClientGuiGame(
         }
     }
 
-    private fun targetWireId(entity: Any): Int? =
+    private fun distributionTargetRef(entity: Any): DistributionTargetRef? =
         when (entity) {
-            is Player -> playerSeatOf(entity)
-            is GameEntityView -> entity.id
+            is Player -> playerSeatOf(entity)?.let { DistributionTargetRef.Player(SeatId(it)) }
+            is GameEntityView -> DistributionTargetRef.Card(ForgeCardId(entity.id))
             else -> null
         }
 

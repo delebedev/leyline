@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DeclarationAnswer
+import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
@@ -154,7 +155,7 @@ internal class MatchCutCoordinator(
     fun submitDistributionAnswer(
         interactionId: String,
         gameStateId: Int,
-        rows: List<Pair<Int, Int>>,
+        rows: List<Pair<DistributionTargetRef, Int>>,
     ): Boolean = distribution.submit(interactionId, gameStateId, rows)
 
     fun submitNumericAnswer(
