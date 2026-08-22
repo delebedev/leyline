@@ -347,6 +347,9 @@ class GameBridge(
 
     @Volatile
     var autoAdvanceRequester: ((String) -> Unit)? = null
+
+    @Volatile
+    var playbackDrainRequester: (() -> Unit)? = null
     private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
 
     init {
