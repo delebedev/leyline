@@ -16,6 +16,8 @@ import leyline.game.state.AbilityRegistry
 object AbilityWordValueRecognizers {
     private val COMPARISON_THRESHOLD = Regex("(?:GE|GT|LE|LT|EQ|NE)(\\d+)")
 
+    private const val CASE_SOLVE_ABILITY = "Card.Self+!IsSolved"
+
     private enum class TraitKind {
         STATIC,
         TRIGGER,
@@ -23,11 +25,18 @@ object AbilityWordValueRecognizers {
 
     private data class ValueFamily(
         val abilityWordName: String,
+        val active: (Card) -> Boolean = { true },
         val matches: (TraitKind, CardTraitBase, String, String) -> Boolean,
     )
 
     private val families =
         listOf(
+            ValueFamily("ToSolveCondition") { kind, trait, _, _ ->
+                kind == TraitKind.TRIGGER &&
+                    trait.getParam("Mode") == "Phase" &&
+                    trait.getParam("Phase") == "End of Turn" &&
+                    trait.getParam("IsPresent") == CASE_SOLVE_ABILITY
+            },
             ValueFamily("Devotion") { kind, trait, expression, comparator ->
                 kind == TraitKind.STATIC &&
                     trait.getParam("Mode") == "Continuous" &&
@@ -91,6 +100,7 @@ object AbilityWordValueRecognizers {
                     projection.toEntry(
                         iid = iid,
                         abilityGrpId = registry?.forStaticAbility(staticAbility.id),
+                        forgeCardId = ForgeCardId(card.id),
                     ),
                 )
             }
@@ -100,6 +110,7 @@ object AbilityWordValueRecognizers {
                     projection.toEntry(
                         iid = iid,
                         abilityGrpId = registry?.forTrigger(trigger.id),
+                        forgeCardId = ForgeCardId(card.id),
                     ),
                 )
             }
@@ -115,8 +126,10 @@ object AbilityWordValueRecognizers {
         fun toEntry(
             iid: Int,
             abilityGrpId: Int?,
+            forgeCardId: ForgeCardId,
         ) = AbilityWordScanner.AbilityWordEntry(
             instanceId = iid,
+            forgeCardId = forgeCardId,
             abilityWordName = abilityWordName,
             value = value,
             threshold = threshold,
@@ -139,6 +152,7 @@ object AbilityWordValueRecognizers {
         val expression = trait.getSVar(checkSVar)
         val comparator = trait.getParamOrDefault("SVarCompare", "GE1")
         val family = families.firstOrNull { it.matches(kind, trait, expression, comparator) } ?: return null
+        if (!family.active(card)) return null
         val threshold = comparisonThreshold(comparator) ?: return null
         val value = AbilityUtils.calculateAmount(card, checkSVar, trait)
         return Projection(family.abilityWordName, value, threshold)

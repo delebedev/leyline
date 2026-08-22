@@ -1,0 +1,64 @@
+package leyline.match
+
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
+import leyline.bridge.types.SeatId
+import leyline.game.PlaybackTerminalFailure
+import leyline.infra.MessageSink
+import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ResultReason
+
+class GameOverDeliveryTest :
+    BoardTest({
+        test("MatchSession game-over delivery failure terminalizes the coordinator") {
+            val bridge = startWithBoard { _, _, _ -> }.bridge
+            val registry = MatchRegistry()
+            val failure = IllegalStateException("match sink failed")
+            val session =
+                MatchSession(
+                    connection = ConnectionState(SeatId(1), MATCH_ID, failingSink(failure), registry),
+                    gameBridge = bridge,
+                    paceDelayMs = 0,
+                )
+
+            try {
+                shouldTerminalizeDelivery(failure) { session.sendGameOver(ResultReason.Concede) } shouldBe
+                    bridge.cutCoordinator.failure()
+            } finally {
+                session.close()
+            }
+        }
+
+        test("SpectatorSession game-over delivery failure terminalizes the coordinator") {
+            val bridge = startWithBoard { _, _, _ -> }.bridge
+            val failure = IllegalStateException("spectator sink failed")
+            val session = SpectatorSession(SeatId(1), MATCH_ID, failingSink(failure), bridge)
+
+            try {
+                shouldTerminalizeDelivery(failure) { session.sendGameOver(ResultReason.Concede) } shouldBe
+                    bridge.cutCoordinator.failure()
+            } finally {
+                session.close()
+            }
+        }
+    })
+
+private fun shouldTerminalizeDelivery(
+    failure: Exception,
+    sendGameOver: () -> Unit,
+): PlaybackTerminalFailure {
+    val terminal = shouldThrow<PlaybackTerminalFailure> { sendGameOver() }
+    terminal.cause shouldBe failure
+    return terminal
+}
+
+private fun failingSink(failure: Exception): MessageSink =
+    object : MessageSink {
+        override fun send(messages: List<GREToClientMessage>) = throw failure
+
+        override fun sendRaw(msg: MatchServiceToClientMessage) = error("raw delivery should not run")
+    }
+
+private const val MATCH_ID = "test-match"

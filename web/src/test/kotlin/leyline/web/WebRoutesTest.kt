@@ -978,20 +978,21 @@ private fun withWeb(
     testApplication {
         val repos = TestRepos()
         val greLaunches = mutableListOf<GreStartRequest>()
+        val courseService =
+            CourseService(
+                repos.course,
+            ) {
+                GeneratedPool(
+                    cards = listOf(100, 101),
+                    byCollation = listOf(CollationPool(0, listOf(100, 101))),
+                    collationId = 0,
+                )
+            }
         val services =
             WebServices(
                 puzzleCatalog = puzzleCatalog,
-                draftService = DraftService(repos.draft, StaticDraftDriver()),
-                courseService =
-                    CourseService(
-                        repos.course,
-                    ) {
-                        GeneratedPool(
-                            cards = listOf(100, 101),
-                            byCollation = listOf(CollationPool(0, listOf(100, 101))),
-                            collationId = 0,
-                        )
-                    },
+                draftService = DraftService(repos.draft, StaticDraftDriver(), courseService),
+                courseService = courseService,
                 deckService = DeckService(repos.deck),
                 collectionService = CollectionService { listOf(100, 101) },
                 cardRepository = repos.cards,

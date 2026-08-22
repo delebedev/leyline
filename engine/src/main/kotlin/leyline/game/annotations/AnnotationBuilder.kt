@@ -1116,6 +1116,16 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SUSPECTED))
             .build()
 
+    /** Persistent `Designation` for a solved Case (DesignationType=15). */
+    fun solvedDesignation(instanceId: InstanceId): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_SOLVED))
+            .build()
+
     /** Persistent `Designation` for the `LeftUnlocked` Room-door state (DesignationType=19).
      *  affector / affectedIds both = the Room card's battlefield instance id. */
     fun leftUnlockedDesignation(instanceId: InstanceId): AnnotationInfo =
@@ -1226,6 +1236,7 @@ object AnnotationBuilder {
         toughnessDelta: Int = 0,
         affectorId: InstanceId? = null,
         sourceAbilityGrpId: GrpId? = null,
+        affectedInstanceIds: List<InstanceId> = listOf(instanceId),
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1234,7 +1245,7 @@ object AnnotationBuilder {
                 if (toughnessDelta != 0) addType(AnnotationType.ModifiedToughness)
                 if (powerDelta != 0) addType(AnnotationType.ModifiedPower)
             }.addType(AnnotationType.LayeredEffect)
-            .addAffectedIds(instanceId.value)
+            .addAllAffectedIds(affectedInstanceIds.map { it.value })
             .setOptionalAffector(affectorId)
             .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
             .apply {

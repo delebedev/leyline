@@ -9,6 +9,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GreToClientEvent
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 import java.io.Writer
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -66,6 +69,19 @@ fun writeSimClientSidecar(
         }
         """.trimIndent()
     sidecar.writeText(json)
+}
+
+fun ingestSimClientArtifacts(
+    logFile: File,
+    gamesDir: Path = Path.of(System.getProperty("user.home"), ".scry", "games"),
+) {
+    Files.createDirectories(gamesDir)
+    val base = logFile.nameWithoutExtension
+    Files.copy(logFile.toPath(), gamesDir.resolve("$base.log"), StandardCopyOption.REPLACE_EXISTING)
+    val sidecar = File(logFile.parentFile, "$base.meta.json")
+    if (sidecar.exists()) {
+        Files.copy(sidecar.toPath(), gamesDir.resolve("$base.meta.json"), StandardCopyOption.REPLACE_EXISTING)
+    }
 }
 
 private fun quarantineJson(

@@ -101,7 +101,7 @@ class Board(
     ): Card {
         val card = createCard(name, player, zone)
         TestCardRegistry.ensureCardRegistered(card.name)
-        bridge.getOrAllocInstanceId(ForgeCardId(card.id))
+        bridge.instance(card)
         return card
     }
 
@@ -198,7 +198,7 @@ class Board(
                 for (zone in listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Library)) {
                     for (card in player.getZone(zone).cards) {
                         TestCardRegistry.ensureCardRegistered(card.name)
-                        b.getOrAllocInstanceId(ForgeCardId(card.id))
+                        b.instance(card)
                     }
                 }
             }

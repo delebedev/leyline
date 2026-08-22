@@ -49,7 +49,7 @@ class IsolatedBoardLifecycle {
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val pending = awaitFreshPending(bridge, null) ?: return null
         val action = PlayerAction.PlayLand(ForgeCardId(land.id))
-        bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, action)
+        bridge.submitTestAction(pending.actionId, action)
         awaitFreshPending(bridge, pending.actionId)
         return action
     }
@@ -59,7 +59,7 @@ class IsolatedBoardLifecycle {
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val pending = awaitFreshPending(bridge, null) ?: return null
         val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
-        bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, action)
+        bridge.submitTestAction(pending.actionId, action)
         awaitFreshPending(bridge, pending.actionId)
         return action
     }

@@ -1,5 +1,7 @@
 package leyline.domain.service
 
+import leyline.domain.Course
+import leyline.domain.CourseModule
 import leyline.domain.DraftSession
 import leyline.domain.DraftSessionId
 import leyline.domain.DraftStatus
@@ -9,7 +11,7 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /**
- * Manages BotDraft session lifecycle — start, pick, status.
+ * Manages BotDraft session and owning course lifecycle — join, start, pick, status, drop.
  *
  * Pack-and-pass logic is delegated to a [Driver] (Forge `BoosterDraft` in production)
  * to keep Forge dependencies out of domain. Each pick advances the human seat;
@@ -18,6 +20,7 @@ import java.util.UUID
 class DraftService(
     private val repo: DraftSessionRepository,
     private val driver: Driver,
+    private val courseService: CourseService,
 ) {
     private val log = LoggerFactory.getLogger(DraftService::class.java)
 
@@ -54,10 +57,23 @@ class DraftService(
         val botDecks: List<List<Int>>,
     )
 
+    /** Join or restart the course that owns this draft session. */
+    fun joinDraft(
+        playerId: PlayerId,
+        eventName: String,
+    ): Course {
+        val existingCourse = courseService.getCourse(playerId, eventName)
+        if (existingCourse == null || existingCourse.module == CourseModule.Complete) {
+            repo.findByPlayerAndEvent(playerId, eventName)?.let { repo.delete(it.id) }
+        }
+        return courseService.join(playerId, eventName)
+    }
+
     fun startDraft(
         playerId: PlayerId,
         eventName: String,
     ): DraftSession {
+        joinDraft(playerId, eventName)
         repo.findByPlayerAndEvent(playerId, eventName)?.let { return it }
 
         val sessionId = DraftSessionId(UUID.randomUUID().toString())
@@ -81,8 +97,6 @@ class DraftService(
         playerId: PlayerId,
         eventName: String,
         cardId: Int,
-        @Suppress("UnusedParameter") packNumber: Int,
-        @Suppress("UnusedParameter") pickNumber: Int,
     ): DraftSession {
         val session =
             repo.findByPlayerAndEvent(playerId, eventName)
@@ -112,6 +126,7 @@ class DraftService(
                 pod.botDecks.size,
                 pod.botDecks.map { it.size }.average(),
             )
+            courseService.completeDraft(playerId, eventName, updated.pickedCards)
         }
         return updated
     }
@@ -124,9 +139,9 @@ class DraftService(
     fun drop(
         playerId: PlayerId,
         eventName: String,
-    ) {
-        val session = repo.findByPlayerAndEvent(playerId, eventName) ?: return
-        repo.delete(session.id)
+    ): Course {
+        repo.findByPlayerAndEvent(playerId, eventName)?.let { repo.delete(it.id) }
+        return courseService.drop(playerId, eventName)
     }
 
     /**

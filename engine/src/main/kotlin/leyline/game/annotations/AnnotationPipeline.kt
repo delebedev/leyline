@@ -820,19 +820,20 @@ object AnnotationPipeline {
                 keywordAffectorFallbackForgeCardId = keywordAffectorFallbackForgeCardId,
                 keywordAffectorInstanceId = frameIds::cardIid,
                 boostAffectorResolver = { effect, sourceAbilityGrpId ->
-                    if (sourceAbilityGrpId?.value == KeywordAbilityIds.ENLIST) {
-                        events
-                            .filterIsInstance<GameEvent.SpellResolved>()
-                            .lastOrNull { resolved ->
-                                resolved.isTrigger &&
-                                    resolved.abilityGrpId == KeywordAbilityIds.ENLIST &&
-                                    frameIds.cardIid(resolved.cardId).value == effect.cardInstanceId
-                            }?.let { resolved ->
-                                InstanceId(ctx.stackAbilityIid(resolved.abilityForgeId, resolved.cardId))
-                            }
-                    } else {
-                        null
-                    }
+                    effect.sourceForgeCardId?.let(frameIds::cardIid)
+                        ?: if (sourceAbilityGrpId?.value == KeywordAbilityIds.ENLIST) {
+                            events
+                                .filterIsInstance<GameEvent.SpellResolved>()
+                                .lastOrNull { resolved ->
+                                    resolved.isTrigger &&
+                                        resolved.abilityGrpId == KeywordAbilityIds.ENLIST &&
+                                        frameIds.cardIid(resolved.cardId).value == effect.cardInstanceId
+                                }?.let { resolved ->
+                                    InstanceId(ctx.stackAbilityIid(resolved.abilityForgeId, resolved.cardId))
+                                }
+                        } else {
+                            null
+                        }
                 },
                 uniqueAbilityIdAllocator = { ctx.effects.effects.nextEffectId() },
                 keywordExtraAbilityGrpIds = { instanceId, keyword ->

@@ -16,7 +16,6 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
@@ -134,7 +133,7 @@ class PuzzleBridgeTest :
             val game = b.getGame()!!
             val human = b.getPlayer(SeatId(1))!!
             val bears = human.battlefield.card("Grizzly Bears")
-            val instanceId = b.getOrAllocInstanceId(ForgeCardId(bears.id))
+            val instanceId = b.instance(bears)
             instanceId.value shouldBeGreaterThan 0
             // Verify reverse lookup
             val forgeId = b.getForgeCardId(instanceId)
@@ -227,7 +226,7 @@ class PuzzleBridgeTest :
                 pending.state.phase shouldBe "MAIN1"
                 pending.state.turn shouldBe 1
             }
-            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+            b.submitTestAction(pending.actionId, PlayerAction.PassPriority)
             b.awaitPriority()
             b.getGame().shouldNotBeNull()
         }

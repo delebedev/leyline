@@ -7,7 +7,6 @@ import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.handoff.ResolvedPromptRoute
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
@@ -28,7 +27,10 @@ import java.nio.file.Files
 class MatchdoorAcceptanceExecutor(
     private val seed: Long = 42L,
 ) {
-    fun runScenario(scenario: AcceptanceScenario): Int {
+    fun runScenario(
+        scenario: AcceptanceScenario,
+        onComplete: (List<GREToClientMessage>) -> Unit = {},
+    ): Int {
         require(scenario.steps.isNotEmpty()) { "scenario ${scenario.id} has no executable steps" }
         val harness = MatchFlowHarness(seed = seed)
         try {
@@ -45,6 +47,7 @@ class MatchdoorAcceptanceExecutor(
                     harness.accumulator.assertConsistent("${scenario.id} step ${index + 1} ${step.label}")
                 }
             }
+            onComplete(harness.allMessages.toList())
             return scenario.steps.size
         } finally {
             harness.shutdown()
@@ -436,7 +439,7 @@ private class ScenarioRun(
                 DamageRecipient
                     .newBuilder()
                     .setType(DamageRecType.PlanesWalker)
-                    .setPlaneswalkerInstanceId(harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+                    .setPlaneswalkerInstanceId(harness.bridge.instanceId(card))
                     .build()
             }
         }
@@ -448,7 +451,7 @@ private class ScenarioRun(
                 .cards
                 .firstOrNull { it.name.equals(step.card, ignoreCase = true) || it.isFaceDown }
                 ?: error("$context could not find ${step.card} or a face-down card on battlefield")
-        val instanceId = harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val instanceId = harness.bridge.instanceId(card)
         val action =
             harness.accumulator.actions
                 ?.actionsList
@@ -888,7 +891,7 @@ private class ScenarioRun(
             cardsInZone(side, zone)
                 .firstOrNull { it.name.equals(cardName, ignoreCase = true) }
                 ?: error("could not find $cardName in ${side.yamlName} ${zone.yamlName}")
-        return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        return harness.bridge.instanceId(card)
     }
 
     private fun promptCardNames(ids: List<Int>): List<String> = ids.map { iid -> cardNameByInstanceId(iid) ?: "iid=$iid" }

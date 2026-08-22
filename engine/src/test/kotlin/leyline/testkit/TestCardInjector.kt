@@ -3,7 +3,6 @@ package leyline.testkit
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import forge.model.FModel
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -77,7 +76,7 @@ object TestCardInjector {
         val grpId = TestCardRegistry.ensureCardRegistered(cardName)
 
         // 3. Allocate instanceId in InstanceIdRegistry
-        val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val instanceId = bridge.instanceId(card)
 
         log.info(
             "Injected '{}' → {} (grpId={}, instanceId={}, forgeId={})",

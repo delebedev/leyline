@@ -10,6 +10,7 @@ import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.codes.DetailKeys
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
+import leyline.testkit.allActions
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -55,10 +56,7 @@ class ExhaustLifecycleTest :
                         AnnotationType.AbilityExhausted in it.typeList &&
                             jeongIid in it.affectedIdsList
                     }
-            val postActivationActions =
-                messagesSince(activationStart)
-                    .filter { it.hasActionsAvailableReq() }
-                    .flatMap { it.actionsAvailableReq.actionsList }
+            val postActivationActions = messagesSince(activationStart).allActions()
 
             assertSoftly {
                 abilityExhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe JEONG_EXHAUST_ABILITY_GRP_ID

@@ -3,7 +3,6 @@ package leyline.game.snapshot
 import forge.card.MagicColor
 import forge.game.card.Card
 import forge.game.player.Player
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.state.GameBridge
@@ -28,7 +27,7 @@ internal object ManaSnapshotCapture {
         for (mana in player.manaPool) {
             val color = ManaColorMapping.fromProduced(MagicColor.toShortString(mana.color)) ?: continue
             val source = mana.sourceCard ?: continue
-            val srcInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(source.id)).value
+            val srcInstanceId = bridge.instanceId(source)
             val sourceGrpId = bridge.resolveGrpId(source, srcInstanceId)
             val cardData = bridge.cardRepository.findByGrpId(sourceGrpId)
             val manaAbility = mana.manaAbility

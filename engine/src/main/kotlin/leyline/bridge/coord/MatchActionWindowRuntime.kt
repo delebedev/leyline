@@ -100,7 +100,18 @@ internal class MatchActionWindowRuntime(
     internal fun completeSynchronization(pending: GameActionBridge.PendingAction): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            pending.future.complete(GameActionBridge.ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+            pending.future.complete(GameActionBridge.ActionSubmission.RuntimeToken(GameActionBridge.ENGINE_PASS_TOKEN))
+        }
+
+    @org.jetbrains.annotations.VisibleForTesting
+    internal fun actionOffersForTest(actionId: String): List<GameActionBridge.ActionOffer> =
+        synchronized(owner.feedLock) {
+            actionWindows[actionId]
+                ?.offers
+                ?.values
+                ?.flatten()
+                ?.map { it.second }
+                .orEmpty()
         }
 
     fun legalAttackerIds(actionId: String): List<Int> = synchronized(owner.feedLock) { actionWindows[actionId]?.legalAttackerIds.orEmpty() }
@@ -505,6 +516,7 @@ internal class MatchActionWindowRuntime(
         submission: GameActionBridge.ActionSubmission.RuntimeToken,
     ): PlayerAction? =
         synchronized(owner.feedLock) {
+            if (submission.token == GameActionBridge.ENGINE_PASS_TOKEN) return PlayerAction.PassPriority
             declaredActions.remove(pending.actionId)?.let { return it }
             val selection = actionWindows[pending.actionId]?.selections?.remove(submission.token) ?: return null
             val command = selection.offer.command

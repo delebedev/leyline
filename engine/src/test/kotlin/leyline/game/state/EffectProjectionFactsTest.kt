@@ -92,6 +92,33 @@ class EffectProjectionFactsTest :
             }
         }
 
+        test("static boost facts retain the source permanent") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Case of the Gateway Express", human, ZoneType.Battlefield)
+                    repeat(3) { addCard("Savannah Lions", human, ZoneType.Battlefield) }
+                }
+            val case =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Case of the Gateway Express" }
+            val sourceStatic = case.staticAbilities.last()
+            board.human
+                .getZone(ZoneType.Battlefield)
+                .cards
+                .filter { it.name == "Savannah Lions" }
+                .forEach { it.addPTBoost(1, 0, 1L, sourceStatic.id.toLong()) }
+
+            val facts = board.bridge.materializeEffectProjectionFacts()
+
+            facts.boostEntries
+                .filter { it.sourceForgeCardId != null }
+                .map { it.sourceForgeCardId }
+                .distinct() shouldBe
+                listOf(ForgeCardId(case.id))
+        }
+
         test("staticId-zero keyword leaves attribution for immutable event fallback") {
             val board =
                 startWithBoard { _, human, _ ->

@@ -13,7 +13,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
@@ -438,8 +437,8 @@ class LandManaTest :
 
             val player = board.human
             val lands = player.getZone(ZoneType.Hand).cards.filter { it.isLand }
-            val origId1 = board.bridge.getOrAllocInstanceId(ForgeCardId(lands[0].id))
-            val origId2 = board.bridge.getOrAllocInstanceId(ForgeCardId(lands[1].id))
+            val origId1 = board.bridge.instance(lands[0])
+            val origId2 = board.bridge.instance(lands[1])
 
             board.snapshotDiff { moveToBattlefield(lands[0], board.game) }
             assertSoftly {

@@ -52,6 +52,7 @@ data class EffectProjectionFacts private constructor(
         val power: Int,
         val toughness: Int,
         val sourceAbilityGrpId: Int? = null,
+        val sourceForgeCardId: ForgeCardId? = null,
     )
 
     data class KeywordEntry(

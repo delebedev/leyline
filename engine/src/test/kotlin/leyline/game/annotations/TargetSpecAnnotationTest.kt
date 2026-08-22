@@ -106,7 +106,7 @@ class TargetSpecAnnotationTest :
                             InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
                         ),
                     index = 1,
-                    affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
+                    affectorInstanceIdAtRecord = b.instanceId(spell),
                 )
             b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
 
@@ -152,7 +152,7 @@ class TargetSpecAnnotationTest :
                             InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
                         ),
                     index = 1,
-                    affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
+                    affectorInstanceIdAtRecord = b.instanceId(spell),
                 )
             b.seat(SeatId(1)).prompt.addPendingTargetSpec(target)
 
@@ -233,7 +233,7 @@ class TargetSpecAnnotationTest :
                             InteractivePromptBridge.PendingTarget.TargetAffectee(targetForgeCardId = creature.id),
                         ),
                     index = 1,
-                    affectorInstanceIdAtRecord = b.getOrAllocInstanceId(ForgeCardId(spell.id)).value,
+                    affectorInstanceIdAtRecord = b.instanceId(spell),
                 ),
             )
 

@@ -194,6 +194,7 @@ class LeylineServer(
                         )
                     }
                 },
+                courseService,
             )
         draftService.discardIncompleteSessions()
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)

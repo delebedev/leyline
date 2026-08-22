@@ -1,8 +1,12 @@
 package leyline.bridge.coord
 
+import forge.game.event.GameEventCardTapped
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.longs.shouldBeGreaterThan
@@ -16,13 +20,17 @@ import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.GamePlayback
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.annotations.AnnotationLossReason
 import leyline.game.awaitFreshPending
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.GameStage
+import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -227,7 +235,7 @@ class MatchCutCoordinatorTest :
             check(drainFinished.await(3, TimeUnit.SECONDS))
             val pending = checkNotNull(actionBridge.getPending())
             drained.get().flatten().any { it.hasActionsAvailableReq() } shouldBe true
-            actionBridge.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority) shouldBe true
+            actionBridge.submitRuntimeToken(pending.actionId, GameActionBridge.ENGINE_PASS_TOKEN) shouldBe true
             engine.join(3_000)
             board.bridge.cutCoordinator.beforeActionPublished = null
         }
@@ -481,5 +489,93 @@ class MatchCutCoordinatorTest :
                 )
             }.shouldBeInstanceOf<PlaybackTerminalFailure>()
             board.bridge.cutCoordinator.requestedPlaybackCut(SeatId(1)) shouldBe null
+        }
+
+        test("game-over cut publishes pending events before terminal messages in one installed batch") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                }
+            GamePlayback(board.bridge, 1)
+            val collector = checkNotNull(board.bridge.eventCollector)
+            collector.closeFrame()
+            val card =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            board.game.fireEvent(GameEventCardTapped(card, true))
+            board.bridge.hasPendingEvents().shouldBeTrue()
+
+            val prior = board.bridge.projectionStateSnapshot()
+            board.bridge.cutCoordinator.publishGameOver(
+                SeatId(1),
+                GameOverIntent(
+                    winningTeam = 1,
+                    reason = ResultReason.Game_ae0a,
+                    losingPlayerSeatId = 2,
+                    lossReason = AnnotationLossReason.LifeTotal,
+                ),
+            )
+
+            val batches = board.bridge.cutCoordinator.drain(SeatId(1))
+            val messages = batches.single()
+            val gameOverIndex =
+                messages.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.hasGameInfo() &&
+                        it.gameStateMessage.gameInfo.stage == GameStage.GameOver
+                }
+            val pendingIndex = messages.indexOfFirst { it.hasGameStateMessage() && !it.gameStateMessage.hasGameInfo() }
+            assertSoftly {
+                gameOverIndex shouldBeGreaterThan pendingIndex
+                messages.count { it.hasGameStateMessage() } shouldBe 5
+                board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
+                board.bridge.hasPendingEvents().shouldBeFalse()
+            }
+        }
+
+        test("game-over materialization and install failures are terminal without an owned orphan") {
+            val materializationBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            GamePlayback(materializationBoard.bridge, 1)
+            val existing =
+                listOf(
+                    wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+                        .getDefaultInstance(),
+                )
+            materializationBoard.bridge.cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), existing)
+            val prior = materializationBoard.bridge.projectionStateSnapshot()
+            materializationBoard.bridge.cutCoordinator.gameOver.beforeMaterialization = { error("game-over materialization failed") }
+
+            val materializationFailure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    materializationBoard.bridge.cutCoordinator.publishGameOver(
+                        SeatId(1),
+                        GameOverIntent(1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
+                    )
+                }
+            assertSoftly {
+                materializationFailure.cause?.message shouldBe "game-over materialization failed"
+                materializationBoard.bridge.cutCoordinator.drain(SeatId(1)) shouldBe listOf(existing)
+                materializationBoard.bridge.projectionStateSnapshot() shouldBe prior
+            }
+
+            val installBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            GamePlayback(installBoard.bridge, 1)
+            installBoard.bridge.cutCoordinator.gameOver.beforeInstall = { error("game-over install failed") }
+            val installFailure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    installBoard.bridge.cutCoordinator.publishGameOver(
+                        SeatId(1),
+                        GameOverIntent(1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
+                    )
+                }
+            assertSoftly {
+                installFailure.cause?.message shouldBe "game-over install failed"
+                installBoard.bridge.cutCoordinator
+                    .drain(SeatId(1))
+                    .shouldBeEmpty()
+                installBoard.bridge.cutCoordinator.failure() shouldBe installFailure
+            }
         }
     })

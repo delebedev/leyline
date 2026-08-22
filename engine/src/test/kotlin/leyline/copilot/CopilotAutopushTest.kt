@@ -11,6 +11,7 @@ import io.kotest.matchers.string.shouldContain
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
+import leyline.testkit.submitTestAction
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.net.InetSocketAddress
@@ -59,7 +60,7 @@ class CopilotAutopushTest :
                 val pending = actionBridge.getPending() ?: error("expected a pending priority action")
                 onSubmit.set {
                     bridge.messageCounter.markResponseAccepted()
-                    actionBridge.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+                    bridge.submitTestAction(pending.actionId, PlayerAction.PassPriority)
                 }
 
                 val autopush =
@@ -247,7 +248,7 @@ class CopilotAutopushTest :
                 autopush.landed(baseline, pending.actionId) shouldBe false
                 autopush.landed(baseline, null) shouldBe true
 
-                seatAction.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+                bridge.submitTestAction(pending.actionId, PlayerAction.PassPriority)
                 autopush.landed(baseline, pending.actionId) shouldBe true
             } finally {
                 autopush.shutdown()

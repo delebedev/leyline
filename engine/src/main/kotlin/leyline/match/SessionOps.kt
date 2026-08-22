@@ -112,6 +112,20 @@ internal fun drainOneCoordinatorBarrier(
     return DrainOutcome(sent, SynchronizationDrain.Completed, synchronizationActionId)
 }
 
+/** Deliver already-committed coordinator batches and terminalize on sink failure. */
+internal fun deliverCommittedCoordinatorBatches(
+    sink: GreMessageSink,
+    bridge: GameBridge,
+    seatId: SeatId,
+) {
+    val batches = bridge.cutCoordinator.drain(seatId)
+    try {
+        batches.forEach(sink::sendBundledGRE)
+    } catch (ex: Exception) {
+        bridge.cutCoordinator.failDelivery(ex)
+    }
+}
+
 /**
  * Session identity and the shared protocol counter.
  *

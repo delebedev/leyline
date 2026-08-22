@@ -38,6 +38,9 @@ object AnnotationConstants {
     /** `DesignationType` enum value for the `Suspected` card-state designation. */
     const val DESIGNATION_TYPE_SUSPECTED: Int = 16
 
+    /** `DesignationType` enum value for a solved Case permanent. */
+    const val DESIGNATION_TYPE_SOLVED: Int = 15
+
     /** Ability grpId for the static "can't block" row paired with Suspected. */
     val SUSPECTED_CANT_BLOCK_GRP_ID: GrpId = GrpId(86476)
 
@@ -65,6 +68,9 @@ object AnnotationConstants {
 
     /** `REASON` value on the persistent `FaceDown` annotation for Disguise. */
     const val FACEDOWN_REASON_DISGUISE: Int = 6
+
+    /** `REASON` value on the persistent `FaceDown` annotation for Cloak. */
+    const val FACEDOWN_REASON_CLOAK: Int = 7
 
     /** `REASON` value on the persistent `FaceDown` annotation for Manifest Dread. */
     const val FACEDOWN_REASON_MANIFEST_DREAD: Int = 8

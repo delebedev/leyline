@@ -39,7 +39,7 @@ class SpectatorSessionTest :
         test("pumpOnce sends game over once") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             b.startAiVsAi(
                 seed = 42,
@@ -59,6 +59,9 @@ class SpectatorSessionTest :
                 session.pumpOnce().shouldBeTrue()
                 session.pumpOnce().shouldBeFalse()
                 sink.rawMessages shouldHaveSize 1
+                sink.messages
+                    .first { it.hasGameStateMessage() }
+                    .gameStateMessage.gameInfo.matchID shouldBe "test-match"
             }
             releaseHook.countDown()
             session.close()
@@ -67,7 +70,7 @@ class SpectatorSessionTest :
         test("pumpOnce forwards AI-vs-AI playback") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             b.startAiVsAi(
                 seed = 42,
@@ -102,7 +105,7 @@ class SpectatorSessionTest :
             val releaseStart = CountDownLatch(1)
             val reachedCompletion = CountDownLatch(1)
             val failure = IllegalStateException("completion failed")
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             b.startAiVsAi(
                 seed = 42,
@@ -144,7 +147,7 @@ class SpectatorSessionTest :
         test("projection freezes Brawl configuration after spectator game starts") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             val sink = ListMessageSink()
             val session = SpectatorSession(SeatId(1), "test-match", sink, b)
@@ -177,7 +180,7 @@ class SpectatorSessionTest :
         }
 
         test("registering replacement spectator session closes prior pump") {
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             val registry = MatchRegistry()
             val first = SpectatorSession(SeatId(1), "test-match", ListMessageSink(), b)

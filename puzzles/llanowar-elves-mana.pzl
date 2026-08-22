@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Activate Llanowar Elves for green mana and spend it to cast Grizzly Bears.
+# Forcing: One Forest plus the Elf are the only two mana sources for the two-mana spell.
+# AI behavior: The opponent has no battlefield or hand, so it makes no decisions.
+# Failure modes:
+#   WIN = the Elf produced mana and Grizzly Bears resolved.
+#   LOSE = the spell was not cast before the one-turn deadline.
+#   TIMEOUT = activation, payment, or resolution stopped advancing.
+# Card roles:
+#   Llanowar Elves — mana-ability lifecycle under test.
+#   Grizzly Bears — observable consumer of the Elf's mana.
+#   Forest — remaining mana source and human draw padding.
+#   Mountain — opponent draw padding.
+# Protocol path: mana action, ability creation, tap, mana payment, ability retirement, and creature resolution.
+
+[metadata]
+Name:Llanowar Elves Mana
+Goal:Play the Specified Permanent
+Targets:Grizzly Bears
+Turns:1
+Difficulty:Easy
+Description:Tap Llanowar Elves for the mana needed to cast Grizzly Bears.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Grizzly Bears
+humanbattlefield=Llanowar Elves;Forest
+humanlibrary=Forest
+ailibrary=Mountain

@@ -6,6 +6,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
+import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
 
 class AbilityWordValueRecognizersTest :
@@ -232,5 +233,39 @@ class AbilityWordValueRecognizersTest :
             enchantmentCount().value shouldBe 7
             board.game.action.moveToGraveyard(enchantment, null)
             enchantmentCount().value shouldBe 6
+        }
+
+        test("Case projects its running solve count after it is solved") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Case of the Gateway Express", human, ZoneType.Battlefield)
+                    repeat(3) { addCard("Savannah Lions", human, ZoneType.Battlefield) }
+                }
+            val human = board.game.humanPlayer
+
+            fun toSolve(): List<AbilityWordScanner.AbilityWordEntry> =
+                AbilityWordScanner
+                    .scan(
+                        battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
+                        instanceIdResolver = { board.bridge.getOrAllocInstanceId(it) },
+                        registryResolver = { card ->
+                            val grpId = board.bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+                            board.bridge.abilityRegistryFor(card, board.bridge.cardRepository.findByGrpId(grpId))
+                        },
+                    ).filter { it.abilityWordName == "ToSolveCondition" }
+
+            assertSoftly {
+                toSolve().single().value shouldBe 0
+                toSolve().single().threshold shouldBe 3
+                toSolve().single().abilityGrpId shouldBe 170350
+            }
+
+            val attackers = human.getZone(ZoneType.Battlefield).cards.filter { it.name == "Savannah Lions" }
+            attackers.forEach { human.addCreaturesAttackedThisTurn(it, board.game.aiPlayer) }
+            toSolve().single().value shouldBe 3
+
+            val case = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Case of the Gateway Express" }
+            case.setSolved(true)
+            toSolve().single().value shouldBe 3
         }
     })

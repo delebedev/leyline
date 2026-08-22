@@ -3,7 +3,6 @@ package leyline.tooling.headless
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
-import leyline.bridge.types.ForgeCardId
 import leyline.game.state.GameBridge
 
 /**
@@ -55,4 +54,4 @@ fun Player.card(
 fun PlayerZone.iidVia(
     bridge: GameBridge,
     cardName: String,
-): Int = bridge.getOrAllocInstanceId(ForgeCardId(cardIn(player, zone, cardName).id)).value
+): Int = bridge.instanceId(cardIn(player, zone, cardName))

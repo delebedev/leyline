@@ -42,6 +42,7 @@ class SpectatorSimClientDriver(
 
         val bridge =
             GameBridge(
+                matchId = matchId,
                 cardRepository = TestCardRegistry.repo,
                 matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
             )

@@ -5,7 +5,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
@@ -60,7 +59,7 @@ class BrawlMatchFlowTest :
             repeat(3) { addCard("Plains", activePlayer, ZoneType.Battlefield) }
             activePlayer.incCommanderCast(commander)
 
-            val commanderIid = board.bridge.getOrAllocInstanceId(ForgeCardId(commander.id)).value
+            val commanderIid = board.bridge.instanceId(commander)
             val actions =
                 ActionMapper.buildFromSnapshot(
                     activeSeat.value,

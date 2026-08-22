@@ -6,13 +6,13 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
-import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
 import leyline.testkit.IsolatedBoardLifecycle
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.submitTestAction
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /** One engine-level agreement proving deterministic replay of compiler inputs. */
@@ -80,6 +80,6 @@ private fun advanceToEndOfTurn(bridge: GameBridge) {
     repeat(60) {
         val pending = awaitFreshPending(bridge, null) ?: return
         if (game.phaseHandler.turn != startTurn) return
-        bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+        bridge.submitTestAction(pending.actionId, PlayerAction.PassPriority)
     }
 }

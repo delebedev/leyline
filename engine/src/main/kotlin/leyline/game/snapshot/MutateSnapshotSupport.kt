@@ -46,7 +46,7 @@ internal object MutateSnapshotSupport {
         return MergedState(
             targetInstanceId =
                 card.getMergedToCard()?.let {
-                    bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
+                    bridge.instanceId(it)
                 },
             componentAbilityGrpIds = componentSources.map { it.abilityGrpId },
             componentAbilityOriginalCardGrpIds = componentSources.map { it.componentGrpId },

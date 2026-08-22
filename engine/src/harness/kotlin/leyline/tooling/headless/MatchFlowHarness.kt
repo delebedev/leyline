@@ -9,7 +9,6 @@ import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.AiConfig
@@ -276,6 +275,7 @@ class MatchFlowHarness(
 
     private fun newBridge(repo: CardRepository): GameBridge =
         GameBridge(
+            matchId = matchId,
             bridgeTimeoutMs = effectiveMatchConfig.server.bridgeTimeoutMs,
             promptFailsafeMs = effectiveMatchConfig.server.promptFailsafeMs,
             matchConfig = effectiveMatchConfig,
@@ -365,7 +365,7 @@ class MatchFlowHarness(
         val msg =
             performAction {
                 actionType = ActionType.Play_add3
-                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
+                instanceId = bridge.instanceId(land)
                 grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
             }
 
@@ -386,7 +386,7 @@ class MatchFlowHarness(
         val msg =
             performAction {
                 actionType = ActionType.Cast
-                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(creature.id)).value
+                instanceId = bridge.instanceId(creature)
                 grpId = bridge.cardRepository.findGrpIdByName(creature.name) ?: 0
             }
 
@@ -411,7 +411,7 @@ class MatchFlowHarness(
         val priorProjection = bridge.projectionStateSnapshot()
         val (identityAndOffer, nextProjection) =
             bridge.editProjection(priorProjection) {
-                val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                val iid = bridge.instanceId(card)
                 val grpId = bridge.resolveGrpId(card, iid)
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
                 val abilityGrpId =
@@ -882,7 +882,7 @@ class MatchFlowHarness(
         val msg =
             performAction {
                 actionType = ActionType.Cast
-                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                instanceId = bridge.instanceId(card)
                 grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
                 if (alternativeGrpId != 0) this.alternativeGrpId = alternativeGrpId
             }
@@ -1025,7 +1025,7 @@ class MatchFlowHarness(
         card: forge.game.card.Card,
         abilityIndex: Int,
     ): Boolean {
-        val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val iid = bridge.instanceId(card)
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val cardData = bridge.cardRepository.findByGrpId(grpId)
         val ability = bridge.getPlayer(seatId)?.let { getNonManaActivatedAbilities(card, it).getOrNull(abilityIndex) }
@@ -1231,7 +1231,7 @@ class MatchFlowHarness(
      * is informational only — the bridge keys by Forge card id — but keeping
      * the call shape uniform makes probe sites read the same way.
      */
-    fun PlayerZone.iid(card: Card): Int = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+    fun PlayerZone.iid(card: Card): Int = bridge.instanceId(card)
 
     /** Resolve several cards by name — `human.battlefield.iids("A", "B", "C")`. */
     fun PlayerZone.iids(vararg cardNames: String): List<Int> = cardNames.map { iid(it) }

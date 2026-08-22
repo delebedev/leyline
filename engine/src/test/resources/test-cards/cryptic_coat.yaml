@@ -1,0 +1,16 @@
+name: "Cryptic Coat"
+grpId: 88969
+titleId: 748440
+abilities:
+  - id: 170408
+    textId: 967894
+    category: 2
+    subCategory: 10
+  - id: 170409
+    textId: 748443
+    category: 3
+  - id: 88515
+    textId: 967896
+    category: 1
+    mana: "o1oU"
+expansionCode: "MKM"

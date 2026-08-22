@@ -21,7 +21,6 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
-import leyline.game.event.SnapDeltaSynthesizer
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.FrameIdResolver
@@ -100,6 +99,7 @@ class BundleBuilder(
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
     private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
     private val gatherCounters = GatherCountersWindowMaterializer(seatId)
+    private val stateFrameInputCapture = StateFrameInputCapture(bridge, matchId, seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
     private val stateProjectionEnvironment get() = bridge.stateProjectionEnvironment
@@ -124,11 +124,7 @@ class BundleBuilder(
         val actionOffers: List<ActionOffer>,
     )
 
-    private data class FrameInput(
-        val state: StateFrameInput,
-        val priorProjection: ProjectionState,
-        val closesPlaybackFrame: Boolean = false,
-    )
+    private typealias FrameInput = StateFrameInputCapture.Materialized
 
     /** One immutable frame inside an ordinary-playback cut. Logical ids are reserved exactly once. */
     internal data class PlaybackFrameCut(
@@ -165,39 +161,23 @@ class BundleBuilder(
     ): FullStateResult =
         synchronized(bridge.projectionBuildLock) {
             val prior = bridge.projectionStateSnapshot()
-            val (snapshot, frameState) =
-                bridge.editProjection(prior) {
-                    GsmSnapshot.capture(game, bridge, matchId, gameStateId)
-                }
+            val input =
+                stateFrameInputCapture.capture(
+                    game = game,
+                    gameStateId = gameStateId,
+                    revealForSeat = null,
+                    events = StateFrameInputCapture.Events.Supplied(FrameEventLog.EMPTY),
+                    priorProjectionOverride = prior,
+                    includePreviousSnapshot = false,
+                ) { _, _ -> GameStateUpdate.SendAndRecord }
+            val snapshot = input.state.snapshot
             val result =
-                bridge.materializePromptProjectionFacts().let { promptFacts ->
-                    StateProjectionCompiler.compileOneViewer(
-                        environment = stateProjectionEnvironment,
-                        input =
-                            StateFrameInput(
-                                gameStateId = gameStateId,
-                                snapshot = snapshot,
-                                previousSnapshot = null,
-                                events = FrameEventLog.EMPTY,
-                                promptFacts = promptFacts,
-                                persistentFeedFacts =
-                                    PersistentFeedFactsCapture.capture(
-                                        snapshot,
-                                        promptFacts,
-                                        bridge,
-                                        stateProjectionEnvironment,
-                                    ),
-                                effectFacts = bridge.materializeEffectProjectionFacts(),
-                                mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, emptyList()),
-                                abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge),
-                                updateType = GameStateUpdate.SendAndRecord,
-                                viewingSeatId = seatId,
-                                revealForSeat = null,
-                            ),
-                        prior = frameState.copy(revision = prior.revision),
-                        intent = ViewerProjectionIntent.EMPTY,
-                    )
-                }
+                StateProjectionCompiler.compileOneViewer(
+                    environment = stateProjectionEnvironment,
+                    input = input.state,
+                    prior = input.priorProjection,
+                    intent = ViewerProjectionIntent.EMPTY,
+                )
             val transition = result.transition
             val tentative = transition.nextState.copy(revision = transition.expectedRevision)
             val (actions, next) =
@@ -235,43 +215,18 @@ class BundleBuilder(
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
     ): FrameInput {
         val nextGs = counter.nextGsId()
-        val priorProjection = priorProjectionOverride ?: bridge.projectionStateSnapshot()
-        val (snap, capturedProjection) =
-            bridge.editProjection(priorProjection) {
-                GsmSnapshot.capture(game, bridge, matchId, nextGs)
-            }
-        val frameEvents = eventsOverride ?: bridge.closeBundleFrame(seatId)
-        val previousSnap = previousSnapshotOverride ?: priorProjection.viewerCursors[0]?.previousSnapshot
-        val events =
-            FrameEventLog(
-                events = frameEvents.events + previousSnap?.let { SnapDeltaSynthesizer.synthesize(it, snap) }.orEmpty(),
-                zoneMoves = frameEvents.zoneMoves,
-            )
-        bridge.invalidateAbilityRegistries(events.events)
-        val effectFacts = effectFactsOverride ?: bridge.materializeEffectProjectionFacts()
-        val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events)
-        val abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge)
-        val promptFacts = promptFactsOverride ?: bridge.materializePromptProjectionFacts()
-        val persistentFeedFacts =
-            PersistentFeedFactsCapture.capture(snap, promptFacts, bridge, stateProjectionEnvironment)
-        return FrameInput(
-            state =
-                StateFrameInput(
-                    gameStateId = nextGs,
-                    snapshot = snap,
-                    previousSnapshot = previousSnap,
-                    events = events,
-                    promptFacts = promptFacts,
-                    updateType = updateType(snap, events),
-                    viewingSeatId = seatId,
-                    revealForSeat = revealForSeat,
-                    effectFacts = effectFacts,
-                    mechanicSourceFacts = mechanicSourceFacts,
-                    abilityExhaustionFacts = abilityExhaustionFacts,
-                    persistentFeedFacts = persistentFeedFacts,
-                ),
-            priorProjection = capturedProjection.copy(revision = priorProjection.revision),
-            closesPlaybackFrame = eventsOverride == null,
+        return stateFrameInputCapture.capture(
+            game = game,
+            gameStateId = nextGs,
+            revealForSeat = revealForSeat,
+            events =
+                eventsOverride?.let(StateFrameInputCapture.Events::Supplied)
+                    ?: StateFrameInputCapture.Events.CloseBundleFrame,
+            priorProjectionOverride = priorProjectionOverride,
+            previousSnapshotOverride = previousSnapshotOverride,
+            promptFactsOverride = promptFactsOverride,
+            effectFactsOverride = effectFactsOverride,
+            updateType = updateType,
         )
     }
 
@@ -593,11 +548,11 @@ class BundleBuilder(
                 val frames =
                     frameSpecs.mapIndexed { index, spec ->
                         val input =
-                            frameInput(
-                                game,
-                                counter,
+                            stateFrameInputCapture.capture(
+                                game = game,
+                                gameStateId = counter.nextGsId(),
                                 revealForSeat = null,
-                                eventsOverride = spec.events,
+                                events = StateFrameInputCapture.Events.Supplied(spec.events),
                                 priorProjectionOverride = captureProjection,
                                 previousSnapshotOverride = previousSnapshot,
                                 promptFactsOverride = if (index == 0) shellPromptFacts else PromptProjectionFacts(),
@@ -652,7 +607,7 @@ class BundleBuilder(
         val batches =
             cut.frames.map { frame ->
                 val state = frame.state.copy(previousSnapshot = framePrior.viewerCursors[0]?.previousSnapshot)
-                val result = compileFrame(FrameInput(state, framePrior), intent = frame.intent)
+                val result = compileFrame(FrameInput(state, framePrior, closesPlaybackFrame = false), intent = frame.intent)
                 bridge.diffListener?.invoke(state, framePrior, frame.intent, result.gsm)
                 val gsmBuilder = result.gsm.toBuilder()
                 for (action in cut.actions.actionsList) {
@@ -1845,9 +1800,32 @@ class BundleBuilder(
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
     ): BundleResult =
-        projectAndCommit {
-            buildGameOverBundle(winningTeam, counter, reason, losingPlayerSeatId, lossReason)
-        }
+        prepareGameOverBundle(
+            winningTeam = winningTeam,
+            counter = counter,
+            reason = reason,
+            losingPlayerSeatId = losingPlayerSeatId,
+            lossReason = lossReason,
+        ).bundle
+
+    /** Prepare the terminal lifecycle bundle without installing projection state. */
+    internal fun prepareGameOverBundle(
+        winningTeam: Int,
+        counter: MessageCounter,
+        reason: ResultReason = ResultReason.Game_ae0a,
+        losingPlayerSeatId: Int = 0,
+        lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
+        priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
+    ): ActionWindowPrepared {
+        val (bundle, next) =
+            bridge.editProjection(priorProjection) {
+                buildGameOverBundle(winningTeam, counter, reason, losingPlayerSeatId, lossReason)
+            }
+        return ActionWindowPrepared(
+            bundle = bundle,
+            transition = ProjectionTransition(priorProjection.revision, next),
+        )
+    }
 
     @Suppress("LongMethod") // fixed three-message game-over protocol sequence
     private fun buildGameOverBundle(

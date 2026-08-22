@@ -11,7 +11,6 @@ import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.GameBridge
@@ -281,7 +280,7 @@ private fun castOffers(
     cardName: String,
     actionType: ActionType = ActionType.Cast,
 ): Pair<List<Action>, List<Action>> {
-    val instanceId = b.getOrAllocInstanceId(ForgeCardId(game.humanPlayerCard(cardName).id)).value
+    val instanceId = b.instanceId(game.humanPlayerCard(cardName))
     val req = ActionMapper.buildFromSnapshot(SessionTest.HUMAN_SEAT, SnapshotCapture.run(game, b, "test", 0), b)
     return req.actionsList.filter { it.actionType == actionType && it.instanceId == instanceId } to
         req.inactiveActionsList.filter { it.actionType == actionType && it.instanceId == instanceId }

@@ -1,5 +1,6 @@
 package leyline.testkit
 
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -36,6 +37,10 @@ fun List<GREToClientMessage>.deletedPersistentAnnotationIds(): Set<Int> =
         .toSet()
 
 fun List<GREToClientMessage>.allGameObjects(): List<GameObjectInfo> = gameStateMessages().flatMap { it.gameObjectsList }
+
+fun List<GREToClientMessage>.allActions(): List<Action> =
+    mapNotNull { if (it.hasActionsAvailableReq()) it.actionsAvailableReq else null }
+        .flatMap { it.actionsList }
 
 fun List<GREToClientMessage>.annotationsOfType(type: AnnotationType): List<AnnotationInfo> = allAnnotations().filter { type in it.typeList }
 

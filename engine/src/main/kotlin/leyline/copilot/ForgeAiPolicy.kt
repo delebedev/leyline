@@ -29,7 +29,6 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.OneShotPayCostsWindowKind
 import leyline.bridge.handoff.PayCostsRouteKind
-import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
@@ -218,11 +217,8 @@ class ForgeAiPolicy(
         for (sa in abilities) {
             val hostCard = sa.hostCard ?: continue
             val grpId = bridge.cardRepository.findGrpIdByName(hostCard.name) ?: continue
-            // Prefer the action whose instanceId matches Forge's card id so we cast
-            // THIS specific copy. getOrAlloc is idempotent (returns the existing
-            // mapping if one exists) — no harmful side effect.
-            val mappedInstanceId =
-                bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
+            // Match the action to this exact Forge card instance.
+            val mappedInstanceId = bridge.instanceId(hostCard)
             val match =
                 if (sa.isSpell) {
                     choosePromptCastOfferForAbility(
@@ -281,7 +277,7 @@ class ForgeAiPolicy(
         val card = cardForInstance(action.instanceId) ?: return null
         if (!card.isPermanent || card.isInstant) return null
         val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: return null
-        val mappedInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val mappedInstanceId = bridge.instanceId(card)
         val hasSorcerySpeedAbility =
             getAllCastableAbilities(card, seatPlayer).any { sa ->
                 sa.activatingPlayer = seatPlayer
@@ -352,7 +348,7 @@ class ForgeAiPolicy(
         val probeCombat = Combat(seatPlayer)
         askAi("declareAttackers") { aiController.declareAttackers(seatPlayer, probeCombat) } ?: return null
         return probeCombat.getAttackers().map { attacker ->
-            bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+            bridge.instanceId(attacker)
         }
     }
 
@@ -375,8 +371,8 @@ class ForgeAiPolicy(
             val blockers = probeCombat.getBlockers(attacker)
             if (blockers.isNullOrEmpty()) continue
             for (blocker in blockers) {
-                val blockerId = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
-                val attackerId = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+                val blockerId = bridge.instanceId(blocker)
+                val attackerId = bridge.instanceId(attacker)
                 pairs += blockerId to attackerId
             }
         }
@@ -855,7 +851,7 @@ class ForgeAiPolicy(
         return bridge.findCard(forgeId)
     }
 
-    private fun instanceIdForCard(card: Card): Int = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+    private fun instanceIdForCard(card: Card): Int = bridge.instanceId(card)
 
     private fun targetInstanceId(target: GameObject): Int? =
         when (target) {

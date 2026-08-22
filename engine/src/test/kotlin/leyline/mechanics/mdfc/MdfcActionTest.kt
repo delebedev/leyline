@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -118,6 +117,6 @@ class MdfcActionTest :
             }
 
             // Keep bridge allocated for both hand cards; catches accidental iid assumptions in setup.
-            b.getOrAllocInstanceId(ForgeCardId(esika.id)).value shouldNotBe b.getOrAllocInstanceId(ForgeCardId(silundi.id)).value
+            b.instanceId(esika) shouldNotBe b.instanceId(silundi)
         }
     })

@@ -106,9 +106,15 @@ class FrontDoorHandlerTest :
                 CourseService(InMemoryCourseRepository()) { _ ->
                     GeneratedPool(emptyList(), emptyList(), 0)
                 },
-            draftService: DraftService =
-                DraftService(InMemoryDraftSessionRepository(), stubDraftDriver(emptyList())),
+            draftService: DraftService? = null,
         ): EmbeddedChannel {
+            val resolvedDraftService =
+                draftService
+                    ?: DraftService(
+                        InMemoryDraftSessionRepository(),
+                        stubDraftDriver(emptyList()),
+                        courseService,
+                    )
             val ch =
                 EmbeddedChannel(
                     FrontDoorHandler(
@@ -118,7 +124,7 @@ class FrontDoorHandlerTest :
                         matchmaking = matchmaking,
                         collectionService = CollectionService { emptyList() },
                         courseService = courseService,
-                        draftService = draftService,
+                        draftService = resolvedDraftService,
                         writer = writer,
                         bootstrapData = bootstrapData,
                     ),
@@ -195,6 +201,7 @@ class FrontDoorHandlerTest :
                     stubDraftDriver(
                         (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } },
                     ),
+                    courseService,
                 )
             return fdChannel(courseService = courseService, draftService = draftService)
         }

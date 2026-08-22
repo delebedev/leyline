@@ -156,6 +156,7 @@ registerEngineTest("testAcceptance") {
     systemProperty("kotest.tags", "AcceptanceTag")
     (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
     (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
+    (project.findProperty("acceptanceScry") as String?)?.let { systemProperty("acceptance.scry", it) }
     maxParallelForks = 1
     inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
 }
