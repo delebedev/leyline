@@ -47,8 +47,7 @@ __pycache__
 .claude/
 
 # Generated proto (from submodule + rename-map.sed)
-matchdoor/src/main/proto/messages.proto
-/proto-gen/
+proto/src/main/proto/messages.proto
 
 # Forge submodule build artifacts handled by its own .gitignore
 # Local-only dev notes

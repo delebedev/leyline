@@ -2,7 +2,7 @@
 # Upstream riQQ/MtgaProto has C#-scoped enums; proto3 requires global uniqueness.
 # Suffix = first 4 hex chars of the parent enum/message name's hash (arbitrary but stable).
 #
-# Run: sed -f proto/rename-map.sed proto/upstream/messages.proto > src/main/proto/messages.proto
+# Run: sed -f proto/rename-map.sed proto/upstream/messages.proto > proto/src/main/proto/messages.proto
 
 # --- AnnotationType (collides with other enums) ---
 s/\tCounter = 14;/\tCounter_803b = 14;/

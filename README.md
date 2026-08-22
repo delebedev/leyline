@@ -27,6 +27,7 @@ state into client-facing updates.
 app/         Composition root, local control, and management
 domain/      Shared domain model, services, and repository ports
 engine/      Forge adapter, match runtime, and state projection
+proto/       Generated GRE schema (submodule + rename map → protoc)
 native/      Native account, lobby, and match transports
 web/         Browser HTTP and WebSocket head
 forge/       Forge submodule

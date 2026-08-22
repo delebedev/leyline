@@ -96,7 +96,7 @@ For player-visible gameplay work, completion requires focused production tests, 
 
 ## Proto
 
-Don't edit `messages.proto` directly — edit `proto/rename-map.sed` and run `just sync-proto`.
+The `:gre-proto` module (mapped to `proto/`) owns the generated GRE schema: it synchronizes `proto/src/main/proto/messages.proto` from the `proto/upstream` submodule through `proto/rename-map.sed`, then runs protoc before compilation. Don't edit `messages.proto` directly — edit `proto/rename-map.sed` and run `just sync-proto`.
 
 ## Public Repo — Content Rules
 
