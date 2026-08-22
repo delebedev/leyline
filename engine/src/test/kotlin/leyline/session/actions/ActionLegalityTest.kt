@@ -98,6 +98,7 @@ class ActionLegalityTest :
                 """,
             aiScript = listOf(ScriptedAction.CastSpell("Grizzly Bears"), ScriptedAction.PassPriority),
         ) {
+            passPriority()
             val castOffered =
                 allMessages.any {
                     it.hasActionsAvailableReq() &&
@@ -123,6 +124,7 @@ class ActionLegalityTest :
                 """,
             aiScript = listOf(ScriptedAction.CastSpell("Divination"), ScriptedAction.PassPriority),
         ) {
+            passPriority()
             val aar = allMessages.last { it.hasActionsAvailableReq() }
             val castActions = aar.actionsAvailableReq.actionsList.filter { it.actionType == ActionType.Cast }
             castActions.size shouldBe 1
@@ -145,6 +147,7 @@ class ActionLegalityTest :
                 """,
             aiScript = listOf(ScriptedAction.CastSpell("Divination"), ScriptedAction.PassPriority),
         ) {
+            passPriority()
             val castOffered =
                 allMessages.any {
                     it.hasActionsAvailableReq() &&

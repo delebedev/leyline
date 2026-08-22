@@ -22,7 +22,10 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Game orchestration session — thin dispatcher for post-mulligan game logic.
@@ -78,6 +81,7 @@ class MatchSession(
     private val autoAdvanceRequested = AtomicBoolean(false)
     private val autoAdvanceRunning = AtomicBoolean(false)
     private val autoAdvanceClosed = AtomicBoolean(false)
+    private val pendingDeferredWork = AtomicInteger(0)
 
     @Volatile
     private var lastPrompt: GREToClientMessage? = null
@@ -668,8 +672,8 @@ class MatchSession(
         autoAdvanceRequested.set(true)
         if (!autoAdvanceRunning.compareAndSet(false, true)) return
 
-        try {
-            autoAdvanceExecutor.execute {
+        val accepted =
+            executeDeferred {
                 try {
                     do {
                         autoAdvanceRequested.set(false)
@@ -686,26 +690,56 @@ class MatchSession(
                     if (autoAdvanceRequested.get()) requestAutoAdvance("reschedule")
                 }
             }
-        } catch (_: RejectedExecutionException) {
-            autoAdvanceRunning.set(false)
-        }
+        if (!accepted) autoAdvanceRunning.set(false)
     }
 
     private fun requestPlaybackDrain() {
         if (autoAdvanceClosed.get()) return
-        try {
+        executeDeferred {
+            try {
+                synchronized(sessionLock) {
+                    if (gameBridge.getGame() == null) return@synchronized
+                    drainCoordinatorFeed()
+                }
+            } catch (t: Throwable) {
+                log.warn("MatchSession: playback drain failed: {}", t.message, t)
+            }
+        }
+    }
+
+    private fun executeDeferred(block: () -> Unit): Boolean {
+        pendingDeferredWork.incrementAndGet()
+        return try {
             autoAdvanceExecutor.execute {
                 try {
-                    synchronized(sessionLock) {
-                        if (gameBridge.getGame() == null) return@synchronized
-                        drainCoordinatorFeed()
-                    }
-                } catch (t: Throwable) {
-                    log.warn("MatchSession: playback drain failed: {}", t.message, t)
+                    block()
+                } finally {
+                    pendingDeferredWork.decrementAndGet()
                 }
             }
+            true
         } catch (_: RejectedExecutionException) {
-            // Session teardown won the race with the engine callback.
+            pendingDeferredWork.decrementAndGet()
+            false
+        }
+    }
+
+    /** Wait until deferred auto-advance and playback work caused by prior input has completed. */
+    internal fun awaitQuiescence(timeoutMs: Long) {
+        require(timeoutMs > 0) { "timeoutMs must be positive" }
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+
+        while (true) {
+            val remainingNanos = deadline - System.nanoTime()
+            if (remainingNanos <= 0) throw TimeoutException("Match session did not become quiescent within ${timeoutMs}ms")
+
+            try {
+                autoAdvanceExecutor.submit {}.get(remainingNanos, TimeUnit.NANOSECONDS)
+            } catch (_: RejectedExecutionException) {
+                return
+            }
+
+            if (pendingDeferredWork.get() == 0 && !autoAdvanceRequested.get() && !autoAdvanceRunning.get()) return
         }
     }
 

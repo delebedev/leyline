@@ -279,7 +279,7 @@ object StateMapper {
             gameObjects = gameObjects,
         )
 
-        // RevealedCard proxy synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
+        // RevealedCard view synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
         applyRevealProxies(activeReveal, snap, editor, environment, zones, gameObjects, eventsMutable)
 
         log.debug(
@@ -1483,7 +1483,7 @@ object StateMapper {
             }
         } else if (!editor.revealProxies.isEmpty()) {
             // Reveal ended — emit cleanup annotations and clear tracking.
-            // Diff naturally detects missing proxy objects via snapshot-compare.
+            // Diff naturally detects missing view objects via snapshot-compare.
             val deletedProxies = editor.revealProxies.drain()
             events.add(GameEvent.RevealProxiesDeleted(deletedProxies))
         }

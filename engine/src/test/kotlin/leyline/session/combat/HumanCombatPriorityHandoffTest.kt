@@ -1,7 +1,10 @@
 package leyline.session.combat
 
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
 import kotlin.time.Duration.Companion.seconds
 
@@ -59,9 +62,13 @@ class HumanCombatPriorityHandoffTest :
             puzzle = HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE,
             timeout = 3.seconds,
         ) {
-            // Puzzle starts at MAIN1 on human's turn; advance to combat so
-            // the harness sees a live DeclareAttackersReq.
-            if (phase() == "MAIN1") passPriority()
+            passUntil(maxPasses = 5) {
+                bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    ?.state
+                    ?.kind == PendingActionKind.DECLARE_ATTACKERS
+            }.shouldBeTrue()
 
             val attackerIid =
                 humanBattlefieldCreatures()

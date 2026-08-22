@@ -47,7 +47,7 @@ class PrioritySynchronizationFlowTest :
         }
 
         session("explicit auto-resolve advances through a second SyncOnly stop without an action request", puzzle = puzzle, turns = 3) {
-            session.autoPassState.update(
+            updateSettings(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)

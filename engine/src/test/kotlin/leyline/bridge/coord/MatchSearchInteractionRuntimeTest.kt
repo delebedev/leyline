@@ -218,8 +218,13 @@ class MatchSearchInteractionRuntimeTest :
                 check(allowRelease.await(3, TimeUnit.SECONDS))
             }
             val accepted = AtomicReference<Boolean>()
+            val submitFinished = CountDownLatch(1)
             Thread {
-                accepted.set(coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)))
+                try {
+                    accepted.set(coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)))
+                } finally {
+                    submitFinished.countDown()
+                }
             }.start()
 
             resetObserved.await(3, TimeUnit.SECONDS) shouldBe true
@@ -228,8 +233,11 @@ class MatchSearchInteractionRuntimeTest :
                 engineFinished.count shouldBe 1
             }
             allowRelease.countDown()
-            engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
-            accepted.get() shouldBe true
+            assertSoftly {
+                engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                submitFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                accepted.get() shouldBe true
+            }
             coordinator.search.afterBaselineResetBeforeRelease = null
         }
 

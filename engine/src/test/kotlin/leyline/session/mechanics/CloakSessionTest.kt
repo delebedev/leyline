@@ -74,7 +74,7 @@ class CloakSessionTest :
                 turnUp should haveManaCost(generic = 2, green = 1)
             }
 
-            session.onPerformAction(submitWithGsId(performAction(turnUp)))
+            send(submitWithGsId(performAction(turnUp)))
             drainSink()
 
             assertSoftly {

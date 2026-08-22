@@ -283,7 +283,7 @@ private fun assertWaterbendPaymentActions(
 private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
 
 private fun MatchFlowHarness.respondToWaterbendMakePayment(instanceId: Int) {
-    session.onPerformAction(
+    send(
         submitWithGsId(
             performAction {
                 actionType = ActionType.MakePayment
@@ -295,7 +295,7 @@ private fun MatchFlowHarness.respondToWaterbendMakePayment(instanceId: Int) {
 }
 
 private fun MatchFlowHarness.respondToWaterbendPaymentDone() {
-    session.onPerformAction(
+    send(
         submitWithGsId(
             performAction { actionType = ActionType.Pass }
                 .toBuilder()

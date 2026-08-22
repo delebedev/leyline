@@ -15,12 +15,10 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
-import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import java.nio.file.Files
 
@@ -69,6 +67,7 @@ internal fun stackResolutionNeedsAdvance(
     pendingKind: PendingActionKind?,
 ): Boolean =
     when {
+        pendingKind == PendingActionKind.DECLARE_ATTACKERS || pendingKind == PendingActionKind.DECLARE_BLOCKERS -> false
         !stackEmpty -> true
         pendingKind == PendingActionKind.PRIORITY -> false
         passCount == 0 -> true
@@ -115,6 +114,7 @@ private class ScenarioRun(
 ) {
     lateinit var context: String
         private set
+    private var observationStart = 0
 
     @Suppress("CyclomaticComplexMethod")
     fun executeStep(
@@ -123,8 +123,14 @@ private class ScenarioRun(
     ) {
         context = "$scenarioId step ${index + 1} (${step.label})"
         when (step) {
-            is WaitStep -> assertConditions(step.conditions)
-            is ExpectStep -> assertConditions(step.conditions)
+            is WaitStep -> {
+                assertConditions(step.conditions)
+                observationStart = harness.allMessages.size
+            }
+            is ExpectStep -> {
+                assertConditions(step.conditions)
+                observationStart = harness.allMessages.size
+            }
             is PassUntilStep -> passUntil(step)
             is ActivateStep -> activate(step)
             is ChooseStep -> choose(step)
@@ -471,6 +477,7 @@ private class ScenarioRun(
 
     private fun resolveStack() {
         repeat(12) { index ->
+            if (harness.isGameOver()) return
             val pendingKind =
                 harness.bridge
                     .actionBridge(OUR_SEAT)
@@ -478,8 +485,7 @@ private class ScenarioRun(
                     ?.state
                     ?.kind
             if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pendingKind)) return
-            if (harness.isGameOver()) return
-            harness.passPriority()
+            harness.advance()
             if (harness.isGameOver()) return
             if (harness.bridge.cutCoordinator
                     .currentBlockingInteraction()
@@ -507,6 +513,10 @@ private class ScenarioRun(
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
                 "latest prompt=${latestPromptNameWithId() ?: "none"}; " +
+                "turn=${harness.turn()} phase=${harness.phase()} pending=${harness.bridge.actionBridge(
+                    OUR_SEAT,
+                ).getPending()?.state?.kind}; " +
+                "life=${harness.human.life}/${harness.ai.life}; " +
                 "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
                 "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}"
         }
@@ -590,13 +600,13 @@ private class ScenarioRun(
             }
 
             is BattlefieldStatsAtLeastCondition ->
-                battlefieldStatsResult(condition.side, condition.card) { card ->
-                    card.netPower >= condition.power && card.netToughness >= condition.toughness
+                battlefieldStatsResult(condition.side, condition.card) { power, toughness ->
+                    power >= condition.power && toughness >= condition.toughness
                 }
 
             is BattlefieldStatsCondition ->
-                battlefieldStatsResult(condition.side, condition.card) { card ->
-                    card.netPower == condition.power && card.netToughness == condition.toughness
+                battlefieldStatsResult(condition.side, condition.card) { power, toughness ->
+                    power == condition.power && toughness == condition.toughness
                 }
 
             is PhaseCondition ->
@@ -624,7 +634,7 @@ private class ScenarioRun(
     private fun battlefieldStatsResult(
         side: AcceptanceSide,
         cardName: String,
-        matches: (Card) -> Boolean,
+        matches: (Int, Int) -> Boolean,
     ): ConditionResult {
         val card =
             player(side)
@@ -634,7 +644,22 @@ private class ScenarioRun(
         return if (card == null) {
             ConditionResult(false, "battlefield=${zoneCardNames(side, AcceptanceZone.Battlefield)}")
         } else {
-            ConditionResult(matches(card), "stats=${card.netPower}/${card.netToughness}")
+            val instanceId = harness.bridge.instanceId(card)
+            val observed =
+                harness.allMessages
+                    .drop(observationStart)
+                    .asSequence()
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList.asSequence() }
+                    .filter { it.instanceId == instanceId && it.hasPower() && it.hasToughness() }
+                    .map { it.power.value to it.toughness.value }
+                    .toList()
+            val observedMatch =
+                observed.any { (power, toughness) -> matches(power, toughness) }
+            ConditionResult(
+                matches(card.netPower, card.netToughness) || observedMatch,
+                "current=${card.netPower}/${card.netToughness} observed=$observed",
+            )
         }
     }
 
@@ -842,16 +867,7 @@ private class ScenarioRun(
     }
 
     private fun submitAction(action: Action) {
-        harness.session.onPerformAction(
-            harness.submitWithGsId(
-                wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-                    .newBuilder()
-                    .setType(ClientMessageType.PerformActionResp_097b)
-                    .setPerformActionResp(PerformActionResp.newBuilder().addActions(action))
-                    .build(),
-            ),
-        )
-        harness.drainSink()
+        harness.submitAction(action)
     }
 
     private fun resolveTargetInstanceId(target: AcceptanceTargetSpec): Int =

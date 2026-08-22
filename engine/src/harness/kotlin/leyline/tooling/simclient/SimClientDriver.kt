@@ -278,10 +278,7 @@ class SimClientDriver(
         logFailureAtError: Boolean,
     ) {
         try {
-            harness.session.onConcede()
-            // Concede emits via sink directly; drain pulls those bytes into
-            // allMessages so the log writer sees them.
-            harness.drainSink()
+            harness.concede()
             flushNewMessagesToLog()
         } catch (t: Throwable) {
             val msg = "SimClientDriver: $reason concede failed: ${t::class.simpleName}: ${t.message}"

@@ -1406,7 +1406,7 @@ object ZoneTransferDetector {
      * and [TransferCategory.Return] transfers with two fresh allocations so
      * the client sees the expected ObjectIdChanged + ZoneTransfer pairs.
      *
-     * Expected wire shape:
+     * Expected shape:
      * `ObjectIdChanged(A→B)` + `ZT(B, BF→Exile, "Exile")` +
      * `ObjectIdChanged(B→C)` + `ZT(C, Exile→BF, "Return")`.
      */

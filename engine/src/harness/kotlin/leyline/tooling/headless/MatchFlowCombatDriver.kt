@@ -4,7 +4,6 @@ import forge.game.zone.ZoneType
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.state.GameBridge
-import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -12,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 internal class MatchFlowCombatDriver(
     private val seatId: SeatId,
     private val bridge: () -> GameBridge,
-    private val session: () -> MatchSession,
+    private val submit: (ClientToGREMessage) -> Unit,
     private val messageSnapshot: () -> Int,
     private val messagesSince: (Int) -> List<GREToClientMessage>,
     private val submitWithGsId: (ClientToGREMessage) -> ClientToGREMessage,
@@ -37,7 +36,7 @@ internal class MatchFlowCombatDriver(
         attackerInstanceIds: List<Int>,
         damageRecipients: Map<Int, DamageRecipient>,
     ) {
-        session().onDeclareAttackers(
+        submit(
             submitWithGsId(
                 declareAttackersResp(
                     attackers = attackerInstanceIds,
@@ -47,7 +46,7 @@ internal class MatchFlowCombatDriver(
         )
         drainSink()
 
-        session().onDeclareAttackers(submitWithGsId(submitAttackersReq(seatId.value)))
+        submit(submitWithGsId(submitAttackersReq(seatId.value)))
         drainSink()
     }
 
@@ -62,7 +61,7 @@ internal class MatchFlowCombatDriver(
     ): List<GREToClientMessage> {
         val recipients = damageRecipients.ifEmpty { defaultDamageRecipients(attackerInstanceIds) }
         val snap = messageSnapshot()
-        session().onDeclareAttackers(
+        submit(
             submitWithGsId(
                 declareAttackersResp(
                     attackers = attackerInstanceIds,
@@ -77,7 +76,7 @@ internal class MatchFlowCombatDriver(
 
     fun deselectAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session().onDeclareAttackers(
+        submit(
             submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)),
         )
         drainSink()
@@ -85,40 +84,40 @@ internal class MatchFlowCombatDriver(
     }
 
     fun submitAttackers() {
-        session().onDeclareAttackers(submitWithGsId(submitAttackersReq(seatId.value)))
+        submit(submitWithGsId(submitAttackersReq(seatId.value)))
         drainSink()
     }
 
     fun declareAllAttackers() {
-        session().onDeclareAttackers(
+        submit(
             submitWithGsId(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2)),
         )
         drainSink()
     }
 
     fun declareBlockers(assignments: Map<Int, Int>) {
-        session().onDeclareBlockers(submitWithGsId(declareBlockersResp(assignments)))
+        submit(submitWithGsId(declareBlockersResp(assignments)))
         drainSink()
 
-        session().onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
+        submit(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }
 
     fun declareNoBlockers() {
-        session().onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
+        submit(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }
 
     fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session().onDeclareBlockers(submitWithGsId(declareBlockersResp(assignments)))
+        submit(submitWithGsId(declareBlockersResp(assignments)))
         drainSink()
         return messagesSince(snap)
     }
 
     fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        session().onDeclareBlockers(
+        submit(
             submitWithGsId(declareBlockersRespDeselect(blockerInstanceId)),
         )
         drainSink()
@@ -126,12 +125,12 @@ internal class MatchFlowCombatDriver(
     }
 
     fun submitBlockers() {
-        session().onDeclareBlockers(submitWithGsId(submitBlockersReq(seatId.value)))
+        submit(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }
 
     fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
-        session().onAssignDamage(submitWithGsId(assignDamageResp(assigners)))
+        submit(submitWithGsId(assignDamageResp(assigners)))
         drainSink()
     }
 

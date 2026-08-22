@@ -72,6 +72,11 @@ object FixtureCardLoader {
         }
 
         return repo.findGrpIdByName(cardName)
+            ?: TestCardFixtures
+                .findFixture(cardName)
+                ?.identity
+                ?.name
+                ?.let(repo::findGrpIdByName)
             ?: error("Closure for '$cardName' resolved but did not register the named card itself")
     }
 

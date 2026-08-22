@@ -71,10 +71,4 @@ class MatchHandler(
     ) {
         connection.failed(cause)
     }
-
-    var session: SessionOps?
-        get() = connection.session
-        set(value) {
-            connection.session = value
-        }
 }

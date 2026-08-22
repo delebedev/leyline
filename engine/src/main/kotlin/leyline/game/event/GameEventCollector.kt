@@ -1291,7 +1291,7 @@ class GameEventCollector(
      *  redirect Hand→GY discards to Hand→Exile but client still tags them as Discard.
      *  Reads directly from the live Forge [Card] via [CardView.id] so we don't
      *  depend on card-DB keyword tables (the Arena DB does not expose a
-     *  keyword-name map, and corpus-sourced BaseIds for Madness/Mayhem are not
+     *  keyword-name map, and BaseIds for Madness/Mayhem are not
      *  yet populated — see TODO in KEYWORD_BASE_IDS). */
     private fun hasDiscardReplacementKeyword(cardView: CardView): Boolean {
         val forgeCard = bridge.findCard(ForgeCardId(cardView.id)) ?: return false

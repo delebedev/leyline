@@ -12,7 +12,6 @@ import leyline.testkit.after
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.haveManaCost
 import leyline.testkit.ofType
-import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -54,17 +53,6 @@ class EatenAliveInteractionTest :
                 .actionsAvailableReq
                 .ofType(ActionType.Cast)
                 .filter { it.instanceId == iid }
-        }
-
-        fun MatchFlowHarness.submitAction(action: Action) {
-            session.onPerformAction(
-                submitWithGsId(
-                    performAction {
-                        mergeFrom(action)
-                    },
-                ),
-            )
-            drainSink()
         }
 
         session("Eaten Alive exposes a single cast action with base mana cost", puzzle = eatenAliveState) {

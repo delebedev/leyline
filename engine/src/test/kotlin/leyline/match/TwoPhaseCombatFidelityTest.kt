@@ -99,7 +99,7 @@ class TwoPhaseCombatFidelityTest :
                 val hex = service.propose(prompt).responses.single()
                 val msg = decodeSingle(hex)
                 msg.respId shouldBe prompt.msgId
-                session.onDeclareAttackers(msg)
+                send(msg)
                 if (msg.type == ClientMessageType.SubmitAttackersReq) break
             }
 
@@ -136,7 +136,7 @@ class TwoPhaseCombatFidelityTest :
                     .setGameStateId(latestPromptGsId())
                     .build()
             val before = allMessages.size
-            session.onDeclareAttackers(staleSubmit)
+            send(staleSubmit)
             drainSink()
 
             val illegal = allMessages.drop(before).filter { it.type == GREMessageType.IllegalRequest }

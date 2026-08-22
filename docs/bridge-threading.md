@@ -18,7 +18,7 @@ session and delivery ownership. System shape lives in
 | Domain | Runs | Coordination |
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
-| Interactive entrants | Native/web input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Interactive entrants | Native/web/in-process input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
 | Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
@@ -50,6 +50,17 @@ pending window must not block behind a publication in progress.
 
 A queue type is not a transaction. The close/build/install/enqueue operation
 must remain protected as one publication boundary.
+
+### In-process completion
+
+`MatchConnection.submitGREMessage` waits for deferred session work scheduled by
+that input before returning. It submits a barrier to the session's single-thread
+executor and repeats when completed work scheduled another task. The barrier is
+never awaited while holding `sessionLock`.
+
+This boundary means output caused by the submitted input is available to an
+in-process caller. It does not mean a client acknowledged delivery, and it does
+not include work started later by a timer or another entrant.
 
 ### Current exceptions
 
