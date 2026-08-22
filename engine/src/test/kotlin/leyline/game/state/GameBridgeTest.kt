@@ -32,6 +32,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailString
+import leyline.testkit.submitTestAction
 import leyline.tooling.headless.ClientAccumulator
 import wotc.mtgo.gre.external.messaging.Messages
 import java.util.Random
@@ -70,7 +71,7 @@ class GameBridgeTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+                b.submitTestAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 lastId = pending.actionId
                 awaitFreshPending(b, lastId)
             }
@@ -79,7 +80,7 @@ class GameBridgeTest :
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
             if (creature != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
+                b.submitTestAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
                 awaitFreshPending(b, pending.actionId)
             }
         }
@@ -95,7 +96,7 @@ class GameBridgeTest :
             while (passes < maxPasses) {
                 val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: break
                 if (pending.state.phase == target) return
-                b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+                b.submitTestAction(pending.actionId, PlayerAction.PassPriority)
                 lastId = pending.actionId
                 passes++
                 if (game.isGameOver) break
@@ -231,7 +232,7 @@ class GameBridgeTest :
                 awaitFreshPending(b, null)
                     ?: error("No pending action available")
 
-            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.submitTestAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
             val handAfter = player.getZone(ZoneType.Hand).size()
@@ -308,7 +309,7 @@ class GameBridgeTest :
             val player = b.getPlayer(SeatId(1))!!
             val landInHand = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val pending = awaitFreshPending(b, null)!!
-            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.submitTestAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
             accumulator.processAll(b.cutCoordinator.drain(SeatId(1)).flatten())
 
@@ -488,7 +489,7 @@ class GameBridgeTest :
                 awaitFreshPending(b, null)
                     ?: error("No pending action available")
             b.cutCoordinator.drain(SeatId(1))
-            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+            b.submitTestAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
             awaitFreshPending(b, pending.actionId)
 
             val zoneTransfers =

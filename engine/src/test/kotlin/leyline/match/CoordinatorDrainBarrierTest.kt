@@ -12,6 +12,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
+import leyline.testkit.TestActionWindowRuntime
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -92,7 +93,7 @@ class CoordinatorDrainBarrierTest :
         test("delivery failure aborts before synchronization completion") {
             val deliveryFailure = IllegalStateException("delivery failed")
             val terminalFailure = IllegalStateException("terminal", deliveryFailure)
-            val bridge = GameActionBridge(timeoutMs = null)
+            val bridge = GameActionBridge(timeoutMs = null, windowRuntime = TestActionWindowRuntime())
             val engine =
                 Thread {
                     runCatching {
@@ -145,7 +146,7 @@ class CoordinatorDrainBarrierTest :
         }
 
         test("engine arms the frozen continuation only after S1 returns successfully") {
-            val bridge = GameActionBridge(timeoutMs = null)
+            val bridge = GameActionBridge(timeoutMs = null, windowRuntime = TestActionWindowRuntime())
             val result = AtomicReference<PlayerAction?>()
             val returned = java.util.concurrent.CountDownLatch(1)
             val allowArm = java.util.concurrent.CountDownLatch(1)

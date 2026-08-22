@@ -105,10 +105,10 @@ class RuntimeBoundaryTest :
                         .shouldBeEmpty()
                 }
                 withClue("PendingAction must read its prompt correlation from the window runtime") {
-                    pendingAction shouldContain "windowRuntime?.promptGameStateId("
+                    pendingAction shouldContain "windowRuntime.promptGameStateId("
                 }
                 withClue("window visibility must come from the window runtime") {
-                    bridge shouldContain "windowRuntime?.isVisible("
+                    bridge shouldContain "p.windowRuntime.isVisible("
                 }
             }
         }

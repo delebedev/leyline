@@ -235,7 +235,7 @@ class MatchCutCoordinatorTest :
             check(drainFinished.await(3, TimeUnit.SECONDS))
             val pending = checkNotNull(actionBridge.getPending())
             drained.get().flatten().any { it.hasActionsAvailableReq() } shouldBe true
-            actionBridge.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority) shouldBe true
+            actionBridge.submitRuntimeToken(pending.actionId, GameActionBridge.ENGINE_PASS_TOKEN) shouldBe true
             engine.join(3_000)
             board.bridge.cutCoordinator.beforeActionPublished = null
         }

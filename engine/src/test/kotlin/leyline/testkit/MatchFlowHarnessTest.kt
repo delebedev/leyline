@@ -289,7 +289,7 @@ class MatchFlowHarnessTest :
             val oldPending = actionBridge.getPending().shouldNotBeNull()
             oldPending.promptGameStateId shouldBe oldPromptGsId
 
-            actionBridge.submitTestRuntimeAction(oldPending.actionId, PlayerAction.PassPriority)
+            h.bridge.submitTestAction(oldPending.actionId, PlayerAction.PassPriority)
             val nextPending = awaitFreshPending(h.bridge, oldPending.actionId, timeoutMs = 5_000).shouldNotBeNull()
             val nextPromptGsId = nextPending.promptGameStateId.shouldNotBeNull()
             nextPromptGsId shouldBeGreaterThan oldPromptGsId

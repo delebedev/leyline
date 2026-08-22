@@ -6,10 +6,58 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.PlayerAction
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.InvariantChecker
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
+
+/** Submit a test action through the production action-window claim path. */
+fun GameBridge.submitTestAction(
+    actionId: String,
+    action: PlayerAction,
+): Boolean {
+    val actionBridge = actionBridge(seating.humanSeat)
+    val pending = actionBridge.getPending()?.takeIf { it.actionId == actionId } ?: return false
+    if (pending.state.kind == PendingActionKind.SYNC_ONLY && action == PlayerAction.PassPriority) {
+        return actionBridge.completeSyncPass(actionId)
+    }
+    val offer =
+        cutCoordinator.actions
+            .actionOffersForTest(actionId)
+            .singleOrNull { sameTestCommand(it, action) }
+            ?: return false
+    val claim = cutCoordinator.claimPriorityResponse(actionId, pending.promptGameStateId ?: 0, offer.action, defer = false) ?: return false
+    return cutCoordinator.completeActionClaim(claim.actionClaim)
+}
+
+@Suppress("CyclomaticComplexMethod")
+private fun sameTestCommand(
+    offer: leyline.bridge.handoff.GameActionBridge.ActionOffer,
+    requested: PlayerAction,
+): Boolean {
+    val offered = offer.command
+    return when {
+        offered is PlayerAction.CastSpell && requested is PlayerAction.CastSpell ->
+            offered.cardId == requested.cardId &&
+                (requested.abilityId == null || offered.abilityId == requested.abilityId) &&
+                offered.targets == requested.targets
+        offered is PlayerAction.ActivateAbility && requested is PlayerAction.ActivateAbility ->
+            offered.cardId == requested.cardId && offered.abilityId == requested.abilityId && offered.targets == requested.targets
+        offered is PlayerAction.ActivateMana && requested is PlayerAction.ActivateMana ->
+            offered.cardId == requested.cardId &&
+                (requested.abilityId == null || offered.abilityId == requested.abilityId) &&
+                offered.selectedColor == requested.selectedColor
+        offered is PlayerAction.PlayLand && requested is PlayerAction.PlayLand -> offered.cardId == requested.cardId
+        offered is PlayerAction.DeclareAttackers && requested is PlayerAction.DeclareAttackers -> offered == requested
+        offered is PlayerAction.DeclareBlockers && requested is PlayerAction.DeclareBlockers -> offered == requested
+        offered is PlayerAction.PassPriority && requested is PlayerAction.PassPriority -> offer.action.actionType == ActionType.Pass
+        offered is PlayerAction.EndTurn && requested is PlayerAction.EndTurn -> true
+        else -> false
+    }
+}
 
 // ----- Zone shorthand properties (package-level, complementing MatchFlowHarness) -----
 

@@ -30,6 +30,7 @@ import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
 import leyline.testkit.settingsMessage
+import leyline.testkit.submitTestAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
@@ -64,7 +65,7 @@ private fun closePriorityWindow(
     bridge: GameBridge,
     pending: GameActionBridge.PendingAction,
 ) {
-    bridge.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+    bridge.submitTestAction(pending.actionId, PlayerAction.PassPriority)
 }
 
 /**

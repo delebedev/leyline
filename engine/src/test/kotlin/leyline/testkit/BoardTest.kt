@@ -220,7 +220,7 @@ abstract class BoardTest(
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.PlayLand(ForgeCardId(land.id))
-        b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, action)
+        b.submitTestAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
@@ -230,14 +230,14 @@ abstract class BoardTest(
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
-        b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, action)
+        b.submitTestAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
 
     fun passPriority(b: GameBridge) {
         val pending = awaitFreshPending(b, null) ?: return
-        b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority)
+        b.submitTestAction(pending.actionId, PlayerAction.PassPriority)
         awaitFreshPending(b, pending.actionId)
     }
 

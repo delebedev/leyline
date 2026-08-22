@@ -20,6 +20,7 @@ import leyline.game.generator.PuzzleSource
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.submitTestAction
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import java.util.concurrent.TimeUnit
 import leyline.testkit.StateMapperShell as StateMapper
@@ -134,7 +135,7 @@ class EffectLifecycleTest :
 
             // Cast Giant Growth targeting Swiftspear
             val pending = awaitFreshPending(b, null).shouldNotBeNull()
-            b.actionBridge(SeatId(1)).submitTestRuntimeAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
+            b.submitTestAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
 
             // Engine prompts for target selection (mandatory=false for voluntary casts)
             val targetingDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
@@ -191,7 +192,7 @@ class EffectLifecycleTest :
                 if (game.stack.size() > 0) stackWasNonEmpty = true
                 // Stop once stack empties after having items (spell resolved)
                 if (stackWasNonEmpty && game.stack.size() == 0) break
-                b.actionBridge(SeatId(1)).submitTestRuntimeAction(next.actionId, PlayerAction.PassPriority)
+                b.submitTestAction(next.actionId, PlayerAction.PassPriority)
                 lastId = next.actionId
                 passes++
             }
